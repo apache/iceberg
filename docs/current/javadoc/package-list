@@ -1,0 +1,13 @@
+com.netflix.iceberg
+com.netflix.iceberg.avro
+com.netflix.iceberg.common
+com.netflix.iceberg.exceptions
+com.netflix.iceberg.expressions
+com.netflix.iceberg.hadoop
+com.netflix.iceberg.io
+com.netflix.iceberg.parquet
+com.netflix.iceberg.spark
+com.netflix.iceberg.spark.source
+com.netflix.iceberg.transforms
+com.netflix.iceberg.types
+com.netflix.iceberg.util

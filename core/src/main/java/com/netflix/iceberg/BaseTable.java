@@ -1,0 +1,112 @@
+/*
+ * Copyright 2017 Netflix, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.netflix.iceberg;
+
+import com.google.common.base.Objects;
+
+/**
+ * Base {@link Table} implementation.
+ * <p>
+ * This can be extended by providing a {@link TableOperations} to the constructor.
+ */
+public class BaseTable implements Table {
+  private final TableOperations ops;
+  private final String name;
+
+  public BaseTable(TableOperations ops, String name) {
+    this.ops = ops;
+    this.name = name;
+  }
+
+  @Override
+  public void refresh() {
+    ops.refresh();
+  }
+
+  @Override
+  public TableScan newScan() {
+    return new BaseTableScan(ops, this);
+  }
+
+  @Override
+  public Schema schema() {
+    return ops.current().schema();
+  }
+
+  @Override
+  public PartitionSpec spec() {
+    return ops.current().spec();
+  }
+
+  @Override
+  public Snapshot currentSnapshot() {
+    return ops.current().currentSnapshot();
+  }
+
+  @Override
+  public Iterable<Snapshot> snapshots() {
+    return ops.current().snapshots();
+  }
+
+  @Override
+  public UpdateSchema updateSchema() {
+    return new SchemaUpdate(ops);
+  }
+
+  @Override
+  public UpdateProperties updateProperties() {
+    return new PropertiesUpdate(ops);
+  }
+
+  @Override
+  public AppendFiles newAppend() {
+    return new MergeAppend(ops);
+  }
+
+  @Override
+  public AppendFiles newFastAppend() {
+    return new FastAppend(ops);
+  }
+
+  @Override
+  public RewriteFiles newRewrite() {
+    throw new UnsupportedOperationException("File rewrites are not yet implemented.");
+  }
+
+  @Override
+  public DeleteFiles newDelete() {
+    return new StreamingDelete(ops);
+  }
+
+  @Override
+  public ExpireSnapshots expireSnapshots() {
+    return new RemoveSnapshots(ops);
+  }
+
+  @Override
+  public Rollback rollback() {
+    return new RollbackToSnapshot(ops);
+  }
+
+
+  @Override
+  public String toString() {
+    return Objects.toStringHelper(this)
+        .add("identifier", name)
+        .toString();
+  }
+}

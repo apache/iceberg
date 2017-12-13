@@ -1,0 +1,200 @@
+/*
+ * Copyright 2017 Netflix, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+buildscript {
+  repositories { jcenter() }
+  dependencies {
+    classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.0'
+    classpath 'com.netflix.nebula:gradle-aggregate-javadocs-plugin:2.2.+'
+  }
+}
+
+plugins {
+  id 'nebula.netflixoss' version '4.1.0'
+}
+
+if (JavaVersion.current() != JavaVersion.VERSION_1_8) {
+  throw new GradleException("This build must be run with Java 8")
+}
+
+apply plugin: 'nebula-aggregate-javadocs'
+
+allprojects {
+  group = "com.netflix.iceberg"
+  version = '0.1.2'
+}
+
+
+subprojects {
+  apply plugin: 'nebula.netflixoss'
+  apply plugin: 'nebula.javadoc-jar'
+  apply plugin: 'nebula.source-jar'
+  apply plugin: 'java'
+  apply plugin: 'maven' // make pom files for deployment
+
+  repositories {
+    mavenCentral()
+    mavenLocal()
+  }
+
+  configurations {
+    testCompile.extendsFrom compileOnly
+    all {
+      resolutionStrategy {
+        force 'org.apache.httpcomponents:httpclient:4.4.1'
+      }
+    }
+  }
+
+  ext {
+    avroVersion = '1.8.2'
+    parquetVersion = '1.9.1-SNAPSHOT'
+
+    scalaVersion = '2.11'
+    sparkVersion = '2.3.0-SNAPSHOT'
+  }
+
+  sourceCompatibility = '1.8'
+  targetCompatibility = '1.8'
+
+  dependencies {
+    compileOnly 'org.slf4j:slf4j-api:1.7.5'
+    compileOnly 'com.google.guava:guava:16.0.1'
+
+    testCompile 'junit:junit:4.12'
+    testCompile 'org.slf4j:slf4j-simple:1.7.5'
+    testCompile 'org.mockito:mockito-all:1.10.19'
+  }
+}
+
+project(':iceberg-api') {
+  dependencies {
+    testCompile "org.apache.avro:avro:$avroVersion"
+    testCompile 'joda-time:joda-time:2.9.9'
+  }
+}
+
+project(':iceberg-common') {
+}
+
+project(':iceberg-avro') {
+  dependencies {
+    compile project(':iceberg-api')
+    compile project(':iceberg-common')
+
+    compile "org.apache.avro:avro:$avroVersion"
+  }
+}
+
+project(':iceberg-core') {
+  dependencies {
+    compile project(':iceberg-api')
+    compile project(':iceberg-avro')
+
+    compile 'com.fasterxml.jackson.core:jackson-databind:2.9.2'
+    compile 'com.fasterxml.jackson.core:jackson-core:2.9.2'
+    compileOnly('org.apache.hadoop:hadoop-client:2.7.3') {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+    }
+  }
+}
+
+project(':iceberg-parquet') {
+  dependencies {
+    compile project(':iceberg-api')
+    compile project(':iceberg-avro')
+    compile project(':iceberg-core')
+
+    compileOnly "org.apache.avro:avro:$avroVersion"
+    compileOnly "org.apache.parquet:parquet-avro:$parquetVersion"
+    compileOnly('org.apache.hadoop:hadoop-client:2.7.3') {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+    }
+  }
+}
+
+project(':iceberg-spark') {
+  apply plugin: 'scala'
+
+  dependencies {
+    compile project(':iceberg-api')
+    compile project(':iceberg-avro')
+    compile project(':iceberg-core')
+    compile project(':iceberg-parquet')
+
+    compileOnly "org.apache.avro:avro:$avroVersion"
+    compileOnly "org.apache.spark:spark-hive_$scalaVersion:$sparkVersion"
+
+    testCompile 'org.apache.hadoop:hadoop-hdfs:2.7.3:tests'
+    testCompile 'org.apache.hadoop:hadoop-common:2.7.3:tests'
+    testCompile 'org.apache.hadoop:hadoop-minicluster:2.7.3'
+  }
+}
+
+// the runtime jar is a self-contained artifact for testing in a notebook
+project(':iceberg-runtime') {
+  apply plugin: 'com.github.johnrengelman.shadow'
+
+  configurations {
+    shadow
+    compileOnly.extendsFrom shadow
+  }
+
+  shadowJar {
+    configurations = [project.configurations.shadow]
+    from(project.sourceSets.main.output)
+  }
+
+  tasks.build.dependsOn tasks.shadowJar
+  tasks.javadocJar.dependsOn tasks.shadowJar
+
+  dependencies {
+    shadow project(':iceberg-api')
+    shadow project(':iceberg-common')
+    shadow project(':iceberg-avro')
+    shadow project(':iceberg-core')
+    shadow project(':iceberg-parquet')
+    shadow project(':iceberg-spark')
+
+    shadow "org.apache.avro:avro:$avroVersion"
+    shadow "org.apache.parquet:parquet-avro:$parquetVersion"
+  }
+
+  publishing {
+    publications {
+      withType(IvyPublication) {
+        configurations {
+          'shadow' { extend 'runtime' }
+        }
+      }
+    }
+  }
+
+  shadowJar {
+    zip64 true
+
+    // Relocate dependencies to avoid conflicts
+    // relocate 'com.google.common', 'com.netflix.bdp.shaded.com.google.common'
+    relocate 'com.fasterxml', 'com.netflix.iceberg.shaded.com.fasterxml'
+    relocate 'org.apache.avro', 'com.netflix.iceberg.shaded.org.apache.avro'
+    relocate 'org.apache.parquet.avro', 'com.netflix.iceberg.shaded.org.apache.parquet.avro'
+
+    archiveName = "iceberg-runtime-${version}.${extension}"
+  }
+}
+
