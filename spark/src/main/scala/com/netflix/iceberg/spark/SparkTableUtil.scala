@@ -50,9 +50,9 @@ object SparkTableUtil {
 
     val partitions: Seq[(Map[String, String], Option[String], Option[String])] =
       Hive.partitions(spark, table).map {
-        case CatalogTablePartition(partition, storage, _, _)
-            if storage.serde.exists(fmt => fmt.contains("parquet") || fmt.contains("avro")) =>
-          (partition, storage.locationUri.map(_.toString), storage.serde)
+        case p: CatalogTablePartition
+            if p.storage.serde.exists(fmt => fmt.contains("parquet") || fmt.contains("avro")) =>
+          (p.spec, p.storage.locationUri.map(_.toString), p.storage.serde)
       }
 
     partitions.toDF("partition", "uri", "format")

@@ -14,13 +14,27 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.spark.hacks
+package com.netflix.iceberg.spark.source;
 
-import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.UnsafeProjection
-import org.apache.spark.sql.catalyst.expressions.UnsafeRow
+import org.apache.spark.sql.sources.v2.reader.Statistics;
+import java.util.OptionalLong;
 
-class UnsafeTransform(projection: UnsafeProjection)
-    extends com.google.common.base.Function[InternalRow, UnsafeRow] {
-  def apply(row: InternalRow): UnsafeRow = projection.apply(row)
+class Stats implements Statistics {
+  private final OptionalLong sizeInBytes;
+  private final OptionalLong numRows;
+
+  Stats(long sizeInBytes, long numRows) {
+    this.sizeInBytes = OptionalLong.of(sizeInBytes);
+    this.numRows = OptionalLong.of(numRows);
+  }
+
+  @Override
+  public OptionalLong sizeInBytes() {
+    return sizeInBytes;
+  }
+
+  @Override
+  public OptionalLong numRows() {
+    return numRows;
+  }
 }

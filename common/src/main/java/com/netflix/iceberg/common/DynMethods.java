@@ -192,6 +192,16 @@ public class DynMethods {
     }
   }
 
+  /**
+   * Constructs a new builder for calling methods dynamically.
+   *
+   * @param methodName name of the method the builder will locate
+   * @return a Builder for finding a method
+   */
+  public static Builder builder(String methodName) {
+    return new Builder(methodName);
+  }
+
   public static class Builder {
     private final String name;
     private ClassLoader loader = Thread.currentThread().getContextClassLoader();
