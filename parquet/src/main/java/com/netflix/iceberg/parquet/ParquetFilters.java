@@ -181,7 +181,7 @@ class ParquetFilters {
 
     private ConvertColumnFilterToParquet(Schema schema, String column) {
       super(schema);
-      this.partitionStruct = schema.getColumn(column).type().asNestedType().asStructType();
+      this.partitionStruct = schema.findField(column).type().asNestedType().asStructType();
     }
 
     protected Expression bind(UnboundPredicate<?> pred) {

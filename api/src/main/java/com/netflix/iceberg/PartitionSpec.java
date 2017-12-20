@@ -24,7 +24,6 @@ import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.ValidationException;
 import com.netflix.iceberg.transforms.Transforms;
 import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.TypeUtil;
 import com.netflix.iceberg.types.Types;
 import java.io.Serializable;
 import java.util.List;
@@ -109,7 +108,7 @@ public class PartitionSpec implements Serializable {
 
     for (int i = 0; i < fields.size(); i += 1) {
       PartitionField field = fields.get(i);
-      Type sourceType = schema.getType(field.sourceId());
+      Type sourceType = schema.findType(field.sourceId());
       Type resultType = field.transform().getResultType(sourceType);
       // assign ids for partition fields starting at 100 to leave room for data file's other fields
       structFields.add(
@@ -124,7 +123,8 @@ public class PartitionSpec implements Serializable {
       this.javaClasses = new Class<?>[fields.size()];
       for (int i = 0; i < fields.size(); i += 1) {
         PartitionField field = fields.get(i);
-        Type result = field.transform().getResultType(schema.getField(field.sourceId()).type());
+        Type sourceType = schema.findType(field.sourceId());
+        Type result = field.transform().getResultType(sourceType);
         javaClasses[i] = result.typeId().javaClass();
       }
     }
@@ -220,7 +220,7 @@ public class PartitionSpec implements Serializable {
     }
 
     private Types.NestedField findSourceColumn(String sourceName) {
-      Types.NestedField sourceColumn = schema.getColumn(sourceName);
+      Types.NestedField sourceColumn = schema.findField(sourceName);
       Preconditions.checkNotNull(sourceColumn, "Cannot find source column: %s", sourceName);
       return sourceColumn;
     }
@@ -288,7 +288,7 @@ public class PartitionSpec implements Serializable {
 
     public Builder add(int sourceId, String name, String transform) {
       checkAndAddPartitionName(name);
-      Types.NestedField column = schema.getField(sourceId);
+      Types.NestedField column = schema.findField(sourceId);
       Preconditions.checkNotNull(column, "Cannot find source column: %d", sourceId);
       fields.add(new PartitionField(
           sourceId, name, Transforms.fromString(column.type(), transform)));
@@ -304,7 +304,7 @@ public class PartitionSpec implements Serializable {
 
   public static void checkCompatibility(PartitionSpec spec, Schema schema) {
     for (PartitionField field : spec.fields) {
-      Type sourceType = schema.getType(field.sourceId());
+      Type sourceType = schema.findType(field.sourceId());
       ValidationException.check(sourceType.isPrimitiveType(),
           "Cannot partition by non-primitive source field: %s", sourceType);
       ValidationException.check(

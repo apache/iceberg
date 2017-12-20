@@ -71,7 +71,7 @@ class SchemaUpdate implements UpdateSchema {
   public UpdateSchema addColumn(String parent, String name, Type type) {
     int parentId = TABLE_ROOT_ID;
     if (parent != null) {
-      Types.NestedField parentField = schema.getColumn(parent);
+      Types.NestedField parentField = schema.findField(parent);
       Preconditions.checkArgument(parentField != null, "Cannot find parent struct: %s", parent);
       Type parentType = parentField.type();
       if (parentType.isNestedType()) {
@@ -90,10 +90,10 @@ class SchemaUpdate implements UpdateSchema {
       parentId = parentField.fieldId();
       Preconditions.checkArgument(!deletes.contains(parentId),
           "Cannot add to a column that will be deleted: %s", parent);
-      Preconditions.checkArgument(schema.getColumn(parent + "." + name) == null,
+      Preconditions.checkArgument(schema.findField(parent + "." + name) == null,
           "Cannot add column, name already exists: " + parent + "." + name);
     } else {
-      Preconditions.checkArgument(schema.getColumn(name) == null,
+      Preconditions.checkArgument(schema.findField(name) == null,
           "Cannot add column, name already exists: " + name);
     }
 
@@ -107,7 +107,7 @@ class SchemaUpdate implements UpdateSchema {
 
   @Override
   public UpdateSchema deleteColumn(String name) {
-    Types.NestedField field = schema.getColumn(name);
+    Types.NestedField field = schema.findField(name);
     Preconditions.checkArgument(field != null, "Cannot delete missing column: %s", name);
     Preconditions.checkArgument(!adds.containsKey(field.fieldId()),
         "Cannot delete a column that has additions: %s", name);
@@ -121,7 +121,7 @@ class SchemaUpdate implements UpdateSchema {
 
   @Override
   public UpdateSchema renameColumn(String name, String newName) {
-    Types.NestedField field = schema.getColumn(name);
+    Types.NestedField field = schema.findField(name);
     Preconditions.checkArgument(field != null, "Cannot rename missing column: %s", name);
     Preconditions.checkArgument(!deletes.contains(field.fieldId()),
         "Cannot rename a column that will be deleted: %s", field.name());
@@ -140,7 +140,7 @@ class SchemaUpdate implements UpdateSchema {
 
   @Override
   public UpdateSchema updateColumn(String name, Type.PrimitiveType newType) {
-    Types.NestedField field = schema.getColumn(name);
+    Types.NestedField field = schema.findField(name);
     Preconditions.checkArgument(field != null, "Cannot update missing column: %s", name);
     Preconditions.checkArgument(!deletes.contains(field.fieldId()),
         "Cannot update a column that will be deleted: %s", field.name());

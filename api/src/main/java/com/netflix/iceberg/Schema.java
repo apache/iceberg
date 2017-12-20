@@ -40,7 +40,7 @@ public class Schema implements Serializable {
   private static final String ALL_COLUMNS = "*";
 
   private final Types.StructType struct;
-  private final BiMap<String, Integer> aliasToId;
+  private transient BiMap<String, Integer> aliasToId = null;
   private transient Map<Integer, Types.NestedField> idToField = null;
   private transient BiMap<String, Integer> nameToId = null;
 
@@ -51,8 +51,6 @@ public class Schema implements Serializable {
 
   public Schema(List<Types.NestedField> columns) {
     this.struct = Types.StructType.of(columns);
-    this.idToField = TypeUtil.indexById(struct);
-    this.aliasToId = null;
   }
 
   private Map<Integer, Types.NestedField> lazyIdToField() {
@@ -97,13 +95,13 @@ public class Schema implements Serializable {
   /**
    * @return a List of the {@link Types.NestedField columns} in this Schema.
    */
-  public List<Types.NestedField> getColumns() {
+  public List<Types.NestedField> columns() {
     return struct.fields();
   }
 
-  public Type getType(String name) {
+  public Type findType(String name) {
     Preconditions.checkArgument(!name.isEmpty(), "Invalid column name: (empty)");
-    return getType(lazyNameToId().get(name));
+    return findType(lazyNameToId().get(name));
   }
 
   /**
@@ -112,7 +110,7 @@ public class Schema implements Serializable {
    * @param id a field id
    * @return a Type for the sub-field or null if it is not found
    */
-  public Type getType(int id) {
+  public Type findType(int id) {
     Types.NestedField field = lazyIdToField().get(id);
     if (field != null) {
       return field.type();
@@ -121,24 +119,24 @@ public class Schema implements Serializable {
   }
 
   /**
-   * Returns the {@link Types.NestedField sub-field} identified by the field id.
+   * Returns the sub-field identified by the field id as a {@link Types.NestedField}.
    *
    * @param id a field id
    * @return the sub-field or null if it is not found
    */
-  public Types.NestedField getField(int id) {
+  public Types.NestedField findField(int id) {
     return lazyIdToField().get(id);
   }
 
   /**
-   * Returns a column by name as a {@link Types.NestedField field}.
+   * Returns a sub-field field by name as a {@link Types.NestedField}.
    * <p>
    * The result may be a nested field.
    *
    * @param name a String name
    * @return a Type for the sub-field or null if it is not found
    */
-  public Types.NestedField getColumn(String name) {
+  public Types.NestedField findField(String name) {
     Preconditions.checkArgument(!name.isEmpty(), "Invalid column name: (empty)");
     Integer id = lazyNameToId().get(name);
     if (id != null) {
@@ -153,7 +151,7 @@ public class Schema implements Serializable {
    * @param id a field id
    * @return the full column name in this schema that resolves to the id
    */
-  public String getColumnName(int id) {
+  public String findColumnName(int id) {
     return lazyNameToId().inverse().get(id);
   }
 

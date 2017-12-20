@@ -58,7 +58,7 @@ public class ParquetSchemaUtil {
   public static MessageType pruneColumnsFallback(MessageType fileSchema, Schema expectedSchema) {
     Set<Integer> selectedIds = Sets.newHashSet();
 
-    for (Types.NestedField field : expectedSchema.getColumns()) {
+    for (Types.NestedField field : expectedSchema.columns()) {
       selectedIds.add(field.fieldId());
     }
 

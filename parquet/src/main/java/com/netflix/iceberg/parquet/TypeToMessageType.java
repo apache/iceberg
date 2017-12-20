@@ -48,7 +48,7 @@ public class TypeToMessageType {
   public MessageType convert(Schema schema, String name) {
     Types.MessageTypeBuilder builder = Types.buildMessage();
 
-    for (NestedField field : schema.getColumns()) {
+    for (NestedField field : schema.columns()) {
       builder.addField(field(field));
     }
 

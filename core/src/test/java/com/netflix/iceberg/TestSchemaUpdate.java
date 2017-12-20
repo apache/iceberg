@@ -73,7 +73,7 @@ public class TestSchemaUpdate {
     for (String name : columns) {
       Set<Integer> selected = Sets.newHashSet(ALL_IDS);
       // remove the id and any nested fields from the projection
-      Types.NestedField nested = SCHEMA.getColumn(name);
+      Types.NestedField nested = SCHEMA.findField(name);
       selected.remove(nested.fieldId());
       selected.removeAll(TypeUtil.getProjectedIds(nested.type()));
 

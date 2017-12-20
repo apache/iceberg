@@ -43,9 +43,9 @@ public class TableMetadata {
     PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(freshSchema);
     for (PartitionField field : spec.fields()) {
       // look up the name of the source field in the old schema to get the new schema's id
-      String sourceName = schema.getColumnName(field.sourceId());
+      String sourceName = schema.findColumnName(field.sourceId());
       specBuilder.add(
-          freshSchema.getColumn(sourceName).fieldId(),
+          freshSchema.findField(sourceName).fieldId(),
           field.name(),
           field.transform().toString());
     }

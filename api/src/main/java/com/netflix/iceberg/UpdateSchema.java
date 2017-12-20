@@ -46,7 +46,7 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
   /**
    * Add a new column to a nested struct.
    * <p>
-   * The parent name is used to find the parent using {@link Schema#getColumn(String)}. If the
+   * The parent name is used to find the parent using {@link Schema#findField(String)}. If the
    * parent name is null, the new column will be added to the root as a top-level column. If parent
    * identifies a struct, a new column is added to that struct. If it identifies a list, the column
    * is added to the list element struct, and if it identifies a map, the new column is added to
@@ -68,7 +68,7 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
   /**
    * Rename a column in the schema.
    * <p>
-   * The name is used to find the column to rename using {@link Schema#getColumn(String)}.
+   * The name is used to find the column to rename using {@link Schema#findField(String)}.
    * <p>
    * The new name may contain "." and such names are not parsed or handled differently.
    * <p>
@@ -85,7 +85,7 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
   /**
    * Update a column in the schema to a new primitive type.
    * <p>
-   * The name is used to find the column to update using {@link Schema#getColumn(String)}.
+   * The name is used to find the column to update using {@link Schema#findField(String)}.
    * <p>
    * Only updates that widen types are allowed.
    * <p>
@@ -103,7 +103,7 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
   /**
    * Delete a column in the schema.
    * <p>
-   * The name is used to find the column to delete using {@link Schema#getColumn(String)}.
+   * The name is used to find the column to delete using {@link Schema#findField(String)}.
    *
    * @param name name of the column to delete
    * @return this for method chaining
