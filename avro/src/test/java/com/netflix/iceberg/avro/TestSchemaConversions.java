@@ -44,7 +44,9 @@ public class TestSchemaConversions {
         Types.DoubleType.get(),
         Types.DateType.get(),
         Types.TimeType.withZone(),
+        Types.TimeType.withoutZone(),
         Types.TimestampType.withZone(),
+        Types.TimestampType.withoutZone(),
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(12),
@@ -59,8 +61,10 @@ public class TestSchemaConversions {
         Schema.create(Schema.Type.FLOAT),
         Schema.create(Schema.Type.DOUBLE),
         LogicalTypes.date().addToSchema(Schema.create(Schema.Type.INT)),
-        LogicalTypes.timeMicros().addToSchema(Schema.create(Schema.Type.LONG)),
-        LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)),
+        addAdjustToUtc(LogicalTypes.timeMicros().addToSchema(Schema.create(Schema.Type.LONG)), true),
+        addAdjustToUtc(LogicalTypes.timeMicros().addToSchema(Schema.create(Schema.Type.LONG)), false),
+        addAdjustToUtc(LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)), true),
+        addAdjustToUtc(LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)), false),
         Schema.create(Schema.Type.STRING),
         LogicalTypes.uuid().addToSchema(Schema.createFixed("uuid_fixed", null, null, 16)),
         Schema.createFixed("fixed_12", null, null, 12),
@@ -78,6 +82,11 @@ public class TestSchemaConversions {
     }
   }
 
+  private Schema addAdjustToUtc(Schema schema, boolean adjustToUTC) {
+    schema.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, adjustToUTC);
+    return schema;
+  }
+
   @Test
   public void testStructAndPrimitiveTypes() {
     Types.StructType struct = Types.StructType.of(
@@ -88,12 +97,14 @@ public class TestSchemaConversions {
         Types.NestedField.optional(24, "double", Types.DoubleType.get()),
         Types.NestedField.optional(25, "date", Types.DateType.get()),
         Types.NestedField.optional(26, "timetz", Types.TimeType.withZone()),
-        Types.NestedField.optional(27, "timestamptz", Types.TimestampType.withZone()),
-        Types.NestedField.optional(28, "string", Types.StringType.get()),
-        Types.NestedField.optional(29, "uuid", Types.UUIDType.get()),
-        Types.NestedField.optional(30, "fixed", Types.FixedType.ofLength(16)),
-        Types.NestedField.optional(31, "binary", Types.BinaryType.get()),
-        Types.NestedField.optional(32, "decimal", Types.DecimalType.of(14, 2))
+        Types.NestedField.optional(27, "time", Types.TimeType.withoutZone()),
+        Types.NestedField.optional(28, "timestamptz", Types.TimestampType.withZone()),
+        Types.NestedField.optional(29, "timestamp", Types.TimestampType.withoutZone()),
+        Types.NestedField.optional(30, "string", Types.StringType.get()),
+        Types.NestedField.optional(31, "uuid", Types.UUIDType.get()),
+        Types.NestedField.optional(32, "fixed", Types.FixedType.ofLength(16)),
+        Types.NestedField.optional(33, "binary", Types.BinaryType.get()),
+        Types.NestedField.optional(34, "decimal", Types.DecimalType.of(14, 2))
     );
 
     Schema schema = record("primitives",
@@ -103,13 +114,15 @@ public class TestSchemaConversions {
         optionalField(23, "float", Schema.create(Schema.Type.FLOAT)),
         optionalField(24, "double", Schema.create(Schema.Type.DOUBLE)),
         optionalField(25, "date", LogicalTypes.date().addToSchema(Schema.create(Schema.Type.INT))),
-        optionalField(26, "timetz", LogicalTypes.timeMicros().addToSchema(Schema.create(Schema.Type.LONG))),
-        optionalField(27, "timestamptz", LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG))),
-        optionalField(28, "string", Schema.create(Schema.Type.STRING)),
-        optionalField(29, "uuid", LogicalTypes.uuid().addToSchema(Schema.createFixed("uuid_fixed", null, null, 16))),
-        optionalField(30, "fixed", Schema.createFixed("fixed_16", null, null, 16)),
-        optionalField(31, "binary", Schema.create(Schema.Type.BYTES)),
-        optionalField(32, "decimal", LogicalTypes.decimal(14, 2).addToSchema(Schema.createFixed("decimal_14_2", null, null, 6)))
+        optionalField(26, "timetz", addAdjustToUtc(LogicalTypes.timeMicros().addToSchema(Schema.create(Schema.Type.LONG)), true)),
+        optionalField(27, "time", addAdjustToUtc(LogicalTypes.timeMicros().addToSchema(Schema.create(Schema.Type.LONG)), false)),
+        optionalField(28, "timestamptz", addAdjustToUtc(LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)), true)),
+        optionalField(29, "timestamp", addAdjustToUtc(LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)), false)),
+        optionalField(30, "string", Schema.create(Schema.Type.STRING)),
+        optionalField(31, "uuid", LogicalTypes.uuid().addToSchema(Schema.createFixed("uuid_fixed", null, null, 16))),
+        optionalField(32, "fixed", Schema.createFixed("fixed_16", null, null, 16)),
+        optionalField(33, "binary", Schema.create(Schema.Type.BYTES)),
+        optionalField(34, "decimal", LogicalTypes.decimal(14, 2).addToSchema(Schema.createFixed("decimal_14_2", null, null, 6)))
     );
 
     Assert.assertEquals("Test conversion from Avro schema",

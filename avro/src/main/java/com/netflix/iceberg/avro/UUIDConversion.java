@@ -26,7 +26,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.UUID;
 
-class UUIDConversion extends Conversion<UUID> {
+public class UUIDConversion extends Conversion<UUID> {
   @Override
   public Class<UUID> getConvertedType() {
     return UUID.class;

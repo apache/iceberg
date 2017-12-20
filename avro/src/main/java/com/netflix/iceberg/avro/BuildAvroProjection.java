@@ -68,11 +68,16 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
     for (int i = 0; i < fields.size(); i += 1) {
       Schema.Field field = fields.get(i);
       Schema.Field updatedField = fieldResults.get(i);
-      updateMap.put(updatedField.name(), updatedField);
 
-      if (!updatedField.schema().equals(field.schema()) ||
-          !updatedField.name().equals(field.name())) {
-        hasChange = true;
+      if (updatedField != null) {
+        updateMap.put(updatedField.name(), updatedField);
+
+        if (!updatedField.schema().equals(field.schema()) ||
+            !updatedField.name().equals(field.name())) {
+          hasChange = true;
+        }
+      } else {
+        hasChange = true; // column was not projected
       }
     }
 
@@ -113,6 +118,12 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
     Types.StructType struct = current.asNestedType().asStructType();
     int fieldId = AvroSchemaUtil.getId(field);
     Types.NestedField expectedField = struct.field(fieldId); // TODO: what if there are no ids?
+
+    // if the field isn't present, it was not selected
+    if (expectedField == null) {
+      return null;
+    }
+
     String expectedName = expectedField.name();
 
     this.current = expectedField.type();

@@ -93,7 +93,7 @@ class StreamingDelete extends SnapshotUpdate implements DeleteFiles {
       // remove any new filtered manifests that aren't in the committed list
       String manifest = entry.getKey();
       String filtered = entry.getValue();
-      if (!manifest.equals(filtered) && !committed.contains(filtered)) {
+      if (filtered != null && !manifest.equals(filtered) && !committed.contains(filtered)) {
         deleteFile(filtered);
       }
     }
@@ -127,9 +127,9 @@ class StreamingDelete extends SnapshotUpdate implements DeleteFiles {
 
       for (ManifestEntry entry : reader.entries()) {
         DataFile file = entry.file();
-        if (deletePaths.contains(wrapper.set(file.path())) ||
-            inclusive.eval(file.partition())) {
-          ValidationException.check(strict.eval(file.partition()),
+        boolean fileDelete = deletePaths.contains(wrapper.set(file.path()));
+        if (fileDelete || inclusive.eval(file.partition())) {
+          ValidationException.check(fileDelete || strict.eval(file.partition()),
               "Cannot delete file where some, but not all, rows match filter %s: %s",
               deleteExpression, file.path());
 

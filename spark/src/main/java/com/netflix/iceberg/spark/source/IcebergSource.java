@@ -17,6 +17,7 @@
 package com.netflix.iceberg.spark.source;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.DataFile;
 import com.netflix.iceberg.FileScanTask;
@@ -32,9 +33,13 @@ import com.netflix.iceberg.hadoop.HadoopTables;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.parquet.Parquet;
 import com.netflix.iceberg.spark.SparkFilters;
+import com.netflix.iceberg.spark.SparkSchemaUtil;
 import com.netflix.iceberg.spark.data.SparkAvroReader;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
+import com.netflix.iceberg.spark.hacks.UnsafeTransform;
 import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
 import org.apache.spark.sql.execution.datasources.parquet.ParquetReadSupport;
 import org.apache.spark.sql.sources.DataSourceRegister;
@@ -185,8 +190,10 @@ public class IcebergSource implements DataSourceV2, ReadSupport, DataSourceRegis
       if (tasks == null) {
         TableScan scan = table.newScan().select(SNAPSHOT_COLUMNS);
 
-        for (Expression filter : filterExpressions) {
-          scan = scan.filter(filter);
+        if (filterExpressions != null) {
+          for (Expression filter : filterExpressions) {
+            scan = scan.filter(filter);
+          }
         }
 
         this.tasks = Lists.newArrayList(scan.planFiles());
@@ -208,7 +215,9 @@ public class IcebergSource implements DataSourceV2, ReadSupport, DataSourceRegis
     private final String schemaString;
     private final SerializableConfiguration conf;
 
-    private transient Schema projection = null;
+    private transient UnsafeTransform transform = null;
+    private transient Schema schema = null;
+    private transient StructType type = null;
 
     private ScanTask(FileScanTask task, String schemaString, SerializableConfiguration conf) {
       this.task = task;
@@ -220,7 +229,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, DataSourceRegis
     public DataReader<UnsafeRow> createDataReader() {
       DataFile file = task.file();
       InputFile location = HadoopInputFile.fromLocation(file.path(), conf.value());
-      Schema schema = projection();
+      Schema schema = lazySchema();
 
       switch (file.format()) {
         case PARQUET:
@@ -230,31 +239,48 @@ public class IcebergSource implements DataSourceV2, ReadSupport, DataSourceRegis
               .split(task.start(), task.length())
               .readSupport(new ParquetReadSupport())
               .filter(task.residual())
-              .set("org.apache.spark.sql.parquet.row.requested_schema", convert(schema).json())
+              .set("org.apache.spark.sql.parquet.row.requested_schema", lazyType().json())
               .set("spark.sql.parquet.binaryAsString", "false")
               .set("spark.sql.parquet.int96AsTimestamp", "false")
               .callInit()
               .build();
+
           return new IteratorReader(reader.iterator());
 
         case AVRO:
-          Avro.read(location)
+          Iterable<InternalRow> avro = Avro.read(location)
               .reuseContainers()
               .project(schema)
               .split(task.start(), task.length())
               .createReaderFunc(SparkAvroReader::new)
               .build();
 
+          return new IteratorReader(Iterators.transform(avro.iterator(), lazyTransform()));
+
         default:
           throw new UnsupportedOperationException("Cannot read unknown format: " + file.format());
       }
     }
 
-    private Schema projection() {
-      if (projection == null) {
-        this.projection = SchemaParser.fromJson(schemaString);
+    private UnsafeTransform lazyTransform() {
+      if (transform == null) {
+        this.transform = new UnsafeTransform(UnsafeProjection.create(lazyType()));
       }
-      return projection;
+      return transform;
+    }
+
+    private StructType lazyType() {
+      if (type == null) {
+        this.type = SparkSchemaUtil.convert(lazySchema());
+      }
+      return type;
+    }
+
+    private Schema lazySchema() {
+      if (schema == null) {
+        this.schema = SchemaParser.fromJson(schemaString);
+      }
+      return schema;
     }
   }
 

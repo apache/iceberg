@@ -26,7 +26,6 @@ import org.apache.avro.Schema;
 import java.util.List;
 
 import static com.netflix.iceberg.avro.AvroSchemaUtil.ADJUST_TO_UTC_PROP;
-import static com.netflix.iceberg.avro.AvroSchemaUtil.fromOption;
 import static com.netflix.iceberg.avro.AvroSchemaUtil.isOptionSchema;
 
 class SchemaToType extends AvroSchemaVisitor<Type> {

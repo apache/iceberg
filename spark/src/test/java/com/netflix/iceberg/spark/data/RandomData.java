@@ -192,7 +192,8 @@ public class RandomData {
           }
 
         case DATE:
-          return random.nextInt();
+          // this will include negative values (dates before 1970-01-01)
+          return random.nextInt() % ABOUT_380_YEARS_IN_DAYS;
 
         case TIME:
           return (random.nextLong() & Integer.MAX_VALUE) % ONE_DAY_IN_MICROS;
@@ -222,9 +223,7 @@ public class RandomData {
 
         case DECIMAL:
           Types.DecimalType decimal = (Types.DecimalType) primitive;
-          byte[] unscaledBytes = new byte[TypeUtil.decimalRequriedBytes(decimal.precision())];
-          random.nextBytes(unscaledBytes);
-          return new BigDecimal(new BigInteger(unscaledBytes), decimal.scale());
+          return new BigDecimal(randomUnscaled(decimal.precision(), random), decimal.scale());
 
         default:
           throw new IllegalArgumentException(
@@ -233,6 +232,7 @@ public class RandomData {
     }
   }
 
+  private static int ABOUT_380_YEARS_IN_DAYS = 380 * 365;
   private static long ONE_DAY_IN_MICROS = 24 * 60 * 60 * 1_000_000;
   private static String CHARS =
       "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-.!?";
@@ -246,5 +246,20 @@ public class RandomData {
     }
 
     return sb.toString();
+  }
+
+  private static String DIGITS = "0123456789";
+  private static BigInteger randomUnscaled(int precision, Random random) {
+    int length = random.nextInt(precision);
+    if (length == 0) {
+      return BigInteger.ZERO;
+    }
+
+    StringBuilder sb = new StringBuilder();
+    for (int i = 0; i < length; i += 1) {
+      sb.append(DIGITS.charAt(random.nextInt(DIGITS.length())));
+    }
+
+    return new BigInteger(sb.toString());
   }
 }
