@@ -172,6 +172,13 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
         "Cannot convert unknown primitive type: " + primitive);
   }
 
+  private void addAlias(int fieldId) {
+    if (!fieldNames.isEmpty()) {
+      String fullName = DOT.join(fieldNames.descendingIterator());
+      aliasToId.put(fullName, fieldId);
+    }
+  }
+
   private void addAlias(String name, int fieldId) {
     String fullName = name;
     if (!fieldNames.isEmpty()) {

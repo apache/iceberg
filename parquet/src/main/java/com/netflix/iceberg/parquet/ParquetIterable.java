@@ -16,13 +16,17 @@
 
 package com.netflix.iceberg.parquet;
 
+import com.google.common.collect.Lists;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import org.apache.parquet.hadoop.ParquetReader;
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.NoSuchElementException;
 
-class ParquetIterable<T> implements Iterable<T> {
+class ParquetIterable<T> implements Iterable<T>, Closeable {
+  private final List<Closeable> closeables = Lists.newArrayList();
   private final ParquetReader.Builder<T> builder;
 
   ParquetIterable(ParquetReader.Builder<T> builder) {
@@ -38,8 +42,19 @@ class ParquetIterable<T> implements Iterable<T> {
     }
   }
 
-  private static class ParquetIterator<T> implements Iterator<T> {
+  @Override
+  public void close() throws IOException {
+    while (!closeables.isEmpty()) {
+      Closeable toClose = closeables.remove(0);
+      if (toClose != null) {
+        toClose.close();
+      }
+    }
+  }
+
+  private static class ParquetIterator<T> implements Iterator<T>, Closeable {
     private final ParquetReader<T> parquet;
+    private boolean needsAdvance = false;
     private boolean hasNext = false;
     private T next = null;
 
@@ -50,22 +65,28 @@ class ParquetIterable<T> implements Iterable<T> {
 
     @Override
     public boolean hasNext() {
+      if (needsAdvance) {
+        this.next = advance();
+      }
       return hasNext;
     }
 
     @Override
     public T next() {
-      if (!hasNext) {
+      if (!hasNext()) {
         throw new NoSuchElementException();
       }
-      T toReturn = next;
-      this.next = advance();
-      return toReturn;
+
+      this.needsAdvance = true;
+
+      return next;
     }
 
     private T advance() {
+      // this must be called in hasNext because it reuses an UnsafeRow
       try {
         T next = parquet.read();
+        this.needsAdvance = false;
         this.hasNext = (next != null);
         return next;
       } catch (IOException e) {
@@ -76,6 +97,11 @@ class ParquetIterable<T> implements Iterable<T> {
     @Override
     public void remove() {
       throw new UnsupportedOperationException("Remove is not supported");
+    }
+
+    @Override
+    public void close() throws IOException {
+      parquet.close();
     }
   }
 }

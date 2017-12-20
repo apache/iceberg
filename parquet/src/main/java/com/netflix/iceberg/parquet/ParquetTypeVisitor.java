@@ -61,7 +61,7 @@ abstract class ParquetTypeVisitor<T> {
             try {
               T elementResult = null;
               if (repeatedElement.getFieldCount() > 0) {
-                elementResult = visit(repeatedElement.getType(0), visitor);
+                elementResult = visitField(repeatedElement.getType(0), visitor);
               }
 
               return visitor.list(group, elementResult);
