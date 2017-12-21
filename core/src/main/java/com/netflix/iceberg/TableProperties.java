@@ -16,7 +16,7 @@
 
 package com.netflix.iceberg;
 
-class TableProperties {
+public class TableProperties {
   public static final String COMMIT_NUM_RETRIES = "commit.retry.num-retries";
   public static final int COMMIT_NUM_RETRIES_DEFAULT = 4;
 
@@ -28,4 +28,7 @@ class TableProperties {
 
   public static final String COMMIT_TOTAL_RETRY_TIME_MS = "commit.retry.total-timeout-ms";
   public static final int COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT = 60000; // 1 minute
+
+  public static final String DEFAULT_FILE_FORMAT = "write.format.default";
+  public static final String DEFAULT_FILE_FORMAT_DEFAULT = "parquet";
 }
