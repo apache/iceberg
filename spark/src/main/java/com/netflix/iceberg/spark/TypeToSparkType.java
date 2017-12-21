@@ -40,13 +40,7 @@ import org.apache.spark.sql.types.TimestampType$;
 import java.util.List;
 
 class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
-  private static final TypeToSparkType INSTANCE = new TypeToSparkType();
-
-  static TypeToSparkType get() {
-    return INSTANCE;
-  }
-
-  private TypeToSparkType() {
+  TypeToSparkType() {
   }
 
   @Override

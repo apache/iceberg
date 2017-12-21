@@ -80,7 +80,7 @@ public class SparkSchemaUtil {
    * @throws IllegalArgumentException if the type cannot be converted to Spark
    */
   public static StructType convert(Schema schema) {
-    return (StructType) TypeUtil.visit(schema, TypeToSparkType.get());
+    return (StructType) TypeUtil.visit(schema, new TypeToSparkType());
   }
 
   /**
@@ -91,7 +91,7 @@ public class SparkSchemaUtil {
    * @throws IllegalArgumentException if the type cannot be converted to Spark
    */
   public static DataType convert(Type type) {
-    return TypeUtil.visit(type, TypeToSparkType.get());
+    return TypeUtil.visit(type, new TypeToSparkType());
   }
 
   /**
