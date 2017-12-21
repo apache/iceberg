@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.spark.data;
+package com.netflix.iceberg.spark.source;
 
 import com.netflix.iceberg.DataFile;
 import com.netflix.iceberg.DataFiles;
@@ -25,7 +25,9 @@ import com.netflix.iceberg.Table;
 import com.netflix.iceberg.hadoop.HadoopTables;
 import com.netflix.iceberg.io.FileAppender;
 import com.netflix.iceberg.parquet.Parquet;
-import com.netflix.iceberg.types.Types;
+import com.netflix.iceberg.spark.data.AvroDataTest;
+import com.netflix.iceberg.spark.data.RandomData;
+import com.netflix.iceberg.spark.data.TestHelpers;
 import org.apache.avro.generic.GenericData;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.spark.sql.Dataset;
@@ -44,16 +46,9 @@ import java.util.UUID;
 import static com.netflix.iceberg.Files.localInput;
 import static com.netflix.iceberg.Files.localOutput;
 import static com.netflix.iceberg.parquet.ParquetMetrics.fromInputFile;
-import static com.netflix.iceberg.types.Types.NestedField.optional;
-import static com.netflix.iceberg.types.Types.NestedField.required;
 
 public class TestParquetScan extends AvroDataTest {
   private static final Configuration CONF = new Configuration();
-  private static final Schema SCHEMA = new Schema(
-      required(1, "id", Types.LongType.get()),
-      optional(2, "data", Types.StringType.get())
-  );
-  private static final PartitionSpec UNPARTITIONED = PartitionSpec.builderFor(SCHEMA).build();
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -83,7 +78,7 @@ public class TestParquetScan extends AvroDataTest {
         FileFormat.PARQUET.addExtension(UUID.randomUUID().toString()));
 
     HadoopTables tables = new HadoopTables(CONF);
-    Table table = tables.create(schema, UNPARTITIONED, location.toString());
+    Table table = tables.create(schema, PartitionSpec.unpartitioned(), location.toString());
 
     // Important: use the table's schema for the rest of the test
     // When tables are created, the column ids are reassigned.
@@ -97,7 +92,7 @@ public class TestParquetScan extends AvroDataTest {
       writer.addAll(expected);
     }
 
-    DataFile file = DataFiles.builder(UNPARTITIONED)
+    DataFile file = DataFiles.builder(PartitionSpec.unpartitioned())
         .withFileSizeInBytes(parquetFile.length())
         .withPath(parquetFile.toString())
         .withMetrics(fromInputFile(localInput(parquetFile)))
