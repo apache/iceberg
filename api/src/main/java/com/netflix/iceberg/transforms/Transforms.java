@@ -51,7 +51,7 @@ public class Transforms {
     }
 
     if (transform.equalsIgnoreCase("identity")) {
-      return Identity.get();
+      return Identity.get(type);
     } else if (type.typeId() == Type.TypeID.TIMESTAMP) {
       return Timestamps.valueOf(transform.toUpperCase(Locale.ENGLISH));
     } else if (type.typeId() == Type.TypeID.DATE) {
@@ -67,8 +67,8 @@ public class Transforms {
    * @param <T> Java type passed to this transform
    * @return an identity transform
    */
-  public static <T> Transform<T, T> identity() {
-    return Identity.get();
+  public static <T> Transform<T, T> identity(Type type) {
+    return Identity.get(type);
   }
 
   /**
@@ -142,7 +142,7 @@ public class Transforms {
   public static <T> Transform<T, Integer> hour(Type type) {
     Preconditions.checkArgument(type.typeId() == Type.TypeID.TIMESTAMP,
         "Cannot partition type %s by hour", type);
-    return (Transform<T, Integer>) Timestamps.DAY;
+    return (Transform<T, Integer>) Timestamps.HOUR;
   }
 
   /**

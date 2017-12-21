@@ -16,18 +16,24 @@
 
 package com.netflix.iceberg.transforms;
 
+import com.google.common.base.Objects;
 import com.netflix.iceberg.expressions.BoundPredicate;
 import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.expressions.UnboundPredicate;
 import com.netflix.iceberg.types.Type;
-import java.io.ObjectStreamException;
+import com.netflix.iceberg.types.Types;
+import java.nio.ByteBuffer;
 
 class Identity<T> implements Transform<T, T> {
-  private static final Identity INSTANCE = new Identity();
-
   @SuppressWarnings("unchecked")
-  public static <I> Identity<I> get() {
-    return (Identity<I>) INSTANCE;
+  public static <I> Identity<I> get(Type type) {
+    return new Identity<>(type);
+  }
+
+  private final Type type;
+
+  private Identity(Type type) {
+    this.type = type;
   }
 
   @Override
@@ -60,11 +66,56 @@ class Identity<T> implements Transform<T, T> {
   }
 
   @Override
+  public String toHumanString(T value) {
+    if (value == null) {
+      return "null";
+    }
+
+    switch (type.typeId()) {
+      case DATE:
+        return TransformUtil.humanDay((Integer) value);
+      case TIME:
+        return TransformUtil.humanTime((Long) value);
+      case TIMESTAMP:
+        if (((Types.TimestampType) type).shouldAdjustToUTC()) {
+          return TransformUtil.humanTimestampWithZone((Long) value);
+        } else {
+          return TransformUtil.humanTimestampWithoutZone((Long) value);
+        }
+      case FIXED:
+      case BINARY:
+        if (value instanceof ByteBuffer) {
+          return TransformUtil.base64encode(((ByteBuffer) value).duplicate());
+        } else if (value instanceof byte[]) {
+          return TransformUtil.base64encode(ByteBuffer.wrap((byte[]) value));
+        } else {
+          throw new UnsupportedOperationException("Unsupported binary type: " + value.getClass());
+        }
+      default:
+        return value.toString();
+    }
+  }
+
+  @Override
   public String toString() {
     return "identity";
   }
 
-  Object writeReplace() throws ObjectStreamException {
-    return SerializationProxies.IdentityProxy.get();
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
+    Identity<?> that = (Identity<?>) o;
+    return type.equals(that.type);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hashCode(type);
   }
 }

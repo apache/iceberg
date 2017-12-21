@@ -70,6 +70,26 @@ enum Timestamps implements Transform<Long, Integer> {
   }
 
   @Override
+  public String toHumanString(Integer value) {
+    if (value == null) {
+      return "null";
+    }
+
+    switch (granularity) {
+      case YEARS:
+        return TransformUtil.humanYear(value);
+      case MONTHS:
+        return TransformUtil.humanMonth(value);
+      case DAYS:
+        return TransformUtil.humanDay(value);
+      case HOURS:
+        return TransformUtil.humanHour(value);
+      default:
+        throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
+    }
+  }
+
+  @Override
   public String toString() {
     return name;
   }

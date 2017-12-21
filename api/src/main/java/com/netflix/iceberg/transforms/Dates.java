@@ -41,6 +41,9 @@ enum Dates implements Transform<Integer, Integer> {
 
   @Override
   public Integer apply(Integer days) {
+    if (granularity == ChronoUnit.DAYS) {
+      return days;
+    }
     return (int) granularity.between(EPOCH, EPOCH.plusDays(days));
   }
 
@@ -62,6 +65,24 @@ enum Dates implements Transform<Integer, Integer> {
   @Override
   public UnboundPredicate<Integer> projectStrict(String name, BoundPredicate<Integer> predicate) {
     return null;
+  }
+
+  @Override
+  public String toHumanString(Integer value) {
+    if (value == null) {
+      return "null";
+    }
+
+    switch (granularity) {
+      case YEARS:
+        return TransformUtil.humanYear(value);
+      case MONTHS:
+        return TransformUtil.humanMonth(value);
+      case DAYS:
+        return TransformUtil.humanDay(value);
+      default:
+        throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
+    }
   }
 
   @Override

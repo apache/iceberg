@@ -78,4 +78,16 @@ public interface Transform<S, T> extends Serializable {
    * @return an inclusive predicate on partition values
    */
   UnboundPredicate<T> projectStrict(String name, BoundPredicate<S> predicate);
+
+  /**
+   * Returns a human-readable String representation of a transformed value.
+   * <p>
+   * null values will return "null"
+   *
+   * @param value a transformed value
+   * @return a human-readable String representation of the value
+   */
+  default String toHumanString(T value) {
+    return String.valueOf(value);
+  }
 }

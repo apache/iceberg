@@ -26,6 +26,8 @@ import com.netflix.iceberg.transforms.Transforms;
 import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Types;
 import java.io.Serializable;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -132,6 +134,34 @@ public class PartitionSpec implements Serializable {
     return javaClasses;
   }
 
+  @SuppressWarnings("unchecked")
+  private <T> T get(StructLike data, int pos, Class<?> javaClass) {
+    return data.get(pos, (Class<T>) javaClass);
+  }
+
+  private String escape(String string) {
+    try {
+      return URLEncoder.encode(string, "UTF-8");
+    } catch (UnsupportedEncodingException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public String partitionToPath(StructLike data) {
+    StringBuilder sb = new StringBuilder();
+    Class<?>[] javaClasses = javaClasses();
+    for (int i = 0; i < javaClasses.length; i += 1) {
+      PartitionField field = fields.get(i);
+      String valueString = field.transform().toHumanString(get(data, i, javaClasses[i]));
+
+      if (i > 0) {
+        sb.append("/");
+      }
+      sb.append(field.name()).append("=").append(escape(valueString));
+    }
+    return sb.toString();
+  }
+
   public boolean compatibleWith(PartitionSpec other) {
     if (equals(other)) {
       return true;
@@ -187,6 +217,18 @@ public class PartitionSpec implements Serializable {
     return sb.toString();
   }
 
+  private static final PartitionSpec UNPARTITIONED_SPEC =
+      new PartitionSpec(new Schema(), ImmutableList.of());
+
+  /**
+   * Returns a spec for unpartitioned tables.
+   *
+   * @return a partition spec with no partitions
+   */
+  public static PartitionSpec unpartitioned() {
+    return UNPARTITIONED_SPEC;
+  }
+
   /**
    * Creates a new {@link Builder partition spec builder} for the given {@link Schema}.
    *
@@ -228,7 +270,8 @@ public class PartitionSpec implements Serializable {
     public Builder identity(String sourceName) {
       checkAndAddPartitionName(sourceName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
-      fields.add(new PartitionField(sourceColumn.fieldId(), sourceName, Transforms.identity()));
+      fields.add(new PartitionField(
+          sourceColumn.fieldId(), sourceName, Transforms.identity(sourceColumn.type())));
       return this;
     }
 

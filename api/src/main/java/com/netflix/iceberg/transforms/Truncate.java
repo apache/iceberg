@@ -299,6 +299,11 @@ abstract class Truncate<T> implements Transform<T, T> {
     }
 
     @Override
+    public String toHumanString(ByteBuffer value) {
+      return value == null ? "null" : TransformUtil.base64encode(value);
+    }
+
+    @Override
     public String toString() {
       return "truncate[" + L + "]";
     }
