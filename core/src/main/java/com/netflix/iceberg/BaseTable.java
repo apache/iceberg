@@ -17,6 +17,7 @@
 package com.netflix.iceberg;
 
 import com.google.common.base.Objects;
+import java.util.Map;
 
 /**
  * Base {@link Table} implementation.
@@ -50,6 +51,11 @@ public class BaseTable implements Table {
   @Override
   public PartitionSpec spec() {
     return ops.current().spec();
+  }
+
+  @Override
+  public Map<String, String> properties() {
+    return ops.current().properties();
   }
 
   @Override

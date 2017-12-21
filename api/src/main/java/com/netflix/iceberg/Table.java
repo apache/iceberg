@@ -16,6 +16,8 @@
 
 package com.netflix.iceberg;
 
+import java.util.Map;
+
 /**
  * Represents a table.
  */
@@ -48,6 +50,13 @@ public interface Table {
    * @return this table's partition spec
    */
   PartitionSpec spec();
+
+  /**
+   * Return a map of string properties for this table.
+   *
+   * @return this table's properties map
+   */
+  Map<String, String> properties();
 
   /**
    * Get the current {@link Snapshot snapshot} for this table.
