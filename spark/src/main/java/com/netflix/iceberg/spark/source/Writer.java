@@ -222,6 +222,7 @@ class Writer implements DataSourceV2Writer, SupportsWriteInternalRow {
                   .config("spark.sql.parquet.writeLegacyFormat", "false")
                   .config("spark.sql.parquet.binaryAsString", "false")
                   .config("spark.sql.parquet.int96AsTimestamp", "false")
+                  .config("spark.sql.parquet.outputTimestampType", "TIMESTAMP_MICROS")
                   .schema(schema)
                   .build();
 
