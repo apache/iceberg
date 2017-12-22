@@ -37,6 +37,7 @@ import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 import com.netflix.iceberg.parquet.Parquet;
 import com.netflix.iceberg.parquet.ParquetMetrics;
+import com.netflix.iceberg.spark.data.SparkAvroWriter;
 import com.netflix.iceberg.util.Tasks;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -192,7 +193,7 @@ class Writer implements DataSourceV2Writer, SupportsWriteInternalRow {
     @Override
     public DataWriter<InternalRow> createDataWriter(int partitionId, int attemptNumber) {
       String filename = String.format("%05d-%s", partitionId, uuid);
-      AppenderFactory<InternalRow> factory = new AppenderFactory<>(spec.schema());
+      AppenderFactory<InternalRow> factory = new SparkAppenderFactory<>();
       if (spec.fields().isEmpty()) {
         return new UnpartitionedWriter(lazyDataPath(), filename, format, conf.value(), factory);
       } else {
@@ -207,41 +208,42 @@ class Writer implements DataSourceV2Writer, SupportsWriteInternalRow {
       }
       return dataPath;
     }
-  }
 
-  private static class AppenderFactory<T> {
-    private final Schema schema;
+    private class SparkAppenderFactory<T> implements AppenderFactory<T> {
+      public FileAppender<T> newAppender(OutputFile file, FileFormat format) {
+        Schema schema = spec.schema();
+        try {
+          switch (format) {
+            case PARQUET:
+              String jsonSchema = convert(schema).json();
+              return Parquet.write(file)
+                  .writeSupport(new ParquetWriteSupport())
+                  .config("org.apache.spark.sql.parquet.row.attributes", jsonSchema)
+                  .config("spark.sql.parquet.writeLegacyFormat", "false")
+                  .config("spark.sql.parquet.binaryAsString", "false")
+                  .config("spark.sql.parquet.int96AsTimestamp", "false")
+                  .schema(schema)
+                  .build();
 
-    AppenderFactory(Schema schema) {
-      this.schema = schema;
-    }
+            case AVRO:
+              return Avro.write(file)
+                  .createWriterFunc(ignored -> new SparkAvroWriter(schema))
+                  .schema(schema)
+                  .named("table")
+                  .build();
 
-    FileAppender<T> newAppender(OutputFile file, FileFormat format) {
-      try {
-        switch (format) {
-          case PARQUET:
-            String jsonSchema = convert(schema).json();
-            return Parquet.write(file)
-                .writeSupport(new ParquetWriteSupport())
-                .config("org.apache.spark.sql.parquet.row.attributes", jsonSchema)
-                .config("spark.sql.parquet.writeLegacyFormat", "false")
-                .config("spark.sql.parquet.binaryAsString", "false")
-                .config("spark.sql.parquet.int96AsTimestamp", "false")
-                .schema(schema)
-                .build();
-
-          case AVRO:
-            return Avro.write(file)
-                .schema(schema)
-                .build();
-
-          default:
-            throw new UnsupportedOperationException("Cannot write unknown format: " + format);
+            default:
+              throw new UnsupportedOperationException("Cannot write unknown format: " + format);
+          }
+        } catch (IOException e) {
+          throw new RuntimeIOException(e);
         }
-      } catch (IOException e) {
-        throw new RuntimeIOException(e);
       }
     }
+  }
+
+  private interface AppenderFactory<T> {
+    FileAppender<T> newAppender(OutputFile file, FileFormat format);
   }
 
   private static class UnpartitionedWriter implements DataWriter<InternalRow>, Closeable {

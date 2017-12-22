@@ -45,7 +45,7 @@ public class SparkAvroReader implements DatumReader<InternalRow> {
   @SuppressWarnings("unchecked")
   public SparkAvroReader(Schema readSchema) {
     this.readSchema = readSchema;
-    this.reader = (ValueReader<InternalRow>) AvroSchemaVisitor.visit(readSchema, ReadBuilder.get());
+    this.reader = (ValueReader<InternalRow>) AvroSchemaVisitor.visit(readSchema, new ReadBuilder());
   }
 
   @Override
@@ -86,12 +86,6 @@ public class SparkAvroReader implements DatumReader<InternalRow> {
   }
 
   private static class ReadBuilder extends AvroSchemaVisitor<ValueReader<?>> {
-    private static final ReadBuilder INSTANCE = new ReadBuilder();
-
-    public static ReadBuilder get() {
-      return INSTANCE;
-    }
-
     private ReadBuilder() {
     }
 

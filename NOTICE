@@ -1,5 +1,16 @@
 --------------------------------------------------------------------------------
 
+This product includes code from Apache Avro, which includes the following in
+its NOTICE file:
+
+| Apache Avro
+| Copyright 2010-2015 The Apache Software Foundation
+|
+| This product includes software developed at
+| The Apache Software Foundation (http://www.apache.org/).
+
+--------------------------------------------------------------------------------
+
 This product includes code from Apache Parquet, which includes the following in
 its NOTICE file:
 

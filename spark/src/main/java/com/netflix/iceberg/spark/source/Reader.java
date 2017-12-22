@@ -109,7 +109,7 @@ class Reader implements DataSourceV2Reader, SupportsScanUnsafeRow,
 
   @Override
   public Filter[] pushFilters(Filter[] filters) {
-    // TODO: this needs to add columns to the projection
+    // TODO: this needs to add filter columns to the projection
     this.tasks = null; // invalidate cached tasks, if present
 
     List<Expression> expressions = Lists.newArrayListWithExpectedSize(filters.length);
