@@ -22,17 +22,18 @@ import com.netflix.iceberg.io.OutputFile;
 import org.apache.avro.Schema;
 import org.apache.avro.file.CodecFactory;
 import org.apache.avro.file.DataFileWriter;
-import org.apache.avro.generic.GenericData;
 import org.apache.avro.io.DatumWriter;
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Function;
 
 class AvroFileAppender<D> implements FileAppender<D> {
   private DataFileWriter<D> writer = null;
 
-  AvroFileAppender(Schema schema, OutputFile file, GenericData model, CodecFactory codec,
-                   Map<String, String> metadata) throws IOException {
-    this.writer = newAvroWriter(schema, file, model, codec, metadata);
+  AvroFileAppender(Schema schema, OutputFile file,
+                   Function<Schema, DatumWriter<?>> createWriterFunc,
+                   CodecFactory codec, Map<String, String> metadata) throws IOException {
+    this.writer = newAvroWriter(schema, file, createWriterFunc, codec, metadata);
   }
 
   @Override
@@ -53,12 +54,11 @@ class AvroFileAppender<D> implements FileAppender<D> {
   }
 
   @SuppressWarnings("unchecked")
-  private static <D> DataFileWriter<D> newAvroWriter(Schema schema, OutputFile file,
-                                                     GenericData model, CodecFactory codec,
-                                                     Map<String, String> metadata)
-      throws IOException {
+  private static <D> DataFileWriter<D> newAvroWriter(
+      Schema schema, OutputFile file, Function<Schema, DatumWriter<?>> createWriterFunc,
+      CodecFactory codec, Map<String, String> metadata) throws IOException {
     DataFileWriter<D> writer = new DataFileWriter<>(
-        (DatumWriter<D>) model.createDatumWriter(schema));
+        (DatumWriter<D>) createWriterFunc.apply(schema));
 
     writer.setCodec(codec);
 

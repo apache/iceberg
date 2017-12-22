@@ -26,6 +26,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.apache.avro.Schema.Type.ARRAY;
+import static org.apache.avro.Schema.Type.MAP;
 import static org.apache.avro.Schema.Type.UNION;
 
 public class AvroSchemaUtil {
@@ -132,19 +134,25 @@ public class AvroSchemaUtil {
     return toInt(id);
   }
 
-  static int getKeyId(Schema schema) {
+  public static int getKeyId(Schema schema) {
+    Preconditions.checkArgument(schema.getType() == MAP,
+        "Cannot get map key id for non-map schema: " + schema);
     return getId(schema, KEY_ID_PROP);
   }
 
-  static int getValueId(Schema schema) {
+  public static int getValueId(Schema schema) {
+    Preconditions.checkArgument(schema.getType() == MAP,
+        "Cannot get map value id for non-map schema: " + schema);
     return getId(schema, VALUE_ID_PROP);
   }
 
-  static int getElementId(Schema schema) {
+  public static int getElementId(Schema schema) {
+    Preconditions.checkArgument(schema.getType() == ARRAY,
+        "Cannot get array element id for non-array schema: " + schema);
     return getId(schema, ELEMENT_ID_PROP);
   }
 
-  static int getId(Schema.Field field) {
+  public static int getFieldId(Schema.Field field) {
     Object id = field.getObjectProp(FIELD_ID_PROP);
     Preconditions.checkNotNull(id, "Missing expected '%s' property", FIELD_ID_PROP);
 

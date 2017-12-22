@@ -116,7 +116,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
   @Override
   public Schema.Field field(Schema.Field field, Supplier<Schema> fieldResult) {
     Types.StructType struct = current.asNestedType().asStructType();
-    int fieldId = AvroSchemaUtil.getId(field);
+    int fieldId = AvroSchemaUtil.getFieldId(field);
     Types.NestedField expectedField = struct.field(fieldId); // TODO: what if there are no ids?
 
     // if the field isn't present, it was not selected

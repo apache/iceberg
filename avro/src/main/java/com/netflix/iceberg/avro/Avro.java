@@ -25,6 +25,7 @@ import org.apache.avro.Schema;
 import org.apache.avro.file.CodecFactory;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.io.DatumReader;
+import org.apache.avro.io.DatumWriter;
 import org.apache.avro.specific.SpecificData;
 import java.io.IOException;
 import java.util.Map;
@@ -48,8 +49,9 @@ public class Avro {
     private final OutputFile file;
     private com.netflix.iceberg.Schema schema = null;
     private String name = "table";
-    private GenericData model = DEFAULT_MODEL;
     private Map<String, String> metadata = Maps.newLinkedHashMap();
+    private Function<Schema, DatumWriter<?>> createWriterFunc =
+        schema -> DEFAULT_MODEL.createDatumWriter(schema);
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
@@ -65,8 +67,8 @@ public class Avro {
       return this;
     }
 
-    public WriteBuilder dataModel(GenericData model) {
-      this.model = model;
+    public WriteBuilder createWriterFunc(Function<Schema, DatumWriter<?>> writerFunction) {
+      this.createWriterFunc = writerFunction;
       return this;
     }
 
@@ -79,7 +81,7 @@ public class Avro {
       Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(name, "Table name is required and cannot be null");
       return new AvroFileAppender<>(
-          AvroSchemaUtil.convert(schema, name), file, model,
+          AvroSchemaUtil.convert(schema, name), file, createWriterFunc,
           CodecFactory.deflateCodec(9), metadata);
     }
   }
@@ -93,9 +95,8 @@ public class Avro {
     private final Map<String, String> renames = Maps.newLinkedHashMap();
     private boolean reuseContainers = false;
     private com.netflix.iceberg.Schema schema = null;
-    private GenericData model = DEFAULT_MODEL;
     private Function<Schema, DatumReader<?>> createReaderFunc =
-        schema -> (DatumReader<?>) model.createDatumReader(schema);
+        schema -> (DatumReader<?>) DEFAULT_MODEL.createDatumReader(schema);
     private Long start = null;
     private Long length = null;
 

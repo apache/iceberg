@@ -66,7 +66,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
 
   private int getId(Schema.Field field) {
     if (field.getObjectProp(AvroSchemaUtil.FIELD_ID_PROP) != null) {
-      return AvroSchemaUtil.getId(field);
+      return AvroSchemaUtil.getFieldId(field);
     } else {
       return allocateId();
     }

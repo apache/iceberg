@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static com.netflix.iceberg.avro.AvroSchemaUtil.getElementId;
-import static com.netflix.iceberg.avro.AvroSchemaUtil.getId;
+import static com.netflix.iceberg.avro.AvroSchemaUtil.getFieldId;
 import static com.netflix.iceberg.avro.AvroSchemaUtil.getKeyId;
 import static com.netflix.iceberg.avro.AvroSchemaUtil.getValueId;
 
@@ -51,7 +51,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
     List<Schema.Field> filteredFields = Lists.newArrayListWithExpectedSize(fields.size());
     boolean hasChange = false;
     for (Schema.Field field : record.getFields()) {
-      int fieldId = getId(field);
+      int fieldId = getFieldId(field);
       Schema fieldSchema = fields.get(field.pos());
       // All primitives are selected by selecting the field, but map and list
       // types can be selected by projecting the keys, values, or elements.
