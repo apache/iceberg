@@ -155,6 +155,6 @@ public class TestAvroWrite extends AvroDataTest {
     }
 
     JavaRDD<InternalRow> rdd = sc.parallelize(rows);
-    return spark.internalCreateDataFrame(JavaRDD.toRDD(rdd), convert(schema));
+    return spark.internalCreateDataFrame(JavaRDD.toRDD(rdd), convert(schema), false);
   }
 }
