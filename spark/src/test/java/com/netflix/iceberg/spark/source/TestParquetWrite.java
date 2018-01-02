@@ -120,7 +120,8 @@ public class TestParquetWrite {
     location.mkdirs();
 
     HadoopTables tables = new HadoopTables(CONF);
-    Table table = tables.create(SCHEMA, PartitionSpec.unpartitioned(), location.toString());
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
+    Table table = tables.create(SCHEMA, spec, location.toString());
 
     List<Record> expected = Lists.newArrayList(
         new Record(1, "a"),
@@ -130,6 +131,7 @@ public class TestParquetWrite {
 
     Dataset<Row> df = spark.createDataFrame(expected, Record.class);
 
+    // TODO: incoming columns must be ordered according to the table's schema
     df.select("id", "data").write()
         .format("iceberg")
         .mode("append")
@@ -143,7 +145,7 @@ public class TestParquetWrite {
         .option("iceberg.table.location", location.toString())
         .load();
 
-    List<Record> actual = result.as(Encoders.bean(Record.class)).collectAsList();
+    List<Record> actual = result.orderBy("id").as(Encoders.bean(Record.class)).collectAsList();
 
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
