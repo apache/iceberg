@@ -231,7 +231,7 @@ public class Parquet {
     }
 
     @SuppressWarnings("unchecked")
-    public <D> Iterable<D> build() {
+    public <D> ParquetIterable<D> build() {
       ParquetReadBuilder<D> builder = new ParquetReadBuilder<>(ParquetIO.file(file));
 
       builder.project(schema);

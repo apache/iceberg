@@ -28,7 +28,7 @@ import java.util.List;
 
 import static org.apache.parquet.schema.Type.Repetition.REPEATED;
 
-abstract class ParquetTypeVisitor<T> {
+public class ParquetTypeVisitor<T> {
   protected LinkedList<String> fieldNames = Lists.newLinkedList();
 
   public static <T> T visit(Type type, ParquetTypeVisitor<T> visitor) {

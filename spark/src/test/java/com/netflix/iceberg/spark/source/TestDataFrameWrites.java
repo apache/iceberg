@@ -40,8 +40,6 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import java.io.File;
@@ -53,7 +51,7 @@ import static com.netflix.iceberg.spark.data.TestHelpers.assertEqualsSafe;
 import static com.netflix.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 
 @RunWith(Parameterized.class)
-public class TestAvroWrite extends AvroDataTest {
+public class TestDataFrameWrites extends AvroDataTest {
   private static final Configuration CONF = new Configuration();
 
   private String format = null;
@@ -66,27 +64,24 @@ public class TestAvroWrite extends AvroDataTest {
     };
   }
 
-  public TestAvroWrite(String format) {
+  public TestDataFrameWrites(String format) {
     this.format = format;
   }
-
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
 
   private static SparkSession spark = null;
   private static JavaSparkContext sc = null;
 
   @BeforeClass
   public static void startSpark() {
-    TestAvroWrite.spark = SparkSession.builder().master("local[2]").getOrCreate();
-    TestAvroWrite.sc = new JavaSparkContext(spark.sparkContext());
+    TestDataFrameWrites.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestDataFrameWrites.sc = new JavaSparkContext(spark.sparkContext());
   }
 
   @AfterClass
   public static void stopSpark() {
-    SparkSession spark = TestAvroWrite.spark;
-    TestAvroWrite.spark = null;
-    TestAvroWrite.sc = null;
+    SparkSession spark = TestDataFrameWrites.spark;
+    TestDataFrameWrites.spark = null;
+    TestDataFrameWrites.sc = null;
     spark.stop();
   }
 

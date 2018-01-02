@@ -25,7 +25,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-class ParquetIterable<T> implements Iterable<T>, Closeable {
+public class ParquetIterable<T> implements Iterable<T>, Closeable {
   private final List<Closeable> closeables = Lists.newArrayList();
   private final ParquetReader.Builder<T> builder;
 
