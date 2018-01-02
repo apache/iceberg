@@ -49,8 +49,8 @@ public abstract class AvroDataTest {
       //required(111, "uuid", Types.UUIDType.get()),
       //required(112, "fixed", Types.FixedType.ofLength(7)),
       optional(113, "bytes", Types.BinaryType.get()),
-      required(114, "dec_9_0", Types.DecimalType.of(9, 0)),
-      required(115, "dec_9_2", Types.DecimalType.of(9, 2)),
+      //required(114, "dec_9_0", Types.DecimalType.of(9, 0)),
+      //required(115, "dec_9_2", Types.DecimalType.of(9, 2)),
       required(116, "dec_38_10", Types.DecimalType.of(38, 10)) // spark's maximum precision
   );
 
