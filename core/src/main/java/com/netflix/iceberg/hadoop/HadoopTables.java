@@ -23,6 +23,7 @@ import com.netflix.iceberg.Table;
 import com.netflix.iceberg.TableMetadata;
 import com.netflix.iceberg.TableOperations;
 import com.netflix.iceberg.exceptions.AlreadyExistsException;
+import com.netflix.iceberg.exceptions.NoSuchTableException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 
@@ -34,11 +35,16 @@ public class HadoopTables {
   }
 
   public Table load(String location) {
-    return new BaseTable(newTableOps(location, conf), location);
+    TableOperations ops = newTableOps(location);
+    if (ops.current() == null) {
+      throw new NoSuchTableException("Table does not exist at location: " + location);
+    }
+
+    return new BaseTable(ops, location);
   }
 
   public Table create(Schema schema, PartitionSpec spec, String location) {
-    TableOperations ops = newTableOps(location, conf);
+    TableOperations ops = newTableOps(location);
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table already exists at location: " + location);
     }
@@ -49,7 +55,7 @@ public class HadoopTables {
     return new BaseTable(ops, location);
   }
 
-  private TableOperations newTableOps(String location, Configuration conf) {
+  private TableOperations newTableOps(String location) {
     return new HadoopTableOperations(new Path(location), conf);
   }
 }
