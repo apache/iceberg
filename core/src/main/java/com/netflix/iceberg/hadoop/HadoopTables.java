@@ -49,7 +49,7 @@ public class HadoopTables {
       throw new AlreadyExistsException("Table already exists at location: " + location);
     }
 
-    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec);
+    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, location);
     ops.commit(null, metadata);
 
     return new BaseTable(ops, location);

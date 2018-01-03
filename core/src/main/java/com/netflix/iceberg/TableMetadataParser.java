@@ -34,6 +34,7 @@ import java.util.Map;
 public class TableMetadataParser {
 
   private static final String FORMAT_VERSION = "format-version";
+  private static final String LOCATION = "location";
   private static final String LAST_UPDATED_MILLIS = "last-updated-ms";
   private static final String LAST_COLUMN_ID = "last-column-id";
   private static final String SCHEMA = "schema";
@@ -69,6 +70,7 @@ public class TableMetadataParser {
     generator.writeStartObject();
 
     generator.writeNumberField(FORMAT_VERSION, TableMetadata.TABLE_FORMAT_VERSION);
+    generator.writeStringField(LOCATION, metadata.location());
     generator.writeNumberField(LAST_UPDATED_MILLIS, metadata.lastUpdatedMillis());
     generator.writeNumberField(LAST_COLUMN_ID, metadata.lastColumnId());
 
@@ -112,6 +114,7 @@ public class TableMetadataParser {
     Preconditions.checkArgument(formatVersion == TableMetadata.TABLE_FORMAT_VERSION,
         "Cannot read unsupported version %d", formatVersion);
 
+    String location = JsonUtil.getString(LOCATION, node);
     int lastAssignedColumnId = JsonUtil.getInt(LAST_COLUMN_ID, node);
     Schema schema = SchemaParser.fromJson(node.get(SCHEMA));
     PartitionSpec spec = PartitionSpecParser.fromJson(schema, node.get(PARTITION_SPEC));
@@ -129,7 +132,7 @@ public class TableMetadataParser {
       snapshots.add(SnapshotParser.fromJson(ops, iterator.next()));
     }
 
-    return new TableMetadata(ops, file,
+    return new TableMetadata(ops, file, location,
         lastUpdatedMillis, lastAssignedColumnId, schema, spec, properties, currentVersionId,
         snapshots);
   }

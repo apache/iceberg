@@ -98,7 +98,7 @@ public class TestMergeAppend extends TableTestBase {
         .build();
 
     // commit the new partition spec to the table manually
-    TableMetadata updated = new TableMetadata(table.ops(), null,
+    TableMetadata updated = new TableMetadata(table.ops(), null, base.location(),
         System.currentTimeMillis(), base.lastColumnId(), base.schema(), newSpec, base.properties(),
         base.currentSnapshot().snapshotId(), base.snapshots());
     table.ops().commit(base, updated);
@@ -144,7 +144,7 @@ public class TestMergeAppend extends TableTestBase {
         .build();
 
     // commit the new partition spec to the table manually
-    TableMetadata updated = new TableMetadata(table.ops(), null,
+    TableMetadata updated = new TableMetadata(table.ops(), null, base.location(),
         System.currentTimeMillis(), base.lastColumnId(), base.schema(), newSpec, base.properties(),
         base.currentSnapshot().snapshotId(), base.snapshots());
     table.ops().commit(base, updated);

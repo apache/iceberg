@@ -41,7 +41,7 @@ public class TestTableMetadataJson {
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(null, currentSnapshotId, "file:/tmp/manfiest.2.avro");
 
-    TableMetadata expected = new TableMetadata(null, null,
+    TableMetadata expected = new TableMetadata(null, null, "s3://bucket/test/location",
         System.currentTimeMillis(), 3, schema, spec, ImmutableMap.of("property", "value"),
         currentSnapshotId, Arrays.asList(previousSnapshot, currentSnapshot));
 
@@ -49,6 +49,8 @@ public class TestTableMetadataJson {
     TableMetadata metadata = TableMetadataParser.fromJson(null, null,
         JsonUtil.mapper().readValue(asJson, JsonNode.class));
 
+    Assert.assertEquals("Table location should match",
+        expected.location(), metadata.location());
     Assert.assertEquals("Last column ID should match",
         expected.lastColumnId(), metadata.lastColumnId());
     Assert.assertEquals("Schema should match",

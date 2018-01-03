@@ -34,7 +34,10 @@ import java.util.function.Predicate;
 public class TableMetadata {
   static final int TABLE_FORMAT_VERSION = 1;
 
-  public static TableMetadata newTableMetadata(TableOperations ops, Schema schema, PartitionSpec spec) {
+  public static TableMetadata newTableMetadata(TableOperations ops,
+                                               Schema schema,
+                                               PartitionSpec spec,
+                                               String location) {
     // reassign all column ids to ensure consistency
     AtomicInteger lastColumnId = new AtomicInteger(0);
     Schema freshSchema = TypeUtil.reassignIds(schema, lastColumnId::incrementAndGet);
@@ -51,7 +54,7 @@ public class TableMetadata {
     }
     PartitionSpec freshSpec = specBuilder.build();
 
-    return new TableMetadata(ops, null,
+    return new TableMetadata(ops, null, location,
         System.currentTimeMillis(),
         lastColumnId.get(), freshSchema, freshSpec,
         ImmutableMap.of(), -1, ImmutableList.of());
@@ -60,6 +63,7 @@ public class TableMetadata {
   private final TableOperations ops;
   // TODO: should this reference its own file? (maybe: it could be an easy way to track it)
   private final InputFile file;
+  private final String location;
   private final long lastUpdatedMillis;
   private final int lastColumnId;
   private final Schema schema;
@@ -71,6 +75,7 @@ public class TableMetadata {
 
   TableMetadata(TableOperations ops,
                 InputFile file,
+                String location,
                 long lastUpdatedMillis,
                 int lastColumnId,
                 Schema schema,
@@ -80,6 +85,7 @@ public class TableMetadata {
                 List<Snapshot> snapshots) {
     this.ops = ops;
     this.file = file;
+    this.location = location;
     this.lastUpdatedMillis = lastUpdatedMillis;
     this.lastColumnId = lastColumnId;
     this.schema = schema;
@@ -119,6 +125,10 @@ public class TableMetadata {
     return spec;
   }
 
+  public String location() {
+    return location;
+  }
+
   public Map<String, String> properties() {
     return properties;
   }
@@ -143,9 +153,15 @@ public class TableMetadata {
     return snapshots;
   }
 
+  public TableMetadata updateTableLocation(String newLocation) {
+    return new TableMetadata(ops, null, newLocation,
+        System.currentTimeMillis(), lastColumnId, schema, spec, properties, currentSnapshotId,
+        snapshots);
+  }
+
   public TableMetadata updateSchema(Schema schema, int lastColumnId) {
     PartitionSpec.checkCompatibility(spec, schema);
-    return new TableMetadata(ops, null,
+    return new TableMetadata(ops, null, location,
         System.currentTimeMillis(), lastColumnId, schema, spec, properties, currentSnapshotId,
         snapshots);
   }
@@ -155,7 +171,7 @@ public class TableMetadata {
         .addAll(snapshots)
         .add(snapshot)
         .build();
-    return new TableMetadata(ops, null,
+    return new TableMetadata(ops, null, location,
         snapshot.timestampMillis(), lastColumnId, schema, spec, properties, snapshot.snapshotId(),
         newSnapshots);
   }
@@ -173,7 +189,7 @@ public class TableMetadata {
       }
     }
 
-    return new TableMetadata(ops, null,
+    return new TableMetadata(ops, null, location,
         System.currentTimeMillis(), lastColumnId, schema, spec, properties, currentSnapshotId,
         filtered);
   }
@@ -182,16 +198,15 @@ public class TableMetadata {
     ValidationException.check(snapshotsById.containsKey(snapshot.snapshotId()),
         "Cannot set current snapshot to unknown: %s", snapshot.snapshotId());
 
-    return new TableMetadata(ops, null,
+    return new TableMetadata(ops, null, location,
         System.currentTimeMillis(), lastColumnId, schema, spec, properties, snapshot.snapshotId(),
         snapshots);
   }
 
   public TableMetadata replaceProperties(Map<String, String> newProperties) {
     ValidationException.check(newProperties != null, "Cannot set properties to null");
-    return new TableMetadata(ops, null,
+    return new TableMetadata(ops, null, location,
         System.currentTimeMillis(), lastColumnId, schema, spec, newProperties, currentSnapshotId,
         snapshots);
   }
-
 }

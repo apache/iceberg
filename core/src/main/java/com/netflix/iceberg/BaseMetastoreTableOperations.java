@@ -95,10 +95,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
       this.currentMetadataLocation = newLocation;
       this.version = parseVersion(newLocation);
       this.currentMetadata = TableMetadataParser.read(this, fromLocation(newLocation, conf));
-      // TODO: this should be part of the table metadata?
-      if (baseLocation == null) {
-        this.baseLocation = parseBaseLocation(currentMetadataLocation);
-      }
+      this.baseLocation = currentMetadata.location();
     }
   }
 
