@@ -59,6 +59,11 @@ public class BaseTable implements Table {
   }
 
   @Override
+  public String location() {
+    return ops.current().location();
+  }
+
+  @Override
   public Snapshot currentSnapshot() {
     return ops.current().currentSnapshot();
   }

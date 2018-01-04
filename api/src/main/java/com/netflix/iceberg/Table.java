@@ -59,6 +59,13 @@ public interface Table {
   Map<String, String> properties();
 
   /**
+   * Return the table's base location.
+   *
+   * @return this table's location
+   */
+  String location();
+
+  /**
    * Get the current {@link Snapshot snapshot} for this table.
    *
    * @return the current table Snapshot.

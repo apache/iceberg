@@ -61,8 +61,9 @@ public class TableMetadata {
   }
 
   private final TableOperations ops;
-  // TODO: should this reference its own file? (maybe: it could be an easy way to track it)
   private final InputFile file;
+
+  // stored metadata
   private final String location;
   private final long lastUpdatedMillis;
   private final int lastColumnId;
