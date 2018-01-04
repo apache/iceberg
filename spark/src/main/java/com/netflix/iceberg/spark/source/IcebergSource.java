@@ -41,6 +41,8 @@ import static com.netflix.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 
 public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, DataSourceRegister {
 
+  private Configuration lazyConf = null;
+
   @Override
   public String shortName() {
     return "iceberg";
@@ -48,17 +50,8 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
 
   @Override
   public DataSourceV2Reader createReader(DataSourceV2Options options) {
-    SparkSession session = SparkSession.builder().getOrCreate();
-    Configuration conf = session.sparkContext().hadoopConfiguration();
-
-    Optional<String> location = options.get("iceberg.table.location");
-    if (location.isPresent()) {
-      HadoopTables tables = new HadoopTables(conf);
-      Table table = tables.load(location.get());
-      return new Reader(table, location.get(), conf);
-    }
-
-    throw new IllegalArgumentException("Cannot open table without a location");
+    Table table = findTable(options);
+    return new Reader(table, lazyConf());
   }
 
   @Override
@@ -66,37 +59,45 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
                                                    DataSourceV2Options options) {
     Preconditions.checkArgument(mode == SaveMode.Append, "Save mode %s is not supported", mode);
 
-    SparkSession session = SparkSession.builder().getOrCreate();
-    Configuration conf = session.sparkContext().hadoopConfiguration();
+    Table table = findTable(options);
 
-    Optional<String> location = options.get("iceberg.table.location");
-    if (location.isPresent()) {
-      HadoopTables tables = new HadoopTables(conf);
-      Table table = tables.load(location.get());
-
-      // TODO: prune isn't quite correct. this should convert and fill in the right ids
-      Schema dfSchema = SparkSchemaUtil.prune(table.schema(), dfStruct);
-      // TODO: this constraint can be relaxed to table.schema().canRead(dfSchema)
-      if (!dfSchema.asStruct().equals(table.schema().asStruct())) {
-        throw new IllegalArgumentException(String.format(
-            "Cannot write incompatible dataframe schema:\n%s\nTo table with schema:\n%s",
-            dfSchema, table.schema()));
-      }
-
-      Optional<String> formatOption = options.get("iceberg.write.format");
-      FileFormat format;
-      if (formatOption.isPresent()) {
-        format = FileFormat.valueOf(formatOption.get().toUpperCase(Locale.ENGLISH));
-      } else {
-        format = FileFormat.valueOf(table.properties()
-            .getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT)
-            .toUpperCase(Locale.ENGLISH));
-      }
-
-      return Optional.of(new Writer(table, location.get(), conf, format));
+    // TODO: prune isn't quite correct. this should convert and fill in the right ids
+    Schema dfSchema = SparkSchemaUtil.prune(table.schema(), dfStruct);
+    // TODO: this constraint can be relaxed to table.schema().canRead(dfSchema)
+    if (!dfSchema.asStruct().equals(table.schema().asStruct())) {
+      throw new IllegalArgumentException(String.format(
+          "Cannot write incompatible dataframe schema:\n%s\nTo table with schema:\n%s",
+          dfSchema, table.schema()));
     }
 
-    throw new IllegalArgumentException("Cannot open table without a location");
+    Optional<String> formatOption = options.get("iceberg.write.format");
+    FileFormat format;
+    if (formatOption.isPresent()) {
+      format = FileFormat.valueOf(formatOption.get().toUpperCase(Locale.ENGLISH));
+    } else {
+      format = FileFormat.valueOf(table.properties()
+          .getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT)
+          .toUpperCase(Locale.ENGLISH));
+    }
+
+    return Optional.of(new Writer(table, lazyConf(), format));
   }
 
+  protected Table findTable(DataSourceV2Options options) {
+    Optional<String> location = options.get("iceberg.table.location");
+    Preconditions.checkArgument(location.isPresent(),
+        "Cannot open table without a location: iceberg.table.location is not set");
+
+    HadoopTables tables = new HadoopTables(lazyConf());
+
+    return tables.load(location.get());
+  }
+
+  protected Configuration lazyConf() {
+    if (lazyConf == null) {
+      SparkSession session = SparkSession.builder().getOrCreate();
+      this.lazyConf = session.sparkContext().hadoopConfiguration();
+    }
+    return lazyConf;
+  }
 }

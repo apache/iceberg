@@ -69,7 +69,6 @@ class Reader implements DataSourceV2Reader, SupportsScanUnsafeRow,
   );
 
   private final Table table;
-  private final String location;
   private final SerializableConfiguration conf;
   private Schema schema = null;
   private StructType type = null; // cached because Spark accesses it multiple times
@@ -77,9 +76,8 @@ class Reader implements DataSourceV2Reader, SupportsScanUnsafeRow,
   private Filter[] pushedFilters = NO_FILTERS;
   private List<FileScanTask> tasks = null; // lazy cache of tasks
 
-  Reader(Table table, String location, Configuration conf) {
+  Reader(Table table, Configuration conf) {
     this.table = table;
-    this.location = location;
     this.conf = new SerializableConfiguration(conf);
     this.schema = table.schema();
     this.type = convert(schema);
@@ -175,8 +173,8 @@ class Reader implements DataSourceV2Reader, SupportsScanUnsafeRow,
   @Override
   public String toString() {
     return String.format(
-        "IcebergTable(location=%s, type=%s, filters=%s)",
-        location, schema.asStruct(), filterExpressions);
+        "IcebergRead(table=%s, type=%s, filters=%s)",
+        table, schema.asStruct(), filterExpressions);
   }
 
   private static class ScanTask implements ReadTask<UnsafeRow>, Serializable {

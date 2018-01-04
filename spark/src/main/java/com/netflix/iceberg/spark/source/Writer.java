@@ -73,13 +73,11 @@ import static com.netflix.iceberg.spark.SparkSchemaUtil.convert;
 // TODO: parameterize DataSourceV2Writer with subclass of WriterCommitMessage
 class Writer implements DataSourceV2Writer, SupportsWriteInternalRow {
   private final Table table;
-  private final String location;
   private final Configuration conf;
   private final FileFormat format;
 
-  Writer(Table table, String location, Configuration conf, FileFormat format) {
+  Writer(Table table, Configuration conf, FileFormat format) {
     this.table = table;
-    this.location = location;
     this.conf = conf;
     this.format = format;
   }
@@ -104,7 +102,7 @@ class Writer implements DataSourceV2Writer, SupportsWriteInternalRow {
   public void abort(WriterCommitMessage[] messages) {
     FileSystem fs;
     try {
-      fs = new Path(location).getFileSystem(conf);
+      fs = new Path(table.location()).getFileSystem(conf);
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     }
@@ -144,13 +142,13 @@ class Writer implements DataSourceV2Writer, SupportsWriteInternalRow {
   }
 
   private String dataLocation() {
-    return new Path(new Path(location), "data").toString();
+    return new Path(new Path(table.location()), "data").toString();
   }
 
   @Override
   public String toString() {
-    return String.format("IcebergTable(location=%s, type=%s, format=%s)",
-        location, table.schema().asStruct(), format);
+    return String.format("IcebergWrite(table=%s, type=%s, format=%s)",
+        table, table.schema().asStruct(), format);
   }
 
 
