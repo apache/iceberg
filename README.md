@@ -18,9 +18,10 @@ The [Iceberg format specification][iceberg-spec] is being actively updated and i
 
 We welcome collaboration on both the Iceberg library and specification. The draft spec is open for comments.
 
-For other discussion, please open issues on the [Iceberg github page][iceberg-github].
+For other discussion, please use the [Iceberg mailing list][iceberg-devel] or open issues on the [Iceberg github page][iceberg-github].
 
 [iceberg-github]: https://github.com/Netflix/iceberg
+[iceberg-devel]: https://groups.google.com/forum/#!forum/iceberg-devel
 
 
 ### Building
