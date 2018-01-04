@@ -7,6 +7,8 @@ com.netflix.iceberg.hadoop
 com.netflix.iceberg.io
 com.netflix.iceberg.parquet
 com.netflix.iceberg.spark
+com.netflix.iceberg.spark.data
+com.netflix.iceberg.spark.hacks
 com.netflix.iceberg.spark.source
 com.netflix.iceberg.transforms
 com.netflix.iceberg.types
