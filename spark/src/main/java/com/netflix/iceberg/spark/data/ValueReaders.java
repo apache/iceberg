@@ -17,7 +17,9 @@
 package com.netflix.iceberg.spark.data;
 
 import com.google.common.collect.Lists;
+import org.apache.avro.Schema;
 import org.apache.avro.io.Decoder;
+import org.apache.avro.io.ResolvingDecoder;
 import org.apache.avro.util.Utf8;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
@@ -369,13 +371,25 @@ class ValueReaders {
     @Override
     public InternalRow read(Decoder decoder) throws IOException {
       GenericInternalRow row = new GenericInternalRow(readers.length);
+      if (decoder instanceof ResolvingDecoder) {
+        // this may not set all of the fields. nulls are set by default.
+        for (Schema.Field field : ((ResolvingDecoder) decoder).readFieldOrder()) {
+          Object value = readers[field.pos()].read(decoder);
+          if (value != null) {
+            row.update(field.pos(), value);
+          } else {
+            row.setNullAt(field.pos());
+          }
+        }
 
-      for (int i = 0; i < readers.length; i += 1) {
-        Object value = readers[i].read(decoder);
-        if (value != null) {
-          row.update(i, value);
-        } else {
-          row.setNullAt(i);
+      } else {
+        for (int i = 0; i < readers.length; i += 1) {
+          Object value = readers[i].read(decoder);
+          if (value != null) {
+            row.update(i, value);
+          } else {
+            row.setNullAt(i);
+          }
         }
       }
 
