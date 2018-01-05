@@ -23,11 +23,13 @@ import com.netflix.iceberg.DataFile;
 import com.netflix.iceberg.FileScanTask;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.SchemaParser;
+import com.netflix.iceberg.StructLike;
 import com.netflix.iceberg.Table;
 import com.netflix.iceberg.TableScan;
 import com.netflix.iceberg.avro.Avro;
 import com.netflix.iceberg.common.DynMethods;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
+import com.netflix.iceberg.expressions.Evaluator;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.hadoop.HadoopInputFile;
 import com.netflix.iceberg.io.InputFile;
@@ -49,6 +51,8 @@ import org.apache.spark.sql.sources.v2.reader.SupportsPushDownFilters;
 import org.apache.spark.sql.sources.v2.reader.SupportsPushDownRequiredColumns;
 import org.apache.spark.sql.sources.v2.reader.SupportsReportStatistics;
 import org.apache.spark.sql.sources.v2.reader.SupportsScanUnsafeRow;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.util.SerializableConfiguration;
 import java.io.Closeable;
@@ -173,7 +177,7 @@ class Reader implements DataSourceV2Reader, SupportsScanUnsafeRow,
   @Override
   public String toString() {
     return String.format(
-        "IcebergRead(table=%s, type=%s, filters=%s)",
+        "IcebergScan(table=%s, type=%s, filters=%s)",
         table, schema.asStruct(), filterExpressions);
   }
 
@@ -226,7 +230,16 @@ class Reader implements DataSourceV2Reader, SupportsScanUnsafeRow,
               .createReaderFunc(SparkAvroReader::new)
               .build();
 
-          return new IteratorReader(Iterators.transform(avro.iterator(),
+          Iterator<InternalRow> iter = avro.iterator();
+
+          Expression residual = task.residual();
+          if (residual.op() != Expression.Operation.TRUE) {
+            Evaluator eval = new Evaluator(lazySchema().asStruct(), residual);
+            StructLikeInternalRow wrapper = new StructLikeInternalRow(lazyType());
+            iter = Iterators.filter(iter, input -> eval.eval(wrapper.setRow(input)));
+          }
+
+          return new IteratorReader(Iterators.transform(iter,
               APPLY_PROJECTION.bind(UnsafeProjection.create(lazyType()))::invoke));
 
         default:
@@ -246,6 +259,35 @@ class Reader implements DataSourceV2Reader, SupportsScanUnsafeRow,
         this.schema = SchemaParser.fromJson(schemaString);
       }
       return schema;
+    }
+  }
+
+  private static class StructLikeInternalRow implements StructLike {
+    private final DataType[] types;
+    private InternalRow row = null;
+
+    StructLikeInternalRow(StructType struct) {
+      this.types = new DataType[struct.size()];
+      StructField[] fields = struct.fields();
+      for (int i = 0; i < fields.length; i += 1) {
+        types[i] = fields[i].dataType();
+      }
+    }
+
+    public StructLikeInternalRow setRow(InternalRow row) {
+      this.row = row;
+      return this;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> T get(int pos, Class<T> javaClass) {
+      return (T) row.get(pos, types[pos]);
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("Not implemented: set");
     }
   }
 

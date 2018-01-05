@@ -17,8 +17,22 @@
 package com.netflix.iceberg.spark;
 
 import com.google.common.collect.ImmutableMap;
+import com.netflix.iceberg.Schema;
+import com.netflix.iceberg.expressions.Binder;
+import com.netflix.iceberg.expressions.BoundPredicate;
+import com.netflix.iceberg.expressions.BoundReference;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Expression.Operation;
+import com.netflix.iceberg.expressions.ExpressionVisitors;
+import com.netflix.iceberg.expressions.Literal;
+import com.netflix.iceberg.expressions.UnboundPredicate;
+import org.apache.spark.sql.Column;
+import org.apache.spark.sql.catalyst.expressions.And$;
+import org.apache.spark.sql.catalyst.expressions.AttributeReference;
+import org.apache.spark.sql.catalyst.expressions.AttributeReference$;
+import org.apache.spark.sql.catalyst.expressions.Not$;
+import org.apache.spark.sql.catalyst.expressions.Or$;
+import org.apache.spark.sql.functions$;
 import org.apache.spark.sql.sources.And;
 import org.apache.spark.sql.sources.EqualNullSafe;
 import org.apache.spark.sql.sources.EqualTo;
@@ -34,6 +48,7 @@ import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.sources.Or;
 import java.util.Map;
 
+import static com.netflix.iceberg.expressions.ExpressionVisitors.visit;
 import static com.netflix.iceberg.expressions.Expressions.alwaysFalse;
 import static com.netflix.iceberg.expressions.Expressions.and;
 import static com.netflix.iceberg.expressions.Expressions.equal;
@@ -141,5 +156,113 @@ public class SparkFilters {
     }
 
     return null;
+  }
+
+  public static org.apache.spark.sql.catalyst.expressions.Expression convert(Expression filter,
+                                                                             Schema schema) {
+    return visit(Binder.bind(schema.asStruct(), filter), new ExpressionToSpark(schema));
+  }
+
+  private static class ExpressionToSpark extends ExpressionVisitors.
+      BoundExpressionVisitor<org.apache.spark.sql.catalyst.expressions.Expression> {
+    private final Schema schema;
+
+    public ExpressionToSpark(Schema schema) {
+      this.schema = schema;
+    }
+
+    @Override
+    public org.apache.spark.sql.catalyst.expressions.Expression alwaysTrue() {
+      return functions$.MODULE$.lit(true).expr();
+    }
+
+    @Override
+    public org.apache.spark.sql.catalyst.expressions.Expression alwaysFalse() {
+      return functions$.MODULE$.lit(false).expr();
+    }
+
+    @Override
+    public org.apache.spark.sql.catalyst.expressions.Expression not(
+        org.apache.spark.sql.catalyst.expressions.Expression child) {
+      return Not$.MODULE$.apply(child);
+    }
+
+    @Override
+    public org.apache.spark.sql.catalyst.expressions.Expression and(
+        org.apache.spark.sql.catalyst.expressions.Expression left,
+        org.apache.spark.sql.catalyst.expressions.Expression right) {
+      return And$.MODULE$.apply(left, right);
+    }
+
+    @Override
+    public org.apache.spark.sql.catalyst.expressions.Expression or(
+        org.apache.spark.sql.catalyst.expressions.Expression left,
+        org.apache.spark.sql.catalyst.expressions.Expression right) {
+      return Or$.MODULE$.apply(left, right);
+    }
+
+    @Override
+    public <T> org.apache.spark.sql.catalyst.expressions.Expression isNull(
+        BoundReference<T> ref) {
+      return column(ref).isNull().expr();
+    }
+
+    @Override
+    public <T> org.apache.spark.sql.catalyst.expressions.Expression notNull(
+        BoundReference<T> ref) {
+      return column(ref).isNotNull().expr();
+    }
+
+    @Override
+    public <T> org.apache.spark.sql.catalyst.expressions.Expression lt(
+        BoundReference<T> ref, Literal<T> lit) {
+      return column(ref).lt(lit.value()).expr();
+    }
+
+    @Override
+    public <T> org.apache.spark.sql.catalyst.expressions.Expression ltEq(
+        BoundReference<T> ref, Literal<T> lit) {
+      return column(ref).leq(lit.value()).expr();
+    }
+
+    @Override
+    public <T> org.apache.spark.sql.catalyst.expressions.Expression gt(
+        BoundReference<T> ref, Literal<T> lit) {
+      return column(ref).gt(lit.value()).expr();
+    }
+
+    @Override
+    public <T> org.apache.spark.sql.catalyst.expressions.Expression gtEq(
+        BoundReference<T> ref, Literal<T> lit) {
+      return column(ref).geq(lit.value()).expr();
+    }
+
+    @Override
+    public <T> org.apache.spark.sql.catalyst.expressions.Expression eq(
+        BoundReference<T> ref, Literal<T> lit) {
+      return column(ref).equalTo(lit.value()).expr();
+    }
+
+    @Override
+    public <T> org.apache.spark.sql.catalyst.expressions.Expression notEq(
+        BoundReference<T> ref, Literal<T> lit) {
+      return column(ref).notEqual(lit.value()).expr();
+    }
+
+    @Override
+    public <T> org.apache.spark.sql.catalyst.expressions.Expression in(
+        BoundReference<T> ref, Literal<T> lit) {
+      throw new UnsupportedOperationException("Not implemented: in");
+    }
+
+    @Override
+    public <T> org.apache.spark.sql.catalyst.expressions.Expression notIn(
+        BoundReference<T> ref, Literal<T> lit) {
+      throw new UnsupportedOperationException("Not implemented: notIn");
+    }
+
+    private Column column(BoundReference ref) {
+      return functions$.MODULE$.column(schema.findColumnName(ref.fieldId()));
+    }
   }
 }
