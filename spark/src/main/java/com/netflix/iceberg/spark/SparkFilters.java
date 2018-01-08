@@ -19,17 +19,13 @@ package com.netflix.iceberg.spark;
 import com.google.common.collect.ImmutableMap;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.expressions.Binder;
-import com.netflix.iceberg.expressions.BoundPredicate;
 import com.netflix.iceberg.expressions.BoundReference;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Expression.Operation;
 import com.netflix.iceberg.expressions.ExpressionVisitors;
 import com.netflix.iceberg.expressions.Literal;
-import com.netflix.iceberg.expressions.UnboundPredicate;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.catalyst.expressions.And$;
-import org.apache.spark.sql.catalyst.expressions.AttributeReference;
-import org.apache.spark.sql.catalyst.expressions.AttributeReference$;
 import org.apache.spark.sql.catalyst.expressions.Not$;
 import org.apache.spark.sql.catalyst.expressions.Or$;
 import org.apache.spark.sql.functions$;
@@ -67,7 +63,7 @@ public class SparkFilters {
       .<Class<? extends Filter>, Operation>builder()
       .put(EqualTo.class, Operation.EQ)
       .put(EqualNullSafe.class, Operation.EQ)
-      .put(GreaterThan.class, Operation.GT_EQ)
+      .put(GreaterThan.class, Operation.GT)
       .put(GreaterThanOrEqual.class, Operation.GT_EQ)
       .put(LessThan.class, Operation.LT)
       .put(LessThanOrEqual.class, Operation.LT_EQ)

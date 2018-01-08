@@ -116,8 +116,6 @@ public class BaseTable implements Table {
 
   @Override
   public String toString() {
-    return Objects.toStringHelper(this)
-        .add("identifier", name)
-        .toString();
+    return name;
   }
 }

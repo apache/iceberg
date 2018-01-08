@@ -137,9 +137,9 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
         case DATE:
           return Types.DateType.get();
         case TIME_MICROS:
-          return Types.TimeType.withoutZone();
+          return Types.TimeType.withZone();
         case TIMESTAMP_MICROS:
-          return Types.TimestampType.withoutZone();
+          return Types.TimestampType.withZone();
         case UTF8:
           return Types.StringType.get();
         case DECIMAL:
