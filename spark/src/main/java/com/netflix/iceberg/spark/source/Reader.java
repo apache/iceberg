@@ -74,29 +74,49 @@ class Reader implements DataSourceV2Reader, SupportsScanUnsafeRow,
 
   private final Table table;
   private final SerializableConfiguration conf;
-  private Schema schema = null;
-  private StructType type = null; // cached because Spark accesses it multiple times
+  private StructType requestedSchema = null;
   private List<Expression> filterExpressions = null;
   private Filter[] pushedFilters = NO_FILTERS;
+
+  // lazy variables
+  private Schema schema = null;
+  private StructType type = null; // cached because Spark accesses it multiple times
   private List<FileScanTask> tasks = null; // lazy cache of tasks
 
   Reader(Table table, Configuration conf) {
     this.table = table;
     this.conf = new SerializableConfiguration(conf);
     this.schema = table.schema();
-    this.type = convert(schema);
+  }
+
+  private Schema lazySchema() {
+    if (schema == null) {
+      if (requestedSchema != null) {
+        this.schema = prune(table.schema(), requestedSchema, filterExpressions);
+      } else {
+        this.schema = table.schema();
+      }
+    }
+    return schema;
+  }
+
+  private StructType lazyType() {
+    if (type == null) {
+      this.type = convert(lazySchema());
+    }
+    return type;
   }
 
   @Override
   public StructType readSchema() {
-    return type; // this is called from
+    return lazyType();
   }
 
   @Override
   public List<ReadTask<UnsafeRow>> createUnsafeRowReadTasks() {
     String schemaString;
     try {
-      schemaString = SchemaParser.toJson(schema);
+      schemaString = SchemaParser.toJson(lazySchema());
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     }
@@ -131,6 +151,10 @@ class Reader implements DataSourceV2Reader, SupportsScanUnsafeRow,
     this.filterExpressions = expressions;
     this.pushedFilters = pushed.toArray(new Filter[pushed.size()]);
 
+    // invalidate the schema that will be projected
+    this.schema = null;
+    this.type = null;
+
     return notSupported.toArray(new Filter[notSupported.size()]);
   }
 
@@ -140,9 +164,12 @@ class Reader implements DataSourceV2Reader, SupportsScanUnsafeRow,
   }
 
   @Override
-  public void pruneColumns(StructType requiredSchema) {
-    this.schema = prune(table.schema(), requiredSchema);
-    this.type = convert(schema);
+  public void pruneColumns(StructType requestedSchema) {
+    this.requestedSchema = requestedSchema;
+
+    // invalidate the schema that will be projected
+    this.schema = null;
+    this.type = null;
   }
 
   @Override
@@ -178,7 +205,7 @@ class Reader implements DataSourceV2Reader, SupportsScanUnsafeRow,
   public String toString() {
     return String.format(
         "IcebergScan(table=%s, type=%s, filters=%s)",
-        table, schema.asStruct(), filterExpressions);
+        table, lazySchema().asStruct(), filterExpressions);
   }
 
   private static class ScanTask implements ReadTask<UnsafeRow>, Serializable {

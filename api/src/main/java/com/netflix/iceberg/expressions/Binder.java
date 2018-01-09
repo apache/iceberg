@@ -16,10 +16,14 @@
 
 package com.netflix.iceberg.expressions;
 
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.ValidationException;
 import com.netflix.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
 import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Types.StructType;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Rewrites {@link Expression expressions} by replacing unbound named references with references to
@@ -51,6 +55,17 @@ public class Binder {
   public static Expression bind(StructType struct,
                                 Expression expr) {
     return ExpressionVisitors.visit(expr, new BindVisitor(struct));
+  }
+
+  public static Set<Integer> boundReferences(StructType struct, List<Expression> exprs) {
+    if (exprs == null) {
+      return ImmutableSet.of();
+    }
+    ReferenceVisitor visitor = new ReferenceVisitor();
+    for (Expression expr : exprs) {
+      ExpressionVisitors.visit(bind(struct, expr), visitor);
+    }
+    return visitor.references;
   }
 
   private static class BindVisitor extends ExpressionVisitor<Expression> {
@@ -93,6 +108,41 @@ public class Binder {
     @Override
     public <T> Expression predicate(UnboundPredicate<T> pred) {
       return pred.bind(struct);
+    }
+  }
+
+  private static class ReferenceVisitor extends ExpressionVisitor<Set<Integer>> {
+    private final Set<Integer> references = Sets.newHashSet();
+
+    @Override
+    public Set<Integer> alwaysTrue() {
+      return references;
+    }
+
+    @Override
+    public Set<Integer> alwaysFalse() {
+      return references;
+    }
+
+    @Override
+    public Set<Integer> not(Set<Integer> result) {
+      return references;
+    }
+
+    @Override
+    public Set<Integer> and(Set<Integer> leftResult, Set<Integer> rightResult) {
+      return references;
+    }
+
+    @Override
+    public Set<Integer> or(Set<Integer> leftResult, Set<Integer> rightResult) {
+      return references;
+    }
+
+    @Override
+    public <T> Set<Integer> predicate(BoundPredicate<T> pred) {
+      references.add(pred.ref().fieldId());
+      return references;
     }
   }
 }

@@ -32,6 +32,7 @@ import com.netflix.iceberg.expressions.Literal;
 import com.netflix.iceberg.hadoop.HadoopTables;
 import com.netflix.iceberg.io.FileAppender;
 import com.netflix.iceberg.parquet.Parquet;
+import com.netflix.iceberg.spark.SparkSchemaUtil;
 import com.netflix.iceberg.spark.data.TestHelpers;
 import com.netflix.iceberg.transforms.Transform;
 import com.netflix.iceberg.transforms.Transforms;
@@ -53,6 +54,7 @@ import org.apache.spark.sql.sources.v2.reader.DataReader;
 import org.apache.spark.sql.sources.v2.reader.DataSourceV2Reader;
 import org.apache.spark.sql.sources.v2.reader.ReadTask;
 import org.apache.spark.sql.sources.v2.reader.SupportsPushDownFilters;
+import org.apache.spark.sql.sources.v2.reader.SupportsPushDownRequiredColumns;
 import org.apache.spark.sql.sources.v2.reader.SupportsScanUnsafeRow;
 import org.apache.spark.sql.types.IntegerType$;
 import org.junit.AfterClass;
@@ -334,6 +336,63 @@ public class TestFilteredScan {
 
       assertEqualsUnsafe(SCHEMA.asStruct(), expected(2, 1), read(tasks));
     }
+  }
+
+  @Test
+  public void testFilterByNonProjectedColumn() {
+    DataSourceV2Options options = new DataSourceV2Options(ImmutableMap.of(
+        "iceberg.table.location", unpartitioned.toString())
+    );
+
+    IcebergSource source = new IcebergSource();
+
+    {
+      DataSourceV2Reader reader = source.createReader(options);
+
+      Schema projection = SCHEMA.select("id", "data");
+      Assert.assertTrue(reader instanceof SupportsPushDownRequiredColumns);
+      SupportsPushDownRequiredColumns projectable = (SupportsPushDownRequiredColumns) reader;
+      projectable.pruneColumns(SparkSchemaUtil.convert(projection));
+
+      pushFilters(reader, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
+
+      List<ReadTask<UnsafeRow>> tasks = planTasks(reader);
+
+      assertEqualsUnsafe(SCHEMA.asStruct(), expected(5, 6, 7, 8, 9), read(tasks));
+    }
+
+    {
+      DataSourceV2Reader reader = source.createReader(options);
+
+      // only project id: ts will be projected because of the filter, but data will not be included
+      Schema projection = SCHEMA.select("id");
+      Assert.assertTrue(reader instanceof SupportsPushDownRequiredColumns);
+      SupportsPushDownRequiredColumns projectable = (SupportsPushDownRequiredColumns) reader;
+      projectable.pruneColumns(SparkSchemaUtil.convert(projection));
+
+      pushFilters(reader, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
+
+      List<ReadTask<UnsafeRow>> tasks = planTasks(reader);
+
+      Schema actualProjection = SCHEMA.select("id", "ts");
+      List<Record> expected = Lists.newArrayList();
+      for (Record rec : expected(5, 6 ,7, 8, 9)) {
+        expected.add(projectFlat(actualProjection, rec));
+      }
+
+      assertEqualsUnsafe(actualProjection.asStruct(), expected, read(tasks));
+    }
+  }
+
+  private static Record projectFlat(Schema projection, Record record) {
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(projection, "test");
+    Record result = new Record(avroSchema);
+    List<Types.NestedField> fields = projection.asStruct().fields();
+    for (int i = 0; i < fields.size(); i += 1) {
+      Types.NestedField field = fields.get(i);
+      result.put(i, record.get(field.name()));
+    }
+    return result;
   }
 
   public static void assertEqualsUnsafe(Types.StructType struct,

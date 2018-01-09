@@ -19,7 +19,6 @@ package com.netflix.iceberg.spark;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Type.TypeID;
@@ -42,19 +41,22 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.TimestampType;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
-public class PruneColumns extends TypeUtil.CustomOrderSchemaVisitor<Type> {
-  private final StructType root;
+public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVisitor<Type> {
+  private final StructType requestedType;
+  private final Set<Integer> filterRefs;
   private DataType current = null;
 
-  PruneColumns(StructType root) {
-    this.root = root;
+  PruneColumnsWithoutReordering(StructType requestedType, Set<Integer> filterRefs) {
+    this.requestedType = requestedType;
+    this.filterRefs = filterRefs;
   }
 
   @Override
   public Type schema(Schema schema, Supplier<Type> structResult) {
-    this.current = root;
+    this.current = requestedType;
     try {
       return structResult.get();
     } finally {
@@ -66,13 +68,12 @@ public class PruneColumns extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   public Type struct(Types.StructType struct, Iterable<Type> fieldResults) {
     Preconditions.checkNotNull(struct, "Cannot prune null struct. Pruning must start with a schema.");
     Preconditions.checkArgument(current instanceof StructType, "Not a struct: %s", current);
-    StructType s = (StructType) current;
 
     List<Types.NestedField> fields = struct.fields();
     List<Type> types = Lists.newArrayList(fieldResults);
 
     boolean changed = false;
-    Map<String, Types.NestedField> projectedFields = Maps.newHashMap();
+    List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(types.size());
     for (int i = 0; i < fields.size(); i += 1) {
       Types.NestedField field = fields.get(i);
       Type type = types.get(i);
@@ -81,34 +82,19 @@ public class PruneColumns extends TypeUtil.CustomOrderSchemaVisitor<Type> {
         changed = true;
 
       } else if (field.type() == type) {
-        projectedFields.put(field.name(), field);
+        newFields.add(field);
 
       } else if (field.isOptional()) {
         changed = true;
-        projectedFields.put(field.name(),
-            Types.NestedField.optional(field.fieldId(), field.name(), type));
+        newFields.add(Types.NestedField.optional(field.fieldId(), field.name(), type));
 
       } else {
         changed = true;
-        projectedFields.put(field.name(),
-            Types.NestedField.required(field.fieldId(), field.name(), type));
+        newFields.add(Types.NestedField.required(field.fieldId(), field.name(), type));
       }
     }
 
-    // Construct a new struct with the projected struct's order
-    boolean reordered = false;
-    StructField[] requestedFields = s.fields();
-    List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(requestedFields.length);
-    for (int i = 0; i < requestedFields.length; i += 1) {
-      // fields are resolved by name because Spark only sees the current table schema.
-      String name = requestedFields[i].name();
-      if (!fields.get(i).name().equals(name)) {
-        reordered = true;
-      }
-      newFields.add(projectedFields.remove(name));
-    }
-
-    if (reordered || changed) {
+    if (changed) {
       return Types.StructType.of(newFields);
     }
 
@@ -122,6 +108,10 @@ public class PruneColumns extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
     // fields are resolved by name because Spark only sees the current table schema.
     if (struct.getFieldIndex(field.name()).isEmpty()) {
+      // make sure that filter fields are projected even if they aren't in the requested schema.
+      if (filterRefs.contains(field.fieldId())) {
+        return field.type();
+      }
       return null;
     }
 

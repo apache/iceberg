@@ -17,11 +17,13 @@
 package com.netflix.iceberg.spark;
 
 import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.PartitionSpec;
 import com.netflix.iceberg.Schema;
+import com.netflix.iceberg.expressions.Binder;
+import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.TypeUtil;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalog.Column;
@@ -29,6 +31,9 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.StructType;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
+
+import static com.netflix.iceberg.types.TypeUtil.visit;
 
 /**
  * Helper methods for working with Spark/Hive metadata.
@@ -80,7 +85,7 @@ public class SparkSchemaUtil {
    * @throws IllegalArgumentException if the type cannot be converted to Spark
    */
   public static StructType convert(Schema schema) {
-    return (StructType) TypeUtil.visit(schema, new TypeToSparkType());
+    return (StructType) visit(schema, new TypeToSparkType());
   }
 
   /**
@@ -91,7 +96,7 @@ public class SparkSchemaUtil {
    * @throws IllegalArgumentException if the type cannot be converted to Spark
    */
   public static DataType convert(Type type) {
-    return TypeUtil.visit(type, new TypeToSparkType());
+    return visit(type, new TypeToSparkType());
   }
 
   /**
@@ -114,12 +119,35 @@ public class SparkSchemaUtil {
    * match.
    *
    * @param schema a Schema
-   * @param sparkType a projection of the Spark representation of the Schema
+   * @param requestedType a projection of the Spark representation of the Schema
    * @return a Schema corresponding to the Spark projection
    * @throws IllegalArgumentException if the Spark type does not match the Schema
    */
-  public static Schema prune(Schema schema, StructType sparkType) {
-    return new Schema(TypeUtil.visit(schema, new PruneColumns(sparkType))
+  public static Schema prune(Schema schema, StructType requestedType) {
+    return new Schema(visit(schema, new PruneColumnsWithoutReordering(requestedType, ImmutableSet.of()))
+        .asNestedType()
+        .asStructType()
+        .fields());
+  }
+
+  /**
+   * Prune columns from a {@link Schema} using a {@link StructType Spark type} projection.
+   * <p>
+   * This requires that the Spark type is a projection of the Schema. Nullability and types must
+   * match.
+   * <p>
+   * The filters list of {@link Expression} is used to ensure that columns referenced by filters
+   * are projected.
+   *
+   * @param schema a Schema
+   * @param requestedType a projection of the Spark representation of the Schema
+   * @param filters a list of filters
+   * @return a Schema corresponding to the Spark projection
+   * @throws IllegalArgumentException if the Spark type does not match the Schema
+   */
+  public static Schema prune(Schema schema, StructType requestedType, List<Expression> filters) {
+    Set<Integer> filterRefs = Binder.boundReferences(schema.asStruct(), filters);
+    return new Schema(visit(schema, new PruneColumnsWithoutReordering(requestedType, filterRefs))
         .asNestedType()
         .asStructType()
         .fields());

@@ -27,6 +27,7 @@ import com.netflix.iceberg.Table;
 import com.netflix.iceberg.avro.Avro;
 import com.netflix.iceberg.avro.AvroSchemaUtil;
 import com.netflix.iceberg.io.FileAppender;
+import com.netflix.iceberg.parquet.Parquet;
 import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.TypeUtil;
 import com.netflix.iceberg.types.Types;
@@ -36,11 +37,15 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -50,8 +55,21 @@ import static com.netflix.iceberg.types.Types.NestedField.required;
 import static org.apache.avro.Schema.Type.NULL;
 import static org.apache.avro.Schema.Type.UNION;
 
+@RunWith(Parameterized.class)
 public class TestSparkReadProjection extends TestReadProjection {
   private static SparkSession spark = null;
+
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { "parquet" },
+        new Object[] { "avro" }
+    };
+  }
+
+  public TestSparkReadProjection(String format) {
+    super(format);
+  }
 
   @BeforeClass
   public static void startSpark() {
@@ -71,10 +89,11 @@ public class TestSparkReadProjection extends TestReadProjection {
     File parent = temp.newFolder(desc);
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");
-    dataFolder.mkdirs();
+    Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
 
-    File avroFile = new File(dataFolder,
-        FileFormat.AVRO.addExtension(UUID.randomUUID().toString()));
+    FileFormat fileFormat = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
+
+    File testFile = new File(dataFolder, fileFormat.addExtension(UUID.randomUUID().toString()));
 
     Table table = TestTables.create(location, desc, writeSchema, PartitionSpec.unpartitioned());
     try {
@@ -82,16 +101,28 @@ public class TestSparkReadProjection extends TestReadProjection {
       // When tables are created, the column ids are reassigned.
       Schema tableSchema = table.schema();
 
-      try (FileAppender<Record> writer = Avro.write(localOutput(avroFile))
-          .schema(tableSchema)
-          .build()) {
-        writer.add(record);
+      switch (fileFormat) {
+        case AVRO:
+          try (FileAppender<Record> writer = Avro.write(localOutput(testFile))
+              .schema(tableSchema)
+              .build()) {
+            writer.add(record);
+          }
+          break;
+
+        case PARQUET:
+          try (FileAppender<Record> writer = Parquet.write(localOutput(testFile))
+              .schema(tableSchema)
+              .build()) {
+            writer.add(record);
+          }
+          break;
       }
 
       DataFile file = DataFiles.builder(PartitionSpec.unpartitioned())
           .withRecordCount(100)
-          .withFileSizeInBytes(avroFile.length())
-          .withPath(avroFile.toString())
+          .withFileSizeInBytes(testFile.length())
+          .withPath(testFile.toString())
           .build();
 
       table.newAppend().appendFile(file).commit();

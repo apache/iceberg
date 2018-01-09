@@ -27,6 +27,7 @@ import com.netflix.iceberg.types.Comparators;
 import com.netflix.iceberg.types.Types;
 import org.apache.avro.generic.GenericData.Record;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -37,6 +38,12 @@ import java.util.Map;
 import static org.apache.avro.Schema.Type.UNION;
 
 public abstract class TestReadProjection {
+  final String format;
+
+  TestReadProjection(String format) {
+    this.format = format;
+  }
+
   protected abstract Record writeAndRead(String desc,
                                          Schema writeSchema,
                                          Schema readSchema,
@@ -67,6 +74,10 @@ public abstract class TestReadProjection {
 
   @Test
   public void testReorderedFullProjection() throws Exception {
+    Assume.assumeTrue(
+        "Spark's Parquet read support does not support reordered columns",
+        !format.equalsIgnoreCase("parquet"));
+
     Schema schema = new Schema(
         Types.NestedField.required(0, "id", Types.LongType.get()),
         Types.NestedField.optional(1, "data", Types.StringType.get())
@@ -89,6 +100,10 @@ public abstract class TestReadProjection {
 
   @Test
   public void testReorderedProjection() throws Exception {
+    Assume.assumeTrue(
+        "Spark's Parquet read support does not support reordered columns",
+        !format.equalsIgnoreCase("parquet"));
+
     Schema schema = new Schema(
         Types.NestedField.required(0, "id", Types.LongType.get()),
         Types.NestedField.optional(1, "data", Types.StringType.get())
