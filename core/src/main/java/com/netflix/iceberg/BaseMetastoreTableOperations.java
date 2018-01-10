@@ -79,12 +79,12 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   protected String writeNewMetadata(TableMetadata metadata, int version) {
     String newFilename = newTableMetadataFilename(baseLocation, version + 1);
-    OutputFile newMetadataLocation = newMetadataFile(newFilename);
+    OutputFile newMetadataLocation = HadoopOutputFile.fromPath(new Path(newFilename), conf);
 
     // write the new metadata
     TableMetadataParser.write(metadata, newMetadataLocation);
 
-    return newMetadataLocation.toString();
+    return newFilename;
   }
 
   protected void refreshFromMetadataLocation(String newLocation) {
