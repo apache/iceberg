@@ -20,7 +20,8 @@ import com.google.common.base.Splitter;
 import com.google.common.collect.Lists;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.catalog.CatalogTablePartition;
-import org.apache.spark.sql.hive.HiveExternalCatalog;
+import org.apache.spark.sql.hive.HiveUtils$;
+import org.apache.spark.sql.hive.client.HiveClient;
 import scala.Option;
 import scala.collection.Seq;
 import java.util.List;
@@ -31,10 +32,11 @@ public class Hive {
     String db = parts.size() == 1 ? "default" : parts.get(0);
     String table = parts.get(parts.size() == 1 ? 0 : 1);
 
-    HiveExternalCatalog catalog = new HiveExternalCatalog(
+    HiveClient client = HiveUtils$.MODULE$.newClientForMetadata(
         spark.sparkContext().conf(),
         spark.sparkContext().hadoopConfiguration());
+    client.getPartitions(db, table, Option.empty());
 
-    return catalog.listPartitions(db, table, Option.empty());
+    return client.getPartitions(db, table, Option.empty());
   }
 }

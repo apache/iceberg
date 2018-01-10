@@ -56,10 +56,10 @@ public class DataFiles {
 
     String[] partitions = partitionPath.split("/", -1);
     Preconditions.checkArgument(partitions.length <= spec.fields().size(),
-        "Invalid partition data, too many fields (expecting %d): %s",
+        "Invalid partition data, too many fields (expecting %s): %s",
         spec.fields().size(), partitionPath);
     Preconditions.checkArgument(partitions.length >= spec.fields().size(),
-        "Invalid partition data, not enough fields (expecting %d): %s",
+        "Invalid partition data, not enough fields (expecting %s): %s",
         spec.fields().size(), partitionPath);
 
     for (int i = 0; i < partitions.length; i += 1) {

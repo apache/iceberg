@@ -16,6 +16,8 @@
 
 package com.netflix.iceberg.spark
 
+import scala.collection
+
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 
@@ -49,10 +51,8 @@ object SparkTableUtil {
     import spark.implicits._
 
     val partitions: Seq[(Map[String, String], Option[String], Option[String])] =
-      Hive.partitions(spark, table).map {
-        case p: CatalogTablePartition
-            if p.storage.serde.exists(fmt => fmt.contains("parquet") || fmt.contains("avro")) =>
-          (p.spec, p.storage.locationUri.map(_.toString), p.storage.serde)
+      Hive.partitions(spark, table).map { p: CatalogTablePartition =>
+        (p.spec, p.storage.locationUri.map(_.toString), p.storage.serde)
       }
 
     partitions.toDF("partition", "uri", "format")
@@ -87,7 +87,7 @@ object SparkTableUtil {
    */
   case class SparkDataFile(
       path: String,
-      partition: Map[String, String],
+      partition: collection.Map[String, String],
       format: String,
       fileSize: Long,
       rowGroupSize: Long,
