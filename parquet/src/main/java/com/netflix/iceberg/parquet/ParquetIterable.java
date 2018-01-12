@@ -36,7 +36,9 @@ public class ParquetIterable<T> implements Iterable<T>, Closeable {
   @Override
   public Iterator<T> iterator() {
     try {
-      return new ParquetIterator<>(builder.build());
+      ParquetReader<T> reader = builder.build();
+      closeables.add(reader);
+      return new ParquetIterator<>(reader);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to create Parquet reader");
     }
