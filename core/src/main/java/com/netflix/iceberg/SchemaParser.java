@@ -124,19 +124,25 @@ public class SchemaParser {
   public static void toJson(Schema schema, JsonGenerator generator) throws IOException {
     toJson(schema.asStruct(), generator);
   }
-  public static String toJson(Schema schema) throws IOException {
+
+  public static String toJson(Schema schema) {
     return toJson(schema, false);
   }
 
-  public static String toJson(Schema schema, boolean pretty) throws IOException {
-    StringWriter writer = new StringWriter();
-    JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-    if (pretty) {
-      generator.useDefaultPrettyPrinter();
+  public static String toJson(Schema schema, boolean pretty) {
+    try {
+      StringWriter writer = new StringWriter();
+      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+      if (pretty) {
+        generator.useDefaultPrettyPrinter();
+      }
+      toJson(schema.asStruct(), generator);
+      generator.flush();
+      return writer.toString();
+
+    } catch (IOException e) {
+      throw new RuntimeIOException(e);
     }
-    toJson(schema.asStruct(), generator);
-    generator.flush();
-    return writer.toString();
   }
 
   private static Type typeFromJson(JsonNode json) {

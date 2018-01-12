@@ -30,6 +30,13 @@ public interface FileScanTask extends ScanTask {
   DataFile file();
 
   /**
+   * The {@link PartitionSpec spec} used to store this file.
+   *
+   * @return the partition spec from this file's manifest
+   */
+  PartitionSpec spec();
+
+  /**
    * The starting position of this scan range in the file.
    *
    * @return the start position of this scan range

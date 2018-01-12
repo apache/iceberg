@@ -22,16 +22,30 @@ import com.netflix.iceberg.expressions.ResidualEvaluator;
 
 class BaseFileScanTask implements FileScanTask {
   private final DataFile file;
+  private final String schemaString;
+  private final String specString;
   private final ResidualEvaluator residuals;
 
-  BaseFileScanTask(DataFile file, ResidualEvaluator residuals) {
+  private transient PartitionSpec spec = null;
+
+  BaseFileScanTask(DataFile file, String schemaString, String specString, ResidualEvaluator residuals) {
     this.file = file;
+    this.schemaString = schemaString;
+    this.specString = specString;
     this.residuals = residuals;
   }
 
   @Override
   public DataFile file() {
     return file;
+  }
+
+  @Override
+  public PartitionSpec spec() {
+    if (spec == null) {
+      this.spec = PartitionSpecParser.fromJson(SchemaParser.fromJson(schemaString), specString);
+    }
+    return spec;
   }
 
   @Override

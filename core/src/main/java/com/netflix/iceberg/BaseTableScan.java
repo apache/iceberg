@@ -68,10 +68,12 @@ class BaseTableScan implements TableScan {
           snapshot.manifests(),
           (Function<String, Iterable<FileScanTask>>) manifest -> {
             ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest));
+            String schemaString = SchemaParser.toJson(reader.spec().schema());
+            String specString = PartitionSpecParser.toJson(reader.spec());
             ResidualEvaluator residuals = new ResidualEvaluator(reader.spec(), rowFilter);
             return Iterables.transform(
                 reader.filterRows(rowFilter).select(columns),
-                file -> new BaseFileScanTask(file, residuals)
+                file -> new BaseFileScanTask(file, schemaString, specString, residuals)
             );
           }));
     } else {

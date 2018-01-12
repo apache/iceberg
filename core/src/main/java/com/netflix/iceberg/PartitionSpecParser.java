@@ -45,19 +45,24 @@ public class PartitionSpecParser {
     generator.writeEndArray();
   }
 
-  public static String toJson(PartitionSpec spec) throws IOException {
+  public static String toJson(PartitionSpec spec) {
     return toJson(spec, false);
   }
 
-  public static String toJson(PartitionSpec spec, boolean pretty) throws IOException {
-    StringWriter writer = new StringWriter();
-    JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-    if (pretty) {
-      generator.useDefaultPrettyPrinter();
+  public static String toJson(PartitionSpec spec, boolean pretty) {
+    try {
+      StringWriter writer = new StringWriter();
+      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+      if (pretty) {
+        generator.useDefaultPrettyPrinter();
+      }
+      toJson(spec, generator);
+      generator.flush();
+      return writer.toString();
+
+    } catch (IOException e) {
+      throw new RuntimeIOException(e);
     }
-    toJson(spec, generator);
-    generator.flush();
-    return writer.toString();
   }
 
   public static PartitionSpec fromJson(Schema schema, JsonNode json) {
