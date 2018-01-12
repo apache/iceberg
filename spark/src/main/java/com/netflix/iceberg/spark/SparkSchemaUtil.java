@@ -30,6 +30,7 @@ import org.apache.spark.sql.catalog.Column;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.StructType;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -147,6 +148,29 @@ public class SparkSchemaUtil {
    */
   public static Schema prune(Schema schema, StructType requestedType, List<Expression> filters) {
     Set<Integer> filterRefs = Binder.boundReferences(schema.asStruct(), filters);
+    return new Schema(visit(schema, new PruneColumnsWithoutReordering(requestedType, filterRefs))
+        .asNestedType()
+        .asStructType()
+        .fields());
+  }
+
+  /**
+   * Prune columns from a {@link Schema} using a {@link StructType Spark type} projection.
+   * <p>
+   * This requires that the Spark type is a projection of the Schema. Nullability and types must
+   * match.
+   * <p>
+   * The filters list of {@link Expression} is used to ensure that columns referenced by filters
+   * are projected.
+   *
+   * @param schema a Schema
+   * @param requestedType a projection of the Spark representation of the Schema
+   * @param filter a filters
+   * @return a Schema corresponding to the Spark projection
+   * @throws IllegalArgumentException if the Spark type does not match the Schema
+   */
+  public static Schema prune(Schema schema, StructType requestedType, Expression filter) {
+    Set<Integer> filterRefs = Binder.boundReferences(schema.asStruct(), Collections.singletonList(filter));
     return new Schema(visit(schema, new PruneColumnsWithoutReordering(requestedType, filterRefs))
         .asNestedType()
         .asStructType()

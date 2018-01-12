@@ -358,7 +358,13 @@ public class TestFilteredScan {
 
       List<ReadTask<UnsafeRow>> tasks = planTasks(reader);
 
-      assertEqualsUnsafe(SCHEMA.asStruct(), expected(5, 6, 7, 8, 9), read(tasks));
+      Schema actualProjection = SCHEMA.select("id", "data");
+      List<Record> expected = Lists.newArrayList();
+      for (Record rec : expected(5, 6 ,7, 8, 9)) {
+        expected.add(projectFlat(actualProjection, rec));
+      }
+
+      assertEqualsUnsafe(actualProjection.asStruct(), expected, read(tasks));
     }
 
     {
@@ -374,7 +380,7 @@ public class TestFilteredScan {
 
       List<ReadTask<UnsafeRow>> tasks = planTasks(reader);
 
-      Schema actualProjection = SCHEMA.select("id", "ts");
+      Schema actualProjection = SCHEMA.select("id");
       List<Record> expected = Lists.newArrayList();
       for (Record rec : expected(5, 6 ,7, 8, 9)) {
         expected.add(projectFlat(actualProjection, rec));
