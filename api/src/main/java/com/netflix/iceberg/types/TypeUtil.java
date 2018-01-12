@@ -58,6 +58,19 @@ public class TypeUtil {
     return ImmutableSet.copyOf(visit(schema, new GetProjectedIds()));
   }
 
+  public static Schema selectNot(Schema schema, Set<Integer> fieldIds) {
+    Set<Integer> projectedIds = getProjectedIds(schema);
+    projectedIds.removeAll(fieldIds);
+    return select(schema, projectedIds);
+  }
+
+  public static Schema join(Schema left, Schema right) {
+    List<Types.NestedField> joinedColumns = Lists.newArrayList();
+    joinedColumns.addAll(left.columns());
+    joinedColumns.addAll(right.columns());
+    return new Schema(joinedColumns);
+  }
+
   public static Map<String, Integer> indexByName(Types.StructType struct) {
     return visit(struct, new IndexByName());
   }
