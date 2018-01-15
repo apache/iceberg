@@ -103,15 +103,13 @@ public class TestDataFrameWrites extends AvroDataTest {
     df.write()
         .format("iceberg")
         .mode("append")
-        .option("iceberg.table.location", location.toString())
-        .save();
+        .save(location.toString());
 
     table.refresh();
 
     Dataset<Row> result = spark.read()
         .format("iceberg")
-        .option("iceberg.table.location", location.toString())
-        .load();
+        .load(location.toString());
 
     List<Row> actual = result.collectAsList();
 

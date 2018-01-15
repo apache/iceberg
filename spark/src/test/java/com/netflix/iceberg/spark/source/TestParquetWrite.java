@@ -135,15 +135,13 @@ public class TestParquetWrite {
     df.select("id", "data").write()
         .format("iceberg")
         .mode("append")
-        .option("iceberg.table.location", location.toString())
-        .save();
+        .save(location.toString());
 
     table.refresh();
 
     Dataset<Row> result = spark.read()
         .format("iceberg")
-        .option("iceberg.table.location", location.toString())
-        .load();
+        .load(location.toString());
 
     List<Record> actual = result.orderBy("id").as(Encoders.bean(Record.class)).collectAsList();
 

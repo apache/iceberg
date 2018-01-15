@@ -99,8 +99,7 @@ public class TestAvroScan extends AvroDataTest {
 
     Dataset<Row> df = spark.read()
         .format("iceberg")
-        .option("iceberg.table.location", location.toString())
-        .load();
+        .load(location.toString());
 
     List<Row> rows = df.collectAsList();
     Assert.assertEquals("Should contain 100 rows", 100, rows.size());

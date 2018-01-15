@@ -198,7 +198,7 @@ public class TestFilteredScan {
   @Test
   public void testUnpartitionedIDFilters() {
     DataSourceV2Options options = new DataSourceV2Options(ImmutableMap.of(
-        "iceberg.table.location", unpartitioned.toString())
+        "path", unpartitioned.toString())
     );
 
     IcebergSource source = new IcebergSource();
@@ -219,7 +219,7 @@ public class TestFilteredScan {
   @Test
   public void testUnpartitionedTimestampFilter() {
     DataSourceV2Options options = new DataSourceV2Options(ImmutableMap.of(
-        "iceberg.table.location", unpartitioned.toString())
+        "path", unpartitioned.toString())
     );
 
     IcebergSource source = new IcebergSource();
@@ -239,7 +239,7 @@ public class TestFilteredScan {
     File location = buildPartitionedTable("bucketed_by_id", BUCKET_BY_ID, "bucket4", "id");
 
     DataSourceV2Options options = new DataSourceV2Options(ImmutableMap.of(
-        "iceberg.table.location", location.toString())
+        "path", location.toString())
     );
 
     IcebergSource source = new IcebergSource();
@@ -267,7 +267,7 @@ public class TestFilteredScan {
     File location = buildPartitionedTable("partitioned_by_day", PARTITION_BY_DAY, "ts_day", "ts");
 
     DataSourceV2Options options = new DataSourceV2Options(ImmutableMap.of(
-        "iceberg.table.location", location.toString())
+        "path", location.toString())
     );
 
     IcebergSource source = new IcebergSource();
@@ -305,7 +305,7 @@ public class TestFilteredScan {
     File location = buildPartitionedTable("partitioned_by_hour", PARTITION_BY_HOUR, "ts_hour", "ts");
 
     DataSourceV2Options options = new DataSourceV2Options(ImmutableMap.of(
-        "iceberg.table.location", location.toString())
+        "path", location.toString())
     );
 
     IcebergSource source = new IcebergSource();
@@ -341,7 +341,7 @@ public class TestFilteredScan {
   @Test
   public void testFilterByNonProjectedColumn() {
     DataSourceV2Options options = new DataSourceV2Options(ImmutableMap.of(
-        "iceberg.table.location", unpartitioned.toString())
+        "path", unpartitioned.toString())
     );
 
     IcebergSource source = new IcebergSource();
@@ -438,8 +438,7 @@ public class TestFilteredScan {
     // copy the unpartitioned table into the partitioned table to produce the partitioned data
     Dataset<Row> allRows = spark.read()
         .format("iceberg")
-        .option("iceberg.table.location", unpartitioned.toString())
-        .load();
+        .load(unpartitioned.toString());
 
     allRows
         .coalesce(1) // ensure only 1 file per partition is written
@@ -448,9 +447,8 @@ public class TestFilteredScan {
         .drop("part")
         .write()
         .format("iceberg")
-        .option("iceberg.table.location", byId.location())
         .mode("append")
-        .save();
+        .save(byId.location());
 
     return location;
   }
