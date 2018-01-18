@@ -18,6 +18,7 @@ package com.netflix.iceberg.spark.source;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.netflix.iceberg.AppendFiles;
@@ -126,8 +127,9 @@ class Writer implements DataSourceV2Writer, SupportsWriteInternalRow {
 
   private Iterable<DataFile> files(WriterCommitMessage[] messages) {
     if (messages.length > 0) {
-      return concat(transform(Arrays.asList(messages),
-          message -> message != null ? ((TaskCommit) message).files() : ImmutableList.of()));
+      return concat(transform(Arrays.asList(messages), message -> message != null
+          ? ImmutableList.copyOf(((TaskCommit) message).files())
+          : ImmutableList.of()));
     }
     return ImmutableList.of();
   }
@@ -153,21 +155,21 @@ class Writer implements DataSourceV2Writer, SupportsWriteInternalRow {
 
 
   private static class TaskCommit implements WriterCommitMessage {
-    private final List<DataFile> files;
+    private final DataFile[] files;
 
     TaskCommit() {
-      this.files = ImmutableList.of();
+      this.files = new DataFile[0];
     }
 
     TaskCommit(DataFile file) {
-      this.files = ImmutableList.of(file);
+      this.files = new DataFile[] { file };
     }
 
     TaskCommit(List<DataFile> files) {
-      this.files = files;
+      this.files = files.toArray(new DataFile[files.size()]);
     }
 
-    List<DataFile> files() {
+    DataFile[] files() {
       return files;
     }
   }
