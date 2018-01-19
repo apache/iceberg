@@ -22,6 +22,7 @@ import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.Table;
 import com.netflix.iceberg.hadoop.HadoopTables;
 import com.netflix.iceberg.spark.SparkSchemaUtil;
+import com.netflix.iceberg.types.CheckReadability;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
@@ -33,6 +34,7 @@ import org.apache.spark.sql.sources.v2.WriteSupport;
 import org.apache.spark.sql.sources.v2.reader.DataSourceV2Reader;
 import org.apache.spark.sql.sources.v2.writer.DataSourceV2Writer;
 import org.apache.spark.sql.types.StructType;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -63,11 +65,15 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
 
     // TODO: prune isn't quite correct. this should convert and fill in the right ids
     Schema dfSchema = SparkSchemaUtil.prune(table.schema(), dfStruct);
-    // TODO: this constraint can be relaxed to table.schema().canRead(dfSchema)
-    if (!dfSchema.asStruct().equals(table.schema().asStruct())) {
-      throw new IllegalArgumentException(String.format(
-          "Cannot write incompatible dataframe schema:\n%s\nTo table with schema:\n%s",
-          dfSchema, table.schema()));
+    List<String> errors = CheckReadability.schemaCompatibilityErrors(table.schema(), dfSchema);
+    if (!errors.isEmpty()) {
+      StringBuilder sb = new StringBuilder();
+      sb.append("Cannot write incompatible dataframe to table with schema:\n")
+          .append(table.schema()).append("\nProblems:\n");
+      for (String error : errors) {
+        sb.append("\n* ").append(error);
+      }
+      throw new IllegalArgumentException(sb.toString());
     }
 
     Optional<String> formatOption = options.get("iceberg.write.format");
