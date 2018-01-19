@@ -144,7 +144,7 @@ class SchemaUpdate implements UpdateSchema {
     Preconditions.checkArgument(field != null, "Cannot update missing column: %s", name);
     Preconditions.checkArgument(!deletes.contains(field.fieldId()),
         "Cannot update a column that will be deleted: %s", field.name());
-    Preconditions.checkArgument(isPromotionAllowed(field.type(), newType),
+    Preconditions.checkArgument(TypeUtil.isPromotionAllowed(field.type(), newType),
         "Cannot change column type: %s: %s -> %s", name, field.type(), newType);
 
     // merge with a rename, if present
@@ -181,32 +181,6 @@ class SchemaUpdate implements UpdateSchema {
     int next = lastColumnId + 1;
     this.lastColumnId = next;
     return next;
-  }
-
-  private static boolean isPromotionAllowed(Type type, Type.PrimitiveType newType) {
-    // Warning! Before changing this function, make sure that the type change doesn't introduce
-    // compatibility problems in partitioning.
-    if (type.equals(newType)) {
-      return true;
-    }
-
-    switch (type.typeId()) {
-      case INTEGER:
-        return newType == Types.LongType.get();
-
-      case FLOAT:
-        return newType == Types.DoubleType.get();
-
-      case DECIMAL:
-        Types.DecimalType from = (Types.DecimalType) type;
-        if (newType.typeId() != Type.TypeID.DECIMAL) {
-          return false;
-        }
-
-        Types.DecimalType to = (Types.DecimalType) newType;
-        return from.scale() == to.scale() && from.precision() <= to.precision();
-    }
-    return false;
   }
 
   private static Schema applyChanges(Schema schema, List<Integer> deletes,

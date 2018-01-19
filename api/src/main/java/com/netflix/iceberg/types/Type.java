@@ -59,15 +59,27 @@ public interface Type extends Serializable {
   }
 
   default PrimitiveType asPrimitiveType() {
-    throw new IllegalArgumentException("Not a primitive typeId: " + this);
+    throw new IllegalArgumentException("Not a primitive type: " + this);
   }
 
   default boolean isNestedType() {
     return false;
   }
 
+  default boolean isStructType() {
+    return false;
+  }
+
+  default boolean isListType() {
+    return false;
+  }
+
+  default boolean isMapType() {
+    return false;
+  }
+
   default NestedType asNestedType() {
-    throw new IllegalArgumentException("Not a nested typeId: " + this);
+    throw new IllegalArgumentException("Not a nested type: " + this);
   }
 
   abstract class PrimitiveType implements Type {
@@ -93,28 +105,16 @@ public interface Type extends Serializable {
       return this;
     }
 
-    public boolean isStructType() {
-      return false;
-    }
-
-    public boolean isListType() {
-      return false;
-    }
-
-    public boolean isMapType() {
-      return false;
-    }
-
     public Types.StructType asStructType() {
-      throw new IllegalArgumentException("Not a struct typeId: " + this);
+      throw new IllegalArgumentException("Not a struct type: " + this);
     }
 
     public Types.ListType asListType() {
-      throw new IllegalArgumentException("Not a list typeId: " + this);
+      throw new IllegalArgumentException("Not a list type: " + this);
     }
 
     public Types.MapType asMapType() {
-      throw new IllegalArgumentException("Not a map typeId: " + this);
+      throw new IllegalArgumentException("Not a map type: " + this);
     }
 
     public abstract List<Types.NestedField> fields();

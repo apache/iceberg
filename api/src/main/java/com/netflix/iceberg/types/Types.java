@@ -672,6 +672,10 @@ public class Types {
       return elementField.fieldId();
     }
 
+    public boolean isElementRequired() {
+      return !elementField.isOptional;
+    }
+
     public boolean isElementOptional() {
       return elementField.isOptional;
     }
@@ -778,6 +782,10 @@ public class Types {
 
     public int valueId() {
       return valueField.fieldId();
+    }
+
+    public boolean isValueRequired() {
+      return !valueField.isOptional;
     }
 
     public boolean isValueOptional() {

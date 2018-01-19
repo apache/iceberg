@@ -90,6 +90,34 @@ public class TypeUtil {
         .fields());
   }
 
+  public static boolean isPromotionAllowed(Type from, Type.PrimitiveType to) {
+    // Warning! Before changing this function, make sure that the type change doesn't introduce
+    // compatibility problems in partitioning.
+    if (from.equals(to)) {
+      return true;
+    }
+
+    switch (from.typeId()) {
+      case INTEGER:
+        return to == Types.LongType.get();
+
+      case FLOAT:
+        return to == Types.DoubleType.get();
+
+      case DECIMAL:
+        Types.DecimalType fromDecimal = (Types.DecimalType) from;
+        if (to.typeId() != Type.TypeID.DECIMAL) {
+          return false;
+        }
+
+        Types.DecimalType toDecimal = (Types.DecimalType) to;
+        return (fromDecimal.scale() == toDecimal.scale() &&
+            fromDecimal.precision() <= toDecimal.precision());
+    }
+
+    return false;
+  }
+
   /**
    * Interface for passing a function that assigns column IDs.
    */
