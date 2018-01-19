@@ -19,34 +19,49 @@ package com.netflix.iceberg.types;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.netflix.iceberg.Schema;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static com.netflix.iceberg.types.TypeUtil.isPromotionAllowed;
 
-public class CheckReadability extends TypeUtil.CustomOrderSchemaVisitor<List<String>> {
+public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<String>> {
   /**
-   * Checks the readability of two schemas and returns a list of compatibility errors.
+   * Returns a list of compatibility errors for writing with the given write schema.
    *
    * @param readSchema a read schema
    * @param writeSchema a write schema
    * @return a list of error details, or an empty list if there are no compatibility problems
    */
-  public static List<String> schemaCompatibilityErrors(Schema readSchema, Schema writeSchema) {
-    return TypeUtil.visit(readSchema, new CheckReadability(writeSchema));
+  public static List<String> writeCompatibilityErrors(Schema readSchema, Schema writeSchema) {
+    return TypeUtil.visit(readSchema, new CheckCompatibility(writeSchema, true));
+  }
+
+  /**
+   * Returns a list of compatibility errors for reading with the given read schema.
+   *
+   * @param readSchema a read schema
+   * @param writeSchema a write schema
+   * @return a list of error details, or an empty list if there are no compatibility problems
+   */
+  public static List<String> readCompatibilityErrors(Schema readSchema, Schema writeSchema) {
+    return TypeUtil.visit(readSchema, new CheckCompatibility(writeSchema, false));
   }
 
   private static final List<String> NO_ERRORS = ImmutableList.of();
 
   private final Schema schema;
+  private final boolean checkOrdering;
 
   // the current file schema, maintained while traversing a write schema
   private Type currentType;
 
-  private CheckReadability(Schema schema) {
+  private CheckCompatibility(Schema schema, boolean checkOrdering) {
     this.schema = schema;
+    this.checkOrdering = checkOrdering;
   }
 
   @Override
@@ -73,12 +88,36 @@ public class CheckReadability extends TypeUtil.CustomOrderSchemaVisitor<List<Str
       errors.addAll(fieldErrors);
     }
 
+    // detect reordered fields
+    if (checkOrdering) {
+      Types.StructType struct = currentType.asStructType();
+      List<Types.NestedField> fields = struct.fields();
+      Map<Integer, Integer> idToOrdinal = Maps.newHashMap();
+      for (int i = 0; i < fields.size(); i += 1) {
+        idToOrdinal.put(fields.get(i).fieldId(), i);
+      }
+
+      int lastOrdinal = -1;
+      for (Types.NestedField readField : readStruct.fields()) {
+        int id = readField.fieldId();
+        Types.NestedField field = struct.field(id);
+        if (field != null) {
+          int ordinal = idToOrdinal.get(id);
+          if (lastOrdinal >= ordinal) {
+            errors.add(
+                readField.name() + " is out of order, before " + fields.get(lastOrdinal).name());
+          }
+          lastOrdinal = ordinal;
+        }
+      }
+    }
+
     return errors;
   }
 
   @Override
   public List<String> field(Types.NestedField readField, Supplier<List<String>> fieldErrors) {
-    Types.StructType struct = currentType.asNestedType().asStructType();
+    Types.StructType struct = currentType.asStructType();
     Types.NestedField field = struct.field(readField.fieldId());
     List<String> errors = Lists.newArrayList();
 

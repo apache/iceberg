@@ -22,7 +22,7 @@ import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.Table;
 import com.netflix.iceberg.hadoop.HadoopTables;
 import com.netflix.iceberg.spark.SparkSchemaUtil;
-import com.netflix.iceberg.types.CheckReadability;
+import com.netflix.iceberg.types.CheckCompatibility;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
@@ -64,7 +64,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Table table = findTable(options);
 
     Schema dfSchema = SparkSchemaUtil.convert(table.schema(), dfStruct);
-    List<String> errors = CheckReadability.schemaCompatibilityErrors(table.schema(), dfSchema);
+    List<String> errors = CheckCompatibility.writeCompatibilityErrors(table.schema(), dfSchema);
     if (!errors.isEmpty()) {
       StringBuilder sb = new StringBuilder();
       sb.append("Cannot write incompatible dataframe to table with schema:\n")
