@@ -45,7 +45,7 @@ import static com.netflix.iceberg.types.Types.NestedField.required;
 public class TestParquetWrite {
   private static final Configuration CONF = new Configuration();
   private static final Schema SCHEMA = new Schema(
-      required(1, "id", Types.IntegerType.get()),
+      optional(1, "id", Types.IntegerType.get()),
       optional(2, "data", Types.StringType.get())
   );
 

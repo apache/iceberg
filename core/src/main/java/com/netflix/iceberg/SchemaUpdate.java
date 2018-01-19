@@ -100,7 +100,7 @@ class SchemaUpdate implements UpdateSchema {
     // assign new IDs in order
     int newId = assignNewColumnId();
     adds.put(parentId, Types.NestedField.optional(newId, name,
-        TypeUtil.reassignIds(type, this::assignNewColumnId)));
+        TypeUtil.assignFreshIds(type, this::assignNewColumnId)));
 
     return this;
   }

@@ -24,6 +24,8 @@ import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.expressions.Binder;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.types.Type;
+import com.netflix.iceberg.types.TypeUtil;
+import com.netflix.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalog.Column;
@@ -34,6 +36,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static com.netflix.iceberg.spark.SparkTypeVisitor.visit;
 import static com.netflix.iceberg.types.TypeUtil.visit;
 
 /**
@@ -44,7 +47,7 @@ public class SparkSchemaUtil {
   }
 
   /**
-   * Returns a {@link Schema} for the given table.
+   * Returns a {@link Schema} for the given table with fresh field ids.
    * <p>
    * This creates a Schema for an existing table by looking up the table's schema with Spark and
    * converting that schema. Spark/Hive partition columns are included in the schema.
@@ -54,7 +57,10 @@ public class SparkSchemaUtil {
    * @return a Schema for the table, if found
    */
   public static Schema schemaForTable(SparkSession spark, String name) {
-    return convert(spark.table(name).schema());
+    StructType sparkType = spark.table(name).schema();
+    Type converted = visit(sparkType,
+        new SparkTypeToType(sparkType));
+    return new Schema(converted.asNestedType().asStructType().fields());
   }
 
   /**
@@ -101,16 +107,25 @@ public class SparkSchemaUtil {
   }
 
   /**
-   * Convert a Spark {@link StructType struct} to a {@link Schema}.
+   * Convert a Spark {@link StructType struct} to a {@link Schema} based on the given schema.
+   * <p>
+   * This conversion does not assign new ids; it uses ids from the base schema.
+   * <p>
+   * Data types, field order, and nullability will match the spark type. This conversion may return
+   * a schema that is not compatible with base schema.
    *
+   * @param baseSchema a Schema on which conversion is based
    * @param sparkType a Spark StructType
    * @return the equivalent Schema
-   * @throws IllegalArgumentException if the type cannot be converted
+   * @throws IllegalArgumentException if the type cannot be converted or there are missing ids
    */
-  public static Schema convert(StructType sparkType) {
-    Type converted = SparkTypeVisitor.visit(sparkType,
-        new SparkTypeToType(sparkType));
-    return new Schema(converted.asNestedType().asStructType().fields());
+  public static Schema convert(Schema baseSchema, StructType sparkType) {
+    // convert to a type with fresh ids
+    Types.StructType struct = visit(sparkType, new SparkTypeToType(sparkType)).asStructType();
+    // reassign ids to match the base schema
+    Schema schema = TypeUtil.reassignIds(new Schema(struct.fields()), baseSchema);
+    // fix types that can't be represented in Spark (UUID and Fixed)
+    return FixupTypes.fixup(schema, baseSchema);
   }
 
   /**

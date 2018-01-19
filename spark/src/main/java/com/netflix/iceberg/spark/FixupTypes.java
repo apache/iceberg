@@ -14,54 +14,74 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.types;
+package com.netflix.iceberg.spark;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.Schema;
+import com.netflix.iceberg.types.Type;
+import com.netflix.iceberg.types.TypeUtil;
+import com.netflix.iceberg.types.Types;
 import java.util.List;
 import java.util.function.Supplier;
 
-class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
-  private final Schema sourceSchema;
+/**
+ * This is used to fix primitive types to match a table schema. Some types, like binary and fixed,
+ * are converted to the same Spark type. Conversion back can produce only one, which may not be
+ * correct. This uses a reference schema to override types that were lost in round-trip conversion.
+ */
+class FixupTypes extends TypeUtil.CustomOrderSchemaVisitor<Type> {
+  private final Schema referenceSchema;
   private Type sourceType;
 
-  ReassignIds(Schema sourceSchema) {
-    this.sourceSchema = sourceSchema;
+  static Schema fixup(Schema schema, Schema referenceSchema) {
+    return new Schema(TypeUtil.visit(schema,
+        new FixupTypes(referenceSchema)).asStructType().fields());
+  }
+
+  private FixupTypes(Schema referenceSchema) {
+    this.referenceSchema = referenceSchema;
+    this.sourceType = referenceSchema.asStruct();
   }
 
   @Override
   public Type schema(Schema schema, Supplier<Type> future) {
-    this.sourceType = sourceSchema.asStruct();
-    try {
-      return future.get();
-    } finally {
-      this.sourceType = null;
-    }
+    this.sourceType = referenceSchema.asStruct();
+    return future.get();
   }
 
   @Override
   public Type struct(Types.StructType struct, Iterable<Type> fieldTypes) {
-    Preconditions.checkNotNull(sourceType, "Evaluation must start with a schema.");
     Preconditions.checkArgument(sourceType.isStructType(), "Not a struct: " + sourceType);
 
-    Types.StructType sourceStruct = sourceType.asStructType();
     List<Types.NestedField> fields = struct.fields();
     int length = fields.size();
 
     List<Type> types = Lists.newArrayList(fieldTypes);
     List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(length);
+    boolean hasChange = false;
     for (int i = 0; i < length; i += 1) {
       Types.NestedField field = fields.get(i);
-      int sourceFieldId = sourceStruct.field(field.name()).fieldId();
-      if (field.isRequired()) {
-        newFields.add(Types.NestedField.required(sourceFieldId, field.name(), types.get(i)));
+      Type resultType = types.get(i);
+
+      if (field.type() == resultType) {
+        newFields.add(field);
+
+      } else if (field.isRequired()) {
+        hasChange = true;
+        newFields.add(Types.NestedField.required(field.fieldId(), field.name(), resultType));
+
       } else {
-        newFields.add(Types.NestedField.optional(sourceFieldId, field.name(), types.get(i)));
+        hasChange = true;
+        newFields.add(Types.NestedField.optional(field.fieldId(), field.name(), resultType));
       }
     }
 
-    return Types.StructType.of(newFields);
+    if (hasChange) {
+      return Types.StructType.of(newFields);
+    }
+
+    return struct;
   }
 
   @Override
@@ -69,9 +89,7 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     Preconditions.checkArgument(sourceType.isStructType(), "Not a struct: " + sourceType);
 
     Types.StructType sourceStruct = sourceType.asStructType();
-    Types.NestedField sourceField = sourceStruct.field(field.name());
-
-    this.sourceType = sourceField.type();
+    this.sourceType = sourceStruct.field(field.fieldId()).type();
     try {
       return future.get();
     } finally {
@@ -84,14 +102,17 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     Preconditions.checkArgument(sourceType.isListType(), "Not a list: " + sourceType);
 
     Types.ListType sourceList = sourceType.asListType();
-    int sourceElementId = sourceList.elementId();
-
     this.sourceType = sourceList.elementType();
     try {
+      Type elementType = elementTypeFuture.get();
+      if (list.elementType() == elementType) {
+        return list;
+      }
+
       if (list.isElementOptional()) {
-        return Types.ListType.ofOptional(sourceElementId, elementTypeFuture.get());
+        return Types.ListType.ofOptional(list.elementId(), elementType);
       } else {
-        return Types.ListType.ofRequired(sourceElementId, elementTypeFuture.get());
+        return Types.ListType.ofRequired(list.elementId(), elementType);
       }
 
     } finally {
@@ -104,15 +125,17 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     Preconditions.checkArgument(sourceType.isMapType(), "Not a map: " + sourceType);
 
     Types.MapType sourceMap = sourceType.asMapType();
-    int sourceKeyId = sourceMap.keyId();
-    int sourceValueId = sourceMap.valueId();
-
     this.sourceType = sourceMap.valueType();
     try {
+      Type valueType = valueTypeFuture.get();
+      if (map.valueType() == valueType) {
+        return map;
+      }
+
       if (map.isValueOptional()) {
-        return Types.MapType.ofOptional(sourceKeyId, sourceValueId, valueTypeFuture.get());
+        return Types.MapType.ofOptional(map.keyId(), map.valueId(), valueType);
       } else {
-        return Types.MapType.ofRequired(sourceKeyId, sourceValueId, valueTypeFuture.get());
+        return Types.MapType.ofRequired(map.keyId(), map.valueId(), valueType);
       }
 
     } finally {
@@ -122,6 +145,24 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
   @Override
   public Type primitive(Type.PrimitiveType primitive) {
-    return primitive; // nothing to reassign
+    if (sourceType.equals(primitive)) {
+      return primitive; // already correct
+    }
+
+    switch (primitive.typeId()) {
+      case STRING:
+        if (sourceType.typeId() == Type.TypeID.UUID) {
+          return sourceType;
+        }
+        break;
+      case BINARY:
+        if (sourceType.typeId() == Type.TypeID.FIXED) {
+          return sourceType;
+        }
+        break;
+      default:
+    }
+    // nothing to fix up, let validation catch promotion errors
+    return primitive;
   }
 }

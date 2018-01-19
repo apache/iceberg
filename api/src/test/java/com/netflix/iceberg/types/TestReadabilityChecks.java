@@ -48,11 +48,9 @@ public class TestReadabilityChecks {
 
   @Test
   public void testPrimitiveTypes() {
-    for (int i = 0; i < PRIMITIVES.length; i += 1) {
-      Type.PrimitiveType from = PRIMITIVES[i];
+    for (Type.PrimitiveType from : PRIMITIVES) {
       Schema fromSchema = new Schema(required(1, "from_field", from));
-      for (int j = 0; j < PRIMITIVES.length; j += 1) {
-        Type.PrimitiveType to = PRIMITIVES[j];
+      for (Type.PrimitiveType to : PRIMITIVES) {
         List<String> errors = CheckReadability.schemaCompatibilityErrors(
             new Schema(required(1, "to_field", to)), fromSchema);
 

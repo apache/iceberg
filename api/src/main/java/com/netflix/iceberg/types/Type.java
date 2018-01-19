@@ -62,6 +62,18 @@ public interface Type extends Serializable {
     throw new IllegalArgumentException("Not a primitive type: " + this);
   }
 
+  default Types.StructType asStructType() {
+    throw new IllegalArgumentException("Not a struct type: " + this);
+  }
+
+  default Types.ListType asListType() {
+    throw new IllegalArgumentException("Not a list type: " + this);
+  }
+
+  default Types.MapType asMapType() {
+    throw new IllegalArgumentException("Not a map type: " + this);
+  }
+
   default boolean isNestedType() {
     return false;
   }
@@ -103,18 +115,6 @@ public interface Type extends Serializable {
 
     public NestedType asNestedType() {
       return this;
-    }
-
-    public Types.StructType asStructType() {
-      throw new IllegalArgumentException("Not a struct type: " + this);
-    }
-
-    public Types.ListType asListType() {
-      throw new IllegalArgumentException("Not a list type: " + this);
-    }
-
-    public Types.MapType asMapType() {
-      throw new IllegalArgumentException("Not a map type: " + this);
     }
 
     public abstract List<Types.NestedField> fields();

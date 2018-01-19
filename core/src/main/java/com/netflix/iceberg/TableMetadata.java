@@ -40,7 +40,7 @@ public class TableMetadata {
                                                String location) {
     // reassign all column ids to ensure consistency
     AtomicInteger lastColumnId = new AtomicInteger(0);
-    Schema freshSchema = TypeUtil.reassignIds(schema, lastColumnId::incrementAndGet);
+    Schema freshSchema = TypeUtil.assignFreshIds(schema, lastColumnId::incrementAndGet);
 
     // rebuild the partition spec using the new column ids
     PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(freshSchema);

@@ -63,13 +63,12 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
 
     Table table = findTable(options);
 
-    // TODO: prune isn't quite correct. this should convert and fill in the right ids
-    Schema dfSchema = SparkSchemaUtil.prune(table.schema(), dfStruct);
+    Schema dfSchema = SparkSchemaUtil.convert(table.schema(), dfStruct);
     List<String> errors = CheckReadability.schemaCompatibilityErrors(table.schema(), dfSchema);
     if (!errors.isEmpty()) {
       StringBuilder sb = new StringBuilder();
       sb.append("Cannot write incompatible dataframe to table with schema:\n")
-          .append(table.schema()).append("\nProblems:\n");
+          .append(table.schema()).append("\nProblems:");
       for (String error : errors) {
         sb.append("\n* ").append(error);
       }

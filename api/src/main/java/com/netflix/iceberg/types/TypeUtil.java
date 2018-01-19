@@ -79,15 +79,47 @@ public class TypeUtil {
     return visit(struct, new IndexById());
   }
 
-  public static Type reassignIds(Type type, NextID nextId) {
-    return TypeUtil.visit(type, new ReassignIds(nextId));
+  /**
+   * Assigns fresh ids from the {@link NextID nextId function} for all fields in a type.
+   *
+   * @param type a type
+   * @param nextId an id assignment function
+   * @return an structurally identical type with new ids assigned by the nextId function
+   */
+  public static Type assignFreshIds(Type type, NextID nextId) {
+    return TypeUtil.visit(type, new AssignFreshIds(nextId));
   }
 
-  public static Schema reassignIds(Schema schema, NextID nextId) {
+  /**
+   * Assigns fresh ids from the {@link NextID nextId function} for all fields in a schema.
+   *
+   * @param schema a schema
+   * @param nextId an id assignment function
+   * @return an structurally identical schema with new ids assigned by the nextId function
+   */
+  public static Schema assignFreshIds(Schema schema, NextID nextId) {
     return new Schema(TypeUtil
-        .visit(schema.asStruct(), new ReassignIds(nextId))
+        .visit(schema.asStruct(), new AssignFreshIds(nextId))
         .asNestedType()
         .fields());
+  }
+
+  /**
+   * Reassigns ids in a schema from another schema.
+   * <p>
+   * Ids are determined by field names. If a field in the schema cannot be found in the source
+   * schema, this will throw IllegalArgumentException.
+   * <p>
+   * This will not alter a schema's structure, nullability, or types.
+   *
+   * @param schema the schema to have ids reassigned
+   * @param idSourceSchema the schema from which field ids will be used
+   * @return an structurally identical schema with field ids matching the source schema
+   * @throws IllegalArgumentException if a field cannot be found (by name) in the source schema
+   */
+  public static Schema reassignIds(Schema schema, Schema idSourceSchema) {
+    Types.StructType struct = visit(schema, new ReassignIds(idSourceSchema)).asStructType();
+    return new Schema(struct.fields());
   }
 
   public static boolean isPromotionAllowed(Type from, Type.PrimitiveType to) {

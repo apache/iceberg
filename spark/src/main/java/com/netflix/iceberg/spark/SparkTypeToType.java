@@ -21,6 +21,7 @@ import com.google.common.collect.Lists;
 import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Types;
 import org.apache.spark.sql.types.ArrayType;
+import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.BooleanType;
 import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.CharType;
@@ -42,7 +43,7 @@ import java.util.List;
 
 class SparkTypeToType extends SparkTypeVisitor<Type> {
   private final StructType root;
-  private int nextId = -1;
+  private int nextId = 0;
 
   SparkTypeToType(StructType root) {
     this.root = root;
@@ -115,8 +116,8 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
 
     } else if (
         atomic instanceof IntegerType ||
-            atomic instanceof ShortType ||
-            atomic instanceof ByteType) {
+        atomic instanceof ShortType ||
+        atomic instanceof ByteType) {
       return Types.IntegerType.get();
 
     } else if (atomic instanceof LongType) {
@@ -130,8 +131,8 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
 
     } else if (
         atomic instanceof StringType ||
-            atomic instanceof CharType ||
-            atomic instanceof VarcharType) {
+        atomic instanceof CharType ||
+        atomic instanceof VarcharType) {
       return Types.StringType.get();
 
     } else if (atomic instanceof DateType) {
@@ -144,6 +145,8 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
       return Types.DecimalType.of(
           ((DecimalType) atomic).precision(),
           ((DecimalType) atomic).scale());
+    } else if (atomic instanceof BinaryType) {
+      return Types.BinaryType.get();
     }
 
     throw new UnsupportedOperationException(
