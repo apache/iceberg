@@ -28,6 +28,7 @@ import com.netflix.iceberg.types.Types;
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -46,38 +47,18 @@ public class PartitionSpec implements Serializable {
   private final Schema schema;
 
   // this is ordered so that DataFile has a consistent schema
-  private final List<PartitionField> fields;
+  private final PartitionField[] fields;
   private transient Map<Integer, PartitionField> fieldsBySourceId = null;
   private transient Map<String, PartitionField> fieldsByName = null;
   private transient Class<?>[] javaClasses = null;
+  private transient List<PartitionField> fieldList = null;
 
   private PartitionSpec(Schema schema, List<PartitionField> fields) {
     this.schema = schema;
-    this.fields = ImmutableList.copyOf(fields);
-  }
-
-  private Map<String, PartitionField> lazyFieldsByName() {
-    if (fieldsByName == null) {
-      ImmutableMap.Builder<String, PartitionField> builder = ImmutableMap.builder();
-      for (PartitionField field : fields) {
-        builder.put(field.name(), field);
-      }
-      this.fieldsByName = builder.build();
+    this.fields = new PartitionField[fields.size()];
+    for (int i = 0; i < this.fields.length; i += 1) {
+      this.fields[i] = fields.get(i);
     }
-
-    return fieldsByName;
-  }
-
-  private Map<Integer, PartitionField> lazyFieldsBySourceId() {
-    if (fieldsBySourceId == null) {
-      ImmutableMap.Builder<Integer, PartitionField> byIdBuilder = ImmutableMap.builder();
-      for (PartitionField field : fields) {
-        byIdBuilder.put(field.sourceId(), field);
-      }
-      this.fieldsBySourceId = byIdBuilder.build();
-    }
-
-    return fieldsBySourceId;
   }
 
   /**
@@ -91,7 +72,7 @@ public class PartitionSpec implements Serializable {
    * @return the list of {@link PartitionField partition fields} for this spec.
    */
   public List<PartitionField> fields() {
-    return fields;
+    return lazyFieldList();
   }
 
   /**
@@ -106,10 +87,10 @@ public class PartitionSpec implements Serializable {
    * @return a {@link Types.StructType} for partition data defined by this spec.
    */
   public Types.StructType partitionType() {
-    List<Types.NestedField> structFields = Lists.newArrayListWithExpectedSize(fields.size());
+    List<Types.NestedField> structFields = Lists.newArrayListWithExpectedSize(fields.length);
 
-    for (int i = 0; i < fields.size(); i += 1) {
-      PartitionField field = fields.get(i);
+    for (int i = 0; i < fields.length; i += 1) {
+      PartitionField field = fields[i];
       Type sourceType = schema.findType(field.sourceId());
       Type resultType = field.transform().getResultType(sourceType);
       // assign ids for partition fields starting at 100 to leave room for data file's other fields
@@ -122,9 +103,9 @@ public class PartitionSpec implements Serializable {
 
   public Class<?>[] javaClasses() {
     if (javaClasses == null) {
-      this.javaClasses = new Class<?>[fields.size()];
-      for (int i = 0; i < fields.size(); i += 1) {
-        PartitionField field = fields.get(i);
+      this.javaClasses = new Class<?>[fields.length];
+      for (int i = 0; i < fields.length; i += 1) {
+        PartitionField field = fields[i];
         Type sourceType = schema.findType(field.sourceId());
         Type result = field.transform().getResultType(sourceType);
         javaClasses[i] = result.typeId().javaClass();
@@ -151,7 +132,7 @@ public class PartitionSpec implements Serializable {
     StringBuilder sb = new StringBuilder();
     Class<?>[] javaClasses = javaClasses();
     for (int i = 0; i < javaClasses.length; i += 1) {
-      PartitionField field = fields.get(i);
+      PartitionField field = fields[i];
       String valueString = field.transform().toHumanString(get(data, i, javaClasses[i]));
 
       if (i > 0) {
@@ -167,13 +148,13 @@ public class PartitionSpec implements Serializable {
       return true;
     }
 
-    if (fields.size() != other.fields.size()) {
+    if (fields.length != other.fields.length) {
       return false;
     }
 
-    for (int i = 0; i < fields.size(); i += 1) {
-      PartitionField thisField = fields.get(i);
-      PartitionField thatField = other.fields.get(i);
+    for (int i = 0; i < fields.length; i += 1) {
+      PartitionField thisField = fields[i];
+      PartitionField thatField = other.fields[i];
       if (thisField.sourceId() != thatField.sourceId() ||
           !thisField.transform().toString().equals(thatField.transform().toString())) {
         return false;
@@ -193,12 +174,43 @@ public class PartitionSpec implements Serializable {
     }
 
     PartitionSpec that = (PartitionSpec) other;
-    return fields.equals(that.fields);
+    return Arrays.equals(fields, that.fields);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(fields);
+    return Objects.hashCode(Arrays.hashCode(fields));
+  }
+
+  private List<PartitionField> lazyFieldList() {
+    if (fieldList == null) {
+      this.fieldList = ImmutableList.copyOf(fields);
+    }
+    return fieldList;
+  }
+
+  private Map<String, PartitionField> lazyFieldsByName() {
+    if (fieldsByName == null) {
+      ImmutableMap.Builder<String, PartitionField> builder = ImmutableMap.builder();
+      for (PartitionField field : fields) {
+        builder.put(field.name(), field);
+      }
+      this.fieldsByName = builder.build();
+    }
+
+    return fieldsByName;
+  }
+
+  private Map<Integer, PartitionField> lazyFieldsBySourceId() {
+    if (fieldsBySourceId == null) {
+      ImmutableMap.Builder<Integer, PartitionField> byIdBuilder = ImmutableMap.builder();
+      for (PartitionField field : fields) {
+        byIdBuilder.put(field.sourceId(), field);
+      }
+      this.fieldsBySourceId = byIdBuilder.build();
+    }
+
+    return fieldsBySourceId;
   }
 
   @Override
@@ -210,7 +222,7 @@ public class PartitionSpec implements Serializable {
       sb.append("  ").append(field.name()).append(": ").append(field.transform())
           .append("(").append(field.sourceId()).append(")");
     }
-    if (fields.size() > 0) {
+    if (fields.length > 0) {
       sb.append("\n");
     }
     sb.append("]");

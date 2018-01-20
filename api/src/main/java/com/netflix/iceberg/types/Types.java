@@ -30,7 +30,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 public class Types {
   private static final ImmutableMap<String, PrimitiveType> TYPES = ImmutableMap
@@ -524,20 +523,24 @@ public class Types {
       return new StructType(fields);
     }
 
-    private final List<NestedField> fields;
+    private final NestedField[] fields;
 
-    // lazy indexes
+    // lazy values
+    private transient List<NestedField> fieldList = null;
     private transient Map<String, NestedField> fieldsByName = null;
     private transient Map<Integer, NestedField> fieldsById = null;
 
     private StructType(List<NestedField> fields) {
       Preconditions.checkNotNull(fields, "Field list cannot be null");
-      this.fields = ImmutableList.copyOf(fields);
+      this.fields = new NestedField[fields.size()];
+      for (int i = 0; i < this.fields.length; i += 1) {
+        this.fields[i] = fields.get(i);
+      }
     }
 
     @Override
     public List<NestedField> fields() {
-      return fields;
+      return lazyFieldList();
     }
 
     public NestedField field(String name) {
@@ -575,10 +578,7 @@ public class Types {
 
     @Override
     public String toString() {
-      return String.format("struct<%s>", FIELD_SEP.join(
-          fields.stream()
-              .map(NestedField::toString)
-              .collect(Collectors.toList())));
+      return String.format("struct<%s>", FIELD_SEP.join(fields));
     }
 
     @Override
@@ -590,12 +590,19 @@ public class Types {
       }
 
       StructType that = (StructType) o;
-      return fields.equals(that.fields);
+      return Arrays.equals(fields, that.fields);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(NestedField.class, fields);
+      return Objects.hash(NestedField.class, Arrays.hashCode(fields));
+    }
+
+    private List<NestedField> lazyFieldList() {
+      if (fieldList == null) {
+        this.fieldList = ImmutableList.copyOf(fields);
+      }
+      return fieldList;
     }
 
     private Map<String, NestedField> lazyFieldsByName() {
@@ -636,11 +643,10 @@ public class Types {
     }
 
     private final NestedField elementField;
-    private final List<NestedField> fields;
+    private transient List<NestedField> fields = null;
 
     private ListType(NestedField elementField) {
       this.elementField = elementField;
-      this.fields = ImmutableList.of(elementField);
     }
 
     public Type elementType() {
@@ -665,7 +671,7 @@ public class Types {
 
     @Override
     public List<NestedField> fields() {
-      return fields;
+      return lazyFieldList();
     }
 
     public int elementId() {
@@ -716,6 +722,13 @@ public class Types {
     public int hashCode() {
       return Objects.hash(ListType.class, elementField);
     }
+
+    private List<NestedField> lazyFieldList() {
+      if (fields == null) {
+        this.fields = ImmutableList.of(elementField);
+      }
+      return fields;
+    }
   }
 
   public static class MapType extends NestedType {
@@ -735,12 +748,11 @@ public class Types {
 
     private final NestedField keyField;
     private final NestedField valueField;
-    private final List<NestedField> fields;
+    private transient List<NestedField> fields = null;
 
     private MapType(NestedField keyField, NestedField valueField) {
       this.keyField = keyField;
       this.valueField = valueField;
-      this.fields = ImmutableList.of(keyField, valueField);
     }
 
     public Type keyType() {
@@ -773,7 +785,7 @@ public class Types {
 
     @Override
     public List<NestedField> fields() {
-      return fields;
+      return lazyFieldList();
     }
 
     public int keyId() {
@@ -831,6 +843,13 @@ public class Types {
     @Override
     public int hashCode() {
       return Objects.hash(MapType.class, keyField, valueField);
+    }
+
+    private List<NestedField> lazyFieldList() {
+      if (fields == null) {
+        this.fields = ImmutableList.of(keyField, valueField);
+      }
+      return fields;
     }
   }
 }
