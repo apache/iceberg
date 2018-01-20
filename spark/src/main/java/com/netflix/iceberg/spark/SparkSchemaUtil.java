@@ -107,6 +107,26 @@ public class SparkSchemaUtil {
   }
 
   /**
+   * Convert a Spark {@link StructType struct} to a {@link Schema} with new field ids.
+   * <p>
+   * This conversion assigns fresh ids.
+   * <p>
+   * Some data types are represented as the same Spark type. These are converted to a default type.
+   * <p>
+   * To convert using a reference schema for field ids and ambiguous types, use
+   * {@link #convert(Schema, StructType)}.
+   *
+   * @param sparkType a Spark StructType
+   * @return the equivalent Schema
+   * @throws IllegalArgumentException if the type cannot be converted
+   */
+  public static Schema convert(StructType sparkType) {
+    Type converted = visit(sparkType,
+        new SparkTypeToType(sparkType));
+    return new Schema(converted.asNestedType().asStructType().fields());
+  }
+
+  /**
    * Convert a Spark {@link StructType struct} to a {@link Schema} based on the given schema.
    * <p>
    * This conversion does not assign new ids; it uses ids from the base schema.
