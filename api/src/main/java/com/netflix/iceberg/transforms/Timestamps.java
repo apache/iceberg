@@ -17,6 +17,7 @@
 package com.netflix.iceberg.transforms;
 
 import com.netflix.iceberg.expressions.BoundPredicate;
+import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.expressions.UnboundPredicate;
 import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Types;
@@ -24,6 +25,9 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+
+import static com.netflix.iceberg.expressions.Expression.Operation.IS_NULL;
+import static com.netflix.iceberg.expressions.Expression.Operation.NOT_NULL;
 
 enum Timestamps implements Transform<Long, Integer> {
   YEAR(ChronoUnit.YEARS, "year"),
@@ -61,6 +65,9 @@ enum Timestamps implements Transform<Long, Integer> {
 
   @Override
   public UnboundPredicate<Integer> project(String name, BoundPredicate<Long> pred) {
+    if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
+      return Expressions.predicate(pred.op(), name);
+    }
     return ProjectionUtil.truncateLong(name, pred, this);
   }
 

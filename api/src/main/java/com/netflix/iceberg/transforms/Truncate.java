@@ -25,8 +25,10 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 
+import static com.netflix.iceberg.expressions.Expression.Operation.IS_NULL;
 import static com.netflix.iceberg.expressions.Expression.Operation.LT;
 import static com.netflix.iceberg.expressions.Expression.Operation.LT_EQ;
+import static com.netflix.iceberg.expressions.Expression.Operation.NOT_NULL;
 
 abstract class Truncate<T> implements Transform<T, T> {
   @SuppressWarnings("unchecked")
@@ -75,6 +77,9 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public UnboundPredicate<Integer> project(String name, BoundPredicate<Integer> pred) {
+      if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
+        return Expressions.predicate(pred.op(), name);
+      }
       return ProjectionUtil.truncateInteger(name, pred, this);
     }
 
@@ -164,6 +169,9 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public UnboundPredicate<Long> project(String name, BoundPredicate<Long> pred) {
+      if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
+        return Expressions.predicate(pred.op(), name);
+      }
       return ProjectionUtil.truncateLong(name, pred, this);
     }
 
@@ -216,6 +224,9 @@ abstract class Truncate<T> implements Transform<T, T> {
     @Override
     public UnboundPredicate<CharSequence> project(String name,
                                                   BoundPredicate<CharSequence> pred) {
+      if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
+        return Expressions.predicate(pred.op(), name);
+      }
       return ProjectionUtil.truncateArray(name, pred, this);
     }
 
@@ -271,6 +282,9 @@ abstract class Truncate<T> implements Transform<T, T> {
     @Override
     public UnboundPredicate<ByteBuffer> project(String name,
                                                 BoundPredicate<ByteBuffer> pred) {
+      if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
+        return Expressions.predicate(pred.op(), name);
+      }
       return ProjectionUtil.truncateArray(name, pred, this);
     }
 
@@ -335,6 +349,9 @@ abstract class Truncate<T> implements Transform<T, T> {
     @Override
     public UnboundPredicate<BigDecimal> project(String name,
                                                 BoundPredicate<BigDecimal> pred) {
+      if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
+        return Expressions.predicate(pred.op(), name);
+      }
       return ProjectionUtil.truncateDecimal(name, pred, this);
     }
 

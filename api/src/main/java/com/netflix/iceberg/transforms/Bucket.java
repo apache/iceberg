@@ -109,6 +109,8 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 //        return Expressions.predicate();
       default:
         // comparison predicates can't be projected, notEq can't be projected
+        // TODO: small ranges can be projected.
+        // for example, (x > 0) and (x < 3) can be turned into in({1, 2}) and projected.
         return null;
     }
   }
