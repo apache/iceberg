@@ -16,6 +16,7 @@
 
 package com.netflix.iceberg.spark;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.expressions.Binder;
@@ -28,6 +29,7 @@ import org.apache.spark.sql.Column;
 import org.apache.spark.sql.catalyst.expressions.And$;
 import org.apache.spark.sql.catalyst.expressions.Not$;
 import org.apache.spark.sql.catalyst.expressions.Or$;
+import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 import org.apache.spark.sql.functions$;
 import org.apache.spark.sql.sources.And;
 import org.apache.spark.sql.sources.EqualNullSafe;
@@ -42,6 +44,8 @@ import org.apache.spark.sql.sources.LessThan;
 import org.apache.spark.sql.sources.LessThanOrEqual;
 import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.sources.Or;
+import java.sql.Date;
+import java.sql.Timestamp;
 import java.util.Map;
 
 import static com.netflix.iceberg.expressions.ExpressionVisitors.visit;
@@ -90,34 +94,41 @@ public class SparkFilters {
 
         case LT:
           LessThan lt = (LessThan) filter;
-          return lessThan(lt.attribute(), lt.value());
+          return lessThan(lt.attribute(), convertLiteral(lt.value()));
 
         case LT_EQ:
           LessThanOrEqual ltEq = (LessThanOrEqual) filter;
-          return lessThanOrEqual(ltEq.attribute(), ltEq.value());
+          return lessThanOrEqual(ltEq.attribute(), convertLiteral(ltEq.value()));
 
         case GT:
           GreaterThan gt = (GreaterThan) filter;
-          return greaterThan(gt.attribute(), gt.value());
+          return greaterThan(gt.attribute(), convertLiteral(gt.value()));
 
         case GT_EQ:
           GreaterThanOrEqual gtEq = (GreaterThanOrEqual) filter;
-          return greaterThanOrEqual(gtEq.attribute(), gtEq.value());
+          return greaterThanOrEqual(gtEq.attribute(), convertLiteral(gtEq.value()));
 
         case EQ: // used for both eq and null-safe-eq
           if (filter instanceof EqualTo) {
             EqualTo eq = (EqualTo) filter;
-            return equal(eq.attribute(), eq.value());
+            // comparison with null in normal equality is always null. this is probably a mistake.
+            Preconditions.checkNotNull(eq.value(),
+                "Expression is always false (eq is not null-safe): " + filter);
+            return equal(eq.attribute(), convertLiteral(eq.value()));
           } else {
             EqualNullSafe eq = (EqualNullSafe) filter;
-            return and(notNull(eq.attribute()), equal(eq.attribute(), eq.value()));
+            if (eq.value() == null) {
+              return isNull(eq.attribute());
+            } else {
+              return equal(eq.attribute(), convertLiteral(eq.value()));
+            }
           }
 
         case IN:
           In inFilter = (In) filter;
           Expression in = alwaysFalse();
           for (Object value : inFilter.values()) {
-            in = or(in, equal(inFilter.attribute(), value));
+            in = or(in, equal(inFilter.attribute(), convertLiteral(value)));
           }
           return in;
 
@@ -152,6 +163,15 @@ public class SparkFilters {
     }
 
     return null;
+  }
+
+  private static Object convertLiteral(Object value) {
+    if (value instanceof Timestamp) {
+      return DateTimeUtils.fromJavaTimestamp((Timestamp) value);
+    } else if (value instanceof Date) {
+      return DateTimeUtils.fromJavaDate((Date) value);
+    }
+    return value;
   }
 
   public static org.apache.spark.sql.catalyst.expressions.Expression convert(Expression filter,

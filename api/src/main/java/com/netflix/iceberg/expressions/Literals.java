@@ -24,6 +24,8 @@ import java.io.ObjectStreamException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.ByteBuffer;
+import java.sql.Date;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -207,6 +209,8 @@ class Literals {
           return (Literal<T>) new FloatLiteral(value().floatValue());
         case DOUBLE:
           return (Literal<T>) new DoubleLiteral(value().doubleValue());
+        case DATE:
+          return (Literal<T>) new DateLiteral(value());
         case DECIMAL:
           int scale = ((Types.DecimalType) type).scale();
           // rounding mode isn't necessary, but pass one to avoid warnings
@@ -240,6 +244,10 @@ class Literals {
           return (Literal<T>) new FloatLiteral(value().floatValue());
         case DOUBLE:
           return (Literal<T>) new DoubleLiteral(value().doubleValue());
+        case TIME:
+          return (Literal<T>) new TimeLiteral(value());
+        case TIMESTAMP:
+          return (Literal<T>) new TimestampLiteral(value());
         case DECIMAL:
           int scale = ((Types.DecimalType) type).scale();
           // rounding mode isn't necessary, but pass one to avoid warnings

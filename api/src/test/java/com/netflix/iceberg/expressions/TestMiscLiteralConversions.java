@@ -105,7 +105,6 @@ public class TestMiscLiteralConversions {
   public void testInvalidIntegerConversions() {
     testInvalidConversions(Literal.of(34),
         Types.BooleanType.get(),
-        Types.DateType.get(),
         Types.TimeType.withZone(),
         Types.TimeType.withoutZone(),
         Types.TimestampType.withZone(),
@@ -122,10 +121,6 @@ public class TestMiscLiteralConversions {
     testInvalidConversions(Literal.of(34L),
         Types.BooleanType.get(),
         Types.DateType.get(),
-        Types.TimeType.withZone(),
-        Types.TimeType.withoutZone(),
-        Types.TimestampType.withZone(),
-        Types.TimestampType.withoutZone(),
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
