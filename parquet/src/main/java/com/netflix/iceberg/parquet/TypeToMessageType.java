@@ -45,6 +45,9 @@ import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
 
 public class TypeToMessageType {
+  public static final int DECIMAL_INT32_MAX_DIGITS = 9;
+  public static final int DECIMAL_INT64_MAX_DIGITS = 18;
+
   public MessageType convert(Schema schema, String name) {
     Types.MessageTypeBuilder builder = Types.buildMessage();
 
@@ -136,14 +139,35 @@ public class TypeToMessageType {
 
       case DECIMAL:
         DecimalType decimal = (DecimalType) primitive;
-        int minLength = TypeUtil.decimalRequriedBytes(decimal.precision());
 
-        return Types.primitive(FIXED_LEN_BYTE_ARRAY, repetition).length(minLength)
-            .as(DECIMAL)
-            .precision(decimal.precision())
-            .scale(decimal.scale())
-            .id(id)
-            .named(name);
+        if (decimal.precision() <= DECIMAL_INT32_MAX_DIGITS) {
+          // store as an int
+          return Types.primitive(INT32, repetition)
+              .as(DECIMAL)
+              .precision(decimal.precision())
+              .scale(decimal.scale())
+              .id(id)
+              .named(name);
+
+        } else if (decimal.precision() <= DECIMAL_INT64_MAX_DIGITS) {
+          // store as a long
+          return Types.primitive(INT64, repetition)
+              .as(DECIMAL)
+              .precision(decimal.precision())
+              .scale(decimal.scale())
+              .id(id)
+              .named(name);
+
+        } else {
+          // store as a fixed-length array
+          int minLength = TypeUtil.decimalRequriedBytes(decimal.precision());
+          return Types.primitive(FIXED_LEN_BYTE_ARRAY, repetition).length(minLength)
+              .as(DECIMAL)
+              .precision(decimal.precision())
+              .scale(decimal.scale())
+              .id(id)
+              .named(name);
+        }
 
       case UUID:
         // TODO: add UUID to upstream Parquet spec

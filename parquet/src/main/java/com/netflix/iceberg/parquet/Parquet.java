@@ -20,15 +20,11 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.avro.AvroSchemaUtil;
-import com.netflix.iceberg.avro.UUIDConversion;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.io.FileAppender;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
-import org.apache.avro.Conversions;
-import org.apache.avro.generic.GenericData;
-import org.apache.avro.specific.SpecificData;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.parquet.avro.AvroReadSupport;
 import org.apache.parquet.avro.AvroWriteSupport;
@@ -49,12 +45,6 @@ public class Parquet {
 
   public static WriteBuilder write(OutputFile file) {
     return new WriteBuilder(file);
-  }
-
-  private static GenericData DEFAULT_MODEL = new SpecificData();
-  static {
-    DEFAULT_MODEL.addLogicalTypeConversion(new Conversions.DecimalConversion());
-    DEFAULT_MODEL.addLogicalTypeConversion(new UUIDConversion());
   }
 
   public static class WriteBuilder {
@@ -100,7 +90,9 @@ public class Parquet {
         return (WriteSupport<T>) writeSupport;
       } else {
         return new AvroWriteSupport<>(
-            type, AvroSchemaUtil.convert(schema, name), DEFAULT_MODEL);
+            type,
+            ParquetAvro.parquetAvroSchema(AvroSchemaUtil.convert(schema, name)),
+            ParquetAvro.DEFAULT_MODEL);
       }
     }
 
@@ -239,7 +231,7 @@ public class Parquet {
       if (readSupport != null) {
         builder.readSupport((ReadSupport<D>) readSupport);
       } else {
-        builder.readSupport(new AvroReadSupport<>(DEFAULT_MODEL));
+        builder.readSupport(new AvroReadSupport<>(ParquetAvro.DEFAULT_MODEL));
       }
 
       // default options for readers

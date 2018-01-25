@@ -74,7 +74,7 @@ class ParquetReadSupport<T> extends ReadSupport<T> {
     org.apache.avro.Schema avroReadSchema = AvroSchemaUtil.buildAvroProjection(
         AvroSchemaUtil.convert(ParquetSchemaUtil.convert(projection), projection.getName()),
         expectedSchema, ImmutableMap.of());
-    AvroReadSupport.setAvroReadSchema(configuration, avroReadSchema);
+    AvroReadSupport.setAvroReadSchema(configuration, ParquetAvro.parquetAvroSchema(avroReadSchema));
 
     // let the context set up read support metadata, but always use the correct projection
     ReadContext context = null;
