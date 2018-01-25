@@ -38,7 +38,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
     }
   }
 
-  private int nextId = 0;
+  private int nextId = 1;
 
   private int getElementId(Schema schema) {
     if (schema.getObjectProp(AvroSchemaUtil.ELEMENT_ID_PROP) != null) {

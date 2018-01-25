@@ -39,11 +39,11 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
 
   private final Map<String, Integer> aliasToId = Maps.newHashMap();
   private final GroupType root;
-  private int nextId = 0;
+  private int nextId = 1;
 
   public MessageTypeToType(GroupType root) {
     this.root = root;
-    this.nextId = root.getFieldCount(); // reserve ids for the root struct
+    this.nextId = root.getFieldCount() + 1; // reserve ids for the root struct
   }
 
   public Map<String, Integer> getAliases() {
@@ -58,7 +58,7 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
   @Override
   public Type struct(GroupType struct, List<Type> fieldTypes) {
     if (struct == root) {
-      nextId = 0; // use the reserved IDs for the root struct
+      nextId = 1; // use the reserved IDs for the root struct
     }
 
     List<org.apache.parquet.schema.Type> parquetFields = struct.getFields();
