@@ -69,6 +69,12 @@ class PropertiesUpdate implements UpdateProperties {
   }
 
   @Override
+  public UpdateProperties defaultFormat(FileFormat format) {
+    set(TableProperties.DEFAULT_FILE_FORMAT, format.name());
+    return this;
+  }
+
+  @Override
   public Map<String, String> apply() {
     this.base = ops.refresh();
 

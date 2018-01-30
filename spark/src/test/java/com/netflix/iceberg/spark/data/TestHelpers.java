@@ -23,10 +23,14 @@ import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Types;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
+import org.apache.orc.storage.serde2.io.DateWritable;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
 import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
 import org.apache.spark.sql.catalyst.util.ArrayData;
+import org.apache.spark.sql.catalyst.util.DateTimeUtils;
+import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.Assert;
@@ -278,6 +282,264 @@ public class TestHelpers {
       case TIME:
       default:
         throw new IllegalArgumentException("Not a supported type: " + type);
+    }
+  }
+
+  /**
+   * Check that the given InternalRow is equivalent to the Row.
+   * @param prefix context for error messages
+   * @param type the type of the row
+   * @param expected the expected value of the row
+   * @param actual the actual value of the row
+   */
+  public static void assertEquals(String prefix, Types.StructType type,
+                                  InternalRow expected, Row actual) {
+    if (expected == null || actual == null) {
+      Assert.assertEquals(prefix, expected, actual);
+    } else {
+      List<Types.NestedField> fields = type.fields();
+      for (int c = 0; c < fields.size(); ++c) {
+        String fieldName = fields.get(c).name();
+        Type childType = fields.get(c).type();
+        switch (childType.typeId()) {
+          case BOOLEAN:
+          case INTEGER:
+          case LONG:
+          case FLOAT:
+          case DOUBLE:
+          case STRING:
+          case DECIMAL:
+          case DATE:
+          case TIMESTAMP:
+            Assert.assertEquals(prefix + "." + fieldName + " - " + childType,
+                getPrimitiveValue(expected, c, childType),
+                getPrimitiveValue(actual, c, childType));
+            break;
+          case UUID:
+          case FIXED:
+          case BINARY:
+            assertEqualBytes(prefix + "." + fieldName,
+                (byte[]) getPrimitiveValue(expected, c, childType),
+                (byte[]) actual.get(c));
+            break;
+          case STRUCT: {
+            Types.StructType st = (Types.StructType) childType;
+            assertEquals(prefix + "." + fieldName, st,
+                expected.getStruct(c, st.fields().size()), actual.getStruct(c));
+            break;
+          }
+          case LIST:
+            assertEqualsLists(prefix + "." + fieldName, childType.asListType(),
+                expected.getArray(c),
+                toList((Seq<?>) actual.get(c)));
+            break;
+          case MAP:
+            assertEqualsMaps(prefix + "." + fieldName, childType.asMapType(), expected.getMap(c),
+                toJavaMap((scala.collection.Map<?, ?>) actual.getMap(c)));
+            break;
+          default:
+            throw new IllegalArgumentException("Unhandled type " + childType);
+        }
+      }
+    }
+  }
+
+  private static void assertEqualsLists(String prefix, Types.ListType type,
+                                        ArrayData expected, List actual) {
+    if (expected == null || actual == null) {
+      Assert.assertEquals(prefix, expected, actual);
+    } else {
+      Assert.assertEquals(prefix + " length", expected.numElements(), actual.size());
+      Type childType = type.elementType();
+      for (int e = 0; e < expected.numElements(); ++e) {
+        switch (childType.typeId()) {
+          case BOOLEAN:
+          case INTEGER:
+          case LONG:
+          case FLOAT:
+          case DOUBLE:
+          case STRING:
+          case DECIMAL:
+          case DATE:
+          case TIMESTAMP:
+            Assert.assertEquals(prefix + ".elem " + e + " - " + childType,
+                getPrimitiveValue(expected, e, childType),
+                actual.get(e));
+            break;
+          case UUID:
+          case FIXED:
+          case BINARY:
+            assertEqualBytes(prefix + ".elem " + e,
+                (byte[]) getPrimitiveValue(expected, e, childType),
+                (byte[]) actual.get(e));
+            break;
+          case STRUCT: {
+            Types.StructType st = (Types.StructType) childType;
+            assertEquals(prefix + ".elem " + e, st,
+                expected.getStruct(e, st.fields().size()), (Row) actual.get(e));
+            break;
+          }
+          case LIST:
+            assertEqualsLists(prefix + ".elem " + e, childType.asListType(),
+                expected.getArray(e),
+                toList((Seq<?>) actual.get(e)));
+            break;
+          case MAP:
+            assertEqualsMaps(prefix + ".elem " + e, childType.asMapType(),
+                expected.getMap(e), toJavaMap((scala.collection.Map<?, ?>) actual.get(e)));
+            break;
+          default:
+            throw new IllegalArgumentException("Unhandled type " + childType);
+        }
+      }
+    }
+  }
+
+  private static void assertEqualsMaps(String prefix, Types.MapType type,
+                                       MapData expected, Map<?, ?> actual) {
+    if (expected == null || actual == null) {
+      Assert.assertEquals(prefix, expected, actual);
+    } else {
+      Type keyType = type.keyType();
+      Type valueType = type.valueType();
+      ArrayData expectedKeyArray = expected.keyArray();
+      ArrayData expectedValueArray = expected.valueArray();
+      Assert.assertEquals(prefix + " length", expected.numElements(), actual.size());
+      for (int e = 0; e < expected.numElements(); ++e) {
+        Object expectedKey = getPrimitiveValue(expectedKeyArray, e, keyType);
+        Object actualValue = actual.get(expectedKey);
+        if (actualValue == null) {
+          Assert.assertEquals(prefix + ".key=" + expectedKey + " has null", true,
+              expected.valueArray().isNullAt(e));
+        } else {
+          switch (valueType.typeId()) {
+            case BOOLEAN:
+            case INTEGER:
+            case LONG:
+            case FLOAT:
+            case DOUBLE:
+            case STRING:
+            case DECIMAL:
+            case DATE:
+            case TIMESTAMP:
+              Assert.assertEquals(prefix + ".key=" + expectedKey + " - " + valueType,
+                  getPrimitiveValue(expectedValueArray, e, valueType),
+                  actual.get(expectedKey));
+              break;
+            case UUID:
+            case FIXED:
+            case BINARY:
+              assertEqualBytes(prefix + ".key=" + expectedKey,
+                  (byte[]) getPrimitiveValue(expectedValueArray, e, valueType),
+                  (byte[]) actual.get(expectedKey));
+              break;
+            case STRUCT: {
+              Types.StructType st = (Types.StructType) valueType;
+              assertEquals(prefix + ".key=" + expectedKey, st,
+                  expectedValueArray.getStruct(e, st.fields().size()),
+                  (Row) actual.get(expectedKey));
+              break;
+            }
+            case LIST:
+              assertEqualsLists(prefix + ".key=" + expectedKey,
+                  valueType.asListType(),
+                  expectedValueArray.getArray(e),
+                  toList((Seq<?>) actual.get(expectedKey)));
+              break;
+            case MAP:
+              assertEqualsMaps(prefix + ".key=" + expectedKey, valueType.asMapType(),
+                  expectedValueArray.getMap(e),
+                  toJavaMap((scala.collection.Map<?, ?>) actual.get(expectedKey)));
+              break;
+            default:
+              throw new IllegalArgumentException("Unhandled type " + valueType);
+          }
+        }
+      }
+    }
+  }
+
+  private static Object getPrimitiveValue(SpecializedGetters container, int ord,
+                                          Type type) {
+    if (container.isNullAt(ord)) {
+      return null;
+    }
+    switch (type.typeId()) {
+      case BOOLEAN:
+        return container.getBoolean(ord);
+      case INTEGER:
+        return container.getInt(ord);
+      case LONG:
+        return container.getLong(ord);
+      case FLOAT:
+        return container.getFloat(ord);
+      case DOUBLE:
+        return container.getDouble(ord);
+      case STRING:
+        return container.getUTF8String(ord).toString();
+      case BINARY:
+      case FIXED:
+      case UUID:
+        return container.getBinary(ord);
+      case DATE:
+        return new DateWritable(container.getInt(ord)).get();
+      case TIMESTAMP:
+        return DateTimeUtils.toJavaTimestamp(container.getLong(ord));
+      case DECIMAL: {
+        Types.DecimalType dt = (Types.DecimalType) type;
+        return container.getDecimal(ord, dt.precision(), dt.scale()).toJavaBigDecimal();
+      }
+      default:
+        throw new IllegalArgumentException("Unhandled type " + type);
+    }
+  }
+
+  private static Object getPrimitiveValue(Row row, int ord, Type type) {
+    if (row.isNullAt(ord)) {
+      return null;
+    }
+    switch (type.typeId()) {
+      case BOOLEAN:
+        return row.getBoolean(ord);
+      case INTEGER:
+        return row.getInt(ord);
+      case LONG:
+        return row.getLong(ord);
+      case FLOAT:
+        return row.getFloat(ord);
+      case DOUBLE:
+        return row.getDouble(ord);
+      case STRING:
+        return row.getString(ord);
+      case BINARY:
+      case FIXED:
+      case UUID:
+        return row.get(ord);
+      case DATE:
+        return row.getDate(ord);
+      case TIMESTAMP:
+        return row.getTimestamp(ord);
+      case DECIMAL:
+        return row.getDecimal(ord);
+      default:
+        throw new IllegalArgumentException("Unhandled type " + type);
+    }
+  }
+
+  private static <K, V> Map<K, V> toJavaMap(scala.collection.Map<K, V> map) {
+    return map == null ? null : mapAsJavaMapConverter(map).asJava();
+  }
+
+  private static List toList(Seq<?> val) {
+    return val == null ? null : seqAsJavaListConverter(val).asJava();
+  }
+
+  private static void assertEqualBytes(String context, byte[] expected,
+                                       byte[] actual) {
+    if (expected == null || actual == null) {
+      Assert.assertEquals(context, expected, actual);
+    } else {
+      Assert.assertArrayEquals(context, expected, actual);
     }
   }
 }

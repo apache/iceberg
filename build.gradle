@@ -60,6 +60,7 @@ subprojects {
 
   ext {
     avroVersion = '1.8.2'
+    orcVersion = '1.4.2'
     parquetVersion = '1.9.1-SNAPSHOT'
 
     jacksonVersion = '2.6.7'
@@ -114,6 +115,19 @@ project(':iceberg-core') {
   }
 }
 
+project(':iceberg-orc') {
+  dependencies {
+    compile project(':iceberg-api')
+    compile project(':iceberg-core')
+
+    compile "org.apache.orc:orc-core:$orcVersion:nohive"
+
+    compileOnly('org.apache.hadoop:hadoop-client:2.7.3') {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
+  }
+}
+
 project(':iceberg-parquet') {
   dependencies {
     compile project(':iceberg-api')
@@ -137,6 +151,7 @@ project(':iceberg-spark') {
     compile project(':iceberg-common')
     compile project(':iceberg-avro')
     compile project(':iceberg-core')
+    compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
 
     compileOnly "org.apache.avro:avro:$avroVersion"
@@ -174,10 +189,12 @@ project(':iceberg-runtime') {
     shadow project(':iceberg-common')
     shadow project(':iceberg-avro')
     shadow project(':iceberg-core')
+    shadow project(':iceberg-orc')
     shadow project(':iceberg-parquet')
     shadow project(':iceberg-spark')
 
     shadow "org.apache.avro:avro:$avroVersion"
+    shadow "org.apache.orc:orc-core:$orcVersion:nohive"
     shadow "org.apache.parquet:parquet-avro:$parquetVersion"
   }
 

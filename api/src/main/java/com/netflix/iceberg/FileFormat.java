@@ -22,6 +22,7 @@ import com.netflix.iceberg.types.Comparators;
  * Enum of supported file formats.
  */
 public enum FileFormat {
+  ORC("orc"),
   PARQUET("parquet"),
   AVRO("avro");
 

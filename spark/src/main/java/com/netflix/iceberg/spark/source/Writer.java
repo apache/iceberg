@@ -36,8 +36,10 @@ import com.netflix.iceberg.hadoop.HadoopOutputFile;
 import com.netflix.iceberg.io.FileAppender;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
+import com.netflix.iceberg.orc.ORC;
 import com.netflix.iceberg.parquet.Parquet;
 import com.netflix.iceberg.spark.data.SparkAvroWriter;
+import com.netflix.iceberg.spark.data.SparkOrcWriter;
 import com.netflix.iceberg.util.Tasks;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -242,6 +244,13 @@ class Writer implements DataSourceV2Writer, SupportsWriteInternalRow {
                   .named("table")
                   .build();
 
+            case ORC: {
+              @SuppressWarnings("unchecked")
+              SparkOrcWriter writer = new SparkOrcWriter(ORC.write(file)
+                  .schema(schema)
+                  .build());
+              return (FileAppender<T>) writer;
+            }
             default:
               throw new UnsupportedOperationException("Cannot write unknown format: " + format);
           }

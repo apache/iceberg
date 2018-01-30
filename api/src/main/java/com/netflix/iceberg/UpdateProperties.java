@@ -47,4 +47,10 @@ public interface UpdateProperties extends PendingUpdate<Map<String, String>> {
    */
   UpdateProperties remove(String key);
 
+  /**
+   * Set the default file format for the table.
+   * @param format
+   * @return this
+   */
+  UpdateProperties defaultFormat(FileFormat format);
 }

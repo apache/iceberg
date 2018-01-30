@@ -41,6 +41,7 @@ import com.netflix.iceberg.parquet.Parquet;
 import com.netflix.iceberg.spark.SparkFilters;
 import com.netflix.iceberg.spark.SparkSchemaUtil;
 import com.netflix.iceberg.spark.data.SparkAvroReader;
+import com.netflix.iceberg.spark.data.SparkOrcReader;
 import com.netflix.iceberg.types.TypeUtil;
 import com.netflix.iceberg.types.Types;
 import org.apache.hadoop.conf.Configuration;
@@ -340,6 +341,10 @@ class Reader implements DataSourceV2Reader, SupportsScanUnsafeRow,
 
           unsafeRowIterator = transform(iter,
               APPLY_PROJECTION.bind(projection(finalSchema, iterSchema))::invoke);
+          break;
+
+        case ORC:
+          unsafeRowIterator = new SparkOrcReader(location, task, finalSchema, conf);
           break;
 
         default:
