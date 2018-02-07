@@ -393,8 +393,6 @@ public class Tasks {
           break;
 
         } catch (Exception e) {
-          LOG.warn("Retrying task after failure: " + e.getMessage());
-
           long durationMs = System.currentTimeMillis() - start;
           if (attempt >= maxAttempts || durationMs > maxDurationMs) {
             throw e;
@@ -426,6 +424,8 @@ public class Tasks {
               maxSleepTimeMs);
           int jitter = ThreadLocalRandom.current()
               .nextInt(Math.max(1, (int) (delayMs * 0.1)));
+
+          LOG.warn("Retrying task after failure: " + e.getMessage());
 
           try {
             TimeUnit.MILLISECONDS.sleep(delayMs + jitter);

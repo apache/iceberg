@@ -68,6 +68,7 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
               base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
               2.0 /* exponential */ )
           .onlyRetryOn(CommitFailedException.class)
+          .onFailure((item, exception) -> cleanUncommitted(Sets.newHashSet()))
           .run(ops -> {
             Snapshot newSnapshot = apply();
             TableMetadata updated = base.addSnapshot(newSnapshot);
