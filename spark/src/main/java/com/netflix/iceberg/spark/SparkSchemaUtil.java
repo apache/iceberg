@@ -80,7 +80,7 @@ public class SparkSchemaUtil {
     String table = parts.get(parts.size() == 1 ? 0 : 1);
 
     return identitySpec(
-        schemaForTable(spark, table),
+        schemaForTable(spark, name),
         spark.catalog().listColumns(db, table).collectAsList());
   }
 

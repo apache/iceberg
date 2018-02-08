@@ -16,8 +16,6 @@
 
 package com.netflix.iceberg.spark
 
-import scala.collection
-
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 
@@ -26,6 +24,7 @@ import org.apache.parquet.hadoop.ParquetFileReader
 import scala.collection.JavaConverters._
 
 import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.HiddenPathFilter
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.catalog.CatalogTablePartition
 
@@ -160,7 +159,7 @@ object SparkTableUtil {
     val partition = new Path(partitionUri)
     val fs = partition.getFileSystem(conf)
 
-    fs.listStatus(partition).filter(_.isFile).map { stat =>
+    fs.listStatus(partition, HiddenPathFilter.get()).filter(_.isFile).map { stat =>
       SparkDataFile(
         stat.getPath.toString,
         partitionPath, "avro", stat.getLen,
@@ -181,7 +180,7 @@ object SparkTableUtil {
     val partition = new Path(partitionUri)
     val fs = partition.getFileSystem(conf)
 
-    fs.listStatus(partition).filter(_.isFile).map { stat =>
+    fs.listStatus(partition, HiddenPathFilter.get()).filter(_.isFile).map { stat =>
       val metrics = ParquetMetrics.fromMetadata(ParquetFileReader.readFooter(conf, stat))
 
       SparkDataFile(
