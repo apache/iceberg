@@ -23,8 +23,9 @@ import com.netflix.iceberg.parquet.ParquetMetrics
 import org.apache.parquet.hadoop.ParquetFileReader
 import scala.collection.JavaConverters._
 
+import org.apache.hadoop.fs.PathFilter
+
 import org.apache.spark.sql.DataFrame
-import org.apache.spark.sql.HiddenPathFilter
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.catalog.CatalogTablePartition
 
@@ -152,6 +153,12 @@ object SparkTableUtil {
     }
   }
 
+  private object HiddenPathFilter extends PathFilter {
+    override def accept(p: Path): Boolean = {
+      !p.getName.startsWith("_") && !p.getName.startsWith(".")
+    }
+  }
+
   private def listAvroPartition(
       partitionPath: Map[String, String],
       partitionUri: String): Seq[SparkDataFile] = {
@@ -159,7 +166,7 @@ object SparkTableUtil {
     val partition = new Path(partitionUri)
     val fs = partition.getFileSystem(conf)
 
-    fs.listStatus(partition, HiddenPathFilter.get()).filter(_.isFile).map { stat =>
+    fs.listStatus(partition, HiddenPathFilter).filter(_.isFile).map { stat =>
       SparkDataFile(
         stat.getPath.toString,
         partitionPath, "avro", stat.getLen,
@@ -180,7 +187,7 @@ object SparkTableUtil {
     val partition = new Path(partitionUri)
     val fs = partition.getFileSystem(conf)
 
-    fs.listStatus(partition, HiddenPathFilter.get()).filter(_.isFile).map { stat =>
+    fs.listStatus(partition, HiddenPathFilter).filter(_.isFile).map { stat =>
       val metrics = ParquetMetrics.fromMetadata(ParquetFileReader.readFooter(conf, stat))
 
       SparkDataFile(
@@ -195,3 +202,4 @@ object SparkTableUtil {
     }
   }
 }
+
