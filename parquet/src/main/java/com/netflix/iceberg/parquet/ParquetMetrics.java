@@ -39,8 +39,8 @@ public class ParquetMetrics implements Serializable {
   }
 
   public static Metrics fromInputFile(InputFile file) {
-    try {
-      return fromMetadata(ParquetFileReader.open(ParquetIO.file(file)).getFooter());
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file))) {
+      return fromMetadata(reader.getFooter());
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read footer of file: %s", file);
     }
