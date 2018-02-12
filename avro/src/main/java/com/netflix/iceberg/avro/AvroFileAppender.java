@@ -16,6 +16,7 @@
 
 package com.netflix.iceberg.avro;
 
+import com.netflix.iceberg.Metrics;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.FileAppender;
 import com.netflix.iceberg.io.OutputFile;
@@ -29,6 +30,7 @@ import java.util.function.Function;
 
 class AvroFileAppender<D> implements FileAppender<D> {
   private DataFileWriter<D> writer = null;
+  private long numRecords = 0L;
 
   AvroFileAppender(Schema schema, OutputFile file,
                    Function<Schema, DatumWriter<?>> createWriterFunc,
@@ -39,10 +41,16 @@ class AvroFileAppender<D> implements FileAppender<D> {
   @Override
   public void add(D datum) {
     try {
+      numRecords += 1L;
       writer.append(datum);
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     }
+  }
+
+  @Override
+  public Metrics metrics() {
+    return new Metrics(numRecords, null, null, null, null);
   }
 
   @Override

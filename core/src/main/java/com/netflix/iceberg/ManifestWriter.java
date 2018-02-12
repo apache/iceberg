@@ -76,6 +76,11 @@ class ManifestWriter implements FileAppender<DataFile> {
   }
 
   @Override
+  public Metrics metrics() {
+    return writer.metrics();
+  }
+
+  @Override
   public void close() throws IOException {
     writer.close();
   }

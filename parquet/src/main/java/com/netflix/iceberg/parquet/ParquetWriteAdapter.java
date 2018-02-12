@@ -16,13 +16,17 @@
 
 package com.netflix.iceberg.parquet;
 
+import com.google.common.base.Preconditions;
+import com.netflix.iceberg.Metrics;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.FileAppender;
 import org.apache.parquet.hadoop.ParquetWriter;
+import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import java.io.IOException;
 
 public class ParquetWriteAdapter<D> implements FileAppender<D> {
   private ParquetWriter<D> writer = null;
+  private ParquetMetadata footer = null;
 
   public ParquetWriteAdapter(ParquetWriter<D> writer) throws IOException {
     this.writer = writer;
@@ -38,9 +42,16 @@ public class ParquetWriteAdapter<D> implements FileAppender<D> {
   }
 
   @Override
+  public Metrics metrics() {
+    Preconditions.checkArgument(footer != null, "Cannot produce metrics until closed");
+    return ParquetMetrics.fromMetadata(footer);
+  }
+
+  @Override
   public void close() throws IOException {
     if (writer != null) {
       writer.close();
+      this.footer = writer.getFooter();
       this.writer = null;
     }
   }

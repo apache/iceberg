@@ -250,8 +250,8 @@ class Writer implements DataSourceV2Writer, SupportsWriteInternalRow {
     private final Path file;
     private final FileFormat format;
     private final Configuration conf;
-    private long numRecords = 0L;
     private FileAppender<InternalRow> appender = null;
+    private Metrics metrics = null;
 
     UnpartitionedWriter(Path dataPath, String filename, FileFormat format,
                         Configuration conf, AppenderFactory<InternalRow> factory) {
@@ -263,7 +263,6 @@ class Writer implements DataSourceV2Writer, SupportsWriteInternalRow {
 
     @Override
     public void write(InternalRow record) throws IOException {
-      numRecords += 1;
       appender.add(record);
     }
 
@@ -273,23 +272,16 @@ class Writer implements DataSourceV2Writer, SupportsWriteInternalRow {
 
       close();
 
-      if (numRecords == 0) {
+      if (metrics.recordCount() == 0L) {
         FileSystem fs = file.getFileSystem(conf);
         fs.delete(file, false);
         return new TaskCommit();
       }
 
-      // TODO: Get Parquet metrics directly from the writer
       InputFile inFile = HadoopInputFile.fromPath(file, conf);
-      DataFile file;
-      if (format == FileFormat.PARQUET) {
-        Metrics metrics = ParquetMetrics.fromInputFile(inFile);
-        file = DataFiles.fromParquetInputFile(inFile, null, metrics);
-      } else {
-        file = DataFiles.fromInputFile(inFile, numRecords);
-      }
+      DataFile dataFile = DataFiles.fromInputFile(inFile, null, metrics);
 
-      return new TaskCommit(file);
+      return new TaskCommit(dataFile);
     }
 
     @Override
@@ -306,6 +298,7 @@ class Writer implements DataSourceV2Writer, SupportsWriteInternalRow {
     public void close() throws IOException {
       if (this.appender != null) {
         this.appender.close();
+        this.metrics = appender.metrics();
         this.appender = null;
       }
     }
@@ -325,7 +318,6 @@ class Writer implements DataSourceV2Writer, SupportsWriteInternalRow {
     private PartitionKey currentKey = null;
     private FileAppender<InternalRow> currentAppender = null;
     private Path currentPath = null;
-    private long currentRecordCount = 0L;
 
     PartitionedWriter(PartitionSpec spec, Path dataPath, String filename, FileFormat format,
                       Configuration conf, AppenderFactory<InternalRow> factory) {
@@ -355,7 +347,6 @@ class Writer implements DataSourceV2Writer, SupportsWriteInternalRow {
         this.currentPath = new Path(new Path(dataPath, currentKey.toPath()), filename);
         OutputFile file = HadoopOutputFile.fromPath(currentPath, conf);
         this.currentAppender = factory.newAppender(file, format);
-        this.currentRecordCount = 0L;
       }
 
       currentAppender.add(row);
@@ -389,28 +380,19 @@ class Writer implements DataSourceV2Writer, SupportsWriteInternalRow {
     private void closeCurrent() throws IOException {
       if (currentAppender != null) {
         currentAppender.close();
+        // metrics are only valid after the appender is closed
+        Metrics metrics = currentAppender.metrics();
         this.currentAppender = null;
 
-        // TODO: Get Parquet metrics directly from the writer
         InputFile inFile = HadoopInputFile.fromPath(currentPath, conf);
-        DataFile file;
-        if (format == FileFormat.PARQUET) {
-          Metrics metrics = ParquetMetrics.fromInputFile(inFile);
-          file = DataFiles.builder(spec)
-              .withInputFile(inFile)
-              .withPartition(currentKey)
-              .withMetrics(metrics)
-              .build();
-        } else {
-          file = DataFiles.builder(spec)
-              .withInputFile(inFile)
-              .withPartition(currentKey)
-              .withRecordCount(currentRecordCount)
-              .build();
-        }
+        DataFile dataFile = DataFiles.builder(spec)
+            .withInputFile(inFile)
+            .withPartition(currentKey)
+            .withMetrics(metrics)
+            .build();
 
         completedPartitions.add(currentKey);
-        completedFiles.add(file);
+        completedFiles.add(dataFile);
       }
     }
   }

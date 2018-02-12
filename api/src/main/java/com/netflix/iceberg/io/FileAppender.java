@@ -16,6 +16,7 @@
 
 package com.netflix.iceberg.io;
 
+import com.netflix.iceberg.Metrics;
 import java.io.Closeable;
 import java.util.Iterator;
 
@@ -31,4 +32,9 @@ public interface FileAppender<D> extends Closeable {
   default void addAll(Iterable<D> values) {
     addAll(values.iterator());
   }
+
+  /**
+   * @return {@link Metrics} for this file. Only valid after the file is closed.
+   */
+  Metrics metrics();
 }
