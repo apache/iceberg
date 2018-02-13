@@ -27,6 +27,7 @@ import com.netflix.iceberg.types.TypeUtil;
 import com.netflix.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.DataType;
+import org.apache.spark.unsafe.types.UTF8String;
 import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.List;
@@ -67,9 +68,35 @@ class PartitionKey implements StructLike {
 
   private PartitionKey(PartitionKey toCopy) {
     this.spec = toCopy.spec;
-    this.partitionTuple = Arrays.copyOf(toCopy.partitionTuple, toCopy.partitionTuple.length);
+    this.partitionTuple = new Object[toCopy.partitionTuple.length];
     this.transforms = toCopy.transforms;
     this.accessors = toCopy.accessors;
+
+    for (int i = 0; i < partitionTuple.length; i += 1) {
+      this.partitionTuple[i] = defensiveCopyIfNeeded(toCopy.partitionTuple[i]);
+    }
+  }
+
+  private Object defensiveCopyIfNeeded(Object obj) {
+    if (obj instanceof UTF8String) {
+      // bytes backing the UTF8 string might be reused
+      return UTF8String.fromBytes(((UTF8String) obj).getBytes());
+    }
+    return obj;
+  }
+
+  @Override
+  public String toString() {
+    StringBuilder sb = new StringBuilder();
+    sb.append("[");
+    for (int i = 0; i < partitionTuple.length; i += 1) {
+      if (i > 0) {
+        sb.append(", ");
+      }
+      sb.append(partitionTuple[i]);
+    }
+    sb.append("]");
+    return sb.toString();
   }
 
   PartitionKey copy() {

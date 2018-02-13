@@ -18,6 +18,7 @@ package com.netflix.iceberg.spark.source;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.netflix.iceberg.AppendFiles;
@@ -36,7 +37,6 @@ import com.netflix.iceberg.io.FileAppender;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 import com.netflix.iceberg.parquet.Parquet;
-import com.netflix.iceberg.parquet.ParquetMetrics;
 import com.netflix.iceberg.spark.data.SparkAvroWriter;
 import com.netflix.iceberg.util.Tasks;
 import org.apache.hadoop.conf.Configuration;
@@ -50,6 +50,9 @@ import org.apache.spark.sql.sources.v2.writer.DataWriterFactory;
 import org.apache.spark.sql.sources.v2.writer.SupportsWriteInternalRow;
 import org.apache.spark.sql.sources.v2.writer.WriterCommitMessage;
 import org.apache.spark.util.SerializableConfiguration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
@@ -72,6 +75,8 @@ import static com.netflix.iceberg.spark.SparkSchemaUtil.convert;
 
 // TODO: parameterize DataSourceV2Writer with subclass of WriterCommitMessage
 class Writer implements DataSourceV2Writer, SupportsWriteInternalRow {
+  private static final Logger LOG = LoggerFactory.getLogger(Writer.class);
+
   private final Table table;
   private final Configuration conf;
   private final FileFormat format;
@@ -338,6 +343,8 @@ class Writer implements DataSourceV2Writer, SupportsWriteInternalRow {
         closeCurrent();
 
         if (completedPartitions.contains(key)) {
+          PartitionKey existingKey = Iterables.find(completedPartitions, key::equals, null);
+          LOG.warn("Duplicate key: {} == {}", existingKey, key);
           // if rows are not correctly grouped, detect and fail the write
           throw new IllegalStateException(
               "Already closed file for partition: " + spec.partitionToPath(key));
