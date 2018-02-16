@@ -16,14 +16,17 @@
 
 package com.netflix.iceberg;
 
-import com.google.common.base.Function;
 import com.google.common.base.Objects;
 import com.google.common.collect.Iterables;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.expressions.ResidualEvaluator;
+import com.netflix.iceberg.util.ParallelIterable;
 import java.util.Collection;
 import java.util.Collections;
+
+import static com.netflix.iceberg.util.ThreadPools.getPlannerPool;
+import static com.netflix.iceberg.util.ThreadPools.getWorkerPool;
 
 /**
  * Base class for {@link TableScan} implementations.
@@ -64,9 +67,9 @@ class BaseTableScan implements TableScan {
   public Iterable<FileScanTask> planFiles() {
     Snapshot snapshot = ops.current().currentSnapshot();
     if (snapshot != null) {
-      return Iterables.concat(Iterables.transform(
+      Iterable<Iterable<FileScanTask>> readers = Iterables.transform(
           snapshot.manifests(),
-          (Function<String, Iterable<FileScanTask>>) manifest -> {
+          manifest -> {
             ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest));
             String schemaString = SchemaParser.toJson(reader.spec().schema());
             String specString = PartitionSpecParser.toJson(reader.spec());
@@ -75,7 +78,14 @@ class BaseTableScan implements TableScan {
                 reader.filterRows(rowFilter).select(columns),
                 file -> new BaseFileScanTask(file, schemaString, specString, residuals)
             );
-          }));
+          });
+
+      if (snapshot.manifests().size() > 1) {
+        return new ParallelIterable<>(readers, getPlannerPool(), getWorkerPool());
+      } else {
+        return Iterables.concat(readers);
+      }
+
     } else {
       return Collections.emptyList();
     }

@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -33,6 +34,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 
@@ -523,19 +525,7 @@ public class Tasks {
       }
     }
 
-    Tasks.<E>castAndThrow(e, allowedException);
+    ExceptionUtil.<E>castAndThrow(e, allowedException);
   }
 
-  @SuppressWarnings("unchecked")
-  private static <E extends Exception> void castAndThrow(
-      Throwable e, Class<E> exceptionClass) throws E {
-    if (e instanceof RuntimeException) {
-      throw (RuntimeException) e;
-    } else if (e instanceof Error) {
-      throw (Error) e;
-    } else if (exceptionClass.isInstance(e)) {
-      throw (E) e;
-    }
-    throw new RuntimeException(e);
-  }
 }
