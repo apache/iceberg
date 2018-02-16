@@ -79,7 +79,7 @@ public class ParquetMetrics implements Serializable {
     }
 
     return new Metrics(
-        rowCount, columnSizes, valueCounts, nullValueCounts, null);
+        rowCount, columnSizes, valueCounts, nullValueCounts);
   }
 
   private static void increment(Map<Integer, Long> columns, int fieldId, long amount) {

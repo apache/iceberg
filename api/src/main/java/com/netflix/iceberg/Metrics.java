@@ -27,7 +27,6 @@ public class Metrics implements Serializable {
   private Map<Integer, Long> columnSizes = null;
   private Map<Integer, Long> valueCounts = null;
   private Map<Integer, Long> nullValueCounts = null;
-  private Map<Integer, Long> distinctCounts = null;
 
   public Metrics() {
   }
@@ -35,13 +34,11 @@ public class Metrics implements Serializable {
   public Metrics(Long rowCount,
                  Map<Integer, Long> columnSizes,
                  Map<Integer, Long> valueCounts,
-                 Map<Integer, Long> nullValueCounts,
-                 Map<Integer, Long> distinctCounts) {
+                 Map<Integer, Long> nullValueCounts) {
     this.rowCount = rowCount;
     this.columnSizes = columnSizes;
     this.valueCounts = valueCounts;
     this.nullValueCounts = nullValueCounts;
-    this.distinctCounts = distinctCounts;
   }
 
   public Long recordCount() {
@@ -58,10 +55,6 @@ public class Metrics implements Serializable {
 
   public Map<Integer, Long> nullValueCounts() {
     return nullValueCounts;
-  }
-
-  public Map<Integer, Long> distinctCounts() {
-    return distinctCounts;
   }
 
 }

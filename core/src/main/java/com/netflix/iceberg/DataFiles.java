@@ -179,7 +179,6 @@ public class DataFiles {
     private Map<Integer, Long> columnSizes = null;
     private Map<Integer, Long> valueCounts = null;
     private Map<Integer, Long> nullValueCounts = null;
-    private Map<Integer, Long> distinctCounts = null;
 
     public Builder() {
       this.spec = null;
@@ -205,7 +204,6 @@ public class DataFiles {
       this.columnSizes = null;
       this.valueCounts = null;
       this.nullValueCounts = null;
-      this.distinctCounts = null;
     }
 
     public Builder copy(DataFile toCopy) {
@@ -220,7 +218,6 @@ public class DataFiles {
       this.columnSizes = toCopy.columnSizes();
       this.valueCounts = toCopy.valueCounts();
       this.nullValueCounts = toCopy.nullValueCounts();
-      this.distinctCounts = toCopy.distinctCounts();
       return this;
     }
 
@@ -289,7 +286,6 @@ public class DataFiles {
       this.columnSizes = metrics.columnSizes();
       this.valueCounts = metrics.valueCounts();
       this.nullValueCounts = metrics.nullValueCounts();
-      this.distinctCounts = metrics.distinctCounts();
       return this;
     }
 
@@ -309,7 +305,7 @@ public class DataFiles {
       return new GenericDataFile(
           filePath, format, isPartitioned ? partitionData.copy() : null,
           fileSizeInBytes, blockSizeInBytes,
-          new Metrics(recordCount, columnSizes, valueCounts, nullValueCounts, distinctCounts));
+          new Metrics(recordCount, columnSizes, valueCounts, nullValueCounts));
     }
   }
 }

@@ -42,7 +42,7 @@ public class ParquetWriteAdapter<D> implements FileAppender<D> {
 
   @Override
   public Metrics metrics() {
-    return new Metrics(numRecords, null, null, null, null);
+    return new Metrics(numRecords, null, null, null);
   }
 
   @Override

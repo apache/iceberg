@@ -54,7 +54,6 @@ class GenericDataFile
   private Collection<Pair<Integer, Long>> columnSizes = null;
   private Collection<Pair<Integer, Long>> valueCounts = null;
   private Collection<Pair<Integer, Long>> nullValueCounts = null;
-  private Collection<Pair<Integer, Long>> distinctCounts = null;
 
   // TODO: add support for column min/max/hist
   // private final Map<Integer, byte[]> mins;
@@ -107,7 +106,6 @@ class GenericDataFile
     this.columnSizes = null;
     this.valueCounts = null;
     this.nullValueCounts = null;
-    this.distinctCounts = null;
     this.fromProjectionPos = null;
   }
 
@@ -125,7 +123,6 @@ class GenericDataFile
     this.columnSizes = null;
     this.valueCounts = null;
     this.nullValueCounts = null;
-    this.distinctCounts = null;
     this.fromProjectionPos = null;
   }
 
@@ -152,7 +149,6 @@ class GenericDataFile
     this.columnSizes = fromMap(metrics.columnSizes());
     this.valueCounts = fromMap(metrics.valueCounts());
     this.nullValueCounts = fromMap(metrics.nullValueCounts());
-    this.distinctCounts = fromMap(metrics.distinctCounts());
     this.fromProjectionPos = null;
   }
 
@@ -175,7 +171,6 @@ class GenericDataFile
     this.columnSizes = fromMap(toMap(toCopy.columnSizes));
     this.valueCounts = fromMap(toMap(toCopy.valueCounts));
     this.nullValueCounts = fromMap(toMap(toCopy.nullValueCounts));
-    this.distinctCounts = fromMap(toMap(toCopy.distinctCounts));
     this.fromProjectionPos = toCopy.fromProjectionPos;
   }
 
@@ -241,11 +236,6 @@ class GenericDataFile
   }
 
   @Override
-  public Map<Integer, Long> distinctCounts() {
-    return toMap(distinctCounts);
-  }
-
-  @Override
   public org.apache.avro.Schema getSchema() {
     if (avroSchema == null) {
       this.avroSchema = getAvroSchema(partitionType);
@@ -296,9 +286,6 @@ class GenericDataFile
       case 10:
         this.nullValueCounts = (Collection<Pair<Integer, Long>>) v;
         return;
-      case 11:
-        this.distinctCounts = (Collection<Pair<Integer, Long>>) v;
-        return;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -329,8 +316,6 @@ class GenericDataFile
         return valueCounts;
       case 10:
         return nullValueCounts;
-      case 11:
-        return distinctCounts;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + i);
     }
@@ -386,7 +371,6 @@ class GenericDataFile
         .add("column_sizes", columnSizes)
         .add("value_counts", valueCounts)
         .add("null_value_counts", nullValueCounts)
-        .add("distinct_counts", distinctCounts)
         .toString();
   }
 

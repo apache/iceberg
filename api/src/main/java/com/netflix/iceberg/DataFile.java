@@ -53,11 +53,11 @@ public interface DataFile {
         optional(110, "null_value_counts", ListType.ofRequired(115, StructType.of(
             required(121, "column_id", IntegerType.get()),
             required(122, "null_count", LongType.get())
-        ))),
-        optional(111, "distinct_counts", ListType.ofRequired(116, StructType.of(
-            required(123, "column_id", IntegerType.get()),
-            required(124, "distinct_count", LongType.get())
         )))
+//        optional(111, "distinct_counts", ListType.ofRequired(116, StructType.of(
+//            required(123, "column_id", IntegerType.get()),
+//            required(124, "distinct_count", LongType.get())
+//        ))) // DEPRECATED: DO NOT REUSE IDS
     );
   }
 
@@ -115,11 +115,6 @@ public interface DataFile {
    * @return if collected, map from column ID to its null value count, null otherwise
    */
   Map<Integer, Long> nullValueCounts();
-
-  /**
-   * @return if collected, map from column ID to its count of distinct values, null otherwise
-   */
-  Map<Integer, Long> distinctCounts();
 
   /**
    * Copies this {@link DataFile data file}. Manifest readers can reuse data file instances; use

@@ -94,8 +94,7 @@ object SparkTableUtil {
       rowCount: Long,
       columnSizes: Array[Long],
       valueCounts: Array[Long],
-      nullValueCounts: Array[Long],
-      distinctCounts: Array[Long]
+      nullValueCounts: Array[Long]
     ) {
 
     /**
@@ -119,8 +118,7 @@ object SparkTableUtil {
           .withMetrics(new Metrics(rowCount,
             arrayToMap(columnSizes),
             arrayToMap(valueCounts),
-            arrayToMap(nullValueCounts),
-            arrayToMap(distinctCounts)))
+            arrayToMap(nullValueCounts)))
           .build()
     }
   }
@@ -174,7 +172,6 @@ object SparkTableUtil {
         -1,
         null,
         null,
-        null,
         null)
     }
   }
@@ -197,8 +194,7 @@ object SparkTableUtil {
         metrics.recordCount,
         mapToArray(metrics.columnSizes),
         mapToArray(metrics.valueCounts),
-        mapToArray(metrics.nullValueCounts),
-        null)
+        mapToArray(metrics.nullValueCounts))
     }
   }
 }
