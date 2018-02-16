@@ -40,7 +40,6 @@ import java.io.IOException;
 import java.util.List;
 
 import static com.netflix.iceberg.types.Types.NestedField.optional;
-import static com.netflix.iceberg.types.Types.NestedField.required;
 
 public class TestParquetWrite {
   private static final Configuration CONF = new Configuration();

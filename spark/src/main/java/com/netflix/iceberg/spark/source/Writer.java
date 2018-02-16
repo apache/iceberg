@@ -52,7 +52,6 @@ import org.apache.spark.sql.sources.v2.writer.WriterCommitMessage;
 import org.apache.spark.util.SerializableConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
@@ -96,11 +95,17 @@ class Writer implements DataSourceV2Writer, SupportsWriteInternalRow {
   public void commit(WriterCommitMessage[] messages) {
     AppendFiles append = table.newAppend();
 
+    int numFiles = 0;
     for (DataFile file : files(messages)) {
+      numFiles += 1;
       append.appendFile(file);
     }
 
+    LOG.info("Appending {} files to {}", numFiles, table);
+    long start = System.currentTimeMillis();
     append.commit(); // abort is automatically called if this fails
+    long duration = System.currentTimeMillis() - start;
+    LOG.info("Committed in {} ms", duration);
   }
 
   @Override
