@@ -80,15 +80,10 @@ public class TestBucketing {
         -653330422,
         Bucket.<Integer>get(Types.DateType.get(), 100).hash(date.value()));
 
-    Literal<Long> timeValue = Literal.of("22:31:08").to(Types.TimeType.withoutZone());
+    Literal<Long> timeValue = Literal.of("22:31:08").to(Types.TimeType.get());
     Assert.assertEquals("Spec example: hash(22:31:08) = -662762989",
         -662762989,
-        Bucket.<Long>get(Types.TimeType.withoutZone(), 100).hash(timeValue.value()));
-
-    Literal<Long> timetzValue = Literal.of("14:31:08-08:00").to(Types.TimeType.withZone());
-    Assert.assertEquals("Spec example: hash(14:31:08-08:00) = -662762989",
-        -662762989,
-        Bucket.<Long>get(Types.TimeType.withZone(), 100).hash(timetzValue.value()));
+        Bucket.<Long>get(Types.TimeType.get(), 100).hash(timeValue.value()));
 
     Literal<Long> timestampVal = Literal.of("2017-11-16T22:31:08")
         .to(Types.TimestampType.withoutZone());

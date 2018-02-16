@@ -155,14 +155,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
       } else if (
           logical instanceof LogicalTypes.TimeMillis ||
           logical instanceof LogicalTypes.TimeMicros) {
-        Object adjustToUTC = primitive.getObjectProp(ADJUST_TO_UTC_PROP);
-        Preconditions.checkArgument(adjustToUTC instanceof Boolean,
-            "Invalid value for adjust-to-utc: %s", adjustToUTC);
-        if ((Boolean) adjustToUTC) {
-          return Types.TimeType.withZone();
-        } else {
-          return Types.TimeType.withoutZone();
-        }
+        return Types.TimeType.get();
 
       } else if (
           logical instanceof LogicalTypes.TimestampMillis ||

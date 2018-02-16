@@ -61,7 +61,7 @@ public class TestStringLiteralConversions {
         new TimeConversions.LossyTimeMicrosConversion();
 
     Literal<CharSequence> timeStr = Literal.of("14:21:01.919");
-    Literal<Long> time = timeStr.to(Types.TimeType.withoutZone());
+    Literal<Long> time = timeStr.to(Types.TimeType.get());
 
     long avroValue = avroConversion.toLong(
         new LocalTime(14, 21, 1, 919),

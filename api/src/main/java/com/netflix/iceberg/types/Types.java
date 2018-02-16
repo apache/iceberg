@@ -40,8 +40,7 @@ public class Types {
       .put(FloatType.get().toString(), FloatType.get())
       .put(DoubleType.get().toString(), DoubleType.get())
       .put(DateType.get().toString(), DateType.get())
-      .put(TimeType.withZone().toString(), TimeType.withZone())
-      .put(TimeType.withoutZone().toString(), TimeType.withoutZone())
+      .put(TimeType.get().toString(), TimeType.get())
       .put(TimestampType.withZone().toString(), TimestampType.withZone())
       .put(TimestampType.withoutZone().toString(), TimestampType.withoutZone())
       .put(StringType.get().toString(), StringType.get())
@@ -182,25 +181,13 @@ public class Types {
   }
 
   public static class TimeType extends PrimitiveType {
-    private static final TimeType INSTANCE_WITH_ZONE = new TimeType(true);
-    private static final TimeType INSTANCE_WITHOUT_ZONE = new TimeType(false);
+    private static final TimeType INSTANCE = new TimeType();
 
-    public static TimeType withZone() {
-      return INSTANCE_WITH_ZONE;
+    public static TimeType get() {
+      return INSTANCE;
     }
 
-    public static TimeType withoutZone() {
-      return INSTANCE_WITHOUT_ZONE;
-    }
-
-    private final boolean adjustToUTC;
-
-    private TimeType(boolean adjustToUTC) {
-      this.adjustToUTC = adjustToUTC;
-    }
-
-    public boolean shouldAdjustToUTC() {
-      return adjustToUTC;
+    private TimeType() {
     }
 
     @Override
@@ -210,28 +197,7 @@ public class Types {
 
     @Override
     public String toString() {
-      if (shouldAdjustToUTC()) {
-        return "timetz";
-      } else {
-        return "time";
-      }
-    }
-
-    @Override
-    public boolean equals(Object o) {
-      if (this == o) {
-        return true;
-      } else if (o == null || getClass() != o.getClass()) {
-        return false;
-      }
-
-      TimeType timeType = (TimeType) o;
-      return adjustToUTC == timeType.adjustToUTC;
-    }
-
-    @Override
-    public int hashCode() {
-      return Objects.hash(TimeType.class, adjustToUTC);
+      return "time";
     }
   }
 

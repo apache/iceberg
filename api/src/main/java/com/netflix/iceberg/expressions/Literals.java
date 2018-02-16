@@ -398,17 +398,9 @@ class Literals {
           return (Literal<T>) new DateLiteral(date);
 
         case TIME:
-          if (((Types.TimeType) type).shouldAdjustToUTC()) {
-            long timeMicros = OffsetTime.parse(value(), DateTimeFormatter.ISO_TIME)
-                .withOffsetSameInstant(ZoneOffset.UTC)
-                .toLocalTime()
-                .toNanoOfDay() / 1000;
-            return (Literal<T>) new TimeLiteral(timeMicros);
-          } else {
-            long timeMicros = LocalTime.parse(value(), DateTimeFormatter.ISO_LOCAL_TIME)
-                .toNanoOfDay() / 1000;
-            return (Literal<T>) new TimeLiteral(timeMicros);
-          }
+          long timeMicros = LocalTime.parse(value(), DateTimeFormatter.ISO_LOCAL_TIME)
+              .toNanoOfDay() / 1000;
+          return (Literal<T>) new TimeLiteral(timeMicros);
 
         case TIMESTAMP:
           if (((Types.TimestampType) type).shouldAdjustToUTC()) {

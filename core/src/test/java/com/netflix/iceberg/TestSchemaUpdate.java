@@ -130,8 +130,7 @@ public class TestSchemaUpdate {
 
     List<Type.PrimitiveType> primitives = Lists.newArrayList(
         Types.BooleanType.get(), Types.IntegerType.get(), Types.LongType.get(),
-        Types.FloatType.get(), Types.DoubleType.get(), Types.DateType.get(),
-        Types.TimeType.withZone(), Types.TimeType.withoutZone(),
+        Types.FloatType.get(), Types.DoubleType.get(), Types.DateType.get(), Types.TimeType.get(),
         Types.TimestampType.withZone(), Types.TimestampType.withoutZone(),
         Types.StringType.get(), Types.UUIDType.get(), Types.BinaryType.get(),
         Types.FixedType.ofLength(3), Types.FixedType.ofLength(4),

@@ -44,8 +44,6 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
       .addToSchema(Schema.create(Schema.Type.INT));
   private static final Schema TIME_SCHEMA = LogicalTypes.timeMicros()
       .addToSchema(Schema.create(Schema.Type.LONG));
-  private static final Schema TIMETZ_SCHEMA = LogicalTypes.timeMicros()
-      .addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema TIMESTAMP_SCHEMA = LogicalTypes.timestampMicros()
       .addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema TIMESTAMPTZ_SCHEMA = LogicalTypes.timestampMicros()
@@ -56,9 +54,7 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   private static final Schema BINARY_SCHEMA = Schema.create(Schema.Type.BYTES);
 
   static {
-    TIME_SCHEMA.addProp(ADJUST_TO_UTC_PROP, false);
     TIMESTAMP_SCHEMA.addProp(ADJUST_TO_UTC_PROP, false);
-    TIMETZ_SCHEMA.addProp(ADJUST_TO_UTC_PROP, true);
     TIMESTAMPTZ_SCHEMA.addProp(ADJUST_TO_UTC_PROP, true);
   }
 
@@ -181,11 +177,7 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
         primitiveSchema = DATE_SCHEMA;
         break;
       case TIME:
-        if (((Types.TimeType) primitive).shouldAdjustToUTC()) {
-          primitiveSchema = TIMETZ_SCHEMA;
-        } else {
-          primitiveSchema = TIME_SCHEMA;
-        }
+        primitiveSchema = TIME_SCHEMA;
         break;
       case TIMESTAMP:
         if (((Types.TimestampType) primitive).shouldAdjustToUTC()) {

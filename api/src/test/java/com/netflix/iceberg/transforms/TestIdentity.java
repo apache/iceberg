@@ -64,20 +64,8 @@ public class TestIdentity {
   }
 
   @Test
-  public void testTimeWithZoneHumanString() {
-    Types.TimeType timetz = Types.TimeType.withZone();
-    Transform<Long, Long> identity = Transforms.identity(timetz);
-
-    String timeString = "10:12:55.038194-08:00";
-    Literal<Long> d = Literal.of(timeString).to(timetz);
-
-    Assert.assertEquals("Should produce time with time zone adjusted to UTC",
-        "18:12:55.038194", identity.toHumanString(d.value()));
-  }
-
-  @Test
-  public void testTimewithoutZoneHumanString() {
-    Types.TimeType time = Types.TimeType.withoutZone();
+  public void testTimeHumanString() {
+    Types.TimeType time = Types.TimeType.get();
     Transform<Long, Long> identity = Transforms.identity(time);
 
     String timeString = "10:12:55.038194";

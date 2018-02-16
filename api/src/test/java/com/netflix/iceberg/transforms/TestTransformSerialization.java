@@ -30,7 +30,7 @@ public class TestTransformSerialization {
         Types.NestedField.required(1, "i", Types.IntegerType.get()),
         Types.NestedField.required(2, "l", Types.LongType.get()),
         Types.NestedField.required(3, "d", Types.DateType.get()),
-        Types.NestedField.required(4, "t", Types.TimeType.withoutZone()),
+        Types.NestedField.required(4, "t", Types.TimeType.get()),
         Types.NestedField.required(5, "ts", Types.TimestampType.withoutZone()),
         Types.NestedField.required(6, "dec", Types.DecimalType.of(9, 2)),
         Types.NestedField.required(7, "s", Types.StringType.get()),
