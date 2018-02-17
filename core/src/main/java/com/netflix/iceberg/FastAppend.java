@@ -52,10 +52,10 @@ class FastAppend extends SnapshotUpdate implements AppendFiles {
     String location = writeManifest();
 
     List<String> newManifests = Lists.newArrayList();
+    newManifests.add(location);
     if (base.currentSnapshot() != null) {
       newManifests.addAll(base.currentSnapshot().manifests());
     }
-    newManifests.add(location);
 
     return newManifests;
   }
