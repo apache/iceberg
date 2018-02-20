@@ -21,10 +21,14 @@ import com.google.common.collect.Maps;
 import com.netflix.iceberg.exceptions.CommitFailedException;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.OutputFile;
+import com.netflix.iceberg.util.BinPacking.ListPacker;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static com.netflix.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
+import static com.netflix.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
 
 /**
  * Append implementation that produces a minimal number of manifest files.
@@ -35,6 +39,7 @@ class MergeAppend extends SnapshotUpdate implements AppendFiles {
   private final TableOperations ops;
   private final PartitionSpec spec;
   private final List<DataFile> newFiles = Lists.newArrayList();
+  private final long manifestTargetSizeBytes;
 
   // cache merge results to reuse when retrying
   private final Map<List<String>, String> mergedManifests = Maps.newHashMap();
@@ -44,6 +49,8 @@ class MergeAppend extends SnapshotUpdate implements AppendFiles {
     super(ops);
     this.ops = ops;
     this.spec = ops.current().spec();
+    this.manifestTargetSizeBytes = ops.current()
+        .propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
   }
 
   @Override
@@ -59,11 +66,19 @@ class MergeAppend extends SnapshotUpdate implements AppendFiles {
     List<PartitionSpec> specs = Lists.newArrayList();
     List<List<ManifestReader>> groups = Lists.newArrayList();
 
+    // add the current spec as the first group. files are added to the beginning.
+    specs.add(spec);
+    groups.add(Lists.newArrayList());
+
+    List<ManifestReader> toClose = Lists.newArrayList();
+
     // group manifests by compatible partition specs to be merged
     if (current != null) {
       for (String manifest : current.manifests()) {
         ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest));
-        int index = findMatch(specs, groups, reader.spec());
+        toClose.add(reader);
+
+        int index = findMatch(specs, reader.spec());
         if (index < 0) {
           // not found, add a new one
           List<ManifestReader> newList = Lists.<ManifestReader>newArrayList(reader);
@@ -77,23 +92,14 @@ class MergeAppend extends SnapshotUpdate implements AppendFiles {
       }
     }
 
-    // find the group where the new files should be appended
-    int appendGroup = findMatch(specs, groups, spec);
-    if (appendGroup < 0) {
-      // not compatible with another group, create a new one
-      appendGroup = specs.size();
-      specs.add(spec);
-      groups.add(Lists.newArrayList());
-    }
-
-    List<String> newManifests = Lists.newArrayList();
+    List<String> manifests = Lists.newArrayList();
     for (int i = 0; i < specs.size(); i += 1) {
-      PartitionSpec readerSpec = specs.get(i);
-      List<ManifestReader> group = groups.get(i);
-      newManifests.add(mergeGroup(readerSpec, group, i == appendGroup));
+      manifests.addAll(mergeGroup(specs.get(i), groups.get(i), i == 0));
     }
 
-    return newManifests;
+    // TODO: close readers.
+
+    return manifests;
   }
 
   @Override
@@ -107,41 +113,61 @@ class MergeAppend extends SnapshotUpdate implements AppendFiles {
     mergedManifests.clear();
   }
 
-  private String mergeGroup(PartitionSpec spec, List<ManifestReader> group, boolean appendNewFiles) {
-    // if the group is one manifest and will not have files appended to it, don't rewrite or cache
-    if (group.size() == 1 && !appendNewFiles) {
-      return group.get(0).file().location();
-    }
+  private List<String> mergeGroup(PartitionSpec spec,
+                                  List<ManifestReader> group,
+                                  boolean appendNewFiles) {
+    // use a lookback of 1 to avoid reordering the manifests. using 1 also means this should pack
+    // from the end so that the manifest that gets under-filled is the first one, which will be
+    // merged the next time.
+    ListPacker<ManifestReader> packer = new ListPacker<>(manifestTargetSizeBytes, 1);
+    List<List<ManifestReader>> bins = packer.packEnd(group, reader -> reader.file().getLength());
 
-    List<String> key = cacheKey(group, appendNewFiles);
-    if (!appendNewFiles || !appendUpdated) {
-      // if this group won't have new files appended, or if there are no new appends, check cache
-      if (mergedManifests.containsKey(key)) {
-        return mergedManifests.get(key);
-      }
-    }
+    List<String> outputManifests = Lists.newLinkedList();
+    for (int i = 0; i < bins.size(); i += 1) {
+      List<ManifestReader> bin = bins.get(i);
+      boolean appendNewToThisBin = (i == 0) && appendNewFiles;
 
-    OutputFile out = manifestPath(mergedManifests.size());
-
-    try (ManifestWriter writer = new ManifestWriter(spec, out, snapshotId())) {
-
-      for (ManifestReader reader : group) {
-        writer.addExisting(reader.entries());
+      if (bin.size() == 1 && !appendNewToThisBin) {
+        // no need to rewrite
+        outputManifests.add(bin.get(0).file().location());
+        continue;
       }
 
-      if (appendNewFiles) {
-        writer.addAll(newFiles);
-        // ok to use the cached merge again, if there are no more appends
-        this.appendUpdated = false;
+      List<String> key = cacheKey(bin, appendNewToThisBin);
+      if (!appendNewToThisBin || !appendUpdated) {
+        // if this bin won't have new files appended, or if there are no new appends since the last
+        // time a merge was attempted, check the cache
+        if (mergedManifests.containsKey(key)) {
+          outputManifests.add(mergedManifests.get(key));
+          continue;
+        }
       }
 
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to write manifest: %s", out);
+      OutputFile out = manifestPath(mergedManifests.size());
+
+      try (ManifestWriter writer = new ManifestWriter(spec, out, snapshotId())) {
+
+        if (appendNewToThisBin) {
+          writer.addAll(newFiles);
+          // ok to use the cached merge again, if there are no more appends
+          this.appendUpdated = false;
+        }
+
+        for (ManifestReader reader : bin) {
+          writer.addExisting(reader.entries());
+        }
+
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to write manifest: %s", out);
+      }
+
+      // update the cache
+      mergedManifests.put(key, out.location());
+
+      outputManifests.add(out.location());
     }
 
-    mergedManifests.put(key, out.location());
-
-    return out.location();
+    return outputManifests;
   }
 
   private List<String> cacheKey(List<ManifestReader> group, boolean appendNewFiles) {
@@ -165,12 +191,10 @@ class MergeAppend extends SnapshotUpdate implements AppendFiles {
    * This is to produce manifests with the latest compatible spec.
    *
    * @param specs   a list of partition specs, corresponding to the groups of readers
-   * @param readers a list of grouped manifest readers
    * @param spec    spec to be matched to a group
    * @return        group of readers files for this spec can be merged into
    */
   private static int findMatch(List<PartitionSpec> specs,
-                               List<List<ManifestReader>> readers,
                                PartitionSpec spec) {
     // loop from last to first because later specs are most likely to match
     for (int i = specs.size() - 1; i >= 0; i -= 1) {
@@ -181,4 +205,5 @@ class MergeAppend extends SnapshotUpdate implements AppendFiles {
 
     return -1;
   }
+
 }

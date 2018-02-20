@@ -29,6 +29,9 @@ public class TableProperties {
   public static final String COMMIT_TOTAL_RETRY_TIME_MS = "commit.retry.total-timeout-ms";
   public static final int COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT = 60000; // 1 minute
 
+  public static final String MANIFEST_TARGET_SIZE_BYTES = "commit.manifest.target-size-bytes";
+  public static final long MANIFEST_TARGET_SIZE_BYTES_DEFAULT = 8388608; // 8 MB
+
   public static final String DEFAULT_FILE_FORMAT = "write.format.default";
   public static final String DEFAULT_FILE_FORMAT_DEFAULT = "parquet";
 }

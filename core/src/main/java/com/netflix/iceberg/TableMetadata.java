@@ -142,6 +142,14 @@ public class TableMetadata {
     return defaultValue;
   }
 
+  public long propertyAsLong(String property, long defaultValue) {
+    String value = properties.get(property);
+    if (value != null) {
+      return Long.parseLong(properties.get(property));
+    }
+    return defaultValue;
+  }
+
   public Snapshot snapshot(long snapshotId) {
     return snapshotsById.get(snapshotId);
   }
