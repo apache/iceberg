@@ -68,6 +68,16 @@ class ManifestWriter implements FileAppender<DataFile> {
     writer.add(reused.wrapDelete(snapshotId, file));
   }
 
+  public void add(ManifestEntry file) {
+    writer.add(file);
+  }
+
+  public void addEntries(Iterable<ManifestEntry> entries) {
+    for (ManifestEntry entry : entries) {
+      add(entry);
+    }
+  }
+
   @Override
   public void add(DataFile file) {
     // TODO: this assumes that file is a GenericDataFile that can be written directly to Avro

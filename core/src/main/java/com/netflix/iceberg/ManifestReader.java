@@ -17,6 +17,8 @@
 package com.netflix.iceberg;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.avro.Avro;
@@ -49,7 +51,7 @@ public class ManifestReader implements Filterable<FilteredManifest> {
       "file_path", "file_format", "partition", "record_count", "file_size_in_bytes");
 
   /**
-   * Returns a new builder to create a {@link ManifestReader} for an {@link InputFile}.
+   * Returns a new {@link ManifestReader} for an {@link InputFile}.
    *
    * @param file an InputFile
    * @return a manifest reader
@@ -58,7 +60,19 @@ public class ManifestReader implements Filterable<FilteredManifest> {
     return new ManifestReader(file);
   }
 
+  /**
+   * Returns a new {@link ManifestReader} for an in-memory list of {@link ManifestEntry}.
+   *
+   * @param spec a partition spec for the entries
+   * @param entries an in-memory list of entries for this manifest
+   * @return a manifest reader
+   */
+  public static ManifestReader inMemory(PartitionSpec spec, Iterable<ManifestEntry> entries) {
+    return new ManifestReader(spec, entries);
+  }
+
   private final InputFile file;
+  private final Iterable<ManifestEntry> entries;
   private final Map<String, String> metadata;
   private final PartitionSpec spec;
   private final Schema schema;
@@ -76,6 +90,15 @@ public class ManifestReader implements Filterable<FilteredManifest> {
     this.metadata = headerReader.getMetadata();
     this.schema = SchemaParser.fromJson(metadata.get("schema"));
     this.spec = PartitionSpecParser.fromJson(schema, metadata.get("partition-spec"));
+    this.entries = null;
+  }
+
+  private ManifestReader(PartitionSpec spec, Iterable<ManifestEntry> entries) {
+    this.file = null;
+    this.metadata = ImmutableMap.of();
+    this.spec = spec;
+    this.schema = spec.schema();
+    this.entries = entries;
   }
 
   public InputFile file() {
@@ -149,6 +172,11 @@ public class ManifestReader implements Filterable<FilteredManifest> {
   }
 
   Iterable<ManifestEntry> entries(Collection<String> columns) {
+    if (entries != null) {
+      // if this reader is an in-memory list or if the entries have been cached, return the list.
+      return entries;
+    }
+
     FileFormat format = FileFormat.fromFileName(file.toString());
     Preconditions.checkArgument(format != null, "Unable to determine format of manifest: " + file);
 
