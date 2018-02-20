@@ -17,20 +17,22 @@
 package com.netflix.iceberg;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.avro.Avro;
 import com.netflix.iceberg.avro.AvroIterable;
+import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.expressions.Projections;
+import com.netflix.iceberg.io.ClosingIterable;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.types.Types;
 import com.netflix.iceberg.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -43,7 +45,7 @@ import static com.netflix.iceberg.ManifestEntry.Status.DELETED;
  * <p>
  * Readers are created using the builder from {@link #read(InputFile)}.
  */
-public class ManifestReader implements Filterable<FilteredManifest> {
+public class ManifestReader extends ClosingIterable implements Filterable<FilteredManifest> {
   private static final Logger LOG = LoggerFactory.getLogger(ManifestReader.class);
 
   private static final List<String> ALL_COLUMNS = Lists.newArrayList("*");
@@ -84,10 +86,15 @@ public class ManifestReader implements Filterable<FilteredManifest> {
   private ManifestReader(InputFile file) {
     this.file = file;
 
-    AvroIterable<ManifestEntry> headerReader = Avro.read(file)
-        .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
-        .build();
-    this.metadata = headerReader.getMetadata();
+    try {
+      try (AvroIterable<ManifestEntry> headerReader = Avro.read(file)
+          .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
+          .build()) {
+        this.metadata = headerReader.getMetadata();
+      }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e);
+    }
     this.schema = SchemaParser.fromJson(metadata.get("schema"));
     this.spec = PartitionSpecParser.fromJson(schema, metadata.get("partition-spec"));
     this.entries = null;
@@ -183,7 +190,7 @@ public class ManifestReader implements Filterable<FilteredManifest> {
     Schema schema = ManifestEntry.projectSchema(spec.partitionType(), columns);
     switch (format) {
       case AVRO:
-        return Avro.read(file)
+        AvroIterable<ManifestEntry> reader = Avro.read(file)
             .project(schema)
             .rename("manifest_entry", ManifestEntry.class.getName())
             .rename("partition", PartitionData.class.getName())
@@ -194,6 +201,10 @@ public class ManifestReader implements Filterable<FilteredManifest> {
             .rename("distinct_counts", Pair.class.getName())
             .reuseContainers()
             .build();
+
+        addCloseable(reader);
+
+        return reader;
 
       default:
         throw new UnsupportedOperationException("Invalid format for manifest file: " + format);

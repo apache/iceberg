@@ -19,6 +19,7 @@ package com.netflix.iceberg;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.io.Closeables;
 import com.netflix.iceberg.exceptions.CommitFailedException;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.OutputFile;
@@ -73,35 +74,46 @@ class MergeAppend extends SnapshotUpdate implements AppendFiles {
     groups.get(0).add(newFilesAsManifest());
 
     List<ManifestReader> toClose = Lists.newArrayList();
+    boolean threw = true;
+    try {
+      // group manifests by compatible partition specs to be merged
+      if (current != null) {
+        for (String manifest : current.manifests()) {
+          ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest));
+          toClose.add(reader);
 
-    // group manifests by compatible partition specs to be merged
-    if (current != null) {
-      for (String manifest : current.manifests()) {
-        ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest));
-        toClose.add(reader);
+          int index = findMatch(specs, reader.spec());
+          if (index < 0) {
+            // not found, add a new one
+            List<ManifestReader> newList = Lists.<ManifestReader>newArrayList(reader);
+            specs.add(reader.spec());
+            groups.add(newList);
+          } else {
+            // replace the reader spec with the later one
+            specs.set(index, reader.spec());
+            groups.get(index).add(reader);
+          }
+        }
+      }
 
-        int index = findMatch(specs, reader.spec());
-        if (index < 0) {
-          // not found, add a new one
-          List<ManifestReader> newList = Lists.<ManifestReader>newArrayList(reader);
-          specs.add(reader.spec());
-          groups.add(newList);
-        } else {
-          // replace the reader spec with the later one
-          specs.set(index, reader.spec());
-          groups.get(index).add(reader);
+      List<String> manifests = Lists.newArrayList();
+      for (int i = 0; i < specs.size(); i += 1) {
+        manifests.addAll(mergeGroup(specs.get(i), groups.get(i)));
+      }
+
+      threw = false;
+
+      return manifests;
+
+    } finally {
+      for (ManifestReader reader : toClose) {
+        try {
+          Closeables.close(reader, threw);
+        } catch (IOException e) {
+          throw new RuntimeIOException(e);
         }
       }
     }
-
-    List<String> manifests = Lists.newArrayList();
-    for (int i = 0; i < specs.size(); i += 1) {
-      manifests.addAll(mergeGroup(specs.get(i), groups.get(i)));
-    }
-
-    // TODO: close readers.
-
-    return manifests;
   }
 
   @Override

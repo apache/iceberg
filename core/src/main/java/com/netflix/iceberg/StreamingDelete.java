@@ -105,61 +105,62 @@ class StreamingDelete extends SnapshotUpdate implements DeleteFiles {
       return filteredManifests.get(manifest);
     }
 
-    ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest));
     OutputFile filteredCopy = manifestPath(filteredManifests.size());
 
-    Expression inclusiveExpr = Projections
-        .inclusive(reader.spec())
-        .project(deleteExpression);
-    Evaluator inclusive = new Evaluator(reader.spec().partitionType(), inclusiveExpr);
+    try (ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest))) {
+      Expression inclusiveExpr = Projections
+          .inclusive(reader.spec())
+          .project(deleteExpression);
+      Evaluator inclusive = new Evaluator(reader.spec().partitionType(), inclusiveExpr);
 
-    Expression strictExpr = Projections
-        .strict(reader.spec())
-        .project(deleteExpression);
-    Evaluator strict = new Evaluator(reader.spec().partitionType(), strictExpr);
+      Expression strictExpr = Projections
+          .strict(reader.spec())
+          .project(deleteExpression);
+      Evaluator strict = new Evaluator(reader.spec().partitionType(), strictExpr);
 
-    // this is reused to compare file paths with the delete set
-    CharSequenceWrapper wrapper = CharSequenceWrapper.wrap("");
+      // this is reused to compare file paths with the delete set
+      CharSequenceWrapper wrapper = CharSequenceWrapper.wrap("");
 
-    long deletedFilesCount = 0;
-    long selectedFilesCount = 0;
-    try (ManifestWriter writer = new ManifestWriter(reader.spec(), filteredCopy, snapshotId())) {
+      long deletedFilesCount = 0;
+      long selectedFilesCount = 0;
+      try (ManifestWriter writer = new ManifestWriter(reader.spec(), filteredCopy, snapshotId())) {
+        for (ManifestEntry entry : reader.entries()) {
+          DataFile file = entry.file();
+          boolean fileDelete = deletePaths.contains(wrapper.set(file.path()));
+          if (fileDelete || inclusive.eval(file.partition())) {
+            ValidationException.check(fileDelete || strict.eval(file.partition()),
+                "Cannot delete file where some, but not all, rows match filter %s: %s",
+                deleteExpression, file.path());
 
-      for (ManifestEntry entry : reader.entries()) {
-        DataFile file = entry.file();
-        boolean fileDelete = deletePaths.contains(wrapper.set(file.path()));
-        if (fileDelete || inclusive.eval(file.partition())) {
-          ValidationException.check(fileDelete || strict.eval(file.partition()),
-              "Cannot delete file where some, but not all, rows match filter %s: %s",
-              deleteExpression, file.path());
+            deletedFilesCount += 1;
+            writer.delete(entry);
 
-          deletedFilesCount += 1;
-          writer.delete(entry);
-        } else {
-
-          selectedFilesCount += 1;
-          writer.addExisting(entry);
+          } else {
+            selectedFilesCount += 1;
+            writer.addExisting(entry);
+          }
         }
       }
 
+      // only use the new manifest if this produced changes.
+      String filtered;
+      if (selectedFilesCount == 0) {
+        deleteFile(filteredCopy.location());
+        filtered = null;
+      } else if (deletedFilesCount > 0) {
+        filtered = filteredCopy.location();
+      } else {
+        deleteFile(filteredCopy.location());
+        filtered = reader.file().location();
+      }
+
+      filteredManifests.put(manifest, filtered);
+
+      return filtered;
+
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to write manifest: %s", filteredCopy);
+      throw new RuntimeIOException(e,
+          "Failed to rewrite manifest: %s -> %s", manifest, filteredCopy);
     }
-
-    // only use the new manifest if this produced changes.
-    String filtered;
-    if (selectedFilesCount == 0) {
-      deleteFile(filteredCopy.location());
-      filtered = null;
-    } else if (deletedFilesCount > 0) {
-      filtered = filteredCopy.location();
-    } else {
-      deleteFile(filteredCopy.location());
-      filtered = reader.file().location();
-    }
-
-    filteredManifests.put(manifest, filtered);
-
-    return filtered;
   }
 }

@@ -18,6 +18,7 @@ package com.netflix.iceberg;
 
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.expressions.Expression;
+import java.io.Closeable;
 import java.util.Collection;
 
 /**
@@ -26,7 +27,7 @@ import java.util.Collection;
  * TableScan objects are immutable and can be shared between threads. Refinement methods, like
  * {@link #select(Collection)} and {@link #filter(Expression)}, create new TableScan instances.
  */
-public interface TableScan {
+public interface TableScan extends Closeable {
   /**
    * Returns the {@link Table} from which this scan loads data.
    *

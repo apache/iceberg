@@ -20,14 +20,17 @@ import com.google.common.base.Function;
 import com.google.common.base.Objects;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Expressions;
+import com.netflix.iceberg.io.ClosingIterable;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
-class BaseSnapshot implements Snapshot, SnapshotIterable {
+class BaseSnapshot extends ClosingIterable implements Snapshot, SnapshotIterable {
   private final TableOperations ops;
   private final long snapshotId;
   private final long timestampMillis;
@@ -91,11 +94,13 @@ class BaseSnapshot implements Snapshot, SnapshotIterable {
                                      Expression rowFilter,
                                      Collection<String> columns) {
     return Iterables.concat(Iterables.transform(manifestFiles,
-        (Function<String, Iterable<DataFile>>) path -> ManifestReader
-            .read(ops.newInputFile(path))
-            .filterPartitions(partFilter)
-            .filterRows(rowFilter)
-            .select(columns))).iterator();
+        (Function<String, Iterable<DataFile>>) path -> {
+          ManifestReader reader = ManifestReader.read(ops.newInputFile(path));
+          addCloseable(reader);
+          return reader.filterPartitions(partFilter)
+              .filterRows(rowFilter)
+              .select(columns);
+        })).iterator();
   }
 
   @Override
@@ -126,16 +131,19 @@ class BaseSnapshot implements Snapshot, SnapshotIterable {
     // accumulate adds and deletes from all manifests.
     // because manifests can be reused in newer snapshots, filter the changes by snapshot id.
     for (String manifest : manifestFiles) {
-      ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest));
-      for (ManifestEntry add : reader.addedFiles()) {
-        if (add.snapshotId() == snapshotId) {
-          adds.add(add.file().copy());
+      try (ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest))) {
+        for (ManifestEntry add : reader.addedFiles()) {
+          if (add.snapshotId() == snapshotId) {
+            adds.add(add.file().copy());
+          }
         }
-      }
-      for (ManifestEntry delete : reader.deletedFiles()) {
-        if (delete.snapshotId() == snapshotId) {
-          deletes.add(delete.file().copy());
+        for (ManifestEntry delete : reader.deletedFiles()) {
+          if (delete.snapshotId() == snapshotId) {
+            deletes.add(delete.file().copy());
+          }
         }
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to close reader while caching changes");
       }
     }
 

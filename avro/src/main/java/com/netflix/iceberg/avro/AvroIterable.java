@@ -16,9 +16,9 @@
 
 package com.netflix.iceberg.avro;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
+import com.netflix.iceberg.io.ClosingIterable;
 import com.netflix.iceberg.io.InputFile;
 import org.apache.avro.Schema;
 import org.apache.avro.file.DataFileReader;
@@ -27,12 +27,10 @@ import org.apache.avro.io.DatumReader;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
-public class AvroIterable<D> implements Iterable<D>, Closeable {
-  private final List<Closeable> closeables = Lists.newArrayList();
+public class AvroIterable<D> extends ClosingIterable implements Iterable<D> {
   private final InputFile file;
   private final DatumReader<D> reader;
   private final Long start;
@@ -82,7 +80,7 @@ public class AvroIterable<D> implements Iterable<D>, Closeable {
       return new AvroReuseIterator<>(reader);
     }
 
-    closeables.add(reader);
+    addCloseable(reader);
 
     return reader;
   }
@@ -93,16 +91,6 @@ public class AvroIterable<D> implements Iterable<D>, Closeable {
           AvroIO.stream(file.newStream(), file.getLength()), reader);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to open file: %s", file);
-    }
-  }
-
-  @Override
-  public void close() throws IOException {
-    while (!closeables.isEmpty()) {
-      Closeable toClose = closeables.remove(0);
-      if (toClose != null) {
-        toClose.close();
-      }
     }
   }
 

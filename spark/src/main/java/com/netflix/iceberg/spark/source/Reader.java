@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import com.google.common.io.Closeables;
 import com.netflix.iceberg.DataFile;
 import com.netflix.iceberg.FileScanTask;
 import com.netflix.iceberg.PartitionField;
@@ -31,6 +32,7 @@ import com.netflix.iceberg.Table;
 import com.netflix.iceberg.TableScan;
 import com.netflix.iceberg.avro.Avro;
 import com.netflix.iceberg.common.DynMethods;
+import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.expressions.Evaluator;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.hadoop.HadoopInputFile;
@@ -210,7 +212,17 @@ class Reader implements DataSourceV2Reader, SupportsScanUnsafeRow,
         }
       }
 
-      this.tasks = Lists.newArrayList(scan.planFiles());
+      boolean threw = true;
+      try {
+        this.tasks = Lists.newArrayList(scan.planFiles());
+        threw = false;
+      } finally {
+        try {
+          Closeables.close(scan, threw);
+        } catch (IOException e) {
+          throw new RuntimeIOException(e, "Failed to close table scan: %s", scan);
+        }
+      }
     }
 
     return tasks;

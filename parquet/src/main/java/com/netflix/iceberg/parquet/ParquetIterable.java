@@ -16,17 +16,15 @@
 
 package com.netflix.iceberg.parquet;
 
-import com.google.common.collect.Lists;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
+import com.netflix.iceberg.io.ClosingIterable;
 import org.apache.parquet.hadoop.ParquetReader;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 import java.util.NoSuchElementException;
 
-public class ParquetIterable<T> implements Iterable<T>, Closeable {
-  private final List<Closeable> closeables = Lists.newArrayList();
+public class ParquetIterable<T> extends ClosingIterable implements Iterable<T>, Closeable {
   private final ParquetReader.Builder<T> builder;
 
   ParquetIterable(ParquetReader.Builder<T> builder) {
@@ -37,20 +35,10 @@ public class ParquetIterable<T> implements Iterable<T>, Closeable {
   public Iterator<T> iterator() {
     try {
       ParquetReader<T> reader = builder.build();
-      closeables.add(reader);
+      addCloseable(reader);
       return new ParquetIterator<>(reader);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to create Parquet reader");
-    }
-  }
-
-  @Override
-  public void close() throws IOException {
-    while (!closeables.isEmpty()) {
-      Closeable toClose = closeables.remove(0);
-      if (toClose != null) {
-        toClose.close();
-      }
     }
   }
 

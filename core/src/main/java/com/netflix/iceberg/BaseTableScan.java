@@ -21,6 +21,7 @@ import com.google.common.collect.Iterables;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.expressions.ResidualEvaluator;
+import com.netflix.iceberg.io.ClosingIterable;
 import com.netflix.iceberg.util.ParallelIterable;
 import java.util.Collection;
 import java.util.Collections;
@@ -31,7 +32,7 @@ import static com.netflix.iceberg.util.ThreadPools.getWorkerPool;
 /**
  * Base class for {@link TableScan} implementations.
  */
-class BaseTableScan implements TableScan {
+class BaseTableScan extends ClosingIterable implements TableScan {
   private final TableOperations ops;
   private final Table table;
   private final Collection<String> columns;
@@ -71,6 +72,7 @@ class BaseTableScan implements TableScan {
           snapshot.manifests(),
           manifest -> {
             ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest));
+            addCloseable(reader);
             String schemaString = SchemaParser.toJson(reader.spec().schema());
             String specString = PartitionSpecParser.toJson(reader.spec());
             ResidualEvaluator residuals = new ResidualEvaluator(reader.spec(), rowFilter);
