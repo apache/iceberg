@@ -55,8 +55,8 @@ import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
 import org.apache.spark.sql.execution.datasources.parquet.ParquetReadSupport;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.v2.reader.DataReader;
-import org.apache.spark.sql.sources.v2.reader.DataSourceV2Reader;
-import org.apache.spark.sql.sources.v2.reader.ReadTask;
+import org.apache.spark.sql.sources.v2.reader.DataSourceReader;
+import org.apache.spark.sql.sources.v2.reader.DataReaderFactory;
 import org.apache.spark.sql.sources.v2.reader.Statistics;
 import org.apache.spark.sql.sources.v2.reader.SupportsPushDownFilters;
 import org.apache.spark.sql.sources.v2.reader.SupportsPushDownRequiredColumns;
@@ -86,7 +86,7 @@ import static com.netflix.iceberg.spark.SparkSchemaUtil.prune;
 import static scala.collection.JavaConverters.asScalaBufferConverter;
 import static scala.collection.JavaConverters.seqAsJavaListConverter;
 
-class Reader implements DataSourceV2Reader, SupportsScanUnsafeRow,
+class Reader implements DataSourceReader, SupportsScanUnsafeRow,
     SupportsPushDownRequiredColumns, SupportsPushDownFilters, SupportsReportStatistics {
   private static final Filter[] NO_FILTERS = new Filter[0];
   private static final List<String> SNAPSHOT_COLUMNS = ImmutableList.of(
@@ -135,11 +135,11 @@ class Reader implements DataSourceV2Reader, SupportsScanUnsafeRow,
   }
 
   @Override
-  public List<ReadTask<UnsafeRow>> createUnsafeRowReadTasks() {
+  public List<DataReaderFactory<UnsafeRow>> createUnsafeRowReaderFactories() {
     String tableSchemaString = SchemaParser.toJson(table.schema());
     String expectedSchemaString = SchemaParser.toJson(lazySchema());
 
-    List<ReadTask<UnsafeRow>> readTasks = Lists.newArrayList();
+    List<DataReaderFactory<UnsafeRow>> readTasks = Lists.newArrayList();
     for (FileScanTask fileTask : tasks()) {
       readTasks.add(new ScanTask(fileTask, tableSchemaString, expectedSchemaString, conf));
     }
@@ -236,7 +236,7 @@ class Reader implements DataSourceV2Reader, SupportsScanUnsafeRow,
         table, lazySchema().asStruct(), filterExpressions);
   }
 
-  private static class ScanTask implements ReadTask<UnsafeRow>, Serializable {
+  private static class ScanTask implements DataReaderFactory<UnsafeRow>, Serializable {
     // for some reason, the apply method can't be called from Java without reflection
     private static final DynMethods.UnboundMethod APPLY_PROJECTION = DynMethods.builder("apply")
         .impl(UnsafeProjection.class, InternalRow.class)

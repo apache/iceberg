@@ -28,11 +28,11 @@ import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.sources.DataSourceRegister;
 import org.apache.spark.sql.sources.v2.DataSourceV2;
-import org.apache.spark.sql.sources.v2.DataSourceV2Options;
+import org.apache.spark.sql.sources.v2.DataSourceOptions;
 import org.apache.spark.sql.sources.v2.ReadSupport;
 import org.apache.spark.sql.sources.v2.WriteSupport;
-import org.apache.spark.sql.sources.v2.reader.DataSourceV2Reader;
-import org.apache.spark.sql.sources.v2.writer.DataSourceV2Writer;
+import org.apache.spark.sql.sources.v2.reader.DataSourceReader;
+import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
 import org.apache.spark.sql.types.StructType;
 import java.util.List;
 import java.util.Locale;
@@ -51,14 +51,14 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
   }
 
   @Override
-  public DataSourceV2Reader createReader(DataSourceV2Options options) {
+  public DataSourceReader createReader(DataSourceOptions options) {
     Table table = findTable(options);
     return new Reader(table, lazyConf());
   }
 
   @Override
-  public Optional<DataSourceV2Writer> createWriter(String jobId, StructType dfStruct, SaveMode mode,
-                                                   DataSourceV2Options options) {
+  public Optional<DataSourceWriter> createWriter(String jobId, StructType dfStruct, SaveMode mode,
+                                                   DataSourceOptions options) {
     Preconditions.checkArgument(mode == SaveMode.Append, "Save mode %s is not supported", mode);
 
     Table table = findTable(options);
@@ -88,7 +88,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     return Optional.of(new Writer(table, lazyConf(), format));
   }
 
-  protected Table findTable(DataSourceV2Options options) {
+  protected Table findTable(DataSourceOptions options) {
     Optional<String> location = options.get("path");
     Preconditions.checkArgument(location.isPresent(),
         "Cannot open table without a location: path is not set");

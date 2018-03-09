@@ -46,7 +46,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.execution.datasources.parquet.ParquetWriteSupport;
-import org.apache.spark.sql.sources.v2.writer.DataSourceV2Writer;
+import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
 import org.apache.spark.sql.sources.v2.writer.DataWriter;
 import org.apache.spark.sql.sources.v2.writer.DataWriterFactory;
 import org.apache.spark.sql.sources.v2.writer.SupportsWriteInternalRow;
@@ -74,8 +74,8 @@ import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 import static com.netflix.iceberg.spark.SparkSchemaUtil.convert;
 
-// TODO: parameterize DataSourceV2Writer with subclass of WriterCommitMessage
-class Writer implements DataSourceV2Writer, SupportsWriteInternalRow {
+// TODO: parameterize DataSourceWriter with subclass of WriterCommitMessage
+class Writer implements DataSourceWriter, SupportsWriteInternalRow {
   private static final Logger LOG = LoggerFactory.getLogger(Writer.class);
 
   private final Table table;

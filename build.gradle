@@ -66,7 +66,7 @@ subprojects {
     jacksonVersion = '2.6.7'
 
     scalaVersion = '2.11'
-    sparkVersion = '2.3.0-SNAPSHOT'
+    sparkVersion = '2.3.0'
   }
 
   sourceCompatibility = '1.8'

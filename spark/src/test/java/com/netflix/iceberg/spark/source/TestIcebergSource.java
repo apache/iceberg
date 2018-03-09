@@ -17,7 +17,7 @@
 package com.netflix.iceberg.spark.source;
 
 import com.netflix.iceberg.Table;
-import org.apache.spark.sql.sources.v2.DataSourceV2Options;
+import org.apache.spark.sql.sources.v2.DataSourceOptions;
 
 public class TestIcebergSource extends IcebergSource {
   @Override
@@ -26,7 +26,7 @@ public class TestIcebergSource extends IcebergSource {
   }
 
   @Override
-  protected Table findTable(DataSourceV2Options options) {
+  protected Table findTable(DataSourceOptions options) {
     return TestTables.load(options.get("iceberg.table.name").get());
   }
 }

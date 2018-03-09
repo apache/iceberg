@@ -49,10 +49,10 @@ import org.apache.spark.sql.sources.EqualTo;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.GreaterThan;
 import org.apache.spark.sql.sources.LessThan;
-import org.apache.spark.sql.sources.v2.DataSourceV2Options;
+import org.apache.spark.sql.sources.v2.DataSourceOptions;
 import org.apache.spark.sql.sources.v2.reader.DataReader;
-import org.apache.spark.sql.sources.v2.reader.DataSourceV2Reader;
-import org.apache.spark.sql.sources.v2.reader.ReadTask;
+import org.apache.spark.sql.sources.v2.reader.DataSourceReader;
+import org.apache.spark.sql.sources.v2.reader.DataReaderFactory;
 import org.apache.spark.sql.sources.v2.reader.SupportsPushDownFilters;
 import org.apache.spark.sql.sources.v2.reader.SupportsPushDownRequiredColumns;
 import org.apache.spark.sql.sources.v2.reader.SupportsScanUnsafeRow;
@@ -197,18 +197,18 @@ public class TestFilteredScan {
 
   @Test
   public void testUnpartitionedIDFilters() {
-    DataSourceV2Options options = new DataSourceV2Options(ImmutableMap.of(
+    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
         "path", unpartitioned.toString())
     );
 
     IcebergSource source = new IcebergSource();
 
     for (int i = 0; i < 10; i += 1) {
-      DataSourceV2Reader reader = source.createReader(options);
+      DataSourceReader reader = source.createReader(options);
 
       pushFilters(reader, EqualTo.apply("id", i));
 
-      List<ReadTask<UnsafeRow>> tasks = planTasks(reader);
+      List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
       Assert.assertEquals("Should only create one task for a small file", 1, tasks.size());
 
       // validate row filtering
@@ -218,17 +218,17 @@ public class TestFilteredScan {
 
   @Test
   public void testUnpartitionedTimestampFilter() {
-    DataSourceV2Options options = new DataSourceV2Options(ImmutableMap.of(
+    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
         "path", unpartitioned.toString())
     );
 
     IcebergSource source = new IcebergSource();
 
-    DataSourceV2Reader reader = source.createReader(options);
+    DataSourceReader reader = source.createReader(options);
 
     pushFilters(reader, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
 
-    List<ReadTask<UnsafeRow>> tasks = planTasks(reader);
+    List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
     Assert.assertEquals("Should only create one task for a small file", 1, tasks.size());
 
     assertEqualsUnsafe(SCHEMA.asStruct(), expected(5,6,7,8,9), read(tasks));
@@ -238,21 +238,21 @@ public class TestFilteredScan {
   public void testBucketPartitionedIDFilters() {
     File location = buildPartitionedTable("bucketed_by_id", BUCKET_BY_ID, "bucket4", "id");
 
-    DataSourceV2Options options = new DataSourceV2Options(ImmutableMap.of(
+    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
         "path", location.toString())
     );
 
     IcebergSource source = new IcebergSource();
-    DataSourceV2Reader unfiltered = source.createReader(options);
+    DataSourceReader unfiltered = source.createReader(options);
     Assert.assertEquals("Unfiltered table should created 4 read tasks",
         4, planTasks(unfiltered).size());
 
     for (int i = 0; i < 10; i += 1) {
-      DataSourceV2Reader reader = source.createReader(options);
+      DataSourceReader reader = source.createReader(options);
 
       pushFilters(reader, EqualTo.apply("id", i));
 
-      List<ReadTask<UnsafeRow>> tasks = planTasks(reader);
+      List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
 
       // validate predicate push-down
       Assert.assertEquals("Should create one task for a single bucket", 1, tasks.size());
@@ -266,34 +266,34 @@ public class TestFilteredScan {
   public void testDayPartitionedTimestampFilters() {
     File location = buildPartitionedTable("partitioned_by_day", PARTITION_BY_DAY, "ts_day", "ts");
 
-    DataSourceV2Options options = new DataSourceV2Options(ImmutableMap.of(
+    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
         "path", location.toString())
     );
 
     IcebergSource source = new IcebergSource();
-    DataSourceV2Reader unfiltered = source.createReader(options);
+    DataSourceReader unfiltered = source.createReader(options);
     Assert.assertEquals("Unfiltered table should created 2 read tasks",
         2, planTasks(unfiltered).size());
 
     {
-      DataSourceV2Reader reader = source.createReader(options);
+      DataSourceReader reader = source.createReader(options);
 
       pushFilters(reader, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
 
-      List<ReadTask<UnsafeRow>> tasks = planTasks(reader);
+      List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
       Assert.assertEquals("Should create one task for 2017-12-21", 1, tasks.size());
 
       assertEqualsUnsafe(SCHEMA.asStruct(), expected(5, 6, 7, 8, 9), read(tasks));
     }
 
     {
-      DataSourceV2Reader reader = source.createReader(options);
+      DataSourceReader reader = source.createReader(options);
 
       pushFilters(reader, And.apply(
           GreaterThan.apply("ts", "2017-12-22T06:00:00+00:00"),
           LessThan.apply("ts", "2017-12-22T08:00:00+00:00")));
 
-      List<ReadTask<UnsafeRow>> tasks = planTasks(reader);
+      List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
       Assert.assertEquals("Should create one task for 2017-12-22", 1, tasks.size());
 
       assertEqualsUnsafe(SCHEMA.asStruct(), expected(1, 2), read(tasks));
@@ -304,34 +304,34 @@ public class TestFilteredScan {
   public void testHourPartitionedTimestampFilters() {
     File location = buildPartitionedTable("partitioned_by_hour", PARTITION_BY_HOUR, "ts_hour", "ts");
 
-    DataSourceV2Options options = new DataSourceV2Options(ImmutableMap.of(
+    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
         "path", location.toString())
     );
 
     IcebergSource source = new IcebergSource();
-    DataSourceV2Reader unfiltered = source.createReader(options);
+    DataSourceReader unfiltered = source.createReader(options);
     Assert.assertEquals("Unfiltered table should created 9 read tasks",
         9, planTasks(unfiltered).size());
 
     {
-      DataSourceV2Reader reader = source.createReader(options);
+      DataSourceReader reader = source.createReader(options);
 
       pushFilters(reader, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
 
-      List<ReadTask<UnsafeRow>> tasks = planTasks(reader);
+      List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
       Assert.assertEquals("Should create 4 tasks for 2017-12-21: 15, 17, 21, 22", 4, tasks.size());
 
       assertEqualsUnsafe(SCHEMA.asStruct(), expected(8, 9, 7, 6, 5), read(tasks));
     }
 
     {
-      DataSourceV2Reader reader = source.createReader(options);
+      DataSourceReader reader = source.createReader(options);
 
       pushFilters(reader, And.apply(
           GreaterThan.apply("ts", "2017-12-22T06:00:00+00:00"),
           LessThan.apply("ts", "2017-12-22T08:00:00+00:00")));
 
-      List<ReadTask<UnsafeRow>> tasks = planTasks(reader);
+      List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
       Assert.assertEquals("Should create 2 tasks for 2017-12-22: 6, 7", 2, tasks.size());
 
       assertEqualsUnsafe(SCHEMA.asStruct(), expected(2, 1), read(tasks));
@@ -340,14 +340,14 @@ public class TestFilteredScan {
 
   @Test
   public void testFilterByNonProjectedColumn() {
-    DataSourceV2Options options = new DataSourceV2Options(ImmutableMap.of(
+    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
         "path", unpartitioned.toString())
     );
 
     IcebergSource source = new IcebergSource();
 
     {
-      DataSourceV2Reader reader = source.createReader(options);
+      DataSourceReader reader = source.createReader(options);
 
       Schema projection = SCHEMA.select("id", "data");
       Assert.assertTrue(reader instanceof SupportsPushDownRequiredColumns);
@@ -356,7 +356,7 @@ public class TestFilteredScan {
 
       pushFilters(reader, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
 
-      List<ReadTask<UnsafeRow>> tasks = planTasks(reader);
+      List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
 
       Schema actualProjection = SCHEMA.select("id", "data");
       List<Record> expected = Lists.newArrayList();
@@ -368,7 +368,7 @@ public class TestFilteredScan {
     }
 
     {
-      DataSourceV2Reader reader = source.createReader(options);
+      DataSourceReader reader = source.createReader(options);
 
       // only project id: ts will be projected because of the filter, but data will not be included
       Schema projection = SCHEMA.select("id");
@@ -378,7 +378,7 @@ public class TestFilteredScan {
 
       pushFilters(reader, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
 
-      List<ReadTask<UnsafeRow>> tasks = planTasks(reader);
+      List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
 
       Schema actualProjection = SCHEMA.select("id");
       List<Record> expected = Lists.newArrayList();
@@ -419,16 +419,16 @@ public class TestFilteredScan {
     return expected;
   }
 
-  private void pushFilters(DataSourceV2Reader reader, Filter... filters) {
+  private void pushFilters(DataSourceReader reader, Filter... filters) {
     Assert.assertTrue(reader instanceof SupportsPushDownFilters);
     SupportsPushDownFilters filterable = (SupportsPushDownFilters) reader;
     filterable.pushFilters(filters);
   }
 
-  private List<ReadTask<UnsafeRow>> planTasks(DataSourceV2Reader reader) {
+  private List<DataReaderFactory<UnsafeRow>> planTasks(DataSourceReader reader) {
     Assert.assertTrue(reader instanceof SupportsScanUnsafeRow);
     SupportsScanUnsafeRow unsafeReader = (SupportsScanUnsafeRow) reader;
-    return unsafeReader.createUnsafeRowReadTasks();
+    return unsafeReader.createUnsafeRowReaderFactories();
   }
 
   private File buildPartitionedTable(String desc, PartitionSpec spec, String udf, String partitionColumn) {
@@ -468,11 +468,11 @@ public class TestFilteredScan {
     );
   }
 
-  private static List<UnsafeRow> read(List<ReadTask<UnsafeRow>> tasks) {
+  private static List<UnsafeRow> read(List<DataReaderFactory<UnsafeRow>> tasks) {
     return Lists.newArrayList(Iterables.concat(Iterables.transform(tasks, TestFilteredScan::read)));
   }
 
-  private static List<UnsafeRow> read(ReadTask<UnsafeRow> task) {
+  private static List<UnsafeRow> read(DataReaderFactory<UnsafeRow> task) {
     DataReader<UnsafeRow> rows = task.createDataReader();
     List<UnsafeRow> results = Lists.newArrayList();
     try {
