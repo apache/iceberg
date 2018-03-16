@@ -184,7 +184,7 @@ public class ManifestReader extends ClosingIterable implements Filterable<Filter
       return entries;
     }
 
-    FileFormat format = FileFormat.fromFileName(file.toString());
+    FileFormat format = FileFormat.fromFileName(file.location());
     Preconditions.checkArgument(format != null, "Unable to determine format of manifest: " + file);
 
     Schema schema = ManifestEntry.projectSchema(spec.partitionType(), columns);
