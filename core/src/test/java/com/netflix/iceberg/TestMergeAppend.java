@@ -18,11 +18,13 @@ package com.netflix.iceberg;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.CommitFailedException;
 import org.junit.Assert;
 import org.junit.Test;
 import java.io.File;
 import java.util.Iterator;
+import java.util.Set;
 
 import static com.google.common.collect.Iterators.concat;
 
@@ -49,6 +51,9 @@ public class TestMergeAppend extends TableTestBase {
 
   @Test
   public void testMergeWithExistingManifest() {
+    // merge all manifests for this test
+    table.updateProperties().set("commit.manifest.min-count-to-merge", "1").commit();
+
     Assert.assertEquals("Table should start empty", 0, listMetadataFiles("avro").size());
 
     table.newAppend()
@@ -78,6 +83,52 @@ public class TestMergeAppend extends TableTestBase {
     validateManifest(newManifest,
         ids(pendingId, pendingId, baseId, baseId),
         concat(files(FILE_C, FILE_D), files(initialManifest)));
+  }
+
+  @Test
+  public void testMinMergeCount() {
+    // only merge when there are at least 4 manifests
+    table.updateProperties().set("commit.manifest.min-count-to-merge", "4").commit();
+
+    Assert.assertEquals("Table should start empty", 0, listMetadataFiles("avro").size());
+
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+    long idFileA = readMetadata().currentSnapshot().snapshotId();
+
+    table.newFastAppend()
+        .appendFile(FILE_B)
+        .commit();
+    long idFileB = readMetadata().currentSnapshot().snapshotId();
+
+    Assert.assertEquals("Should have 2 manifests from setup writes",
+        2, readMetadata().currentSnapshot().manifests().size());
+
+    table.newAppend()
+        .appendFile(FILE_C)
+        .commit();
+    long idFileC = readMetadata().currentSnapshot().snapshotId();
+
+    TableMetadata base = readMetadata();
+    Assert.assertEquals("Should have 3 unmerged manifests",
+        3, base.currentSnapshot().manifests().size());
+    Set<String> unmerged = Sets.newHashSet(base.currentSnapshot().manifests());
+
+    Snapshot pending = table.newAppend()
+        .appendFile(FILE_D)
+        .apply();
+
+    Assert.assertEquals("Should contain 1 merged manifest after the 4th write",
+        1, pending.manifests().size());
+    String newManifest = pending.manifests().get(0);
+    Assert.assertFalse("Should not contain previous manifests", unmerged.contains(newManifest));
+
+    long pendingId = pending.snapshotId();
+
+    validateManifest(newManifest,
+        ids(pendingId, idFileC, idFileB, idFileA),
+        files(FILE_D, FILE_C, FILE_B, FILE_A));
   }
 
   @Test
@@ -208,6 +259,9 @@ public class TestMergeAppend extends TableTestBase {
 
   @Test
   public void testFailure() {
+    // merge all manifests for this test
+    table.updateProperties().set("commit.manifest.min-count-to-merge", "1").commit();
+
     table.newAppend()
         .appendFile(FILE_A)
         .commit();
@@ -220,6 +274,8 @@ public class TestMergeAppend extends TableTestBase {
 
     AppendFiles append = table.newAppend().appendFile(FILE_B);
     Snapshot pending = append.apply();
+
+    Assert.assertEquals("Should merge to 1 manifest", 1, pending.manifests().size());
     String newManifest = pending.manifests().get(0);
 
     Assert.assertTrue("Should create new manifest", new File(newManifest).exists());
@@ -235,6 +291,9 @@ public class TestMergeAppend extends TableTestBase {
 
   @Test
   public void testRecovery() {
+    // merge all manifests for this test
+    table.updateProperties().set("commit.manifest.min-count-to-merge", "1").commit();
+
     table.newAppend()
         .appendFile(FILE_A)
         .commit();
@@ -247,6 +306,8 @@ public class TestMergeAppend extends TableTestBase {
 
     AppendFiles append = table.newAppend().appendFile(FILE_B);
     Snapshot pending = append.apply();
+
+    Assert.assertEquals("Should merge to 1 manifest", 1, pending.manifests().size());
     String newManifest = pending.manifests().get(0);
 
     Assert.assertTrue("Should create new manifest", new File(newManifest).exists());

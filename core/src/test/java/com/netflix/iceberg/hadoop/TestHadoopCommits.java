@@ -221,6 +221,9 @@ public class TestHadoopCommits extends HadoopTableTestBase {
   public void testMergeAppend() throws Exception {
     testFastAppend(); // create 2 compatible manifest files that will be merged
 
+    // merge all manifests for this test
+    table.updateProperties().set("commit.manifest.min-count-to-merge", "1").commit();
+
     // third append
     table.newAppend()
         .appendFile(FILE_C)
@@ -232,7 +235,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     Assert.assertEquals("Should contain 3 Avro manifest files",
         3, listMetadataFiles("avro").size());
 
-    TableMetadata metadata = readMetadataVersion(4);
+    TableMetadata metadata = readMetadataVersion(5);
     Assert.assertEquals("Current snapshot should contain 1 merged manifest",
         1, metadata.currentSnapshot().manifests().size());
   }

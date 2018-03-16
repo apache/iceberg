@@ -32,6 +32,9 @@ public class TableProperties {
   public static final String MANIFEST_TARGET_SIZE_BYTES = "commit.manifest.target-size-bytes";
   public static final long MANIFEST_TARGET_SIZE_BYTES_DEFAULT = 8388608; // 8 MB
 
+  public static final String MANIFEST_MIN_MERGE_COUNT = "commit.manifest.min-count-to-merge";
+  public static final int MANIFEST_MIN_MERGE_COUNT_DEFAULT = 20;
+
   public static final String DEFAULT_FILE_FORMAT = "write.format.default";
   public static final String DEFAULT_FILE_FORMAT_DEFAULT = "parquet";
 }

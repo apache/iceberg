@@ -25,10 +25,13 @@ import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.OutputFile;
 import com.netflix.iceberg.util.BinPacking.ListPacker;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static com.netflix.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
+import static com.netflix.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT_DEFAULT;
 import static com.netflix.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
 import static com.netflix.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
 
@@ -44,9 +47,10 @@ class MergeAppend extends SnapshotUpdate implements AppendFiles {
   private final PartitionSpec spec;
   private final List<DataFile> newFiles = Lists.newArrayList();
   private final long manifestTargetSizeBytes;
+  private final int minManifestsCountToMerge;
 
   // cache merge results to reuse when retrying
-  private final Map<List<String>, String> mergedManifests = Maps.newHashMap();
+  private final Map<List<String>, String> newManifests = Maps.newHashMap();
 
   MergeAppend(TableOperations ops) {
     super(ops);
@@ -54,6 +58,8 @@ class MergeAppend extends SnapshotUpdate implements AppendFiles {
     this.spec = ops.current().spec();
     this.manifestTargetSizeBytes = ops.current()
         .propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
+    this.minManifestsCountToMerge = ops.current()
+        .propertyAsInt(MANIFEST_MIN_MERGE_COUNT, MANIFEST_MIN_MERGE_COUNT_DEFAULT);
   }
 
   @Override
@@ -118,22 +124,23 @@ class MergeAppend extends SnapshotUpdate implements AppendFiles {
 
   @Override
   protected void cleanUncommitted(Set<String> committed) {
-    for (String merged: mergedManifests.values()) {
+    for (String merged: newManifests.values()) {
       // delete any new merged manifests that aren't in the committed list
       if (!committed.contains(merged)) {
         deleteFile(merged);
       }
     }
-    mergedManifests.clear();
+    newManifests.clear();
   }
 
-  private List<String> mergeGroup(PartitionSpec spec, List<ManifestReader> group) {
+  private List<String> mergeGroup(PartitionSpec groupSpec, List<ManifestReader> group) {
     // use a lookback of 1 to avoid reordering the manifests. using 1 also means this should pack
     // from the end so that the manifest that gets under-filled is the first one, which will be
     // merged the next time.
+    long newFilesSize = newFiles.size() * SIZE_PER_FILE;
     ListPacker<ManifestReader> packer = new ListPacker<>(manifestTargetSizeBytes, 1);
     List<List<ManifestReader>> bins = packer.packEnd(group,
-        reader -> reader.file() != null ? reader.file().getLength() : newFiles.size() * SIZE_PER_FILE);
+        reader -> reader.file() != null ? reader.file().getLength() : newFilesSize);
 
     List<String> outputManifests = Lists.newLinkedList();
     for (int i = 0; i < bins.size(); i += 1) {
@@ -145,38 +152,62 @@ class MergeAppend extends SnapshotUpdate implements AppendFiles {
         continue;
       }
 
-      List<String> key = cacheKey(bin);
-      // if this merge was already rewritten, use the existing file.
-      // if the new files are in this merge, the key is based on the number of new files so files
-      // added after the last merge will cause a cache miss.
-      if (mergedManifests.containsKey(key)) {
-        outputManifests.add(mergedManifests.get(key));
-        continue;
+      boolean hasInMemoryManifest = false;
+      for (ManifestReader reader : bin) {
+        if (reader.file() == null) {
+          hasInMemoryManifest = true;
+        }
       }
 
-      OutputFile out = manifestPath(mergedManifests.size());
-
-      try (ManifestWriter writer = new ManifestWriter(spec, out, snapshotId())) {
-
+      // if the bin has an in-memory manifest (the new data) then only merge it if the number of
+      // manifests is above the minimum count. this is applied only to bins with an in-memory
+      // manifest so that large manifests don't prevent merging older groups.
+      if (hasInMemoryManifest && bin.size() < minManifestsCountToMerge) {
         for (ManifestReader reader : bin) {
           if (reader.file() != null) {
-            writer.addExisting(reader.entries());
+            outputManifests.add(reader.file().location());
           } else {
-            writer.addEntries(reader.entries());
+            // write the in-memory manifest
+            outputManifests.add(createManifest(groupSpec, Collections.singletonList(reader)));
           }
         }
-
-      } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to write manifest: %s", out);
+      } else {
+        outputManifests.add(createManifest(groupSpec, bin));
       }
-
-      // update the cache
-      mergedManifests.put(key, out.location());
-
-      outputManifests.add(out.location());
     }
 
     return outputManifests;
+  }
+
+  private String createManifest(PartitionSpec binSpec, List<ManifestReader> bin) {
+    List<String> key = cacheKey(bin);
+    // if this merge was already rewritten, use the existing file.
+    // if the new files are in this merge, the key is based on the number of new files so files
+    // added after the last merge will cause a cache miss.
+    if (newManifests.containsKey(key)) {
+      return newManifests.get(key);
+    }
+
+    OutputFile out = manifestPath(newManifests.size());
+
+    try (ManifestWriter writer = new ManifestWriter(binSpec, out, snapshotId())) {
+
+      for (ManifestReader reader : bin) {
+        if (reader.file() != null) {
+          writer.addExisting(reader.entries());
+        } else {
+          writer.addEntries(reader.entries());
+        }
+      }
+
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to write manifest: %s", out);
+    }
+
+    // update the cache
+    newManifests.put(key, out.location());
+
+    return out.location();
   }
 
   private ManifestReader newFilesAsManifest() {
