@@ -22,6 +22,7 @@ import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.hadoop.HadoopOutputFile;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
+import com.netflix.iceberg.util.Tasks;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -30,6 +31,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.util.UUID;
 
+import static com.netflix.iceberg.TableMetadataParser.read;
 import static com.netflix.iceberg.hadoop.HadoopInputFile.fromLocation;
 
 
@@ -96,10 +98,15 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     if (!Objects.equal(currentMetadataLocation, newLocation)) {
       LOG.info("Refreshing table metadata from new version: " + newLocation);
 
-      this.currentMetadataLocation = newLocation;
-      this.version = parseVersion(newLocation);
-      this.currentMetadata = TableMetadataParser.read(this, fromLocation(newLocation, conf));
-      this.baseLocation = currentMetadata.location();
+      Tasks.foreach(newLocation)
+          .retry(4).exponentialBackoff(100, 5000, 5000, 4.0 /* 100, 400, 1600, ... */ )
+          .suppressFailureWhenFinished()
+          .run(location -> {
+            this.currentMetadata = read(this, fromLocation(location, conf));
+            this.currentMetadataLocation = location;
+            this.baseLocation = currentMetadata.location();
+            this.version = parseVersion(location);
+          });
     }
   }
 
