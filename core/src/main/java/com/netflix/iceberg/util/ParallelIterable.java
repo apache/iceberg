@@ -68,7 +68,7 @@ public class ParallelIterable<T> implements Iterable<T> {
       // this cannot conclude that there are no more records until tasks have finished. while some
       // are running, return true when there is at least one item to return.
       while (!taskFuture.isDone()) {
-        if (queue.size() > 0) {
+        if (!queue.isEmpty()) {
           return true;
         }
 
@@ -87,7 +87,7 @@ public class ParallelIterable<T> implements Iterable<T> {
       }
 
       // when tasks are no longer running, return whether the queue has items
-      return queue.size() > 0;
+      return !queue.isEmpty();
     }
 
     @Override
