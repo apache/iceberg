@@ -21,6 +21,7 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.io.Closeables;
+import com.netflix.iceberg.CombinedScanTask;
 import com.netflix.iceberg.DataFile;
 import com.netflix.iceberg.FileScanTask;
 import com.netflix.iceberg.PartitionField;
@@ -103,7 +104,7 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
   // lazy variables
   private Schema schema = null;
   private StructType type = null; // cached because Spark accesses it multiple times
-  private List<FileScanTask> tasks = null; // lazy cache of tasks
+  private List<CombinedScanTask> tasks = null; // lazy cache of tasks
 
   Reader(Table table, Configuration conf) {
     this.table = table;
@@ -140,8 +141,8 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
     String expectedSchemaString = SchemaParser.toJson(lazySchema());
 
     List<DataReaderFactory<UnsafeRow>> readTasks = Lists.newArrayList();
-    for (FileScanTask fileTask : tasks()) {
-      readTasks.add(new ScanTask(fileTask, tableSchemaString, expectedSchemaString, conf));
+    for (CombinedScanTask task : tasks()) {
+      readTasks.add(new ReadTask(task, tableSchemaString, expectedSchemaString, conf));
     }
 
     return readTasks;
@@ -195,15 +196,17 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
     long sizeInBytes = 0L;
     long numRows = 0L;
 
-    for (FileScanTask task : tasks) {
-      sizeInBytes += task.length();
-      numRows += task.file().recordCount();
+    for (CombinedScanTask task : tasks) {
+      for (FileScanTask file : task.files()) {
+        sizeInBytes += file.length();
+        numRows += file.file().recordCount();
+      }
     }
 
     return new Stats(sizeInBytes, numRows);
   }
 
-  private List<FileScanTask> tasks() {
+  private List<CombinedScanTask> tasks() {
     if (tasks == null) {
       TableScan scan = table.newScan().select(SNAPSHOT_COLUMNS);
 
@@ -215,7 +218,7 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
 
       boolean threw = true;
       try {
-        this.tasks = Lists.newArrayList(scan.planFiles());
+        this.tasks = Lists.newArrayList(scan.planTasks());
         threw = false;
       } finally {
         try {
@@ -236,13 +239,8 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
         table, lazySchema().asStruct(), filterExpressions);
   }
 
-  private static class ScanTask implements DataReaderFactory<UnsafeRow>, Serializable {
-    // for some reason, the apply method can't be called from Java without reflection
-    private static final DynMethods.UnboundMethod APPLY_PROJECTION = DynMethods.builder("apply")
-        .impl(UnsafeProjection.class, InternalRow.class)
-        .build();
-
-    private final FileScanTask task;
+  private static class ReadTask implements DataReaderFactory<UnsafeRow>, Serializable {
+    private final CombinedScanTask task;
     private final String tableSchemaString;
     private final String expectedSchemaString;
     private final SerializableConfiguration conf;
@@ -250,7 +248,7 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
     private transient Schema tableSchema = null;
     private transient Schema expectedSchema = null;
 
-    private ScanTask(FileScanTask task, String tableSchemaString, String expectedSchemaString,
+    private ReadTask(CombinedScanTask task, String tableSchemaString, String expectedSchemaString,
                      SerializableConfiguration conf) {
       this.task = task;
       this.tableSchemaString = tableSchemaString;
@@ -260,20 +258,100 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
 
     @Override
     public DataReader<UnsafeRow> createDataReader() {
+      return new TaskDataReader(task, lazyTableSchema(), lazyExpectedSchema(), conf.value());
+    }
+
+    private Schema lazyTableSchema() {
+      if (tableSchema == null) {
+        this.tableSchema = SchemaParser.fromJson(tableSchemaString);
+      }
+      return tableSchema;
+    }
+
+    private Schema lazyExpectedSchema() {
+      if (expectedSchema == null) {
+        this.expectedSchema = SchemaParser.fromJson(expectedSchemaString);
+      }
+      return expectedSchema;
+    }
+  }
+
+  private static class TaskDataReader implements DataReader<UnsafeRow> {
+    // for some reason, the apply method can't be called from Java without reflection
+    private static final DynMethods.UnboundMethod APPLY_PROJECTION = DynMethods.builder("apply")
+        .impl(UnsafeProjection.class, InternalRow.class)
+        .build();
+
+    private final Iterator<FileScanTask> tasks;
+    private final Schema tableSchema;
+    private final Schema expectedSchema;
+    private final Configuration conf;
+
+    private Iterator<UnsafeRow> currentIterator = null;
+    private UnsafeRow current = null;
+
+    public TaskDataReader(CombinedScanTask task, Schema tableSchema, Schema expectedSchema, Configuration conf) {
+      this.tasks = task.files().iterator();
+      this.tableSchema = tableSchema;
+      this.expectedSchema = expectedSchema;
+      this.conf = conf;
+      // open last because the schemas and conf must be set
+      this.currentIterator = open(tasks.next());
+    }
+
+    @Override
+    public boolean next() throws IOException {
+      while (true) {
+        if (currentIterator.hasNext()) {
+          this.current = currentIterator.next();
+          return true;
+
+        } else if (tasks.hasNext()) {
+          if (currentIterator instanceof Closeable) {
+            ((Closeable) currentIterator).close();
+          }
+
+          this.currentIterator = open(tasks.next());
+
+        } else {
+          return false;
+        }
+      }
+    }
+
+    @Override
+    public UnsafeRow get() {
+      return current;
+    }
+
+    @Override
+    public void close() throws IOException {
+      // close the current iterator
+      if (currentIterator instanceof Closeable) {
+        ((Closeable) currentIterator).close();
+        this.currentIterator = null;
+      }
+
+      // exhaust the task iterator
+      while (tasks.hasNext()) {
+        tasks.next();
+      }
+    }
+
+    private Iterator<UnsafeRow> open(FileScanTask task) {
       DataFile file = task.file();
-      InputFile location = HadoopInputFile.fromLocation(file.path(), conf.value());
+      InputFile location = HadoopInputFile.fromLocation(file.path(), conf);
 
       // schema or rows returned by readers
-      Schema finalSchema = lazyExpectedSchema();
+      Schema finalSchema = expectedSchema;
       PartitionSpec spec = task.spec();
       Set<Integer> idColumns = identitySourceIds(spec);
 
       // schema needed for the projection and filtering
-      Schema requiredSchema = prune(lazyTableSchema(), convert(finalSchema), task.residual());
+      Schema requiredSchema = prune(tableSchema, convert(finalSchema), task.residual());
       boolean hasJoinedPartitionColumns = !idColumns.isEmpty();
       boolean hasExtraFilterColumns = requiredSchema.columns().size() != finalSchema.columns().size();
 
-      Iterator<UnsafeRow> unsafeRowIterator;
       switch (file.format()) {
         case PARQUET:
           if (hasJoinedPartitionColumns) {
@@ -291,19 +369,18 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
             Iterator<InternalRow> joinedIter = transform(
                 newParquetIterator(location, task, readSchema), joined::withLeft);
 
-            unsafeRowIterator = transform(joinedIter,
+            return transform(joinedIter,
                 APPLY_PROJECTION.bind(projection(finalSchema, joinedSchema))::invoke);
 
           } else if (hasExtraFilterColumns) {
             // add projection to the final schema
-            unsafeRowIterator = transform(newParquetIterator(location, task, requiredSchema),
+            return transform(newParquetIterator(location, task, requiredSchema),
                 APPLY_PROJECTION.bind(projection(finalSchema, requiredSchema))::invoke);
 
           } else {
             // return the base iterator
-            unsafeRowIterator = newParquetIterator(location, task, finalSchema);
+            return newParquetIterator(location, task, finalSchema);
           }
-          break;
 
         case AVRO:
           Schema iterSchema;
@@ -339,36 +416,18 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
             iter = Iterators.filter(iter, input -> eval.eval(wrapper.setRow(input)));
           }
 
-          unsafeRowIterator = transform(iter,
+          return transform(iter,
               APPLY_PROJECTION.bind(projection(finalSchema, iterSchema))::invoke);
-          break;
 
         case ORC:
-          unsafeRowIterator = new SparkOrcReader(location, task, finalSchema, conf);
-          break;
+          return new SparkOrcReader(location, task, finalSchema);
 
         default:
           throw new UnsupportedOperationException("Cannot read unknown format: " + file.format());
       }
-
-      return new IteratorReader(unsafeRowIterator);
     }
 
-    private Schema lazyTableSchema() {
-      if (tableSchema == null) {
-        this.tableSchema = SchemaParser.fromJson(tableSchemaString);
-      }
-      return tableSchema;
-    }
-
-    private Schema lazyExpectedSchema() {
-      if (expectedSchema == null) {
-        this.expectedSchema = SchemaParser.fromJson(expectedSchemaString);
-      }
-      return expectedSchema;
-    }
-
-    private UnsafeProjection projection(Schema finalSchema, Schema readSchema) {
+    private static UnsafeProjection projection(Schema finalSchema, Schema readSchema) {
       StructType struct = convert(readSchema);
 
       List<AttributeReference> refs = seqAsJavaListConverter(struct.toAttributes()).asJava();
@@ -519,38 +578,6 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
     @Override
     public <T> void set(int pos, T value) {
       throw new UnsupportedOperationException("Not implemented: set");
-    }
-  }
-
-  private static class IteratorReader implements DataReader<UnsafeRow> {
-    private final Iterator<UnsafeRow> rows;
-    private final Closeable closeable;
-    private UnsafeRow current = null;
-
-    private IteratorReader(Iterator<UnsafeRow> rows) {
-      this.rows = rows;
-      this.closeable = (rows instanceof Closeable) ? (Closeable) rows : null;
-    }
-
-    @Override
-    public boolean next() throws IOException {
-      if (rows.hasNext()) {
-        this.current = rows.next();
-        return true;
-      }
-      return false;
-    }
-
-    @Override
-    public UnsafeRow get() {
-      return current;
-    }
-
-    @Override
-    public void close() throws IOException {
-      if (closeable != null) {
-        closeable.close();
-      }
     }
   }
 }

@@ -47,7 +47,6 @@ import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.Platform;
 import org.apache.spark.unsafe.array.ByteArrayMethods;
-import org.apache.spark.util.SerializableConfiguration;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -75,8 +74,7 @@ public class SparkOrcReader implements Iterator<UnsafeRow>, Closeable {
 
   public SparkOrcReader(InputFile location,
                         FileScanTask task,
-                        Schema readSchema,
-                        SerializableConfiguration conf) {
+                        Schema readSchema) {
     ColumnIdMap columnIds = new ColumnIdMap();
     orcSchema = TypeConversion.toOrc(readSchema, columnIds);
     reader = ORC.read(location)
