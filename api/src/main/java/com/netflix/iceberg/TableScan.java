@@ -75,13 +75,13 @@ public interface TableScan extends Closeable {
   Iterable<FileScanTask> planFiles();
 
   /**
-   * Plan the {@link ScanTask tasks} for this scan.
+   * Plan the {@link CombinedScanTask tasks} for this scan.
    * <p>
    * Tasks created by this method may read partial input files, multiple input files, or both.
    *
    * @return an Iterable of tasks for this scan
    */
-  Iterable<ScanTask> planTasks();
+  Iterable<CombinedScanTask> planTasks();
 
   /**
    * Returns this scan's filter {@link Expression}.

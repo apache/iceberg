@@ -94,8 +94,8 @@ class BaseTableScan extends ClosingIterable implements TableScan {
   }
 
   @Override
-  public Iterable<ScanTask> planTasks() {
-    throw new UnsupportedOperationException("Split planning is not yet implemented.");
+  public Iterable<CombinedScanTask> planTasks() {
+    return Iterables.transform(planFiles(), BaseCombinedScanTask::new);
   }
 
   @Override
