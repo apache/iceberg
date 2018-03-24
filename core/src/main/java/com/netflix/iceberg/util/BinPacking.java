@@ -18,88 +18,81 @@ package com.netflix.iceberg.util;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.function.Function;
 
 public class BinPacking {
-  public static class ListPacker<T> extends Packer<T> {
-    private final List<List<T>> bins = Lists.newArrayList();
-    private Function<T, Long> weightFunc = null;
-    private boolean reverseBins = false;
-
-    public ListPacker(long targetWeight, int lookback) {
-      super(targetWeight, lookback);
-    }
-
-    @Override
-    protected long weigh(T item) {
-      return weightFunc.apply(item);
-    }
-
-    @Override
-    protected void output(List<T> bin) {
-      if (reverseBins) {
-        bins.add(Lists.reverse(bin));
-      } else {
-        bins.add(bin);
-      }
-    }
-
-    public List<List<T>> packEnd(List<T> items, Function<T, Long> weightFunc) {
-      bins.clear();
-      this.weightFunc = weightFunc;
-
-      try {
-        reverseBins = true;
-        pack(Lists.reverse(items));
-        return Lists.reverse(ImmutableList.copyOf(bins));
-
-      } finally {
-        reverseBins = false;
-        bins.clear();
-        this.weightFunc = null;
-      }
-    }
-
-    public List<List<T>> pack(Iterable<T> items, Function<T, Long> weightFunc) {
-      bins.clear();
-      this.weightFunc = weightFunc;
-
-      try {
-        reverseBins = false;
-        pack(items);
-        return ImmutableList.copyOf(bins);
-
-      } finally {
-        bins.clear();
-        this.weightFunc = null;
-      }
-    }
-  }
-
-  private abstract static class Packer<T> {
+  public static class ListPacker<T> {
     private final long targetWeight;
     private final int lookback;
 
-    protected Packer(long targetWeight, int lookback) {
-      Preconditions.checkArgument(lookback > 0,
-          "Bin look-back size must be greater than 0: %s", lookback);
+    public ListPacker(long targetWeight, int lookback) {
       this.targetWeight = targetWeight;
       this.lookback = lookback;
     }
 
-    protected abstract long weigh(T item);
+    public List<List<T>> packEnd(List<T> items, Function<T, Long> weightFunc) {
+      return Lists.reverse(ImmutableList.copyOf(Iterables.transform(
+          new PackingIterable<>(Lists.reverse(items), targetWeight, lookback, weightFunc),
+          Lists::reverse)));
+    }
 
-    protected abstract void output(List<T> bin);
+    public List<List<T>> pack(Iterable<T> items, Function<T, Long> weightFunc) {
+      return ImmutableList.copyOf(new PackingIterable<>(items, targetWeight, lookback, weightFunc));
+    }
+  }
 
-    @SuppressWarnings("unchecked")
-    protected void pack(Iterable<T> items) {
-      LinkedList<Bin> bins = Lists.newLinkedList();
+  public static class PackingIterable<T> implements Iterable<List<T>> {
+    private final Iterable<T> iterable;
+    private final long targetWeight;
+    private final int lookback;
+    private final Function<T, Long> weightFunc;
 
-      for (T item : items) {
-        long weight = weigh(item);
+    public PackingIterable(Iterable<T> iterable, long targetWeight, int lookback,
+                           Function<T, Long> weightFunc) {
+      Preconditions.checkArgument(lookback > 0,
+          "Bin look-back size must be greater than 0: %s", lookback);
+      this.iterable = iterable;
+      this.targetWeight = targetWeight;
+      this.lookback = lookback;
+      this.weightFunc = weightFunc;
+    }
+
+    @Override
+    public Iterator<List<T>> iterator() {
+      return new PackingIterator<>(iterable.iterator(), targetWeight, lookback, weightFunc);
+    }
+  }
+
+  private static class PackingIterator<T> implements Iterator<List<T>> {
+    private final LinkedList<Bin> bins = Lists.newLinkedList();
+    private final Iterator<T> items;
+    private final long targetWeight;
+    private final int lookback;
+    private final Function<T, Long> weightFunc;
+
+    private PackingIterator(Iterator<T> items, long targetWeight, int lookback,
+                            Function<T, Long> weightFunc) {
+      this.items = items;
+      this.targetWeight = targetWeight;
+      this.lookback = lookback;
+      this.weightFunc = weightFunc;
+    }
+
+    public boolean hasNext() {
+      return items.hasNext() || !bins.isEmpty();
+    }
+
+    public List<T> next() {
+      while (items.hasNext()) {
+        T item = items.next();
+
+        long weight = weightFunc.apply(item);
         Bin bin = find(bins, weight);
 
         if (bin != null) {
@@ -111,14 +104,16 @@ public class BinPacking {
           bins.addLast(bin);
 
           if (bins.size() > lookback) {
-            output(ImmutableList.copyOf(bins.removeFirst().items()));
+            return ImmutableList.copyOf(bins.removeFirst().items());
           }
         }
       }
 
-      for (Bin bin : bins) {
-        output(ImmutableList.copyOf(bin.items()));
+      if (bins.isEmpty()) {
+        throw new NoSuchElementException();
       }
+
+      return ImmutableList.copyOf(bins.removeFirst().items());
     }
 
     private Bin find(List<Bin> bins, long weight) {
