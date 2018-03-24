@@ -37,4 +37,10 @@ public class TableProperties {
 
   public static final String DEFAULT_FILE_FORMAT = "write.format.default";
   public static final String DEFAULT_FILE_FORMAT_DEFAULT = "parquet";
+
+  public static final String SPLIT_SIZE = "read.split.target-size";
+  public static final long SPLIT_SIZE_DEFAULT = 134217728;
+
+  public static final String SPLIT_LOOKBACK = "read.split.planning-lookback";
+  public static final int SPLIT_LOOKBACK_DEFAULT = 10;
 }

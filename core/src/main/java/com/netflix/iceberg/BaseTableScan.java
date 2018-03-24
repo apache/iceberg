@@ -22,6 +22,7 @@ import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.expressions.ResidualEvaluator;
 import com.netflix.iceberg.io.ClosingIterable;
+import com.netflix.iceberg.util.BinPacking;
 import com.netflix.iceberg.util.ParallelIterable;
 import java.util.Collection;
 import java.util.Collections;
@@ -95,7 +96,14 @@ class BaseTableScan extends ClosingIterable implements TableScan {
 
   @Override
   public Iterable<CombinedScanTask> planTasks() {
-    return Iterables.transform(planFiles(), BaseCombinedScanTask::new);
+    long splitSize = ops.current().propertyAsLong(
+        TableProperties.SPLIT_SIZE, TableProperties.SPLIT_SIZE_DEFAULT);
+    int lookback = ops.current().propertyAsInt(
+        TableProperties.SPLIT_LOOKBACK, TableProperties.SPLIT_LOOKBACK_DEFAULT);
+
+    return Iterables.transform(
+        new BinPacking.PackingIterable<>(planFiles(), splitSize, lookback, FileScanTask::length),
+        BaseCombinedScanTask::new);
   }
 
   @Override
