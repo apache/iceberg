@@ -247,8 +247,8 @@ public class Parquet {
         // TODO: should not need to get the schema to push down before opening the file.
         // Parquet should allow setting a filter inside its read support
         MessageType type;
-        try {
-          type = ParquetFileReader.open(ParquetIO.file(file)).getFileMetaData().getSchema();
+        try (ParquetFileReader schemaReader = ParquetFileReader.open(ParquetIO.file(file))) {
+          type = schemaReader.getFileMetaData().getSchema();
         } catch (IOException e) {
           throw new RuntimeIOException(e);
         }
