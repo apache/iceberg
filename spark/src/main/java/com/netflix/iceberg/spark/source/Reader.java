@@ -32,6 +32,7 @@ import com.netflix.iceberg.StructLike;
 import com.netflix.iceberg.Table;
 import com.netflix.iceberg.TableScan;
 import com.netflix.iceberg.avro.Avro;
+import com.netflix.iceberg.avro.AvroIterable;
 import com.netflix.iceberg.common.DynMethods;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.expressions.Evaluator;
@@ -39,6 +40,7 @@ import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.hadoop.HadoopInputFile;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.parquet.Parquet;
+import com.netflix.iceberg.parquet.ParquetIterable;
 import com.netflix.iceberg.spark.SparkFilters;
 import com.netflix.iceberg.spark.SparkSchemaUtil;
 import com.netflix.iceberg.spark.data.SparkAvroReader;
@@ -288,6 +290,7 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
     private final Configuration conf;
 
     private Iterator<UnsafeRow> currentIterator = null;
+    private Closeable currentCloseable = null;
     private UnsafeRow current = null;
 
     public TaskDataReader(CombinedScanTask task, Schema tableSchema, Schema expectedSchema, Configuration conf) {
@@ -307,10 +310,7 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
           return true;
 
         } else if (tasks.hasNext()) {
-          if (currentIterator instanceof Closeable) {
-            ((Closeable) currentIterator).close();
-          }
-
+          this.currentCloseable.close();
           this.currentIterator = open(tasks.next());
 
         } else {
@@ -327,10 +327,7 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
     @Override
     public void close() throws IOException {
       // close the current iterator
-      if (currentIterator instanceof Closeable) {
-        ((Closeable) currentIterator).close();
-        this.currentIterator = null;
-      }
+      this.currentCloseable.close();
 
       // exhaust the task iterator
       while (tasks.hasNext()) {
@@ -366,20 +363,25 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
             joined.withRight(partition);
 
             // create joined rows and project from the joined schema to the final schema
-            Iterator<InternalRow> joinedIter = transform(
-                newParquetIterator(location, task, readSchema), joined::withLeft);
+            ParquetIterable<UnsafeRow> iterable = newParquetIterable(location, task, readSchema);
+            this.currentCloseable = iterable;
+            Iterator<InternalRow> joinedIter = transform(iterable.iterator(), joined::withLeft);
 
             return transform(joinedIter,
                 APPLY_PROJECTION.bind(projection(finalSchema, joinedSchema))::invoke);
 
           } else if (hasExtraFilterColumns) {
             // add projection to the final schema
-            return transform(newParquetIterator(location, task, requiredSchema),
+            ParquetIterable<UnsafeRow> iterable = newParquetIterable(location, task, requiredSchema);
+            this.currentCloseable = iterable;
+            return transform(iterable.iterator(),
                 APPLY_PROJECTION.bind(projection(finalSchema, requiredSchema))::invoke);
 
           } else {
             // return the base iterator
-            return newParquetIterator(location, task, finalSchema);
+            ParquetIterable<UnsafeRow> iterable = newParquetIterable(location, task, finalSchema);
+            this.currentCloseable = iterable;
+            return iterable.iterator();
           }
 
         case AVRO:
@@ -396,17 +398,23 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
 
             // create joined rows and project from the joined schema to the final schema
             iterSchema = TypeUtil.join(readSchema, partitionSchema);
-            iter = transform(newParquetIterator(location, task, readSchema), joined::withLeft);
+            AvroIterable<InternalRow> iterable = newAvroIterable(location, task, readSchema);
+            this.currentCloseable = iterable;
+            iter = transform(iterable.iterator(), joined::withLeft);
 
           } else if (hasExtraFilterColumns) {
             // add projection to the final schema
             iterSchema = requiredSchema;
-            iter = newAvroIterator(location, task, iterSchema);
+            AvroIterable<InternalRow> iterable = newAvroIterable(location, task, iterSchema);
+            this.currentCloseable = iterable;
+            iter = iterable.iterator();
 
           } else {
             // return the base iterator
             iterSchema = finalSchema;
-            iter = newAvroIterator(location, task, iterSchema);
+            AvroIterable<InternalRow> iterable = newAvroIterable(location, task, iterSchema);
+            this.currentCloseable = iterable;
+            iter = iterable.iterator();
           }
 
           Expression residual = task.residual();
@@ -420,7 +428,9 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
               APPLY_PROJECTION.bind(projection(finalSchema, iterSchema))::invoke);
 
         case ORC:
-          return new SparkOrcReader(location, task, finalSchema);
+          SparkOrcReader reader = new SparkOrcReader(location, task, finalSchema);
+          this.currentCloseable = reader;
+          return reader;
 
         default:
           throw new UnsupportedOperationException("Cannot read unknown format: " + file.format());
@@ -462,21 +472,20 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
       return sourceIds;
     }
 
-    private Iterator<InternalRow> newAvroIterator(InputFile location,
-                                                  FileScanTask task,
-                                                  Schema readSchema) {
+    private AvroIterable<InternalRow> newAvroIterable(InputFile location,
+                                                      FileScanTask task,
+                                                      Schema readSchema) {
       return Avro.read(location)
           .reuseContainers()
           .project(readSchema)
           .split(task.start(), task.length())
           .createReaderFunc(SparkAvroReader::new)
-          .<InternalRow>build()
-          .iterator();
+          .build();
     }
 
-    private <R extends InternalRow> Iterator<R> newParquetIterator(InputFile location,
-                                                                   FileScanTask task,
-                                                                   Schema readSchema) {
+    private ParquetIterable<UnsafeRow> newParquetIterable(InputFile location,
+                                                          FileScanTask task,
+                                                          Schema readSchema) {
       StructType readType = convert(readSchema);
       return Parquet.read(location)
           .project(readSchema)
@@ -487,8 +496,7 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
           .set("spark.sql.parquet.binaryAsString", "false")
           .set("spark.sql.parquet.int96AsTimestamp", "false")
           .callInit()
-          .<R>build()
-          .iterator();
+          .build();
     }
   }
 
