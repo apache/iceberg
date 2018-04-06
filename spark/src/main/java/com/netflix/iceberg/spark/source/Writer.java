@@ -229,11 +229,11 @@ class Writer implements DataSourceWriter, SupportsWriteInternalRow {
               String jsonSchema = convert(schema).json();
               return Parquet.write(file)
                   .writeSupport(new ParquetWriteSupport())
-                  .config("org.apache.spark.sql.parquet.row.attributes", jsonSchema)
-                  .config("spark.sql.parquet.writeLegacyFormat", "false")
-                  .config("spark.sql.parquet.binaryAsString", "false")
-                  .config("spark.sql.parquet.int96AsTimestamp", "false")
-                  .config("spark.sql.parquet.outputTimestampType", "TIMESTAMP_MICROS")
+                  .set("org.apache.spark.sql.parquet.row.attributes", jsonSchema)
+                  .set("spark.sql.parquet.writeLegacyFormat", "false")
+                  .set("spark.sql.parquet.binaryAsString", "false")
+                  .set("spark.sql.parquet.int96AsTimestamp", "false")
+                  .set("spark.sql.parquet.outputTimestampType", "TIMESTAMP_MICROS")
                   .schema(schema)
                   .build();
 

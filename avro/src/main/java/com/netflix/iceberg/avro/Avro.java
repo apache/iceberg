@@ -49,6 +49,7 @@ public class Avro {
     private final OutputFile file;
     private com.netflix.iceberg.Schema schema = null;
     private String name = "table";
+    private Map<String, String> config = Maps.newHashMap();
     private Map<String, String> metadata = Maps.newLinkedHashMap();
     private Function<Schema, DatumWriter<?>> createWriterFunc =
         schema -> DEFAULT_MODEL.createDatumWriter(schema);
@@ -69,6 +70,16 @@ public class Avro {
 
     public WriteBuilder createWriterFunc(Function<Schema, DatumWriter<?>> writerFunction) {
       this.createWriterFunc = writerFunction;
+      return this;
+    }
+
+    public WriteBuilder set(String property, String value) {
+      config.put(property, value);
+      return this;
+    }
+
+    public WriteBuilder setAll(Map<String, String> properties) {
+      config.putAll(properties);
       return this;
     }
 

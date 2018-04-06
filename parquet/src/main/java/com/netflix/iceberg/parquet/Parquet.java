@@ -19,6 +19,7 @@ package com.netflix.iceberg.parquet;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.netflix.iceberg.Schema;
+import com.netflix.iceberg.avro.Avro;
 import com.netflix.iceberg.avro.AvroSchemaUtil;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.expressions.Expression;
@@ -74,8 +75,13 @@ public class Parquet {
       return this;
     }
 
-    public WriteBuilder config(String property, String value) {
+    public WriteBuilder set(String property, String value) {
       config.put(property, value);
+      return this;
+    }
+
+    public WriteBuilder setAll(Map<String, String> properties) {
+      config.putAll(properties);
       return this;
     }
 
@@ -102,7 +108,7 @@ public class Parquet {
 
       // TODO: Add schema to keyValueMetadata
 
-      config("parquet.avro.write-old-list-structure", "false");
+      set("parquet.avro.write-old-list-structure", "false");
       MessageType type = ParquetSchemaUtil.convert(schema, name);
 
       return new ParquetWriteAdapter<>(new ParquetWriteBuilder<D>(ParquetIO.file(file))
