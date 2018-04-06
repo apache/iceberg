@@ -122,7 +122,6 @@ class StreamingDelete extends SnapshotUpdate implements DeleteFiles {
       CharSequenceWrapper wrapper = CharSequenceWrapper.wrap("");
 
       long deletedFilesCount = 0;
-      long selectedFilesCount = 0;
       try (ManifestWriter writer = new ManifestWriter(reader.spec(), filteredCopy, snapshotId())) {
         for (ManifestEntry entry : reader.entries()) {
           DataFile file = entry.file();
@@ -136,7 +135,6 @@ class StreamingDelete extends SnapshotUpdate implements DeleteFiles {
             writer.delete(entry);
 
           } else {
-            selectedFilesCount += 1;
             writer.addExisting(entry);
           }
         }
@@ -144,10 +142,7 @@ class StreamingDelete extends SnapshotUpdate implements DeleteFiles {
 
       // only use the new manifest if this produced changes.
       String filtered;
-      if (selectedFilesCount == 0) {
-        deleteFile(filteredCopy.location());
-        filtered = null;
-      } else if (deletedFilesCount > 0) {
+      if (deletedFilesCount > 0) {
         filtered = filteredCopy.location();
       } else {
         deleteFile(filteredCopy.location());
