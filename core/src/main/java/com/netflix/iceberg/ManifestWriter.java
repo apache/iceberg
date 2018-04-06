@@ -104,8 +104,8 @@ class ManifestWriter implements FileAppender<DataFile> {
           return Avro.write(file)
               .schema(manifestSchema)
               .named("manifest_entry")
-              .set("schema", SchemaParser.toJson(spec.schema()))
-              .set("partition-spec", PartitionSpecParser.toJson(spec))
+              .meta("schema", SchemaParser.toJson(spec.schema()))
+              .meta("partition-spec", PartitionSpecParser.toJson(spec))
               .build();
         default:
           throw new IllegalArgumentException("Unsupported format: " + format);

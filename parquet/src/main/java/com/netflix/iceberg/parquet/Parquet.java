@@ -79,7 +79,7 @@ public class Parquet {
       return this;
     }
 
-    public WriteBuilder set(String property, String value) {
+    public WriteBuilder meta(String property, String value) {
       metadata.put(property, value);
       return this;
     }
