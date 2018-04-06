@@ -203,7 +203,7 @@ class Writer implements DataSourceWriter, SupportsWriteInternalRow {
 
     @Override
     public DataWriter<InternalRow> createDataWriter(int partitionId, int attemptNumber) {
-      String filename = String.format("%05d-%s", partitionId, uuid);
+      String filename = String.format("%05d-%d-%s", partitionId, attemptNumber, uuid);
       AppenderFactory<InternalRow> factory = new SparkAppenderFactory<>();
       if (spec.fields().isEmpty()) {
         return new UnpartitionedWriter(lazyDataPath(), filename, format, conf.value(), factory);
