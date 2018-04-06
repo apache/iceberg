@@ -19,7 +19,6 @@ package com.netflix.iceberg.avro;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.types.Types;
 import org.apache.avro.Schema;
 import java.util.LinkedList;
 import java.util.List;

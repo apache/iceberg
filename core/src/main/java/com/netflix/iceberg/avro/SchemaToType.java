@@ -25,9 +25,6 @@ import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import java.util.List;
 
-import static com.netflix.iceberg.avro.AvroSchemaUtil.ADJUST_TO_UTC_PROP;
-import static com.netflix.iceberg.avro.AvroSchemaUtil.isOptionSchema;
-
 class SchemaToType extends AvroSchemaVisitor<Type> {
   private final Schema root;
 
@@ -92,7 +89,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
       Type fieldType = fieldTypes.get(i);
       int fieldId = getId(field);
 
-      if (isOptionSchema(field.schema())) {
+      if (AvroSchemaUtil.isOptionSchema(field.schema())) {
         newFields.add(Types.NestedField.optional(fieldId, field.name(), fieldType));
       } else {
         newFields.add(Types.NestedField.required(fieldId, field.name(), fieldType));
@@ -104,7 +101,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
 
   @Override
   public Type union(Schema union, List<Type> options) {
-    Preconditions.checkArgument(isOptionSchema(union),
+    Preconditions.checkArgument(AvroSchemaUtil.isOptionSchema(union),
         "Unsupported type: non-option union: {}", union);
     // records, arrays, and maps will check nullability later
     if (options.get(0) == null) {
@@ -118,7 +115,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
   public Type array(Schema array, Type elementType) {
     Schema elementSchema = array.getElementType();
     int id = getElementId(array);
-    if (isOptionSchema(elementSchema)) {
+    if (AvroSchemaUtil.isOptionSchema(elementSchema)) {
       return Types.ListType.ofOptional(id, elementType);
     } else {
       return Types.ListType.ofRequired(id, elementType);
@@ -131,7 +128,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
     int keyId = getKeyId(map);
     int valueId = getValueId(map);
 
-    if (isOptionSchema(valueSchema)) {
+    if (AvroSchemaUtil.isOptionSchema(valueSchema)) {
       return Types.MapType.ofOptional(keyId, valueId, valueType);
     } else {
       return Types.MapType.ofRequired(keyId, valueId, valueType);
@@ -160,7 +157,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
       } else if (
           logical instanceof LogicalTypes.TimestampMillis ||
           logical instanceof LogicalTypes.TimestampMicros) {
-        Object adjustToUTC = primitive.getObjectProp(ADJUST_TO_UTC_PROP);
+        Object adjustToUTC = primitive.getObjectProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP);
         Preconditions.checkArgument(adjustToUTC instanceof Boolean,
             "Invalid value for adjust-to-utc: %s", adjustToUTC);
         if ((Boolean) adjustToUTC) {

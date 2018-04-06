@@ -27,13 +27,6 @@ import org.apache.avro.Schema;
 import java.util.List;
 import java.util.Map;
 
-import static com.netflix.iceberg.avro.AvroSchemaUtil.ADJUST_TO_UTC_PROP;
-import static com.netflix.iceberg.avro.AvroSchemaUtil.ELEMENT_ID_PROP;
-import static com.netflix.iceberg.avro.AvroSchemaUtil.FIELD_ID_PROP;
-import static com.netflix.iceberg.avro.AvroSchemaUtil.KEY_ID_PROP;
-import static com.netflix.iceberg.avro.AvroSchemaUtil.VALUE_ID_PROP;
-import static com.netflix.iceberg.avro.AvroSchemaUtil.toOption;
-
 class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   private static final Schema BOOLEAN_SCHEMA = Schema.create(Schema.Type.BOOLEAN);
   private static final Schema INTEGER_SCHEMA = Schema.create(Schema.Type.INT);
@@ -54,8 +47,8 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   private static final Schema BINARY_SCHEMA = Schema.create(Schema.Type.BYTES);
 
   static {
-    TIMESTAMP_SCHEMA.addProp(ADJUST_TO_UTC_PROP, false);
-    TIMESTAMPTZ_SCHEMA.addProp(ADJUST_TO_UTC_PROP, true);
+    TIMESTAMP_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
+    TIMESTAMPTZ_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
   }
 
   private final Map<Type, Schema> results = Maps.newHashMap();
@@ -93,7 +86,7 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
       Schema.Field field = new Schema.Field(
           structField.name(), fieldSchemas.get(i), null,
           structField.isOptional() ? JsonProperties.NULL_VALUE : null);
-      field.addProp(FIELD_ID_PROP, structField.fieldId());
+      field.addProp(AvroSchemaUtil.FIELD_ID_PROP, structField.fieldId());
       fields.add(field);
     }
 
@@ -107,7 +100,7 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   @Override
   public Schema field(Types.NestedField field, Schema fieldSchema) {
     if (field.isOptional()) {
-      return toOption(fieldSchema);
+      return AvroSchemaUtil.toOption(fieldSchema);
     } else {
       return fieldSchema;
     }
@@ -121,12 +114,12 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
     }
 
     if (list.isElementOptional()) {
-      listSchema = Schema.createArray(toOption(elementSchema));
+      listSchema = Schema.createArray(AvroSchemaUtil.toOption(elementSchema));
     } else {
       listSchema = Schema.createArray(elementSchema);
     }
 
-    listSchema.addProp(ELEMENT_ID_PROP, list.elementId());
+    listSchema.addProp(AvroSchemaUtil.ELEMENT_ID_PROP, list.elementId());
 
     results.put(list, listSchema);
 
@@ -141,13 +134,13 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
     }
 
     if (map.isValueOptional()) {
-      mapSchema = Schema.createMap(toOption(valueSchema));
+      mapSchema = Schema.createMap(AvroSchemaUtil.toOption(valueSchema));
     } else {
       mapSchema = Schema.createMap(valueSchema);
     }
 
-    mapSchema.addProp(KEY_ID_PROP, map.keyId());
-    mapSchema.addProp(VALUE_ID_PROP, map.valueId());
+    mapSchema.addProp(AvroSchemaUtil.KEY_ID_PROP, map.keyId());
+    mapSchema.addProp(AvroSchemaUtil.VALUE_ID_PROP, map.valueId());
 
     results.put(map, mapSchema);
 

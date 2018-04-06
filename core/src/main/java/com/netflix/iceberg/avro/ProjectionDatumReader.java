@@ -24,8 +24,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import static com.netflix.iceberg.avro.AvroSchemaUtil.pruneColumns;
-import static com.netflix.iceberg.avro.AvroSchemaUtil.buildAvroProjection;
 import static com.netflix.iceberg.types.TypeUtil.getProjectedIds;
 
 class ProjectionDatumReader<D> implements DatumReader<D> {
@@ -48,8 +46,8 @@ class ProjectionDatumReader<D> implements DatumReader<D> {
   public void setSchema(Schema fileSchema) {
     this.fileSchema = fileSchema;
     Set<Integer> projectedIds = getProjectedIds(expectedSchema);
-    Schema prunedSchema = pruneColumns(fileSchema, projectedIds);
-    this.readSchema = buildAvroProjection(prunedSchema, expectedSchema, renames);
+    Schema prunedSchema = AvroSchemaUtil.pruneColumns(fileSchema, projectedIds);
+    this.readSchema = AvroSchemaUtil.buildAvroProjection(prunedSchema, expectedSchema, renames);
     this.wrapped = newDatumReader();
   }
 

@@ -92,19 +92,12 @@ project(':iceberg-api') {
 project(':iceberg-common') {
 }
 
-project(':iceberg-avro') {
+project(':iceberg-core') {
   dependencies {
     compile project(':iceberg-api')
     compile project(':iceberg-common')
 
     compile "org.apache.avro:avro:$avroVersion"
-  }
-}
-
-project(':iceberg-core') {
-  dependencies {
-    compile project(':iceberg-api')
-    compile project(':iceberg-avro')
 
     compile "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
     compile "com.fasterxml.jackson.core:jackson-core:$jacksonVersion"
@@ -131,7 +124,6 @@ project(':iceberg-orc') {
 project(':iceberg-parquet') {
   dependencies {
     compile project(':iceberg-api')
-    compile project(':iceberg-avro')
     compile project(':iceberg-core')
 
     compile "org.apache.parquet:parquet-avro:$parquetVersion"
@@ -149,7 +141,6 @@ project(':iceberg-spark') {
   dependencies {
     compile project(':iceberg-api')
     compile project(':iceberg-common')
-    compile project(':iceberg-avro')
     compile project(':iceberg-core')
     compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
@@ -187,7 +178,6 @@ project(':iceberg-runtime') {
   dependencies {
     shadow project(':iceberg-api')
     shadow project(':iceberg-common')
-    shadow project(':iceberg-avro')
     shadow project(':iceberg-core')
     shadow project(':iceberg-orc')
     shadow project(':iceberg-parquet')
