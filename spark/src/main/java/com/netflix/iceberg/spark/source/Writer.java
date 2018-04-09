@@ -207,7 +207,7 @@ class Writer implements DataSourceWriter, SupportsWriteInternalRow {
     @Override
     public DataWriter<InternalRow> createDataWriter(int partitionId, int attemptNumber) {
       String filename = String.format("%05d-%d-%s", partitionId, attemptNumber, uuid);
-      AppenderFactory<InternalRow> factory = new SparkAppenderFactory<>();
+      AppenderFactory<InternalRow> factory = new SparkAppenderFactory();
       if (spec.fields().isEmpty()) {
         return new UnpartitionedWriter(lazyDataPath(), filename, format, conf.value(), factory);
       } else {
@@ -223,8 +223,8 @@ class Writer implements DataSourceWriter, SupportsWriteInternalRow {
       return dataPath;
     }
 
-    private class SparkAppenderFactory<T> implements AppenderFactory<T> {
-      public FileAppender<T> newAppender(OutputFile file, FileFormat format) {
+    private class SparkAppenderFactory implements AppenderFactory<InternalRow> {
+      public FileAppender<InternalRow> newAppender(OutputFile file, FileFormat format) {
         Schema schema = spec.schema();
         try {
           switch (format) {
@@ -253,7 +253,7 @@ class Writer implements DataSourceWriter, SupportsWriteInternalRow {
               SparkOrcWriter writer = new SparkOrcWriter(ORC.write(file)
                   .schema(schema)
                   .build());
-              return (FileAppender<T>) writer;
+              return writer;
             }
             default:
               throw new UnsupportedOperationException("Cannot write unknown format: " + format);
