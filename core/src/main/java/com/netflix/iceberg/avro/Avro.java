@@ -28,11 +28,35 @@ import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.specific.SpecificData;
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
+import static com.netflix.iceberg.TableProperties.AVRO_COMPRESSION;
+import static com.netflix.iceberg.TableProperties.AVRO_COMPRESSION_DEFAULT;
+
 public class Avro {
   private Avro() {
+  }
+
+  private enum CodecName {
+    UNCOMPRESSED(CodecFactory.nullCodec()),
+    SNAPPY(CodecFactory.snappyCodec()),
+    GZIP(CodecFactory.deflateCodec(9)),
+    LZ4(null),
+    BROTLI(null),
+    ZSTD(null);
+
+    private CodecFactory avroCodec;
+
+    CodecName(CodecFactory avroCodec) {
+      this.avroCodec = avroCodec;
+    }
+
+    public CodecFactory get() {
+      Preconditions.checkArgument(avroCodec != null, "Missing implementation for codec " + this);
+      return avroCodec;
+    }
   }
 
   private static GenericData DEFAULT_MODEL = new SpecificData();
@@ -88,12 +112,20 @@ public class Avro {
       return this;
     }
 
+    private CodecFactory codec() {
+      String codec = config.getOrDefault(AVRO_COMPRESSION, AVRO_COMPRESSION_DEFAULT);
+      try {
+        return CodecName.valueOf(codec.toUpperCase(Locale.ENGLISH)).get();
+      } catch (IllegalArgumentException e) {
+        throw new IllegalArgumentException("Unsupported compression codec: " + codec);
+      }
+    }
+
     public <D> AvroFileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(name, "Table name is required and cannot be null");
       return new AvroFileAppender<>(
-          AvroSchemaUtil.convert(schema, name), file, createWriterFunc,
-          CodecFactory.deflateCodec(9), metadata);
+          AvroSchemaUtil.convert(schema, name), file, createWriterFunc, codec(), metadata);
     }
   }
 
@@ -122,7 +154,7 @@ public class Avro {
     }
 
     /**
-     * Restricts the read to the given range: [start, start + length).
+     * Restricts the read to the given range: [start, end = start + length).
      *
      * @param start the start position for this read
      * @param length the length of the range this read should scan

@@ -19,6 +19,7 @@ package com.netflix.iceberg.parquet;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.netflix.iceberg.Schema;
+import com.netflix.iceberg.SchemaParser;
 import com.netflix.iceberg.avro.AvroSchemaUtil;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.expressions.Expression;
@@ -37,7 +38,17 @@ import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
+
+import static com.netflix.iceberg.TableProperties.PARQUET_COMPRESSION;
+import static com.netflix.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT;
+import static com.netflix.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES;
+import static com.netflix.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES_DEFAULT;
+import static com.netflix.iceberg.TableProperties.PARQUET_PAGE_SIZE_BYTES;
+import static com.netflix.iceberg.TableProperties.PARQUET_PAGE_SIZE_BYTES_DEFAULT;
+import static com.netflix.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
+import static com.netflix.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
 
 public class Parquet {
   private Parquet() {
@@ -101,11 +112,36 @@ public class Parquet {
       }
     }
 
+    private CompressionCodecName codec() {
+      String codec = config.getOrDefault(PARQUET_COMPRESSION, PARQUET_COMPRESSION_DEFAULT);
+      try {
+        return CompressionCodecName.valueOf(codec.toUpperCase(Locale.ENGLISH));
+      } catch (IllegalArgumentException e) {
+        throw new IllegalArgumentException("Unsupported compression codec: " + codec);
+      }
+    }
+
+    void forwardConfig(String parquetProperty, String icebergProperty, String defaultValue) {
+      String value = config.getOrDefault(icebergProperty, defaultValue);
+      if (value != null) {
+        set(parquetProperty, value);
+      }
+    }
+
     public <D> FileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(name, "Table name is required and cannot be null");
 
-      // TODO: Add schema to keyValueMetadata
+      // add the Iceberg schema to keyValueMetadata
+      meta("iceberg.schema", SchemaParser.toJson(schema));
+
+      // add Parquet configuration
+      forwardConfig("parquet.block.size",
+          PARQUET_ROW_GROUP_SIZE_BYTES, PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
+      forwardConfig("parquet.page.size",
+          PARQUET_PAGE_SIZE_BYTES, PARQUET_PAGE_SIZE_BYTES_DEFAULT);
+      forwardConfig("parquet.dictionary.page.size",
+          PARQUET_DICT_SIZE_BYTES, PARQUET_DICT_SIZE_BYTES_DEFAULT);
 
       set("parquet.avro.write-old-list-structure", "false");
       MessageType type = ParquetSchemaUtil.convert(schema, name);
@@ -115,7 +151,7 @@ public class Parquet {
           .setConfig(config)
           .setKeyValueMetadata(metadata)
           .setWriteSupport(getWriteSupport(type))
-          .withCompressionCodec(CompressionCodecName.GZIP) // TODO: support codecs
+          .withCompressionCodec(codec()) // TODO: support codecs
           .withWriteMode(ParquetFileWriter.Mode.OVERWRITE) // TODO: support modes
           .build());
     }

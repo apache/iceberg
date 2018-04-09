@@ -38,8 +38,23 @@ public class TableProperties {
   public static final String DEFAULT_FILE_FORMAT = "write.format.default";
   public static final String DEFAULT_FILE_FORMAT_DEFAULT = "parquet";
 
+  public static final String PARQUET_ROW_GROUP_SIZE_BYTES = "write.parquet.row-group-size-bytes";
+  public static final String PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT = null; // use Parquet's default
+
+  public static final String PARQUET_PAGE_SIZE_BYTES = "write.parquet.page-size-bytes";
+  public static final String PARQUET_PAGE_SIZE_BYTES_DEFAULT = "1048576"; // 1 MB
+
+  public static final String PARQUET_DICT_SIZE_BYTES = "write.parquet.dict-size-bytes";
+  public static final String PARQUET_DICT_SIZE_BYTES_DEFAULT = "2097152"; // 2 MB
+
+  public static final String PARQUET_COMPRESSION = "write.parquet.compression-codec";
+  public static final String PARQUET_COMPRESSION_DEFAULT = "gzip";
+
+  public static final String AVRO_COMPRESSION = "write.avro.compression-codec";
+  public static final String AVRO_COMPRESSION_DEFAULT = "gzip";
+
   public static final String SPLIT_SIZE = "read.split.target-size";
-  public static final long SPLIT_SIZE_DEFAULT = 134217728;
+  public static final long SPLIT_SIZE_DEFAULT = 134217728; // 128 MB
 
   public static final String SPLIT_LOOKBACK = "read.split.planning-lookback";
   public static final int SPLIT_LOOKBACK_DEFAULT = 10;
