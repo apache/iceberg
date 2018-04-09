@@ -90,7 +90,7 @@ class Writer implements DataSourceWriter, SupportsWriteInternalRow {
 
   @Override
   public DataWriterFactory<InternalRow> createInternalRowWriterFactory() {
-    return new WriterFactory(table.spec(), format, dataLocation(), conf);
+    return new WriterFactory(table.spec(), format, dataLocation(), table.properties(), conf);
   }
 
   @Override
@@ -189,15 +189,18 @@ class Writer implements DataSourceWriter, SupportsWriteInternalRow {
     private final PartitionSpec spec;
     private final FileFormat format;
     private final String dataLocation;
+    private final Map<String, String> properties;
     private final SerializableConfiguration conf;
     private final String uuid = UUID.randomUUID().toString();
 
     private transient Path dataPath = null;
 
-    WriterFactory(PartitionSpec spec, FileFormat format, String dataLocation, Configuration conf) {
+    WriterFactory(PartitionSpec spec, FileFormat format, String dataLocation,
+                  Map<String, String> properties, Configuration conf) {
       this.spec = spec;
       this.format = format;
       this.dataLocation = dataLocation;
+      this.properties = properties;
       this.conf = new SerializableConfiguration(conf);
     }
 
@@ -234,14 +237,15 @@ class Writer implements DataSourceWriter, SupportsWriteInternalRow {
                   .set("spark.sql.parquet.binaryAsString", "false")
                   .set("spark.sql.parquet.int96AsTimestamp", "false")
                   .set("spark.sql.parquet.outputTimestampType", "TIMESTAMP_MICROS")
+                  .setAll(properties)
                   .schema(schema)
                   .build();
 
             case AVRO:
               return Avro.write(file)
                   .createWriterFunc(ignored -> new SparkAvroWriter(schema))
+                  .setAll(properties)
                   .schema(schema)
-                  .named("table")
                   .build();
 
             case ORC: {

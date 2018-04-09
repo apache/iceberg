@@ -151,7 +151,7 @@ public class Parquet {
           .setConfig(config)
           .setKeyValueMetadata(metadata)
           .setWriteSupport(getWriteSupport(type))
-          .withCompressionCodec(codec()) // TODO: support codecs
+          .withCompressionCodec(codec())
           .withWriteMode(ParquetFileWriter.Mode.OVERWRITE) // TODO: support modes
           .build());
     }
