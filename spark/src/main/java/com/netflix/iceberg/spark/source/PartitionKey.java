@@ -50,7 +50,7 @@ class PartitionKey implements StructLike {
     int numFields = fields.size();
     this.partitionTuple = new Object[numFields];
     this.transforms = new Transform[numFields];
-    this.accessors = (Accessor<InternalRow>[]) Array.newInstance(Accessor.class, numFields);// new Object[numFields];
+    this.accessors = (Accessor<InternalRow>[]) Array.newInstance(Accessor.class, numFields);
 
     Schema schema = spec.schema();
     Map<Integer, Accessor<InternalRow>> accessors = buildAccessors(schema);

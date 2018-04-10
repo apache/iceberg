@@ -16,7 +16,6 @@
 
 package com.netflix.iceberg;
 
-import com.google.common.base.Objects;
 import java.util.Map;
 
 /**

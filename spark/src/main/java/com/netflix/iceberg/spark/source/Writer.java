@@ -40,6 +40,9 @@ import com.netflix.iceberg.orc.ORC;
 import com.netflix.iceberg.parquet.Parquet;
 import com.netflix.iceberg.spark.data.SparkAvroWriter;
 import com.netflix.iceberg.spark.data.SparkOrcWriter;
+import com.netflix.iceberg.transforms.Transform;
+import com.netflix.iceberg.transforms.Transforms;
+import com.netflix.iceberg.types.Types.StringType;
 import com.netflix.iceberg.util.Tasks;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -61,6 +64,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.transform;
@@ -72,10 +76,15 @@ import static com.netflix.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static com.netflix.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
+import static com.netflix.iceberg.TableProperties.OBJECT_STORE_ENABLED;
+import static com.netflix.iceberg.TableProperties.OBJECT_STORE_ENABLED_DEFAULT;
+import static com.netflix.iceberg.TableProperties.OBJECT_STORE_PATH;
 import static com.netflix.iceberg.spark.SparkSchemaUtil.convert;
 
 // TODO: parameterize DataSourceWriter with subclass of WriterCommitMessage
 class Writer implements DataSourceWriter, SupportsWriteInternalRow {
+  private static final Transform<String, Integer> HASH_FUNC = Transforms
+      .bucket(StringType.get(), Integer.MAX_VALUE);
   private static final Logger LOG = LoggerFactory.getLogger(Writer.class);
 
   private final Table table;
@@ -206,14 +215,54 @@ class Writer implements DataSourceWriter, SupportsWriteInternalRow {
 
     @Override
     public DataWriter<InternalRow> createDataWriter(int partitionId, int attemptNumber) {
-      String filename = String.format("%05d-%d-%s", partitionId, attemptNumber, uuid);
+      String filename = format.addExtension(String.format("%05d-%d-%s",
+          partitionId, attemptNumber, uuid));
       AppenderFactory<InternalRow> factory = new SparkAppenderFactory();
       if (spec.fields().isEmpty()) {
         return new UnpartitionedWriter(lazyDataPath(), filename, format, conf.value(), factory);
+
       } else {
-        return new PartitionedWriter(
-            spec, lazyDataPath(), filename, format, conf.value(), factory);
+        Path baseDataPath = lazyDataPath(); // avoid calling this in the output path function
+        Function<PartitionKey, Path> outputPathFunc = key ->
+            new Path(new Path(baseDataPath, key.toPath()), filename);
+
+        boolean useObjectStorage = (
+            Boolean.parseBoolean(properties.get(OBJECT_STORE_ENABLED)) ||
+            OBJECT_STORE_ENABLED_DEFAULT
+        );
+
+        if (useObjectStorage) {
+          // try to get db and table portions of the path for context in the object store
+          String context = pathContext(baseDataPath);
+          String objectStore = properties.get(OBJECT_STORE_PATH);
+          Preconditions.checkNotNull(objectStore,
+              "Cannot use object storage, missing location: " + OBJECT_STORE_PATH);
+          Path objectStorePath = new Path(objectStore);
+
+          outputPathFunc = key -> {
+            String partitionAndFilename = key.toPath() + "/" + filename;
+            int hash = HASH_FUNC.apply(partitionAndFilename);
+            return new Path(objectStorePath,
+                String.format("%08x/%s/%s", hash, context, partitionAndFilename));
+          };
+        }
+
+        return new PartitionedWriter(spec, format, conf.value(), factory, outputPathFunc);
       }
+    }
+
+    private static String pathContext(Path dataPath) {
+      Path parent = dataPath.getParent();
+      if (parent != null) {
+        // remove the data folder
+        if (dataPath.getName().equals("data")) {
+          return pathContext(parent);
+        }
+
+        return parent.getName() + "/" + dataPath.getName();
+      }
+
+      return dataPath.getName();
     }
 
     private Path lazyDataPath() {
@@ -271,21 +320,19 @@ class Writer implements DataSourceWriter, SupportsWriteInternalRow {
 
   private static class UnpartitionedWriter implements DataWriter<InternalRow>, Closeable {
     private final Path file;
-    private final FileFormat format;
     private final Configuration conf;
     private FileAppender<InternalRow> appender = null;
     private Metrics metrics = null;
 
     UnpartitionedWriter(Path dataPath, String filename, FileFormat format,
                         Configuration conf, AppenderFactory<InternalRow> factory) {
-      this.file = new Path(dataPath, format.addExtension(filename));
-      this.format = format;
+      this.file = new Path(dataPath, filename);
       this.appender = factory.newAppender(HadoopOutputFile.fromPath(file, conf), format);
       this.conf = conf;
     }
 
     @Override
-    public void write(InternalRow record) throws IOException {
+    public void write(InternalRow record) {
       appender.add(record);
     }
 
@@ -331,25 +378,24 @@ class Writer implements DataSourceWriter, SupportsWriteInternalRow {
     private final Set<PartitionKey> completedPartitions = Sets.newHashSet();
     private final List<DataFile> completedFiles = Lists.newArrayList();
     private final PartitionSpec spec;
-    private final Path dataPath;
-    private final String filename;
     private final FileFormat format;
     private final Configuration conf;
     private final AppenderFactory<InternalRow> factory;
+    private final Function<PartitionKey, Path> outputPathFunc;
     private final PartitionKey key;
 
     private PartitionKey currentKey = null;
     private FileAppender<InternalRow> currentAppender = null;
     private Path currentPath = null;
 
-    PartitionedWriter(PartitionSpec spec, Path dataPath, String filename, FileFormat format,
-                      Configuration conf, AppenderFactory<InternalRow> factory) {
+    PartitionedWriter(PartitionSpec spec, FileFormat format, Configuration conf,
+                      AppenderFactory<InternalRow> factory,
+                      Function<PartitionKey, Path> outputPathFunc) {
       this.spec = spec;
-      this.dataPath = dataPath;
-      this.filename = format.addExtension(filename);
       this.format = format;
       this.conf = conf;
       this.factory = factory;
+      this.outputPathFunc = outputPathFunc;
       this.key = new PartitionKey(spec);
     }
 
@@ -364,12 +410,11 @@ class Writer implements DataSourceWriter, SupportsWriteInternalRow {
           PartitionKey existingKey = Iterables.find(completedPartitions, key::equals, null);
           LOG.warn("Duplicate key: {} == {}", existingKey, key);
           // if rows are not correctly grouped, detect and fail the write
-          throw new IllegalStateException(
-              "Already closed file for partition: " + spec.partitionToPath(key));
+          throw new IllegalStateException("Already closed file for partition: " + key.toPath());
         }
 
         this.currentKey = key.copy();
-        this.currentPath = new Path(new Path(dataPath, currentKey.toPath()), filename);
+        this.currentPath = outputPathFunc.apply(currentKey);
         OutputFile file = HadoopOutputFile.fromPath(currentPath, conf);
         this.currentAppender = factory.newAppender(file, format);
       }
@@ -385,15 +430,13 @@ class Writer implements DataSourceWriter, SupportsWriteInternalRow {
 
     @Override
     public void abort() throws IOException {
-      FileSystem fs = dataPath.getFileSystem(conf);
+      FileSystem fs = currentPath.getFileSystem(conf);
 
       // clean up files created by this writer
       Tasks.foreach(completedFiles)
           .throwFailureWhenFinished()
           .noRetry()
-          .run(
-              file -> fs.delete(new Path(file.path().toString())),
-              IOException.class);
+          .run(file -> fs.delete(new Path(file.path().toString())), IOException.class);
 
       if (currentAppender != null) {
         currentAppender.close();
