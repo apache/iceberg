@@ -39,14 +39,6 @@ Iceberg is organized as modules:
 
 Current [Java API javadocs][iceberg-javadocs] are available.
 
-The current implementation requires the following **unreleased dependencies**:
-
-* `iceberg-spark` requires Spark 2.3.0-SNAPSHOT for the [Datasource V2 API][spark-15689]
-* `iceberg-parquet` requires Parquet 1.9.1-SNAPSHOT built from master ([9191fbd][parquet-9191fbd] or later)
-
-[spark-15689]: https://issues.apache.org/jira/browse/SPARK-15689
-[parquet-9191fbd]: https://github.com/apache/parquet-mr/commit/9191fbd
-[parquet-mr-428]: https://github.com/apache/parquet-mr/pull/428
 [iceberg-javadocs]: https://netflix.github.io/iceberg/current/javadoc/
 
 
