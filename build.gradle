@@ -61,7 +61,7 @@ subprojects {
   ext {
     avroVersion = '1.8.2'
     orcVersion = '1.4.2'
-    parquetVersion = '1.9.1-SNAPSHOT'
+    parquetVersion = '1.10.0'
 
     jacksonVersion = '2.6.7'
 
