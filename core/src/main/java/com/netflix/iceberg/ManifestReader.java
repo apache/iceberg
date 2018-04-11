@@ -161,10 +161,10 @@ public class ManifestReader extends ClosingIterable implements Filterable<Filter
     for (ManifestEntry entry : entries(CHANGE_COLUNNS)) {
       switch (entry.status()) {
         case ADDED:
-          adds.add(entry);
+          adds.add(entry.copy());
           break;
         case DELETED:
-          deletes.add(entry);
+          deletes.add(entry.copy());
           break;
         default:
       }
