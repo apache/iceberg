@@ -185,16 +185,12 @@ public class TableMetadata {
         newSnapshots);
   }
 
-  public TableMetadata removeSnapshotsIf(Predicate<Snapshot> filter) {
+  public TableMetadata removeSnapshotsIf(Predicate<Snapshot> removeIf) {
     List<Snapshot> filtered = Lists.newArrayListWithExpectedSize(snapshots.size());
     for (Snapshot snapshot : snapshots) {
-      if (!filter.test(snapshot)) {
-        // the snapshot should be retained
+      // keep the current snapshot and any snapshots that do not match the removeIf condition
+      if (snapshot.snapshotId() == currentSnapshotId || !removeIf.test(snapshot)) {
         filtered.add(snapshot);
-      } else {
-        // the snapshot will be removed. verify that this isn't current snapshot
-        ValidationException.check(snapshot.snapshotId() != currentSnapshotId,
-            "Cannot remove the current table snapshot: %s", currentSnapshotId);
       }
     }
 
