@@ -52,8 +52,24 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
     this.base = ops.current();
   }
 
+  /**
+   * Apply the update's changes to the base table metadata and return the new manifest list.
+   *
+   * @param base the base table metadata to apply changes to
+   * @return a manifest list for the new snapshot.
+   */
   protected abstract List<String> apply(TableMetadata base);
 
+  /**
+   * Clean up any uncommitted manifests that were created.
+   * <p>
+   * Manifests may not be committed if apply is called more because a commit conflict has occurred.
+   * Implementations may keep around manifests because the same changes will be made by both apply
+   * calls. This method instructs the implementation to clean up those manifests and passes the
+   * paths of the manifests that were actually committed.
+   *
+   * @param committed a set of manifest paths that were actually committed
+   */
   protected abstract void cleanUncommitted(Set<String> committed);
 
   @Override
