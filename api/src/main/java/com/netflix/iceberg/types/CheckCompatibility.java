@@ -177,7 +177,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
   }
 
   @Override
-  public List<String> map(Types.MapType readMap, Supplier<List<String>> valueErrors) {
+  public List<String> map(Types.MapType readMap, Supplier<List<String>> keyErrors, Supplier<List<String>> valueErrors) {
     if (!currentType.isMapType()) {
       return ImmutableList.of(String.format(": %s cannot be read as a map", currentType));
     }
@@ -185,12 +185,15 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
     Types.MapType map = currentType.asNestedType().asMapType();
     List<String> errors = Lists.newArrayList();
 
-    this.currentType = map.valueType();
     try {
       if (readMap.isValueRequired() && map.isValueOptional()) {
         errors.add(": values should be required, but are optional");
       }
 
+      this.currentType = map.keyType();
+      errors.addAll(keyErrors.get());
+
+      this.currentType = map.valueType();
       errors.addAll(valueErrors.get());
 
       return errors;

@@ -176,7 +176,7 @@ public class TypeUtil {
       return null;
     }
 
-    public T map(Types.MapType map, T valueResult) {
+    public T map(Types.MapType map, T keyResult, T valueResult) {
       return null;
     }
 
@@ -212,7 +212,7 @@ public class TypeUtil {
 
       case MAP:
         Types.MapType map = type.asNestedType().asMapType();
-        return visitor.map(map, visit(map.valueType(), visitor));
+        return visitor.map(map, visit(map.keyType(), visitor), visit(map.valueType(), visitor));
 
       default:
         return visitor.primitive(type.asPrimitiveType());
@@ -236,7 +236,7 @@ public class TypeUtil {
       return null;
     }
 
-    public T map(Types.MapType map, Supplier<T> valueResult) {
+    public T map(Types.MapType map, Supplier<T> keyResult, Supplier<T> valueResult) {
       return null;
     }
 
@@ -312,7 +312,9 @@ public class TypeUtil {
 
       case MAP:
         Types.MapType map = type.asNestedType().asMapType();
-        return visitor.map(map, new VisitFuture<>(map.valueType(), visitor));
+        return visitor.map(map,
+            new VisitFuture<>(map.keyType(), visitor),
+            new VisitFuture<>(map.valueType(), visitor));
 
       default:
         return visitor.primitive(type.asPrimitiveType());

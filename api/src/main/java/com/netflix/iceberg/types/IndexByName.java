@@ -52,7 +52,7 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
   }
 
   @Override
-  public Map<String, Integer> map(Types.MapType map, Map<String, Integer> valueResult) {
+  public Map<String, Integer> map(Types.MapType map, Map<String, Integer> keyResult, Map<String, Integer> valueResult) {
     for (Types.NestedField field : map.fields()) {
       addField(field.name(), field.fieldId());
     }

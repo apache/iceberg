@@ -700,17 +700,17 @@ public class Types {
   }
 
   public static class MapType extends NestedType {
-    public static MapType ofOptional(int keyId, int valueId, Type valueType) {
+    public static MapType ofOptional(int keyId, int valueId, Type keyType, Type valueType) {
       Preconditions.checkNotNull(valueType, "Value type cannot be null");
       return new MapType(
-          NestedField.required(keyId, "key", StringType.get()),
+          NestedField.required(keyId, "key", keyType),
           NestedField.optional(valueId, "value", valueType));
     }
 
-    public static MapType ofRequired(int keyId, int valueId, Type valueType) {
+    public static MapType ofRequired(int keyId, int valueId, Type keyType, Type valueType) {
       Preconditions.checkNotNull(valueType, "Value type cannot be null");
       return new MapType(
-          NestedField.required(keyId, "key", StringType.get()),
+          NestedField.required(keyId, "key", keyType),
           NestedField.required(valueId, "value", valueType));
     }
 
@@ -789,8 +789,7 @@ public class Types {
 
     @Override
     public String toString() {
-      return String.format("map<%s, %s>",
-          keyField.type(), valueField.type());
+      return String.format("map<%s, %s>", keyField.type(), valueField.type());
     }
 
     @Override

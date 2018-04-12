@@ -85,8 +85,8 @@ public class TestSerializableTypes {
   @Test
   public void testMaps() throws Exception {
     Type[] maps = new Type[] {
-        Types.MapType.ofOptional(1, 2, Types.LongType.get()),
-        Types.MapType.ofRequired(4, 5, Types.LongType.get())
+        Types.MapType.ofOptional(1, 2, Types.StringType.get(), Types.LongType.get()),
+        Types.MapType.ofRequired(4, 5, Types.StringType.get(), Types.LongType.get())
     };
 
     for (Type map : maps) {
@@ -122,6 +122,7 @@ public class TestSerializableTypes {
             optional(9, "feature2", Types.BooleanType.get())
         )),
         required(4, "locations", Types.MapType.ofRequired(10, 11,
+            Types.StringType.get(),
             Types.StructType.of(
                 required(12, "lat", Types.FloatType.get()),
                 required(13, "long", Types.FloatType.get())
@@ -135,8 +136,14 @@ public class TestSerializableTypes {
             Types.DoubleType.get()
         )),
         optional(7, "properties", Types.MapType.ofOptional(18, 19,
+            Types.StringType.get(),
             Types.StringType.get()
-        ))
+        )),
+        required(8, "complex_key_map", Types.MapType.ofOptional(20, 21,
+            Types.StructType.of(
+                required(22, "x", Types.LongType.get()),
+                optional(23, "y", Types.LongType.get())),
+            Types.StringType.get()))
     );
 
     Assert.assertEquals("Schema serialziation should be equal to starting schema",

@@ -49,7 +49,7 @@ class IndexById extends TypeUtil.SchemaVisitor<Map<Integer, Types.NestedField>> 
   }
 
   @Override
-  public Map<Integer, Types.NestedField> map(Types.MapType map, Map<Integer, Types.NestedField> valueResult) {
+  public Map<Integer, Types.NestedField> map(Types.MapType map, Map<Integer, Types.NestedField> keyResult, Map<Integer, Types.NestedField> valueResult) {
     for (Types.NestedField field : map.fields()) {
       index.put(field.fieldId(), field);
     }

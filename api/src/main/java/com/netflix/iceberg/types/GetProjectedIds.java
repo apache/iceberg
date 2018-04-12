@@ -53,7 +53,7 @@ class GetProjectedIds extends TypeUtil.SchemaVisitor<Set<Integer>> {
   }
 
   @Override
-  public Set<Integer> map(Types.MapType map, Set<Integer> valueResult) {
+  public Set<Integer> map(Types.MapType map, Set<Integer> keyResult, Set<Integer> valueResult) {
     if (valueResult == null) {
       for (Types.NestedField field : map.fields()) {
         fieldIds.add(field.fieldId());

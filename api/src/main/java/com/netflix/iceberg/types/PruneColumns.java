@@ -98,16 +98,16 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
   }
 
   @Override
-  public Type map(Types.MapType map, Type valueResult) {
+  public Type map(Types.MapType map, Type ignored, Type valueResult) {
     if (selected.contains(map.valueId())) {
       return map;
     } else if (valueResult != null) {
       if (map.valueType() == valueResult) {
         return map;
       } else if (map.isValueOptional()) {
-        return Types.MapType.ofOptional(map.keyId(), map.valueId(), valueResult);
+        return Types.MapType.ofOptional(map.keyId(), map.valueId(), map.keyType(), valueResult);
       } else {
-        return Types.MapType.ofRequired(map.keyId(), map.valueId(), valueResult);
+        return Types.MapType.ofRequired(map.keyId(), map.valueId(), map.keyType(), valueResult);
       }
     } else if (selected.contains(map.keyId())) {
       // right now, maps can't be selected without values

@@ -86,7 +86,19 @@ public class TestReadabilityChecks {
       }
 
       {
-        Schema mapSchema = new Schema(required(1, "map_field", Types.MapType.ofRequired(2, 3, from)));
+        Schema mapSchema = new Schema(required(1, "map_field",
+            Types.MapType.ofRequired(2, 3, Types.StringType.get(), from)));
+
+        List<String> errors = CheckCompatibility.writeCompatibilityErrors(mapSchema, fromSchema);
+        Assert.assertEquals("Should produce 1 error message", 1, errors.size());
+
+        Assert.assertTrue("Should complain that primitive to map is not allowed",
+            errors.get(0).contains("cannot be read as a map"));
+      }
+
+      {
+        Schema mapSchema = new Schema(required(1, "map_field",
+            Types.MapType.ofRequired(2, 3, from, Types.StringType.get())));
 
         List<String> errors = CheckCompatibility.writeCompatibilityErrors(mapSchema, fromSchema);
         Assert.assertEquals("Should produce 1 error message", 1, errors.size());
@@ -218,10 +230,10 @@ public class TestReadabilityChecks {
   @Test
   public void testRequiredMapValue() {
     Schema write = new Schema(required(0, "map_field", Types.MapType.ofOptional(
-        1, 2, Types.IntegerType.get()
+        1, 2, Types.StringType.get(), Types.IntegerType.get()
     )));
     Schema read = new Schema(required(0, "map_field", Types.MapType.ofRequired(
-        1, 2, Types.IntegerType.get()
+        1, 2, Types.StringType.get(), Types.IntegerType.get()
     )));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
@@ -232,12 +244,28 @@ public class TestReadabilityChecks {
   }
 
   @Test
-  public void testIncompatibleMapValue() {
+  public void testIncompatibleMapKey() {
     Schema write = new Schema(required(0, "map_field", Types.MapType.ofOptional(
-        1, 2, Types.IntegerType.get()
+        1, 2, Types.IntegerType.get(), Types.StringType.get()
     )));
     Schema read = new Schema(required(0, "map_field", Types.MapType.ofOptional(
-        1, 2, Types.DoubleType.get()
+        1, 2, Types.DoubleType.get(), Types.StringType.get()
+    )));
+
+    List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
+    Assert.assertEquals("Should produce 1 error message", 1, errors.size());
+
+    Assert.assertTrue("Should complain about incompatible types",
+        errors.get(0).contains("cannot be promoted to double"));
+  }
+
+  @Test
+  public void testIncompatibleMapValue() {
+    Schema write = new Schema(required(0, "map_field", Types.MapType.ofOptional(
+        1, 2, Types.StringType.get(), Types.IntegerType.get()
+    )));
+    Schema read = new Schema(required(0, "map_field", Types.MapType.ofOptional(
+        1, 2, Types.StringType.get(), Types.DoubleType.get()
     )));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
@@ -250,7 +278,7 @@ public class TestReadabilityChecks {
   @Test
   public void testIncompatibleMapAndPrimitive() {
     Schema write = new Schema(required(0, "map_field", Types.MapType.ofOptional(
-        1, 2, Types.IntegerType.get()
+        1, 2, Types.StringType.get(), Types.IntegerType.get()
     )));
     Schema read = new Schema(required(0, "map_field", Types.StringType.get()));
 

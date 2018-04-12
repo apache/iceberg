@@ -100,7 +100,7 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   }
 
   @Override
-  public Type map(Types.MapType map, Supplier<Type> valueTypeFuture) {
+  public Type map(Types.MapType map, Supplier<Type> keyTypeFuture, Supplier<Type> valueTypeFuture) {
     Preconditions.checkArgument(sourceType.isMapType(), "Not a map: " + sourceType);
 
     Types.MapType sourceMap = sourceType.asMapType();
@@ -110,9 +110,11 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     this.sourceType = sourceMap.valueType();
     try {
       if (map.isValueOptional()) {
-        return Types.MapType.ofOptional(sourceKeyId, sourceValueId, valueTypeFuture.get());
+        return Types.MapType.ofOptional(sourceKeyId, sourceValueId,
+            keyTypeFuture.get(), valueTypeFuture.get());
       } else {
-        return Types.MapType.ofRequired(sourceKeyId, sourceValueId, valueTypeFuture.get());
+        return Types.MapType.ofRequired(sourceKeyId, sourceValueId,
+            keyTypeFuture.get(), valueTypeFuture.get());
       }
 
     } finally {

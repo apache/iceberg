@@ -75,13 +75,13 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   }
 
   @Override
-  public Type map(Types.MapType map, Supplier<Type> future) {
+  public Type map(Types.MapType map, Supplier<Type> keyFuture, Supplier<Type> valuefuture) {
     int newKeyId = nextId.get();
     int newValueId = nextId.get();
     if (map.isValueOptional()) {
-      return Types.MapType.ofOptional(newKeyId, newValueId, future.get());
+      return Types.MapType.ofOptional(newKeyId, newValueId, keyFuture.get(), valuefuture.get());
     } else {
-      return Types.MapType.ofRequired(newKeyId, newValueId, future.get());
+      return Types.MapType.ofRequired(newKeyId, newValueId, keyFuture.get(), valuefuture.get());
     }
   }
 
