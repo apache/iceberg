@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.spark.data;
+package com.netflix.iceberg.avro;
 
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.types.Types;
@@ -25,7 +25,6 @@ import com.netflix.iceberg.types.Types.StructType;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
 import java.io.IOException;
 
 import static com.netflix.iceberg.types.Types.NestedField.optional;
@@ -46,12 +45,12 @@ public abstract class AvroDataTest {
       optional(107, "date", Types.DateType.get()),
       required(108, "ts", Types.TimestampType.withZone()),
       required(110, "s", Types.StringType.get()),
-      //required(111, "uuid", Types.UUIDType.get()),
-      //required(112, "fixed", Types.FixedType.ofLength(7)),
+      required(111, "uuid", Types.UUIDType.get()),
+      required(112, "fixed", Types.FixedType.ofLength(7)),
       optional(113, "bytes", Types.BinaryType.get()),
       required(114, "dec_9_0", Types.DecimalType.of(9, 0)),
       required(115, "dec_11_2", Types.DecimalType.of(11, 2)),
-      required(116, "dec_38_10", Types.DecimalType.of(38, 10)) // spark's maximum precision
+      required(116, "dec_38_10", Types.DecimalType.of(38, 10)) // maximum precision
   );
 
   @Rule

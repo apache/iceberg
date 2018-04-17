@@ -55,7 +55,7 @@ class GenericAvroReader<T> implements DatumReader<T> {
   @Override
   public T read(T reuse, Decoder decoder) throws IOException {
     ResolvingDecoder resolver = resolve(decoder);
-    T value = reader.read(resolver);
+    T value = reader.read(resolver, reuse);
     resolver.drain();
     return value;
   }
@@ -113,6 +113,10 @@ class GenericAvroReader<T> implements DatumReader<T> {
     public ValueReader<?> array(Schema array, ValueReader<?> elementReader) {
       if (array.getLogicalType() instanceof LogicalMap) {
         ValueReader<?>[] keyValueReaders = ((ValueReaders.RecordReader) elementReader).readers;
+        if (keyValueReaders[0] == ValueReaders.utf8s()) {
+          return ValueReaders.arrayMap(ValueReaders.strings(), keyValueReaders[1]);
+        }
+
         return ValueReaders.arrayMap(keyValueReaders[0], keyValueReaders[1]);
       }
 
@@ -135,7 +139,8 @@ class GenericAvroReader<T> implements DatumReader<T> {
 
           case "timestamp-millis":
             // adjust to microseconds
-            return (ValueReader<Long>) decoder -> ValueReaders.longs().read(decoder) * 1000L;
+            ValueReader<Long> longs = ValueReaders.longs();
+            return (ValueReader<Long>) (decoder, ignored) -> longs.read(decoder, null) * 1000L;
 
           case "timestamp-micros":
             // Spark uses the same representation
@@ -182,9 +187,9 @@ class GenericAvroReader<T> implements DatumReader<T> {
         case STRING:
           return ValueReaders.utf8s();
         case FIXED:
-          return ValueReaders.fixed(primitive.getFixedSize());
+          return ValueReaders.fixed(primitive);
         case BYTES:
-          return ValueReaders.bytes();
+          return ValueReaders.byteBuffers();
         default:
           throw new IllegalArgumentException("Unsupported type: " + primitive);
       }

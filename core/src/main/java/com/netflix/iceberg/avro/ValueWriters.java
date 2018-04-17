@@ -18,6 +18,7 @@ package com.netflix.iceberg.avro;
 
 import com.google.common.base.Preconditions;
 import com.netflix.iceberg.types.TypeUtil;
+import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.Encoder;
 import org.apache.avro.util.Utf8;
@@ -60,7 +61,7 @@ public class ValueWriters {
     return DoubleWriter.INSTANCE;
   }
 
-  public static ValueWriter<String> strings() {
+  public static ValueWriter<Object> strings() {
     return StringWriter.INSTANCE;
   }
 
@@ -76,8 +77,16 @@ public class ValueWriters {
     return new FixedWriter(length);
   }
 
+  public static ValueWriter<GenericData.Fixed> genericFixed(int length) {
+    return new GenericFixedWriter(length);
+  }
+
   public static ValueWriter<byte[]> bytes() {
     return BytesWriter.INSTANCE;
+  }
+
+  public static ValueWriter<ByteBuffer> byteBuffers() {
+    return ByteBufferWriter.INSTANCE;
   }
 
   public static ValueWriter<BigDecimal> decimal(int precision, int scale) {
@@ -178,18 +187,25 @@ public class ValueWriters {
     }
   }
 
-  private static class StringWriter implements ValueWriter<String> {
+  private static class StringWriter implements ValueWriter<Object> {
     private static StringWriter INSTANCE = new StringWriter();
 
     private StringWriter() {
     }
 
     @Override
-    public void write(String s, Encoder encoder) throws IOException {
+    public void write(Object s, Encoder encoder) throws IOException {
       // use getBytes because it may return the backing byte array if available.
       // otherwise, it copies to a new byte array, which is still cheaper than Avro
       // calling toString, which incurs encoding costs
-      encoder.writeString(new Utf8(s));
+      if (s == null || s instanceof Utf8) {
+        encoder.writeString((Utf8) s);
+      } else if (s instanceof String) {
+        encoder.writeString(new Utf8((String) s));
+      } else {
+        throw new IllegalArgumentException(
+            "Cannot write unknown string type: " + s.getClass().getName() + ": " + s.toString());
+      }
     }
   }
 
@@ -243,6 +259,21 @@ public class ValueWriters {
     }
   }
 
+  private static class GenericFixedWriter implements ValueWriter<GenericData.Fixed> {
+    private final int length;
+
+    private GenericFixedWriter(int length) {
+      this.length = length;
+    }
+
+    @Override
+    public void write(GenericData.Fixed datum, Encoder encoder) throws IOException {
+      Preconditions.checkArgument(datum.bytes().length == length,
+          "Cannot write byte array of length %s as fixed[%s]", datum.bytes().length, length);
+      encoder.writeFixed(datum.bytes());
+    }
+  }
+
   private static class BytesWriter implements ValueWriter<byte[]> {
     private static BytesWriter INSTANCE = new BytesWriter();
 
@@ -251,6 +282,18 @@ public class ValueWriters {
 
     @Override
     public void write(byte[] bytes, Encoder encoder) throws IOException {
+      encoder.writeBytes(bytes);
+    }
+  }
+
+  private static class ByteBufferWriter implements ValueWriter<ByteBuffer> {
+    private static ByteBufferWriter INSTANCE = new ByteBufferWriter();
+
+    private ByteBufferWriter() {
+    }
+
+    @Override
+    public void write(ByteBuffer bytes, Encoder encoder) throws IOException {
       encoder.writeBytes(bytes);
     }
   }

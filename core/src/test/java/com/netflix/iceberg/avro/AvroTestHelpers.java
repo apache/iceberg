@@ -16,10 +16,23 @@
 
 package com.netflix.iceberg.avro;
 
+import com.netflix.iceberg.types.Type;
+import com.netflix.iceberg.types.Types;
+import com.netflix.iceberg.util.CharSequenceWrapper;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericData.Record;
+import org.junit.Assert;
 
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import static com.netflix.iceberg.avro.AvroSchemaUtil.toOption;
 
@@ -55,5 +68,84 @@ class AvroTestHelpers {
   static Schema addValueId(int id, Schema schema) {
     schema.addProp(AvroSchemaUtil.VALUE_ID_PROP, id);
     return schema;
+  }
+
+  static void assertEquals(Types.StructType struct, Record expected, Record actual) {
+    List<Types.NestedField> fields = struct.fields();
+    for (int i = 0; i < fields.size(); i += 1) {
+      Type fieldType = fields.get(i).type();
+
+      Object expectedValue = expected.get(i);
+      Object actualValue = actual.get(i);
+
+      assertEquals(fieldType, expectedValue, actualValue);
+    }
+  }
+
+  static void assertEquals(Types.ListType list, List<?> expected, List<?> actual) {
+    Type elementType = list.elementType();
+
+    Assert.assertEquals("List size should match", expected.size(), actual.size());
+
+    for (int i = 0; i < expected.size(); i += 1) {
+      Object expectedValue = expected.get(i);
+      Object actualValue = actual.get(i);
+
+      assertEquals(elementType, expectedValue, actualValue);
+    }
+  }
+
+  static void assertEquals(Types.MapType map, Map<?, ?> expected, Map<?, ?> actual) {
+    Type valueType = map.valueType();
+
+    Assert.assertEquals("Map size should match", expected.size(), actual.size());
+
+    for (Object expectedKey : expected.keySet()) {
+      Object expectedValue = expected.get(expectedKey);
+      Object actualValue = actual.get(expectedKey);
+
+      assertEquals(valueType, expectedValue, actualValue);
+    }
+  }
+
+  private static void assertEquals(Type type, Object expected, Object actual) {
+    if (expected == null && actual == null) {
+      return;
+    }
+
+    switch (type.typeId()) {
+      case BOOLEAN:
+      case INTEGER:
+      case LONG:
+      case FLOAT:
+      case DOUBLE:
+      case STRING:
+      case DATE:
+      case TIME:
+      case TIMESTAMP:
+      case UUID:
+      case FIXED:
+      case BINARY:
+      case DECIMAL:
+        Assert.assertEquals("Primitive value should be equal to expected", expected, actual);
+        break;
+      case STRUCT:
+        Assert.assertTrue("Expected should be a Record", expected instanceof Record);
+        Assert.assertTrue("Actual should be a Record", actual instanceof Record);
+        assertEquals(type.asStructType(), (Record) expected, (Record) actual);
+        break;
+      case LIST:
+        Assert.assertTrue("Expected should be a List", expected instanceof List);
+        Assert.assertTrue("Actual should be a List", actual instanceof List);
+        assertEquals(type.asListType(), (List) expected, (List) actual);
+        break;
+      case MAP:
+        Assert.assertTrue("Expected should be a Map", expected instanceof Map);
+        Assert.assertTrue("Actual should be a Map", actual instanceof Map);
+        assertEquals(type.asMapType(), (Map<?, ?>) expected, (Map<?, ?>) actual);
+        break;
+      default:
+        throw new IllegalArgumentException("Not a supported type: " + type);
+    }
   }
 }

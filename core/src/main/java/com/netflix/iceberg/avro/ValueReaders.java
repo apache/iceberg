@@ -16,8 +16,7 @@
 
 package com.netflix.iceberg.avro;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.netflix.iceberg.common.DynConstructors;
@@ -33,6 +32,8 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Collection;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -81,8 +82,16 @@ public class ValueReaders {
     return new FixedReader(length);
   }
 
+  public static ValueReader<GenericData.Fixed> fixed(Schema schema) {
+    return new GenericFixedReader(schema);
+  }
+
   public static ValueReader<byte[]> bytes() {
     return BytesReader.INSTANCE;
+  }
+
+  public static ValueReader<ByteBuffer> byteBuffers() {
+    return ByteBufferReader.INSTANCE;
   }
 
   public static ValueReader<BigDecimal> decimal(ValueReader<byte[]> unscaledReader, int scale) {
@@ -120,7 +129,7 @@ public class ValueReaders {
     }
 
     @Override
-    public Object read(Decoder decoder) throws IOException {
+    public Object read(Decoder decoder, Object ignored) throws IOException {
       decoder.readNull();
       return null;
     }
@@ -133,7 +142,7 @@ public class ValueReaders {
     }
 
     @Override
-    public Boolean read(Decoder decoder) throws IOException {
+    public Boolean read(Decoder decoder, Object ignored) throws IOException {
       return decoder.readBoolean();
     }
   }
@@ -145,7 +154,7 @@ public class ValueReaders {
     }
 
     @Override
-    public Integer read(Decoder decoder) throws IOException {
+    public Integer read(Decoder decoder, Object ignored) throws IOException {
       return decoder.readInt();
     }
   }
@@ -157,7 +166,7 @@ public class ValueReaders {
     }
 
     @Override
-    public Long read(Decoder decoder) throws IOException {
+    public Long read(Decoder decoder, Object ignored) throws IOException {
       return decoder.readLong();
     }
   }
@@ -169,7 +178,7 @@ public class ValueReaders {
     }
 
     @Override
-    public Float read(Decoder decoder) throws IOException {
+    public Float read(Decoder decoder, Object ignored) throws IOException {
       return decoder.readFloat();
     }
   }
@@ -181,25 +190,26 @@ public class ValueReaders {
     }
 
     @Override
-    public Double read(Decoder decoder) throws IOException {
+    public Double read(Decoder decoder, Object ignored) throws IOException {
       return decoder.readDouble();
     }
   }
 
   private static class StringReader implements ValueReader<String> {
     private static StringReader INSTANCE = new StringReader();
+    private final ThreadLocal<Utf8> reusedTempUtf8 = ThreadLocal.withInitial(Utf8::new);
 
     private StringReader() {
     }
 
     @Override
-    public String read(Decoder decoder) throws IOException {
+    public String read(Decoder decoder, Object ignored) throws IOException {
       // use the decoder's readString(Utf8) method because it may be a resolving decoder
-      return decoder.readString(null).toString();
+      this.reusedTempUtf8.set(decoder.readString(reusedTempUtf8.get()));
+      return reusedTempUtf8.get().toString();
 //      int length = decoder.readInt();
 //      byte[] bytes = new byte[length];
 //      decoder.readFixed(bytes, 0, length);
-//      return UTF8String.fromBytes(bytes);
     }
   }
 
@@ -210,13 +220,16 @@ public class ValueReaders {
     }
 
     @Override
-    public Utf8 read(Decoder decoder) throws IOException {
+    public Utf8 read(Decoder decoder, Object reuse) throws IOException {
       // use the decoder's readString(Utf8) method because it may be a resolving decoder
-      return decoder.readString(null);
+      if (reuse instanceof Utf8) {
+        return decoder.readString((Utf8) reuse);
+      } else {
+        return decoder.readString(null);
+      }
 //      int length = decoder.readInt();
 //      byte[] bytes = new byte[length];
 //      decoder.readFixed(bytes, 0, length);
-//      return UTF8String.fromBytes(bytes);
     }
   }
 
@@ -233,7 +246,7 @@ public class ValueReaders {
     }
 
     @Override
-    public UUID read(Decoder decoder) throws IOException {
+    public UUID read(Decoder decoder, Object ignored) throws IOException {
       ByteBuffer buffer = BUFFER.get();
       buffer.rewind();
 
@@ -253,10 +266,43 @@ public class ValueReaders {
     }
 
     @Override
-    public byte[] read(Decoder decoder) throws IOException {
+    public byte[] read(Decoder decoder, Object reuse) throws IOException {
+      if (reuse instanceof byte[]) {
+        byte[] reusedBytes = (byte[]) reuse;
+        if (reusedBytes.length == length) {
+          decoder.readFixed(reusedBytes, 0, length);
+          return reusedBytes;
+        }
+      }
+
       byte[] bytes = new byte[length];
       decoder.readFixed(bytes, 0, length);
       return bytes;
+    }
+  }
+
+  private static class GenericFixedReader implements ValueReader<GenericData.Fixed> {
+    private final Schema schema;
+    private final int length;
+
+    private GenericFixedReader(Schema schema) {
+      this.schema = schema;
+      this.length = schema.getFixedSize();
+    }
+
+    @Override
+    public GenericData.Fixed read(Decoder decoder, Object reuse) throws IOException {
+      if (reuse instanceof GenericData.Fixed) {
+        GenericData.Fixed reusedFixed = (GenericData.Fixed) reuse;
+        if (reusedFixed.bytes().length == length) {
+          decoder.readFixed(reusedFixed.bytes(), 0, length);
+          return reusedFixed;
+        }
+      }
+
+      byte[] bytes = new byte[length];
+      decoder.readFixed(bytes, 0, length);
+      return new GenericData.Fixed(schema, bytes);
     }
   }
 
@@ -267,9 +313,35 @@ public class ValueReaders {
     }
 
     @Override
-    public byte[] read(Decoder decoder) throws IOException {
+    public byte[] read(Decoder decoder, Object reuse) throws IOException {
       // use the decoder's readBytes method because it may be a resolving decoder
+      // the only time the previous value could be reused is when its length matches the next array,
+      // but there is no way to know this with the readBytes call, which uses a ByteBuffer. it is
+      // possible to wrap the reused array in a ByteBuffer, but this may still result in allocating
+      // a new buffer. since the usual case requires an allocation anyway to get the size right,
+      // just allocate every time.
       return decoder.readBytes(null).array();
+//      int length = decoder.readInt();
+//      byte[] bytes = new byte[length];
+//      decoder.readFixed(bytes, 0, length);
+//      return bytes;
+    }
+  }
+
+  private static class ByteBufferReader implements ValueReader<ByteBuffer> {
+    private static ByteBufferReader INSTANCE = new ByteBufferReader();
+
+    private ByteBufferReader() {
+    }
+
+    @Override
+    public ByteBuffer read(Decoder decoder, Object reuse) throws IOException {
+      // use the decoder's readBytes method because it may be a resolving decoder
+      if (reuse instanceof ByteBuffer) {
+        return decoder.readBytes((ByteBuffer) reuse);
+      } else {
+        return decoder.readBytes(null);
+      }
 //      int length = decoder.readInt();
 //      byte[] bytes = new byte[length];
 //      decoder.readFixed(bytes, 0, length);
@@ -287,8 +359,9 @@ public class ValueReaders {
     }
 
     @Override
-    public BigDecimal read(Decoder decoder) throws IOException {
-      byte[] bytes = bytesReader.read(decoder);
+    public BigDecimal read(Decoder decoder, Object ignored) throws IOException {
+      // there isn't a way to get the backing buffer out of a BigInteger, so this can't reuse.
+      byte[] bytes = bytesReader.read(decoder, null);
       return new BigDecimal(new BigInteger(bytes), scale);
     }
   }
@@ -304,9 +377,9 @@ public class ValueReaders {
     }
 
     @Override
-    public Object read(Decoder decoder) throws IOException {
+    public Object read(Decoder decoder, Object reuse) throws IOException {
       int index = decoder.readIndex();
-      return readers[index].read(decoder);
+      return readers[index].read(decoder, reuse);
     }
   }
 
@@ -321,7 +394,7 @@ public class ValueReaders {
     }
 
     @Override
-    public String read(Decoder decoder) throws IOException {
+    public String read(Decoder decoder, Object ignored) throws IOException {
       int index = decoder.readEnum();
       return symbols[index];
     }
@@ -329,35 +402,49 @@ public class ValueReaders {
 
   private static class ArrayReader<T> implements ValueReader<Collection<T>> {
     private final ValueReader<T> elementReader;
-    private final List<T> reusedList = Lists.newArrayList();
+    private LinkedList<?> lastList = null;
 
     private ArrayReader(ValueReader<T> elementReader) {
       this.elementReader = elementReader;
     }
 
     @Override
-    public Collection<T> read(Decoder decoder) throws IOException {
-      reusedList.clear();
+    @SuppressWarnings("unchecked")
+    public Collection<T> read(Decoder decoder, Object reused) throws IOException {
+      LinkedList<T> resultList;
+      if (lastList != null) {
+        lastList.clear();
+        resultList = (LinkedList<T>) lastList;
+      } else {
+        resultList = Lists.newLinkedList();
+      }
+
+      if (reused instanceof LinkedList) {
+        this.lastList = (LinkedList<?>) reused;
+      } else {
+        this.lastList = null;
+      }
+
       long chunkLength = decoder.readArrayStart();
+      Iterator<?> elIter = lastList != null ? lastList.iterator() : Iterators.emptyIterator();
 
       while (chunkLength > 0) {
-        for (int i = 0; i < chunkLength; i += 1) {
-          reusedList.add(elementReader.read(decoder));
+        for (long i = 0; i < chunkLength; i += 1) {
+          Object lastValue = elIter.hasNext() ? elIter.next() : null;
+          resultList.addLast(elementReader.read(decoder, lastValue));
         }
 
         chunkLength = decoder.arrayNext();
       }
 
-      // this will convert the list to an array so it is okay to reuse the list
-      return ImmutableList.copyOf(reusedList);
+      return resultList;
     }
   }
 
   private static class ArrayMapReader<K, V> implements ValueReader<Map<K, V>> {
     private final ValueReader<K> keyReader;
     private final ValueReader<V> valueReader;
-
-    private final Map<K, V> reusedMap = Maps.newLinkedHashMap();
+    private Map lastMap = null;
 
     private ArrayMapReader(ValueReader<K> keyReader, ValueReader<V> valueReader) {
       this.keyReader = keyReader;
@@ -365,29 +452,53 @@ public class ValueReaders {
     }
 
     @Override
-    public Map<K, V> read(Decoder decoder) throws IOException {
-      reusedMap.clear();
+    @SuppressWarnings("unchecked")
+    public Map<K, V> read(Decoder decoder, Object reuse) throws IOException {
+      if (reuse instanceof Map) {
+        this.lastMap = (Map<?, ?>) reuse;
+      } else {
+        this.lastMap = null;
+      }
+
+      Map<K, V> resultMap;
+      if (lastMap != null) {
+        lastMap.clear();
+        resultMap = (Map<K, V>) lastMap;
+      } else {
+        resultMap = Maps.newLinkedHashMap();
+      }
+
       long chunkLength = decoder.readArrayStart();
+      Iterator<Map.Entry<?, ?>> kvIter = lastMap != null ?
+          lastMap.entrySet().iterator() :
+          Iterators.emptyIterator();
 
       while (chunkLength > 0) {
-        for (int i = 0; i < chunkLength; i += 1) {
-          K key = keyReader.read(decoder);
-          V value = valueReader.read(decoder);
-          reusedMap.put(key, value);
+        for (long i = 0; i < chunkLength; i += 1) {
+          K key;
+          V value;
+          if (kvIter.hasNext()) {
+            Map.Entry<?, ?> last = kvIter.next();
+            key = keyReader.read(decoder, last.getKey());
+            value = valueReader.read(decoder, last.getValue());
+          } else {
+            key = keyReader.read(decoder, null);
+            value = valueReader.read(decoder, null);
+          }
+          resultMap.put(key, value);
         }
 
         chunkLength = decoder.arrayNext();
       }
 
-      return ImmutableMap.copyOf(reusedMap);
+      return resultMap;
     }
   }
 
   private static class MapReader<K, V> implements ValueReader<Map<K, V>> {
     private final ValueReader<K> keyReader;
     private final ValueReader<V> valueReader;
-
-    private final Map<K, V> reusedMap = Maps.newLinkedHashMap();
+    private Map lastMap = null;
 
     private MapReader(ValueReader<K> keyReader, ValueReader<V> valueReader) {
       this.keyReader = keyReader;
@@ -395,21 +506,44 @@ public class ValueReaders {
     }
 
     @Override
-    public Map<K, V> read(Decoder decoder) throws IOException {
-      reusedMap.clear();
+    @SuppressWarnings("unchecked")
+    public Map<K, V> read(Decoder decoder, Object reuse) throws IOException {
+      if (reuse instanceof Map) {
+        this.lastMap = (Map<?, ?>) reuse;
+      } else {
+        this.lastMap = null;
+      }
+
+      Map<K, V> resultMap;
+      if (lastMap != null) {
+        lastMap.clear();
+        resultMap = (Map<K, V>) lastMap;
+      } else {
+        resultMap = Maps.newLinkedHashMap();
+      }
+
       long chunkLength = decoder.readMapStart();
 
+      Iterator<Map.Entry<?, ?>> kvIter = lastMap.entrySet().iterator();
       while (chunkLength > 0) {
-        for (int i = 0; i < chunkLength; i += 1) {
-          K key = keyReader.read(decoder);
-          V value = valueReader.read(decoder);
-          reusedMap.put(key, value);
+        for (long i = 0; i < chunkLength; i += 1) {
+          K key;
+          V value;
+          if (kvIter.hasNext()) {
+            Map.Entry<?, ?> last = kvIter.next();
+            key = keyReader.read(decoder, last.getKey());
+            value = valueReader.read(decoder, last.getValue());
+          } else {
+            key = keyReader.read(decoder, null);
+            value = valueReader.read(decoder, null);
+          }
+          resultMap.put(key, value);
         }
 
         chunkLength = decoder.mapNext();
       }
 
-      return ImmutableMap.copyOf(reusedMap);
+      return resultMap;
     }
   }
 
@@ -427,17 +561,25 @@ public class ValueReaders {
     }
 
     @Override
-    public GenericData.Record read(Decoder decoder) throws IOException {
-      GenericData.Record record = new GenericData.Record(recordSchema);
+    public GenericData.Record read(Decoder decoder, Object reuse) throws IOException {
+      GenericData.Record record;
+      if (reuse instanceof GenericData.Record) {
+        record = (GenericData.Record) reuse;
+      } else {
+        record = new GenericData.Record(recordSchema);
+      }
+
       if (decoder instanceof ResolvingDecoder) {
         // this may not set all of the fields. nulls are set by default.
         for (Schema.Field field : ((ResolvingDecoder) decoder).readFieldOrder()) {
-          record.put(field.pos(), readers[field.pos()].read(decoder));
+          Object reusedValue = record.get(field.pos());
+          record.put(field.pos(), readers[field.pos()].read(decoder, reusedValue));
         }
 
       } else {
         for (int i = 0; i < readers.length; i += 1) {
-          record.put(i, readers[i].read(decoder));
+          Object reusedValue = record.get(i);
+          record.put(i, readers[i].read(decoder, reusedValue));
         }
       }
 
@@ -447,11 +589,13 @@ public class ValueReaders {
 
   static class IndexedRecordReader<R extends IndexedRecord> implements ValueReader<R> {
     private final ValueReader<?>[] readers;
+    private final Class<R> recordClass;
     private final DynConstructors.Ctor<R> ctor;
     private final Schema schema;
 
     IndexedRecordReader(List<ValueReader<?>> readers, Class<R> recordClass, Schema schema) {
       this.readers = new ValueReader[readers.size()];
+      this.recordClass = recordClass;
       this.ctor = DynConstructors.builder(IndexedRecord.class)
           .hiddenImpl(recordClass, Schema.class)
           .hiddenImpl(recordClass)
@@ -464,18 +608,25 @@ public class ValueReaders {
     }
 
     @Override
-    public R read(Decoder decoder) throws IOException {
-      R record = ctor.newInstance(schema);
+    public R read(Decoder decoder, Object reuse) throws IOException {
+      R record;
+      if (recordClass.isInstance(reuse)) {
+        record = recordClass.cast(reuse);
+      } else {
+        record = ctor.newInstance(schema);
+      }
 
       if (decoder instanceof ResolvingDecoder) {
         // this may not set all of the fields. nulls are set by default.
         for (Schema.Field field : ((ResolvingDecoder) decoder).readFieldOrder()) {
-          record.put(field.pos(), readers[field.pos()].read(decoder));
+          Object reusedValue = record.get(field.pos());
+          record.put(field.pos(), readers[field.pos()].read(decoder, reusedValue));
         }
 
       } else {
         for (int i = 0; i < readers.length; i += 1) {
-          record.put(i, readers[i].read(decoder));
+          Object reusedValue = record.get(i);
+          record.put(i, readers[i].read(decoder, reusedValue));
         }
       }
 

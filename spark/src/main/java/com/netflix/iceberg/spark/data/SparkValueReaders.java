@@ -69,9 +69,14 @@ public class SparkValueReaders {
     }
 
     @Override
-    public UTF8String read(Decoder decoder) throws IOException {
+    public UTF8String read(Decoder decoder, Object reuse) throws IOException {
       // use the decoder's readString(Utf8) method because it may be a resolving decoder
-      Utf8 string = decoder.readString(null);
+      Utf8 utf8 = null;
+      if (reuse instanceof UTF8String) {
+        utf8 = new Utf8(((UTF8String) reuse).getBytes());
+      }
+
+      Utf8 string = decoder.readString(utf8);
       return UTF8String.fromBytes(string.getBytes(), 0, string.getByteLength());
 //      int length = decoder.readInt();
 //      byte[] bytes = new byte[length];
@@ -93,7 +98,7 @@ public class SparkValueReaders {
     }
 
     @Override
-    public UTF8String read(Decoder decoder) throws IOException {
+    public UTF8String read(Decoder decoder, Object reuse) throws IOException {
       ByteBuffer buffer = BUFFER.get();
       buffer.rewind();
 
@@ -115,8 +120,8 @@ public class SparkValueReaders {
     }
 
     @Override
-    public Decimal read(Decoder decoder) throws IOException {
-      byte[] bytes = bytesReader.read(decoder);
+    public Decimal read(Decoder decoder, Object reuse) throws IOException {
+      byte[] bytes = bytesReader.read(decoder, null);
       return Decimal.apply(new BigDecimal(new BigInteger(bytes), scale));
     }
   }
@@ -130,13 +135,13 @@ public class SparkValueReaders {
     }
 
     @Override
-    public GenericArrayData read(Decoder decoder) throws IOException {
+    public GenericArrayData read(Decoder decoder, Object reuse) throws IOException {
       reusedList.clear();
       long chunkLength = decoder.readArrayStart();
 
       while (chunkLength > 0) {
         for (int i = 0; i < chunkLength; i += 1) {
-          reusedList.add(elementReader.read(decoder));
+          reusedList.add(elementReader.read(decoder, null));
         }
 
         chunkLength = decoder.arrayNext();
@@ -160,7 +165,7 @@ public class SparkValueReaders {
     }
 
     @Override
-    public ArrayBasedMapData read(Decoder decoder) throws IOException {
+    public ArrayBasedMapData read(Decoder decoder, Object reuse) throws IOException {
       reusedKeyList.clear();
       reusedValueList.clear();
 
@@ -168,8 +173,8 @@ public class SparkValueReaders {
 
       while (chunkLength > 0) {
         for (int i = 0; i < chunkLength; i += 1) {
-          reusedKeyList.add(keyReader.read(decoder));
-          reusedValueList.add(valueReader.read(decoder));
+          reusedKeyList.add(keyReader.read(decoder, null));
+          reusedValueList.add(valueReader.read(decoder, null));
         }
 
         chunkLength = decoder.mapNext();
@@ -192,12 +197,12 @@ public class SparkValueReaders {
     }
 
     @Override
-    public InternalRow read(Decoder decoder) throws IOException {
+    public InternalRow read(Decoder decoder, Object reuse) throws IOException {
       GenericInternalRow row = new GenericInternalRow(readers.length);
       if (decoder instanceof ResolvingDecoder) {
         // this may not set all of the fields. nulls are set by default.
         for (Schema.Field field : ((ResolvingDecoder) decoder).readFieldOrder()) {
-          Object value = readers[field.pos()].read(decoder);
+          Object value = readers[field.pos()].read(decoder, null);
           if (value != null) {
             row.update(field.pos(), value);
           } else {
@@ -207,7 +212,7 @@ public class SparkValueReaders {
 
       } else {
         for (int i = 0; i < readers.length; i += 1) {
-          Object value = readers[i].read(decoder);
+          Object value = readers[i].read(decoder, null);
           if (value != null) {
             row.update(i, value);
           } else {

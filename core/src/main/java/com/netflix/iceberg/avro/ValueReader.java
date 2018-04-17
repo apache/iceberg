@@ -20,5 +20,5 @@ import org.apache.avro.io.Decoder;
 import java.io.IOException;
 
 public interface ValueReader<T> {
-  T read(Decoder decoder) throws IOException;
+  T read(Decoder decoder, Object reuse) throws IOException;
 }

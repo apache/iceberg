@@ -124,9 +124,9 @@ class GenericAvroWriter<T> implements DatumWriter<T> {
         case STRING:
           return ValueWriters.strings();
         case FIXED:
-          return ValueWriters.fixed(primitive.getFixedSize());
+          return ValueWriters.genericFixed(primitive.getFixedSize());
         case BYTES:
-          return ValueWriters.bytes();
+          return ValueWriters.byteBuffers();
         default:
           throw new IllegalArgumentException("Unsupported type: " + primitive);
       }
