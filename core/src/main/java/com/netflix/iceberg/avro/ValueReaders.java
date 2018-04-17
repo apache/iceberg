@@ -523,8 +523,10 @@ public class ValueReaders {
       }
 
       long chunkLength = decoder.readMapStart();
+      Iterator<Map.Entry<?, ?>> kvIter = lastMap != null ?
+          lastMap.entrySet().iterator() :
+          Iterators.emptyIterator();
 
-      Iterator<Map.Entry<?, ?>> kvIter = lastMap.entrySet().iterator();
       while (chunkLength > 0) {
         for (long i = 0; i < chunkLength; i += 1) {
           K key;

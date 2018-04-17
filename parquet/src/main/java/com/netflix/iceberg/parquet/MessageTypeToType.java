@@ -123,9 +123,9 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     addAlias(value.getName(), valueFieldId);
 
     if (value.isRepetition(Repetition.OPTIONAL)) {
-      return Types.MapType.ofOptional(keyFieldId, valueFieldId, valueType);
+      return Types.MapType.ofOptional(keyFieldId, valueFieldId, keyType, valueType);
     } else {
-      return Types.MapType.ofRequired(keyFieldId, valueFieldId, valueType);
+      return Types.MapType.ofRequired(keyFieldId, valueFieldId, keyType, valueType);
     }
   }
 

@@ -135,8 +135,17 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
       return mapSchema;
     }
 
-    mapSchema = AvroSchemaUtil.createMap(map.keyId(), keySchema,
-        map.valueId(), map.isValueOptional() ? toOption(valueSchema) : valueSchema);
+    if (keySchema.getType() == Schema.Type.STRING) {
+      // if the map has string keys, use Avro's map type
+      mapSchema = Schema.createMap(
+          map.isValueOptional() ? toOption(valueSchema) : valueSchema);
+      mapSchema.addProp(AvroSchemaUtil.KEY_ID_PROP, map.keyId());
+      mapSchema.addProp(AvroSchemaUtil.VALUE_ID_PROP, map.valueId());
+
+    } else {
+      mapSchema = AvroSchemaUtil.createMap(map.keyId(), keySchema,
+          map.valueId(), map.isValueOptional() ? toOption(valueSchema) : valueSchema);
+    }
 
     results.put(map, mapSchema);
 

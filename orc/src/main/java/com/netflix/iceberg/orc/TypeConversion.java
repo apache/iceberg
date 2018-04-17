@@ -170,16 +170,8 @@ public class TypeConversion {
       case MAP: {
         TypeDescription key = schema.getChildren().get(0);
         TypeDescription value = schema.getChildren().get(1);
-        switch (key.getCategory()) {
-          case STRING:
-          case CHAR:
-          case VARCHAR:
-            return Types.MapType.ofOptional(columnIds.get(key),
-                columnIds.get(value), convertOrcToType(value, columnIds));
-          default:
-            throw new IllegalArgumentException("Can't handle maps with " + key +
-                " as key.");
-        }
+        return Types.MapType.ofOptional(columnIds.get(key), columnIds.get(value),
+            convertOrcToType(key, columnIds), convertOrcToType(value, columnIds));
       }
       default:
         // We don't have an answer for union types.
