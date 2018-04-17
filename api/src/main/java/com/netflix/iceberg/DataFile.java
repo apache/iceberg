@@ -16,6 +16,7 @@
 
 package com.netflix.iceberg;
 
+import com.netflix.iceberg.types.Types;
 import com.netflix.iceberg.types.Types.IntegerType;
 import com.netflix.iceberg.types.Types.ListType;
 import com.netflix.iceberg.types.Types.LongType;
@@ -42,18 +43,12 @@ public interface DataFile {
         required(105, "block_size_in_bytes", LongType.get()),
         optional(106, "file_ordinal", IntegerType.get()),
         optional(107, "sort_columns", ListType.ofRequired(112, IntegerType.get())),
-        optional(108, "column_sizes", ListType.ofRequired(113, StructType.of(
-            required(117, "column_id", IntegerType.get()),
-            required(118, "size", LongType.get())
-        ))),
-        optional(109, "value_counts", ListType.ofRequired(114, StructType.of(
-            required(119, "column_id", IntegerType.get()),
-            required(120, "count", LongType.get())
-        ))),
-        optional(110, "null_value_counts", ListType.ofRequired(115, StructType.of(
-            required(121, "column_id", IntegerType.get()),
-            required(122, "null_count", LongType.get())
-        )))
+        optional(108, "column_sizes", Types.MapType.ofRequired(117, 118,
+            IntegerType.get(), LongType.get())),
+        optional(109, "value_counts", Types.MapType.ofRequired(119, 120,
+            IntegerType.get(), LongType.get())),
+        optional(110, "null_value_counts", Types.MapType.ofRequired(121, 122,
+            IntegerType.get(), LongType.get()))
 //        optional(111, "distinct_counts", ListType.ofRequired(116, StructType.of(
 //            required(123, "column_id", IntegerType.get()),
 //            required(124, "distinct_count", LongType.get())

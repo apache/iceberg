@@ -51,9 +51,9 @@ class GenericDataFile
   // optional fields
   private Integer fileOrdinal = null; // boxed for nullability
   private List<Integer> sortColumns = null;
-  private Collection<Pair<Integer, Long>> columnSizes = null;
-  private Collection<Pair<Integer, Long>> valueCounts = null;
-  private Collection<Pair<Integer, Long>> nullValueCounts = null;
+  private Map<Integer, Long> columnSizes = null;
+  private Map<Integer, Long> valueCounts = null;
+  private Map<Integer, Long> nullValueCounts = null;
 
   // TODO: add support for column min/max/hist
   // private final Map<Integer, byte[]> mins;
@@ -146,9 +146,9 @@ class GenericDataFile
     this.blockSizeInBytes = blockSizeInBytes;
     this.fileOrdinal = null;
     this.sortColumns = null;
-    this.columnSizes = fromMap(metrics.columnSizes());
-    this.valueCounts = fromMap(metrics.valueCounts());
-    this.nullValueCounts = fromMap(metrics.nullValueCounts());
+    this.columnSizes = metrics.columnSizes();
+    this.valueCounts = metrics.valueCounts();
+    this.nullValueCounts = metrics.nullValueCounts();
     this.fromProjectionPos = null;
   }
 
@@ -168,9 +168,9 @@ class GenericDataFile
     this.fileOrdinal = toCopy.fileOrdinal;
     this.sortColumns = toCopy.sortColumns;
     // TODO: support lazy conversion to/from map
-    this.columnSizes = fromMap(toMap(toCopy.columnSizes));
-    this.valueCounts = fromMap(toMap(toCopy.valueCounts));
-    this.nullValueCounts = fromMap(toMap(toCopy.nullValueCounts));
+    this.columnSizes = toCopy.columnSizes;
+    this.valueCounts = toCopy.valueCounts;
+    this.nullValueCounts = toCopy.nullValueCounts;
     this.fromProjectionPos = toCopy.fromProjectionPos;
   }
 
@@ -222,17 +222,17 @@ class GenericDataFile
 
   @Override
   public Map<Integer, Long> columnSizes() {
-    return toMap(columnSizes);
+    return columnSizes;
   }
 
   @Override
   public Map<Integer, Long> valueCounts() {
-    return toMap(valueCounts);
+    return valueCounts;
   }
 
   @Override
   public Map<Integer, Long> nullValueCounts() {
-    return toMap(nullValueCounts);
+    return nullValueCounts;
   }
 
   @Override
@@ -278,13 +278,13 @@ class GenericDataFile
         this.sortColumns = (List<Integer>) v;
         return;
       case 8:
-        this.columnSizes = (Collection<Pair<Integer, Long>>) v;
+        this.columnSizes = (Map<Integer, Long>) v;
         return;
       case 9:
-        this.valueCounts = (Collection<Pair<Integer, Long>>) v;
+        this.valueCounts = (Map<Integer, Long>) v;
         return;
       case 10:
-        this.nullValueCounts = (Collection<Pair<Integer, Long>>) v;
+        this.nullValueCounts = (Map<Integer, Long>) v;
         return;
       default:
         // ignore the object, it must be from a newer version of the format

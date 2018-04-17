@@ -33,6 +33,7 @@ import static com.netflix.iceberg.avro.AvroSchemaUtil.copyRecord;
 import static com.netflix.iceberg.avro.AvroSchemaUtil.fromOption;
 import static com.netflix.iceberg.avro.AvroSchemaUtil.fromOptions;
 import static com.netflix.iceberg.avro.AvroSchemaUtil.getFieldId;
+import static com.netflix.iceberg.avro.AvroSchemaUtil.isKeyValueSchema;
 import static com.netflix.iceberg.avro.AvroSchemaUtil.isOptionSchema;
 import static com.netflix.iceberg.avro.AvroSchemaUtil.toOption;
 
@@ -160,22 +161,26 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
 
   @Override
   public Schema array(Schema array, Supplier<Schema> element) {
-    if (array.getLogicalType() instanceof LogicalMap) {
-      Preconditions.checkArgument(current.isNestedType() && current.asNestedType().isMapType(),
-          "Incompatible projected type: %s", current);
+    if (array.getLogicalType() instanceof LogicalMap ||
+        (current.isMapType() && isKeyValueSchema(array.getElementType()))) {
+      Preconditions.checkArgument(current.isMapType(), "Incompatible projected type: %s", current);
       Types.MapType m = current.asNestedType().asMapType();
       this.current = Types.StructType.of(m.fields()); // create a struct to correspond to element
       try {
         Schema keyValueSchema = array.getElementType();
-        Schema.Field keyField = keyValueSchema.getField("key");
-        Schema.Field valueField = keyValueSchema.getField("value");
+        Schema.Field keyField = keyValueSchema.getFields().get(0);
+        Schema.Field valueField = keyValueSchema.getFields().get(1);
         Schema.Field valueProjection = element.get().getField("value");
 
         // element was changed, create a new array
         if (valueProjection.schema() != valueField.schema()) {
-          return AvroSchemaUtil.createMap(
-              getFieldId(keyField), keyField.schema(),
-              getFieldId(valueField), valueProjection.schema());
+          return AvroSchemaUtil.createProjectionMap(keyValueSchema.getFullName(),
+              getFieldId(keyField), keyField.name(), keyField.schema(),
+              getFieldId(valueField), valueField.name(), valueProjection.schema());
+        } else if (!(array.getLogicalType() instanceof LogicalMap)) {
+          return AvroSchemaUtil.createProjectionMap(keyValueSchema.getFullName(),
+              getFieldId(keyField), keyField.name(), keyField.schema(),
+              getFieldId(valueField), valueField.name(), valueField.schema());
         }
 
         return array;
@@ -185,7 +190,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
       }
 
     } else {
-      Preconditions.checkArgument(current.isNestedType() && current.asNestedType().isListType(),
+      Preconditions.checkArgument(current.isListType(),
           "Incompatible projected type: %s", current);
       Types.ListType list = current.asNestedType().asListType();
       this.current = list.elementType();
