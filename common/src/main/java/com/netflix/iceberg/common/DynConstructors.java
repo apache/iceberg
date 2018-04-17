@@ -25,6 +25,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -49,7 +50,11 @@ public class DynConstructors {
 
     public C newInstanceChecked(Object... args) throws Exception {
       try {
-        return ctor.newInstance(args);
+        if (args.length > ctor.getParameterCount()) {
+          return ctor.newInstance(Arrays.copyOfRange(args, 0, ctor.getParameterCount()));
+        } else {
+          return ctor.newInstance(args);
+        }
       } catch (InstantiationException | IllegalAccessException e) {
         throw e;
       } catch (InvocationTargetException e) {
@@ -64,7 +69,7 @@ public class DynConstructors {
         return newInstanceChecked(args);
       } catch (Exception e) {
         Throwables.propagateIfInstanceOf(e, RuntimeException.class);
-        throw Throwables.propagate(e.getCause());
+        throw Throwables.propagate(e);
       }
     }
 
