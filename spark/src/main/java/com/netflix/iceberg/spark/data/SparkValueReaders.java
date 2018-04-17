@@ -17,6 +17,7 @@
 package com.netflix.iceberg.spark.data;
 
 import com.google.common.collect.Lists;
+import com.netflix.iceberg.avro.ValueReader;
 import org.apache.avro.Schema;
 import org.apache.avro.io.Decoder;
 import org.apache.avro.io.ResolvingDecoder;
@@ -36,34 +37,7 @@ import java.nio.ByteOrder;
 import java.util.List;
 import java.util.UUID;
 
-class ValueReaders {
-  private ValueReaders() {
-  }
-
-  static ValueReader<Object> nulls() {
-    return NullReader.INSTANCE;
-  }
-
-  static ValueReader<Boolean> booleans() {
-    return BooleanReader.INSTANCE;
-  }
-
-  static ValueReader<Integer> ints() {
-    return IntegerReader.INSTANCE;
-  }
-
-  static ValueReader<Long> longs() {
-    return LongReader.INSTANCE;
-  }
-
-  static ValueReader<Float> floats() {
-    return FloatReader.INSTANCE;
-  }
-
-  static ValueReader<Double> doubles() {
-    return DoubleReader.INSTANCE;
-  }
-
+public class SparkValueReaders {
   static ValueReader<UTF8String> strings() {
     return StringReader.INSTANCE;
   }
@@ -72,20 +46,8 @@ class ValueReaders {
     return UUIDReader.INSTANCE;
   }
 
-  static ValueReader<byte[]> fixed(int length) {
-    return new FixedReader(length);
-  }
-
-  static ValueReader<byte[]> bytes() {
-    return BytesReader.INSTANCE;
-  }
-
   static ValueReader<Decimal> decimal(ValueReader<byte[]> unscaledReader, int scale) {
     return new DecimalReader(unscaledReader, scale);
-  }
-
-  static ValueReader<Object> union(List<ValueReader<?>> readers) {
-    return new UnionReader(readers);
   }
 
   static ValueReader<ArrayData> array(ValueReader<?> elementReader) {
@@ -98,79 +60,6 @@ class ValueReaders {
 
   static ValueReader<InternalRow> struct(List<ValueReader<?>> readers) {
     return new StructReader(readers);
-  }
-
-  private static class NullReader implements ValueReader<Object> {
-    private static NullReader INSTANCE = new NullReader();
-
-    private NullReader() {
-    }
-
-    @Override
-    public Object read(Decoder decoder) throws IOException {
-      decoder.readNull();
-      return null;
-    }
-  }
-
-  private static class BooleanReader implements ValueReader<Boolean> {
-    private static BooleanReader INSTANCE = new BooleanReader();
-
-    private BooleanReader() {
-    }
-
-    @Override
-    public Boolean read(Decoder decoder) throws IOException {
-      return decoder.readBoolean();
-    }
-  }
-
-  private static class IntegerReader implements ValueReader<Integer> {
-    private static IntegerReader INSTANCE = new IntegerReader();
-
-    private IntegerReader() {
-    }
-
-    @Override
-    public Integer read(Decoder decoder) throws IOException {
-      return decoder.readInt();
-    }
-  }
-
-  private static class LongReader implements ValueReader<Long> {
-    private static LongReader INSTANCE = new LongReader();
-
-    private LongReader() {
-    }
-
-    @Override
-    public Long read(Decoder decoder) throws IOException {
-      return decoder.readLong();
-    }
-  }
-
-  private static class FloatReader implements ValueReader<Float> {
-    private static FloatReader INSTANCE = new FloatReader();
-
-    private FloatReader() {
-    }
-
-    @Override
-    public Float read(Decoder decoder) throws IOException {
-      return decoder.readFloat();
-    }
-  }
-
-  private static class DoubleReader implements ValueReader<Double> {
-    private static DoubleReader INSTANCE = new DoubleReader();
-
-    private DoubleReader() {
-    }
-
-    @Override
-    public Double read(Decoder decoder) throws IOException {
-      return decoder.readDouble();
-    }
   }
 
   private static class StringReader implements ValueReader<UTF8String> {
@@ -216,38 +105,6 @@ class ValueReaders {
     }
   }
 
-  private static class FixedReader implements ValueReader<byte[]> {
-    private final int length;
-
-    private FixedReader(int length) {
-      this.length = length;
-    }
-
-    @Override
-    public byte[] read(Decoder decoder) throws IOException {
-      byte[] bytes = new byte[length];
-      decoder.readFixed(bytes, 0, length);
-      return bytes;
-    }
-  }
-
-  private static class BytesReader implements ValueReader<byte[]> {
-    private static BytesReader INSTANCE = new BytesReader();
-
-    private BytesReader() {
-    }
-
-    @Override
-    public byte[] read(Decoder decoder) throws IOException {
-      // use the decoder's readBytes method because it may be a resolving decoder
-      return decoder.readBytes(null).array();
-//      int length = decoder.readInt();
-//      byte[] bytes = new byte[length];
-//      decoder.readFixed(bytes, 0, length);
-//      return bytes;
-    }
-  }
-
   private static class DecimalReader implements ValueReader<Decimal> {
     private final ValueReader<byte[]> bytesReader;
     private final int scale;
@@ -261,40 +118,6 @@ class ValueReaders {
     public Decimal read(Decoder decoder) throws IOException {
       byte[] bytes = bytesReader.read(decoder);
       return Decimal.apply(new BigDecimal(new BigInteger(bytes), scale));
-    }
-  }
-
-  private static class UnionReader implements ValueReader<Object> {
-    private final ValueReader[] readers;
-
-    private UnionReader(List<ValueReader<?>> readers) {
-      this.readers = new ValueReader[readers.size()];
-      for (int i = 0; i < this.readers.length; i += 1) {
-        this.readers[i] = readers.get(i);
-      }
-    }
-
-    @Override
-    public Object read(Decoder decoder) throws IOException {
-      int index = decoder.readIndex();
-      return readers[index].read(decoder);
-    }
-  }
-
-  private static class EnumReader implements ValueReader<UTF8String> {
-    private final UTF8String[] symbols;
-
-    private EnumReader(List<String> symbols) {
-      this.symbols = new UTF8String[symbols.size()];
-      for (int i = 0; i < this.symbols.length; i += 1) {
-        this.symbols[i] = UTF8String.fromString(symbols.get(i));
-      }
-    }
-
-    @Override
-    public UTF8String read(Decoder decoder) throws IOException {
-      int index = decoder.readEnum();
-      return symbols[index];
     }
   }
 

@@ -113,12 +113,33 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
 
   @Override
   public Type array(Schema array, Type elementType) {
-    Schema elementSchema = array.getElementType();
-    int id = getElementId(array);
-    if (AvroSchemaUtil.isOptionSchema(elementSchema)) {
-      return Types.ListType.ofOptional(id, elementType);
+    if (array.getLogicalType() instanceof LogicalMap) {
+      // map stored as an array
+      Schema keyValueSchema = array.getElementType();
+      Preconditions.checkArgument(AvroSchemaUtil.isKeyValueSchema(keyValueSchema),
+          "Invalid key-value pair schema: {}", keyValueSchema);
+
+      Types.StructType keyValueType = elementType.asStructType();
+      Types.NestedField keyField = keyValueType.field("key");
+      Types.NestedField valueField = keyValueType.field("value");
+
+      if (keyValueType.field("value").isOptional()) {
+        return Types.MapType.ofOptional(
+            keyField.fieldId(), valueField.fieldId(), keyField.type(), valueField.type());
+      } else {
+        return Types.MapType.ofRequired(
+            keyField.fieldId(), valueField.fieldId(), keyField.type(), valueField.type());
+      }
+
     } else {
-      return Types.ListType.ofRequired(id, elementType);
+      // normal array
+      Schema elementSchema = array.getElementType();
+      int id = getElementId(array);
+      if (AvroSchemaUtil.isOptionSchema(elementSchema)) {
+        return Types.ListType.ofOptional(id, elementType);
+      } else {
+        return Types.ListType.ofRequired(id, elementType);
+      }
     }
   }
 
@@ -129,9 +150,9 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
     int valueId = getValueId(map);
 
     if (AvroSchemaUtil.isOptionSchema(valueSchema)) {
-      return Types.MapType.ofOptional(keyId, valueId, valueType);
+      return Types.MapType.ofOptional(keyId, valueId, Types.StringType.get(), valueType);
     } else {
-      return Types.MapType.ofRequired(keyId, valueId, valueType);
+      return Types.MapType.ofRequired(keyId, valueId, Types.StringType.get(), valueType);
     }
   }
 

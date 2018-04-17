@@ -41,6 +41,12 @@ public class TestSchemaUpdate {
       )),
       required(4, "locations", Types.MapType.ofRequired(10, 11,
           Types.StructType.of(
+              required(20, "address", Types.StringType.get()),
+              required(21, "city", Types.StringType.get()),
+              required(22, "state", Types.StringType.get()),
+              required(23, "zip", Types.IntegerType.get())
+          ),
+          Types.StructType.of(
               required(12, "lat", Types.FloatType.get()),
               required(13, "long", Types.FloatType.get())
           ))),
@@ -53,13 +59,16 @@ public class TestSchemaUpdate {
           Types.DoubleType.get()
       )),
       optional(7, "properties", Types.MapType.ofOptional(18, 19,
+          Types.StringType.get(),
           Types.StringType.get()
       ))
   );
 
+  private static final int SCHEMA_LAST_COLUMN_ID = 23;
+
   @Test
   public void testNoChanges() {
-    Schema identical = new SchemaUpdate(SCHEMA, 19).apply();
+    Schema identical = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID).apply();
     Assert.assertEquals("Should not include any changes", SCHEMA.asStruct(), identical.asStruct());
   }
 
@@ -95,6 +104,12 @@ public class TestSchemaUpdate {
         )),
         required(4, "locations", Types.MapType.ofRequired(10, 11,
             Types.StructType.of(
+                required(20, "address", Types.StringType.get()),
+                required(21, "city", Types.StringType.get()),
+                required(22, "state", Types.StringType.get()),
+                required(23, "zip", Types.IntegerType.get())
+            ),
+            Types.StructType.of(
                 required(12, "lat", Types.DoubleType.get()),
                 required(13, "long", Types.DoubleType.get())
             ))),
@@ -107,11 +122,12 @@ public class TestSchemaUpdate {
             Types.DoubleType.get()
         )),
         optional(7, "properties", Types.MapType.ofOptional(18, 19,
+            Types.StringType.get(),
             Types.StringType.get()
         ))
     );
 
-    Schema updated = new SchemaUpdate(SCHEMA, 19)
+    Schema updated = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
         .updateColumn("id", Types.LongType.get())
         .updateColumn("locations.lat", Types.DoubleType.get())
         .updateColumn("locations.long", Types.DoubleType.get())
@@ -169,6 +185,12 @@ public class TestSchemaUpdate {
         )),
         required(4, "locations", Types.MapType.ofRequired(10, 11,
             Types.StructType.of(
+                required(20, "address", Types.StringType.get()),
+                required(21, "city", Types.StringType.get()),
+                required(22, "state", Types.StringType.get()),
+                required(23, "zip", Types.IntegerType.get())
+            ),
+            Types.StructType.of(
                 required(12, "latitude", Types.FloatType.get()),
                 required(13, "long", Types.FloatType.get())
             ))),
@@ -181,11 +203,12 @@ public class TestSchemaUpdate {
             Types.DoubleType.get()
         )),
         optional(7, "properties", Types.MapType.ofOptional(18, 19,
+            Types.StringType.get(),
             Types.StringType.get()
         ))
     );
 
-    Schema renamed = new SchemaUpdate(SCHEMA, 19)
+    Schema renamed = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
         .renameColumn("data", "json")
         .renameColumn("preferences", "options")
         .renameColumn("preferences.feature2", "newfeature") // inside a renamed column
@@ -208,27 +231,34 @@ public class TestSchemaUpdate {
         )),
         required(4, "locations", Types.MapType.ofRequired(10, 11,
             Types.StructType.of(
+                required(20, "address", Types.StringType.get()),
+                required(21, "city", Types.StringType.get()),
+                required(22, "state", Types.StringType.get()),
+                required(23, "zip", Types.IntegerType.get())
+            ),
+            Types.StructType.of(
                 required(12, "lat", Types.FloatType.get()),
                 required(13, "long", Types.FloatType.get()),
-                optional(21, "alt", Types.FloatType.get())
+                optional(25, "alt", Types.FloatType.get())
             ))),
         optional(5, "points", Types.ListType.ofOptional(14,
             Types.StructType.of(
                 required(15, "x", Types.LongType.get()),
                 required(16, "y", Types.LongType.get()),
-                optional(22, "z", Types.LongType.get()),
-                optional(23, "t.t", Types.LongType.get())
+                optional(26, "z", Types.LongType.get()),
+                optional(27, "t.t", Types.LongType.get())
             ))),
         required(6, "doubles", Types.ListType.ofRequired(17,
             Types.DoubleType.get()
         )),
         optional(7, "properties", Types.MapType.ofOptional(18, 19,
+            Types.StringType.get(),
             Types.StringType.get()
         )),
-        optional(20, "toplevel", Types.DecimalType.of(9, 2))
+        optional(24, "toplevel", Types.DecimalType.of(9, 2))
     );
 
-    Schema added = new SchemaUpdate(SCHEMA, 19)
+    Schema added = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
         .addColumn("toplevel", Types.DecimalType.of(9, 2))
         .addColumn("locations", "alt", Types.FloatType.get()) // map of structs
         .addColumn("points", "z", Types.LongType.get()) // list of structs
@@ -267,6 +297,12 @@ public class TestSchemaUpdate {
     Schema schema = new Schema(required(1, "id", Types.IntegerType.get()));
     Types.MapType map = Types.MapType.ofOptional(1, 2,
         Types.StructType.of(
+            required(20, "address", Types.StringType.get()),
+            required(21, "city", Types.StringType.get()),
+            required(22, "state", Types.StringType.get()),
+            required(23, "zip", Types.IntegerType.get())
+        ),
+        Types.StructType.of(
             required(9, "lat", Types.IntegerType.get()),
             optional(8, "long", Types.IntegerType.get())
         )
@@ -276,8 +312,14 @@ public class TestSchemaUpdate {
         required(1, "id", Types.IntegerType.get()),
         optional(2, "locations", Types.MapType.ofOptional(3, 4,
             Types.StructType.of(
-                required(5, "lat", Types.IntegerType.get()),
-                optional(6, "long", Types.IntegerType.get())
+                required(5, "address", Types.StringType.get()),
+                required(6, "city", Types.StringType.get()),
+                required(7, "state", Types.StringType.get()),
+                required(8, "zip", Types.IntegerType.get())
+            ),
+            Types.StructType.of(
+                required(9, "lat", Types.IntegerType.get()),
+                optional(10, "long", Types.IntegerType.get())
             )
         ))
     );
@@ -329,23 +371,29 @@ public class TestSchemaUpdate {
         )),
         required(4, "locations", Types.MapType.ofRequired(10, 11,
             Types.StructType.of(
+                required(20, "address", Types.StringType.get()),
+                required(21, "city", Types.StringType.get()),
+                required(22, "state", Types.StringType.get()),
+                required(23, "zip", Types.IntegerType.get())
+            ),
+            Types.StructType.of(
                 required(12, "latitude", Types.DoubleType.get()),
-                optional(21, "alt", Types.FloatType.get())
+                optional(25, "alt", Types.FloatType.get())
             ))),
         optional(5, "points", Types.ListType.ofOptional(14,
             Types.StructType.of(
                 required(15, "X", Types.LongType.get()),
                 required(16, "y.y", Types.LongType.get()),
-                optional(22, "z", Types.LongType.get()),
-                optional(23, "t.t", Types.LongType.get())
+                optional(26, "z", Types.LongType.get()),
+                optional(27, "t.t", Types.LongType.get())
             ))),
         required(6, "doubles", Types.ListType.ofRequired(17,
             Types.DoubleType.get()
         )),
-        optional(20, "toplevel", Types.DecimalType.of(9, 2))
+        optional(24, "toplevel", Types.DecimalType.of(9, 2))
     );
 
-    Schema updated = new SchemaUpdate(SCHEMA, 19)
+    Schema updated = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
         .addColumn("toplevel", Types.DecimalType.of(9, 2))
         .addColumn("locations", "alt", Types.FloatType.get()) // map of structs
         .addColumn("points", "z", Types.LongType.get()) // list of structs
@@ -370,7 +418,7 @@ public class TestSchemaUpdate {
     // preferences.booleans could be top-level or a field of preferences
     AssertHelpers.assertThrows("Should reject ambiguous column name",
         IllegalArgumentException.class, "ambiguous name: preferences.booleans", () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, 19);
+          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
           update.addColumn("preferences.booleans", Types.BooleanType.get());
         }
     );
@@ -380,13 +428,13 @@ public class TestSchemaUpdate {
   public void testAddAlreadyExists() {
     AssertHelpers.assertThrows("Should reject column name that already exists",
         IllegalArgumentException.class, "already exists: preferences.feature1", () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, 19);
+          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
           update.addColumn("preferences", "feature1", Types.BooleanType.get());
         }
     );
     AssertHelpers.assertThrows("Should reject column name that already exists",
         IllegalArgumentException.class, "already exists: preferences", () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, 19);
+          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
           update.addColumn("preferences", Types.BooleanType.get());
         }
     );
@@ -396,7 +444,7 @@ public class TestSchemaUpdate {
   public void testDeleteMissingColumn() {
     AssertHelpers.assertThrows("Should reject delete missing column",
         IllegalArgumentException.class, "missing column: col", () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, 19);
+          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
           update.deleteColumn("col");
         }
     );
@@ -406,13 +454,13 @@ public class TestSchemaUpdate {
   public void testAddDeleteConflict() {
     AssertHelpers.assertThrows("Should reject add then delete",
         IllegalArgumentException.class, "missing column: col", () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, 19);
+          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
           update.addColumn("col", Types.IntegerType.get()).deleteColumn("col");
         }
     );
     AssertHelpers.assertThrows("Should reject add then delete",
         IllegalArgumentException.class, "column that has additions: preferences", () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, 19);
+          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
           update.addColumn("preferences", "feature3", Types.IntegerType.get())
               .deleteColumn("preferences");
         }
@@ -423,7 +471,7 @@ public class TestSchemaUpdate {
   public void testRenameMissingColumn() {
     AssertHelpers.assertThrows("Should reject rename missing column",
         IllegalArgumentException.class, "missing column: col", () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, 19);
+          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
           update.renameColumn("col", "fail");
         }
     );
@@ -433,13 +481,13 @@ public class TestSchemaUpdate {
   public void testRenameDeleteConflict() {
     AssertHelpers.assertThrows("Should reject rename then delete",
         IllegalArgumentException.class, "column that has updates: id", () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, 19);
+          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
           update.renameColumn("id", "col").deleteColumn("id");
         }
     );
     AssertHelpers.assertThrows("Should reject rename then delete",
         IllegalArgumentException.class, "missing column: col", () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, 19);
+          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
           update.renameColumn("id", "col").deleteColumn("col");
         }
     );
@@ -449,7 +497,7 @@ public class TestSchemaUpdate {
   public void testDeleteRenameConflict() {
     AssertHelpers.assertThrows("Should reject delete then rename",
         IllegalArgumentException.class, "column that will be deleted: id", () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, 19);
+          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
           update.deleteColumn("id").renameColumn("id", "identifier");
         }
     );
@@ -459,7 +507,7 @@ public class TestSchemaUpdate {
   public void testUpdateMissingColumn() {
     AssertHelpers.assertThrows("Should reject rename missing column",
         IllegalArgumentException.class, "missing column: col", () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, 19);
+          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
           update.updateColumn("col", Types.DateType.get());
         }
     );
@@ -469,7 +517,7 @@ public class TestSchemaUpdate {
   public void testUpdateDeleteConflict() {
     AssertHelpers.assertThrows("Should reject update then delete",
         IllegalArgumentException.class, "column that has updates: id", () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, 19);
+          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
           update.updateColumn("id", Types.LongType.get()).deleteColumn("id");
         }
     );
@@ -479,8 +527,48 @@ public class TestSchemaUpdate {
   public void testDeleteUpdateConflict() {
     AssertHelpers.assertThrows("Should reject delete then update",
         IllegalArgumentException.class, "column that will be deleted: id", () -> {
-          UpdateSchema update = new SchemaUpdate(SCHEMA, 19);
+          UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
           update.deleteColumn("id").updateColumn("id", Types.LongType.get());
+        }
+    );
+  }
+
+  @Test
+  public void testDeleteMapKey() {
+    AssertHelpers.assertThrows("Should reject delete map key",
+        IllegalArgumentException.class, "Cannot delete map keys", () -> {
+          new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID).deleteColumn("locations.key").apply();
+        }
+    );
+  }
+
+  @Test
+  public void testAddFieldToMapKey() {
+    AssertHelpers.assertThrows("Should reject add sub-field to map key",
+        IllegalArgumentException.class, "Cannot add fields to map keys", () -> {
+          new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+              .addColumn("locations.key", "address_line_2", Types.StringType.get()).apply();
+        }
+    );
+  }
+
+  @Test
+  public void testAlterMapKey() {
+    AssertHelpers.assertThrows("Should reject add sub-field to map key",
+        IllegalArgumentException.class, "Cannot alter map keys", () -> {
+          new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+              .updateColumn("locations.zip", Types.LongType.get()).apply();
+        }
+    );
+  }
+
+  @Test
+  public void testUpdateMapKey() {
+    Schema schema = new Schema(required(1, "m", Types.MapType.ofOptional(2, 3,
+        Types.IntegerType.get(), Types.DoubleType.get())));
+    AssertHelpers.assertThrows("Should reject update map key",
+        IllegalArgumentException.class, "Cannot update map keys", () -> {
+          new SchemaUpdate(schema, 3).updateColumn("m.key", Types.LongType.get()).apply();
         }
     );
   }

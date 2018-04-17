@@ -14,61 +14,45 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.spark.data;
+package com.netflix.iceberg.avro;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
-import com.netflix.iceberg.avro.AvroSchemaUtil;
-import com.netflix.iceberg.avro.AvroSchemaVisitor;
-import com.netflix.iceberg.avro.ValueWriter;
-import com.netflix.iceberg.avro.ValueWriters;
-import com.netflix.iceberg.types.Type;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.Encoder;
-import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.types.DataType;
+
 import java.io.IOException;
 import java.util.List;
 
 import static com.netflix.iceberg.avro.AvroSchemaVisitor.visit;
-import static com.netflix.iceberg.spark.SparkSchemaUtil.convert;
 
-public class SparkAvroWriter implements DatumWriter<InternalRow> {
-  private final com.netflix.iceberg.Schema schema;
-  private ValueWriter<InternalRow> writer = null;
+class GenericAvroWriter<T> implements DatumWriter<T> {
+  private ValueWriter<T> writer = null;
 
-  public SparkAvroWriter(com.netflix.iceberg.Schema schema) {
-    this.schema = schema;
+  public GenericAvroWriter(Schema schema) {
+    setSchema(schema);
   }
 
   @Override
   @SuppressWarnings("unchecked")
   public void setSchema(Schema schema) {
-    this.writer = (ValueWriter<InternalRow>) visit(schema, new WriteBuilder(this.schema));
+    this.writer = (ValueWriter<T>) visit(schema, new WriteBuilder());
   }
 
   @Override
-  public void write(InternalRow datum, Encoder out) throws IOException {
+  public void write(T datum, Encoder out) throws IOException {
     writer.write(datum, out);
   }
 
   private static class WriteBuilder extends AvroSchemaVisitor<ValueWriter<?>> {
-    private final com.netflix.iceberg.Schema schema;
-
-    private WriteBuilder(com.netflix.iceberg.Schema schema) {
-      this.schema = schema;
+    private WriteBuilder() {
     }
 
     @Override
     public ValueWriter<?> record(Schema record, List<String> names, List<ValueWriter<?>> fields) {
-      List<DataType> types = Lists.newArrayList();
-      for (Schema.Field field : record.getFields()) {
-        types.add(convert(schema.findType(AvroSchemaUtil.getFieldId(field))));
-      }
-      return SparkValueWriters.struct(fields, types);
+      return ValueWriters.record(fields);
     }
 
     @Override
@@ -85,17 +69,18 @@ public class SparkAvroWriter implements DatumWriter<InternalRow> {
     }
 
     @Override
-    public ValueWriter<?> array(Schema array, ValueWriter<?> elementReader) {
-      Type elementType = schema.findType(AvroSchemaUtil.getElementId(array));
-      return SparkValueWriters.array(elementReader, convert(elementType));
+    public ValueWriter<?> array(Schema array, ValueWriter<?> elementWriter) {
+      if (array.getLogicalType() instanceof LogicalMap) {
+        ValueWriter<?>[] writers = ((ValueWriters.RecordWriter) elementWriter).writers;
+        return ValueWriters.arrayMap(writers[0], writers[1]);
+      }
+
+      return ValueWriters.array(elementWriter);
     }
 
     @Override
-    public ValueWriter<?> map(Schema map, ValueWriter<?> valueReader) {
-      Type keyType = schema.findType(AvroSchemaUtil.getKeyId(map));
-      Type valueType = schema.findType(AvroSchemaUtil.getValueId(map));
-      return SparkValueWriters.map(
-          ValueWriters.strings(), convert(keyType), valueReader, convert(valueType));
+    public ValueWriter<?> map(Schema map, ValueWriter<?> valueWriter) {
+      return ValueWriters.map(ValueWriters.strings(), valueWriter);
     }
 
     @Override

@@ -22,6 +22,7 @@ import com.netflix.iceberg.SchemaParser;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 import org.apache.avro.Conversions;
+import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.file.CodecFactory;
 import org.apache.avro.generic.GenericData;
@@ -62,6 +63,7 @@ public class Avro {
 
   private static GenericData DEFAULT_MODEL = new SpecificData();
   static {
+    LogicalTypes.register(LogicalMap.NAME, schema -> LogicalMap.get());
     DEFAULT_MODEL.addLogicalTypeConversion(new Conversions.DecimalConversion());
     DEFAULT_MODEL.addLogicalTypeConversion(new UUIDConversion());
   }
@@ -76,8 +78,7 @@ public class Avro {
     private String name = "table";
     private Map<String, String> config = Maps.newHashMap();
     private Map<String, String> metadata = Maps.newLinkedHashMap();
-    private Function<Schema, DatumWriter<?>> createWriterFunc =
-        schema -> DEFAULT_MODEL.createDatumWriter(schema);
+    private Function<Schema, DatumWriter<?>> createWriterFunc = GenericAvroWriter::new;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
@@ -143,8 +144,7 @@ public class Avro {
     private final Map<String, String> renames = Maps.newLinkedHashMap();
     private boolean reuseContainers = false;
     private com.netflix.iceberg.Schema schema = null;
-    private Function<Schema, DatumReader<?>> createReaderFunc =
-        schema -> (DatumReader<?>) DEFAULT_MODEL.createDatumReader(schema);
+    private Function<Schema, DatumReader<?>> createReaderFunc = GenericAvroReader::new;
     private Long start = null;
     private Long length = null;
 

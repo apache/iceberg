@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.spark.data;
+package com.netflix.iceberg.avro;
 
 import org.apache.avro.io.Decoder;
 import java.io.IOException;

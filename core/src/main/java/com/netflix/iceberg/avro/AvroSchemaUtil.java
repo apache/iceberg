@@ -17,10 +17,12 @@
 package com.netflix.iceberg.avro;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.TypeUtil;
 import com.netflix.iceberg.types.Types;
+import org.apache.avro.JsonProperties;
 import org.apache.avro.Schema;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +30,7 @@ import java.util.Set;
 
 import static org.apache.avro.Schema.Type.ARRAY;
 import static org.apache.avro.Schema.Type.MAP;
+import static org.apache.avro.Schema.Type.RECORD;
 import static org.apache.avro.Schema.Type.UNION;
 
 public class AvroSchemaUtil {
@@ -121,6 +124,25 @@ public class AvroSchemaUtil {
     } else {
       return options.get(0);
     }
+  }
+
+  static boolean isKeyValueSchema(Schema schema) {
+    return (schema.getType() == RECORD && schema.getFields().size() == 2);
+  }
+
+  static Schema createMap(int keyId, Schema keySchema,
+                          int valueId, Schema valueSchema) {
+    String keyValueName = "k" + keyId + "_v" + valueId;
+
+    Schema.Field keyField = new Schema.Field("key", keySchema, null, null);
+    keyField.addProp(FIELD_ID_PROP, keyId);
+
+    Schema.Field valueField = new Schema.Field("value", valueSchema, null,
+        isOptionSchema(valueSchema) ? JsonProperties.NULL_VALUE: null);
+    valueField.addProp(FIELD_ID_PROP, valueId);
+
+    return LogicalMap.get().addToSchema(Schema.createArray(Schema.createRecord(
+        keyValueName, null, null, false, ImmutableList.of(keyField, valueField))));
   }
 
   private static int getId(Schema schema, String propertyName) {

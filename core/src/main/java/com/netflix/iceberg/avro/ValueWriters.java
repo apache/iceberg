@@ -14,88 +14,96 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.spark.data;
+package com.netflix.iceberg.avro;
 
 import com.google.common.base.Preconditions;
 import com.netflix.iceberg.types.TypeUtil;
+import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.Encoder;
 import org.apache.avro.util.Utf8;
-import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.util.ArrayData;
-import org.apache.spark.sql.catalyst.util.MapData;
-import org.apache.spark.sql.types.DataType;
-import org.apache.spark.sql.types.Decimal;
-import org.apache.spark.unsafe.types.UTF8String;
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
- class ValueWriters {
+public class ValueWriters {
   private ValueWriters() {
   }
 
-  static ValueWriter<Void> nulls() {
+  public static ValueWriter<Void> nulls() {
     return NullWriter.INSTANCE;
   }
 
-  static ValueWriter<Boolean> booleans() {
+  public static ValueWriter<Boolean> booleans() {
     return BooleanWriter.INSTANCE;
   }
 
-  static ValueWriter<Integer> ints() {
+  public static ValueWriter<Integer> ints() {
     return IntegerWriter.INSTANCE;
   }
 
-  static ValueWriter<Long> longs() {
+  public static ValueWriter<Long> longs() {
     return LongWriter.INSTANCE;
   }
 
-  static ValueWriter<Float> floats() {
+  public static ValueWriter<Float> floats() {
     return FloatWriter.INSTANCE;
   }
 
-  static ValueWriter<Double> doubles() {
+  public static ValueWriter<Double> doubles() {
     return DoubleWriter.INSTANCE;
   }
 
-  static ValueWriter<UTF8String> strings() {
+  public static ValueWriter<String> strings() {
     return StringWriter.INSTANCE;
   }
 
-  static ValueWriter<UTF8String> uuids() {
+  public static ValueWriter<Utf8> utf8s() {
+    return Utf8Writer.INSTANCE;
+  }
+
+  public static ValueWriter<UUID> uuids() {
     return UUIDWriter.INSTANCE;
   }
 
-  static ValueWriter<byte[]> fixed(int length) {
+  public static ValueWriter<byte[]> fixed(int length) {
     return new FixedWriter(length);
   }
 
-  static ValueWriter<byte[]> bytes() {
+  public static ValueWriter<byte[]> bytes() {
     return BytesWriter.INSTANCE;
   }
 
-  static ValueWriter<Decimal> decimal(int precision, int scale) {
+  public static ValueWriter<BigDecimal> decimal(int precision, int scale) {
     return new DecimalWriter(precision, scale);
   }
 
-  static <T> ValueWriter<T> option(int nullIndex, ValueWriter<T> writer) {
+  public static <T> ValueWriter<T> option(int nullIndex, ValueWriter<T> writer) {
     return new OptionWriter<>(nullIndex, writer);
   }
 
-  static <T> ValueWriter<ArrayData> array(ValueWriter<T> elementWriter, DataType elementType) {
-    return new ArrayWriter<>(elementWriter, elementType);
+  public static <T> ValueWriter<Collection<T>> array(ValueWriter<T> elementWriter) {
+    return new CollectionWriter<>(elementWriter);
   }
 
-  static <K, V> ValueWriter<MapData> map(
-      ValueWriter<K> keyReader, DataType keyType, ValueWriter<V> valueReader, DataType valueType) {
-    return new MapWriter<>(keyReader, keyType, valueReader, valueType);
+  public static <K, V> ValueWriter<Map<K, V>> arrayMap(ValueWriter<K> keyWriter,
+                                                       ValueWriter<V> valueWriter) {
+    return new ArrayMapWriter<>(keyWriter, valueWriter);
   }
 
-  static ValueWriter<InternalRow> struct(List<ValueWriter<?>> writers, List<DataType> types) {
-    return new StructWriter(writers, types);
+  public static <K, V> ValueWriter<Map<K, V>> map(ValueWriter<K> keyWriter,
+                                                  ValueWriter<V> valueWriter) {
+    return new MapWriter<>(keyWriter, valueWriter);
+  }
+
+  public static ValueWriter<IndexedRecord> record(List<ValueWriter<?>> writers) {
+    return new RecordWriter(writers);
   }
 
   private static class NullWriter implements ValueWriter<Void> {
@@ -170,22 +178,34 @@ import java.util.UUID;
     }
   }
 
-  private static class StringWriter implements ValueWriter<UTF8String> {
+  private static class StringWriter implements ValueWriter<String> {
     private static StringWriter INSTANCE = new StringWriter();
 
     private StringWriter() {
     }
 
     @Override
-    public void write(UTF8String s, Encoder encoder) throws IOException {
+    public void write(String s, Encoder encoder) throws IOException {
       // use getBytes because it may return the backing byte array if available.
       // otherwise, it copies to a new byte array, which is still cheaper than Avro
       // calling toString, which incurs encoding costs
-      encoder.writeString(new Utf8(s.getBytes()));
+      encoder.writeString(new Utf8(s));
     }
   }
 
-  private static class UUIDWriter implements ValueWriter<UTF8String> {
+  private static class Utf8Writer implements ValueWriter<Utf8> {
+    private static Utf8Writer INSTANCE = new Utf8Writer();
+
+    private Utf8Writer() {
+    }
+
+    @Override
+    public void write(Utf8 s, Encoder encoder) throws IOException {
+      encoder.writeString(s);
+    }
+  }
+
+  private static class UUIDWriter implements ValueWriter<UUID> {
     private static final ThreadLocal<ByteBuffer> BUFFER = ThreadLocal.withInitial(() -> {
       ByteBuffer buffer = ByteBuffer.allocate(16);
       buffer.order(ByteOrder.BIG_ENDIAN);
@@ -198,9 +218,8 @@ import java.util.UUID;
     }
 
     @Override
-    public void write(UTF8String s, Encoder encoder) throws IOException {
+    public void write(UUID uuid, Encoder encoder) throws IOException {
       // TODO: direct conversion from string to byte buffer
-      UUID uuid = UUID.fromString(s.toString());
       ByteBuffer buffer = BUFFER.get();
       buffer.rewind();
       buffer.putLong(uuid.getMostSignificantBits());
@@ -236,7 +255,7 @@ import java.util.UUID;
     }
   }
 
-  private static class DecimalWriter implements ValueWriter<Decimal> {
+  private static class DecimalWriter implements ValueWriter<BigDecimal> {
     private final int precision;
     private final int scale;
     private final int length;
@@ -250,13 +269,11 @@ import java.util.UUID;
     }
 
     @Override
-    public void write(Decimal d, Encoder encoder) throws IOException {
-      Preconditions.checkArgument(d.scale() == scale,
-          "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, d);
-      Preconditions.checkArgument(d.precision() <= precision,
-          "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, d);
-
-      BigDecimal decimal = d.toJavaBigDecimal();
+    public void write(BigDecimal decimal, Encoder encoder) throws IOException {
+      Preconditions.checkArgument(decimal.scale() == scale,
+          "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, decimal);
+      Preconditions.checkArgument(decimal.precision() <= precision,
+          "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, decimal);
 
       byte fillByte = (byte) (decimal.signum() < 0 ? 0xFF : 0x00);
       byte[] unscaled = decimal.unscaledValue().toByteArray();
@@ -303,87 +320,96 @@ import java.util.UUID;
     }
   }
 
-  private static class ArrayWriter<T> implements ValueWriter<ArrayData> {
+  private static class CollectionWriter<T> implements ValueWriter<Collection<T>> {
     private final ValueWriter<T> elementWriter;
-    private final DataType elementType;
 
-    private ArrayWriter(ValueWriter<T> elementWriter, DataType elementType) {
+    private CollectionWriter(ValueWriter<T> elementWriter) {
       this.elementWriter = elementWriter;
-      this.elementType = elementType;
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    public void write(ArrayData array, Encoder encoder) throws IOException {
+    public void write(Collection<T> array, Encoder encoder) throws IOException {
       encoder.writeArrayStart();
-      int numElements = array.numElements();
+      int numElements = array.size();
       encoder.setItemCount(numElements);
+      Iterator<T> iter = array.iterator();
       for (int i = 0; i < numElements; i += 1) {
         encoder.startItem();
-        elementWriter.write((T) array.get(i, elementType), encoder);
+        elementWriter.write(iter.next(), encoder);
       }
       encoder.writeArrayEnd();
     }
   }
 
-  private static class MapWriter<K, V> implements ValueWriter<MapData> {
+  private static class ArrayMapWriter<K, V> implements ValueWriter<Map<K, V>> {
     private final ValueWriter<K> keyWriter;
     private final ValueWriter<V> valueWriter;
-    private final DataType keyType;
-    private final DataType valueType;
 
-    private MapWriter(ValueWriter<K> keyWriter, DataType keyType,
-                      ValueWriter<V> valueWriter, DataType valueType) {
+    private ArrayMapWriter(ValueWriter<K> keyWriter, ValueWriter<V> valueWriter) {
       this.keyWriter = keyWriter;
-      this.keyType = keyType;
       this.valueWriter = valueWriter;
-      this.valueType = valueType;
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    public void write(MapData map, Encoder encoder) throws IOException {
-      encoder.writeMapStart();
-      int numElements = map.numElements();
+    public void write(Map<K, V> map, Encoder encoder) throws IOException {
+      encoder.writeArrayStart();
+      int numElements = map.size();
       encoder.setItemCount(numElements);
-      ArrayData keyArray = map.keyArray();
-      ArrayData valueArray = map.valueArray();
+      Iterator<Map.Entry<K, V>> iter = map.entrySet().iterator();
       for (int i = 0; i < numElements; i += 1) {
         encoder.startItem();
-        keyWriter.write((K) keyArray.get(i, keyType), encoder);
-        valueWriter.write((V) valueArray.get(i, valueType), encoder);
+        Map.Entry<K, V> entry = iter.next();
+        keyWriter.write(entry.getKey(), encoder);
+        valueWriter.write(entry.getValue(), encoder);
+      }
+      encoder.writeArrayEnd();
+    }
+  }
+
+  private static class MapWriter<K, V> implements ValueWriter<Map<K, V>> {
+    private final ValueWriter<K> keyWriter;
+    private final ValueWriter<V> valueWriter;
+
+    private MapWriter(ValueWriter<K> keyWriter, ValueWriter<V> valueWriter) {
+      this.keyWriter = keyWriter;
+      this.valueWriter = valueWriter;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public void write(Map<K, V> map, Encoder encoder) throws IOException {
+      encoder.writeMapStart();
+      int numElements = map.size();
+      encoder.setItemCount(numElements);
+      Iterator<Map.Entry<K, V>> iter = map.entrySet().iterator();
+      for (int i = 0; i < numElements; i += 1) {
+        encoder.startItem();
+        Map.Entry<K, V> entry = iter.next();
+        keyWriter.write(entry.getKey(), encoder);
+        valueWriter.write(entry.getValue(), encoder);
       }
       encoder.writeMapEnd();
     }
   }
 
-  private static class StructWriter implements ValueWriter<InternalRow> {
-    private final List<ValueWriter<?>> writers;
-    private final DataType[] types;
+  static class RecordWriter implements ValueWriter<IndexedRecord> {
+    final ValueWriter<Object>[] writers;
 
-    private StructWriter(List<ValueWriter<?>> writers, List<DataType> types) {
-      this.writers = writers;
-      this.types = new DataType[writers.size()];
-      for (int i = 0; i < writers.size(); i += 1) {
-        this.types[i] = types.get(i);
+    @SuppressWarnings("unchecked")
+    private RecordWriter(List<ValueWriter<?>> writers) {
+      this.writers = (ValueWriter<Object>[]) Array.newInstance(ValueWriter.class, writers.size());
+      for (int i = 0; i < this.writers.length; i += 1) {
+        this.writers[i] = (ValueWriter<Object>) writers.get(i);
       }
     }
 
     @Override
-    public void write(InternalRow row, Encoder encoder) throws IOException {
-      for (int i = 0; i < types.length; i += 1) {
-        if (row.isNullAt(i)) {
-          writers.get(i).write(null, encoder);
-        } else {
-          write(row, i, writers.get(i), encoder);
-        }
+    public void write(IndexedRecord row, Encoder encoder) throws IOException {
+      for (int i = 0; i < writers.length; i += 1) {
+        writers[i].write(row.get(i), encoder);
       }
-    }
-
-    @SuppressWarnings("unchecked")
-    private <T> void write(InternalRow row, int pos, ValueWriter<T> writer, Encoder encoder)
-        throws IOException {
-      writer.write((T) row.get(pos, types[pos]), encoder);
     }
   }
 }

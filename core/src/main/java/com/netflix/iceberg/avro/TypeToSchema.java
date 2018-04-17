@@ -21,11 +21,13 @@ import com.google.common.collect.Maps;
 import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.TypeUtil;
 import com.netflix.iceberg.types.Types;
-import org.apache.avro.JsonProperties;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import java.util.List;
 import java.util.Map;
+
+import static com.netflix.iceberg.avro.AvroSchemaUtil.toOption;
+import static org.apache.avro.JsonProperties.NULL_VALUE;
 
 class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   private static final Schema BOOLEAN_SCHEMA = Schema.create(Schema.Type.BOOLEAN);
@@ -85,7 +87,7 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
       Types.NestedField structField = structFields.get(i);
       Schema.Field field = new Schema.Field(
           structField.name(), fieldSchemas.get(i), null,
-          structField.isOptional() ? JsonProperties.NULL_VALUE : null);
+          structField.isOptional() ? NULL_VALUE : null);
       field.addProp(AvroSchemaUtil.FIELD_ID_PROP, structField.fieldId());
       fields.add(field);
     }
@@ -100,7 +102,7 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   @Override
   public Schema field(Types.NestedField field, Schema fieldSchema) {
     if (field.isOptional()) {
-      return AvroSchemaUtil.toOption(fieldSchema);
+      return toOption(fieldSchema);
     } else {
       return fieldSchema;
     }
@@ -114,7 +116,7 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
     }
 
     if (list.isElementOptional()) {
-      listSchema = Schema.createArray(AvroSchemaUtil.toOption(elementSchema));
+      listSchema = Schema.createArray(toOption(elementSchema));
     } else {
       listSchema = Schema.createArray(elementSchema);
     }
@@ -127,20 +129,14 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   }
 
   @Override
-  public Schema map(Types.MapType map, Schema valueSchema) {
+  public Schema map(Types.MapType map, Schema keySchema, Schema valueSchema) {
     Schema mapSchema = results.get(map);
     if (mapSchema != null) {
       return mapSchema;
     }
 
-    if (map.isValueOptional()) {
-      mapSchema = Schema.createMap(AvroSchemaUtil.toOption(valueSchema));
-    } else {
-      mapSchema = Schema.createMap(valueSchema);
-    }
-
-    mapSchema.addProp(AvroSchemaUtil.KEY_ID_PROP, map.keyId());
-    mapSchema.addProp(AvroSchemaUtil.VALUE_ID_PROP, map.valueId());
+    mapSchema = AvroSchemaUtil.createMap(map.keyId(), keySchema,
+        map.valueId(), map.isValueOptional() ? toOption(valueSchema) : valueSchema);
 
     results.put(map, mapSchema);
 

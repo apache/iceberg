@@ -295,9 +295,21 @@ class SchemaUpdate implements UpdateSchema {
     }
 
     @Override
-    public Type map(Types.MapType map, Type result) {
-      // use field to apply updates
-      Type valueResult = field(map.fields().get(1), result);
+    public Type map(Types.MapType map, Type kResult, Type vResult) {
+      // if any updates are intended for the key, throw an exception
+      int keyId = map.fields().get(0).fieldId();
+      if (deletes.contains(keyId)) {
+        throw new IllegalArgumentException("Cannot delete map keys: " + map);
+      } else if (updates.containsKey(keyId)) {
+        throw new IllegalArgumentException("Cannot update map keys: " + map);
+      } else if (adds.containsKey(keyId)) {
+        throw new IllegalArgumentException("Cannot add fields to map keys: " + map);
+      } else if (!map.keyType().equals(kResult)) {
+        throw new IllegalArgumentException("Cannot alter map keys: " + map);
+      }
+
+      // use field to apply updates to the value
+      Type valueResult = field(map.fields().get(1), vResult);
       if (valueResult == null) {
         throw new IllegalArgumentException("Cannot delete value type from map: " + map);
       }
@@ -307,9 +319,9 @@ class SchemaUpdate implements UpdateSchema {
       }
 
       if (map.isValueOptional()) {
-        return Types.MapType.ofOptional(map.keyId(), map.valueId(), valueResult);
+        return Types.MapType.ofOptional(map.keyId(), map.valueId(), map.keyType(), valueResult);
       } else {
-        return Types.MapType.ofRequired(map.keyId(), map.valueId(), valueResult);
+        return Types.MapType.ofRequired(map.keyId(), map.valueId(), map.keyType(), valueResult);
       }
     }
 

@@ -206,8 +206,6 @@ public class SchemaParser {
   private static Types.MapType mapFromJson(JsonNode json) {
     int keyId = JsonUtil.getInt(KEY_ID, json);
     Type keyType = typeFromJson(json.get(KEY));
-    Preconditions.checkArgument(keyType == Types.StringType.get(),
-        "Cannot create map with non-string key: %s", keyType);
 
     int valueId = JsonUtil.getInt(VALUE_ID, json);
     Type valueType = typeFromJson(json.get(VALUE));
@@ -215,9 +213,9 @@ public class SchemaParser {
     boolean isRequired = JsonUtil.getBool(VALUE_REQUIRED, json);
 
     if (isRequired) {
-      return Types.MapType.ofRequired(keyId, valueId, valueType);
+      return Types.MapType.ofRequired(keyId, valueId, keyType, valueType);
     } else {
-      return Types.MapType.ofOptional(keyId, valueId, valueType);
+      return Types.MapType.ofOptional(keyId, valueId, keyType, valueType);
     }
   }
 

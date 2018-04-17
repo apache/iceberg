@@ -103,15 +103,36 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
 
   @Override
   public Schema array(Schema array, Schema element) {
-    int elementId = getElementId(array);
-    if (selectedIds.contains(elementId)) {
-      return array;
-    } else if (element != null) {
-      if (element != array.getElementType()) {
-        // the element must be a projection
-        return Schema.createArray(element);
+    if (array.getLogicalType() instanceof LogicalMap) {
+      Schema keyValue = array.getElementType();
+      int keyId = getFieldId(keyValue.getField("key"));
+      int valueId = getFieldId(keyValue.getField("value"));
+
+      // if either key or value is selected, the whole map must be projected
+      if (selectedIds.contains(keyId) || selectedIds.contains(valueId)) {
+        return array;
+      } else if (element != null) {
+        if (keyValue.getField("value").schema() != element.getField("value").schema()) {
+          // the value must be a projection
+          return AvroSchemaUtil.createMap(
+              keyId, keyValue.getField("key").schema(),
+              valueId, element.getField("value").schema());
+        } else {
+          return array;
+        }
       }
-      return array;
+
+    } else {
+      int elementId = getElementId(array);
+      if (selectedIds.contains(elementId)) {
+        return array;
+      } else if (element != null) {
+        if (element != array.getElementType()) {
+          // the element must be a projection
+          return Schema.createArray(element);
+        }
+        return array;
+      }
     }
 
     return null;
