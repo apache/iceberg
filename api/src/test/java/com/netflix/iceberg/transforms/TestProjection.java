@@ -21,6 +21,7 @@ import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.expressions.BoundPredicate;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Expressions;
+import com.netflix.iceberg.expressions.Or;
 import com.netflix.iceberg.expressions.Projections;
 import com.netflix.iceberg.expressions.UnboundPredicate;
 import com.netflix.iceberg.PartitionSpec;
@@ -31,10 +32,17 @@ import java.util.List;
 
 import static com.netflix.iceberg.TestHelpers.assertAndUnwrap;
 import static com.netflix.iceberg.TestHelpers.assertAndUnwrapUnbound;
+import static com.netflix.iceberg.expressions.Expressions.and;
+import static com.netflix.iceberg.expressions.Expressions.equal;
+import static com.netflix.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static com.netflix.iceberg.expressions.Expressions.lessThanOrEqual;
+import static com.netflix.iceberg.expressions.Expressions.or;
+import static com.netflix.iceberg.types.Types.NestedField.optional;
+import static com.netflix.iceberg.types.Types.NestedField.required;
 
 public class TestProjection {
   private static final Schema SCHEMA = new Schema(
-      Types.NestedField.optional(16, "id", Types.LongType.get())
+      optional(16, "id", Types.LongType.get())
   );
 
   @Test
@@ -111,5 +119,47 @@ public class TestProjection {
         Assert.assertNull("Literal should be null", projected.literal());
       }
     }
+  }
+
+  @Test
+  public void testBadSparkPartitionFilter() {
+    // this tests a case that results in a full table scan in Spark with Hive tables. because the
+    // hour field is not a partition, mixing it with partition columns in the filter expression
+    // prevents the day/hour boundaries from being pushed to the metastore. this is an easy mistake
+    // when tables are normally partitioned by both hour and dateint. the the filter is:
+    //
+    // WHERE dateint = 20180416
+    //   OR (dateint = 20180415 and hour >= 20)
+    //   OR (dateint = 20180417 and hour <= 4)
+
+    Schema schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        optional(2, "data", Types.StringType.get()),
+        required(3, "hour", Types.IntegerType.get()),
+        required(4, "dateint", Types.IntegerType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .identity("dateint")
+        .build();
+
+    Expression filter = or(equal("dateint", 20180416), or(
+        and(equal("dateint", 20180415), greaterThanOrEqual("hour", 20)),
+        and(equal("dateint", 20180417), lessThanOrEqual("hour", 4))));
+
+    Expression projection = Projections.inclusive(spec).project(filter);
+
+    Assert.assertTrue(projection instanceof Or);
+    Or or1 = (Or) projection;
+    UnboundPredicate<?> dateint1 = assertAndUnwrapUnbound(or1.getLeft());
+    Assert.assertEquals("Should be a dateint predicate", "dateint", dateint1.ref().name());
+    Assert.assertEquals("Should be dateint=20180416", 20180416, dateint1.literal().value());
+    Assert.assertTrue(or1.getRight() instanceof Or);
+    Or or2 = (Or) or1.getRight();
+    UnboundPredicate<?> dateint2 = assertAndUnwrapUnbound(or2.getLeft());
+    Assert.assertEquals("Should be a dateint predicate", "dateint", dateint2.ref().name());
+    Assert.assertEquals("Should be dateint=20180415", 20180415, dateint2.literal().value());
+    UnboundPredicate<?> dateint3 = assertAndUnwrapUnbound(or2.getRight());
+    Assert.assertEquals("Should be a dateint predicate", "dateint", dateint3.ref().name());
+    Assert.assertEquals("Should be dateint=20180417", 20180417, dateint3.literal().value());
   }
 }
