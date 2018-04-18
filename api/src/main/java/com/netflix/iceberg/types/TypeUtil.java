@@ -26,6 +26,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class TypeUtil {
@@ -120,6 +121,10 @@ public class TypeUtil {
   public static Schema reassignIds(Schema schema, Schema idSourceSchema) {
     Types.StructType struct = visit(schema, new ReassignIds(idSourceSchema)).asStructType();
     return new Schema(struct.fields());
+  }
+
+  public static Type find(Schema schema, Predicate<Type> predicate) {
+    return visit(schema, new FindTypeVisitor(predicate));
   }
 
   public static boolean isPromotionAllowed(Type from, Type.PrimitiveType to) {
