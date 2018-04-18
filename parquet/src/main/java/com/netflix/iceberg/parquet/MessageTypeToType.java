@@ -110,8 +110,6 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     org.apache.parquet.schema.Type key = keyValue.getType(0);
     org.apache.parquet.schema.Type value = keyValue.getType(1);
 
-    Preconditions.checkArgument(Types.StringType.get() == keyType,
-        "Non-string map keys are not supported: " + key);
     Preconditions.checkArgument(
         !value.isRepetition(Repetition.REPEATED),
         "Values cannot have repetition REPEATED: {}", value);

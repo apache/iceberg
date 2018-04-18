@@ -17,8 +17,6 @@
 package com.netflix.iceberg.spark.data;
 
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.spark.SparkSchemaUtil;
-import com.netflix.iceberg.types.Comparators;
 import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Types;
 import org.apache.avro.generic.GenericData;
@@ -26,6 +24,7 @@ import org.apache.avro.generic.GenericData.Record;
 import org.apache.orc.storage.serde2.io.DateWritable;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.GenericRow;
 import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
 import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
 import org.apache.spark.sql.catalyst.util.ArrayData;
@@ -49,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static com.netflix.iceberg.spark.SparkSchemaUtil.convert;
 import static scala.collection.JavaConverters.mapAsJavaMapConverter;
 import static scala.collection.JavaConverters.seqAsJavaListConverter;
 
@@ -78,22 +78,23 @@ public class TestHelpers {
   }
 
   private static void assertEqualsSafe(Types.MapType map,
-                                       Map<String, ?> expected, Map<String, ?> actual) {
+                                       Map<?, ?> expected, Map<?, ?> actual) {
     Type keyType = map.keyType();
     Type valueType = map.valueType();
 
-    List<String> expectedKeys = Lists.newArrayList(expected.keySet());
-    List<String> actualKeys = Lists.newArrayList(actual.keySet());
+    for (Object expectedKey : expected.keySet()) {
+      Object matchingKey = null;
+      for (Object actualKey : actual.keySet()) {
+        try {
+          assertEqualsSafe(keyType, expectedKey, actualKey);
+          matchingKey = actualKey;
+        } catch (AssertionError e) {
+          // failed
+        }
+      }
 
-    expectedKeys.sort(Comparators.charSequences());
-    actualKeys.sort(Comparators.charSequences());
-
-    for (int i = 0; i < expectedKeys.size(); i += 1) {
-      String expectedKey = expectedKeys.get(i);
-      String actualKey = actualKeys.get(i);
-
-      assertEqualsSafe(keyType, expectedKey, actualKey);
-      assertEqualsSafe(valueType, expected.get(expectedKey), actual.get(actualKey));
+      Assert.assertNotNull("Should have a matching key", matchingKey);
+      assertEqualsSafe(valueType, expected.get(expectedKey), actual.get(matchingKey));
     }
   }
 
@@ -186,7 +187,7 @@ public class TestHelpers {
       Type fieldType = fields.get(i).type();
 
       Object expectedValue = rec.get(i);
-      Object actualValue = row.get(i, SparkSchemaUtil.convert(fieldType));
+      Object actualValue = row.get(i, convert(fieldType));
 
       assertEqualsUnsafe(fieldType, expectedValue, actualValue);
     }
@@ -197,7 +198,7 @@ public class TestHelpers {
     List<?> expectedElements = Lists.newArrayList(expected);
     for (int i = 0; i < expectedElements.size(); i += 1) {
       Object expectedValue = expectedElements.get(i);
-      Object actualValue = actual.get(i, SparkSchemaUtil.convert(elementType));
+      Object actualValue = actual.get(i, convert(elementType));
 
       assertEqualsUnsafe(elementType, expectedValue, actualValue);
     }
@@ -213,8 +214,8 @@ public class TestHelpers {
 
     for (int i = 0; i < expectedElements.size(); i += 1) {
       Map.Entry<?, ?> expectedPair = expectedElements.get(i);
-      Object actualKey = actualKeys.get(i, SparkSchemaUtil.convert(keyType));
-      Object actualValue = actualValues.get(i, SparkSchemaUtil.convert(keyType));
+      Object actualKey = actualKeys.get(i, convert(keyType));
+      Object actualValue = actualValues.get(i, convert(keyType));
 
       assertEqualsUnsafe(keyType, expectedPair.getKey(), actualKey);
       assertEqualsUnsafe(valueType, expectedPair.getValue(), actualValue);
@@ -271,12 +272,12 @@ public class TestHelpers {
         break;
       case LIST:
         Assert.assertTrue("Should expect a Collection", expected instanceof Collection);
-        Assert.assertTrue("Should be an InternalRow", actual instanceof ArrayData);
+        Assert.assertTrue("Should be an ArrayData", actual instanceof ArrayData);
         assertEqualsUnsafe(type.asNestedType().asListType(), (Collection) expected, (ArrayData) actual);
         break;
       case MAP:
-        Assert.assertTrue("Should expect a Collection", expected instanceof Map);
-        Assert.assertTrue("Should be an InternalRow", actual instanceof ArrayBasedMapData);
+        Assert.assertTrue("Should expect a Map", expected instanceof Map);
+        Assert.assertTrue("Should be an ArrayBasedMapData", actual instanceof ArrayBasedMapData);
         assertEqualsUnsafe(type.asNestedType().asMapType(), (Map) expected, (ArrayBasedMapData) actual);
         break;
       case TIME:
@@ -312,14 +313,14 @@ public class TestHelpers {
           case DATE:
           case TIMESTAMP:
             Assert.assertEquals(prefix + "." + fieldName + " - " + childType,
-                getPrimitiveValue(expected, c, childType),
+                getValue(expected, c, childType),
                 getPrimitiveValue(actual, c, childType));
             break;
           case UUID:
           case FIXED:
           case BINARY:
             assertEqualBytes(prefix + "." + fieldName,
-                (byte[]) getPrimitiveValue(expected, c, childType),
+                (byte[]) getValue(expected, c, childType),
                 (byte[]) actual.get(c));
             break;
           case STRUCT: {
@@ -363,14 +364,14 @@ public class TestHelpers {
           case DATE:
           case TIMESTAMP:
             Assert.assertEquals(prefix + ".elem " + e + " - " + childType,
-                getPrimitiveValue(expected, e, childType),
+                getValue(expected, e, childType),
                 actual.get(e));
             break;
           case UUID:
           case FIXED:
           case BINARY:
             assertEqualBytes(prefix + ".elem " + e,
-                (byte[]) getPrimitiveValue(expected, e, childType),
+                (byte[]) getValue(expected, e, childType),
                 (byte[]) actual.get(e));
             break;
           case STRUCT: {
@@ -406,7 +407,7 @@ public class TestHelpers {
       ArrayData expectedValueArray = expected.valueArray();
       Assert.assertEquals(prefix + " length", expected.numElements(), actual.size());
       for (int e = 0; e < expected.numElements(); ++e) {
-        Object expectedKey = getPrimitiveValue(expectedKeyArray, e, keyType);
+        Object expectedKey = getValue(expectedKeyArray, e, keyType);
         Object actualValue = actual.get(expectedKey);
         if (actualValue == null) {
           Assert.assertEquals(prefix + ".key=" + expectedKey + " has null", true,
@@ -423,14 +424,14 @@ public class TestHelpers {
             case DATE:
             case TIMESTAMP:
               Assert.assertEquals(prefix + ".key=" + expectedKey + " - " + valueType,
-                  getPrimitiveValue(expectedValueArray, e, valueType),
+                  getValue(expectedValueArray, e, valueType),
                   actual.get(expectedKey));
               break;
             case UUID:
             case FIXED:
             case BINARY:
               assertEqualBytes(prefix + ".key=" + expectedKey,
-                  (byte[]) getPrimitiveValue(expectedValueArray, e, valueType),
+                  (byte[]) getValue(expectedValueArray, e, valueType),
                   (byte[]) actual.get(expectedKey));
               break;
             case STRUCT: {
@@ -459,8 +460,8 @@ public class TestHelpers {
     }
   }
 
-  private static Object getPrimitiveValue(SpecializedGetters container, int ord,
-                                          Type type) {
+  private static Object getValue(SpecializedGetters container, int ord,
+                                 Type type) {
     if (container.isNullAt(ord)) {
       return null;
     }
@@ -489,6 +490,18 @@ public class TestHelpers {
         Types.DecimalType dt = (Types.DecimalType) type;
         return container.getDecimal(ord, dt.precision(), dt.scale()).toJavaBigDecimal();
       }
+      case STRUCT:
+        Types.StructType struct = type.asStructType();
+        InternalRow internalRow = container.getStruct(ord, struct.fields().size());
+        Object[] data = new Object[struct.fields().size()];
+        for (int i = 0; i < data.length; i += 1) {
+          if (internalRow.isNullAt(i)) {
+            data[i] = null;
+          } else {
+            data[i] = getValue(internalRow, i, struct.fields().get(i).type());
+          }
+        }
+        return new GenericRow(data);
       default:
         throw new IllegalArgumentException("Unhandled type " + type);
     }

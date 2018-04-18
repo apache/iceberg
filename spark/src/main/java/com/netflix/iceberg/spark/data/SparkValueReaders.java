@@ -54,6 +54,11 @@ public class SparkValueReaders {
     return new ArrayReader(elementReader);
   }
 
+  static ValueReader<ArrayBasedMapData> arrayMap(ValueReader<?> keyReader,
+                                                 ValueReader<?> valueReader) {
+    return new ArrayMapReader(keyReader, valueReader);
+  }
+
   static ValueReader<ArrayBasedMapData> map(ValueReader<?> keyReader, ValueReader<?> valueReader) {
     return new MapReader(keyReader, valueReader);
   }
@@ -152,6 +157,40 @@ public class SparkValueReaders {
     }
   }
 
+  private static class ArrayMapReader implements ValueReader<ArrayBasedMapData> {
+    private final ValueReader<?> keyReader;
+    private final ValueReader<?> valueReader;
+
+    private final List<Object> reusedKeyList = Lists.newArrayList();
+    private final List<Object> reusedValueList = Lists.newArrayList();
+
+    private ArrayMapReader(ValueReader<?> keyReader, ValueReader<?> valueReader) {
+      this.keyReader = keyReader;
+      this.valueReader = valueReader;
+    }
+
+    @Override
+    public ArrayBasedMapData read(Decoder decoder, Object reuse) throws IOException {
+      reusedKeyList.clear();
+      reusedValueList.clear();
+
+      long chunkLength = decoder.readArrayStart();
+
+      while (chunkLength > 0) {
+        for (int i = 0; i < chunkLength; i += 1) {
+          reusedKeyList.add(keyReader.read(decoder, null));
+          reusedValueList.add(valueReader.read(decoder, null));
+        }
+
+        chunkLength = decoder.arrayNext();
+      }
+
+      return new ArrayBasedMapData(
+          new GenericArrayData(reusedKeyList.toArray()),
+          new GenericArrayData(reusedValueList.toArray()));
+    }
+  }
+
   private static class MapReader implements ValueReader<ArrayBasedMapData> {
     private final ValueReader<?> keyReader;
     private final ValueReader<?> valueReader;
@@ -186,8 +225,8 @@ public class SparkValueReaders {
     }
   }
 
-  private static class StructReader implements ValueReader<InternalRow> {
-    private final ValueReader<?>[] readers;
+  static class StructReader implements ValueReader<InternalRow> {
+    final ValueReader<?>[] readers;
 
     private StructReader(List<ValueReader<?>> readers) {
       this.readers = new ValueReader[readers.size()];

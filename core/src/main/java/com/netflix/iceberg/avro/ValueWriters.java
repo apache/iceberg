@@ -198,7 +198,7 @@ public class ValueWriters {
       // use getBytes because it may return the backing byte array if available.
       // otherwise, it copies to a new byte array, which is still cheaper than Avro
       // calling toString, which incurs encoding costs
-      if (s == null || s instanceof Utf8) {
+      if (s instanceof Utf8) {
         encoder.writeString((Utf8) s);
       } else if (s instanceof String) {
         encoder.writeString(new Utf8((String) s));

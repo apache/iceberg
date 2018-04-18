@@ -266,7 +266,7 @@ public class TestSparkReadProjection extends TestReadProjection {
       }
 
       @Override
-      public Void map(Types.MapType map, Void valueResult) {
+      public Void map(Types.MapType map, Void keyResult, Void valueResult) {
         ids.add(map.keyId());
         ids.add(map.valueId());
         return null;
@@ -319,11 +319,13 @@ public class TestSparkReadProjection extends TestReadProjection {
       }
 
       @Override
-      public Type map(Types.MapType map, Type valueResult) {
+      public Type map(Types.MapType map, Type keyResult, Type valueResult) {
         if (map.isValueOptional()) {
-          return Types.MapType.ofOptional(map(map.keyId()), map(map.valueId()), valueResult);
+          return Types.MapType.ofOptional(
+              map(map.keyId()), map(map.valueId()), keyResult, valueResult);
         } else {
-          return Types.MapType.ofRequired(map(map.keyId()), map(map.valueId()), valueResult);
+          return Types.MapType.ofRequired(
+              map(map.keyId()), map(map.valueId()), keyResult, valueResult);
         }
       }
 

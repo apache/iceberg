@@ -33,6 +33,7 @@ import org.apache.spark.sql.types.DataType;
 import java.io.IOException;
 import java.util.List;
 
+import static com.netflix.iceberg.avro.AvroSchemaUtil.getFieldId;
 import static com.netflix.iceberg.avro.AvroSchemaVisitor.visit;
 import static com.netflix.iceberg.spark.SparkSchemaUtil.convert;
 
@@ -66,7 +67,7 @@ public class SparkAvroWriter implements DatumWriter<InternalRow> {
     public ValueWriter<?> record(Schema record, List<String> names, List<ValueWriter<?>> fields) {
       List<DataType> types = Lists.newArrayList();
       for (Schema.Field field : record.getFields()) {
-        types.add(convert(schema.findType(AvroSchemaUtil.getFieldId(field))));
+        types.add(convert(schema.findType(getFieldId(field))));
       }
       return SparkValueWriters.struct(fields, types);
     }
@@ -85,9 +86,18 @@ public class SparkAvroWriter implements DatumWriter<InternalRow> {
     }
 
     @Override
-    public ValueWriter<?> array(Schema array, ValueWriter<?> elementReader) {
+    public ValueWriter<?> array(Schema array, ValueWriter<?> elementWriter) {
+      LogicalType logical = array.getLogicalType();
+      if (logical != null && "map".equals(logical.getName())) {
+        Type keyType = schema.findType(getFieldId(array.getElementType().getField("key")));
+        Type valueType = schema.findType(getFieldId(array.getElementType().getField("value")));
+        ValueWriter<?>[] writers = ((SparkValueWriters.StructWriter) elementWriter).writers;
+        return SparkValueWriters.arrayMap(
+            writers[0], convert(keyType), writers[1], convert(valueType));
+      }
+
       Type elementType = schema.findType(AvroSchemaUtil.getElementId(array));
-      return SparkValueWriters.array(elementReader, convert(elementType));
+      return SparkValueWriters.array(elementWriter, convert(elementType));
     }
 
     @Override
@@ -95,7 +105,7 @@ public class SparkAvroWriter implements DatumWriter<InternalRow> {
       Type keyType = schema.findType(AvroSchemaUtil.getKeyId(map));
       Type valueType = schema.findType(AvroSchemaUtil.getValueId(map));
       return SparkValueWriters.map(
-          ValueWriters.strings(), convert(keyType), valueReader, convert(valueType));
+          SparkValueWriters.strings(), convert(keyType), valueReader, convert(valueType));
     }
 
     @Override
@@ -113,7 +123,7 @@ public class SparkAvroWriter implements DatumWriter<InternalRow> {
 
           case "decimal":
             LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
-            return ValueWriters.decimal(decimal.getPrecision(), decimal.getScale());
+            return SparkValueWriters.decimal(decimal.getPrecision(), decimal.getScale());
 
           case "uuid":
             return ValueWriters.uuids();
@@ -137,7 +147,7 @@ public class SparkAvroWriter implements DatumWriter<InternalRow> {
         case DOUBLE:
           return ValueWriters.doubles();
         case STRING:
-          return ValueWriters.strings();
+          return SparkValueWriters.strings();
         case FIXED:
           return ValueWriters.fixed(primitive.getFixedSize());
         case BYTES:

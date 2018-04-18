@@ -183,7 +183,7 @@ public class PruneColumnsWithReordering extends TypeUtil.CustomOrderSchemaVisito
   }
 
   @Override
-  public Type map(Types.MapType map, Supplier<Type> valueResult) {
+  public Type map(Types.MapType map, Supplier<Type> keyResult, Supplier<Type> valueResult) {
     Preconditions.checkArgument(current instanceof MapType, "Not a map: %s", current);
     MapType m = (MapType) current;
 
@@ -200,9 +200,9 @@ public class PruneColumnsWithReordering extends TypeUtil.CustomOrderSchemaVisito
       }
 
       if (map.isValueOptional()) {
-        return Types.MapType.ofOptional(map.keyId(), map.valueId(), valueType);
+        return Types.MapType.ofOptional(map.keyId(), map.valueId(), map.keyType(), valueType);
       } else {
-        return Types.MapType.ofRequired(map.keyId(), map.valueId(), valueType);
+        return Types.MapType.ofRequired(map.keyId(), map.valueId(), map.keyType(), valueType);
       }
     } finally {
       this.current = m;

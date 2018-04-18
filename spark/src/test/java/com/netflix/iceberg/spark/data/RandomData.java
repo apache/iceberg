@@ -18,6 +18,7 @@ package com.netflix.iceberg.spark.data;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.avro.AvroSchemaUtil;
 import com.netflix.iceberg.types.Type;
@@ -39,6 +40,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -124,12 +126,20 @@ public class RandomData {
     }
 
     @Override
-    public Object map(Types.MapType map, Supplier<Object> valueResult) {
+    public Object map(Types.MapType map, Supplier<Object> keyResult, Supplier<Object> valueResult) {
       int numEntries = random.nextInt(20);
 
-      Map<String, Object> result = Maps.newLinkedHashMap();
+      Map<Object, Object> result = Maps.newLinkedHashMap();
+      Set<Object> keySet = Sets.newHashSet();
       for (int i = 0; i < numEntries; i += 1) {
-        String key = randomString(random).toString() + i; // add i to ensure no collisions
+        Object key = keyResult.get();
+        // ensure no collisions
+        while (keySet.contains(key)) {
+          key = keyResult.get();
+        }
+
+        keySet.add(key);
+
         // return null 5% of the time when the value is optional
         if (map.isValueOptional() && random.nextInt(20) == 1) {
           result.put(key, null);
@@ -214,17 +224,23 @@ public class RandomData {
     }
 
     @Override
-    public Object map(Types.MapType map, Supplier<Object> valueResult) {
+    public Object map(Types.MapType map, Supplier<Object> keyResult, Supplier<Object> valueResult) {
       int numEntries = random.nextInt(20);
 
       GenericArrayData keys = new GenericArrayData(new Object[numEntries]);
       GenericArrayData values = new GenericArrayData(new Object[numEntries]);
       ArrayBasedMapData result = new ArrayBasedMapData(keys, values);
 
+      Set<Object> keySet = Sets.newHashSet();
       for (int i = 0; i < numEntries; i += 1) {
-        UTF8String key = UTF8String.concat(
-            randomString(random),
-            UTF8String.fromString(CHARS.substring(i, i + 1))); // ensure no collisions
+        Object key = keyResult.get();
+        // ensure no collisions
+        while (keySet.contains(key)) {
+          key = keyResult.get();
+        }
+
+        keySet.add(key);
+
         keys.update(i, key);
         // return null 5% of the time when the value is optional
         if (map.isValueOptional() && random.nextInt(20) == 1) {

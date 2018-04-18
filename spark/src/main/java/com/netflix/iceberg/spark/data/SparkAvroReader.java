@@ -58,7 +58,7 @@ public class SparkAvroReader implements DatumReader<InternalRow> {
   @Override
   public InternalRow read(InternalRow reuse, Decoder decoder) throws IOException {
     ResolvingDecoder resolver = resolve(decoder);
-    InternalRow row = reader.read(resolver);
+    InternalRow row = reader.read(resolver, reuse);
     resolver.drain();
     return row;
   }
@@ -103,6 +103,12 @@ public class SparkAvroReader implements DatumReader<InternalRow> {
 
     @Override
     public ValueReader<?> array(Schema array, ValueReader<?> elementReader) {
+      LogicalType logical = array.getLogicalType();
+      if (logical != null && "map".equals(logical.getName())) {
+        ValueReader<?>[] keyValueReaders = ((SparkValueReaders.StructReader) elementReader).readers;
+        return SparkValueReaders.arrayMap(keyValueReaders[0], keyValueReaders[1]);
+      }
+
       return SparkValueReaders.array(elementReader);
     }
 
@@ -122,7 +128,8 @@ public class SparkAvroReader implements DatumReader<InternalRow> {
 
           case "timestamp-millis":
             // adjust to microseconds
-            return (ValueReader<Long>) decoder -> ValueReaders.longs().read(decoder) * 1000L;
+            ValueReader<Long> longs = ValueReaders.longs();
+            return (ValueReader<Long>) (decoder, ignored) -> longs.read(decoder, null) * 1000L;
 
           case "timestamp-micros":
             // Spark uses the same representation

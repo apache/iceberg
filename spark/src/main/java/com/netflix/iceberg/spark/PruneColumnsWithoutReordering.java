@@ -159,14 +159,12 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
   }
 
   @Override
-  public Type map(Types.MapType map, Supplier<Type> valueResult) {
+  public Type map(Types.MapType map, Supplier<Type> keyResult, Supplier<Type> valueResult) {
     Preconditions.checkArgument(current instanceof MapType, "Not a map: %s", current);
     MapType m = (MapType) current;
 
     Preconditions.checkArgument(m.valueContainsNull() || !map.isValueOptional(),
         "Cannot project a map of optional values as required values: %s", map);
-    Preconditions.checkArgument(StringType.class.isInstance(m.keyType()),
-        "Invalid map key type (not string): %s", m.keyType());
 
     this.current = m.valueType();
     try {
@@ -176,9 +174,9 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
       }
 
       if (map.isValueOptional()) {
-        return Types.MapType.ofOptional(map.keyId(), map.valueId(), valueType);
+        return Types.MapType.ofOptional(map.keyId(), map.valueId(), map.keyType(), valueType);
       } else {
-        return Types.MapType.ofRequired(map.keyId(), map.valueId(), valueType);
+        return Types.MapType.ofRequired(map.keyId(), map.valueId(), map.keyType(), valueType);
       }
     } finally {
       this.current = m;

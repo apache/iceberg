@@ -28,6 +28,8 @@ import com.netflix.iceberg.parquet.Parquet;
 import com.netflix.iceberg.spark.data.AvroDataTest;
 import com.netflix.iceberg.spark.data.RandomData;
 import com.netflix.iceberg.spark.data.TestHelpers;
+import com.netflix.iceberg.types.TypeUtil;
+import com.netflix.iceberg.types.Types;
 import org.apache.avro.generic.GenericData;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.spark.sql.Dataset;
@@ -35,6 +37,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
@@ -69,6 +72,11 @@ public class TestParquetScan extends AvroDataTest {
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
+    Assume.assumeTrue("Cannot handle non-string map keys in parquet-avro",
+        null == TypeUtil.find(
+            schema,
+            type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()));
+
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");

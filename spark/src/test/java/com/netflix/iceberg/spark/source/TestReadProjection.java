@@ -273,7 +273,7 @@ public abstract class TestReadProjection {
     Schema writeSchema = new Schema(
         Types.NestedField.required(0, "id", Types.LongType.get()),
         Types.NestedField.optional(5, "properties",
-            Types.MapType.ofOptional(6, 7, Types.StringType.get()))
+            Types.MapType.ofOptional(6, 7, Types.StringType.get(), Types.StringType.get()))
     );
 
     Map<String, String> properties = ImmutableMap.of("a", "A", "b", "B");
@@ -326,7 +326,8 @@ public abstract class TestReadProjection {
     Schema writeSchema = new Schema(
         Types.NestedField.required(0, "id", Types.LongType.get()),
         Types.NestedField.optional(5, "locations", Types.MapType.ofOptional(6, 7,
-              Types.StructType.of(
+            Types.StringType.get(),
+            Types.StructType.of(
                 Types.NestedField.required(1, "lat", Types.FloatType.get()),
                 Types.NestedField.required(2, "long", Types.FloatType.get())
             )
@@ -395,6 +396,7 @@ public abstract class TestReadProjection {
 
     Schema latitiudeRenamed = new Schema(
         Types.NestedField.optional(5, "locations", Types.MapType.ofOptional(6, 7,
+            Types.StringType.get(),
             Types.StructType.of(
                 Types.NestedField.required(1, "latitude", Types.FloatType.get())
             )

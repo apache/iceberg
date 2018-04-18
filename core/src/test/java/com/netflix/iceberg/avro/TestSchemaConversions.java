@@ -27,6 +27,8 @@ import org.junit.Test;
 import java.util.List;
 
 import static com.netflix.iceberg.avro.AvroTestHelpers.addElementId;
+import static com.netflix.iceberg.avro.AvroTestHelpers.addKeyId;
+import static com.netflix.iceberg.avro.AvroTestHelpers.addValueId;
 import static com.netflix.iceberg.avro.AvroTestHelpers.optionalField;
 import static com.netflix.iceberg.avro.AvroTestHelpers.record;
 import static com.netflix.iceberg.avro.AvroTestHelpers.requiredField;
@@ -157,10 +159,10 @@ public class TestSchemaConversions {
   }
 
   @Test
-  public void testMap() {
-    Type map = Types.MapType.ofRequired(33, 34, Types.StringType.get(), Types.BinaryType.get());
+  public void testMapOfLongToBytes() {
+    Type map = Types.MapType.ofRequired(33, 34, Types.LongType.get(), Types.BinaryType.get());
     Schema schema = AvroSchemaUtil.createMap(
-        33, Schema.create(Schema.Type.STRING),
+        33, Schema.create(Schema.Type.LONG),
         34, Schema.create(Schema.Type.BYTES));
 
     Assert.assertEquals("Avro schema to map",
@@ -170,16 +172,47 @@ public class TestSchemaConversions {
   }
 
   @Test
-  public void testMapOfStructs() {
+  public void testMapOfStringToBytes() {
+    Type map = Types.MapType.ofRequired(33, 34, Types.StringType.get(), Types.BinaryType.get());
+    Schema schema = addKeyId(33, addValueId(34, SchemaBuilder.map().values(
+        Schema.create(Schema.Type.BYTES))));
+
+    Assert.assertEquals("Avro schema to map",
+        map, AvroSchemaUtil.convert(schema));
+    Assert.assertEquals("Map to Avro schema",
+        schema, AvroSchemaUtil.convert(map));
+  }
+
+  @Test
+  public void testMapOfListToStructs() {
+    Type map = Types.MapType.ofRequired(33, 34,
+        Types.ListType.ofRequired(35, Types.IntegerType.get()),
+        Types.StructType.of(
+            Types.NestedField.required(36, "a", Types.IntegerType.get()),
+            Types.NestedField.optional(37, "b", Types.IntegerType.get())
+        ));
+    Schema schema = AvroSchemaUtil.createMap(
+        33, addElementId(35, Schema.createArray(Schema.create(Schema.Type.INT))),
+        34, record(null,
+            requiredField(36, "a", Schema.create(Schema.Type.INT)),
+            optionalField(37, "b", Schema.create(Schema.Type.INT))));
+
+    Assert.assertEquals("Avro schema to map",
+        map, AvroSchemaUtil.convert(schema));
+    Assert.assertEquals("Map to Avro schema",
+        schema, AvroSchemaUtil.convert(map));
+  }
+
+  @Test
+  public void testMapOfStringToStructs() {
     Type map = Types.MapType.ofRequired(33, 34, Types.StringType.get(), Types.StructType.of(
         Types.NestedField.required(35, "a", Types.IntegerType.get()),
         Types.NestedField.optional(36, "b", Types.IntegerType.get())
     ));
-    Schema schema = AvroSchemaUtil.createMap(
-        33, Schema.create(Schema.Type.STRING),
-        34, record(null,
+    Schema schema = addKeyId(33, addValueId(34, SchemaBuilder.map().values(
+        record(null,
             requiredField(35, "a", Schema.create(Schema.Type.INT)),
-            optionalField(36, "b", Schema.create(Schema.Type.INT))));
+            optionalField(36, "b", Schema.create(Schema.Type.INT))))));
 
     Assert.assertEquals("Avro schema to map",
         map, AvroSchemaUtil.convert(schema));

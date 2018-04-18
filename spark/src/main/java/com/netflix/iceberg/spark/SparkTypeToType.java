@@ -100,12 +100,10 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
 
   @Override
   public Type map(MapType map, Type keyType, Type valueType) {
-    Preconditions.checkArgument(keyType.typeId() == Type.TypeID.STRING,
-        "Cannot convert map with non-string keys: " + map);
     if (map.valueContainsNull()) {
-      return Types.MapType.ofOptional(getNextId(), getNextId(), valueType);
+      return Types.MapType.ofOptional(getNextId(), getNextId(), keyType, valueType);
     } else {
-      return Types.MapType.ofRequired(getNextId(), getNextId(), valueType);
+      return Types.MapType.ofRequired(getNextId(), getNextId(), keyType, valueType);
     }
   }
 

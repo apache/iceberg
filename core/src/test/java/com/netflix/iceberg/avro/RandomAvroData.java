@@ -111,15 +111,15 @@ public class RandomAvroData {
         keyFunc = keyResult;
       }
 
-      Set<Object> keys = Sets.newHashSet();
+      Set<Object> keySet = Sets.newHashSet();
       for (int i = 0; i < numEntries; i += 1) {
         Object key = keyFunc.get();
         // ensure no collisions
-        while (keys.contains(key)) {
+        while (keySet.contains(key)) {
           key = keyFunc.get();
         }
 
-        keys.add(key);
+        keySet.add(key);
 
         // return null 5% of the time when the value is optional
         if (map.isValueOptional() && random.nextInt(20) == 1) {

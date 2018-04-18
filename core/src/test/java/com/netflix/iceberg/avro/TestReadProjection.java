@@ -320,7 +320,7 @@ public abstract class TestReadProjection {
     record.put("id", 34L);
     Record l1 = new Record(AvroSchemaUtil.fromOption(
         AvroSchemaUtil.fromOption(record.getSchema().getField("locations").schema())
-            .getElementType().getField("value").schema()));
+            .getValueType()));
     l1.put("lat", 53.992811f);
     l1.put("long", -1.542616f);
     Record l2 = new Record(l1.getSchema());

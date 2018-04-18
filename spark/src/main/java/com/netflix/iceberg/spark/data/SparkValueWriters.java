@@ -28,6 +28,7 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -51,9 +52,14 @@ public class SparkValueWriters {
     return new ArrayWriter<>(elementWriter, elementType);
   }
 
+  static <K, V> ValueWriter<MapData> arrayMap(
+    ValueWriter<K> keyWriter, DataType keyType, ValueWriter<V> valueWriter, DataType valueType) {
+    return new ArrayMapWriter<>(keyWriter, keyType, valueWriter, valueType);
+  }
+
   static <K, V> ValueWriter<MapData> map(
-      ValueWriter<K> keyReader, DataType keyType, ValueWriter<V> valueReader, DataType valueType) {
-    return new MapWriter<>(keyReader, keyType, valueReader, valueType);
+      ValueWriter<K> keyWriter, DataType keyType, ValueWriter<V> valueWriter, DataType valueType) {
+    return new MapWriter<>(keyWriter, keyType, valueWriter, valueType);
   }
 
   static ValueWriter<InternalRow> struct(List<ValueWriter<?>> writers, List<DataType> types) {
@@ -161,6 +167,37 @@ public class SparkValueWriters {
     }
   }
 
+  private static class ArrayMapWriter<K, V> implements ValueWriter<MapData> {
+    private final ValueWriter<K> keyWriter;
+    private final ValueWriter<V> valueWriter;
+    private final DataType keyType;
+    private final DataType valueType;
+
+    private ArrayMapWriter(ValueWriter<K> keyWriter, DataType keyType,
+                           ValueWriter<V> valueWriter, DataType valueType) {
+      this.keyWriter = keyWriter;
+      this.keyType = keyType;
+      this.valueWriter = valueWriter;
+      this.valueType = valueType;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public void write(MapData map, Encoder encoder) throws IOException {
+      encoder.writeArrayStart();
+      int numElements = map.numElements();
+      encoder.setItemCount(numElements);
+      ArrayData keyArray = map.keyArray();
+      ArrayData valueArray = map.valueArray();
+      for (int i = 0; i < numElements; i += 1) {
+        encoder.startItem();
+        keyWriter.write((K) keyArray.get(i, keyType), encoder);
+        valueWriter.write((V) valueArray.get(i, valueType), encoder);
+      }
+      encoder.writeArrayEnd();
+    }
+  }
+
   private static class MapWriter<K, V> implements ValueWriter<MapData> {
     private final ValueWriter<K> keyWriter;
     private final ValueWriter<V> valueWriter;
@@ -192,14 +229,16 @@ public class SparkValueWriters {
     }
   }
 
-  private static class StructWriter implements ValueWriter<InternalRow> {
-    private final List<ValueWriter<?>> writers;
+  static class StructWriter implements ValueWriter<InternalRow> {
+    final ValueWriter<?>[] writers;
     private final DataType[] types;
 
+    @SuppressWarnings("unchecked")
     private StructWriter(List<ValueWriter<?>> writers, List<DataType> types) {
-      this.writers = writers;
+      this.writers = (ValueWriter<?>[]) Array.newInstance(ValueWriter.class, writers.size());
       this.types = new DataType[writers.size()];
       for (int i = 0; i < writers.size(); i += 1) {
+        this.writers[i] = writers.get(i);
         this.types[i] = types.get(i);
       }
     }
@@ -208,9 +247,9 @@ public class SparkValueWriters {
     public void write(InternalRow row, Encoder encoder) throws IOException {
       for (int i = 0; i < types.length; i += 1) {
         if (row.isNullAt(i)) {
-          writers.get(i).write(null, encoder);
+          writers[i].write(null, encoder);
         } else {
-          write(row, i, writers.get(i), encoder);
+          write(row, i, writers[i], encoder);
         }
       }
     }

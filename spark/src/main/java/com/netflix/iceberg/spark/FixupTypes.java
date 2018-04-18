@@ -121,21 +121,25 @@ class FixupTypes extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   }
 
   @Override
-  public Type map(Types.MapType map, Supplier<Type> valueTypeFuture) {
+  public Type map(Types.MapType map, Supplier<Type> keyTypeFuture, Supplier<Type> valueTypeFuture) {
     Preconditions.checkArgument(sourceType.isMapType(), "Not a map: " + sourceType);
 
     Types.MapType sourceMap = sourceType.asMapType();
-    this.sourceType = sourceMap.valueType();
     try {
+      this.sourceType = sourceMap.keyType();
+      Type keyType = keyTypeFuture.get();
+
+      this.sourceType = sourceMap.valueType();
       Type valueType = valueTypeFuture.get();
-      if (map.valueType() == valueType) {
+
+      if (map.keyType() == keyType && map.valueType() == valueType) {
         return map;
       }
 
       if (map.isValueOptional()) {
-        return Types.MapType.ofOptional(map.keyId(), map.valueId(), valueType);
+        return Types.MapType.ofOptional(map.keyId(), map.valueId(), keyType, valueType);
       } else {
-        return Types.MapType.ofRequired(map.keyId(), map.valueId(), valueType);
+        return Types.MapType.ofRequired(map.keyId(), map.valueId(), keyType, valueType);
       }
 
     } finally {

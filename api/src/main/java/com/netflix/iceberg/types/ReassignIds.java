@@ -107,14 +107,17 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     int sourceKeyId = sourceMap.keyId();
     int sourceValueId = sourceMap.valueId();
 
-    this.sourceType = sourceMap.valueType();
     try {
+      this.sourceType = sourceMap.keyType();
+      Type keyType = keyTypeFuture.get();
+
+      this.sourceType = sourceMap.valueType();
+      Type valueType = valueTypeFuture.get();
+
       if (map.isValueOptional()) {
-        return Types.MapType.ofOptional(sourceKeyId, sourceValueId,
-            keyTypeFuture.get(), valueTypeFuture.get());
+        return Types.MapType.ofOptional(sourceKeyId, sourceValueId, keyType, valueType);
       } else {
-        return Types.MapType.ofRequired(sourceKeyId, sourceValueId,
-            keyTypeFuture.get(), valueTypeFuture.get());
+        return Types.MapType.ofRequired(sourceKeyId, sourceValueId, keyType, valueType);
       }
 
     } finally {
