@@ -16,10 +16,13 @@
 
 package com.netflix.iceberg.expressions;
 
+import com.google.common.base.Preconditions;
+
 public class NamedReference implements Reference {
   public final String name;
 
   NamedReference(String name) {
+    Preconditions.checkNotNull(name, "Name cannot be null");
     this.name = name;
   }
 

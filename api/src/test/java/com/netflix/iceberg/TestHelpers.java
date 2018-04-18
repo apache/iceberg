@@ -26,6 +26,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.util.concurrent.Callable;
 
 public class TestHelpers {
   public static <T> T assertAndUnwrap(Expression expr, Class<T> expected) {
@@ -102,6 +103,65 @@ public class TestHelpers {
     @Override
     public <T> void set(int pos, T value) {
       throw new UnsupportedOperationException("Setting values is not supported");
+    }
+  }
+
+  /**
+   * A convenience method to avoid a large number of @Test(expected=...) tests
+   * @param message A String message to describe this assertion
+   * @param expected An Exception class that the Runnable should throw
+   * @param containedInMessage A String that should be contained by the thrown
+   *                           exception's message
+   * @param callable A Callable that is expected to throw the exception
+   */
+  public static void assertThrows(String message,
+                                  Class<? extends Exception> expected,
+                                  String containedInMessage,
+                                  Callable callable) {
+    try {
+      callable.call();
+      Assert.fail("No exception was thrown (" + message + "), expected: " +
+          expected.getName());
+    } catch (Exception actual) {
+      handleException(message, expected, containedInMessage, actual);
+    }
+  }
+
+  /**
+   * A convenience method to avoid a large number of @Test(expected=...) tests
+   * @param message A String message to describe this assertion
+   * @param expected An Exception class that the Runnable should throw
+   * @param containedInMessage A String that should be contained by the thrown
+   *                           exception's message
+   * @param runnable A Runnable that is expected to throw the runtime exception
+   */
+  public static void assertThrows(String message,
+                                  Class<? extends Exception> expected,
+                                  String containedInMessage,
+                                  Runnable runnable) {
+    try {
+      runnable.run();
+      Assert.fail("No exception was thrown (" + message + "), expected: " +
+          expected.getName());
+    } catch (Exception actual) {
+      handleException(message, expected, containedInMessage, actual);
+    }
+  }
+
+  private static void handleException(String message,
+                                      Class<? extends Exception> expected,
+                                      String containedInMessage,
+                                      Exception actual) {
+    try {
+      Assert.assertEquals(message, expected, actual.getClass());
+      Assert.assertTrue(
+          "Expected exception message (" + containedInMessage + ") missing: " +
+              actual.getMessage(),
+          actual.getMessage().contains(containedInMessage)
+      );
+    } catch (AssertionError e) {
+      e.addSuppressed(actual);
+      throw e;
     }
   }
 }
