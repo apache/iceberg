@@ -21,7 +21,7 @@ import com.netflix.iceberg.exceptions.AlreadyExistsException;
 import com.netflix.iceberg.exceptions.NoSuchTableException;
 import org.apache.hadoop.conf.Configuration;
 
-public abstract class BaseMetastoreTables {
+public abstract class BaseMetastoreTables implements Tables {
   private final Configuration conf;
 
   public BaseMetastoreTables(Configuration conf) {
