@@ -24,12 +24,10 @@ import com.netflix.iceberg.avro.Avro;
 import com.netflix.iceberg.avro.AvroIterable;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.expressions.Projections;
 import com.netflix.iceberg.io.ClosingIterable;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.types.Types;
-import com.netflix.iceberg.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.io.IOException;
@@ -39,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 
 import static com.netflix.iceberg.ManifestEntry.Status.DELETED;
+import static com.netflix.iceberg.expressions.Expressions.alwaysTrue;
 
 /**
  * Reader for manifest files.
@@ -122,22 +121,22 @@ public class ManifestReader extends ClosingIterable implements Filterable<Filter
 
   @Override
   public Iterator<DataFile> iterator() {
-    return iterator(Expressions.alwaysTrue(), ALL_COLUMNS);
+    return iterator(alwaysTrue(), ALL_COLUMNS);
   }
 
   @Override
   public FilteredManifest select(Collection<String> columns) {
-    return new FilteredManifest(this, Expressions.alwaysTrue(), Lists.newArrayList(columns));
+    return new FilteredManifest(this, alwaysTrue(), alwaysTrue(), Lists.newArrayList(columns));
   }
 
   @Override
   public FilteredManifest filterPartitions(Expression expr) {
-    return new FilteredManifest(this, expr, ALL_COLUMNS);
+    return new FilteredManifest(this, expr, alwaysTrue(), ALL_COLUMNS);
   }
 
   @Override
   public FilteredManifest filterRows(Expression expr) {
-    return filterPartitions(Projections.inclusive(spec).project(expr));
+    return new FilteredManifest(this, Projections.inclusive(spec).project(expr), expr, ALL_COLUMNS);
   }
 
   public List<ManifestEntry> addedFiles() {
@@ -195,10 +194,6 @@ public class ManifestReader extends ClosingIterable implements Filterable<Filter
             .rename("manifest_entry", ManifestEntry.class.getName())
             .rename("partition", PartitionData.class.getName())
             .rename("data_file", GenericDataFile.class.getName())
-            .rename("column_sizes", Pair.class.getName())
-            .rename("value_counts", Pair.class.getName())
-            .rename("null_value_counts", Pair.class.getName())
-            .rename("distinct_counts", Pair.class.getName())
             .reuseContainers()
             .build();
 
@@ -212,7 +207,7 @@ public class ManifestReader extends ClosingIterable implements Filterable<Filter
   }
 
   // visible for use by PartialManifest
-  Iterator<DataFile> iterator(Expression filter, Collection<String> columns) {
+  Iterator<DataFile> iterator(Expression partFilter, Collection<String> columns) {
     return Iterables.transform(Iterables.filter(
         entries(columns),
         entry -> entry.status() != DELETED),

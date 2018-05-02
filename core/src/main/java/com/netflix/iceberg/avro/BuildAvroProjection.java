@@ -102,8 +102,10 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
       } else {
         Preconditions.checkArgument(field.isOptional(), "Missing required field: %s", field.name());
         // create a field that will be defaulted to null
-        updatedFields.add(new Schema.Field(
-            field.name(), toOption(convert(field.type())), null, JsonProperties.NULL_VALUE));
+        Schema.Field newField = new Schema.Field(
+            field.name(), toOption(convert(field.type())), null, JsonProperties.NULL_VALUE);
+        newField.addProp(AvroSchemaUtil.FIELD_ID_PROP, field.fieldId());
+        updatedFields.add(newField);
         hasChange = true;
       }
     }

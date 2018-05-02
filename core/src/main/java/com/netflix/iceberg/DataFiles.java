@@ -21,6 +21,7 @@ import com.netflix.iceberg.hadoop.HadoopInputFile;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.types.Conversions;
 import org.apache.hadoop.fs.FileStatus;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -179,6 +180,8 @@ public class DataFiles {
     private Map<Integer, Long> columnSizes = null;
     private Map<Integer, Long> valueCounts = null;
     private Map<Integer, Long> nullValueCounts = null;
+    private Map<Integer, ByteBuffer> lowerBounds = null;
+    private Map<Integer, ByteBuffer> upperBounds = null;
 
     public Builder() {
       this.spec = null;
@@ -204,6 +207,8 @@ public class DataFiles {
       this.columnSizes = null;
       this.valueCounts = null;
       this.nullValueCounts = null;
+      this.lowerBounds = null;
+      this.upperBounds = null;
     }
 
     public Builder copy(DataFile toCopy) {
@@ -218,6 +223,8 @@ public class DataFiles {
       this.columnSizes = toCopy.columnSizes();
       this.valueCounts = toCopy.valueCounts();
       this.nullValueCounts = toCopy.nullValueCounts();
+      this.lowerBounds = toCopy.lowerBounds();
+      this.upperBounds = toCopy.upperBounds();
       return this;
     }
 
@@ -286,6 +293,8 @@ public class DataFiles {
       this.columnSizes = metrics.columnSizes();
       this.valueCounts = metrics.valueCounts();
       this.nullValueCounts = metrics.nullValueCounts();
+      this.lowerBounds = metrics.lowerBounds();
+      this.upperBounds = metrics.upperBounds();
       return this;
     }
 
@@ -304,8 +313,8 @@ public class DataFiles {
 
       return new GenericDataFile(
           filePath, format, isPartitioned ? partitionData.copy() : null,
-          fileSizeInBytes, blockSizeInBytes,
-          new Metrics(recordCount, columnSizes, valueCounts, nullValueCounts));
+          fileSizeInBytes, blockSizeInBytes, new Metrics(
+              recordCount, columnSizes, valueCounts, nullValueCounts, lowerBounds, upperBounds));
     }
   }
 }

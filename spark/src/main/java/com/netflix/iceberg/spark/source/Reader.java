@@ -94,7 +94,8 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
   private static final Filter[] NO_FILTERS = new Filter[0];
   private static final List<String> SNAPSHOT_COLUMNS = ImmutableList.of(
       "snapshot_id", "file_path", "file_ordinal", "file_format", "block_size_in_bytes",
-      "file_size_in_bytes", "record_count", "partition"
+      "file_size_in_bytes", "record_count", "partition", "value_counts", "null_value_counts",
+      "lower_bounds", "upper_bounds"
   );
 
   private final Table table;

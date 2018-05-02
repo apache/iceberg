@@ -26,6 +26,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 
 public class TestHelpers {
@@ -162,6 +165,104 @@ public class TestHelpers {
     } catch (AssertionError e) {
       e.addSuppressed(actual);
       throw e;
+    }
+  }
+
+  public static class TestDataFile implements DataFile {
+    private final String path;
+    private final StructLike partition;
+    private final long recordCount;
+    private final Map<Integer, Long> valueCounts;
+    private final Map<Integer, Long> nullValueCounts;
+    private final Map<Integer, ByteBuffer> lowerBounds;
+    private final Map<Integer, ByteBuffer> upperBounds;
+
+    public TestDataFile(String path, StructLike partition, long recordCount) {
+      this(path, partition, recordCount, null, null, null, null);
+    }
+
+    public TestDataFile(String path, StructLike partition, long recordCount,
+                        Map<Integer, Long> valueCounts,
+                        Map<Integer, Long> nullValueCounts,
+                        Map<Integer, ByteBuffer> lowerBounds,
+                        Map<Integer, ByteBuffer> upperBounds) {
+      this.path = path;
+      this.partition = partition;
+      this.recordCount = recordCount;
+      this.valueCounts = valueCounts;
+      this.nullValueCounts = nullValueCounts;
+      this.lowerBounds = lowerBounds;
+      this.upperBounds = upperBounds;
+    }
+
+    @Override
+    public CharSequence path() {
+      return path;
+    }
+
+    @Override
+    public FileFormat format() {
+      return FileFormat.fromFileName(path());
+    }
+
+    @Override
+    public StructLike partition() {
+      return partition;
+    }
+
+    @Override
+    public long recordCount() {
+      return recordCount;
+    }
+
+    @Override
+    public long fileSizeInBytes() {
+      return 0;
+    }
+
+    @Override
+    public long blockSizeInBytes() {
+      return 0;
+    }
+
+    @Override
+    public Integer fileOrdinal() {
+      return null;
+    }
+
+    @Override
+    public List<Integer> sortColumns() {
+      return null;
+    }
+
+    @Override
+    public Map<Integer, Long> columnSizes() {
+      return null;
+    }
+
+    @Override
+    public Map<Integer, Long> valueCounts() {
+      return valueCounts;
+    }
+
+    @Override
+    public Map<Integer, Long> nullValueCounts() {
+      return nullValueCounts;
+    }
+
+    @Override
+    public Map<Integer, ByteBuffer> lowerBounds() {
+      return lowerBounds;
+    }
+
+    @Override
+    public Map<Integer, ByteBuffer> upperBounds() {
+      return upperBounds;
+    }
+
+    @Override
+    public DataFile copy() {
+      return this;
     }
   }
 }

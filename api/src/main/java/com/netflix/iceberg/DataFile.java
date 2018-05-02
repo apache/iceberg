@@ -16,12 +16,14 @@
 
 package com.netflix.iceberg;
 
-import com.netflix.iceberg.types.Types;
+import com.netflix.iceberg.types.Types.BinaryType;
 import com.netflix.iceberg.types.Types.IntegerType;
 import com.netflix.iceberg.types.Types.ListType;
 import com.netflix.iceberg.types.Types.LongType;
+import com.netflix.iceberg.types.Types.MapType;
 import com.netflix.iceberg.types.Types.StringType;
 import com.netflix.iceberg.types.Types.StructType;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 
@@ -43,16 +45,17 @@ public interface DataFile {
         required(105, "block_size_in_bytes", LongType.get()),
         optional(106, "file_ordinal", IntegerType.get()),
         optional(107, "sort_columns", ListType.ofRequired(112, IntegerType.get())),
-        optional(108, "column_sizes", Types.MapType.ofRequired(117, 118,
+        optional(108, "column_sizes", MapType.ofRequired(117, 118,
             IntegerType.get(), LongType.get())),
-        optional(109, "value_counts", Types.MapType.ofRequired(119, 120,
+        optional(109, "value_counts", MapType.ofRequired(119, 120,
             IntegerType.get(), LongType.get())),
-        optional(110, "null_value_counts", Types.MapType.ofRequired(121, 122,
-            IntegerType.get(), LongType.get()))
-//        optional(111, "distinct_counts", ListType.ofRequired(116, StructType.of(
-//            required(123, "column_id", IntegerType.get()),
-//            required(124, "distinct_count", LongType.get())
-//        ))) // DEPRECATED: DO NOT REUSE IDS
+        optional(110, "null_value_counts", MapType.ofRequired(121, 122,
+            IntegerType.get(), LongType.get())),
+        optional(125, "lower_bounds", MapType.ofRequired(126, 127,
+            IntegerType.get(), BinaryType.get())),
+        optional(128, "upper_bounds", MapType.ofRequired(129, 130,
+            IntegerType.get(), BinaryType.get()))
+        // NEXT ID TO ASSIGN: 131
     );
   }
 
@@ -110,6 +113,16 @@ public interface DataFile {
    * @return if collected, map from column ID to its null value count, null otherwise
    */
   Map<Integer, Long> nullValueCounts();
+
+  /**
+   * @return if collected, map from column ID to value lower bounds, null otherwise
+   */
+  Map<Integer, ByteBuffer> lowerBounds();
+
+  /**
+   * @return if collected, map from column ID to value upper bounds, null otherwise
+   */
+  Map<Integer, ByteBuffer> upperBounds();
 
   /**
    * Copies this {@link DataFile data file}. Manifest readers can reuse data file instances; use

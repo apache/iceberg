@@ -17,6 +17,7 @@
 package com.netflix.iceberg;
 
 import java.io.Serializable;
+import java.nio.ByteBuffer;
 import java.util.Map;
 
 import static com.google.common.collect.ImmutableMap.copyOf;
@@ -27,6 +28,8 @@ public class Metrics implements Serializable {
   private Map<Integer, Long> columnSizes = null;
   private Map<Integer, Long> valueCounts = null;
   private Map<Integer, Long> nullValueCounts = null;
+  private Map<Integer, ByteBuffer> lowerBounds = null;
+  private Map<Integer, ByteBuffer> upperBounds = null;
 
   public Metrics() {
   }
@@ -39,6 +42,20 @@ public class Metrics implements Serializable {
     this.columnSizes = columnSizes;
     this.valueCounts = valueCounts;
     this.nullValueCounts = nullValueCounts;
+  }
+
+  public Metrics(Long rowCount,
+                 Map<Integer, Long> columnSizes,
+                 Map<Integer, Long> valueCounts,
+                 Map<Integer, Long> nullValueCounts,
+                 Map<Integer, ByteBuffer> lowerBounds,
+                 Map<Integer, ByteBuffer> upperBounds) {
+    this.rowCount = rowCount;
+    this.columnSizes = columnSizes;
+    this.valueCounts = valueCounts;
+    this.nullValueCounts = nullValueCounts;
+    this.lowerBounds = lowerBounds;
+    this.upperBounds = upperBounds;
   }
 
   public Long recordCount() {
@@ -57,4 +74,11 @@ public class Metrics implements Serializable {
     return nullValueCounts;
   }
 
+  public Map<Integer, ByteBuffer> lowerBounds() {
+    return lowerBounds;
+  }
+
+  public Map<Integer, ByteBuffer> upperBounds() {
+    return upperBounds;
+  }
 }

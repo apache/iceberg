@@ -16,61 +16,62 @@
 
 package com.netflix.iceberg;
 
-import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Predicate;
 import com.google.common.collect.Iterators;
 import com.netflix.iceberg.expressions.Evaluator;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Expressions;
+import com.netflix.iceberg.expressions.MetricsEvaluator;
 import com.netflix.iceberg.expressions.Projections;
-import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Iterator;
 
 public class FilteredManifest implements Filterable<FilteredManifest> {
   private final ManifestReader reader;
   private final Expression partFilter;
+  private final Expression rowFilter;
   private final Collection<String> columns;
 
-  FilteredManifest(ManifestReader reader, Expression filter, Collection<String> columns) {
+  FilteredManifest(ManifestReader reader, Expression partFilter, Expression rowFilter,
+                   Collection<String> columns) {
     Preconditions.checkNotNull(reader, "ManifestReader cannot be null");
     this.reader = reader;
-    this.partFilter = filter;
+    this.partFilter = partFilter;
+    this.rowFilter = rowFilter;
     this.columns = columns;
   }
 
   @Override
   public FilteredManifest select(Collection<String> columns) {
-    return new FilteredManifest(reader, partFilter, columns);
+    return new FilteredManifest(reader, partFilter, rowFilter, columns);
   }
 
   @Override
   public FilteredManifest filterPartitions(Expression expr) {
-    return new FilteredManifest(reader, Expressions.and(partFilter, expr), columns);
+    return new FilteredManifest(reader,
+        Expressions.and(partFilter, expr),
+        rowFilter,
+        columns);
   }
 
   @Override
   public FilteredManifest filterRows(Expression expr) {
-    return filterPartitions(Projections.inclusive(reader.spec()).project(expr));
+    Expression projected = Projections.inclusive(reader.spec()).project(expr);
+    return new FilteredManifest(reader,
+        Expressions.and(partFilter, projected),
+        Expressions.and(rowFilter, expr),
+        columns);
   }
 
   @Override
   public Iterator<DataFile> iterator() {
+    Evaluator evaluator = new Evaluator(reader.spec().partitionType(), partFilter);
+    MetricsEvaluator metricsEvaluator = new MetricsEvaluator(reader.spec().schema(), rowFilter);
     return Iterators.transform(
-        Iterators.filter(reader.iterator(partFilter, columns), new Predicate<DataFile>() {
-          private final Evaluator evaluator = new Evaluator(reader.spec().partitionType(), partFilter);
-
-          @Override
-          public boolean apply(DataFile input) {
-            return input != null && evaluator.eval(input.partition());
-          }
-        }), new Function<DataFile, DataFile>() {
-          @Nullable
-          @Override
-          public DataFile apply(@Nullable DataFile input) {
-            return input.copy();
-          }
-        });
+        Iterators.filter(reader.iterator(partFilter, columns),
+            input -> (input != null &&
+                evaluator.eval(input.partition()) &&
+                metricsEvaluator.eval(input))),
+        DataFile::copy);
   }
 }

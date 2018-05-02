@@ -17,7 +17,15 @@
 package com.netflix.iceberg.types;
 
 import com.google.common.base.Charsets;
+import com.netflix.iceberg.exceptions.RuntimeIOException;
 import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.CharBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CharsetEncoder;
 import java.util.Arrays;
 import java.util.UUID;
 
@@ -55,6 +63,100 @@ public class Conversions {
       default:
         throw new UnsupportedOperationException(
             "Unsupported type for fromPartitionString: " + type);
+    }
+  }
+
+  private static final ThreadLocal<CharsetEncoder> ENCODER =
+      ThreadLocal.withInitial(Charsets.UTF_8::newEncoder);
+  private static final ThreadLocal<CharsetDecoder> DECODER =
+      ThreadLocal.withInitial(Charsets.UTF_8::newDecoder);
+
+  public static ByteBuffer toByteBuffer(Type type, Object value) {
+    switch (type.typeId()) {
+      case BOOLEAN:
+        return ByteBuffer.allocate(1).put(0, (Boolean) value ? (byte) 0x01 : (byte) 0x00);
+      case INTEGER:
+      case DATE:
+        return ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(0, (int) value);
+      case LONG:
+      case TIME:
+      case TIMESTAMP:
+        return ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(0, (long) value);
+      case FLOAT:
+        return ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putFloat(0, (float) value);
+      case DOUBLE:
+        return ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putDouble(0, (double) value);
+      case STRING:
+        CharBuffer buffer = CharBuffer.wrap((CharSequence) value);
+        try {
+          return ENCODER.get().encode(buffer);
+        } catch (CharacterCodingException e) {
+          throw new RuntimeIOException(e, "Failed to encode value as UTF-8: " + value);
+        }
+      case UUID:
+        UUID uuid = (UUID) value;
+        return ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
+            .putLong(0, uuid.getMostSignificantBits())
+            .putLong(1, uuid.getLeastSignificantBits());
+      case FIXED:
+      case BINARY:
+        return (ByteBuffer) value;
+      case DECIMAL:
+        return ByteBuffer.wrap(((BigDecimal) value).unscaledValue().toByteArray());
+      default:
+        throw new UnsupportedOperationException("Cannot serialize type: " + type);
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T> T fromByteBuffer(Type type, ByteBuffer buffer) {
+    return (T) internalFromByteBuffer(type, buffer);
+  }
+
+  private static Object internalFromByteBuffer(Type type, ByteBuffer buffer) {
+    ByteBuffer tmp = buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN);
+    switch (type.typeId()) {
+      case BOOLEAN:
+        return (tmp.get() != 0x00);
+      case INTEGER:
+      case DATE:
+        return tmp.getInt();
+      case LONG:
+      case TIME:
+      case TIMESTAMP:
+        if (tmp.remaining() < 8) {
+          // type was later promoted to long
+          return (long) tmp.getInt();
+        }
+        return tmp.getLong();
+      case FLOAT:
+        return tmp.getFloat();
+      case DOUBLE:
+        if (tmp.remaining() < 8) {
+          // type was later promoted to long
+          return (double) tmp.getFloat();
+        }
+        return tmp.getDouble();
+      case STRING:
+        try {
+          return DECODER.get().decode(tmp);
+        } catch (CharacterCodingException e) {
+          throw new RuntimeIOException(e, "Failed to decode value as UTF-8: " + buffer);
+        }
+      case UUID:
+        long mostSigBits = tmp.getLong();
+        long leastSigBits = tmp.getLong();
+        return new UUID(mostSigBits, leastSigBits);
+      case FIXED:
+      case BINARY:
+        return tmp;
+      case DECIMAL:
+        Types.DecimalType decimal = (Types.DecimalType) type;
+        byte[] unscaledBytes = new byte[buffer.remaining()];
+        tmp.get(unscaledBytes);
+        return new BigDecimal(new BigInteger(unscaledBytes), decimal.scale());
+      default:
+        throw new UnsupportedOperationException("Cannot deserialize type: " + type);
     }
   }
 }

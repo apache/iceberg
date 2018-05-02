@@ -18,14 +18,12 @@ package com.netflix.iceberg;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import com.netflix.iceberg.avro.AvroSchemaUtil;
 import com.netflix.iceberg.types.Types;
-import com.netflix.iceberg.util.Pair;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
 import java.io.Serializable;
-import java.util.Collection;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 
@@ -54,11 +52,8 @@ class GenericDataFile
   private Map<Integer, Long> columnSizes = null;
   private Map<Integer, Long> valueCounts = null;
   private Map<Integer, Long> nullValueCounts = null;
-
-  // TODO: add support for column min/max/hist
-  // private final Map<Integer, byte[]> mins;
-  // private final Map<Integer, byte[]> maxes;
-  // private final Map<Integer, byte[]> hists;
+  private Map<Integer, ByteBuffer> lowerBounds = null;
+  private Map<Integer, ByteBuffer> upperBounds = null;
 
   // cached schema
   private transient org.apache.avro.Schema avroSchema = null;
@@ -106,6 +101,8 @@ class GenericDataFile
     this.columnSizes = null;
     this.valueCounts = null;
     this.nullValueCounts = null;
+    this.lowerBounds = null;
+    this.upperBounds = null;
     this.fromProjectionPos = null;
   }
 
@@ -123,6 +120,8 @@ class GenericDataFile
     this.columnSizes = null;
     this.valueCounts = null;
     this.nullValueCounts = null;
+    this.lowerBounds = null;
+    this.upperBounds = null;
     this.fromProjectionPos = null;
   }
 
@@ -149,6 +148,8 @@ class GenericDataFile
     this.columnSizes = metrics.columnSizes();
     this.valueCounts = metrics.valueCounts();
     this.nullValueCounts = metrics.nullValueCounts();
+    this.lowerBounds = SerializableByteBufferMap.wrap(metrics.lowerBounds());
+    this.upperBounds = SerializableByteBufferMap.wrap(metrics.upperBounds());
     this.fromProjectionPos = null;
   }
 
@@ -171,6 +172,8 @@ class GenericDataFile
     this.columnSizes = toCopy.columnSizes;
     this.valueCounts = toCopy.valueCounts;
     this.nullValueCounts = toCopy.nullValueCounts;
+    this.lowerBounds = toCopy.lowerBounds;
+    this.upperBounds = toCopy.upperBounds;
     this.fromProjectionPos = toCopy.fromProjectionPos;
   }
 
@@ -236,6 +239,16 @@ class GenericDataFile
   }
 
   @Override
+  public Map<Integer, ByteBuffer> lowerBounds() {
+    return lowerBounds;
+  }
+
+  @Override
+  public Map<Integer, ByteBuffer> upperBounds() {
+    return upperBounds;
+  }
+
+  @Override
   public org.apache.avro.Schema getSchema() {
     if (avroSchema == null) {
       this.avroSchema = getAvroSchema(partitionType);
@@ -286,6 +299,12 @@ class GenericDataFile
       case 10:
         this.nullValueCounts = (Map<Integer, Long>) v;
         return;
+      case 11:
+        this.lowerBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) v);
+        return;
+      case 12:
+        this.upperBounds= SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) v);
+        return;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -293,7 +312,12 @@ class GenericDataFile
 
   @Override
   public Object get(int i) {
-    switch (i) {
+    int pos = i;
+    // if the schema was projected, map the incoming ordinal to the expected one
+    if (fromProjectionPos != null) {
+      pos = fromProjectionPos[i];
+    }
+    switch (pos) {
       case 0:
         return filePath;
       case 1:
@@ -316,8 +340,12 @@ class GenericDataFile
         return valueCounts;
       case 10:
         return nullValueCounts;
+      case 11:
+        return lowerBounds;
+      case 12:
+        return upperBounds;
       default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + i);
+        throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
   }
 
@@ -326,32 +354,6 @@ class GenericDataFile
     return AvroSchemaUtil.convert(type, ImmutableMap.of(
         type, GenericDataFile.class.getName(),
         partitionType, PartitionData.class.getName()));
-  }
-
-  private static Collection<Pair<Integer, Long>> fromMap(Map<Integer, Long> map) {
-    if (map == null) {
-      return null;
-    }
-
-    List<Pair<Integer, Long>> pairs = Lists.newArrayListWithExpectedSize(map.size());
-    for (Map.Entry<Integer, Long> entry : map.entrySet()) {
-      pairs.add(Pair.of(entry.getKey(), entry.getValue()));
-    }
-
-    return pairs;
-  }
-
-  private static Map<Integer, Long> toMap(Collection<Pair<Integer, Long>> pairs) {
-    if (pairs == null) {
-      return null;
-    }
-
-    ImmutableMap.Builder<Integer, Long> builder = ImmutableMap.builder();
-    for (Pair<Integer, Long> pair : pairs) {
-      builder.put(pair.first(), pair.second());
-    }
-
-    return builder.build();
   }
 
   @Override
@@ -371,8 +373,9 @@ class GenericDataFile
         .add("column_sizes", columnSizes)
         .add("value_counts", valueCounts)
         .add("null_value_counts", nullValueCounts)
+        .add("lower_bounds", lowerBounds)
+        .add("upper_bounds", upperBounds)
         .toString();
   }
-
 
 }

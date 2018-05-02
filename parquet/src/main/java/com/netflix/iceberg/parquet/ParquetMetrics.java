@@ -21,7 +21,10 @@ import com.google.common.collect.Sets;
 import com.netflix.iceberg.Metrics;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
+import com.netflix.iceberg.expressions.Literal;
 import com.netflix.iceberg.io.InputFile;
+import com.netflix.iceberg.types.Conversions;
+import com.netflix.iceberg.types.Types;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
@@ -30,9 +33,12 @@ import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.schema.MessageType;
 import java.io.IOException;
 import java.io.Serializable;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static com.netflix.iceberg.parquet.ParquetConversions.fromParquetPrimitive;
 
 public class ParquetMetrics implements Serializable {
   private ParquetMetrics() {
@@ -51,6 +57,8 @@ public class ParquetMetrics implements Serializable {
     Map<Integer, Long> columnSizes = Maps.newHashMap();
     Map<Integer, Long> valueCounts = Maps.newHashMap();
     Map<Integer, Long> nullValueCounts = Maps.newHashMap();
+    Map<Integer, Literal<?>> lowerBounds = Maps.newHashMap();
+    Map<Integer, Literal<?>> upperBounds = Maps.newHashMap();
     Set<Integer> missingStats = Sets.newHashSet();
 
     MessageType parquetType = metadata.getFileMetaData().getSchema();
@@ -69,6 +77,16 @@ public class ParquetMetrics implements Serializable {
           missingStats.add(fieldId);
         } else if (!stats.isEmpty()) {
           increment(nullValueCounts, fieldId, stats.getNumNulls());
+
+          // only add min/max stats for top-level fields
+          // TODO: allow struct nesting, but not maps or arrays
+          Types.NestedField field = fileSchema.asStruct().field(fieldId);
+          if (field != null && stats.hasNonNullValue()) {
+            updateMin(lowerBounds, fieldId,
+                fromParquetPrimitive(field.type(), stats.genericGetMin()));
+            updateMax(upperBounds, fieldId,
+                fromParquetPrimitive(field.type(), stats.genericGetMax()));
+          }
         }
       }
     }
@@ -76,10 +94,12 @@ public class ParquetMetrics implements Serializable {
     // discard accumulated values if any stats were missing
     for (Integer fieldId : missingStats) {
       nullValueCounts.remove(fieldId);
+      lowerBounds.remove(fieldId);
+      upperBounds.remove(fieldId);
     }
 
-    return new Metrics(
-        rowCount, columnSizes, valueCounts, nullValueCounts);
+    return new Metrics(rowCount, columnSizes, valueCounts, nullValueCounts,
+        toBufferMap(fileSchema, lowerBounds), toBufferMap(fileSchema, upperBounds));
   }
 
   private static void increment(Map<Integer, Long> columns, int fieldId, long amount) {
@@ -90,5 +110,30 @@ public class ParquetMetrics implements Serializable {
         columns.put(fieldId, amount);
       }
     }
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <T> void updateMin(Map<Integer, Literal<?>> lowerBounds, int id, Literal<T> min) {
+    Literal<T> currentMin = (Literal<T>) lowerBounds.get(id);
+    if (currentMin == null || min.comparator().compare(min.value(), currentMin.value()) < 0) {
+      lowerBounds.put(id, min);
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <T> void updateMax(Map<Integer, Literal<?>> upperBounds, int id, Literal<T> max) {
+    Literal<T> currentMax = (Literal<T>) upperBounds.get(id);
+    if (currentMax == null || max.comparator().compare(max.value(), currentMax.value()) > 0) {
+      upperBounds.put(id, max);
+    }
+  }
+
+  private static Map<Integer, ByteBuffer> toBufferMap(Schema schema, Map<Integer, Literal<?>> map) {
+    Map<Integer, ByteBuffer> bufferMap = Maps.newHashMap();
+    for (Map.Entry<Integer, Literal<?>> entry : map.entrySet()) {
+      bufferMap.put(entry.getKey(),
+          Conversions.toByteBuffer(schema.findType(entry.getKey()), entry.getValue().value()));
+    }
+    return bufferMap;
   }
 }

@@ -102,11 +102,14 @@ public class TestOrcScan extends AvroDataTest {
     Schema tableSchema = table.schema();
 
     Metrics metrics;
-    try (SparkOrcWriter writer =
-             new SparkOrcWriter(ORC.write(localOutput(orcFile))
-                                   .schema(tableSchema)
-                                   .build())) {
+    SparkOrcWriter writer = new SparkOrcWriter(ORC.write(localOutput(orcFile))
+        .schema(tableSchema)
+        .build());
+    try {
       writer.addAll(RandomData.generateSpark(tableSchema, ROW_COUNT, SEED));
+    } finally {
+      writer.close();
+      // close writes the last batch, so metrics are not correct until after close is called
       metrics = writer.metrics();
     }
 
