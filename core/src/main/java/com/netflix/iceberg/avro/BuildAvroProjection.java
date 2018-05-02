@@ -22,6 +22,8 @@ import com.google.common.collect.Maps;
 import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Types;
 import org.apache.avro.JsonProperties;
+import org.apache.avro.LogicalType;
+import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import java.util.List;
 import java.util.Map;
@@ -237,7 +239,23 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
 
   @Override
   public Schema primitive(Schema primitive) {
-    return primitive; // TODO: type promotion
+    // check for type promotion
+    switch (primitive.getType()) {
+      case INT:
+        if (current.typeId() == Type.TypeID.LONG) {
+          return Schema.create(Schema.Type.LONG);
+        }
+        return primitive;
+
+      case FLOAT:
+        if (current.typeId() == Type.TypeID.DOUBLE) {
+          return Schema.create(Schema.Type.DOUBLE);
+        }
+        return primitive;
+
+      default:
+        return primitive;
+    }
   }
 
 }
