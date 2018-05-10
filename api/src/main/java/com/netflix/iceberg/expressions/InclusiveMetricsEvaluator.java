@@ -29,11 +29,13 @@ import java.util.Map;
 /**
  * Evaluates an {@link Expression} on a {@link DataFile} to test whether rows in the file may match.
  * <p>
+ * This evaluation is inclusive: it returns true if a file may match and false if it cannot match.
+ * <p>
  * Files are passed to {@link #eval(DataFile)}, which returns true if the file may contain matching
  * rows and false if the file cannot contain matching rows. Files may be skipped if and only if the
  * return value of {@code eval} is false.
  */
-public class MetricsEvaluator {
+public class InclusiveMetricsEvaluator {
   private final Schema schema;
   private final StructType struct;
   private final Expression expr;
@@ -46,7 +48,7 @@ public class MetricsEvaluator {
     return visitors.get();
   }
 
-  public MetricsEvaluator(Schema schema, Expression unbound) {
+  public InclusiveMetricsEvaluator(Schema schema, Expression unbound) {
     this.schema = schema;
     this.struct = schema.asStruct();
     this.expr = Binder.bind(struct, unbound);

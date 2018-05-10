@@ -20,6 +20,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.netflix.iceberg.expressions.StrictMetricsEvaluator;
 import com.netflix.iceberg.util.CharSequenceWrapper;
 import com.netflix.iceberg.exceptions.CommitFailedException;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
@@ -41,6 +42,7 @@ import java.util.Set;
  */
 class StreamingDelete extends SnapshotUpdate implements DeleteFiles {
   private final TableOperations ops;
+  private final StrictMetricsEvaluator metricsEvaluator;
   private final Set<CharSequenceWrapper> deletePaths = Sets.newHashSet();
   private Expression deleteExpression = Expressions.alwaysFalse();
 
@@ -51,6 +53,11 @@ class StreamingDelete extends SnapshotUpdate implements DeleteFiles {
   StreamingDelete(TableOperations ops) {
     super(ops);
     this.ops = ops;
+
+    // use a common metrics evaluator for all manifests because it is bound to the table schema
+    // do not change the schema even if the table is updated because the intent was to use the
+    // schema when the delete was started
+    this.metricsEvaluator = new StrictMetricsEvaluator(ops.current().schema(), deleteExpression);
   }
 
   @Override
@@ -127,7 +134,8 @@ class StreamingDelete extends SnapshotUpdate implements DeleteFiles {
           DataFile file = entry.file();
           boolean fileDelete = deletePaths.contains(wrapper.set(file.path()));
           if (fileDelete || inclusive.eval(file.partition())) {
-            ValidationException.check(fileDelete || strict.eval(file.partition()),
+            ValidationException.check(
+                fileDelete || strict.eval(file.partition()) || metricsEvaluator.eval(file),
                 "Cannot delete file where some, but not all, rows match filter %s: %s",
                 deleteExpression, file.path());
 

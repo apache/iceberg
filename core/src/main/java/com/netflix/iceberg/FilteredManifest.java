@@ -21,7 +21,7 @@ import com.google.common.collect.Iterators;
 import com.netflix.iceberg.expressions.Evaluator;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Expressions;
-import com.netflix.iceberg.expressions.MetricsEvaluator;
+import com.netflix.iceberg.expressions.InclusiveMetricsEvaluator;
 import com.netflix.iceberg.expressions.Projections;
 import java.util.Collection;
 import java.util.Iterator;
@@ -66,7 +66,9 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
   @Override
   public Iterator<DataFile> iterator() {
     Evaluator evaluator = new Evaluator(reader.spec().partitionType(), partFilter);
-    MetricsEvaluator metricsEvaluator = new MetricsEvaluator(reader.spec().schema(), rowFilter);
+    InclusiveMetricsEvaluator metricsEvaluator =
+        new InclusiveMetricsEvaluator(reader.spec().schema(), rowFilter);
+
     return Iterators.transform(
         Iterators.filter(reader.iterator(partFilter, columns),
             input -> (input != null &&
