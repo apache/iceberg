@@ -80,7 +80,8 @@ class PartitionKey implements StructLike {
   private Object defensiveCopyIfNeeded(Object obj) {
     if (obj instanceof UTF8String) {
       // bytes backing the UTF8 string might be reused
-      return UTF8String.fromBytes(((UTF8String) obj).getBytes());
+      byte[] bytes = ((UTF8String) obj).getBytes();
+      return UTF8String.fromBytes(Arrays.copyOf(bytes, bytes.length));
     }
     return obj;
   }
