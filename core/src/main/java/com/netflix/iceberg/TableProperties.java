@@ -27,7 +27,7 @@ public class TableProperties {
   public static final int COMMIT_MAX_RETRY_WAIT_MS_DEFAULT = 60000; // 1 minute
 
   public static final String COMMIT_TOTAL_RETRY_TIME_MS = "commit.retry.total-timeout-ms";
-  public static final int COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT = 60000; // 1 minute
+  public static final int COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT = 600000; // 10 minutes
 
   public static final String MANIFEST_TARGET_SIZE_BYTES = "commit.manifest.target-size-bytes";
   public static final long MANIFEST_TARGET_SIZE_BYTES_DEFAULT = 4194304; // 4 MB
