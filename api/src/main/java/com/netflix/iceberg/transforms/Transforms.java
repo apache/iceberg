@@ -64,6 +64,7 @@ public class Transforms {
   /**
    * Returns an identity {@link Transform} that can be used for any type.
    *
+   * @param type the {@link Type source type} for the transform
    * @param <T> Java type passed to this transform
    * @return an identity transform
    */
