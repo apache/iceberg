@@ -30,8 +30,8 @@ import java.util.Map;
  * Evaluates an {@link Expression} on a {@link DataFile} to test whether all rows in the file match.
  * <p>
  * This evaluation is strict: it returns true if all rows in a file must match the expression. For
- * example, if a file's ts column has min X and max Y, this evaluator will return true for ts < Y+1
- * but not for ts < Y-1.
+ * example, if a file's ts column has min X and max Y, this evaluator will return true for ts &lt; Y+1
+ * but not for ts &lt; Y-1.
  * <p>
  * Files are passed to {@link #eval(DataFile)}, which returns true if all rows in the file must
  * contain matching rows and false if the file may contain rows that do not match.
