@@ -38,18 +38,27 @@ class GenericAvroReader<T> implements DatumReader<T> {
       ThreadLocal.withInitial(() -> new MapMaker().weakKeys().makeMap());
 
   private final Schema readSchema;
-  private final ValueReader<T> reader;
+  private ClassLoader loader = Thread.currentThread().getContextClassLoader();
   private Schema fileSchema = null;
+  private ValueReader<T> reader = null;
 
-  @SuppressWarnings("unchecked")
   public GenericAvroReader(Schema readSchema) {
     this.readSchema = readSchema;
-    this.reader = (ValueReader<T>) AvroSchemaVisitor.visit(readSchema, new ReadBuilder());
+  }
+
+  @SuppressWarnings("unchecked")
+  private void initReader() {
+    this.reader = (ValueReader<T>) AvroSchemaVisitor.visit(readSchema, new ReadBuilder(loader));
   }
 
   @Override
   public void setSchema(Schema fileSchema) {
     this.fileSchema = Schema.applyAliases(fileSchema, readSchema);
+    initReader();
+  }
+
+  public void setClassLoader(ClassLoader loader) {
+    this.loader = loader;
   }
 
   @Override
@@ -85,14 +94,20 @@ class GenericAvroReader<T> implements DatumReader<T> {
   }
 
   private static class ReadBuilder extends AvroSchemaVisitor<ValueReader<?>> {
-    private ReadBuilder() {
+    private final ClassLoader loader;
+
+    private ReadBuilder(ClassLoader loader) {
+      this.loader = loader;
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public ValueReader<?> record(Schema record, List<String> names, List<ValueReader<?>> fields) {
       try {
-        Class<?> recordClass = DynClasses.builder().impl(record.getFullName()).buildChecked();
+        Class<?> recordClass = DynClasses.builder()
+            .loader(loader)
+            .impl(record.getFullName())
+            .buildChecked();
         if (IndexedRecord.class.isAssignableFrom(recordClass)) {
           return ValueReaders.record(fields, (Class<? extends IndexedRecord>) recordClass, record);
         }

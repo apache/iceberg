@@ -140,11 +140,16 @@ public class Avro {
   }
 
   public static class ReadBuilder {
+    private final ClassLoader defaultLoader = Thread.currentThread().getContextClassLoader();
     private final InputFile file;
     private final Map<String, String> renames = Maps.newLinkedHashMap();
     private boolean reuseContainers = false;
     private com.netflix.iceberg.Schema schema = null;
-    private Function<Schema, DatumReader<?>> createReaderFunc = GenericAvroReader::new;
+    private Function<Schema, DatumReader<?>> createReaderFunc = schema -> {
+      GenericAvroReader<?> reader = new GenericAvroReader<>(schema);
+      reader.setClassLoader(defaultLoader);
+      return reader;
+    };
     private Long start = null;
     private Long length = null;
 
