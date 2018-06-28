@@ -25,7 +25,7 @@ import com.netflix.iceberg.avro.AvroIterable;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Projections;
-import com.netflix.iceberg.io.ClosingIterable;
+import com.netflix.iceberg.io.CloseableGroup;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.types.Types;
 import org.slf4j.Logger;
@@ -44,7 +44,7 @@ import static com.netflix.iceberg.expressions.Expressions.alwaysTrue;
  * <p>
  * Readers are created using the builder from {@link #read(InputFile)}.
  */
-public class ManifestReader extends ClosingIterable implements Filterable<FilteredManifest> {
+public class ManifestReader extends CloseableGroup implements Filterable<FilteredManifest> {
   private static final Logger LOG = LoggerFactory.getLogger(ManifestReader.class);
 
   private static final List<String> ALL_COLUMNS = Lists.newArrayList("*");

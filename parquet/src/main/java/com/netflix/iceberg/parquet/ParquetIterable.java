@@ -17,14 +17,15 @@
 package com.netflix.iceberg.parquet;
 
 import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.io.ClosingIterable;
+import com.netflix.iceberg.io.CloseableGroup;
+import com.netflix.iceberg.io.CloseableIterable;
 import org.apache.parquet.hadoop.ParquetReader;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class ParquetIterable<T> extends ClosingIterable implements Iterable<T>, Closeable {
+public class ParquetIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private final ParquetReader.Builder<T> builder;
 
   ParquetIterable(ParquetReader.Builder<T> builder) {

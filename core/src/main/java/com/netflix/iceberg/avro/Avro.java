@@ -19,6 +19,7 @@ package com.netflix.iceberg.avro;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.netflix.iceberg.SchemaParser;
+import com.netflix.iceberg.io.CloseableIterable;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 import org.apache.avro.Conversions;

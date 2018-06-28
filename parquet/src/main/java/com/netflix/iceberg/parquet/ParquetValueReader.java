@@ -14,27 +14,17 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.io;
+package com.netflix.iceberg.parquet;
 
-import com.google.common.collect.Lists;
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.LinkedList;
+import org.apache.parquet.column.page.PageReadStore;
+import java.util.List;
 
-public abstract class ClosingIterable implements Closeable {
-  private final LinkedList<Closeable> closeables = Lists.newLinkedList();
+public interface ParquetValueReader<T> {
+  T read(T reuse);
 
-  protected void addCloseable(Closeable closeable) {
-    closeables.add(closeable);
-  }
+  TripleIterator<?> column();
 
-  @Override
-  public void close() throws IOException {
-    while (!closeables.isEmpty()) {
-      Closeable toClose = closeables.removeFirst();
-      if (toClose != null) {
-        toClose.close();
-      }
-    }
-  }
+  List<TripleIterator<?>> columns();
+
+  void setPageSource(PageReadStore pageStore);
 }

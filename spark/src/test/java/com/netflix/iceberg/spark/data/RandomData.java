@@ -39,13 +39,14 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
 
 public class RandomData {
-  public static List<Record> generate(Schema schema, int numRecords, long seed) {
+  public static List<Record> generateList(Schema schema, int numRecords, long seed) {
     RandomDataGenerator generator = new RandomDataGenerator(schema, seed);
     List<Record> records = Lists.newArrayListWithExpectedSize(numRecords);
     for (int i = 0; i < numRecords; i += 1) {
@@ -69,6 +70,27 @@ public class RandomData {
       public InternalRow next() {
         rowsLeft -= 1;
         return (InternalRow) TypeUtil.visit(schema, generator);
+      }
+    };
+  }
+
+  public static Iterable<Record> generate(Schema schema, int numRecords, long seed) {
+    return () -> new Iterator<Record>() {
+      private RandomDataGenerator generator = new RandomDataGenerator(schema, seed);
+      private int count = 0;
+
+      @Override
+      public boolean hasNext() {
+        return count < numRecords;
+      }
+
+      @Override
+      public Record next() {
+        if (count >= numRecords) {
+          throw new NoSuchElementException();
+        }
+        count += 1;
+        return (Record) TypeUtil.visit(schema, generator);
       }
     };
   }
@@ -209,14 +231,15 @@ public class RandomData {
     @Override
     public GenericArrayData list(Types.ListType list, Supplier<Object> elementResult) {
       int numElements = random.nextInt(20);
-      GenericArrayData result = new GenericArrayData(new Object[numElements]);
+      Object[] arr = new Object[numElements];
+      GenericArrayData result = new GenericArrayData(arr);
 
       for (int i = 0; i < numElements; i += 1) {
         // return null 5% of the time when the value is optional
         if (list.isElementOptional() && random.nextInt(20) == 1) {
-          result.update(i, null);
+          arr[i] = null;
         } else {
-          result.update(i, elementResult.get());
+          arr[i] = elementResult.get();
         }
       }
 
@@ -227,8 +250,10 @@ public class RandomData {
     public Object map(Types.MapType map, Supplier<Object> keyResult, Supplier<Object> valueResult) {
       int numEntries = random.nextInt(20);
 
-      GenericArrayData keys = new GenericArrayData(new Object[numEntries]);
-      GenericArrayData values = new GenericArrayData(new Object[numEntries]);
+      Object[] keysArr = new Object[numEntries];
+      Object[] valuesArr = new Object[numEntries];
+      GenericArrayData keys = new GenericArrayData(keysArr);
+      GenericArrayData values = new GenericArrayData(valuesArr);
       ArrayBasedMapData result = new ArrayBasedMapData(keys, values);
 
       Set<Object> keySet = Sets.newHashSet();
@@ -241,12 +266,12 @@ public class RandomData {
 
         keySet.add(key);
 
-        keys.update(i, key);
+        keysArr[i] = key;
         // return null 5% of the time when the value is optional
         if (map.isValueOptional() && random.nextInt(20) == 1) {
-          values.update(i, null);
+          valuesArr[i] = null;
         } else {
-          values.update(i, valueResult.get());
+          valuesArr[i] = valueResult.get();
         }
       }
 

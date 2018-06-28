@@ -23,10 +23,14 @@ import com.netflix.iceberg.SchemaParser;
 import com.netflix.iceberg.avro.AvroSchemaUtil;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.expressions.Expression;
+import com.netflix.iceberg.hadoop.HadoopInputFile;
+import com.netflix.iceberg.io.CloseableIterable;
 import com.netflix.iceberg.io.FileAppender;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.parquet.HadoopReadOptions;
+import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.avro.AvroReadSupport;
 import org.apache.parquet.avro.AvroWriteSupport;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -40,6 +44,7 @@ import org.apache.parquet.schema.MessageType;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 
 import static com.netflix.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static com.netflix.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT;
@@ -212,6 +217,7 @@ public class Parquet {
     private Schema schema = null;
     private Expression filter = null;
     private ReadSupport<?> readSupport = null;
+    private Function<MessageType, ParquetValueReader<?>> readerFunc = null;
     private boolean filterRecords = true;
     private Map<String, String> properties = Maps.newHashMap();
     private boolean callInit = false;
@@ -253,6 +259,11 @@ public class Parquet {
       return this;
     }
 
+    public ReadBuilder createReaderFunc(Function<MessageType, ParquetValueReader<?>> readerFunc) {
+      this.readerFunc = readerFunc;
+      return this;
+    }
+
     public ReadBuilder set(String key, String value) {
       properties.put(key, value);
       return this;
@@ -264,7 +275,29 @@ public class Parquet {
     }
 
     @SuppressWarnings("unchecked")
-    public <D> ParquetIterable<D> build() {
+    public <D> CloseableIterable<D> build() {
+      if (readerFunc != null) {
+        ParquetReadOptions.Builder optionsBuilder;
+        if (file instanceof HadoopInputFile) {
+          optionsBuilder = HadoopReadOptions.builder(((HadoopInputFile) file).getConf());
+        } else {
+          optionsBuilder = ParquetReadOptions.builder();
+        }
+
+        for (Map.Entry<String, String> entry : properties.entrySet()) {
+          optionsBuilder.set(entry.getKey(), entry.getValue());
+        }
+
+        if (start != null) {
+          optionsBuilder.withRange(start, start + length);
+        }
+
+        ParquetReadOptions options = optionsBuilder.build();
+
+        return new com.netflix.iceberg.parquet.ParquetReader<>(
+            file, schema, options, readerFunc, filter);
+      }
+
       ParquetReadBuilder<D> builder = new ParquetReadBuilder<>(ParquetIO.file(file));
 
       builder.project(schema);

@@ -98,7 +98,7 @@ public class TestDataFrameWrites extends AvroDataTest {
 
     table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
 
-    List<Record> expected = RandomData.generate(tableSchema, 100, 0L);
+    List<Record> expected = RandomData.generateList(tableSchema, 100, 0L);
     Dataset<Row> df = createDataset(expected, tableSchema);
 
     df.write()

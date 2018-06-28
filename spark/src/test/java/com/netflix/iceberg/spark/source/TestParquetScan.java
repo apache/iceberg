@@ -92,7 +92,7 @@ public class TestParquetScan extends AvroDataTest {
     // When tables are created, the column ids are reassigned.
     Schema tableSchema = table.schema();
 
-    List<GenericData.Record> expected = RandomData.generate(tableSchema, 100, 1L);
+    List<GenericData.Record> expected = RandomData.generateList(tableSchema, 100, 1L);
 
     try (FileAppender<GenericData.Record> writer = Parquet.write(localOutput(parquetFile))
         .schema(tableSchema)

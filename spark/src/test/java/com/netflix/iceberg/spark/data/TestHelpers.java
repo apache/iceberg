@@ -26,7 +26,6 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericRow;
 import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
-import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 import org.apache.spark.sql.catalyst.util.MapData;
@@ -204,7 +203,7 @@ public class TestHelpers {
     }
   }
 
-  private static void assertEqualsUnsafe(Types.MapType map, Map<?, ?> expected, ArrayBasedMapData actual) {
+  private static void assertEqualsUnsafe(Types.MapType map, Map<?, ?> expected, MapData actual) {
     Type keyType = map.keyType();
     Type valueType = map.valueType();
 
@@ -277,8 +276,8 @@ public class TestHelpers {
         break;
       case MAP:
         Assert.assertTrue("Should expect a Map", expected instanceof Map);
-        Assert.assertTrue("Should be an ArrayBasedMapData", actual instanceof ArrayBasedMapData);
-        assertEqualsUnsafe(type.asNestedType().asMapType(), (Map) expected, (ArrayBasedMapData) actual);
+        Assert.assertTrue("Should be an ArrayBasedMapData", actual instanceof MapData);
+        assertEqualsUnsafe(type.asNestedType().asMapType(), (Map) expected, (MapData) actual);
         break;
       case TIME:
       default:

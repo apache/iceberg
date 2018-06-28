@@ -81,7 +81,7 @@ public class TestAvroScan extends AvroDataTest {
     // When tables are created, the column ids are reassigned.
     Schema tableSchema = table.schema();
 
-    List<Record> expected = RandomData.generate(tableSchema, 100, 1L);
+    List<Record> expected = RandomData.generateList(tableSchema, 100, 1L);
 
     try (FileAppender<Record> writer = Avro.write(localOutput(avroFile))
         .schema(tableSchema)

@@ -21,7 +21,7 @@ import com.google.common.collect.Iterables;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.expressions.ResidualEvaluator;
-import com.netflix.iceberg.io.ClosingIterable;
+import com.netflix.iceberg.io.CloseableGroup;
 import com.netflix.iceberg.util.BinPacking;
 import com.netflix.iceberg.util.ParallelIterable;
 import java.util.Collection;
@@ -33,7 +33,7 @@ import static com.netflix.iceberg.util.ThreadPools.getWorkerPool;
 /**
  * Base class for {@link TableScan} implementations.
  */
-class BaseTableScan extends ClosingIterable implements TableScan {
+class BaseTableScan extends CloseableGroup implements TableScan {
   private final TableOperations ops;
   private final Table table;
   private final Collection<String> columns;

@@ -23,14 +23,14 @@ import com.google.common.collect.Lists;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Expressions;
-import com.netflix.iceberg.io.ClosingIterable;
+import com.netflix.iceberg.io.CloseableGroup;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
-class BaseSnapshot extends ClosingIterable implements Snapshot, SnapshotIterable {
+class BaseSnapshot extends CloseableGroup implements Snapshot, SnapshotIterable {
   private final TableOperations ops;
   private final long snapshotId;
   private final long timestampMillis;

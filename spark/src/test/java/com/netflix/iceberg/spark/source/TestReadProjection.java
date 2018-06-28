@@ -27,7 +27,6 @@ import com.netflix.iceberg.types.Comparators;
 import com.netflix.iceberg.types.Types;
 import org.apache.avro.generic.GenericData.Record;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -69,14 +68,14 @@ public abstract class TestReadProjection {
 
     int cmp = Comparators.charSequences()
         .compare("test", (CharSequence) projected.get("data"));
-    Assert.assertTrue("Should contain the correct data value", cmp == 0);
+    Assert.assertEquals("Should contain the correct data value", 0, cmp);
   }
 
   @Test
   public void testReorderedFullProjection() throws Exception {
-    Assume.assumeTrue(
-        "Spark's Parquet read support does not support reordered columns",
-        !format.equalsIgnoreCase("parquet"));
+//    Assume.assumeTrue(
+//        "Spark's Parquet read support does not support reordered columns",
+//        !format.equalsIgnoreCase("parquet"));
 
     Schema schema = new Schema(
         Types.NestedField.required(0, "id", Types.LongType.get()),
@@ -92,7 +91,7 @@ public abstract class TestReadProjection {
         Types.NestedField.required(0, "id", Types.LongType.get())
     );
 
-    Record projected = writeAndRead("full_projection", schema, reordered, record);
+    Record projected = writeAndRead("reordered_full_projection", schema, reordered, record);
 
     Assert.assertEquals("Should contain the correct 0 value", "test", projected.get(0).toString());
     Assert.assertEquals("Should contain the correct 1 value", 34L, projected.get(1));
@@ -100,9 +99,9 @@ public abstract class TestReadProjection {
 
   @Test
   public void testReorderedProjection() throws Exception {
-    Assume.assumeTrue(
-        "Spark's Parquet read support does not support reordered columns",
-        !format.equalsIgnoreCase("parquet"));
+//    Assume.assumeTrue(
+//        "Spark's Parquet read support does not support reordered columns",
+//        !format.equalsIgnoreCase("parquet"));
 
     Schema schema = new Schema(
         Types.NestedField.required(0, "id", Types.LongType.get()),
@@ -119,7 +118,7 @@ public abstract class TestReadProjection {
         Types.NestedField.optional(3, "missing_2", Types.LongType.get())
     );
 
-    Record projected = writeAndRead("full_projection", schema, reordered, record);
+    Record projected = writeAndRead("reordered_projection", schema, reordered, record);
 
     Assert.assertNull("Should contain the correct 0 value", projected.get(0));
     Assert.assertEquals("Should contain the correct 1 value", "test", projected.get(1).toString());
@@ -176,7 +175,7 @@ public abstract class TestReadProjection {
     Assert.assertNull("Should not project id", projected.get("id"));
     int cmp = Comparators.charSequences()
         .compare("test", (CharSequence) projected.get("data"));
-    Assert.assertTrue("Should contain the correct data value", cmp == 0);
+    Assert.assertEquals("Should contain the correct data value", 0, cmp);
   }
 
   @Test
@@ -200,7 +199,7 @@ public abstract class TestReadProjection {
     Assert.assertEquals("Should contain the correct id value", 34L, (long) projected.get("id"));
     int cmp = Comparators.charSequences()
         .compare("test", (CharSequence) projected.get("renamed"));
-    Assert.assertTrue("Should contain the correct data/renamed value", cmp == 0);
+    Assert.assertEquals("Should contain the correct data/renamed value", 0, cmp);
   }
 
   @Test
@@ -515,7 +514,7 @@ public abstract class TestReadProjection {
     Assert.assertEquals("Should project y", 2, (int) projectedP1.get("y"));
     projectedP2 = points.get(1);
     Assert.assertNull("Should not project x", projectedP2.get("x"));
-    Assert.assertEquals("Should project null y", null, projectedP2.get("y"));
+    Assert.assertNull("Should project null y", projectedP2.get("y"));
 
     Schema yRenamed = new Schema(
         Types.NestedField.optional(22, "points",
@@ -537,10 +536,34 @@ public abstract class TestReadProjection {
     projectedP2 = points.get(1);
     Assert.assertNull("Should not project x", projectedP2.get("x"));
     Assert.assertNull("Should not project y", projectedP2.get("y"));
-    Assert.assertEquals("Should project null z", null, projectedP2.get("z"));
+    Assert.assertNull("Should project null z", projectedP2.get("z"));
+
+    Schema zAdded = new Schema(
+        Types.NestedField.optional(22, "points",
+            Types.ListType.ofOptional(21, Types.StructType.of(
+                Types.NestedField.required(19, "x", Types.IntegerType.get()),
+                Types.NestedField.optional(18, "y", Types.IntegerType.get()),
+                Types.NestedField.optional(20, "z", Types.IntegerType.get())
+            ))
+        )
+    );
+
+    projected = writeAndRead("z_added", writeSchema, zAdded, record);
+    Assert.assertNull("Should not project id", projected.get("id"));
+    Assert.assertNotNull("Should project points list", projected.get("points"));
+    points = (List<Record>) projected.get("points");
+    Assert.assertEquals("Should read 2 points", 2, points.size());
+    projectedP1 = points.get(0);
+    Assert.assertEquals("Should project x", 1, (int) projectedP1.get("x"));
+    Assert.assertEquals("Should project y", 2, (int) projectedP1.get("y"));
+    Assert.assertNull("Should contain null z", projectedP1.get("z"));
+    projectedP2 = points.get(1);
+    Assert.assertEquals("Should project x", 3, (int) projectedP2.get("x"));
+    Assert.assertNull("Should project null y", projectedP2.get("y"));
+    Assert.assertNull("Should contain null z", projectedP2.get("z"));
   }
 
-  static org.apache.avro.Schema fromOption(org.apache.avro.Schema schema) {
+  private static org.apache.avro.Schema fromOption(org.apache.avro.Schema schema) {
     Preconditions.checkArgument(schema.getType() == UNION,
         "Expected union schema but was passed: {}", schema);
     Preconditions.checkArgument(schema.getTypes().size() == 2,

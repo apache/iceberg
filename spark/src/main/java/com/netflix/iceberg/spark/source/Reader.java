@@ -32,19 +32,19 @@ import com.netflix.iceberg.StructLike;
 import com.netflix.iceberg.Table;
 import com.netflix.iceberg.TableScan;
 import com.netflix.iceberg.avro.Avro;
-import com.netflix.iceberg.avro.AvroIterable;
 import com.netflix.iceberg.common.DynMethods;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.expressions.Evaluator;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.hadoop.HadoopInputFile;
+import com.netflix.iceberg.io.CloseableIterable;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.parquet.Parquet;
-import com.netflix.iceberg.parquet.ParquetIterable;
 import com.netflix.iceberg.spark.SparkFilters;
 import com.netflix.iceberg.spark.SparkSchemaUtil;
 import com.netflix.iceberg.spark.data.SparkAvroReader;
 import com.netflix.iceberg.spark.data.SparkOrcReader;
+import com.netflix.iceberg.spark.data.SparkParquetReaders;
 import com.netflix.iceberg.types.TypeUtil;
 import com.netflix.iceberg.types.Types;
 import org.apache.hadoop.conf.Configuration;
@@ -55,7 +55,6 @@ import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.expressions.JoinedRow;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
 import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
-import org.apache.spark.sql.execution.datasources.parquet.ParquetReadSupport;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.v2.reader.DataReader;
 import org.apache.spark.sql.sources.v2.reader.DataSourceReader;
@@ -350,13 +349,15 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
       boolean hasJoinedPartitionColumns = !idColumns.isEmpty();
       boolean hasExtraFilterColumns = requiredSchema.columns().size() != finalSchema.columns().size();
 
+      Expression residual = task.residual();
+      Schema iterSchema;
+      Iterator<InternalRow> iter;
       switch (file.format()) {
         case PARQUET:
           if (hasJoinedPartitionColumns) {
             // schema used to read data files
             Schema readSchema = TypeUtil.selectNot(requiredSchema, idColumns);
             Schema partitionSchema = TypeUtil.select(requiredSchema, idColumns);
-            Schema joinedSchema = TypeUtil.join(readSchema, partitionSchema);
             PartitionRowConverter convertToRow = new PartitionRowConverter(partitionSchema, spec);
             JoinedRow joined = new JoinedRow();
 
@@ -364,30 +365,40 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
             joined.withRight(partition);
 
             // create joined rows and project from the joined schema to the final schema
-            ParquetIterable<UnsafeRow> iterable = newParquetIterable(location, task, readSchema);
+            iterSchema = TypeUtil.join(readSchema, partitionSchema);
+            CloseableIterable<InternalRow> iterable = newParquetIterable(location, task, readSchema);
             this.currentCloseable = iterable;
-            Iterator<InternalRow> joinedIter = transform(iterable.iterator(), joined::withLeft);
 
-            return transform(joinedIter,
-                APPLY_PROJECTION.bind(projection(finalSchema, joinedSchema))::invoke);
+            iter = transform(iterable.iterator(), joined::withLeft);
 
           } else if (hasExtraFilterColumns) {
             // add projection to the final schema
-            ParquetIterable<UnsafeRow> iterable = newParquetIterable(location, task, requiredSchema);
+            CloseableIterable<InternalRow> iterable = newParquetIterable(
+                location, task, requiredSchema);
             this.currentCloseable = iterable;
-            return transform(iterable.iterator(),
-                APPLY_PROJECTION.bind(projection(finalSchema, requiredSchema))::invoke);
+
+            iterSchema = requiredSchema;
+            iter = iterable.iterator();
 
           } else {
             // return the base iterator
-            ParquetIterable<UnsafeRow> iterable = newParquetIterable(location, task, finalSchema);
+            CloseableIterable<InternalRow> iterable = newParquetIterable(location, task, finalSchema);
             this.currentCloseable = iterable;
-            return iterable.iterator();
+
+            iterSchema = finalSchema;
+            iter = iterable.iterator();
           }
 
+          if (residual.op() != Expression.Operation.TRUE) {
+            Evaluator eval = new Evaluator(iterSchema.asStruct(), residual);
+            StructLikeInternalRow wrapper = new StructLikeInternalRow(convert(iterSchema));
+            iter = Iterators.filter(iter, input -> eval.eval(wrapper.setRow(input)));
+          }
+
+          return transform(iter,
+              APPLY_PROJECTION.bind(projection(finalSchema, iterSchema))::invoke);
+
         case AVRO:
-          Schema iterSchema;
-          Iterator<InternalRow> iter;
           if (hasJoinedPartitionColumns) {
             Schema readSchema = TypeUtil.selectNot(requiredSchema, idColumns);
             Schema partitionSchema = TypeUtil.select(requiredSchema, idColumns);
@@ -399,26 +410,25 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
 
             // create joined rows and project from the joined schema to the final schema
             iterSchema = TypeUtil.join(readSchema, partitionSchema);
-            AvroIterable<InternalRow> iterable = newAvroIterable(location, task, readSchema);
+            CloseableIterable<InternalRow> iterable = newAvroIterable(location, task, readSchema);
             this.currentCloseable = iterable;
             iter = transform(iterable.iterator(), joined::withLeft);
 
           } else if (hasExtraFilterColumns) {
             // add projection to the final schema
             iterSchema = requiredSchema;
-            AvroIterable<InternalRow> iterable = newAvroIterable(location, task, iterSchema);
+            CloseableIterable<InternalRow> iterable = newAvroIterable(location, task, iterSchema);
             this.currentCloseable = iterable;
             iter = iterable.iterator();
 
           } else {
             // return the base iterator
             iterSchema = finalSchema;
-            AvroIterable<InternalRow> iterable = newAvroIterable(location, task, iterSchema);
+            CloseableIterable<InternalRow> iterable = newAvroIterable(location, task, iterSchema);
             this.currentCloseable = iterable;
             iter = iterable.iterator();
           }
 
-          Expression residual = task.residual();
           if (residual.op() != Expression.Operation.TRUE) {
             Evaluator eval = new Evaluator(iterSchema.asStruct(), residual);
             StructLikeInternalRow wrapper = new StructLikeInternalRow(convert(iterSchema));
@@ -473,7 +483,7 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
       return sourceIds;
     }
 
-    private AvroIterable<InternalRow> newAvroIterable(InputFile location,
+    private CloseableIterable<InternalRow> newAvroIterable(InputFile location,
                                                       FileScanTask task,
                                                       Schema readSchema) {
       return Avro.read(location)
@@ -484,19 +494,14 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
           .build();
     }
 
-    private ParquetIterable<UnsafeRow> newParquetIterable(InputFile location,
-                                                          FileScanTask task,
-                                                          Schema readSchema) {
-      StructType readType = convert(readSchema);
+    private CloseableIterable<InternalRow> newParquetIterable(InputFile location,
+                                                            FileScanTask task,
+                                                            Schema readSchema) {
       return Parquet.read(location)
           .project(readSchema)
           .split(task.start(), task.length())
-          .readSupport(new ParquetReadSupport())
+          .createReaderFunc(fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema))
           .filter(task.residual())
-          .set("org.apache.spark.sql.parquet.row.requested_schema", readType.json())
-          .set("spark.sql.parquet.binaryAsString", "false")
-          .set("spark.sql.parquet.int96AsTimestamp", "false")
-          .callInit()
           .build();
     }
   }

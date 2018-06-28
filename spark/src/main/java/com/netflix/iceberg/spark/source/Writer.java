@@ -16,6 +16,7 @@
 
 package com.netflix.iceberg.spark.source;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
@@ -407,9 +408,9 @@ class Writer implements DataSourceWriter, SupportsWriteInternalRow {
         closeCurrent();
 
         if (completedPartitions.contains(key)) {
+          // if rows are not correctly grouped, detect and fail the write
           PartitionKey existingKey = Iterables.find(completedPartitions, key::equals, null);
           LOG.warn("Duplicate key: {} == {}", existingKey, key);
-          // if rows are not correctly grouped, detect and fail the write
           throw new IllegalStateException("Already closed file for partition: " + key.toPath());
         }
 

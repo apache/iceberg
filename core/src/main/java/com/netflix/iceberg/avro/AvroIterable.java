@@ -18,7 +18,8 @@ package com.netflix.iceberg.avro;
 
 import com.google.common.collect.Maps;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.io.ClosingIterable;
+import com.netflix.iceberg.io.CloseableGroup;
+import com.netflix.iceberg.io.CloseableIterable;
 import com.netflix.iceberg.io.InputFile;
 import org.apache.avro.Schema;
 import org.apache.avro.file.DataFileReader;
@@ -30,7 +31,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
-public class AvroIterable<D> extends ClosingIterable implements Iterable<D> {
+public class AvroIterable<D> extends CloseableGroup implements CloseableIterable<D> {
   private final InputFile file;
   private final DatumReader<D> reader;
   private final Long start;
