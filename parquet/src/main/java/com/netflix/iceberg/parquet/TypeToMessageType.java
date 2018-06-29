@@ -170,7 +170,8 @@ public class TypeToMessageType {
         }
 
       case UUID:
-        // TODO: add UUID to upstream Parquet spec
+        return Types.primitive(FIXED_LEN_BYTE_ARRAY, repetition).length(16).id(id).named(name);
+
       default:
         throw new UnsupportedOperationException("Unsupported type for Parquet: " + primitive);
     }

@@ -30,8 +30,14 @@ import com.netflix.iceberg.types.Types.StructType;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.util.Map;
+import java.util.function.Function;
 
 public class ParquetMetricsRowGroupFilter {
   private final Schema schema;
@@ -69,6 +75,7 @@ public class ParquetMetricsRowGroupFilter {
   private class MetricsEvalVisitor extends BoundExpressionVisitor<Boolean> {
     private Map<Integer, Statistics> stats = null;
     private Map<Integer, Long> valueCounts = null;
+    private Map<Integer, Function<Object, Object>> conversions = null;
 
     private boolean eval(MessageType fileSchema, BlockMetaData rowGroup) {
       if (rowGroup.getRowCount() <= 0) {
@@ -77,10 +84,13 @@ public class ParquetMetricsRowGroupFilter {
 
       this.stats = Maps.newHashMap();
       this.valueCounts = Maps.newHashMap();
+      this.conversions = Maps.newHashMap();
       for (ColumnChunkMetaData col : rowGroup.getColumns()) {
-        int id = fileSchema.getType(col.getPath().toArray()).getId().intValue();
+        PrimitiveType colType = fileSchema.getType(col.getPath().toArray()).asPrimitiveType();
+        int id = colType.getId().intValue();
         stats.put(id, col.getStatistics());
         valueCounts.put(id, col.getValueCount());
+        conversions.put(id, converterFromParquet(colType));
       }
 
       return ExpressionVisitors.visit(expr, this);
@@ -158,7 +168,6 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
       Types.NestedField field = struct.field(id);
@@ -176,7 +185,7 @@ public class ParquetMetricsRowGroupFilter {
           return ROWS_CANNOT_MATCH;
         }
 
-        T lower = (T) colStats.genericGetMin();
+        T lower = min(colStats, id);
         int cmp = lit.comparator().compare(lower, lit.value());
         if (cmp >= 0) {
           return ROWS_CANNOT_MATCH;
@@ -187,7 +196,6 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
       Types.NestedField field = struct.field(id);
@@ -205,7 +213,7 @@ public class ParquetMetricsRowGroupFilter {
           return ROWS_CANNOT_MATCH;
         }
 
-        T lower = (T) colStats.genericGetMin();
+        T lower = min(colStats, id);
         int cmp = lit.comparator().compare(lower, lit.value());
         if (cmp > 0) {
           return ROWS_CANNOT_MATCH;
@@ -216,7 +224,6 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
       Types.NestedField field = struct.field(id);
@@ -234,7 +241,7 @@ public class ParquetMetricsRowGroupFilter {
           return ROWS_CANNOT_MATCH;
         }
 
-        T upper = (T) colStats.genericGetMax();
+        T upper = max(colStats, id);
         int cmp = lit.comparator().compare(upper, lit.value());
         if (cmp <= 0) {
           return ROWS_CANNOT_MATCH;
@@ -245,7 +252,6 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
       Types.NestedField field = struct.field(id);
@@ -263,7 +269,7 @@ public class ParquetMetricsRowGroupFilter {
           return ROWS_CANNOT_MATCH;
         }
 
-        T upper = (T) colStats.genericGetMax();
+        T upper = max(colStats, id);
         int cmp = lit.comparator().compare(upper, lit.value());
         if (cmp < 0) {
           return ROWS_CANNOT_MATCH;
@@ -274,7 +280,6 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
       Types.NestedField field = struct.field(id);
@@ -292,13 +297,13 @@ public class ParquetMetricsRowGroupFilter {
           return ROWS_CANNOT_MATCH;
         }
 
-        T lower = (T) colStats.genericGetMin();
+        T lower = min(colStats, id);
         int cmp = lit.comparator().compare(lower, lit.value());
         if (cmp > 0) {
           return ROWS_CANNOT_MATCH;
         }
 
-        T upper = (T) colStats.genericGetMax();
+        T upper = max(colStats, id);
         cmp = lit.comparator().compare(upper, lit.value());
         if (cmp < 0) {
           return ROWS_CANNOT_MATCH;
@@ -324,5 +329,47 @@ public class ParquetMetricsRowGroupFilter {
     public <T> Boolean notIn(BoundReference<T> ref, Literal<T> lit) {
       return ROWS_MIGHT_MATCH;
     }
+
+    @SuppressWarnings("unchecked")
+    private <T> T min(Statistics<?> stats, int id) {
+      return (T) conversions.get(id).apply(stats.genericGetMin());
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T max(Statistics<?> stats, int id) {
+      return (T) conversions.get(id).apply(stats.genericGetMax());
+    }
+  }
+
+  private Function<Object, Object> converterFromParquet(PrimitiveType type) {
+    if (type.getOriginalType() != null) {
+      switch (type.getOriginalType()) {
+        case UTF8:
+          return binary -> ((Binary) binary).toStringUsingUTF8();
+        case DECIMAL:
+          int scale = type.getDecimalMetadata().getScale();
+          switch (type.getPrimitiveTypeName()) {
+            case INT32:
+            case INT64:
+              return num -> BigDecimal.valueOf(((Number) num).longValue(), scale);
+            case FIXED_LEN_BYTE_ARRAY:
+            case BINARY:
+              return bin -> new BigDecimal(new BigInteger(((Binary) bin).getBytes()), scale);
+            default:
+              throw new IllegalArgumentException(
+                  "Unsupported primitive type for decimal: " + type.getPrimitiveTypeName());
+          }
+        default:
+      }
+    }
+
+    switch (type.getPrimitiveTypeName()) {
+      case FIXED_LEN_BYTE_ARRAY:
+      case BINARY:
+        return binary -> ByteBuffer.wrap(((Binary) binary).getBytes());
+      default:
+    }
+
+    return obj -> obj;
   }
 }
