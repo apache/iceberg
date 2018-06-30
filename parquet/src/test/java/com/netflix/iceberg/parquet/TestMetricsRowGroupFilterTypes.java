@@ -193,11 +193,11 @@ public class TestMetricsRowGroupFilterTypes {
   @Test
   public void testEq() {
     boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal(column, readValue))
-        .eval(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
     Assert.assertTrue("Should read: value is in the row group: " + readValue, shouldRead);
 
     shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal(column, skipValue))
-        .eval(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
     Assert.assertFalse("Should skip: value is not in the row group: " + skipValue, shouldRead);
   }
 }

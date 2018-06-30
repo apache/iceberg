@@ -75,13 +75,19 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       this.rowGroups = reader.getRowGroups();
       this.shouldSkip = new boolean[rowGroups.size()];
 
-      ParquetMetricsRowGroupFilter statsFilter = filter != null ?
-          new ParquetMetricsRowGroupFilter(expectedSchema, filter) : null;
+      ParquetMetricsRowGroupFilter statsFilter = null;
+      ParquetDictionaryRowGroupFilter dictFilter = null;
+      if (filter != null) {
+        statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter);
+        dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter);
+      }
 
       long totalValues = 0L;
       for (int i = 0; i < shouldSkip.length; i += 1) {
         BlockMetaData rowGroup = rowGroups.get(i);
-        boolean shouldRead = statsFilter == null || statsFilter.eval(fileSchema, rowGroup);
+        boolean shouldRead = filter == null || (
+            statsFilter.shouldRead(fileSchema, rowGroup) &&
+            dictFilter.shouldRead(fileSchema, rowGroup, reader.getDictionaryReader(rowGroup)));
         this.shouldSkip[i] = !shouldRead;
         if (shouldRead) {
           totalValues += rowGroup.getRowCount();

@@ -64,7 +64,7 @@ public class ParquetMetricsRowGroupFilter {
    * @param rowGroup metadata for a row group
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
-  public boolean eval(MessageType fileSchema, BlockMetaData rowGroup) {
+  public boolean shouldRead(MessageType fileSchema, BlockMetaData rowGroup) {
     return visitor().eval(fileSchema, rowGroup);
   }
 

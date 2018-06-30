@@ -75,8 +75,8 @@ public class ParquetDictionaryRowGroupFilter {
    * @param dictionaries a dictionary page read store
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
-  public boolean eval(MessageType fileSchema, BlockMetaData rowGroup,
-                      DictionaryPageReadStore dictionaries) {
+  public boolean shouldRead(MessageType fileSchema, BlockMetaData rowGroup,
+                            DictionaryPageReadStore dictionaries) {
     return visitor().eval(fileSchema, rowGroup, dictionaries);
   }
 
