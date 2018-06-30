@@ -193,7 +193,9 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
             .project(schema)
             .rename("manifest_entry", ManifestEntry.class.getName())
             .rename("partition", PartitionData.class.getName())
+            .rename("r102", PartitionData.class.getName())
             .rename("data_file", GenericDataFile.class.getName())
+            .rename("r2", GenericDataFile.class.getName())
             .reuseContainers()
             .build();
 

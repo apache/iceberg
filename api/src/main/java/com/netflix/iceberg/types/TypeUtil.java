@@ -164,6 +164,7 @@ public class TypeUtil {
 
   public static class SchemaVisitor<T> {
     protected LinkedList<String> fieldNames = Lists.newLinkedList();
+    protected LinkedList<Integer> fieldIds = Lists.newLinkedList();
 
     public T schema(Schema schema, T structResult) {
       return null;
@@ -200,11 +201,13 @@ public class TypeUtil {
         Types.StructType struct = type.asNestedType().asStructType();
         List<T> results = Lists.newArrayListWithExpectedSize(struct.fields().size());
         for (Types.NestedField field : struct.fields()) {
+          visitor.fieldIds.push(field.fieldId());
           visitor.fieldNames.push(field.name());
           T result;
           try {
             result = visit(field.type(), visitor);
           } finally {
+            visitor.fieldIds.pop();
             visitor.fieldNames.pop();
           }
           results.add(visitor.field(field, result));
@@ -213,11 +216,37 @@ public class TypeUtil {
 
       case LIST:
         Types.ListType list = type.asNestedType().asListType();
-        return visitor.list(list, visit(list.elementType(), visitor));
+        T elementResult;
+
+        visitor.fieldIds.push(list.elementId());
+        try {
+          elementResult = visit(list.elementType(), visitor);
+        } finally {
+          visitor.fieldIds.pop();
+        }
+
+        return visitor.list(list, elementResult);
 
       case MAP:
         Types.MapType map = type.asNestedType().asMapType();
-        return visitor.map(map, visit(map.keyType(), visitor), visit(map.valueType(), visitor));
+        T keyResult;
+        T valueResult;
+
+        visitor.fieldIds.push(map.keyId());
+        try {
+          keyResult = visit(map.keyType(), visitor);
+        } finally {
+          visitor.fieldIds.pop();
+        }
+
+        visitor.fieldIds.push(map.valueId());
+        try {
+          valueResult = visit(map.valueType(), visitor);
+        } finally {
+          visitor.fieldIds.pop();
+        }
+
+        return visitor.map(map, keyResult, valueResult);
 
       default:
         return visitor.primitive(type.asPrimitiveType());

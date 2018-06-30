@@ -32,6 +32,8 @@ import static com.netflix.iceberg.avro.AvroTestHelpers.addValueId;
 import static com.netflix.iceberg.avro.AvroTestHelpers.optionalField;
 import static com.netflix.iceberg.avro.AvroTestHelpers.record;
 import static com.netflix.iceberg.avro.AvroTestHelpers.requiredField;
+import static com.netflix.iceberg.types.Types.NestedField.optional;
+import static com.netflix.iceberg.types.Types.NestedField.required;
 
 public class TestSchemaConversions {
   @Test
@@ -88,20 +90,20 @@ public class TestSchemaConversions {
   @Test
   public void testStructAndPrimitiveTypes() {
     Types.StructType struct = Types.StructType.of(
-        Types.NestedField.optional(20, "bool", Types.BooleanType.get()),
-        Types.NestedField.optional(21, "int", Types.IntegerType.get()),
-        Types.NestedField.optional(22, "long", Types.LongType.get()),
-        Types.NestedField.optional(23, "float", Types.FloatType.get()),
-        Types.NestedField.optional(24, "double", Types.DoubleType.get()),
-        Types.NestedField.optional(25, "date", Types.DateType.get()),
-        Types.NestedField.optional(27, "time", Types.TimeType.get()),
-        Types.NestedField.optional(28, "timestamptz", Types.TimestampType.withZone()),
-        Types.NestedField.optional(29, "timestamp", Types.TimestampType.withoutZone()),
-        Types.NestedField.optional(30, "string", Types.StringType.get()),
-        Types.NestedField.optional(31, "uuid", Types.UUIDType.get()),
-        Types.NestedField.optional(32, "fixed", Types.FixedType.ofLength(16)),
-        Types.NestedField.optional(33, "binary", Types.BinaryType.get()),
-        Types.NestedField.optional(34, "decimal", Types.DecimalType.of(14, 2))
+        optional(20, "bool", Types.BooleanType.get()),
+        optional(21, "int", Types.IntegerType.get()),
+        optional(22, "long", Types.LongType.get()),
+        optional(23, "float", Types.FloatType.get()),
+        optional(24, "double", Types.DoubleType.get()),
+        optional(25, "date", Types.DateType.get()),
+        optional(27, "time", Types.TimeType.get()),
+        optional(28, "timestamptz", Types.TimestampType.withZone()),
+        optional(29, "timestamp", Types.TimestampType.withoutZone()),
+        optional(30, "string", Types.StringType.get()),
+        optional(31, "uuid", Types.UUIDType.get()),
+        optional(32, "fixed", Types.FixedType.ofLength(16)),
+        optional(33, "binary", Types.BinaryType.get()),
+        optional(34, "decimal", Types.DecimalType.of(14, 2))
     );
 
     Schema schema = record("primitives",
@@ -142,12 +144,12 @@ public class TestSchemaConversions {
   @Test
   public void testListOfStructs() {
     Type list = Types.ListType.ofRequired(34, Types.StructType.of(
-        Types.NestedField.required(35, "lat", Types.FloatType.get()),
-        Types.NestedField.required(36, "long", Types.FloatType.get())
+        required(35, "lat", Types.FloatType.get()),
+        required(36, "long", Types.FloatType.get())
     ));
 
     Schema schema = addElementId(34, SchemaBuilder.array().items(
-        record(null,
+        record("r34",
             requiredField(35, "lat", Schema.create(Schema.Type.FLOAT)),
             requiredField(36, "long", Schema.create(Schema.Type.FLOAT)))
     ));
@@ -188,12 +190,12 @@ public class TestSchemaConversions {
     Type map = Types.MapType.ofRequired(33, 34,
         Types.ListType.ofRequired(35, Types.IntegerType.get()),
         Types.StructType.of(
-            Types.NestedField.required(36, "a", Types.IntegerType.get()),
-            Types.NestedField.optional(37, "b", Types.IntegerType.get())
+            required(36, "a", Types.IntegerType.get()),
+            optional(37, "b", Types.IntegerType.get())
         ));
     Schema schema = AvroSchemaUtil.createMap(
         33, addElementId(35, Schema.createArray(Schema.create(Schema.Type.INT))),
-        34, record(null,
+        34, record("r34",
             requiredField(36, "a", Schema.create(Schema.Type.INT)),
             optionalField(37, "b", Schema.create(Schema.Type.INT))));
 
@@ -206,11 +208,11 @@ public class TestSchemaConversions {
   @Test
   public void testMapOfStringToStructs() {
     Type map = Types.MapType.ofRequired(33, 34, Types.StringType.get(), Types.StructType.of(
-        Types.NestedField.required(35, "a", Types.IntegerType.get()),
-        Types.NestedField.optional(36, "b", Types.IntegerType.get())
+        required(35, "a", Types.IntegerType.get()),
+        optional(36, "b", Types.IntegerType.get())
     ));
     Schema schema = addKeyId(33, addValueId(34, SchemaBuilder.map().values(
-        record(null,
+        record("r34",
             requiredField(35, "a", Schema.create(Schema.Type.INT)),
             optionalField(36, "b", Schema.create(Schema.Type.INT))))));
 
@@ -218,6 +220,43 @@ public class TestSchemaConversions {
         map, AvroSchemaUtil.convert(schema));
     Assert.assertEquals("Map to Avro schema",
         schema, AvroSchemaUtil.convert(map));
+  }
+
+  @Test
+  public void testComplexSchema() {
+    com.netflix.iceberg.Schema schema = new com.netflix.iceberg.Schema(
+        required(1, "id", Types.IntegerType.get()),
+        optional(2, "data", Types.StringType.get()),
+        optional(
+            3,
+            "preferences",
+            Types.StructType
+                .of(required(8, "feature1", Types.BooleanType.get()), optional(9, "feature2", Types.BooleanType.get()))),
+        required(
+            4,
+            "locations",
+            Types.MapType.ofRequired(
+                10,
+                11,
+                Types.StructType.of(
+                    required(20, "address", Types.StringType.get()),
+                    required(21, "city", Types.StringType.get()),
+                    required(22, "state", Types.StringType.get()),
+                    required(23, "zip", Types.IntegerType.get())
+                ),
+                Types.StructType.of(required(12, "lat", Types.FloatType.get()), required(13, "long", Types.FloatType.get()))
+            )
+        ),
+        optional(
+            5,
+            "points",
+            Types.ListType.ofOptional(
+                14,
+                Types.StructType.of(required(15, "x", Types.LongType.get()), required(16, "y", Types.LongType.get())))),
+        required(6, "doubles", Types.ListType.ofRequired(17, Types.DoubleType.get())),
+        optional(7, "properties", Types.MapType.ofOptional(18, 19, Types.StringType.get(), Types.StringType.get())));
+
+    AvroSchemaUtil.convert(schema, "newTableName").toString(true);
   }
 
 }
