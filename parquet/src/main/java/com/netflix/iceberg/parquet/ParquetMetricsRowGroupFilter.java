@@ -30,14 +30,13 @@ import com.netflix.iceberg.types.Types.StructType;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
-import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.function.Function;
+
+import static com.netflix.iceberg.expressions.Expressions.rewriteNot;
+import static com.netflix.iceberg.parquet.ParquetConversions.converterFromParquet;
 
 public class ParquetMetricsRowGroupFilter {
   private final Schema schema;
@@ -55,7 +54,7 @@ public class ParquetMetricsRowGroupFilter {
   public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound) {
     this.schema = schema;
     this.struct = schema.asStruct();
-    this.expr = Binder.bind(struct, unbound);
+    this.expr = Binder.bind(struct, rewriteNot(unbound));
   }
 
   /**
@@ -339,37 +338,5 @@ public class ParquetMetricsRowGroupFilter {
     private <T> T max(Statistics<?> stats, int id) {
       return (T) conversions.get(id).apply(stats.genericGetMax());
     }
-  }
-
-  private Function<Object, Object> converterFromParquet(PrimitiveType type) {
-    if (type.getOriginalType() != null) {
-      switch (type.getOriginalType()) {
-        case UTF8:
-          return binary -> ((Binary) binary).toStringUsingUTF8();
-        case DECIMAL:
-          int scale = type.getDecimalMetadata().getScale();
-          switch (type.getPrimitiveTypeName()) {
-            case INT32:
-            case INT64:
-              return num -> BigDecimal.valueOf(((Number) num).longValue(), scale);
-            case FIXED_LEN_BYTE_ARRAY:
-            case BINARY:
-              return bin -> new BigDecimal(new BigInteger(((Binary) bin).getBytes()), scale);
-            default:
-              throw new IllegalArgumentException(
-                  "Unsupported primitive type for decimal: " + type.getPrimitiveTypeName());
-          }
-        default:
-      }
-    }
-
-    switch (type.getPrimitiveTypeName()) {
-      case FIXED_LEN_BYTE_ARRAY:
-      case BINARY:
-        return binary -> ByteBuffer.wrap(((Binary) binary).getBytes());
-      default:
-    }
-
-    return obj -> obj;
   }
 }

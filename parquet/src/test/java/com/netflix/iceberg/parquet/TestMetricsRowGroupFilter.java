@@ -406,4 +406,35 @@ public class TestMetricsRowGroupFilter {
         .eval(PARQUET_SCHEMA, ROW_GROUP_METADATA);
     Assert.assertTrue("Should read: id above upper bound", shouldRead);
   }
+
+  @Test
+  public void testIntegerNotEqRewritten() {
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(equal("id", 5)))
+        .eval(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(equal("id", 29)))
+        .eval(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(equal("id", 30)))
+        .eval(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(equal("id", 75)))
+        .eval(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(equal("id", 79)))
+        .eval(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(equal("id", 80)))
+        .eval(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(equal("id", 85)))
+        .eval(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+  }
 }

@@ -294,4 +294,28 @@ public class TestStrictMetricsEvaluator {
     shouldRead = new StrictMetricsEvaluator(SCHEMA, notEqual("id", 85)).eval(FILE);
     Assert.assertTrue("Should read: no values == 85", shouldRead);
   }
+
+  @Test
+  public void testIntegerNotEqRewritten() {
+    boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, not(equal("id", 5))).eval(FILE);
+    Assert.assertTrue("Should match: no values == 5", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, not(equal("id", 29))).eval(FILE);
+    Assert.assertTrue("Should match: no values == 39", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, not(equal("id", 30))).eval(FILE);
+    Assert.assertFalse("Should not match: some value may be == 30", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, not(equal("id", 75))).eval(FILE);
+    Assert.assertFalse("Should not match: some value may be == 75", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, not(equal("id", 79))).eval(FILE);
+    Assert.assertFalse("Should not match: some value may be == 79", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, not(equal("id", 80))).eval(FILE);
+    Assert.assertTrue("Should match: no values == 80", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, not(equal("id", 85))).eval(FILE);
+    Assert.assertTrue("Should read: no values == 85", shouldRead);
+  }
 }

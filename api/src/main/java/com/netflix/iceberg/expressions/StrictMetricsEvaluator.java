@@ -26,6 +26,8 @@ import com.netflix.iceberg.types.Types.StructType;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
+import static com.netflix.iceberg.expressions.Expressions.rewriteNot;
+
 /**
  * Evaluates an {@link Expression} on a {@link DataFile} to test whether all rows in the file match.
  * <p>
@@ -52,7 +54,7 @@ public class StrictMetricsEvaluator {
   public StrictMetricsEvaluator(Schema schema, Expression unbound) {
     this.schema = schema;
     this.struct = schema.asStruct();
-    this.expr = Binder.bind(struct, unbound);
+    this.expr = Binder.bind(struct, rewriteNot(unbound));
   }
 
   /**

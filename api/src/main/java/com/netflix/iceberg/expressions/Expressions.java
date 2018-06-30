@@ -108,6 +108,10 @@ public class Expressions {
     return False.INSTANCE;
   }
 
+  public static Expression rewriteNot(Expression expr) {
+    return ExpressionVisitors.visit(expr, RewriteNot.get());
+  }
+
   static NamedReference ref(String name) {
     return new NamedReference(name);
   }

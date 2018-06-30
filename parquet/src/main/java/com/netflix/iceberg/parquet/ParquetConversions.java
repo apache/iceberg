@@ -21,11 +21,13 @@ import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Types;
 import org.apache.commons.io.Charsets;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.PrimitiveType;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.UUID;
+import java.util.function.Function;
 
 class ParquetConversions {
   private ParquetConversions() {
@@ -65,5 +67,38 @@ class ParquetConversions {
     } else {
       throw new IllegalArgumentException("Unsupported primitive value: " + value);
     }
+  }
+
+  static Function<Object, Object> converterFromParquet(PrimitiveType type) {
+    if (type.getOriginalType() != null) {
+      switch (type.getOriginalType()) {
+        case UTF8:
+          // decode to CharSequence to avoid copying into a new String
+          return binary -> Charsets.UTF_8.decode(((Binary) binary).toByteBuffer());
+        case DECIMAL:
+          int scale = type.getDecimalMetadata().getScale();
+          switch (type.getPrimitiveTypeName()) {
+            case INT32:
+            case INT64:
+              return num -> BigDecimal.valueOf(((Number) num).longValue(), scale);
+            case FIXED_LEN_BYTE_ARRAY:
+            case BINARY:
+              return bin -> new BigDecimal(new BigInteger(((Binary) bin).getBytes()), scale);
+            default:
+              throw new IllegalArgumentException(
+                  "Unsupported primitive type for decimal: " + type.getPrimitiveTypeName());
+          }
+        default:
+      }
+    }
+
+    switch (type.getPrimitiveTypeName()) {
+      case FIXED_LEN_BYTE_ARRAY:
+      case BINARY:
+        return binary -> ByteBuffer.wrap(((Binary) binary).getBytes());
+      default:
+    }
+
+    return obj -> obj;
   }
 }
