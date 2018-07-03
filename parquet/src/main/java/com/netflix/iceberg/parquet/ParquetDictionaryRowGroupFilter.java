@@ -100,9 +100,11 @@ public class ParquetDictionaryRowGroupFilter {
 
       for (ColumnDescriptor desc : fileSchema.getColumns()) {
         PrimitiveType colType = fileSchema.getType(desc.getPath()).asPrimitiveType();
-        int id = colType.getId().intValue();
-        cols.put(id, desc);
-        conversions.put(id, converterFromParquet(colType));
+        if (colType.getId() != null) {
+          int id = colType.getId().intValue();
+          cols.put(id, desc);
+          conversions.put(id, converterFromParquet(colType));
+        }
       }
 
       for (ColumnChunkMetaData meta : rowGroup.getColumns()) {

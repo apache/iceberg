@@ -86,10 +86,12 @@ public class ParquetMetricsRowGroupFilter {
       this.conversions = Maps.newHashMap();
       for (ColumnChunkMetaData col : rowGroup.getColumns()) {
         PrimitiveType colType = fileSchema.getType(col.getPath().toArray()).asPrimitiveType();
-        int id = colType.getId().intValue();
-        stats.put(id, col.getStatistics());
-        valueCounts.put(id, col.getValueCount());
-        conversions.put(id, converterFromParquet(colType));
+        if (colType.getId() != null) {
+          int id = colType.getId().intValue();
+          stats.put(id, col.getStatistics());
+          valueCounts.put(id, col.getValueCount());
+          conversions.put(id, converterFromParquet(colType));
+        }
       }
 
       return ExpressionVisitors.visit(expr, this);
