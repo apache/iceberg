@@ -109,8 +109,10 @@ public class ParquetDictionaryRowGroupFilter {
 
       for (ColumnChunkMetaData meta : rowGroup.getColumns()) {
         PrimitiveType colType = fileSchema.getType(meta.getPath().toArray()).asPrimitiveType();
-        int id = colType.getId().intValue();
-        isFallback.put(id, hasNonDictionaryPages(meta));
+        if (colType.getId() != null) {
+          int id = colType.getId().intValue();
+          isFallback.put(id, hasNonDictionaryPages(meta));
+        }
       }
 
       return ExpressionVisitors.visit(expr, this);
