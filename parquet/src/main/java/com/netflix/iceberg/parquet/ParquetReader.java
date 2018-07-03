@@ -71,7 +71,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       MessageType fileSchema = reader.getFileMetaData().getSchema();
 
       this.projection = projectionSchema(expectedSchema, fileSchema);
-      this.model = (ParquetValueReader<T>) readerFunc.apply(fileSchema);
+      this.model = (ParquetValueReader<T>) readerFunc.apply(projection);
       this.rowGroups = reader.getRowGroups();
       this.shouldSkip = new boolean[rowGroups.size()];
 

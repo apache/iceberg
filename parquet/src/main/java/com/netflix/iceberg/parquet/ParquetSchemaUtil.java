@@ -67,7 +67,7 @@ public class ParquetSchemaUtil {
     int ordinal = 1;
     for (Type type : fileSchema.getFields()) {
       if (selectedIds.contains(ordinal)) {
-        builder.addField(type);
+        builder.addField(type.withId(ordinal));
       }
       ordinal += 1;
     }

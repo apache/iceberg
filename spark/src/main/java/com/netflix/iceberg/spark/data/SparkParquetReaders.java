@@ -67,13 +67,49 @@ public class SparkParquetReaders {
   @SuppressWarnings("unchecked")
   public static ParquetValueReader<InternalRow> buildReader(Schema expectedSchema,
                                                             MessageType fileSchema) {
-    return (ParquetValueReader<InternalRow>)
-        TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
-            new ReadBuilder(fileSchema));
+    List<Type> fileFields = fileSchema.getFields();
+    if (fileFields.size() > 0 && fileFields.get(0).getId() != null) {
+      return (ParquetValueReader<InternalRow>)
+          TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
+              new ReadBuilder(fileSchema));
+    } else {
+      return (ParquetValueReader<InternalRow>)
+          TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
+              new FallbackReadBuilder(fileSchema));
+    }
+  }
+
+  private static class FallbackReadBuilder extends ReadBuilder {
+    public FallbackReadBuilder(MessageType type) {
+      super(type);
+    }
+
+    @Override
+    public ParquetValueReader<?> message(Types.StructType expected, MessageType message, List<ParquetValueReader<?>> fieldReaders) {
+      // the top level matches by ID, but the remaining IDs are missing
+      return super.struct(expected, message, fieldReaders);
+    }
+
+    @Override
+    public ParquetValueReader<?> struct(Types.StructType ignored, GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
+      // the expected struct is ignored because nested fields are never found when the
+      List<ParquetValueReader<?>> newFields = Lists.newArrayListWithExpectedSize(
+          fieldReaders.size());
+      List<Type> types = Lists.newArrayListWithExpectedSize(fieldReaders.size());
+      List<Type> fields = struct.getFields();
+      for (int i = 0; i < fields.size(); i += 1) {
+        Type fieldType = fields.get(i);
+        int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName()))-1;
+        newFields.add(option(fieldType, fieldD, fieldReaders.get(i)));
+        types.add(fieldType);
+      }
+
+      return new InternalRowReader(types, newFields);
+    }
   }
 
   private static class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
-    private final MessageType type;
+    protected final MessageType type;
 
     ReadBuilder(MessageType type) {
       this.type = type;
@@ -233,7 +269,7 @@ public class SparkParquetReaders {
       return path;
     }
 
-    private String[] path(String name) {
+    protected String[] path(String name) {
       String[] path = new String[fieldNames.size() + 1];
       path[fieldNames.size()] = name;
 
