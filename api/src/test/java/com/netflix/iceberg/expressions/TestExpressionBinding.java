@@ -80,9 +80,9 @@ public class TestExpressionBinding {
     And and = TestHelpers.assertAndUnwrap(boundExpr, And.class);
 
     // make sure the refs are for the right fields
-    BoundPredicate<?> left = TestHelpers.assertAndUnwrap(and.getLeft());
+    BoundPredicate<?> left = TestHelpers.assertAndUnwrap(and.left());
     Assert.assertEquals("Should bind x correctly", 0, left.ref().fieldId());
-    BoundPredicate<?> right = TestHelpers.assertAndUnwrap(and.getRight());
+    BoundPredicate<?> right = TestHelpers.assertAndUnwrap(and.right());
     Assert.assertEquals("Should bind y correctly", 1, right.ref().fieldId());
   }
 
@@ -96,9 +96,9 @@ public class TestExpressionBinding {
     Or or = TestHelpers.assertAndUnwrap(boundExpr, Or.class);
 
     // make sure the refs are for the right fields
-    BoundPredicate<?> left = TestHelpers.assertAndUnwrap(or.getLeft());
+    BoundPredicate<?> left = TestHelpers.assertAndUnwrap(or.left());
     Assert.assertEquals("Should bind z correctly", 2, left.ref().fieldId());
-    BoundPredicate<?> right = TestHelpers.assertAndUnwrap(or.getRight());
+    BoundPredicate<?> right = TestHelpers.assertAndUnwrap(or.right());
     Assert.assertEquals("Should bind y correctly", 1, right.ref().fieldId());
   }
 

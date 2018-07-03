@@ -154,10 +154,10 @@ public class ExpressionVisitors {
           return visitor.not(visit(not.child(), visitor));
         case AND:
           And and = (And) expr;
-          return visitor.and(visit(and.getLeft(), visitor), visit(and.getRight(), visitor));
+          return visitor.and(visit(and.left(), visitor), visit(and.right(), visitor));
         case OR:
           Or or = (Or) expr;
-          return visitor.or(visit(or.getLeft(), visitor), visit(or.getRight(), visitor));
+          return visitor.or(visit(or.left(), visitor), visit(or.right(), visitor));
         default:
           throw new UnsupportedOperationException(
               "Unknown operation: " + expr.op());

@@ -150,15 +150,15 @@ public class TestProjection {
 
     Assert.assertTrue(projection instanceof Or);
     Or or1 = (Or) projection;
-    UnboundPredicate<?> dateint1 = assertAndUnwrapUnbound(or1.getLeft());
+    UnboundPredicate<?> dateint1 = assertAndUnwrapUnbound(or1.left());
     Assert.assertEquals("Should be a dateint predicate", "dateint", dateint1.ref().name());
     Assert.assertEquals("Should be dateint=20180416", 20180416, dateint1.literal().value());
-    Assert.assertTrue(or1.getRight() instanceof Or);
-    Or or2 = (Or) or1.getRight();
-    UnboundPredicate<?> dateint2 = assertAndUnwrapUnbound(or2.getLeft());
+    Assert.assertTrue(or1.right() instanceof Or);
+    Or or2 = (Or) or1.right();
+    UnboundPredicate<?> dateint2 = assertAndUnwrapUnbound(or2.left());
     Assert.assertEquals("Should be a dateint predicate", "dateint", dateint2.ref().name());
     Assert.assertEquals("Should be dateint=20180415", 20180415, dateint2.literal().value());
-    UnboundPredicate<?> dateint3 = assertAndUnwrapUnbound(or2.getRight());
+    UnboundPredicate<?> dateint3 = assertAndUnwrapUnbound(or2.right());
     Assert.assertEquals("Should be a dateint predicate", "dateint", dateint3.ref().name());
     Assert.assertEquals("Should be dateint=20180417", 20180417, dateint3.literal().value());
   }

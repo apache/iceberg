@@ -80,13 +80,13 @@ public class TestExpressionSerialization {
         return equals(((Not) left).child(), ((Not) right).child());
       case AND:
         return (
-            equals(((And) left).getLeft(), ((And) right).getLeft()) &&
-            equals(((And) left).getRight(), ((And) right).getRight())
+            equals(((And) left).left(), ((And) right).left()) &&
+            equals(((And) left).right(), ((And) right).right())
         );
       case OR:
         return (
-            equals(((Or) left).getLeft(), ((Or) right).getLeft()) &&
-            equals(((Or) left).getRight(), ((Or) right).getRight())
+            equals(((Or) left).left(), ((Or) right).left()) &&
+            equals(((Or) left).right(), ((Or) right).right())
         );
       default:
         return false;

@@ -25,11 +25,11 @@ public class And implements Expression {
     this.right = right;
   }
 
-  public Expression getLeft() {
+  public Expression left() {
     return left;
   }
 
-  public Expression getRight() {
+  public Expression right() {
     return right;
   }
 
