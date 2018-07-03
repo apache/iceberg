@@ -118,7 +118,6 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable{
   }
 
   public ManifestEntry copy() {
-    file.copy();
     return new ManifestEntry(this);
   }
 
