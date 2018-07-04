@@ -58,6 +58,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static com.netflix.iceberg.parquet.ParquetSchemaUtil.hasIds;
 import static com.netflix.iceberg.parquet.ParquetValueReaders.option;
 
 public class SparkParquetReaders {
@@ -67,8 +68,7 @@ public class SparkParquetReaders {
   @SuppressWarnings("unchecked")
   public static ParquetValueReader<InternalRow> buildReader(Schema expectedSchema,
                                                             MessageType fileSchema) {
-    List<Type> fileFields = fileSchema.getFields();
-    if (fileFields.size() > 0 && fileFields.get(0).getId() != null) {
+    if (hasIds(fileSchema)) {
       return (ParquetValueReader<InternalRow>)
           TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
               new ReadBuilder(fileSchema));

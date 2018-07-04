@@ -19,6 +19,7 @@ package com.netflix.iceberg.parquet;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.expressions.Expression;
+import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.io.CloseableGroup;
 import com.netflix.iceberg.io.CloseableIterable;
 import com.netflix.iceberg.io.InputFile;
@@ -34,6 +35,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.Function;
 
+import static com.netflix.iceberg.parquet.ParquetSchemaUtil.addFallbackIds;
+import static com.netflix.iceberg.parquet.ParquetSchemaUtil.hasIds;
+import static com.netflix.iceberg.parquet.ParquetSchemaUtil.pruneColumns;
+import static com.netflix.iceberg.parquet.ParquetSchemaUtil.pruneColumnsFallback;
+
 public class ParquetReader<T> extends CloseableGroup implements CloseableIterable<T> {
   private final InputFile input;
   private final Schema expectedSchema;
@@ -48,7 +54,8 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     this.expectedSchema = expectedSchema;
     this.options = options;
     this.readerFunc = readerFunc;
-    this.filter = filter;
+    // replace alwaysTrue with null to avoid extra work evaluating a trivial filter
+    this.filter = filter == Expressions.alwaysTrue() ? null : filter;
   }
 
   private static class ReadConf<T> {
@@ -70,8 +77,13 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
       MessageType fileSchema = reader.getFileMetaData().getSchema();
 
-      this.projection = projectionSchema(expectedSchema, fileSchema);
-      this.model = (ParquetValueReader<T>) readerFunc.apply(projection);
+      boolean hasIds = hasIds(fileSchema);
+      MessageType typeWithIds = hasIds ? fileSchema : addFallbackIds(fileSchema);
+
+      this.projection = hasIds ?
+          pruneColumns(fileSchema, expectedSchema) :
+          pruneColumnsFallback(fileSchema, expectedSchema);
+      this.model = (ParquetValueReader<T>) readerFunc.apply(typeWithIds);
       this.rowGroups = reader.getRowGroups();
       this.shouldSkip = new boolean[rowGroups.size()];
 
@@ -86,8 +98,8 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       for (int i = 0; i < shouldSkip.length; i += 1) {
         BlockMetaData rowGroup = rowGroups.get(i);
         boolean shouldRead = filter == null || (
-            statsFilter.shouldRead(fileSchema, rowGroup) &&
-            dictFilter.shouldRead(fileSchema, rowGroup, reader.getDictionaryReader(rowGroup)));
+            statsFilter.shouldRead(typeWithIds, rowGroup) &&
+            dictFilter.shouldRead(typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup)));
         this.shouldSkip[i] = !shouldRead;
         if (shouldRead) {
           totalValues += rowGroup.getRowCount();
@@ -140,16 +152,6 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
         return ParquetFileReader.open(ParquetIO.file(file), options);
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to open Parquet file: %s", file.location());
-      }
-    }
-
-    private static MessageType projectionSchema(Schema expectedSchema, MessageType fileSchema) {
-      List<Type> fileFields = fileSchema.getFields();
-      if (fileFields.size() > 0 && fileFields.get(0).getId() != null) {
-        return ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema);
-      } else {
-        // the file was written without field IDs
-        return ParquetSchemaUtil.pruneColumnsFallback(fileSchema, expectedSchema);
       }
     }
   }

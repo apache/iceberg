@@ -31,6 +31,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static com.netflix.iceberg.parquet.ParquetSchemaUtil.hasIds;
+import static com.netflix.iceberg.parquet.ParquetSchemaUtil.pruneColumns;
+import static com.netflix.iceberg.parquet.ParquetSchemaUtil.pruneColumnsFallback;
+
 /**
  * Parquet {@link ReadSupport} that handles column projection based on {@link Schema} column IDs.
  *
@@ -54,14 +58,9 @@ class ParquetReadSupport<T> extends ReadSupport<T> {
     // matching to the file's columns by full path, so this must select columns by using the path
     // in the file's schema.
 
-    List<Type> fileFields = fileSchema.getFields();
-    MessageType projection;
-    if (fileFields.size() > 0 && fileFields.get(0).getId() != null) {
-      projection = ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema);
-    } else {
-      // the file was written without field IDs
-      projection = ParquetSchemaUtil.pruneColumnsFallback(fileSchema, expectedSchema);
-    }
+    MessageType projection = hasIds(fileSchema) ?
+      pruneColumns(fileSchema, expectedSchema) :
+      pruneColumnsFallback(fileSchema, expectedSchema);
 
     // override some known backward-compatibility options
     configuration.set("parquet.strict.typing", "false");

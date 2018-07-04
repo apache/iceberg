@@ -20,6 +20,7 @@ import com.google.common.collect.Sets;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.types.TypeUtil;
 import com.netflix.iceberg.types.Types;
+import com.sun.prism.paint.Stop;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types.MessageTypeBuilder;
@@ -69,6 +70,37 @@ public class ParquetSchemaUtil {
       if (selectedIds.contains(ordinal)) {
         builder.addField(type.withId(ordinal));
       }
+      ordinal += 1;
+    }
+
+    return builder.named(fileSchema.getName());
+  }
+
+  public static boolean hasIds(MessageType fileSchema) {
+    try {
+      // Try to convert the type to Iceberg. If an ID assignment is needed, return false.
+      ParquetTypeVisitor.visit(fileSchema, new MessageTypeToType(fileSchema) {
+        @Override
+        protected int nextId() {
+          throw new IllegalStateException("Needed to assign ID");
+        }
+      });
+
+      // no assignment was needed
+      return true;
+
+    } catch (IllegalStateException e) {
+      // at least one field was missing an id.
+      return false;
+    }
+  }
+
+  public static MessageType addFallbackIds(MessageType fileSchema) {
+    MessageTypeBuilder builder = org.apache.parquet.schema.Types.buildMessage();
+
+    int ordinal = 1; // ids are assigned starting at 1
+    for (Type type : fileSchema.getFields()) {
+      builder.addField(type.withId(ordinal));
       ordinal += 1;
     }
 

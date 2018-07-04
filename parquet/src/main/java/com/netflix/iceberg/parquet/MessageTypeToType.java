@@ -43,7 +43,7 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
 
   public MessageTypeToType(GroupType root) {
     this.root = root;
-    this.nextId = root.getFieldCount() + 1; // reserve ids for the root struct
+    this.nextId = 1_000_000; // use ids that won't match other than for root
   }
 
   public Map<String, Integer> getAliases() {
@@ -185,7 +185,7 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     aliasToId.put(fullName, fieldId);
   }
 
-  private int nextId() {
+  protected int nextId() {
     int current = nextId;
     nextId += 1;
     return current;
