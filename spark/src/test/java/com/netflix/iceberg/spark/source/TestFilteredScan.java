@@ -212,7 +212,8 @@ public class TestFilteredScan {
       Assert.assertEquals("Should only create one task for a small file", 1, tasks.size());
 
       // validate row filtering
-      assertEqualsUnsafe(SCHEMA.asStruct(), expected(i), read(tasks));
+      assertEqualsSafe(SCHEMA.asStruct(), expected(i),
+          read(unpartitioned.toString(), "id = " + i));
     }
   }
 
@@ -231,7 +232,8 @@ public class TestFilteredScan {
     List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
     Assert.assertEquals("Should only create one task for a small file", 1, tasks.size());
 
-    assertEqualsUnsafe(SCHEMA.asStruct(), expected(5,6,7,8,9), read(tasks));
+    assertEqualsSafe(SCHEMA.asStruct(), expected(5,6,7,8,9),
+        read(unpartitioned.toString(), "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
   }
 
   @Test
@@ -258,7 +260,7 @@ public class TestFilteredScan {
       Assert.assertEquals("Should create one task for a single bucket", 1, tasks.size());
 
       // validate row filtering
-      assertEqualsUnsafe(SCHEMA.asStruct(), expected(i), read(tasks));
+      assertEqualsSafe(SCHEMA.asStruct(), expected(i), read(location.toString(), "id = " + i));
     }
   }
 
@@ -283,7 +285,8 @@ public class TestFilteredScan {
       List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
       Assert.assertEquals("Should create one task for 2017-12-21", 1, tasks.size());
 
-      assertEqualsUnsafe(SCHEMA.asStruct(), expected(5, 6, 7, 8, 9), read(tasks));
+      assertEqualsSafe(SCHEMA.asStruct(), expected(5, 6, 7, 8, 9),
+          read(location.toString(), "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
     }
 
     {
@@ -296,7 +299,9 @@ public class TestFilteredScan {
       List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
       Assert.assertEquals("Should create one task for 2017-12-22", 1, tasks.size());
 
-      assertEqualsUnsafe(SCHEMA.asStruct(), expected(1, 2), read(tasks));
+      assertEqualsSafe(SCHEMA.asStruct(), expected(1, 2), read(location.toString(),
+          "ts > cast('2017-12-22 06:00:00+00:00' as timestamp) and " +
+              "ts < cast('2017-12-22 08:00:00+00:00' as timestamp)"));
     }
   }
 
@@ -321,7 +326,8 @@ public class TestFilteredScan {
       List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
       Assert.assertEquals("Should create 4 tasks for 2017-12-21: 15, 17, 21, 22", 4, tasks.size());
 
-      assertEqualsUnsafe(SCHEMA.asStruct(), expected(8, 9, 7, 6, 5), read(tasks));
+      assertEqualsSafe(SCHEMA.asStruct(), expected(8, 9, 7, 6, 5),
+          read(location.toString(), "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
     }
 
     {
@@ -334,59 +340,41 @@ public class TestFilteredScan {
       List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
       Assert.assertEquals("Should create 2 tasks for 2017-12-22: 6, 7", 2, tasks.size());
 
-      assertEqualsUnsafe(SCHEMA.asStruct(), expected(2, 1), read(tasks));
+      assertEqualsSafe(SCHEMA.asStruct(), expected(2, 1), read(location.toString(),
+          "ts > cast('2017-12-22 06:00:00+00:00' as timestamp) and " +
+              "ts < cast('2017-12-22 08:00:00+00:00' as timestamp)"));
     }
   }
 
   @Test
   public void testFilterByNonProjectedColumn() {
-    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
-        "path", unpartitioned.toString())
-    );
-
-    IcebergSource source = new IcebergSource();
-
     {
-      DataSourceReader reader = source.createReader(options);
-
-      Schema projection = SCHEMA.select("id", "data");
-      Assert.assertTrue(reader instanceof SupportsPushDownRequiredColumns);
-      SupportsPushDownRequiredColumns projectable = (SupportsPushDownRequiredColumns) reader;
-      projectable.pruneColumns(SparkSchemaUtil.convert(projection));
-
-      pushFilters(reader, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
-
-      List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
-
       Schema actualProjection = SCHEMA.select("id", "data");
       List<Record> expected = Lists.newArrayList();
       for (Record rec : expected(5, 6 ,7, 8, 9)) {
         expected.add(projectFlat(actualProjection, rec));
       }
 
-      assertEqualsUnsafe(actualProjection.asStruct(), expected, read(tasks));
+      assertEqualsSafe(actualProjection.asStruct(), expected, read(
+              unpartitioned.toString(),
+              "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)",
+              "id", "data"));
     }
 
     {
-      DataSourceReader reader = source.createReader(options);
-
       // only project id: ts will be projected because of the filter, but data will not be included
-      Schema projection = SCHEMA.select("id");
-      Assert.assertTrue(reader instanceof SupportsPushDownRequiredColumns);
-      SupportsPushDownRequiredColumns projectable = (SupportsPushDownRequiredColumns) reader;
-      projectable.pruneColumns(SparkSchemaUtil.convert(projection));
-
-      pushFilters(reader, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
-
-      List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
 
       Schema actualProjection = SCHEMA.select("id");
       List<Record> expected = Lists.newArrayList();
-      for (Record rec : expected(5, 6 ,7, 8, 9)) {
+      for (Record rec : expected(1, 2)) {
         expected.add(projectFlat(actualProjection, rec));
       }
 
-      assertEqualsUnsafe(actualProjection.asStruct(), expected, read(tasks));
+      assertEqualsSafe(actualProjection.asStruct(), expected, read(
+          unpartitioned.toString(),
+          "ts > cast('2017-12-22 06:00:00+00:00' as timestamp) and " +
+              "ts < cast('2017-12-22 08:00:00+00:00' as timestamp)",
+          "id"));
     }
   }
 
@@ -407,6 +395,16 @@ public class TestFilteredScan {
     int numRecords = Math.min(expected.size(), actual.size());
     for (int i = 0; i < numRecords; i += 1) {
       TestHelpers.assertEqualsUnsafe(struct, expected.get(i), actual.get(i));
+    }
+    Assert.assertEquals("Number of results should match expected", expected.size(), actual.size());
+  }
+
+  public static void assertEqualsSafe(Types.StructType struct,
+                                      List<Record> expected, List<Row> actual) {
+    // TODO: match records by ID
+    int numRecords = Math.min(expected.size(), actual.size());
+    for (int i = 0; i < numRecords; i += 1) {
+      TestHelpers.assertEqualsSafe(struct, expected.get(i), actual.get(i));
     }
     Assert.assertEquals("Number of results should match expected", expected.size(), actual.size());
   }
@@ -469,6 +467,16 @@ public class TestFilteredScan {
         record(avroSchema, 8L, timestamp("2017-12-21T15:21:51.237521+00:00"), "global"),
         record(avroSchema, 9L, timestamp("2017-12-21T15:02:15.230570+00:00"), "goldfish")
     );
+  }
+
+  private static List<Row> read(String table, String expr) {
+    return read(table, expr, "*");
+  }
+
+  private static List<Row> read(String table, String expr, String select0, String... selectN) {
+    Dataset<Row> dataset = spark.read().format("iceberg").load(table).filter(expr)
+        .select(select0, selectN);
+    return dataset.collectAsList();
   }
 
   private static List<UnsafeRow> read(List<DataReaderFactory<UnsafeRow>> tasks) {

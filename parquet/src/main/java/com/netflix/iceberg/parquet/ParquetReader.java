@@ -28,7 +28,6 @@ import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.Type;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;

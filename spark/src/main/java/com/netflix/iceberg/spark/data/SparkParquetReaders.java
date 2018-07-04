@@ -80,7 +80,7 @@ public class SparkParquetReaders {
   }
 
   private static class FallbackReadBuilder extends ReadBuilder {
-    public FallbackReadBuilder(MessageType type) {
+    FallbackReadBuilder(MessageType type) {
       super(type);
     }
 

@@ -157,15 +157,12 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
 
     List<Expression> expressions = Lists.newArrayListWithExpectedSize(filters.length);
     List<Filter> pushed = Lists.newArrayListWithExpectedSize(filters.length);
-    List<Filter> notSupported = Lists.newArrayListWithExpectedSize(0);
 
     for (Filter filter : filters) {
       Expression expr = SparkFilters.convert(filter);
       if (expr != null) {
         expressions.add(expr);
         pushed.add(filter);
-      } else {
-        notSupported.add(filter);
       }
     }
 
@@ -176,7 +173,9 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
     this.schema = null;
     this.type = null;
 
-    return notSupported.toArray(new Filter[notSupported.size()]);
+    // Spark doesn't support residuals per task, so return all filters
+    // to get Spark to handle record-level filtering
+    return filters;
   }
 
   @Override
@@ -389,12 +388,6 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
             iter = iterable.iterator();
           }
 
-          if (residual.op() != Expression.Operation.TRUE) {
-            Evaluator eval = new Evaluator(iterSchema.asStruct(), residual);
-            StructLikeInternalRow wrapper = new StructLikeInternalRow(convert(iterSchema));
-            iter = Iterators.filter(iter, input -> eval.eval(wrapper.setRow(input)));
-          }
-
           return transform(iter,
               APPLY_PROJECTION.bind(projection(finalSchema, iterSchema))::invoke);
 
@@ -427,12 +420,6 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
             CloseableIterable<InternalRow> iterable = newAvroIterable(location, task, iterSchema);
             this.currentCloseable = iterable;
             iter = iterable.iterator();
-          }
-
-          if (residual.op() != Expression.Operation.TRUE) {
-            Evaluator eval = new Evaluator(iterSchema.asStruct(), residual);
-            StructLikeInternalRow wrapper = new StructLikeInternalRow(convert(iterSchema));
-            iter = Iterators.filter(iter, input -> eval.eval(wrapper.setRow(input)));
           }
 
           return transform(iter,
