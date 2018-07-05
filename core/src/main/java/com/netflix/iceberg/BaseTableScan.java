@@ -24,8 +24,12 @@ import com.netflix.iceberg.expressions.ResidualEvaluator;
 import com.netflix.iceberg.io.CloseableGroup;
 import com.netflix.iceberg.util.BinPacking;
 import com.netflix.iceberg.util.ParallelIterable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 
 import static com.netflix.iceberg.util.ThreadPools.getPlannerPool;
 import static com.netflix.iceberg.util.ThreadPools.getWorkerPool;
@@ -34,6 +38,9 @@ import static com.netflix.iceberg.util.ThreadPools.getWorkerPool;
  * Base class for {@link TableScan} implementations.
  */
 class BaseTableScan extends CloseableGroup implements TableScan {
+  private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+  private static final Logger LOG = LoggerFactory.getLogger(TableScan.class);
+
   private final TableOperations ops;
   private final Table table;
   private final Collection<String> columns;
@@ -69,6 +76,10 @@ class BaseTableScan extends CloseableGroup implements TableScan {
   public Iterable<FileScanTask> planFiles() {
     Snapshot snapshot = ops.current().currentSnapshot();
     if (snapshot != null) {
+      LOG.info("Scanning table {} snapshot {} created at {} with filter {}", table,
+          snapshot.snapshotId(), DATE_FORMAT.format(new Date(snapshot.timestampMillis())),
+          rowFilter);
+
       Iterable<Iterable<FileScanTask>> readers = Iterables.transform(
           snapshot.manifests(),
           manifest -> {
@@ -90,6 +101,7 @@ class BaseTableScan extends CloseableGroup implements TableScan {
       }
 
     } else {
+      LOG.info("Scanning empty table {}", table);
       return Collections.emptyList();
     }
   }
