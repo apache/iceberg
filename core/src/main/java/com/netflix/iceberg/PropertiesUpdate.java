@@ -22,6 +22,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.CommitFailedException;
 import com.netflix.iceberg.util.Tasks;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -78,16 +79,16 @@ class PropertiesUpdate implements UpdateProperties {
   public Map<String, String> apply() {
     this.base = ops.refresh();
 
-    ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+    Map<String, String> newProperties = Maps.newHashMap();
     for (Map.Entry<String, String> entry : base.properties().entrySet()) {
       if (!removals.contains(entry.getKey())) {
-        builder.put(entry.getKey(), entry.getValue());
+        newProperties.put(entry.getKey(), entry.getValue());
       }
     }
 
-    builder.putAll(updates);
+    newProperties.putAll(updates);
 
-    return builder.build();
+    return newProperties;
   }
 
   @Override
