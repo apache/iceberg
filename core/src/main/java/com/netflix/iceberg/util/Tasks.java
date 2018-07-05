@@ -25,7 +25,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -34,7 +33,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 
@@ -501,6 +499,40 @@ public class Tasks {
         }
       }
     }
+  }
+
+  /**
+   * A range, [ 0, size )
+   */
+  private static class Range implements Iterable<Integer> {
+    private int size;
+
+    Range(int size) {
+      this.size = size;
+    }
+
+    @Override
+    public Iterator<Integer> iterator() {
+      return new Iterator<Integer>() {
+        private int current = 0;
+
+        @Override
+        public boolean hasNext() {
+          return current < size;
+        }
+
+        @Override
+        public Integer next() {
+          int ret = current;
+          current += 1;
+          return ret;
+        }
+      };
+    }
+  }
+
+  public static Builder<Integer> range(int upTo) {
+    return new Builder<>(new Range(upTo));
   }
 
   public static <I> Builder<I> foreach(Iterable<I> items) {

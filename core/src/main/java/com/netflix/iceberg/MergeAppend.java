@@ -24,16 +24,22 @@ import com.netflix.iceberg.exceptions.CommitFailedException;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.OutputFile;
 import com.netflix.iceberg.util.BinPacking.ListPacker;
+import com.netflix.iceberg.util.ParallelIterable;
+import com.netflix.iceberg.util.Tasks;
 import java.io.IOException;
+import java.lang.reflect.Array;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static com.netflix.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
 import static com.netflix.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT_DEFAULT;
 import static com.netflix.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
 import static com.netflix.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
+import static com.netflix.iceberg.util.ThreadPools.getWorkerPool;
 
 /**
  * Append implementation that produces a minimal number of manifest files.
@@ -104,7 +110,9 @@ class MergeAppend extends SnapshotUpdate implements AppendFiles {
 
       List<String> manifests = Lists.newArrayList();
       for (int i = 0; i < specs.size(); i += 1) {
-        manifests.addAll(mergeGroup(specs.get(i), groups.get(i)));
+        for (String manifest : mergeGroup(specs.get(i), groups.get(i))) {
+          manifests.add(manifest);
+        }
       }
 
       threw = false;
@@ -133,7 +141,8 @@ class MergeAppend extends SnapshotUpdate implements AppendFiles {
     newManifests.clear();
   }
 
-  private List<String> mergeGroup(PartitionSpec groupSpec, List<ManifestReader> group) {
+  @SuppressWarnings("unchecked")
+  private Iterable<String> mergeGroup(PartitionSpec groupSpec, List<ManifestReader> group) {
     // use a lookback of 1 to avoid reordering the manifests. using 1 also means this should pack
     // from the end so that the manifest that gets under-filled is the first one, which will be
     // merged the next time.
@@ -142,41 +151,49 @@ class MergeAppend extends SnapshotUpdate implements AppendFiles {
     List<List<ManifestReader>> bins = packer.packEnd(group,
         reader -> reader.file() != null ? reader.file().getLength() : newFilesSize);
 
-    List<String> outputManifests = Lists.newLinkedList();
-    for (int i = 0; i < bins.size(); i += 1) {
-      List<ManifestReader> bin = bins.get(i);
+    // process bins in parallel, but put results in the order of the bins into an array to preserve
+    // the order of manifests and contents. preserving the order helps avoid random deletes when
+    // data files are eventually aged off.
+    List<String>[] binResults = (List<String>[]) Array.newInstance(List.class, bins.size());
+    Tasks.range(bins.size())
+        .stopOnFailure().throwFailureWhenFinished()
+        .executeWith(getWorkerPool())
+        .run(index -> {
+          List<ManifestReader> bin = bins.get(index);
+          List<String> outputManifests = Lists.newArrayList();
+          binResults[index] = outputManifests;
 
-      if (bin.size() == 1 && bin.get(0).file() != null) {
-        // no need to rewrite
-        outputManifests.add(bin.get(0).file().location());
-        continue;
-      }
-
-      boolean hasInMemoryManifest = false;
-      for (ManifestReader reader : bin) {
-        if (reader.file() == null) {
-          hasInMemoryManifest = true;
-        }
-      }
-
-      // if the bin has an in-memory manifest (the new data) then only merge it if the number of
-      // manifests is above the minimum count. this is applied only to bins with an in-memory
-      // manifest so that large manifests don't prevent merging older groups.
-      if (hasInMemoryManifest && bin.size() < minManifestsCountToMerge) {
-        for (ManifestReader reader : bin) {
-          if (reader.file() != null) {
-            outputManifests.add(reader.file().location());
-          } else {
-            // write the in-memory manifest
-            outputManifests.add(createManifest(groupSpec, Collections.singletonList(reader)));
+          if (bin.size() == 1 && bin.get(0).file() != null) {
+            // no need to rewrite
+            outputManifests.add(bin.get(0).file().location());
+            return;
           }
-        }
-      } else {
-        outputManifests.add(createManifest(groupSpec, bin));
-      }
-    }
 
-    return outputManifests;
+          boolean hasInMemoryManifest = false;
+          for (ManifestReader reader : bin) {
+            if (reader.file() == null) {
+              hasInMemoryManifest = true;
+            }
+          }
+
+          // if the bin has an in-memory manifest (the new data) then only merge it if the number of
+          // manifests is above the minimum count. this is applied only to bins with an in-memory
+          // manifest so that large manifests don't prevent merging older groups.
+          if (hasInMemoryManifest && bin.size() < minManifestsCountToMerge) {
+            for (ManifestReader reader : bin) {
+              if (reader.file() != null) {
+                outputManifests.add(reader.file().location());
+              } else {
+                // write the in-memory manifest
+                outputManifests.add(createManifest(groupSpec, Collections.singletonList(reader)));
+              }
+            }
+          } else {
+            outputManifests.add(createManifest(groupSpec, bin));
+          }
+        });
+
+    return Iterables.concat(binResults);
   }
 
   private String createManifest(PartitionSpec binSpec, List<ManifestReader> bin) {
