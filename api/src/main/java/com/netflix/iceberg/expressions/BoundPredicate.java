@@ -27,6 +27,6 @@ public class BoundPredicate<T> extends Predicate<T, BoundReference<T>> {
 
   @Override
   public Expression negate() {
-    return new BoundPredicate<>(negateOp(), ref(), literal());
+    return new BoundPredicate<>(op().negate(), ref(), literal());
   }
 }

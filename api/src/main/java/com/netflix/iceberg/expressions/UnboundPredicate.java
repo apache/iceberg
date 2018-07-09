@@ -38,7 +38,7 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
 
   @Override
   public Expression negate() {
-    return new UnboundPredicate<>(negateOp(), ref(), literal());
+    return new UnboundPredicate<>(op().negate(), ref(), literal());
   }
 
   public Expression bind(Types.StructType struct) {

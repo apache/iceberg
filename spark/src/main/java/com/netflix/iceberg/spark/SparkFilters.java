@@ -62,6 +62,8 @@ import static com.netflix.iceberg.expressions.Expressions.notNull;
 import static com.netflix.iceberg.expressions.Expressions.or;
 
 public class SparkFilters {
+  private SparkFilters() {
+  }
 
   private static final Map<Class<? extends Filter>, Operation> FILTERS = ImmutableMap
       .<Class<? extends Filter>, Operation>builder()

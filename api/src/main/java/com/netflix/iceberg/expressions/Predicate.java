@@ -32,33 +32,6 @@ public abstract class Predicate<T, R extends Reference> implements Expression {
     return op;
   }
 
-  protected Operation negateOp() {
-    switch (op) {
-      case IS_NULL:
-        return Operation.NOT_NULL;
-      case NOT_NULL:
-        return Operation.IS_NULL;
-      case LT:
-        return Operation.GT_EQ;
-      case LT_EQ:
-        return Operation.GT;
-      case GT:
-        return Operation.LT_EQ;
-      case GT_EQ:
-        return Operation.LT;
-      case EQ:
-        return Operation.NOT_EQ;
-      case NOT_EQ:
-        return Operation.EQ;
-//      case IN:
-//      return new Predicate<>(Operation.NOT_IN, ref, literal);
-//      case NOT_IN:
-//      return new Predicate<>(Operation.IN, ref, literal);
-      default:
-        throw new IllegalArgumentException("Invalid predicate: operation = " + op);
-    }
-  }
-
   public R ref() {
     return ref;
   }

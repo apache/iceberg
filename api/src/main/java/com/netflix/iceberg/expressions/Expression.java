@@ -37,7 +37,63 @@ public interface Expression extends Serializable {
     NOT_IN,
     NOT,
     AND,
-    OR
+    OR;
+
+    /**
+     * @return the operation used when this is negated
+     */
+    public Operation negate() {
+      switch (this) {
+        case IS_NULL:
+          return Operation.NOT_NULL;
+        case NOT_NULL:
+          return Operation.IS_NULL;
+        case LT:
+          return Operation.GT_EQ;
+        case LT_EQ:
+          return Operation.GT;
+        case GT:
+          return Operation.LT_EQ;
+        case GT_EQ:
+          return Operation.LT;
+        case EQ:
+          return Operation.NOT_EQ;
+        case NOT_EQ:
+          return Operation.EQ;
+        case IN:
+          return Operation.NOT_IN;
+        case NOT_IN:
+          return Operation.IN;
+        default:
+          throw new IllegalArgumentException("No negation for operation: " + this);
+      }
+    }
+
+    /**
+     * @return the equivalent operation when the left and right operands are exchanged
+     */
+    public Operation flipLR() {
+      switch (this) {
+        case LT:
+          return Operation.GT;
+        case LT_EQ:
+          return Operation.GT_EQ;
+        case GT:
+          return Operation.LT;
+        case GT_EQ:
+          return Operation.LT_EQ;
+        case EQ:
+          return Operation.EQ;
+        case NOT_EQ:
+          return Operation.NOT_EQ;
+        case AND:
+          return Operation.AND;
+        case OR:
+          return Operation.OR;
+        default:
+          throw new IllegalArgumentException("No left-right flip for operation: " + this);
+      }
+    }
   }
 
   /**
@@ -48,5 +104,7 @@ public interface Expression extends Serializable {
   /**
    * @return the negation of this expression, equivalent to not(this).
    */
-  Expression negate();
+  default Expression negate() {
+    throw new UnsupportedOperationException(String.format("%s cannot be negated", this));
+  }
 }
