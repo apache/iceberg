@@ -208,7 +208,6 @@ public class TestMiscLiteralConversions {
         Types.LongType.get(),
         Types.FloatType.get(),
         Types.DoubleType.get(),
-        Types.DateType.get(),
         Types.TimeType.get(),
         Types.DecimalType.of(9, 4),
         Types.StringType.get(),
