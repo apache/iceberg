@@ -27,13 +27,13 @@ public class TableProperties {
   public static final int COMMIT_MAX_RETRY_WAIT_MS_DEFAULT = 60000; // 1 minute
 
   public static final String COMMIT_TOTAL_RETRY_TIME_MS = "commit.retry.total-timeout-ms";
-  public static final int COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT = 600000; // 10 minutes
+  public static final int COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT = 1800000; // 30 minutes
 
   public static final String MANIFEST_TARGET_SIZE_BYTES = "commit.manifest.target-size-bytes";
-  public static final long MANIFEST_TARGET_SIZE_BYTES_DEFAULT = 4194304; // 4 MB
+  public static final long MANIFEST_TARGET_SIZE_BYTES_DEFAULT = 8388608; // 8 MB
 
   public static final String MANIFEST_MIN_MERGE_COUNT = "commit.manifest.min-count-to-merge";
-  public static final int MANIFEST_MIN_MERGE_COUNT_DEFAULT = 20;
+  public static final int MANIFEST_MIN_MERGE_COUNT_DEFAULT = 100;
 
   public static final String DEFAULT_FILE_FORMAT = "write.format.default";
   public static final String DEFAULT_FILE_FORMAT_DEFAULT = "parquet";
