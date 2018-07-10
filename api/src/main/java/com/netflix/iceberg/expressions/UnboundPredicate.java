@@ -32,7 +32,7 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
     super(op, namedRef, null);
   }
 
-  private UnboundPredicate(Operation op, NamedReference namedRef, Literal<T> lit) {
+  UnboundPredicate(Operation op, NamedReference namedRef, Literal<T> lit) {
     super(op, namedRef, lit);
   }
 

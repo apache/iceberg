@@ -17,7 +17,6 @@
 package com.netflix.iceberg.spark.source;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.io.Closeables;
@@ -34,13 +33,12 @@ import com.netflix.iceberg.TableScan;
 import com.netflix.iceberg.avro.Avro;
 import com.netflix.iceberg.common.DynMethods;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.expressions.Evaluator;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.hadoop.HadoopInputFile;
 import com.netflix.iceberg.io.CloseableIterable;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.parquet.Parquet;
-import com.netflix.iceberg.spark.SparkFilters;
+import com.netflix.iceberg.spark.SparkExpressions;
 import com.netflix.iceberg.spark.SparkSchemaUtil;
 import com.netflix.iceberg.spark.data.SparkAvroReader;
 import com.netflix.iceberg.spark.data.SparkOrcReader;
@@ -55,12 +53,11 @@ import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.expressions.JoinedRow;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
 import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
-import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.v2.reader.DataReader;
 import org.apache.spark.sql.sources.v2.reader.DataSourceReader;
 import org.apache.spark.sql.sources.v2.reader.DataReaderFactory;
 import org.apache.spark.sql.sources.v2.reader.Statistics;
-import org.apache.spark.sql.sources.v2.reader.SupportsPushDownFilters;
+import org.apache.spark.sql.sources.v2.reader.SupportsPushDownCatalystFilters;
 import org.apache.spark.sql.sources.v2.reader.SupportsPushDownRequiredColumns;
 import org.apache.spark.sql.sources.v2.reader.SupportsReportStatistics;
 import org.apache.spark.sql.sources.v2.reader.SupportsScanUnsafeRow;
@@ -88,9 +85,12 @@ import static com.netflix.iceberg.spark.SparkSchemaUtil.prune;
 import static scala.collection.JavaConverters.asScalaBufferConverter;
 import static scala.collection.JavaConverters.seqAsJavaListConverter;
 
-class Reader implements DataSourceReader, SupportsScanUnsafeRow,
-    SupportsPushDownRequiredColumns, SupportsPushDownFilters, SupportsReportStatistics {
-  private static final Filter[] NO_FILTERS = new Filter[0];
+class Reader implements DataSourceReader, SupportsScanUnsafeRow, SupportsPushDownCatalystFilters,
+    SupportsPushDownRequiredColumns, SupportsReportStatistics {
+
+  private static final org.apache.spark.sql.catalyst.expressions.Expression[] NO_EXPRS =
+      new org.apache.spark.sql.catalyst.expressions.Expression[0];
+
   private static final List<String> SNAPSHOT_COLUMNS = ImmutableList.of(
       "snapshot_id", "file_path", "file_ordinal", "file_format", "block_size_in_bytes",
       "file_size_in_bytes", "record_count", "partition", "value_counts", "null_value_counts",
@@ -101,7 +101,7 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
   private final SerializableConfiguration conf;
   private StructType requestedSchema = null;
   private List<Expression> filterExpressions = null;
-  private Filter[] pushedFilters = NO_FILTERS;
+  private org.apache.spark.sql.catalyst.expressions.Expression[] pushedExprs = NO_EXPRS;
 
   // lazy variables
   private Schema schema = null;
@@ -151,15 +151,16 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
   }
 
   @Override
-  public Filter[] pushFilters(Filter[] filters) {
-    // TODO: this needs to add filter columns to the projection
+  public org.apache.spark.sql.catalyst.expressions.Expression[] pushCatalystFilters(
+      org.apache.spark.sql.catalyst.expressions.Expression[] filters) {
     this.tasks = null; // invalidate cached tasks, if present
 
     List<Expression> expressions = Lists.newArrayListWithExpectedSize(filters.length);
-    List<Filter> pushed = Lists.newArrayListWithExpectedSize(filters.length);
+    List<org.apache.spark.sql.catalyst.expressions.Expression> pushed =
+        Lists.newArrayListWithExpectedSize(filters.length);
 
-    for (Filter filter : filters) {
-      Expression expr = SparkFilters.convert(filter);
+    for (org.apache.spark.sql.catalyst.expressions.Expression filter : filters) {
+      Expression expr = SparkExpressions.convert(filter);
       if (expr != null) {
         expressions.add(expr);
         pushed.add(filter);
@@ -167,7 +168,7 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
     }
 
     this.filterExpressions = expressions;
-    this.pushedFilters = pushed.toArray(new Filter[pushed.size()]);
+    this.pushedExprs = pushed.toArray(new org.apache.spark.sql.catalyst.expressions.Expression[0]);
 
     // invalidate the schema that will be projected
     this.schema = null;
@@ -179,8 +180,8 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
   }
 
   @Override
-  public Filter[] pushedFilters() {
-    return pushedFilters;
+  public org.apache.spark.sql.catalyst.expressions.Expression[] pushedCatalystFilters() {
+    return pushedExprs;
   }
 
   @Override
@@ -348,7 +349,6 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow,
       boolean hasJoinedPartitionColumns = !idColumns.isEmpty();
       boolean hasExtraFilterColumns = requiredSchema.columns().size() != finalSchema.columns().size();
 
-      Expression residual = task.residual();
       Schema iterSchema;
       Iterator<InternalRow> iter;
       switch (file.format()) {

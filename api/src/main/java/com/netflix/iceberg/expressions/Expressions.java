@@ -94,6 +94,12 @@ public class Expressions {
     return new UnboundPredicate<>(op, ref(name), value);
   }
 
+  public static <T> UnboundPredicate<T> predicate(Operation op, String name, Literal<T> lit) {
+    Preconditions.checkArgument(op != Operation.IS_NULL && op != Operation.NOT_NULL,
+        "Cannot create %s predicate inclusive a value", op);
+    return new UnboundPredicate<>(op, ref(name), lit);
+  }
+
   public static <T> UnboundPredicate<T> predicate(Operation op, String name) {
     Preconditions.checkArgument(op == Operation.IS_NULL || op == Operation.NOT_NULL,
         "Cannot create %s predicate without a value", op);

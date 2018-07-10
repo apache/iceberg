@@ -39,6 +39,9 @@ class Literals {
   private Literals() {
   }
 
+  private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
+  private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
+
   /**
    * Create a {@link Literal} from an Object.
    *
@@ -347,8 +350,13 @@ class Literals {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Literal<T> to(Type type) {
-      if (type.typeId() == Type.TypeID.TIMESTAMP) {
-        return (Literal<T>) this ;
+      switch (type.typeId()) {
+        case TIMESTAMP:
+          return (Literal<T>) this;
+        case DATE:
+          return (Literal<T>) new DateLiteral((int) ChronoUnit.DAYS.between(
+              EPOCH_DAY, EPOCH.plus(value(), ChronoUnit.MICROS).toLocalDate()));
+        default:
       }
       return null;
     }
@@ -378,8 +386,6 @@ class Literals {
   static class StringLiteral extends BaseLiteral<CharSequence> {
     private static final Comparator<CharSequence> CMP =
         Comparators.<CharSequence>nullsFirst().thenComparing(Comparators.charSequences());
-    private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
-    private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
     StringLiteral(CharSequence value) {
       super(value);
