@@ -24,11 +24,9 @@ import com.netflix.iceberg.exceptions.CommitFailedException;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.OutputFile;
 import com.netflix.iceberg.util.BinPacking.ListPacker;
-import com.netflix.iceberg.util.ParallelIterable;
 import com.netflix.iceberg.util.Tasks;
 import java.io.IOException;
 import java.lang.reflect.Array;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -85,15 +83,23 @@ class MergeAppend extends SnapshotUpdate implements AppendFiles {
     groups.add(Lists.newArrayList());
     groups.get(0).add(newFilesAsManifest());
 
-    List<ManifestReader> toClose = Lists.newArrayList();
+    ConcurrentLinkedQueue<ManifestReader> toClose = new ConcurrentLinkedQueue<>();
     boolean threw = true;
     try {
       // group manifests by compatible partition specs to be merged
       if (current != null) {
-        for (String manifest : current.manifests()) {
-          ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest));
-          toClose.add(reader);
+        List<String> manifests = current.manifests();
+        ManifestReader[] readers = new ManifestReader[manifests.size()];
+        // open all of the manifest files in parallel, use index to avoid reordering
+        Tasks.range(readers.length)
+            .stopOnFailure().throwFailureWhenFinished()
+            .executeWith(getWorkerPool())
+            .run(index -> {
+              readers[index] = ManifestReader.read(ops.newInputFile(manifests.get(index)));
+              toClose.add(readers[index]);
+            });
 
+        for (ManifestReader reader : readers) {
           int index = findMatch(specs, reader.spec());
           if (index < 0) {
             // not found, add a new one
