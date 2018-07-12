@@ -37,6 +37,7 @@ import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 import org.apache.orc.storage.serde2.io.DateWritable;
 import org.apache.orc.storage.serde2.io.HiveDecimalWritable;
+import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
 import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
 import org.apache.spark.sql.catalyst.expressions.codegen.BufferHolder;
@@ -61,7 +62,7 @@ import java.util.List;
  *
  * It minimizes allocations by reusing most of the objects in the implementation.
  */
-public class SparkOrcReader implements Iterator<UnsafeRow>, Closeable {
+public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
   private final static int INITIAL_SIZE = 128 * 1024;
   private final OrcIterator reader;
   private final TypeDescription orcSchema;

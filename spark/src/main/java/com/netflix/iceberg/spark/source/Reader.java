@@ -337,7 +337,6 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow, SupportsPushDow
 
     private Iterator<UnsafeRow> open(FileScanTask task) {
       DataFile file = task.file();
-      InputFile location = HadoopInputFile.fromLocation(file.path(), conf);
 
       // schema or rows returned by readers
       Schema finalSchema = expectedSchema;
@@ -351,88 +350,34 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow, SupportsPushDow
 
       Schema iterSchema;
       Iterator<InternalRow> iter;
-      switch (file.format()) {
-        case PARQUET:
-          if (hasJoinedPartitionColumns) {
-            // schema used to read data files
-            Schema readSchema = TypeUtil.selectNot(requiredSchema, idColumns);
-            Schema partitionSchema = TypeUtil.select(requiredSchema, idColumns);
-            PartitionRowConverter convertToRow = new PartitionRowConverter(partitionSchema, spec);
-            JoinedRow joined = new JoinedRow();
 
-            InternalRow partition = convertToRow.apply(file.partition());
-            joined.withRight(partition);
+      if (hasJoinedPartitionColumns) {
+        // schema used to read data files
+        Schema readSchema = TypeUtil.selectNot(requiredSchema, idColumns);
+        Schema partitionSchema = TypeUtil.select(requiredSchema, idColumns);
+        PartitionRowConverter convertToRow = new PartitionRowConverter(partitionSchema, spec);
+        JoinedRow joined = new JoinedRow();
 
-            // create joined rows and project from the joined schema to the final schema
-            iterSchema = TypeUtil.join(readSchema, partitionSchema);
-            CloseableIterable<InternalRow> iterable = newParquetIterable(location, task, readSchema);
-            this.currentCloseable = iterable;
+        InternalRow partition = convertToRow.apply(file.partition());
+        joined.withRight(partition);
 
-            iter = transform(iterable.iterator(), joined::withLeft);
+        // create joined rows and project from the joined schema to the final schema
+        iterSchema = TypeUtil.join(readSchema, partitionSchema);
+        iter = transform(open(task, readSchema, conf), joined::withLeft);
 
-          } else if (hasExtraFilterColumns) {
-            // add projection to the final schema
-            CloseableIterable<InternalRow> iterable = newParquetIterable(
-                location, task, requiredSchema);
-            this.currentCloseable = iterable;
+      } else if (hasExtraFilterColumns) {
+        // add projection to the final schema
+        iterSchema = requiredSchema;
+        iter = open(task, requiredSchema, conf);
 
-            iterSchema = requiredSchema;
-            iter = iterable.iterator();
-
-          } else {
-            // return the base iterator
-            CloseableIterable<InternalRow> iterable = newParquetIterable(location, task, finalSchema);
-            this.currentCloseable = iterable;
-
-            iterSchema = finalSchema;
-            iter = iterable.iterator();
-          }
-
-          return transform(iter,
-              APPLY_PROJECTION.bind(projection(finalSchema, iterSchema))::invoke);
-
-        case AVRO:
-          if (hasJoinedPartitionColumns) {
-            Schema readSchema = TypeUtil.selectNot(requiredSchema, idColumns);
-            Schema partitionSchema = TypeUtil.select(requiredSchema, idColumns);
-
-            PartitionRowConverter convertToRow = new PartitionRowConverter(partitionSchema, spec);
-            JoinedRow joined = new JoinedRow();
-            InternalRow partition = convertToRow.apply(file.partition());
-            joined.withRight(partition);
-
-            // create joined rows and project from the joined schema to the final schema
-            iterSchema = TypeUtil.join(readSchema, partitionSchema);
-            CloseableIterable<InternalRow> iterable = newAvroIterable(location, task, readSchema);
-            this.currentCloseable = iterable;
-            iter = transform(iterable.iterator(), joined::withLeft);
-
-          } else if (hasExtraFilterColumns) {
-            // add projection to the final schema
-            iterSchema = requiredSchema;
-            CloseableIterable<InternalRow> iterable = newAvroIterable(location, task, iterSchema);
-            this.currentCloseable = iterable;
-            iter = iterable.iterator();
-
-          } else {
-            // return the base iterator
-            iterSchema = finalSchema;
-            CloseableIterable<InternalRow> iterable = newAvroIterable(location, task, iterSchema);
-            this.currentCloseable = iterable;
-            iter = iterable.iterator();
-          }
-
-          return transform(iter,
-              APPLY_PROJECTION.bind(projection(finalSchema, iterSchema))::invoke);
-
-        case ORC:
-          SparkOrcReader reader = new SparkOrcReader(location, task, finalSchema);
-          this.currentCloseable = reader;
-          return reader;
-
-        default:
-          throw new UnsupportedOperationException("Cannot read unknown format: " + file.format());
+      } else {
+        // return the base iterator
+        iterSchema = finalSchema;
+        iter = open(task, finalSchema, conf);
       }
+
+      return transform(iter,
+          APPLY_PROJECTION.bind(projection(finalSchema, iterSchema))::invoke);
     }
 
     private static UnsafeProjection projection(Schema finalSchema, Schema readSchema) {
@@ -468,6 +413,34 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow, SupportsPushDow
       }
 
       return sourceIds;
+    }
+
+    private Iterator<InternalRow> open(FileScanTask task, Schema readSchema,
+                                       Configuration conf) {
+      InputFile location = HadoopInputFile.fromLocation(task.file().path(), conf);
+      CloseableIterable<InternalRow> iter;
+      switch (task.file().format()) {
+        case ORC:
+          SparkOrcReader reader = new SparkOrcReader(location, task, readSchema);
+          this.currentCloseable = reader;
+          return reader;
+
+        case PARQUET:
+          iter = newParquetIterable(location, task, readSchema);
+          break;
+
+        case AVRO:
+          iter = newAvroIterable(location, task, readSchema);
+          break;
+
+        default:
+          throw new UnsupportedOperationException(
+              "Cannot read unknown format: " + task.file().format());
+      }
+
+      this.currentCloseable = iter;
+
+      return iter.iterator();
     }
 
     private CloseableIterable<InternalRow> newAvroIterable(InputFile location,
