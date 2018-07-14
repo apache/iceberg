@@ -165,7 +165,7 @@ object SparkTableUtil {
   }
 
   private def mapToArray(map: java.util.Map[Integer, java.lang.Long]): Array[Long] = {
-    if (map != null) {
+    if (map != null && !map.isEmpty) {
       val keys = map.keySet.asScala
       val max = keys.max
       val arr = Array.fill(max + 1)(-1L)
