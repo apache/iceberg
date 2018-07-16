@@ -131,7 +131,7 @@ object SparkTableUtil {
   }
 
   private def bytesMapToArray(map: java.util.Map[Integer, ByteBuffer]): Seq[Array[Byte]] = {
-    if (map != null) {
+    if (map != null && !map.isEmpty) {
       val keys = map.keySet.asScala
       val max = keys.max
       val arr = Array.fill(max + 1)(null.asInstanceOf[Array[Byte]])
