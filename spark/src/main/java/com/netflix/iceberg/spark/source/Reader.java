@@ -198,7 +198,7 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow, SupportsPushDow
     long sizeInBytes = 0L;
     long numRows = 0L;
 
-    for (CombinedScanTask task : tasks) {
+    for (CombinedScanTask task : tasks()) {
       for (FileScanTask file : task.files()) {
         sizeInBytes += file.length();
         numRows += file.file().recordCount();
