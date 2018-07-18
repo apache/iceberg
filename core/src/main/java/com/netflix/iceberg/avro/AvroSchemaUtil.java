@@ -22,7 +22,6 @@ import com.google.common.collect.ImmutableMap;
 import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.TypeUtil;
 import com.netflix.iceberg.types.Types;
-import javafx.animation.KeyValue;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.Schema;
 import java.util.List;
