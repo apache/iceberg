@@ -1,4 +1,4 @@
-## Iceberg
+![](images/Iceberg-logo.png)
 
 [![](https://travis-ci.org/Netflix/iceberg.svg?branch=master)](https://travis-ci.org/Netflix/iceberg/branches)
 [![](https://jitpack.io/v/Netflix/iceberg.svg)](https://jitpack.io/#Netflix/iceberg)
