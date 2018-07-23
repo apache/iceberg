@@ -51,6 +51,7 @@ import org.apache.spark.sql.sources.v2.reader.SupportsPushDownCatalystFilters;
 import org.apache.spark.sql.sources.v2.reader.SupportsScanUnsafeRow;
 import org.apache.spark.sql.types.DateType$;
 import org.apache.spark.sql.types.IntegerType$;
+import org.apache.spark.sql.types.StringType$;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
@@ -98,6 +99,10 @@ public class TestFilteredScan {
       .hour("ts")
       .build();
 
+  private static final PartitionSpec PARTITION_BY_FIRST_LETTER = PartitionSpec.builderFor(SCHEMA)
+      .truncate("data", 1)
+      .build();
+
   private static SparkSession spark = null;
 
   @BeforeClass
@@ -117,6 +122,11 @@ public class TestFilteredScan {
     spark.udf().register("ts_hour",
         (UDF1<Timestamp, Integer>) timestamp -> hour.apply(fromJavaTimestamp(timestamp)),
         IntegerType$.MODULE$);
+
+    Transform<CharSequence, CharSequence> trunc1 = Transforms.truncate(Types.StringType.get(), 1);
+    spark.udf().register("trunc1",
+        (UDF1<CharSequence, CharSequence>) str -> trunc1.apply(str.toString()),
+        StringType$.MODULE$);
   }
 
   @AfterClass
@@ -366,6 +376,41 @@ public class TestFilteredScan {
           "ts > cast('2017-12-22 06:00:00+00:00' as timestamp) and " +
               "ts < cast('2017-12-22 08:00:00+00:00' as timestamp)"));
     }
+  }
+
+  @Test
+  public void testTrunctateDataPartitionedFilters() {
+    File location = buildPartitionedTable("trunc", PARTITION_BY_FIRST_LETTER, "trunc1", "data");
+
+    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
+        "path", location.toString())
+    );
+
+    IcebergSource source = new IcebergSource();
+    DataSourceReader unfiltered = source.createReader(options);
+    Assert.assertEquals("Unfiltered table should have created 9 read tasks",
+        9, planTasks(unfiltered).size());
+
+    {
+      DataSourceReader reader = source.createReader(options);
+
+      pushFilters(reader, Expressions.equal("data", "goldfish"));
+
+      List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
+      Assert.assertEquals("Should create 1 task for 'goldfish' (g)", 1, tasks.size());
+    }
+
+    {
+      DataSourceReader reader = source.createReader(options);
+
+      pushFilters(reader, col("data").$eq$eq$eq("goldfish").expr());
+
+      List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
+      Assert.assertEquals("Should create 1 task for 'goldfish' (g)", 1, tasks.size());
+    }
+
+    assertEqualsSafe(SCHEMA.asStruct(), expected(9),
+        read(location.toString(), "data = 'goldfish'"));
   }
 
   @Test

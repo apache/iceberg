@@ -53,6 +53,8 @@ import org.apache.spark.sql.catalyst.expressions.UnaryExpression;
 import org.apache.spark.sql.catalyst.expressions.Year;
 import org.apache.spark.sql.functions$;
 import org.apache.spark.sql.types.DateType$;
+import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.unsafe.types.UTF8String;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -160,7 +162,7 @@ public class SparkExpressions {
     if (attrPair != null) {
       switch (attrPair.first()) {
         case IDENTITY:
-          return Expressions.predicate(leftOperation, attrPair.second(), lit.value());
+          return Expressions.predicate(leftOperation, attrPair.second(), valueFromSpark(lit));
         case YEAR:
           return filter(leftOperation, attrPair.second(), (int) lit.value(),
               SparkExpressions::yearToTimestampMicros);
@@ -172,6 +174,15 @@ public class SparkExpressions {
     }
 
     return null;
+  }
+
+  private static Object valueFromSpark(Literal lit) {
+    if (lit.value() instanceof UTF8String) {
+      return lit.value().toString();
+    } else if (lit.value() instanceof Decimal) {
+      return ((Decimal) lit.value()).toJavaBigDecimal();
+    }
+    return lit.value();
   }
 
   private static Pair<Transform, String> convertAttr(Expression expr) {

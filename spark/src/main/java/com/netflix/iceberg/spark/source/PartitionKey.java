@@ -27,6 +27,7 @@ import com.netflix.iceberg.types.TypeUtil;
 import com.netflix.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
 import java.lang.reflect.Array;
 import java.util.Arrays;
@@ -119,9 +120,6 @@ class PartitionKey implements StructLike {
   @Override
   @SuppressWarnings("unchecked")
   public <T> T get(int pos, Class<T> javaClass) {
-    if (CharSequence.class.isAssignableFrom(javaClass)) {
-      return javaClass.cast(partitionTuple[pos].toString());
-    }
     return javaClass.cast(partitionTuple[pos]);
   }
 
@@ -157,7 +155,14 @@ class PartitionKey implements StructLike {
   }
 
   private static Accessor<InternalRow> newAccessor(int p, Type type) {
-    return new PositionAccessor(p, convert(type));
+    switch (type.typeId()) {
+      case STRING:
+        return new StringAccessor(p, convert(type));
+      case DECIMAL:
+        return new DecimalAccessor(p, convert(type));
+      default:
+        return new PositionAccessor(p, convert(type));
+    }
   }
 
   private static Accessor<InternalRow> newAccessor(int p, boolean isOptional, Types.StructType type,
@@ -227,6 +232,28 @@ class PartitionKey implements StructLike {
     @Override
     public Object get(InternalRow row) {
       return row.get(p, type);
+    }
+  }
+
+  private static class StringAccessor extends PositionAccessor {
+    private StringAccessor(int p, DataType type) {
+      super(p, type);
+    }
+
+    @Override
+    public Object get(InternalRow row) {
+      return super.get(row).toString();
+    }
+  }
+
+  private static class DecimalAccessor extends PositionAccessor {
+    private DecimalAccessor(int p, DataType type) {
+      super(p, type);
+    }
+
+    @Override
+    public Object get(InternalRow row) {
+      return ((Decimal) super.get(row)).toJavaBigDecimal();
     }
   }
 
