@@ -103,7 +103,13 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
       // the table's current metadata. the snapshot is loaded by id in case another commit was
       // added between this commit and the refresh
       Snapshot saved = ops.current().snapshot(newSnapshotId.get());
-      cleanUncommitted(Sets.newHashSet(saved.manifests()));
+      if (saved != null) {
+        cleanUncommitted(Sets.newHashSet(saved.manifests()));
+      } else {
+        // saved may not be present if the latest metadata couldn't be loaded due to eventual
+        // consistency problems in refresh. in that case, don't clean up.
+        LOG.info("Failed to load committed snapshot for clean-up, skipping manifest clean-up");
+      }
 
     } catch (ValidationException | CommitFailedException e) {
       Exceptions.suppressAndThrow(e, this::cleanAll);

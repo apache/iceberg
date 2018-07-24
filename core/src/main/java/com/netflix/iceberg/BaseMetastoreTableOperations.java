@@ -99,7 +99,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
       LOG.info("Refreshing table metadata from new version: " + newLocation);
 
       Tasks.foreach(newLocation)
-          .retry(4).exponentialBackoff(100, 5000, 5000, 4.0 /* 100, 400, 1600, ... */ )
+          .retry(20).exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */ )
           .suppressFailureWhenFinished()
           .run(location -> {
             this.currentMetadata = read(this, fromLocation(location, conf));
