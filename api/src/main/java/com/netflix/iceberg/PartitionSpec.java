@@ -213,6 +213,23 @@ public class PartitionSpec implements Serializable {
     return fieldsBySourceId;
   }
 
+  /**
+   * Returns the source field ids for identity partitions.
+   *
+   * @return a set of source ids for the identity partitions.
+   */
+  public Set<Integer> identitySourceIds() {
+    Set<Integer> sourceIds = Sets.newHashSet();
+    List<PartitionField> fields = this.fields();
+    for (PartitionField field : fields) {
+      if ("identity".equals(field.transform().toString())) {
+        sourceIds.add(field.sourceId());
+      }
+    }
+
+    return sourceIds;
+  }
+
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
