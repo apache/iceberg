@@ -17,6 +17,7 @@
 package com.netflix.iceberg;
 
 import com.google.common.base.Objects;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Expressions;
@@ -43,16 +44,18 @@ class BaseTableScan extends CloseableGroup implements TableScan {
 
   private final TableOperations ops;
   private final Table table;
+  private final Long snapshotId;
   private final Collection<String> columns;
   private final Expression rowFilter;
 
   BaseTableScan(TableOperations ops, Table table) {
-    this(ops, table, Filterable.ALL_COLUMNS, Expressions.alwaysTrue());
+    this(ops, table, null, Filterable.ALL_COLUMNS, Expressions.alwaysTrue());
   }
 
-  private BaseTableScan(TableOperations ops, Table table, Collection<String> columns, Expression rowFilter) {
+  private BaseTableScan(TableOperations ops, Table table, Long snapshotId, Collection<String> columns, Expression rowFilter) {
     this.ops = ops;
     this.table = table;
+    this.snapshotId = snapshotId;
     this.columns = columns;
     this.rowFilter = rowFilter;
   }
@@ -63,18 +66,28 @@ class BaseTableScan extends CloseableGroup implements TableScan {
   }
 
   @Override
+  public TableScan useSnapshot(long snapshotId) {
+    Preconditions.checkArgument(ops.current().snapshot(snapshotId) != null,
+        "Cannot find snapshot with ID " + snapshotId);
+    return new BaseTableScan(ops, table, snapshotId, columns, rowFilter);
+  }
+
+  @Override
   public TableScan select(Collection<String> columns) {
-    return new BaseTableScan(ops, table, columns, rowFilter);
+    return new BaseTableScan(ops, table, snapshotId, columns, rowFilter);
   }
 
   @Override
   public TableScan filter(Expression expr) {
-    return new BaseTableScan(ops, table, columns, Expressions.and(rowFilter, expr));
+    return new BaseTableScan(ops, table, snapshotId, columns, Expressions.and(rowFilter, expr));
   }
 
   @Override
   public Iterable<FileScanTask> planFiles() {
-    Snapshot snapshot = ops.current().currentSnapshot();
+    Snapshot snapshot = snapshotId != null ?
+        ops.current().snapshot(snapshotId) :
+        ops.current().currentSnapshot();
+
     if (snapshot != null) {
       LOG.info("Scanning table {} snapshot {} created at {} with filter {}", table,
           snapshot.snapshotId(), DATE_FORMAT.format(new Date(snapshot.timestampMillis())),

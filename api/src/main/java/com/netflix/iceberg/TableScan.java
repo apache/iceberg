@@ -36,6 +36,15 @@ public interface TableScan extends Closeable {
   Table table();
 
   /**
+   * Create a new {@link TableScan} from this scan's configuration that will use the given snapshot
+   * by ID.
+   * @param snapshotId a snapshot ID
+   * @return a new scan based on this with the given snapshot ID
+   * @throws IllegalArgumentException if the snapshot cannot be found
+   */
+  TableScan useSnapshot(long snapshotId);
+
+  /**
    * Create a new {@link TableScan} from the results of this that will project the given columns.
    *
    * @param columns column names from the table's schema
