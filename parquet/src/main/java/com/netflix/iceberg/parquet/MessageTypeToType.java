@@ -43,7 +43,7 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
 
   public MessageTypeToType(GroupType root) {
     this.root = root;
-    this.nextId = 1_000_000; // use ids that won't match other than for root
+    this.nextId = 1_000; // use ids that won't match other than for root
   }
 
   public Map<String, Integer> getAliases() {
