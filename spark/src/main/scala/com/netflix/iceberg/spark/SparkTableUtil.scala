@@ -55,7 +55,7 @@ object SparkTableUtil {
 
     val partitions: Seq[(Map[String, String], Option[String], Option[String])] =
       Hive.partitions(spark, table).map { p: CatalogTablePartition =>
-        (p.spec, p.storage.locationUri.map(_.toString), p.storage.serde)
+        (p.spec, p.storage.locationUri.map(String.valueOf(_)), p.storage.serde)
       }
 
     partitions.toDF("partition", "uri", "format")
