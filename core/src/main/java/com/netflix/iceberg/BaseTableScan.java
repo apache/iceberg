@@ -67,6 +67,8 @@ class BaseTableScan extends CloseableGroup implements TableScan {
 
   @Override
   public TableScan useSnapshot(long snapshotId) {
+    Preconditions.checkArgument(this.snapshotId == null,
+        "Cannot override snapshot, already set to id=%s", snapshotId);
     Preconditions.checkArgument(ops.current().snapshot(snapshotId) != null,
         "Cannot find snapshot with ID %s", snapshotId);
     return new BaseTableScan(ops, table, snapshotId, columns, rowFilter);
@@ -74,6 +76,9 @@ class BaseTableScan extends CloseableGroup implements TableScan {
 
   @Override
   public TableScan asOfTime(long timestampMillis) {
+    Preconditions.checkArgument(this.snapshotId == null,
+        "Cannot override snapshot, already set to id=%s", snapshotId);
+
     Snapshot asOfSnapshot = null;
     long currentSnapshot = ops.current().currentSnapshot().snapshotId();
 
