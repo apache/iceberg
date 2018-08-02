@@ -38,11 +38,22 @@ public interface TableScan extends Closeable {
   /**
    * Create a new {@link TableScan} from this scan's configuration that will use the given snapshot
    * by ID.
+   *
    * @param snapshotId a snapshot ID
    * @return a new scan based on this with the given snapshot ID
    * @throws IllegalArgumentException if the snapshot cannot be found
    */
   TableScan useSnapshot(long snapshotId);
+
+  /**
+   * Create a new {@link TableScan} from this scan's configuration that will use the most recent
+   * snapshot as of the given time in milliseconds.
+   *
+   * @param timestampMillis a timestamp in milliseconds.
+   * @return a new scan based on this with the current snapshot at the given time
+   * @throws IllegalArgumentException if the snapshot cannot be found
+   */
+  TableScan asOfTime(long timestampMillis);
 
   /**
    * Create a new {@link TableScan} from the results of this that will project the given columns.

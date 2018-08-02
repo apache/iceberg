@@ -68,8 +68,34 @@ class BaseTableScan extends CloseableGroup implements TableScan {
   @Override
   public TableScan useSnapshot(long snapshotId) {
     Preconditions.checkArgument(ops.current().snapshot(snapshotId) != null,
-        "Cannot find snapshot with ID " + snapshotId);
+        "Cannot find snapshot with ID %s", snapshotId);
     return new BaseTableScan(ops, table, snapshotId, columns, rowFilter);
+  }
+
+  @Override
+  public TableScan asOfTime(long timestampMillis) {
+    Snapshot asOfSnapshot = null;
+    long currentSnapshot = ops.current().currentSnapshot().snapshotId();
+
+    for (Snapshot snapshot : ops.current().snapshots()) {
+      boolean isValid = snapshot.timestampMillis() < timestampMillis;
+      boolean isNewer = asOfSnapshot == null ||
+          asOfSnapshot.timestampMillis() < snapshot.timestampMillis();
+
+      if (isValid && isNewer) {
+        asOfSnapshot = snapshot;
+      }
+
+      // do not consider snapshots newer than the current snapshot
+      if (snapshot.snapshotId() == currentSnapshot) {
+        break;
+      }
+    }
+
+    Preconditions.checkArgument(asOfSnapshot != null,
+        "Cannot find a snapshot older than %s", DATE_FORMAT.format(new Date(timestampMillis)));
+
+    return new BaseTableScan(ops, table, asOfSnapshot.snapshotId(), columns, rowFilter);
   }
 
   @Override
