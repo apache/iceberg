@@ -17,6 +17,7 @@
 package com.netflix.iceberg.spark;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.expressions.Binder;
 import com.netflix.iceberg.expressions.BoundReference;
@@ -39,6 +40,7 @@ import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.catalyst.expressions.GreaterThan;
 import org.apache.spark.sql.catalyst.expressions.GreaterThanOrEqual;
 import org.apache.spark.sql.catalyst.expressions.In;
+import org.apache.spark.sql.catalyst.expressions.InSet;
 import org.apache.spark.sql.catalyst.expressions.IsNotNull;
 import org.apache.spark.sql.catalyst.expressions.IsNull;
 import org.apache.spark.sql.catalyst.expressions.LessThan;
@@ -61,14 +63,21 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static com.netflix.iceberg.expressions.ExpressionVisitors.visit;
+import static com.netflix.iceberg.expressions.Expressions.alwaysFalse;
 import static com.netflix.iceberg.expressions.Expressions.and;
+import static com.netflix.iceberg.expressions.Expressions.equal;
 import static com.netflix.iceberg.expressions.Expressions.not;
 import static com.netflix.iceberg.expressions.Expressions.or;
 import static com.netflix.iceberg.expressions.Expressions.predicate;
+import static scala.collection.JavaConverters.seqAsJavaListConverter;
+import static scala.collection.JavaConverters.setAsJavaSetConverter;
 
 
 public class SparkExpressions {
@@ -84,6 +93,7 @@ public class SparkExpressions {
       .put(LessThan.class, Operation.LT)
       .put(LessThanOrEqual.class, Operation.LT_EQ)
       .put(In.class, Operation.IN)
+      .put(InSet.class, Operation.IN)
       .put(IsNull.class, Operation.IS_NULL)
       .put(IsNotNull.class, Operation.NOT_NULL)
       .put(And.class, Operation.AND)
@@ -101,7 +111,7 @@ public class SparkExpressions {
           UnaryExpression unary = (UnaryExpression) expr;
           if (unary.child() instanceof Attribute) {
             Attribute attr = (Attribute) unary.child();
-            return Expressions.predicate(op, attr.name());
+            return predicate(op, attr.name());
           }
           return null;
         case LT:
@@ -120,6 +130,22 @@ public class SparkExpressions {
         case OR:
           Or orExpr = (Or) expr;
           return or(convert(orExpr.left()), convert(orExpr.right()));
+        case IN:
+          if (expr instanceof In) {
+            In inExpr = (In) expr;
+            List<Object> literals = convertLiterals(seqAsJavaListConverter(inExpr.list()).asJava());
+            if (literals != null) {
+              return convertIn(inExpr.value(), literals);
+            } else {
+              // if the list contained a non-literal, it can't be converted
+              return null;
+            }
+          } else if (expr instanceof InSet) {
+            InSet inExpr = (InSet) expr;
+            // expressions are already converted to Java objects
+            Set<Object> literals = setAsJavaSetConverter(inExpr.hset()).asJava();
+            return convertIn(inExpr.child(), literals);
+          }
         default:
       }
     }
@@ -142,6 +168,35 @@ public class SparkExpressions {
       .put(Cast.class, Transform.DAY)
       .build();
 
+  private static com.netflix.iceberg.expressions.Expression convertIn(Expression expr,
+                                                                      Collection<Object> values) {
+    if (expr instanceof Attribute) {
+      Attribute attr = (Attribute) expr;
+      com.netflix.iceberg.expressions.Expression converted = alwaysFalse();
+      for (Object item : values) {
+        converted = or(converted, equal(attr.name(), item));
+      }
+      return converted;
+    }
+
+    return null;
+  }
+
+  private static List<Object> convertLiterals(List<Expression> values) {
+    List<Object> converted = Lists.newArrayListWithExpectedSize(values.size());
+
+    for (Expression value : values) {
+      if (value instanceof Literal) {
+        Literal lit = (Literal) value;
+        converted.add(lit.value());
+      } else {
+        return null;
+      }
+    }
+
+    return converted;
+  }
+
   private static com.netflix.iceberg.expressions.Expression convert(Operation op,
                                                                     Expression left,
                                                                     Expression right) {
@@ -162,7 +217,7 @@ public class SparkExpressions {
     if (attrPair != null) {
       switch (attrPair.first()) {
         case IDENTITY:
-          return Expressions.predicate(leftOperation, attrPair.second(), valueFromSpark(lit));
+          return predicate(leftOperation, attrPair.second(), valueFromSpark(lit));
         case YEAR:
           return filter(leftOperation, attrPair.second(), (int) lit.value(),
               SparkExpressions::yearToTimestampMicros);
