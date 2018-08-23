@@ -16,12 +16,21 @@
 
 package com.netflix.iceberg;
 
+import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.CommitFailedException;
+import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.util.Tasks;
+import com.netflix.iceberg.util.ThreadPools;
+import io.netty.util.internal.ConcurrentSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.io.IOException;
+import java.util.Date;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static com.netflix.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
 import static com.netflix.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
@@ -33,10 +42,20 @@ import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 class RemoveSnapshots implements ExpireSnapshots {
+  private static final Logger LOG = LoggerFactory.getLogger(RemoveSnapshots.class);
+
+  private final Consumer<String> defaultDelete = new Consumer<String>() {
+    @Override
+    public void accept(String file) {
+      ops.deleteFile(file);
+    }
+  };
+
   private final TableOperations ops;
   private final Set<Long> idsToRemove = Sets.newHashSet();
   private TableMetadata base;
   private Long expireOlderThan = null;
+  private Consumer<String> deleteFunc = defaultDelete;
 
   RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
@@ -45,13 +64,21 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   @Override
   public ExpireSnapshots expireSnapshotId(long snapshotId) {
+    LOG.info("Expiring snapshot with id: {}", snapshotId);
     idsToRemove.add(snapshotId);
     return this;
   }
 
   @Override
   public ExpireSnapshots expireOlderThan(long timestampMillis) {
+    LOG.info("Expiring snapshots older than: {} ({})", new Date(timestampMillis), timestampMillis);
     this.expireOlderThan = timestampMillis;
+    return this;
+  }
+
+  @Override
+  public ExpireSnapshots deleteWith(Consumer<String> deleteFunc) {
+    this.deleteFunc = deleteFunc;
     return this;
   }
 
@@ -87,5 +114,74 @@ class RemoveSnapshots implements ExpireSnapshots {
           TableMetadata updated = internalApply();
           ops.commit(base, updated);
         });
+
+    LOG.info("Committed snapshot changes; cleaning up expired manifests and data files.");
+
+    // clean up the expired snapshots:
+    // 1. Get a list of the snapshots that were removed
+    // 2. Delete any data files that were deleted by those snapshots and are not in the table
+    // 3. Delete any manifests that are no longer used by current snapshots
+
+    // Reads and deletes are done using Tasks.foreach(...).suppressFailureWhenFinished to complete
+    // as much of the delete work as possible and avoid orphaned data or manifest files.
+
+    TableMetadata current = ops.refresh();
+    Set<Long> currentIds = Sets.newHashSet();
+    Set<String> currentManifests = Sets.newHashSet();
+    for (Snapshot snapshot : current.snapshots()) {
+      currentIds.add(snapshot.snapshotId());
+      currentManifests.addAll(snapshot.manifests());
+    }
+
+    Set<String> allManifests = Sets.newHashSet(currentManifests);
+    Set<String> manifestsToDelete = Sets.newHashSet();
+    for (Snapshot snapshot : base.snapshots()) {
+      long snapshotId = snapshot.snapshotId();
+      if (!currentIds.contains(snapshotId)) {
+        // the snapshot was removed, find any manifests that are no longer needed
+        LOG.info("Removing snapshot: {}", snapshot);
+        for (String manifest : snapshot.manifests()) {
+          if (!currentManifests.contains(manifest)) {
+            manifestsToDelete.add(manifest);
+            allManifests.add(manifest);
+          }
+        }
+      }
+    }
+
+    Set<String> filesToDelete = new ConcurrentSet<>();
+    Tasks.foreach(allManifests)
+        .noRetry().suppressFailureWhenFinished()
+        .executeWith(ThreadPools.getWorkerPool())
+        .onFailure((item, exc) ->
+            LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc)
+        ).run(manifest -> {
+          // even if the manifest is still used, it may contain files that can be deleted
+          // TODO: eliminate manifests with no deletes without scanning
+          try (ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest))) {
+            for (ManifestEntry entry : reader.entries()) {
+              // if the snapshot ID of the DELETE entry is no longer valid, the data can be deleted
+              if (entry.status() == ManifestEntry.Status.DELETED &&
+                  !currentIds.contains(entry.snapshotId())) {
+                // use toString to ensure the path will not change (Utf8 is reused)
+                filesToDelete.add(entry.file().path().toString());
+              }
+            }
+          } catch (IOException e) {
+            throw new RuntimeIOException(e, "Failed to read manifest: " + manifest);
+          }
+    });
+
+    LOG.warn("Manifests to delete: {}", Joiner.on(", ").join(manifestsToDelete));
+
+    Tasks.foreach(filesToDelete)
+        .noRetry().suppressFailureWhenFinished()
+        .onFailure((file, exc) -> LOG.warn("Delete failed for data file: " + file, exc))
+        .run(file -> deleteFunc.accept(file));
+
+    Tasks.foreach(manifestsToDelete)
+        .noRetry().suppressFailureWhenFinished()
+        .onFailure((manifest, exc) -> LOG.warn("Delete failed for manifest: " + manifest, exc))
+        .run(deleteFunc::accept);
   }
 }

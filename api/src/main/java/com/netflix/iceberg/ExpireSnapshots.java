@@ -17,6 +17,7 @@
 package com.netflix.iceberg;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * API for removing old {@link Snapshot snapshots} from a table.
@@ -27,6 +28,10 @@ import java.util.List;
  * When committing, these changes will be applied to the latest table metadata. Commit conflicts
  * will be resolved by applying the changes to the new latest metadata and reattempting the commit.
  * <p>
+ * Manifest files that are no longer used by valid snapshots will be deleted. Data files that were
+ * deleted by snapshots that are expired will be deleted. {@link #deleteWith(Consumer)} can be used
+ * to pass an alternative deletion method.
+ *
  * {@link #apply()} returns a list of the snapshots that will be removed.
  */
 public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
@@ -47,4 +52,16 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
    */
   ExpireSnapshots expireOlderThan(long timestampMillis);
 
+  /**
+   * Passes an alternative delete implementation that will be used for manifests and data files.
+   * <p>
+   * Manifest files that are no longer used by valid snapshots will be deleted. Data files that were
+   * deleted by snapshots that are expired will be deleted.
+   * <p>
+   * If this method is not called, unnecessary manifests and data files will still be deleted.
+   *
+   * @param deleteFunc a function that will be called to delete manifests and data files
+   * @return this for method chaining
+   */
+  ExpireSnapshots deleteWith(Consumer<String> deleteFunc);
 }
