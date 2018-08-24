@@ -158,6 +158,27 @@ project(':iceberg-spark') {
   }
 }
 
+project(':iceberg-pig') {
+  dependencies {
+    compile project(':iceberg-api')
+    compile project(':iceberg-common')
+    compile project(':iceberg-core')
+    compile project(':iceberg-parquet')
+
+    compileOnly("org.apache.pig:pig:0.14.0")
+    compileOnly("org.apache.hadoop:hadoop-mapreduce-client-core:2.7.3")
+    compileOnly('org.apache.hadoop:hadoop-client:2.7.3') {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
+
+    testCompile 'org.apache.hadoop:hadoop-hdfs:2.7.3:tests'
+    testCompile 'org.apache.hadoop:hadoop-common:2.7.3:tests'
+    testCompile('org.apache.hadoop:hadoop-minicluster:2.7.3') {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
+  }
+}
+
 // the runtime jar is a self-contained artifact for testing in a notebook
 project(':iceberg-runtime') {
   apply plugin: 'com.github.johnrengelman.shadow'
@@ -182,6 +203,7 @@ project(':iceberg-runtime') {
     shadow project(':iceberg-orc')
     shadow project(':iceberg-parquet')
     shadow project(':iceberg-spark')
+    shadow project(':iceberg-pig')
 
     shadow "org.apache.avro:avro:$avroVersion"
     shadow "org.apache.orc:orc-core:$orcVersion:nohive"

@@ -160,6 +160,17 @@ public class ParquetValueReaders {
     }
   }
 
+  public static class StringReader extends PrimitiveReader<String> {
+    public StringReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public String read(String reuse) {
+      return column.nextBinary().toStringUsingUTF8();
+    }
+  }
+
   public static class IntAsLongReader extends UnboxedReader<Long> {
     public IntAsLongReader(ColumnDescriptor desc) {
       super(desc);
@@ -217,6 +228,21 @@ public class ParquetValueReaders {
     @Override
     public BigDecimal read(BigDecimal ignored) {
       return new BigDecimal(BigInteger.valueOf(column.nextLong()), scale);
+    }
+  }
+
+  public static class BinaryAsDecimalReader extends PrimitiveReader<BigDecimal> {
+    private int scale;
+
+    public BinaryAsDecimalReader(ColumnDescriptor desc, int scale) {
+      super(desc);
+      this.scale = scale;
+    }
+
+    @Override
+    public BigDecimal read(BigDecimal reuse) {
+      byte[] bytes = column.nextBinary().getBytes();
+      return new BigDecimal(new BigInteger(bytes), scale);
     }
   }
 
