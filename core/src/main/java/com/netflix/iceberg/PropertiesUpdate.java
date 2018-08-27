@@ -17,12 +17,10 @@
 package com.netflix.iceberg;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.CommitFailedException;
 import com.netflix.iceberg.util.Tasks;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 

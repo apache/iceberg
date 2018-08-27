@@ -16,14 +16,12 @@
 
 package com.netflix.iceberg;
 
-import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.CommitFailedException;
 import org.junit.Assert;
 import org.junit.Test;
 import java.io.File;
-import java.util.Iterator;
 import java.util.Set;
 
 import static com.google.common.collect.Iterators.concat;
@@ -321,32 +319,5 @@ public class TestMergeAppend extends TableTestBase {
     Assert.assertTrue("Should reuse the new manifest", new File(newManifest).exists());
     Assert.assertEquals("Should commit the same new manifest during retry",
         Lists.newArrayList(newManifest), metadata.currentSnapshot().manifests());
-  }
-
-  private void validateManifest(String manifest,
-                                Iterator<Long> ids,
-                                Iterator<DataFile> expectedFiles) {
-    for (ManifestEntry entry : ManifestReader.read(Files.localInput(manifest)).entries()) {
-      DataFile file = entry.file();
-      DataFile expected = expectedFiles.next();
-      Assert.assertEquals("Path should match expected",
-          expected.path().toString(), file.path().toString());
-      Assert.assertEquals("Snapshot ID should match expected ID",
-          (long) ids.next(), entry.snapshotId());
-    }
-
-    Assert.assertFalse("Should find all files in the manifest", expectedFiles.hasNext());
-  }
-
-  private static Iterator<Long> ids(Long... ids) {
-    return Iterators.forArray(ids);
-  }
-
-  private static Iterator<DataFile> files(DataFile... files) {
-    return Iterators.forArray(files);
-  }
-
-  private static Iterator<DataFile> files(String manifest) {
-    return ManifestReader.read(Files.localInput(manifest)).iterator();
   }
 }

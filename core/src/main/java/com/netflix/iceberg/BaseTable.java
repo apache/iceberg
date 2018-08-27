@@ -113,6 +113,11 @@ public class BaseTable implements Table {
   }
 
   @Override
+  public Transaction newTransaction() {
+    return BaseTransaction.newTransaction(ops);
+  }
+
+  @Override
   public String toString() {
     return name;
   }

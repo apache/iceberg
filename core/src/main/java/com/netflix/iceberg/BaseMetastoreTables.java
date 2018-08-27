@@ -28,7 +28,7 @@ public abstract class BaseMetastoreTables implements Tables {
     this.conf = conf;
   }
 
-  public abstract BaseMetastoreTableOperations newTableOps(Configuration conf, String database, String table);
+  protected abstract BaseMetastoreTableOperations newTableOps(Configuration conf, String database, String table);
 
   public Table load(String database, String table) {
     TableOperations ops = newTableOps(conf, database, table);
@@ -54,6 +54,18 @@ public abstract class BaseMetastoreTables implements Tables {
     ops.commit(null, metadata);
 
     return new BaseTable(ops, database + "." + table);
+  }
+
+  public Transaction beginCreate(Schema schema, PartitionSpec spec, String database, String table) {
+    TableOperations ops = newTableOps(conf, database, table);
+    if (ops.current() != null) {
+      throw new AlreadyExistsException("Table already exists: " + database + "." + table);
+    }
+
+    String location = defaultWarehouseLocation(conf, database, table);
+    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, location);
+
+    return BaseTransaction.createTableTransaction(ops, metadata);
   }
 
   private static String defaultWarehouseLocation(Configuration conf, String database, String table) {

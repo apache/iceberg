@@ -17,7 +17,6 @@
 package com.netflix.iceberg;
 
 import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
 import com.netflix.iceberg.exceptions.CommitFailedException;
 import com.netflix.iceberg.exceptions.ValidationException;
 import org.junit.Assert;
@@ -104,12 +103,12 @@ public class TestReplaceFiles extends TableTestBase {
 
     long pendingId = pending.snapshotId();
 
-    validateManifest(pending.manifests().get(0),
+    validateManifestEntries(pending.manifests().get(0),
             ids(pendingId, baseSnapshotId),
             concat(files(FILE_A, FILE_B)),
             statuses(DELETED, EXISTING));
 
-    validateManifest(pending.manifests().get(1),
+    validateManifestEntries(pending.manifests().get(1),
             ids(pendingId),
             concat(files(FILE_C)),
             statuses(ADDED));
@@ -134,8 +133,10 @@ public class TestReplaceFiles extends TableTestBase {
     String manifest1 = pending.manifests().get(0);
     String manifest2 = pending.manifests().get(1);
 
-    validateManifest(manifest1, ids(pending.snapshotId()), concat(files(FILE_A)), statuses(DELETED));
-    validateManifest(manifest2, ids(pending.snapshotId()), concat(files(FILE_B)), statuses(ADDED));
+    validateManifestEntries(manifest1,
+        ids(pending.snapshotId()), concat(files(FILE_A)), statuses(DELETED));
+    validateManifestEntries(manifest2,
+        ids(pending.snapshotId()), concat(files(FILE_B)), statuses(ADDED));
 
     AssertHelpers.assertThrows("Should retry 4 times and throw last failure",
             CommitFailedException.class, "Injected failure", rewrite::commit);
@@ -162,8 +163,10 @@ public class TestReplaceFiles extends TableTestBase {
     String manifest1 = pending.manifests().get(0);
     String manifest2 = pending.manifests().get(1);
 
-    validateManifest(manifest1, ids(pending.snapshotId()), concat(files(FILE_A)), statuses(DELETED));
-    validateManifest(manifest2, ids(pending.snapshotId()), concat(files(FILE_B)), statuses(ADDED));
+    validateManifestEntries(manifest1,
+        ids(pending.snapshotId()), concat(files(FILE_A)), statuses(DELETED));
+    validateManifestEntries(manifest2,
+        ids(pending.snapshotId()), concat(files(FILE_B)), statuses(ADDED));
 
     rewrite.commit();
 
@@ -226,12 +229,12 @@ public class TestReplaceFiles extends TableTestBase {
 
     long pendingId = pending.snapshotId();
 
-    validateManifest(pending.manifests().get(0),
+    validateManifestEntries(pending.manifests().get(0),
             ids(pendingId, base.currentSnapshot().snapshotId()),
             concat(files(FILE_A)),
             statuses(DELETED));
 
-    validateManifest(pending.manifests().get(1),
+    validateManifestEntries(pending.manifests().get(1),
             ids(pendingId),
             concat(files(FILE_B)),
             statuses(ADDED));
@@ -249,36 +252,5 @@ public class TestReplaceFiles extends TableTestBase {
     );
 
     Assert.assertEquals("Only 3 manifests should exist", 3, listMetadataFiles("avro").size());
-  }
-  
-  private static Iterator<Long> ids(Long... ids) {
-    return Iterators.forArray(ids);
-  }
-
-  private static Iterator<DataFile> files(DataFile... files) {
-    return Iterators.forArray(files);
-  }
-
-  private static Iterator<ManifestEntry.Status> statuses(ManifestEntry.Status... statuses) {
-    return Iterators.forArray(statuses);
-  }
-
-  public static void validateManifest(String manifest,
-                                      Iterator<Long> ids,
-                                      Iterator<DataFile> expectedFiles,
-                                      Iterator<ManifestEntry.Status> expectedStatuses) {
-    for (ManifestEntry entry : ManifestReader.read(Files.localInput(manifest)).entries()) {
-      DataFile file = entry.file();
-      DataFile expected = expectedFiles.next();
-      final ManifestEntry.Status expectedStatus = expectedStatuses.next();
-      Assert.assertEquals("Path should match expected",
-              expected.path().toString(), file.path().toString());
-      Assert.assertEquals("Snapshot ID should match expected ID",
-              (long) ids.next(), entry.snapshotId());
-      Assert.assertEquals("Entry status should match expected ID",
-              expectedStatus, entry.status());
-    }
-
-    Assert.assertFalse("Should find all files in the manifest", expectedFiles.hasNext());
   }
 }

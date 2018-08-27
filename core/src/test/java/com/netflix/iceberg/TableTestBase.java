@@ -16,16 +16,21 @@
 
 package com.netflix.iceberg;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.io.Files;
 import com.netflix.iceberg.types.Types;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 import java.io.File;
+import java.util.Iterator;
 import java.util.List;
 
+import static com.netflix.iceberg.Files.localInput;
 import static com.netflix.iceberg.types.Types.NestedField.required;
 
 public class TableTestBase {
@@ -70,7 +75,6 @@ public class TableTestBase {
 
   File tableDir = null;
   File metadataDir = null;
-  File versionHintFile = null;
   TestTables.TestTable table = null;
 
   @Before
@@ -79,17 +83,20 @@ public class TableTestBase {
     tableDir.delete(); // created by table create
 
     this.metadataDir = new File(tableDir, "metadata");
-    this.versionHintFile = new File(metadataDir, "version-hint.text");
     this.table = create(SCHEMA, SPEC);
   }
 
   @After
-  public void cleanupTables() throws Exception {
+  public void cleanupTables() {
     TestTables.clearTables();
   }
 
   List<File> listMetadataFiles(String ext) {
-    return Lists.newArrayList(metadataDir.listFiles(
+    return listMetadataFiles(tableDir, ext);
+  }
+
+  List<File> listMetadataFiles(File tableDir, String ext) {
+    return Lists.newArrayList(new File(tableDir, "metadata").listFiles(
         (dir, name) -> Files.getFileExtension(name).equalsIgnoreCase(ext)));
   }
 
@@ -101,7 +108,95 @@ public class TableTestBase {
     return TestTables.load(tableDir, "test");
   }
 
+  Integer version() {
+    return TestTables.metadataVersion("test");
+  }
+
   TableMetadata readMetadata() {
     return TestTables.readMetadata("test");
+  }
+
+  void validateSnapshot(Snapshot old, Snapshot snap, DataFile... newFiles) {
+    List<String> oldManifests = old != null ? old.manifests() : ImmutableList.of();
+
+    // copy the manifests to a modifiable list and remove the existing manifests
+    List<String> newManifests = Lists.newArrayList(snap.manifests());
+    for (String oldManifest : oldManifests) {
+      Assert.assertTrue("New snapshot should contain old manifests",
+          newManifests.remove(oldManifest));
+    }
+
+    Assert.assertEquals("Should create 1 new manifest and reuse old manifests",
+        1, newManifests.size());
+    String manifest = newManifests.get(0);
+
+    long id = snap.snapshotId();
+    Iterator<String> newPaths = paths(newFiles).iterator();
+
+    for (ManifestEntry entry : ManifestReader.read(localInput(manifest)).entries()) {
+      DataFile file = entry.file();
+      Assert.assertEquals("Path should match expected", newPaths.next(), file.path().toString());
+      Assert.assertEquals("File's snapshot ID should match", id, entry.snapshotId());
+    }
+
+    Assert.assertFalse("Should find all files in the manifest", newPaths.hasNext());
+  }
+
+  List<String> paths(DataFile... dataFiles) {
+    List<String> paths = Lists.newArrayListWithExpectedSize(dataFiles.length);
+    for (DataFile file : dataFiles) {
+      paths.add(file.path().toString());
+    }
+    return paths;
+  }
+
+  static void validateManifest(String manifest,
+                                Iterator<Long> ids,
+                                Iterator<DataFile> expectedFiles) {
+    for (ManifestEntry entry : ManifestReader.read(localInput(manifest)).entries()) {
+      DataFile file = entry.file();
+      DataFile expected = expectedFiles.next();
+      Assert.assertEquals("Path should match expected",
+          expected.path().toString(), file.path().toString());
+      Assert.assertEquals("Snapshot ID should match expected ID",
+          (long) ids.next(), entry.snapshotId());
+    }
+
+    Assert.assertFalse("Should find all files in the manifest", expectedFiles.hasNext());
+  }
+
+  static void validateManifestEntries(String manifest,
+                                      Iterator<Long> ids,
+                                      Iterator<DataFile> expectedFiles,
+                                      Iterator<ManifestEntry.Status> expectedStatuses) {
+    for (ManifestEntry entry : ManifestReader.read(localInput(manifest)).entries()) {
+      DataFile file = entry.file();
+      DataFile expected = expectedFiles.next();
+      final ManifestEntry.Status expectedStatus = expectedStatuses.next();
+      Assert.assertEquals("Path should match expected",
+          expected.path().toString(), file.path().toString());
+      Assert.assertEquals("Snapshot ID should match expected ID",
+          (long) ids.next(), entry.snapshotId());
+      Assert.assertEquals("Entry status should match expected ID",
+          expectedStatus, entry.status());
+    }
+
+    Assert.assertFalse("Should find all files in the manifest", expectedFiles.hasNext());
+  }
+
+  static Iterator<ManifestEntry.Status> statuses(ManifestEntry.Status... statuses) {
+    return Iterators.forArray(statuses);
+  }
+
+  static Iterator<Long> ids(Long... ids) {
+    return Iterators.forArray(ids);
+  }
+
+  static Iterator<DataFile> files(DataFile... files) {
+    return Iterators.forArray(files);
+  }
+
+  static Iterator<DataFile> files(String manifest) {
+    return ManifestReader.read(localInput(manifest)).iterator();
   }
 }

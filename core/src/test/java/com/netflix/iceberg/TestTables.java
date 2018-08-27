@@ -35,6 +35,17 @@ class TestTables {
     return new TestTable(ops, name);
   }
 
+  static Transaction beginCreate(File temp, String name, Schema schema, PartitionSpec spec) {
+    TableOperations ops = new TestTableOperations(name, temp);
+    if (ops.current() != null) {
+      throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
+    }
+
+    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, temp.toString());
+
+    return BaseTransaction.createTableTransaction(ops, metadata);
+  }
+
   static TestTable load(File temp, String name) {
     TestTableOperations ops = new TestTableOperations(name, temp);
     return new TestTable(ops, name);
@@ -54,16 +65,24 @@ class TestTables {
   }
 
   private static final Map<String, TableMetadata> METADATA = Maps.newHashMap();
+  private static final Map<String, Integer> VERSIONS = Maps.newHashMap();
 
   static void clearTables() {
     synchronized (METADATA) {
       METADATA.clear();
+      VERSIONS.clear();
     }
   }
 
   static TableMetadata readMetadata(String tableName) {
     synchronized (METADATA) {
       return METADATA.get(tableName);
+    }
+  }
+
+  static Integer metadataVersion(String tableName) {
+    synchronized (METADATA) {
+      return VERSIONS.get(tableName);
     }
   }
 
@@ -118,11 +137,13 @@ class TestTables {
             this.failCommits -= 1;
             throw new CommitFailedException("Injected failure");
           }
+          Integer version = VERSIONS.get(tableName);
+          VERSIONS.put(tableName, version == null ? 0 : version + 1);
           METADATA.put(tableName, metadata);
           this.current = metadata;
         } else {
           throw new CommitFailedException(
-              "Commit failed: table was updated at %d", base.lastUpdatedMillis());
+              "Commit failed: table was updated at %d", current.lastUpdatedMillis());
         }
       }
     }

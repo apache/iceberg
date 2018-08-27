@@ -16,6 +16,8 @@
 
 package com.netflix.iceberg;
 
+import com.google.common.collect.BiMap;
+import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -54,7 +56,7 @@ class MergeAppend extends SnapshotUpdate implements AppendFiles {
   private final int minManifestsCountToMerge;
 
   // cache merge results to reuse when retrying
-  private final Map<List<String>, String> newManifests = Maps.newHashMap();
+  private final Map<List<String>, String> newManifests = Maps.newConcurrentMap();
 
   MergeAppend(TableOperations ops) {
     super(ops);
@@ -138,13 +140,15 @@ class MergeAppend extends SnapshotUpdate implements AppendFiles {
 
   @Override
   protected void cleanUncommitted(Set<String> committed) {
+    BiMap<String, List<String>> cacheKeyLookup = ImmutableBiMap.copyOf(newManifests).inverse();
     for (String merged: newManifests.values()) {
       // delete any new merged manifests that aren't in the committed list
       if (!committed.contains(merged)) {
         deleteFile(merged);
+        // remove the deleted file from the cache
+        newManifests.remove(cacheKeyLookup.get(merged));
       }
     }
-    newManifests.clear();
   }
 
   @SuppressWarnings("unchecked")

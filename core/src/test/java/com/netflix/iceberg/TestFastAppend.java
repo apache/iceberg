@@ -189,38 +189,4 @@ public class TestFastAppend extends TableTestBase {
     Assert.assertTrue("Should commit the same new manifest",
         metadata.currentSnapshot().manifests().contains(newManifest));
   }
-
-  private void validateSnapshot(Snapshot old, Snapshot snap, DataFile... newFiles) {
-    List<String> oldManifests = old != null ? old.manifests() : ImmutableList.of();
-
-    // copy the manifests to a modifiable list and remove the existing manifests
-    List<String> newManifests = Lists.newArrayList(snap.manifests());
-    for (String oldManifest : oldManifests) {
-      Assert.assertTrue("New snapshot should contain old manifests",
-          newManifests.remove(oldManifest));
-    }
-
-    Assert.assertEquals("Should create 1 new manifest and reuse old manifests",
-        1, newManifests.size());
-    String manifest = newManifests.get(0);
-
-    long id = snap.snapshotId();
-    Iterator<String> newPaths = paths(newFiles).iterator();
-
-    for (ManifestEntry entry : ManifestReader.read(Files.localInput(manifest)).entries()) {
-      DataFile file = entry.file();
-      Assert.assertEquals("Path should match expected", newPaths.next(), file.path().toString());
-      Assert.assertEquals("File's snapshot ID should match", id, entry.snapshotId());
-    }
-
-    Assert.assertFalse("Should find all files in the manifest", newPaths.hasNext());
-  }
-
-  private List<String> paths(DataFile... dataFiles) {
-    List<String> paths = Lists.newArrayListWithExpectedSize(dataFiles.length);
-    for (DataFile file : dataFiles) {
-      paths.add(file.path().toString());
-    }
-    return paths;
-  }
 }

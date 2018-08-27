@@ -16,75 +16,19 @@
 
 package com.netflix.iceberg;
 
-import java.util.Map;
+import com.netflix.iceberg.exceptions.CommitFailedException;
+import com.netflix.iceberg.exceptions.ValidationException;
 
 /**
- * Represents a table.
+ * A transaction for performing multiple updates to a table.
  */
-public interface Table {
-
+public interface Transaction {
   /**
-   * Refresh the current table metadata.
-   */
-  void refresh();
-
-  /**
-   * Create a new {@link TableScan scan} for this table.
-   * <p>
-   * Once a table scan is created, it can be refined to project columns and filter data.
+   * Return the {@link Table} that this transaction will update.
    *
-   * @return a table scan for this table
+   * @return this transaction's table
    */
-  TableScan newScan();
-
-  /**
-   * Return the {@link Schema schema} for this table.
-   *
-   * @return this table's schema
-   */
-  Schema schema();
-
-  /**
-   * Return the {@link PartitionSpec partition spec} for this table.
-   *
-   * @return this table's partition spec
-   */
-  PartitionSpec spec();
-
-  /**
-   * Return a map of string properties for this table.
-   *
-   * @return this table's properties map
-   */
-  Map<String, String> properties();
-
-  /**
-   * Return the table's base location.
-   *
-   * @return this table's location
-   */
-  String location();
-
-  /**
-   * Get the current {@link Snapshot snapshot} for this table.
-   *
-   * @return the current table Snapshot.
-   */
-  Snapshot currentSnapshot();
-
-  /**
-   * Get the {@link Snapshot snapshots} of this table.
-   *
-   * @return an Iterable of snapshots of this table.
-   */
-  Iterable<Snapshot> snapshots();
-
-  /**
-   * Create a new {@link UpdateSchema} to alter the columns of this table and commit the change.
-   *
-   * @return a new {@link UpdateSchema}
-   */
-  UpdateSchema updateSchema();
+  Table table();
 
   /**
    * Create a new {@link UpdateProperties} to update table properties and commit the changes.
@@ -138,16 +82,10 @@ public interface Table {
   ExpireSnapshots expireSnapshots();
 
   /**
-   * Create a new {@link Rollback rollback API} to roll back to a previous snapshot and commit.
+   * Apply the pending changes from all actions and commit.
    *
-   * @return a new {@link Rollback}
+   * @throws ValidationException If any update cannot be applied to the current table metadata.
+   * @throws CommitFailedException If the updates cannot be committed due to conflicts.
    */
-  Rollback rollback();
-
-  /**
-   * Create a new {@link Transaction transaction API} to commit multiple table operations at once.
-   *
-   * @return a new {@link Transaction}
-   */
-  Transaction newTransaction();
+  void commitTransaction();
 }
