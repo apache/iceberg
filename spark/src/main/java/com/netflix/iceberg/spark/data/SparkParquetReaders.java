@@ -337,6 +337,11 @@ public class SparkParquetReaders {
     }
 
     @Override
+    public Long read(Long ignored) {
+      return readLong();
+    }
+
+    @Override
     public long readLong() {
       return 1000 * column.nextLong();
     }
