@@ -19,6 +19,7 @@ package com.netflix.iceberg;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
+import com.netflix.iceberg.TableMetadata.SnapshotLogEntry;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.expressions.ResidualEvaluator;
@@ -79,28 +80,19 @@ class BaseTableScan extends CloseableGroup implements TableScan {
     Preconditions.checkArgument(this.snapshotId == null,
         "Cannot override snapshot, already set to id=%s", snapshotId);
 
-    Snapshot asOfSnapshot = null;
-    long currentSnapshot = ops.current().currentSnapshot().snapshotId();
-
-    for (Snapshot snapshot : ops.current().snapshots()) {
-      boolean isValid = snapshot.timestampMillis() < timestampMillis;
-      boolean isNewer = asOfSnapshot == null ||
-          asOfSnapshot.timestampMillis() < snapshot.timestampMillis();
-
-      if (isValid && isNewer) {
-        asOfSnapshot = snapshot;
-      }
-
-      // do not consider snapshots newer than the current snapshot
-      if (snapshot.snapshotId() == currentSnapshot) {
-        break;
+    Long lastSnapshotId = null;
+    for (SnapshotLogEntry logEntry : ops.current().snapshotLog()) {
+      if (logEntry.timestampMillis() <= timestampMillis) {
+        lastSnapshotId = logEntry.snapshotId();
       }
     }
 
-    Preconditions.checkArgument(asOfSnapshot != null,
+    // the snapshot ID could be null if no entries were older than the requested time. in that case,
+    // there is no valid snapshot to read.
+    Preconditions.checkArgument(lastSnapshotId != null,
         "Cannot find a snapshot older than %s", DATE_FORMAT.format(new Date(timestampMillis)));
 
-    return new BaseTableScan(ops, table, asOfSnapshot.snapshotId(), columns, rowFilter);
+    return useSnapshot(lastSnapshotId);
   }
 
   @Override

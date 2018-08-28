@@ -16,6 +16,7 @@
 
 package com.netflix.iceberg;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.CommitFailedException;
@@ -186,7 +187,7 @@ public class TestMergeAppend extends TableTestBase {
     // commit the new partition spec to the table manually
     TableMetadata updated = new TableMetadata(table.ops(), null, base.location(),
         System.currentTimeMillis(), base.lastColumnId(), base.schema(), newSpec, base.properties(),
-        base.currentSnapshot().snapshotId(), base.snapshots());
+        base.currentSnapshot().snapshotId(), base.snapshots(), ImmutableList.of());
     table.ops().commit(base, updated);
 
     DataFile newFileC = DataFiles.builder(newSpec)
@@ -234,7 +235,7 @@ public class TestMergeAppend extends TableTestBase {
     // commit the new partition spec to the table manually
     TableMetadata updated = new TableMetadata(table.ops(), null, base.location(),
         System.currentTimeMillis(), base.lastColumnId(), base.schema(), newSpec, base.properties(),
-        base.currentSnapshot().snapshotId(), base.snapshots());
+        base.currentSnapshot().snapshotId(), base.snapshots(), ImmutableList.of());
     table.ops().commit(base, updated);
 
     DataFile newFileC = DataFiles.builder(newSpec)

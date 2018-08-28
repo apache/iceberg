@@ -19,7 +19,10 @@ package com.netflix.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+import com.netflix.iceberg.TableMetadata.SnapshotLogEntry;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
@@ -27,9 +30,13 @@ import com.netflix.iceberg.util.JsonUtil;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.StringWriter;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableSet;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 public class TableMetadataParser {
 
@@ -42,6 +49,9 @@ public class TableMetadataParser {
   private static final String PROPERTIES = "properties";
   private static final String CURRENT_SNAPSHOT_ID = "current-snapshot-id";
   private static final String SNAPSHOTS = "snapshots";
+  private static final String SNAPSHOT_ID = "snapshot-id";
+  private static final String TIMESTAMP_MS = "timestamp-ms";
+  private static final String SNAPSHOT_LOG = "snapshot-log";
 
   public static String toJson(TableMetadata metadata) {
     StringWriter writer = new StringWriter();
@@ -95,6 +105,15 @@ public class TableMetadataParser {
     }
     generator.writeEndArray();
 
+    generator.writeArrayFieldStart(SNAPSHOT_LOG);
+    for (SnapshotLogEntry logEntry : metadata.snapshotLog()) {
+      generator.writeStartObject();
+      generator.writeNumberField(TIMESTAMP_MS, logEntry.timestampMillis());
+      generator.writeNumberField(SNAPSHOT_ID, logEntry.snapshotId());
+      generator.writeEndObject();
+    }
+    generator.writeEndArray();
+
     generator.writeEndObject();
   }
 
@@ -132,9 +151,20 @@ public class TableMetadataParser {
       snapshots.add(SnapshotParser.fromJson(ops, iterator.next()));
     }
 
+    SortedSet<SnapshotLogEntry> entries =
+        Sets.newTreeSet(Comparator.comparingLong(SnapshotLogEntry::timestampMillis));
+    if (node.has(SNAPSHOT_LOG)) {
+      Iterator<JsonNode> logIterator = node.get(SNAPSHOT_LOG).elements();
+      while (logIterator.hasNext()) {
+        JsonNode entryNode = logIterator.next();
+        entries.add(new SnapshotLogEntry(
+            JsonUtil.getLong(TIMESTAMP_MS, entryNode), JsonUtil.getLong(SNAPSHOT_ID, entryNode)));
+      }
+    }
+
     return new TableMetadata(ops, file, location,
         lastUpdatedMillis, lastAssignedColumnId, schema, spec, properties, currentVersionId,
-        snapshots);
+        snapshots, ImmutableList.copyOf(entries.iterator()));
   }
 
 }

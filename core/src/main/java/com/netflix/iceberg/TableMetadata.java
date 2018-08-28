@@ -16,15 +16,19 @@
 
 package com.netflix.iceberg;
 
+import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.ValidationException;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.types.TypeUtil;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
@@ -57,7 +61,50 @@ public class TableMetadata {
     return new TableMetadata(ops, null, location,
         System.currentTimeMillis(),
         lastColumnId.get(), freshSchema, freshSpec,
-        ImmutableMap.of(), -1, ImmutableList.of());
+        ImmutableMap.of(), -1, ImmutableList.of(), ImmutableList.of());
+  }
+
+  public static class SnapshotLogEntry {
+    private final long timestampMillis;
+    private final long snapshotId;
+
+    SnapshotLogEntry(long timestampMillis, long snapshotId) {
+      this.timestampMillis = timestampMillis;
+      this.snapshotId = snapshotId;
+    }
+
+    public long timestampMillis() {
+      return timestampMillis;
+    }
+
+    public long snapshotId() {
+      return snapshotId;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      }
+      if (other == null || getClass() != other.getClass()) {
+        return false;
+      }
+      SnapshotLogEntry that = (SnapshotLogEntry) other;
+      return timestampMillis == that.timestampMillis && snapshotId == that.snapshotId;
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hashCode(timestampMillis, snapshotId);
+    }
+
+    @Override
+    public String toString() {
+      return Objects.toStringHelper(this)
+          .add("timestampMillis", timestampMillis)
+          .add("snapshotId", snapshotId)
+          .toString();
+    }
   }
 
   private final TableOperations ops;
@@ -73,6 +120,7 @@ public class TableMetadata {
   private final long currentSnapshotId;
   private final List<Snapshot> snapshots;
   private final Map<Long, Snapshot> snapshotsById;
+  private final List<SnapshotLogEntry> snapshotLog;
 
   TableMetadata(TableOperations ops,
                 InputFile file,
@@ -83,7 +131,8 @@ public class TableMetadata {
                 PartitionSpec spec,
                 Map<String, String> properties,
                 long currentSnapshotId,
-                List<Snapshot> snapshots) {
+                List<Snapshot> snapshots,
+                List<SnapshotLogEntry> snapshotLog) {
     this.ops = ops;
     this.file = file;
     this.location = location;
@@ -94,12 +143,23 @@ public class TableMetadata {
     this.properties = properties;
     this.currentSnapshotId = currentSnapshotId;
     this.snapshots = snapshots;
+    this.snapshotLog = snapshotLog;
 
     ImmutableMap.Builder<Long, Snapshot> builder = ImmutableMap.builder();
     for (Snapshot version : snapshots) {
       builder.put(version.snapshotId(), version);
     }
     this.snapshotsById = builder.build();
+
+    SnapshotLogEntry last = null;
+    for (SnapshotLogEntry logEntry : snapshotLog) {
+      if (last != null) {
+        Preconditions.checkArgument(
+            (logEntry.timestampMillis() - last.timestampMillis()) > 0,
+            "[BUG] Expected sorted snapshot log entries.");
+      }
+      last = logEntry;
+    }
 
     Preconditions.checkArgument(
         snapshotsById.isEmpty() || snapshotsById.containsKey(currentSnapshotId),
@@ -162,17 +222,21 @@ public class TableMetadata {
     return snapshots;
   }
 
+  public List<SnapshotLogEntry> snapshotLog() {
+    return snapshotLog;
+  }
+
   public TableMetadata updateTableLocation(String newLocation) {
     return new TableMetadata(ops, null, newLocation,
         System.currentTimeMillis(), lastColumnId, schema, spec, properties, currentSnapshotId,
-        snapshots);
+        snapshots, snapshotLog);
   }
 
   public TableMetadata updateSchema(Schema schema, int lastColumnId) {
     PartitionSpec.checkCompatibility(spec, schema);
     return new TableMetadata(ops, null, location,
         System.currentTimeMillis(), lastColumnId, schema, spec, properties, currentSnapshotId,
-        snapshots);
+        snapshots,snapshotLog);
   }
 
   public TableMetadata addSnapshot(Snapshot snapshot) {
@@ -180,9 +244,13 @@ public class TableMetadata {
         .addAll(snapshots)
         .add(snapshot)
         .build();
+    List<SnapshotLogEntry> newSnapshotLog = ImmutableList.<SnapshotLogEntry>builder()
+        .addAll(snapshotLog)
+        .add(new SnapshotLogEntry(snapshot.timestampMillis(), snapshot.snapshotId()))
+        .build();
     return new TableMetadata(ops, null, location,
         snapshot.timestampMillis(), lastColumnId, schema, spec, properties, snapshot.snapshotId(),
-        newSnapshots);
+        newSnapshots, newSnapshotLog);
   }
 
   public TableMetadata removeSnapshotsIf(Predicate<Snapshot> removeIf) {
@@ -194,24 +262,47 @@ public class TableMetadata {
       }
     }
 
+    // update the snapshot log
+    Set<Long> validIds = Sets.newHashSet(Iterables.transform(filtered, Snapshot::snapshotId));
+    List<SnapshotLogEntry> newSnapshotLog = Lists.newArrayList();
+    for (SnapshotLogEntry logEntry : snapshotLog) {
+      if (validIds.contains(logEntry.snapshotId())) {
+        // copy the log entries that are still valid
+        newSnapshotLog.add(logEntry);
+      } else {
+        // any invalid entry causes the history before it to be removed. otherwise, there could be
+        // history gaps that cause time-travel queries to produce incorrect results. for example,
+        // if history is [(t1, s1), (t2, s2), (t3, s3)] and s2 is removed, the history cannot be
+        // [(t1, s1), (t3, s3)] because it appears that s3 was current during the time between t2
+        // and t3 when in fact s2 was the current snapshot.
+        newSnapshotLog.clear();
+      }
+    }
+
     return new TableMetadata(ops, null, location,
         System.currentTimeMillis(), lastColumnId, schema, spec, properties, currentSnapshotId,
-        filtered);
+        filtered, ImmutableList.copyOf(newSnapshotLog));
   }
 
   public TableMetadata rollbackTo(Snapshot snapshot) {
     ValidationException.check(snapshotsById.containsKey(snapshot.snapshotId()),
         "Cannot set current snapshot to unknown: %s", snapshot.snapshotId());
 
+    long nowMillis = System.currentTimeMillis();
+    List<SnapshotLogEntry> newSnapshotLog = ImmutableList.<SnapshotLogEntry>builder()
+        .addAll(snapshotLog)
+        .add(new SnapshotLogEntry(nowMillis, snapshot.snapshotId()))
+        .build();
+
     return new TableMetadata(ops, null, location,
-        System.currentTimeMillis(), lastColumnId, schema, spec, properties, snapshot.snapshotId(),
-        snapshots);
+        nowMillis, lastColumnId, schema, spec, properties, snapshot.snapshotId(), snapshots,
+        newSnapshotLog);
   }
 
   public TableMetadata replaceProperties(Map<String, String> newProperties) {
     ValidationException.check(newProperties != null, "Cannot set properties to null");
     return new TableMetadata(ops, null, location,
         System.currentTimeMillis(), lastColumnId, schema, spec, newProperties, currentSnapshotId,
-        snapshots);
+        snapshots, snapshotLog);
   }
 }
