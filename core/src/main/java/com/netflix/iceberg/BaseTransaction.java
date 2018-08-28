@@ -18,12 +18,14 @@ package com.netflix.iceberg;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.CommitFailedException;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 import com.netflix.iceberg.util.Tasks;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static com.netflix.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
 import static com.netflix.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
@@ -49,6 +51,7 @@ class BaseTransaction implements Transaction {
   private final TableOperations ops;
   private final TableOperations transactionOps;
   private final List<PendingUpdate> updates;
+  private final Set<Long> intermediateSnapshotIds;
   private TableMetadata base;
   private TableMetadata lastBase;
   private TableMetadata current;
@@ -58,6 +61,7 @@ class BaseTransaction implements Transaction {
     this.ops = ops;
     this.transactionOps = new TransactionTableOperations();
     this.updates = Lists.newArrayList();
+    this.intermediateSnapshotIds = Sets.newHashSet();
     this.base = ops.current();
     this.lastBase = null;
     this.current = start;
@@ -118,7 +122,11 @@ class BaseTransaction implements Transaction {
   public void commitTransaction() {
     Preconditions.checkState(lastBase != current,
         "Cannot commit transaction: last operation has not committed");
+
     if (base != null) {
+      // fix up the snapshot log, which has entries for all of the new snapshots but should only
+      // record the last snapshot committed in the transaction
+
       // if there were no changes, don't try to commit
       if (base == current) {
         return;
@@ -142,14 +150,27 @@ class BaseTransaction implements Transaction {
               }
             }
 
-            ops.commit(base, current);
+            // fix up the snapshot log, which should by empty or contain just the latest snapshot
+            ops.commit(base, current.removeSnapshotLogEntries(intermediateSnapshotIds));
           });
 
     } else {
+      // fix up the snapshot log, which should by empty or contain just the latest snapshot
+      TableMetadata toCommit = current.removeSnapshotLogEntries(intermediateSnapshotIds);
+
       // this operation creates the table. if the commit fails, this cannot retry because another
       // process has created the same table.
-      ops.commit(null, current);
+      ops.commit(null, toCommit);
     }
+  }
+
+  private static Long currentId(TableMetadata meta) {
+    if (meta != null) {
+      if (meta.currentSnapshot() != null) {
+        return meta.currentSnapshot().snapshotId();
+      }
+    }
+    return null;
   }
 
   public class TransactionTableOperations implements TableOperations {
@@ -169,6 +190,14 @@ class BaseTransaction implements Transaction {
         // trigger a refresh and retry
         throw new CommitFailedException("Table metadata refresh is required");
       }
+
+      // track the intermediate snapshot ids for rewriting the snapshot log
+      // an id is intermediate if it isn't the base snapshot id and it is replaced by a new current
+      Long oldId = currentId(current);
+      if (oldId != null && !oldId.equals(currentId(metadata)) && !oldId.equals(currentId(base))) {
+        intermediateSnapshotIds.add(oldId);
+      }
+
       BaseTransaction.this.current = metadata;
     }
 

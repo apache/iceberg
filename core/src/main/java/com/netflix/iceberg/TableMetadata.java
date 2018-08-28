@@ -305,4 +305,21 @@ public class TableMetadata {
         System.currentTimeMillis(), lastColumnId, schema, spec, newProperties, currentSnapshotId,
         snapshots, snapshotLog);
   }
+
+  public TableMetadata removeSnapshotLogEntries(Set<Long> snapshotIds) {
+    List<SnapshotLogEntry> newSnapshotLog = Lists.newArrayList();
+    for (SnapshotLogEntry logEntry : snapshotLog) {
+      if (!snapshotIds.contains(logEntry.snapshotId())) {
+        // copy the log entries that are still valid
+        newSnapshotLog.add(logEntry);
+      }
+    }
+
+    ValidationException.check(currentSnapshotId < 0 || // not set
+            Iterables.getLast(newSnapshotLog).snapshotId() == currentSnapshotId,
+        "Cannot set invalid snapshot log: latest entry is not the current snapshot");
+    return new TableMetadata(ops, null, location,
+        System.currentTimeMillis(), lastColumnId, schema, spec, properties, currentSnapshotId,
+        snapshots, newSnapshotLog);
+  }
 }
