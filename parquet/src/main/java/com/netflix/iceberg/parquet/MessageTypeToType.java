@@ -132,12 +132,25 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     OriginalType annotation = primitive.getOriginalType();
     if (annotation != null) {
       switch (annotation) {
+        case INT_8:
+        case UINT_8:
+        case INT_16:
+        case UINT_16:
+        case INT_32:
+          return Types.IntegerType.get();
+        case INT_64:
+          return Types.LongType.get();
         case DATE:
           return Types.DateType.get();
+        case TIME_MILLIS:
         case TIME_MICROS:
           return Types.TimeType.get();
+        case TIMESTAMP_MILLIS:
         case TIMESTAMP_MICROS:
           return Types.TimestampType.withZone();
+        case JSON:
+        case BSON:
+        case ENUM:
         case UTF8:
           return Types.StringType.get();
         case DECIMAL:
