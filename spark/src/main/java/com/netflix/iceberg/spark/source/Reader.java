@@ -20,7 +20,6 @@
 package com.netflix.iceberg.spark.source;
 
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import com.netflix.iceberg.CombinedScanTask;
 import com.netflix.iceberg.DataFile;
 import com.netflix.iceberg.FileScanTask;
@@ -53,15 +52,13 @@ import org.apache.spark.sql.catalyst.expressions.AttributeReference;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.expressions.JoinedRow;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
-import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
-import org.apache.spark.sql.sources.v2.reader.DataReader;
 import org.apache.spark.sql.sources.v2.reader.DataSourceReader;
-import org.apache.spark.sql.sources.v2.reader.DataReaderFactory;
+import org.apache.spark.sql.sources.v2.reader.InputPartition;
+import org.apache.spark.sql.sources.v2.reader.InputPartitionReader;
 import org.apache.spark.sql.sources.v2.reader.Statistics;
 import org.apache.spark.sql.sources.v2.reader.SupportsPushDownCatalystFilters;
 import org.apache.spark.sql.sources.v2.reader.SupportsPushDownRequiredColumns;
 import org.apache.spark.sql.sources.v2.reader.SupportsReportStatistics;
-import org.apache.spark.sql.sources.v2.reader.SupportsScanUnsafeRow;
 import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
@@ -86,7 +83,7 @@ import static com.netflix.iceberg.spark.SparkSchemaUtil.prune;
 import static scala.collection.JavaConverters.asScalaBufferConverter;
 import static scala.collection.JavaConverters.seqAsJavaListConverter;
 
-class Reader implements DataSourceReader, SupportsScanUnsafeRow, SupportsPushDownCatalystFilters,
+class Reader implements DataSourceReader, SupportsPushDownCatalystFilters,
     SupportsPushDownRequiredColumns, SupportsReportStatistics {
 
   private static final org.apache.spark.sql.catalyst.expressions.Expression[] NO_EXPRS =
@@ -133,11 +130,11 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow, SupportsPushDow
   }
 
   @Override
-  public List<DataReaderFactory<UnsafeRow>> createUnsafeRowReaderFactories() {
+  public List<InputPartition<InternalRow>> planInputPartitions() {
     String tableSchemaString = SchemaParser.toJson(table.schema());
     String expectedSchemaString = SchemaParser.toJson(lazySchema());
 
-    List<DataReaderFactory<UnsafeRow>> readTasks = Lists.newArrayList();
+    List<InputPartition<InternalRow>> readTasks = Lists.newArrayList();
     for (CombinedScanTask task : tasks()) {
       readTasks.add(new ReadTask(task, tableSchemaString, expectedSchemaString, conf));
     }
@@ -230,7 +227,7 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow, SupportsPushDow
         table, lazySchema().asStruct(), filterExpressions);
   }
 
-  private static class ReadTask implements DataReaderFactory<UnsafeRow>, Serializable {
+  private static class ReadTask implements InputPartition<InternalRow>, Serializable {
     private final CombinedScanTask task;
     private final String tableSchemaString;
     private final String expectedSchemaString;
@@ -248,7 +245,7 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow, SupportsPushDow
     }
 
     @Override
-    public DataReader<UnsafeRow> createDataReader() {
+    public InputPartitionReader<InternalRow> createPartitionReader() {
       return new TaskDataReader(task, lazyTableSchema(), lazyExpectedSchema(), conf.value());
     }
 
@@ -267,7 +264,7 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow, SupportsPushDow
     }
   }
 
-  private static class TaskDataReader implements DataReader<UnsafeRow> {
+  private static class TaskDataReader implements InputPartitionReader<InternalRow> {
     // for some reason, the apply method can't be called from Java without reflection
     private static final DynMethods.UnboundMethod APPLY_PROJECTION = DynMethods.builder("apply")
         .impl(UnsafeProjection.class, InternalRow.class)
@@ -278,9 +275,9 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow, SupportsPushDow
     private final Schema expectedSchema;
     private final Configuration conf;
 
-    private Iterator<UnsafeRow> currentIterator = null;
+    private Iterator<InternalRow> currentIterator = null;
     private Closeable currentCloseable = null;
-    private UnsafeRow current = null;
+    private InternalRow current = null;
 
     public TaskDataReader(CombinedScanTask task, Schema tableSchema, Schema expectedSchema, Configuration conf) {
       this.tasks = task.files().iterator();
@@ -309,7 +306,7 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow, SupportsPushDow
     }
 
     @Override
-    public UnsafeRow get() {
+    public InternalRow get() {
       return current;
     }
 
@@ -324,13 +321,13 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow, SupportsPushDow
       }
     }
 
-    private Iterator<UnsafeRow> open(FileScanTask task) {
+    private Iterator<InternalRow> open(FileScanTask task) {
       DataFile file = task.file();
 
       // schema or rows returned by readers
       Schema finalSchema = expectedSchema;
       PartitionSpec spec = task.spec();
-      Set<Integer> idColumns = identitySourceIds(spec);
+      Set<Integer> idColumns = spec.identitySourceIds();
 
       // schema needed for the projection and filtering
       Schema requiredSchema = prune(tableSchema, convert(finalSchema), task.residual());
@@ -365,6 +362,7 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow, SupportsPushDow
         iter = open(task, finalSchema, conf);
       }
 
+      // TODO: remove the projection by reporting the iterator's schema back to Spark
       return transform(iter,
           APPLY_PROJECTION.bind(projection(finalSchema, iterSchema))::invoke);
     }
@@ -389,19 +387,6 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow, SupportsPushDow
       return UnsafeProjection.create(
           asScalaBufferConverter(exprs).asScala().toSeq(),
           asScalaBufferConverter(attrs).asScala().toSeq());
-    }
-
-    private static Set<Integer> identitySourceIds(PartitionSpec spec) {
-      Set<Integer> sourceIds = Sets.newHashSet();
-      List<PartitionField> fields = spec.fields();
-      for (int i = 0; i < fields.size(); i += 1) {
-        PartitionField field = fields.get(i);
-        if ("identity".equals(field.transform().toString())) {
-          sourceIds.add(field.sourceId());
-        }
-      }
-
-      return sourceIds;
     }
 
     private Iterator<InternalRow> open(FileScanTask task, Schema readSchema,

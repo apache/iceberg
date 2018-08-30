@@ -45,13 +45,13 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.api.java.UDF1;
+import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
 import org.apache.spark.sql.sources.v2.reader.DataSourceReader;
-import org.apache.spark.sql.sources.v2.reader.DataReaderFactory;
+import org.apache.spark.sql.sources.v2.reader.InputPartition;
 import org.apache.spark.sql.sources.v2.reader.SupportsPushDownCatalystFilters;
-import org.apache.spark.sql.sources.v2.reader.SupportsScanUnsafeRow;
 import org.apache.spark.sql.types.DateType$;
 import org.apache.spark.sql.types.IntegerType$;
 import org.apache.spark.sql.types.StringType$;
@@ -218,7 +218,7 @@ public class TestFilteredScan {
 
       pushFilters(reader, Expressions.equal("id", i));
 
-      List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
+      List<InputPartition<InternalRow>> tasks = reader.planInputPartitions();
       Assert.assertEquals("Should only create one task for a small file", 1, tasks.size());
 
       // validate row filtering
@@ -239,7 +239,7 @@ public class TestFilteredScan {
 
     pushFilters(reader, Expressions.lessThan("ts", "2017-12-22T00:00:00+00:00"));
 
-    List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
+    List<InputPartition<InternalRow>> tasks = reader.planInputPartitions();
     Assert.assertEquals("Should only create one task for a small file", 1, tasks.size());
 
     assertEqualsSafe(SCHEMA.asStruct(), expected(5,6,7,8,9),
@@ -257,14 +257,14 @@ public class TestFilteredScan {
     IcebergSource source = new IcebergSource();
     DataSourceReader unfiltered = source.createReader(options);
     Assert.assertEquals("Unfiltered table should created 4 read tasks",
-        4, planTasks(unfiltered).size());
+        4, unfiltered.planInputPartitions().size());
 
     for (int i = 0; i < 10; i += 1) {
       DataSourceReader reader = source.createReader(options);
 
       pushFilters(reader, Expressions.equal("id", i));
 
-      List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
+      List<InputPartition<InternalRow>> tasks = reader.planInputPartitions();
 
       // validate predicate push-down
       Assert.assertEquals("Should create one task for a single bucket", 1, tasks.size());
@@ -286,14 +286,14 @@ public class TestFilteredScan {
     IcebergSource source = new IcebergSource();
     DataSourceReader unfiltered = source.createReader(options);
     Assert.assertEquals("Unfiltered table should created 2 read tasks",
-        2, planTasks(unfiltered).size());
+        2, unfiltered.planInputPartitions().size());
 
     {
       DataSourceReader reader = source.createReader(options);
 
       pushFilters(reader, Expressions.lessThan("ts", "2017-12-22T00:00:00+00:00"));
 
-      List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
+      List<InputPartition<InternalRow>> tasks = reader.planInputPartitions();
       Assert.assertEquals("Should create one task for 2017-12-21", 1, tasks.size());
 
       assertEqualsSafe(SCHEMA.asStruct(), expected(5, 6, 7, 8, 9),
@@ -305,7 +305,7 @@ public class TestFilteredScan {
 
       pushFilters(reader, col("ts").cast(DateType$.MODULE$).$eq$eq$eq(lit(day)).expr());
 
-      List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
+      List<InputPartition<InternalRow>> tasks = reader.planInputPartitions();
       Assert.assertEquals("Should create one task for 2017-12-21", 1, tasks.size());
 
       assertEqualsSafe(SCHEMA.asStruct(), expected(5, 6, 7, 8, 9),
@@ -331,7 +331,7 @@ public class TestFilteredScan {
           Expressions.greaterThan("ts", "2017-12-22T06:00:00+00:00"),
           Expressions.lessThan("ts", "2017-12-22T08:00:00+00:00")));
 
-      List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
+      List<InputPartition<InternalRow>> tasks = reader.planInputPartitions();
       Assert.assertEquals("Should create one task for 2017-12-22", 1, tasks.size());
 
       assertEqualsSafe(SCHEMA.asStruct(), expected(1, 2), read(location.toString(),
@@ -351,14 +351,14 @@ public class TestFilteredScan {
     IcebergSource source = new IcebergSource();
     DataSourceReader unfiltered = source.createReader(options);
     Assert.assertEquals("Unfiltered table should created 9 read tasks",
-        9, planTasks(unfiltered).size());
+        9, unfiltered.planInputPartitions().size());
 
     {
       DataSourceReader reader = source.createReader(options);
 
       pushFilters(reader, Expressions.lessThan("ts", "2017-12-22T00:00:00+00:00"));
 
-      List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
+      List<InputPartition<InternalRow>> tasks = reader.planInputPartitions();
       Assert.assertEquals("Should create 4 tasks for 2017-12-21: 15, 17, 21, 22", 4, tasks.size());
 
       assertEqualsSafe(SCHEMA.asStruct(), expected(8, 9, 7, 6, 5),
@@ -372,7 +372,7 @@ public class TestFilteredScan {
           Expressions.greaterThan("ts", "2017-12-22T06:00:00+00:00"),
           Expressions.lessThan("ts", "2017-12-22T08:00:00+00:00")));
 
-      List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
+      List<InputPartition<InternalRow>> tasks = reader.planInputPartitions();
       Assert.assertEquals("Should create 2 tasks for 2017-12-22: 6, 7", 2, tasks.size());
 
       assertEqualsSafe(SCHEMA.asStruct(), expected(2, 1), read(location.toString(),
@@ -392,14 +392,14 @@ public class TestFilteredScan {
     IcebergSource source = new IcebergSource();
     DataSourceReader unfiltered = source.createReader(options);
     Assert.assertEquals("Unfiltered table should have created 9 read tasks",
-        9, planTasks(unfiltered).size());
+        9, unfiltered.planInputPartitions().size());
 
     {
       DataSourceReader reader = source.createReader(options);
 
       pushFilters(reader, Expressions.equal("data", "goldfish"));
 
-      List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
+      List<InputPartition<InternalRow>> tasks = reader.planInputPartitions();
       Assert.assertEquals("Should create 1 task for 'goldfish' (g)", 1, tasks.size());
     }
 
@@ -408,7 +408,7 @@ public class TestFilteredScan {
 
       pushFilters(reader, col("data").$eq$eq$eq("goldfish").expr());
 
-      List<DataReaderFactory<UnsafeRow>> tasks = planTasks(reader);
+      List<InputPartition<InternalRow>> tasks = reader.planInputPartitions();
       Assert.assertEquals("Should create 1 task for 'goldfish' (g)", 1, tasks.size());
     }
 
@@ -491,12 +491,6 @@ public class TestFilteredScan {
     Assert.assertTrue(reader instanceof SupportsPushDownCatalystFilters);
     SupportsPushDownCatalystFilters filterable = (SupportsPushDownCatalystFilters) reader;
     filterable.pushCatalystFilters(expressions);
-  }
-
-  private List<DataReaderFactory<UnsafeRow>> planTasks(DataSourceReader reader) {
-    Assert.assertTrue(reader instanceof SupportsScanUnsafeRow);
-    SupportsScanUnsafeRow unsafeReader = (SupportsScanUnsafeRow) reader;
-    return unsafeReader.createUnsafeRowReaderFactories();
   }
 
   private File buildPartitionedTable(String desc, PartitionSpec spec, String udf, String partitionColumn) {

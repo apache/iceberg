@@ -88,7 +88,7 @@ public class TestSparkReadProjection extends TestReadProjection {
 
   @Override
   protected Record writeAndRead(String desc, Schema writeSchema, Schema readSchema,
-                                            Record record) throws IOException {
+                                Record record) throws IOException {
     File parent = temp.newFolder(desc);
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");
