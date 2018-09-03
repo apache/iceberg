@@ -68,6 +68,10 @@ abstract class Bucket<T> implements Transform<T, Integer> {
     this.N = N;
   }
 
+  public Integer numBuckets() {
+    return N;
+  }
+
   @VisibleForTesting
   abstract int hash(T value);
 

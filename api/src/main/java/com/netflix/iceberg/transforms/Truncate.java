@@ -50,6 +50,8 @@ abstract class Truncate<T> implements Transform<T, T> {
     }
   }
 
+  abstract public Integer width();
+
   @Override
   abstract public T apply(T value);
 
@@ -63,6 +65,11 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     private TruncateInteger(int width) {
       this.W = width;
+    }
+
+    @Override
+    public Integer width() {
+      return W;
     }
 
     @Override
@@ -158,6 +165,11 @@ abstract class Truncate<T> implements Transform<T, T> {
     }
 
     @Override
+    public Integer width() {
+      return W;
+    }
+
+    @Override
     public Long apply(Long value) {
       return value - (((value % W) + W) % W);
     }
@@ -209,6 +221,11 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     private TruncateString(int length) {
       this.L = length;
+    }
+
+    @Override
+    public Integer width() {
+      return L;
     }
 
     @Override
@@ -265,6 +282,11 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     private TruncateByteBuffer(int length) {
       this.L = length;
+    }
+
+    @Override
+    public Integer width() {
+      return L;
     }
 
     @Override
@@ -328,6 +350,11 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     private TruncateDecimal(int unscaledWidth) {
       this.unscaledWidth = BigInteger.valueOf(unscaledWidth);
+    }
+
+    @Override
+    public Integer width() {
+      return unscaledWidth.intValue();
     }
 
     @Override
