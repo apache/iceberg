@@ -16,7 +16,6 @@
 
 package com.netflix.iceberg.spark;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Types;
@@ -44,6 +43,10 @@ import java.util.List;
 class SparkTypeToType extends SparkTypeVisitor<Type> {
   private final StructType root;
   private int nextId = 0;
+
+  SparkTypeToType() {
+    this.root = null;
+  }
 
   SparkTypeToType(StructType root) {
     this.root = root;
