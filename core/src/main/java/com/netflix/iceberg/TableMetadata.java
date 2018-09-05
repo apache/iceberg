@@ -42,6 +42,14 @@ public class TableMetadata {
                                                Schema schema,
                                                PartitionSpec spec,
                                                String location) {
+    return newTableMetadata(ops, schema, spec, location, ImmutableMap.of());
+  }
+
+  public static TableMetadata newTableMetadata(TableOperations ops,
+                                               Schema schema,
+                                               PartitionSpec spec,
+                                               String location,
+                                               Map<String, String> properties) {
     // reassign all column ids to ensure consistency
     AtomicInteger lastColumnId = new AtomicInteger(0);
     Schema freshSchema = TypeUtil.assignFreshIds(schema, lastColumnId::incrementAndGet);
@@ -61,7 +69,7 @@ public class TableMetadata {
     return new TableMetadata(ops, null, location,
         System.currentTimeMillis(),
         lastColumnId.get(), freshSchema, freshSpec,
-        ImmutableMap.of(), -1, ImmutableList.of(), ImmutableList.of());
+        ImmutableMap.copyOf(properties), -1, ImmutableList.of(), ImmutableList.of());
   }
 
   public static class SnapshotLogEntry {

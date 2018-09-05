@@ -16,6 +16,9 @@
 
 package com.netflix.iceberg;
 
+import com.google.common.collect.ImmutableMap;
+import java.util.Map;
+
 /**
  * Generic interface for creating and loading a table implementation.
  *
@@ -23,7 +26,18 @@ package com.netflix.iceberg;
  * implementation (e.g. database.table_name)
  */
 public interface Tables {
-  Table create(Schema schema, PartitionSpec spec, String tableIdentifier);
+  default Table create(Schema schema, String tableIdentifier) {
+    return create(schema, PartitionSpec.unpartitioned(), ImmutableMap.of(), tableIdentifier);
+  }
+
+  default Table create(Schema schema, PartitionSpec spec, String tableIdentifier) {
+    return create(schema, spec, ImmutableMap.of(), tableIdentifier);
+  }
+
+  Table create(Schema schema,
+               PartitionSpec spec,
+               Map<String, String> properties,
+               String tableIdentifier);
 
   Table load(String tableIdentifier);
 }

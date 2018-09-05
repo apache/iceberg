@@ -28,6 +28,9 @@ import com.netflix.iceberg.exceptions.NoSuchTableException;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import java.util.Map;
+
+import static com.netflix.iceberg.TableMetadata.newTableMetadata;
 
 /**
  * Implementation of Iceberg tables that uses the Hadoop FileSystem
@@ -69,13 +72,14 @@ public class HadoopTables implements Tables, Configurable {
    * @return newly created table implementation
    */
   @Override
-  public Table create(Schema schema, PartitionSpec spec, String location) {
+  public Table create(Schema schema, PartitionSpec spec, Map<String, String> properties,
+                      String location) {
     TableOperations ops = newTableOps(location);
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table already exists at location: " + location);
     }
 
-    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, location);
+    TableMetadata metadata = newTableMetadata(ops, schema, spec, location, properties);
     ops.commit(null, metadata);
 
     return new BaseTable(ops, location);

@@ -17,9 +17,13 @@
 package com.netflix.iceberg;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.netflix.iceberg.exceptions.AlreadyExistsException;
 import com.netflix.iceberg.exceptions.NoSuchTableException;
 import org.apache.hadoop.conf.Configuration;
+import java.util.Map;
+
+import static com.netflix.iceberg.TableMetadata.newTableMetadata;
 
 public abstract class BaseMetastoreTables implements Tables {
   private final Configuration conf;
@@ -28,7 +32,8 @@ public abstract class BaseMetastoreTables implements Tables {
     this.conf = conf;
   }
 
-  protected abstract BaseMetastoreTableOperations newTableOps(Configuration conf, String database, String table);
+  protected abstract BaseMetastoreTableOperations newTableOps(Configuration conf,
+                                                              String database, String table);
 
   public Table load(String database, String table) {
     TableOperations ops = newTableOps(conf, database, table);
@@ -44,31 +49,42 @@ public abstract class BaseMetastoreTables implements Tables {
   }
 
   public Table create(Schema schema, PartitionSpec spec, String database, String table) {
+    return create(schema, spec, ImmutableMap.of(), database, table);
+  }
+
+  public Table create(Schema schema, PartitionSpec spec, Map<String, String> properties,
+                      String database, String table) {
     TableOperations ops = newTableOps(conf, database, table);
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table already exists: " + database + "." + table);
     }
 
     String location = defaultWarehouseLocation(conf, database, table);
-    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, location);
+    TableMetadata metadata = newTableMetadata(ops, schema, spec, location, properties);
     ops.commit(null, metadata);
 
     return new BaseTable(ops, database + "." + table);
   }
 
   public Transaction beginCreate(Schema schema, PartitionSpec spec, String database, String table) {
+    return beginCreate(schema, spec, ImmutableMap.of(), database, table);
+  }
+
+  public Transaction beginCreate(Schema schema, PartitionSpec spec, Map<String, String> properties,
+                                 String database, String table) {
     TableOperations ops = newTableOps(conf, database, table);
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table already exists: " + database + "." + table);
     }
 
     String location = defaultWarehouseLocation(conf, database, table);
-    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, location);
+    TableMetadata metadata = newTableMetadata(ops, schema, spec, location, properties);
 
     return BaseTransaction.createTableTransaction(ops, metadata);
   }
 
-  private static String defaultWarehouseLocation(Configuration conf, String database, String table) {
+  private static String defaultWarehouseLocation(Configuration conf,
+                                                 String database, String table) {
     String warehouseLocation = conf.get("hive.metastore.warehouse.dir");
     Preconditions.checkNotNull(warehouseLocation,
         "Warehouse location is not set: hive.metastore.warehouse.dir=null");
