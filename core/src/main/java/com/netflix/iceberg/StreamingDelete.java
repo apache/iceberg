@@ -42,9 +42,9 @@ import java.util.Set;
  */
 class StreamingDelete extends SnapshotUpdate implements DeleteFiles {
   private final TableOperations ops;
-  private final StrictMetricsEvaluator metricsEvaluator;
   private final Set<CharSequenceWrapper> deletePaths = Sets.newHashSet();
   private Expression deleteExpression = Expressions.alwaysFalse();
+  private StrictMetricsEvaluator metricsEvaluator = null;
 
   // cache filtered manifests to avoid extra work when commits fail.
   private final Map<String, String> filteredManifests = Maps.newHashMap();
@@ -53,11 +53,6 @@ class StreamingDelete extends SnapshotUpdate implements DeleteFiles {
   StreamingDelete(TableOperations ops) {
     super(ops);
     this.ops = ops;
-
-    // use a common metrics evaluator for all manifests because it is bound to the table schema
-    // do not change the schema even if the table is updated because the intent was to use the
-    // schema when the delete was started
-    this.metricsEvaluator = new StrictMetricsEvaluator(ops.current().schema(), deleteExpression);
   }
 
   @Override
@@ -82,6 +77,9 @@ class StreamingDelete extends SnapshotUpdate implements DeleteFiles {
       cleanAll();
       this.filterUpdated = false;
     }
+
+    // use a common metrics evaluator for all manifests because it is bound to the table schema
+    this.metricsEvaluator = new StrictMetricsEvaluator(ops.current().schema(), deleteExpression);
 
     List<String> newManifests = Lists.newArrayList();
     for (String manifest : base.currentSnapshot().manifests()) {
