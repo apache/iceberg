@@ -124,6 +124,24 @@ public interface Table {
   RewriteFiles newRewrite();
 
   /**
+   * Create a new {@link OverwriteFiles overwrite API} to overwrite files by a filter expression.
+   *
+   * @return a new {@link OverwriteFiles}
+   */
+  OverwriteFiles newOverwrite();
+
+  /**
+   * Not recommended: Create a new {@link ReplacePartitions replace partitions API} to dynamically
+   * overwrite partitions in the table with new data.
+   * <p>
+   * This is provided to implement SQL compatible with Hive table operations but is not recommended.
+   * Instead, use the {@link OverwriteFiles overwrite API} to explicitly overwrite data.
+   *
+   * @return a new {@link ReplacePartitions}
+   */
+  ReplacePartitions newReplacePartitions();
+
+  /**
    * Create a new {@link DeleteFiles delete API} to replace files in this table and commit.
    *
    * @return a new {@link DeleteFiles}

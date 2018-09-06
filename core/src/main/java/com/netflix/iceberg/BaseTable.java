@@ -98,6 +98,16 @@ public class BaseTable implements Table {
   }
 
   @Override
+  public OverwriteFiles newOverwrite() {
+    throw new UnsupportedOperationException("Overwrite is not yet supported");
+  }
+
+  @Override
+  public ReplacePartitions newReplacePartitions() {
+    throw new UnsupportedOperationException("ReplacePartitions is not yet supported");
+  }
+
+  @Override
   public DeleteFiles newDelete() {
     return new StreamingDelete(ops);
   }

@@ -283,6 +283,16 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
+    public OverwriteFiles newOverwrite() {
+      throw new UnsupportedOperationException("Transaction tables do not support overwrites");
+    }
+
+    @Override
+    public ReplacePartitions newReplacePartitions() {
+      throw new UnsupportedOperationException("Transaction tables do not support overwrites");
+    }
+
+    @Override
     public DeleteFiles newDelete() {
       return BaseTransaction.this.newDelete();
     }
