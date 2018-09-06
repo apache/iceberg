@@ -6,6 +6,7 @@ import com.netflix.iceberg.BaseMetastoreTableOperations;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.TableMetadata;
 import com.netflix.iceberg.exceptions.CommitFailedException;
+import com.netflix.iceberg.exceptions.NoSuchTableException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -15,6 +16,7 @@ import org.apache.hadoop.hive.metastore.api.LockRequest;
 import org.apache.hadoop.hive.metastore.api.LockResponse;
 import org.apache.hadoop.hive.metastore.api.LockState;
 import org.apache.hadoop.hive.metastore.api.LockType;
+import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.SerdeType;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
@@ -34,6 +36,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static com.netflix.iceberg.hive.HiveTypeConverter.convert;
+import static java.lang.String.format;
 
 /**
  * TODO we should be able to extract some more commonalities to BaseMetastoreTableOperations to
@@ -43,30 +46,34 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HiveTableOperations.class);
 
   private final IMetaStoreClient metaStoreClient;
-  private final String catalog; // TODO I am not sure what is catalog in hive metastore context.
   private final String database;
-  private final String table;
+  private final String tableName;
 
-  protected HiveTableOperations(Configuration conf, IMetaStoreClient metaStoreClient, String catalog, String database, String table) {
+  protected HiveTableOperations(Configuration conf, IMetaStoreClient metaStoreClient, String database, String table) {
     super(conf);
     this.metaStoreClient = metaStoreClient;
-    this.catalog = catalog;
     this.database = database;
-    this.table = table;
+    tableName = table;
+    refresh();
   }
 
   @Override
   public TableMetadata refresh() {
     try {
-      final Table table = metaStoreClient.getTable(catalog, database, this.table);
+      final Table table = metaStoreClient.getTable(database, tableName);
       String tableType = table.getParameters().get(TABLE_TYPE_PROP);
 
       Preconditions.checkArgument(
               tableType != null && tableType.equalsIgnoreCase(ICEBERG_TABLE_TYPE_VALUE),
-              "Invalid table, not Iceberg: %s.%s.%s", catalog, database, table);
+              "Invalid tableName, not Iceberg: %s.%s", database, table);
       String metadataLocation = table.getParameters().get(METADATA_LOCATION_PROP);
       Preconditions.checkNotNull(metadataLocation,
-              "Invalid table, missing metadata_location: %s.%s.%s", catalog, database, table);
+              "Invalid tableName, missing metadata_location: %s.%s", database, tableName);
+      refreshFromMetadataLocation(metadataLocation);
+    } catch (NoSuchObjectException e) {
+      if (currentMetadataLocation() != null) {
+        throw new NoSuchTableException(format("No such table: %s.%s", database, tableName));
+      }
     } catch (TException e) {
       throw new RuntimeException(e);
     }
@@ -77,7 +84,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   public void commit(TableMetadata base, TableMetadata metadata) {
     // if the metadata is already out of date, reject it
     if (base != current()) {
-      throw new CommitFailedException("Cannot commit changes based on stale table metadata");
+      throw new CommitFailedException("Cannot commit changes based on stale tableName metadata");
     }
 
     // if the metadata is not changed, return early
@@ -95,11 +102,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       // TODO add lock heart beating for cases where default lock timeout is too low.
       Table tbl;
       if (base != null) {
-        tbl = metaStoreClient.getTable(catalog, database, this.table);
+        tbl = metaStoreClient.getTable(database, tableName);
       } else {
         final long currentTimeMillis = System.currentTimeMillis();
         final StorageDescriptor storageDescriptor = getStorageDescriptor(metadata.schema());
-        tbl = new Table(table,
+        tbl = new Table(tableName,
                 database,
                 System.getProperty("user.name"),
                 (int) currentTimeMillis / 1000,
@@ -118,15 +125,15 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         parameters = new HashMap<>();
       }
       parameters.put(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH));
-      parameters.put(METADATA_LOCATION_PROP, metadata.location());
+      parameters.put(METADATA_LOCATION_PROP, newMetadataLocation);
       if (currentMetadataLocation() != null && !currentMetadataLocation().isEmpty()) {
         parameters.put(PREVIOUS_METADATA_LOCATION_PROP, currentMetadataLocation());
       }
 
-      // unnecessary but setting in case table.getParameters() starts returning a deep copy.
+      // unnecessary but setting in case tableName.getParameters() starts returning a deep copy.
       tbl.setParameters(parameters);
       if (base != null) {
-        metaStoreClient.alter_table(database, table, tbl);
+        metaStoreClient.alter_table(database, tableName, tbl);
       } else {
         metaStoreClient.createTable(tbl);
       }
@@ -153,6 +160,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     SerDeInfo serDeInfo = new SerDeInfo();
     serDeInfo.setSerdeType(SerdeType.HIVE);
     serDeInfo.setSerializationLib("org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe");
+    storageDescriptor.setSerdeInfo(serDeInfo);
     return storageDescriptor;
   }
 
@@ -162,18 +170,19 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
   private Optional<Long> acquireLock() throws UnknownHostException, TException {
     final LockComponent lockComponent = new LockComponent(LockType.EXCLUSIVE, LockLevel.TABLE, database);
-    lockComponent.setTablename(this.table);
+    lockComponent.setTablename(tableName);
     final LockRequest lockRequest = new LockRequest(Lists.newArrayList(lockComponent), System.getProperty("user.name"), InetAddress.getLocalHost().getHostName());
     LockResponse lockResponse = metaStoreClient.lock(lockRequest);
     LockState state = lockResponse.getState();
     Optional<Long> lockId = Optional.of(lockResponse.getLockid());
+    //TODO add timeout
     while (state.equals(LockState.WAITING)) {
       lockResponse = metaStoreClient.checkLock(lockResponse.getLockid());
       state = lockResponse.getState();
     }
 
     if (!state.equals(LockState.ACQUIRED)) {
-      throw new IllegalStateException("Could not acquire the lock on table, lock request ended in state " + state);
+      throw new IllegalStateException("Could not acquire the lock on tableName, lock request ended in state " + state);
     }
     return lockId;
   }

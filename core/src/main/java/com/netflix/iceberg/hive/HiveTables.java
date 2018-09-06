@@ -15,11 +15,9 @@ import java.util.List;
 
 public class HiveTables extends BaseMetastoreTables {
   private static final Splitter DOT = Splitter.on('.').limit(2);
-  private final String catalog;
 
-  public HiveTables(Configuration conf, String catalog) {
+  public HiveTables(Configuration conf) {
     super(conf);
-    this.catalog = catalog;
   }
 
   @Override
@@ -42,7 +40,7 @@ public class HiveTables extends BaseMetastoreTables {
 
   @Override
   public BaseMetastoreTableOperations newTableOps(Configuration conf, String database, String table) {
-    return new HiveTableOperations(conf, getClient(), catalog, database, table);
+    return new HiveTableOperations(conf, getClient(), database, table);
   }
 
   private IMetaStoreClient getClient() {
