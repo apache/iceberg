@@ -22,7 +22,7 @@ import com.netflix.iceberg.exceptions.NoSuchTableException;
 import org.apache.hadoop.conf.Configuration;
 
 public abstract class BaseMetastoreTables implements Tables {
-  private final Configuration conf;
+  protected final Configuration conf;
 
   public BaseMetastoreTables(Configuration conf) {
     this.conf = conf;
