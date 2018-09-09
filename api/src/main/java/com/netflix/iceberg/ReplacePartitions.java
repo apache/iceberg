@@ -39,4 +39,11 @@ public interface ReplacePartitions extends PendingUpdate<Snapshot> {
    * @return this for method chaining
    */
   ReplacePartitions addFile(DataFile file);
+
+  /**
+   * Validate that no partitions will be replaced and the operation is append-only.
+   *
+   * @return this for method chaining
+   */
+  ReplacePartitions validateAppendOnly();
 }

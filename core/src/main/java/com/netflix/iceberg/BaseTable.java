@@ -104,7 +104,7 @@ public class BaseTable implements Table {
 
   @Override
   public ReplacePartitions newReplacePartitions() {
-    throw new UnsupportedOperationException("ReplacePartitions is not yet supported");
+    return new ReplacePartitionsOperation(ops);
   }
 
   @Override

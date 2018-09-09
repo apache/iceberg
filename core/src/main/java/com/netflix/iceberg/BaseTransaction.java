@@ -111,6 +111,14 @@ class BaseTransaction implements Transaction {
   }
 
   @Override
+  public ReplacePartitions newReplacePartitions() {
+    checkLastOperationCommitted("ReplacePartitions");
+    ReplacePartitionsOperation replacePartitions = new ReplacePartitionsOperation(transactionOps);
+    updates.add(replacePartitions);
+    return replacePartitions;
+  }
+
+  @Override
   public DeleteFiles newDelete() {
     checkLastOperationCommitted("DeleteFiles");
     DeleteFiles delete = new StreamingDelete(transactionOps);
@@ -297,7 +305,7 @@ class BaseTransaction implements Transaction {
 
     @Override
     public ReplacePartitions newReplacePartitions() {
-      throw new UnsupportedOperationException("Transaction tables do not support overwrites");
+      return BaseTransaction.this.newReplacePartitions();
     }
 
     @Override

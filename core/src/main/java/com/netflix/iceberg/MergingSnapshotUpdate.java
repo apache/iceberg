@@ -32,6 +32,7 @@ import com.netflix.iceberg.expressions.StrictMetricsEvaluator;
 import com.netflix.iceberg.io.OutputFile;
 import com.netflix.iceberg.util.BinPacking.ListPacker;
 import com.netflix.iceberg.util.CharSequenceWrapper;
+import com.netflix.iceberg.util.StructLikeWrapper;
 import com.netflix.iceberg.util.Tasks;
 import java.io.Closeable;
 import java.io.IOException;
@@ -52,6 +53,19 @@ import static com.netflix.iceberg.util.ThreadPools.getWorkerPool;
 abstract class MergingSnapshotUpdate extends SnapshotUpdate {
   private static final long SIZE_PER_FILE = 100; // assume each file will be ~100 bytes
 
+  protected static class DeleteException extends ValidationException {
+    private final String partition;
+
+    private DeleteException(String partition) {
+      super("Operation would delete existing data");
+      this.partition = partition;
+    }
+
+    public String partition() {
+      return partition;
+    }
+  }
+
   private final TableOperations ops;
   private final PartitionSpec spec;
   private final long manifestTargetSizeBytes;
@@ -60,7 +74,9 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
   // update data
   private final List<DataFile> newFiles = Lists.newArrayList();
   private final Set<CharSequenceWrapper> deletePaths = Sets.newHashSet();
+  private final Set<StructLikeWrapper> dropPartitions = Sets.newHashSet();
   private Expression deleteExpression = Expressions.alwaysFalse();
+  private boolean failAnyDelete = false;
 
   // cache merge results to reuse when retrying
   private final Map<List<String>, String> mergeManifests = Maps.newConcurrentMap();
@@ -93,6 +109,10 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
     return newFiles;
   }
 
+  protected void failAnyDelete() {
+    this.failAnyDelete = true;
+  }
+
   /**
    * Add a filter to match files to delete. A file will be deleted if all of the rows it contains
    * match this or any other filter passed to this method.
@@ -103,6 +123,13 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
     Preconditions.checkNotNull(expr, "Cannot delete files using filter: null");
     this.filterUpdated = true;
     this.deleteExpression = Expressions.or(deleteExpression, expr);
+  }
+
+  /**
+   * Add a partition tuple to drop from the table during the delete phase.
+   */
+  protected void dropPartition(StructLike partition) {
+    dropPartitions.add(StructLikeWrapper.wrap(partition));
   }
 
   /**
@@ -237,7 +264,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
                                         StrictMetricsEvaluator metricsEvaluator,
                                         ManifestReader reader) {
     if ((deleteExpression == null || deleteExpression == Expressions.alwaysFalse()) &&
-        deletePaths.isEmpty()) {
+        deletePaths.isEmpty() && dropPartitions.isEmpty()) {
       return reader;
     }
 
@@ -253,7 +280,10 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
       Evaluator strict = new Evaluator(reader.spec().partitionType(), strictExpr);
 
       // this is reused to compare file paths with the delete set
-      CharSequenceWrapper wrapper = CharSequenceWrapper.wrap("");
+      CharSequenceWrapper pathWrapper = CharSequenceWrapper.wrap("");
+
+      // reused to compare file partitions with the drop set
+      StructLikeWrapper partitionWrapper = StructLikeWrapper.wrap(null);
 
       // this assumes that the manifest doesn't have files to remove and streams through the
       // manifest without copying data. if a manifest does have a file to remove, this will break
@@ -264,7 +294,8 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
         while (entries.hasNext()) {
           ManifestEntry entry = entries.next();
           DataFile file = entry.file();
-          boolean fileDelete = deletePaths.contains(wrapper.set(file.path()));
+          boolean fileDelete = (deletePaths.contains(pathWrapper.set(file.path())) ||
+              dropPartitions.contains(partitionWrapper.set(file.partition())));
           if (fileDelete || inclusive.eval(file.partition())) {
             ValidationException.check(
                 fileDelete || strict.eval(file.partition()) || metricsEvaluator.eval(file),
@@ -272,6 +303,9 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
                 this.deleteExpression, file.path());
 
             hasDeletedFiles = true;
+            if (failAnyDelete) {
+              throw new DeleteException(writeSpec().partitionToPath(file.partition()));
+            }
             break; // as soon as a deleted file is detected, stop scanning
           }
         }
@@ -292,7 +326,8 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
       try (ManifestWriter writer = new ManifestWriter(reader.spec(), filteredCopy, snapshotId())) {
         for (ManifestEntry entry : reader.entries()) {
           DataFile file = entry.file();
-          boolean fileDelete = deletePaths.contains(wrapper.set(file.path()));
+          boolean fileDelete = (deletePaths.contains(pathWrapper.set(file.path())) ||
+              dropPartitions.contains(partitionWrapper.set(file.partition())));
           if (fileDelete || inclusive.eval(file.partition())) {
             ValidationException.check(
                 fileDelete || strict.eval(file.partition()) || metricsEvaluator.eval(file),
