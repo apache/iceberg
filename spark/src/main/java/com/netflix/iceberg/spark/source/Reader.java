@@ -544,9 +544,14 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow, SupportsPushDow
     }
 
     @Override
+    public int size() {
+      return types.length;
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     public <T> T get(int pos, Class<T> javaClass) {
-      return (T) row.get(pos, types[pos]);
+      return javaClass.cast(row.get(pos, types[pos]));
     }
 
     @Override

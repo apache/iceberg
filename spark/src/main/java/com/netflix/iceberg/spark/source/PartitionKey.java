@@ -39,6 +39,7 @@ import static com.netflix.iceberg.spark.SparkSchemaUtil.convert;
 class PartitionKey implements StructLike {
 
   private final PartitionSpec spec;
+  private final int size;
   private final Object[] partitionTuple;
   private final Transform[] transforms;
   private final Accessor<InternalRow>[] accessors;
@@ -48,14 +49,14 @@ class PartitionKey implements StructLike {
     this.spec = spec;
 
     List<PartitionField> fields = spec.fields();
-    int numFields = fields.size();
-    this.partitionTuple = new Object[numFields];
-    this.transforms = new Transform[numFields];
-    this.accessors = (Accessor<InternalRow>[]) Array.newInstance(Accessor.class, numFields);
+    this.size = fields.size();
+    this.partitionTuple = new Object[size];
+    this.transforms = new Transform[size];
+    this.accessors = (Accessor<InternalRow>[]) Array.newInstance(Accessor.class, size);
 
     Schema schema = spec.schema();
     Map<Integer, Accessor<InternalRow>> accessors = buildAccessors(schema);
-    for (int i = 0; i < numFields; i += 1) {
+    for (int i = 0; i < size; i += 1) {
       PartitionField field = fields.get(i);
       Accessor<InternalRow> accessor = accessors.get(field.sourceId());
       if (accessor == null) {
@@ -69,6 +70,7 @@ class PartitionKey implements StructLike {
 
   private PartitionKey(PartitionKey toCopy) {
     this.spec = toCopy.spec;
+    this.size = toCopy.size;
     this.partitionTuple = new Object[toCopy.partitionTuple.length];
     this.transforms = toCopy.transforms;
     this.accessors = toCopy.accessors;
@@ -115,6 +117,11 @@ class PartitionKey implements StructLike {
       Transform<Object, Object> transform = transforms[i];
       partitionTuple[i] = transform.apply(accessors[i].get(row));
     }
+  }
+
+  @Override
+  public int size() {
+    return size;
   }
 
   @Override

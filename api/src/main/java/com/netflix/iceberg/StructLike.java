@@ -22,6 +22,8 @@ package com.netflix.iceberg;
  * This interface supports accessing data in top-level fields, not in nested fields.
  */
 public interface StructLike {
+  int size();
+
   <T> T get(int pos, Class<T> javaClass);
 
   <T> void set(int pos, T value);

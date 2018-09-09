@@ -98,9 +98,14 @@ public class TestHelpers {
     }
 
     @Override
+    public int size() {
+      return values.length;
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     public <T> T get(int pos, Class<T> javaClass) {
-      return (T) values[pos];
+      return javaClass.cast(values[pos]);
     }
 
     @Override

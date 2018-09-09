@@ -36,6 +36,7 @@ class PartitionData
   }
 
   private final Types.StructType partitionType;
+  private final int size;
   private final Object[] data;
   private final String stringSchema;
   private transient Schema schema = null;
@@ -45,7 +46,8 @@ class PartitionData
    */
   public PartitionData(Schema schema) {
     this.partitionType = AvroSchemaUtil.convert(schema).asNestedType().asStructType();
-    this.data = new Object[partitionType.fields().size()];
+    this.size = partitionType.fields().size();
+    this.data = new Object[size];
     this.stringSchema = schema.toString();
     this.schema = schema;
   }
@@ -57,7 +59,8 @@ class PartitionData
     }
 
     this.partitionType = partitionType;
-    this.data = new Object[this.partitionType.fields().size()];
+    this.size = partitionType.fields().size();
+    this.data = new Object[size];
     this.schema = getSchema(partitionType);
     this.stringSchema = schema.toString();
   }
@@ -67,6 +70,7 @@ class PartitionData
    */
   private PartitionData(PartitionData toCopy) {
     this.partitionType = toCopy.partitionType;
+    this.size = toCopy.size;
     this.data = Arrays.copyOf(toCopy.data, toCopy.data.length);
     this.stringSchema = toCopy.stringSchema;
     this.schema = toCopy.schema;
@@ -92,11 +96,16 @@ class PartitionData
   }
 
   @Override
+  public int size() {
+    return size;
+  }
+
+  @Override
   @SuppressWarnings("unchecked")
   public <T> T get(int pos, Class<T> javaClass) {
     Object v = get(pos);
     if (v == null || javaClass.isInstance(v)) {
-      return (T) v;
+      return javaClass.cast(v);
     }
 
     throw new IllegalArgumentException(String.format(
