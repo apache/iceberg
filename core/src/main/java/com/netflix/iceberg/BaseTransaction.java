@@ -103,6 +103,14 @@ class BaseTransaction implements Transaction {
   }
 
   @Override
+  public OverwriteFiles newOverwrite() {
+    checkLastOperationCommitted("OverwriteFiles");
+    OverwriteFiles overwrite = new OverwriteData(transactionOps);
+    updates.add(overwrite);
+    return overwrite;
+  }
+
+  @Override
   public DeleteFiles newDelete() {
     checkLastOperationCommitted("DeleteFiles");
     DeleteFiles delete = new StreamingDelete(transactionOps);
@@ -284,7 +292,7 @@ class BaseTransaction implements Transaction {
 
     @Override
     public OverwriteFiles newOverwrite() {
-      throw new UnsupportedOperationException("Transaction tables do not support overwrites");
+      return BaseTransaction.this.newOverwrite();
     }
 
     @Override

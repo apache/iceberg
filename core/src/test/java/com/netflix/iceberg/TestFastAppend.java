@@ -16,14 +16,12 @@
 
 package com.netflix.iceberg;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.CommitFailedException;
 import org.junit.Assert;
 import org.junit.Test;
 import java.io.File;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 

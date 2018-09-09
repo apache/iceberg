@@ -31,21 +31,21 @@ public interface Transaction {
   Table table();
 
   /**
-   * Create a new {@link UpdateProperties} to update table properties and commit the changes.
+   * Create a new {@link UpdateProperties} to update table properties.
    *
    * @return a new {@link UpdateProperties}
    */
   UpdateProperties updateProperties();
 
   /**
-   * Create a new {@link AppendFiles append API} to add files to this table and commit.
+   * Create a new {@link AppendFiles append API} to add files to this table.
    *
    * @return a new {@link AppendFiles}
    */
   AppendFiles newAppend();
 
   /**
-   * Create a new {@link AppendFiles append API} to add files to this table and commit.
+   * Create a new {@link AppendFiles append API} to add files to this table.
    * <p>
    * Using this method signals to the underlying implementation that the append should not perform
    * extra work in order to commit quickly. Fast appends are not recommended for normal writes
@@ -61,21 +61,28 @@ public interface Transaction {
   }
 
   /**
-   * Create a new {@link RewriteFiles rewrite API} to replace files in this table and commit.
+   * Create a new {@link RewriteFiles rewrite API} to replace files in this table.
    *
    * @return a new {@link RewriteFiles}
    */
   RewriteFiles newRewrite();
 
   /**
-   * Create a new {@link DeleteFiles delete API} to replace files in this table and commit.
+   * Create a new {@link OverwriteFiles overwrite API} to overwrite files by a filter expression.
+   *
+   * @return a new {@link OverwriteFiles}
+   */
+  OverwriteFiles newOverwrite();
+
+  /**
+   * Create a new {@link DeleteFiles delete API} to replace files in this table.
    *
    * @return a new {@link DeleteFiles}
    */
   DeleteFiles newDelete();
 
   /**
-   * Create a new {@link ExpireSnapshots expire API} to manage snapshots in this table and commit.
+   * Create a new {@link ExpireSnapshots expire API} to manage snapshots in this table.
    *
    * @return a new {@link ExpireSnapshots}
    */

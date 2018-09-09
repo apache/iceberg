@@ -40,7 +40,7 @@ import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEF
 
 abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotUpdate.class);
-  private static final Set<String> EMPTY_SET = Sets.newHashSet();
+  static final Set<String> EMPTY_SET = Sets.newHashSet();
 
   private final TableOperations ops;
   private final String commitUUID = UUID.randomUUID().toString();

@@ -99,7 +99,7 @@ public class BaseTable implements Table {
 
   @Override
   public OverwriteFiles newOverwrite() {
-    throw new UnsupportedOperationException("Overwrite is not yet supported");
+    return new OverwriteData(ops);
   }
 
   @Override

@@ -19,6 +19,7 @@ package com.netflix.iceberg;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import com.netflix.iceberg.ManifestEntry.Status;
 import com.netflix.iceberg.exceptions.CommitFailedException;
 import org.junit.Assert;
 import org.junit.Test;
@@ -82,6 +83,59 @@ public class TestMergeAppend extends TableTestBase {
     validateManifest(newManifest,
         ids(pendingId, pendingId, baseId, baseId),
         concat(files(FILE_C, FILE_D), files(initialManifest)));
+  }
+
+  @Test
+  public void testMergeWithExistingManifestAfterDelete() {
+    // merge all manifests for this test
+    table.updateProperties().set("commit.manifest.min-count-to-merge", "1").commit();
+
+    Assert.assertEquals("Table should start empty", 0, listMetadataFiles("avro").size());
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    TableMetadata base = readMetadata();
+    long baseId = base.currentSnapshot().snapshotId();
+    Assert.assertEquals("Should create 1 manifest for initial write",
+        1, base.currentSnapshot().manifests().size());
+    String initialManifest = base.currentSnapshot().manifests().get(0);
+
+    table.newDelete()
+        .deleteFile(FILE_A)
+        .commit();
+
+    TableMetadata delete = readMetadata();
+    long deleteId = delete.currentSnapshot().snapshotId();
+    Assert.assertEquals("Should create 1 filtered manifest for delete",
+        1, delete.currentSnapshot().manifests().size());
+    String deleteManifest = delete.currentSnapshot().manifests().get(0);
+
+    validateManifestEntries(deleteManifest,
+        ids(deleteId, baseId),
+        files(FILE_A, FILE_B),
+        statuses(Status.DELETED, Status.EXISTING));
+
+    Snapshot pending = table.newAppend()
+        .appendFile(FILE_C)
+        .appendFile(FILE_D)
+        .apply();
+
+    Assert.assertEquals("Should contain 1 merged manifest for second write",
+        1, pending.manifests().size());
+    String newManifest = pending.manifests().get(0);
+    Assert.assertNotEquals("Should not contain manifest from initial write",
+        initialManifest, newManifest);
+
+    long pendingId = pending.snapshotId();
+
+    // the deleted entry from the previous manifest should be removed
+    validateManifestEntries(newManifest,
+        ids(pendingId, pendingId, baseId),
+        files(FILE_C, FILE_D, FILE_B),
+        statuses(Status.ADDED, Status.ADDED, Status.EXISTING));
   }
 
   @Test
