@@ -98,7 +98,6 @@ project(':iceberg-core') {
     compile project(':iceberg-common')
 
     compile "org.apache.avro:avro:$avroVersion"
-    compile "org.apache.hive:hive-metastore:3.1.0"
 
     compile "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
     compile "com.fasterxml.jackson.core:jackson-core:$jacksonVersion"
