@@ -27,6 +27,7 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 import static com.netflix.iceberg.expressions.Expressions.and;
 import static com.netflix.iceberg.expressions.Expressions.equal;
@@ -87,7 +88,7 @@ public class TestOverwrite extends TableTestBase {
       .build();
 
   private static ByteBuffer longToBuffer(long value) {
-    return ByteBuffer.allocate(8).putLong(0, value);
+    return ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(0, value);
   }
 
   private Table table = null;
