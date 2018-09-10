@@ -40,6 +40,7 @@ public class HadoopTables implements Tables, Configurable {
   private Configuration conf;
 
   public HadoopTables() {
+    this(new Configuration());
   }
 
   public HadoopTables(Configuration conf) {
