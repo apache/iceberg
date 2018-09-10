@@ -23,13 +23,18 @@ import java.util.Map;
  * <p>
  * This can be extended by providing a {@link TableOperations} to the constructor.
  */
-public class BaseTable implements Table {
+public class BaseTable implements Table, HasTableOperations {
   private final TableOperations ops;
   private final String name;
 
   public BaseTable(TableOperations ops, String name) {
     this.ops = ops;
     this.name = name;
+  }
+
+  @Override
+  public TableOperations operations() {
+    return ops;
   }
 
   @Override
