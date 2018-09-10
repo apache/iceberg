@@ -14,24 +14,22 @@
  * limitations under the License.
  */
 
-rootProject.name = 'iceberg'
-include 'api'
-include 'common'
-include 'core'
-include 'data'
-include 'orc'
-include 'parquet'
-include 'spark'
-include 'pig'
-include 'runtime'
+package com.netflix.iceberg.data;
 
+import com.netflix.iceberg.StructLike;
+import com.netflix.iceberg.types.Types.StructType;
+import java.util.Map;
 
-project(':api').name = 'iceberg-api'
-project(':common').name = 'iceberg-common'
-project(':core').name = 'iceberg-core'
-project(':data').name = 'iceberg-data'
-project(':orc').name = 'iceberg-orc'
-project(':parquet').name = 'iceberg-parquet'
-project(':spark').name = 'iceberg-spark'
-project(':pig').name = 'iceberg-pig'
-project(':runtime').name = 'iceberg-runtime'
+public interface Record extends StructLike {
+  StructType struct();
+
+  Object getField(String name);
+
+  void setField(String name, Object value);
+
+  Object get(int pos);
+
+  Record copy();
+
+  Record copy(Map<String, Object> overwriteValues);
+}

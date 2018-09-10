@@ -27,7 +27,7 @@ import java.util.Map;
 
 import static org.apache.avro.Schema.Type.ARRAY;
 
-class LogicalMap extends LogicalType {
+public class LogicalMap extends LogicalType {
   static final String NAME = "map";
   private static final LogicalMap INSTANCE = new LogicalMap();
 

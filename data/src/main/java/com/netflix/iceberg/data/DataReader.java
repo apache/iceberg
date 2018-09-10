@@ -14,15 +14,18 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.avro;
+package com.netflix.iceberg.data;
 
 import com.google.common.collect.MapMaker;
-import com.netflix.iceberg.common.DynClasses;
+import com.netflix.iceberg.avro.AvroSchemaUtil;
+import com.netflix.iceberg.avro.AvroSchemaVisitor;
+import com.netflix.iceberg.avro.LogicalMap;
+import com.netflix.iceberg.avro.ValueReader;
+import com.netflix.iceberg.avro.ValueReaders;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
-import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
 import org.apache.avro.io.DecoderFactory;
@@ -32,33 +35,28 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-class GenericAvroReader<T> implements DatumReader<T> {
+class DataReader<T> implements DatumReader<T> {
 
   private static final ThreadLocal<Map<Schema, Map<Schema, ResolvingDecoder>>> DECODER_CACHES =
       ThreadLocal.withInitial(() -> new MapMaker().weakKeys().makeMap());
 
-  private final Schema readSchema;
-  private ClassLoader loader = Thread.currentThread().getContextClassLoader();
-  private Schema fileSchema = null;
-  private ValueReader<T> reader = null;
-
-  public GenericAvroReader(Schema readSchema) {
-    this.readSchema = readSchema;
+  public static <D> DataReader<D> create(Schema readSchema) {
+    return new DataReader<>(readSchema);
   }
 
+  private final Schema readSchema;
+  private final ValueReader<T> reader;
+  private Schema fileSchema = null;
+
   @SuppressWarnings("unchecked")
-  private void initReader() {
-    this.reader = (ValueReader<T>) AvroSchemaVisitor.visit(readSchema, new ReadBuilder(loader));
+  private DataReader(Schema readSchema) {
+    this.readSchema = readSchema;
+    this.reader = (ValueReader<T>) AvroSchemaVisitor.visit(readSchema, new ReadBuilder());
   }
 
   @Override
   public void setSchema(Schema fileSchema) {
     this.fileSchema = Schema.applyAliases(fileSchema, readSchema);
-    initReader();
-  }
-
-  public void setClassLoader(ClassLoader loader) {
-    this.loader = loader;
   }
 
   @Override
@@ -94,29 +92,12 @@ class GenericAvroReader<T> implements DatumReader<T> {
   }
 
   private static class ReadBuilder extends AvroSchemaVisitor<ValueReader<?>> {
-    private final ClassLoader loader;
-
-    private ReadBuilder(ClassLoader loader) {
-      this.loader = loader;
+    private ReadBuilder() {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public ValueReader<?> record(Schema record, List<String> names, List<ValueReader<?>> fields) {
-      try {
-        Class<?> recordClass = DynClasses.builder()
-            .loader(loader)
-            .impl(record.getFullName())
-            .buildChecked();
-        if (IndexedRecord.class.isAssignableFrom(recordClass)) {
-          return ValueReaders.record(fields, (Class<? extends IndexedRecord>) recordClass, record);
-        }
-
-        return ValueReaders.record(fields, record);
-
-      } catch (ClassNotFoundException e) {
-        return ValueReaders.record(fields, record);
-      }
+      return GenericReaders.struct(AvroSchemaUtil.convert(record).asStructType(), fields);
     }
 
     @Override
@@ -130,10 +111,6 @@ class GenericAvroReader<T> implements DatumReader<T> {
         ValueReaders.StructReader<?> keyValueReader = (ValueReaders.StructReader) elementReader;
         ValueReader<?> keyReader = keyValueReader.reader(0);
         ValueReader<?> valueReader = keyValueReader.reader(1);
-
-        if (keyReader == ValueReaders.utf8s()) {
-          return ValueReaders.arrayMap(ValueReaders.strings(), valueReader);
-        }
 
         return ValueReaders.arrayMap(keyReader, valueReader);
       }
@@ -152,17 +129,16 @@ class GenericAvroReader<T> implements DatumReader<T> {
       if (logicalType != null) {
         switch (logicalType.getName()) {
           case "date":
-            // Spark uses the same representation
-            return ValueReaders.ints();
+            return GenericReaders.dates();
 
-          case "timestamp-millis":
-            // adjust to microseconds
-            ValueReader<Long> longs = ValueReaders.longs();
-            return (ValueReader<Long>) (decoder, ignored) -> longs.read(decoder, null) * 1000L;
+          case "time-micros":
+            return GenericReaders.times();
 
           case "timestamp-micros":
-            // Spark uses the same representation
-            return ValueReaders.longs();
+            if (AvroSchemaUtil.isTimestamptz(primitive)) {
+              return GenericReaders.timestamptz();
+            }
+            return GenericReaders.timestamps();
 
           case "decimal":
             ValueReader<byte[]> inner;
@@ -203,9 +179,10 @@ class GenericAvroReader<T> implements DatumReader<T> {
         case DOUBLE:
           return ValueReaders.doubles();
         case STRING:
-          return ValueReaders.utf8s();
+          // might want to use a binary-backed container like Utf8
+          return ValueReaders.strings();
         case FIXED:
-          return ValueReaders.fixed(primitive);
+          return ValueReaders.fixed(primitive.getFixedSize());
         case BYTES:
           return ValueReaders.byteBuffers();
         default:

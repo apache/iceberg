@@ -439,22 +439,40 @@ public class ValueWriters {
     }
   }
 
-  static class RecordWriter implements ValueWriter<IndexedRecord> {
-    final ValueWriter<Object>[] writers;
+  public abstract static class StructWriter<S> implements ValueWriter<S> {
+    private final ValueWriter<Object>[] writers;
 
     @SuppressWarnings("unchecked")
-    private RecordWriter(List<ValueWriter<?>> writers) {
+    protected StructWriter(List<ValueWriter<?>> writers) {
       this.writers = (ValueWriter<Object>[]) Array.newInstance(ValueWriter.class, writers.size());
       for (int i = 0; i < this.writers.length; i += 1) {
         this.writers[i] = (ValueWriter<Object>) writers.get(i);
       }
     }
 
+    protected abstract Object get(S struct, int pos);
+
+    public ValueWriter<?> writer(int pos) {
+      return writers[pos];
+    }
+
     @Override
-    public void write(IndexedRecord row, Encoder encoder) throws IOException {
+    public void write(S row, Encoder encoder) throws IOException {
       for (int i = 0; i < writers.length; i += 1) {
-        writers[i].write(row.get(i), encoder);
+        writers[i].write(get(row, i), encoder);
       }
+    }
+  }
+
+  private static class RecordWriter extends StructWriter<IndexedRecord> {
+    @SuppressWarnings("unchecked")
+    private RecordWriter(List<ValueWriter<?>> writers) {
+      super(writers);
+    }
+
+    @Override
+    protected Object get(IndexedRecord struct, int pos) {
+      return struct.get(pos);
     }
   }
 }

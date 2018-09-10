@@ -14,24 +14,32 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.avro;
+package com.netflix.iceberg.data;
 
 import com.google.common.base.Preconditions;
+import com.netflix.iceberg.avro.AvroSchemaUtil;
+import com.netflix.iceberg.avro.AvroSchemaVisitor;
+import com.netflix.iceberg.avro.LogicalMap;
+import com.netflix.iceberg.avro.ValueWriter;
+import com.netflix.iceberg.avro.ValueWriters;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.Encoder;
-
 import java.io.IOException;
 import java.util.List;
 
 import static com.netflix.iceberg.avro.AvroSchemaVisitor.visit;
 
-class GenericAvroWriter<T> implements DatumWriter<T> {
+public class DataWriter<T> implements DatumWriter<T> {
   private ValueWriter<T> writer = null;
 
-  public GenericAvroWriter(Schema schema) {
+  public static <D> DataWriter<D> create(Schema schema) {
+    return new DataWriter<>(schema);
+  }
+
+  private DataWriter(Schema schema) {
     setSchema(schema);
   }
 
@@ -52,7 +60,7 @@ class GenericAvroWriter<T> implements DatumWriter<T> {
 
     @Override
     public ValueWriter<?> record(Schema record, List<String> names, List<ValueWriter<?>> fields) {
-      return ValueWriters.record(fields);
+      return GenericWriters.struct(fields);
     }
 
     @Override
@@ -89,10 +97,16 @@ class GenericAvroWriter<T> implements DatumWriter<T> {
       if (logicalType != null) {
         switch (logicalType.getName()) {
           case "date":
-            return ValueWriters.ints();
+            return GenericWriters.dates();
+
+          case "time-micros":
+            return GenericWriters.times();
 
           case "timestamp-micros":
-            return ValueWriters.longs();
+            if (AvroSchemaUtil.isTimestamptz(primitive)) {
+              return GenericWriters.timestamptz();
+            }
+            return GenericWriters.timestamps();
 
           case "decimal":
             LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
@@ -122,7 +136,7 @@ class GenericAvroWriter<T> implements DatumWriter<T> {
         case STRING:
           return ValueWriters.strings();
         case FIXED:
-          return ValueWriters.genericFixed(primitive.getFixedSize());
+          return ValueWriters.fixed(primitive.getFixedSize());
         case BYTES:
           return ValueWriters.byteBuffers();
         default:

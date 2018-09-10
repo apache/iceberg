@@ -26,7 +26,7 @@ import java.util.function.Function;
 
 import static com.netflix.iceberg.types.TypeUtil.getProjectedIds;
 
-class ProjectionDatumReader<D> implements DatumReader<D> {
+public class ProjectionDatumReader<D> implements DatumReader<D> {
   private final Function<Schema, DatumReader<?>> getReader;
   private final com.netflix.iceberg.Schema expectedSchema;
   private final Map<String, String> renames;
@@ -34,9 +34,9 @@ class ProjectionDatumReader<D> implements DatumReader<D> {
   private Schema fileSchema = null;
   private DatumReader<D> wrapped = null;
 
-  ProjectionDatumReader(Function<Schema, DatumReader<?>> getReader,
-                        com.netflix.iceberg.Schema expectedSchema,
-                        Map<String, String> renames) {
+  public ProjectionDatumReader(Function<Schema, DatumReader<?>> getReader,
+                               com.netflix.iceberg.Schema expectedSchema,
+                               Map<String, String> renames) {
     this.getReader = getReader;
     this.expectedSchema = expectedSchema;
     this.renames = renames;

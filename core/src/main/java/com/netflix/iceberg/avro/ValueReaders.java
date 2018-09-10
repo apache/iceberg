@@ -549,90 +549,108 @@ public class ValueReaders {
     }
   }
 
-  static class RecordReader implements ValueReader<GenericData.Record> {
-    private final Schema recordSchema;
-    final ValueReader<?>[] readers;
+  public abstract static class StructReader<S> implements ValueReader<S> {
+    private final ValueReader<?>[] readers;
 
-    private RecordReader(List<ValueReader<?>> readers, Schema recordSchema) {
+    protected StructReader(List<ValueReader<?>> readers) {
       this.readers = new ValueReader[readers.size()];
-      this.recordSchema = recordSchema;
-
       for (int i = 0; i < this.readers.length; i += 1) {
         this.readers[i] = readers.get(i);
       }
     }
 
+    protected abstract S reuseOrCreate(Object reuse);
+
+    protected abstract Object get(S struct, int pos);
+
+    protected abstract void set(S struct, int pos, Object value);
+
+    public ValueReader<?> reader(int pos) {
+      return readers[pos];
+    }
+
     @Override
-    public GenericData.Record read(Decoder decoder, Object reuse) throws IOException {
-      GenericData.Record record;
-      if (reuse instanceof GenericData.Record) {
-        record = (GenericData.Record) reuse;
-      } else {
-        record = new GenericData.Record(recordSchema);
-      }
+    public S read(Decoder decoder, Object reuse) throws IOException {
+      S struct = reuseOrCreate(reuse);
 
       if (decoder instanceof ResolvingDecoder) {
         // this may not set all of the fields. nulls are set by default.
-        for (Schema.Field field : ((ResolvingDecoder) decoder).readFieldOrder()) {
-          Object reusedValue = record.get(field.pos());
-          record.put(field.pos(), readers[field.pos()].read(decoder, reusedValue));
+        for (org.apache.avro.Schema.Field field : ((ResolvingDecoder) decoder).readFieldOrder()) {
+          Object reusedValue = get(struct, field.pos());
+          set(struct, field.pos(), readers[field.pos()].read(decoder, reusedValue));
         }
 
       } else {
         for (int i = 0; i < readers.length; i += 1) {
-          Object reusedValue = record.get(i);
-          record.put(i, readers[i].read(decoder, reusedValue));
+          Object reusedValue = get(struct, i);
+          set(struct, i, readers[i].read(decoder, reusedValue));
         }
       }
 
-      return record;
+      return struct;
     }
   }
 
-  static class IndexedRecordReader<R extends IndexedRecord> implements ValueReader<R> {
-    private final ValueReader<?>[] readers;
+  private static class RecordReader extends StructReader<GenericData.Record> {
+    private final Schema recordSchema;
+
+    private RecordReader(List<ValueReader<?>> readers, Schema recordSchema) {
+      super(readers);
+      this.recordSchema = recordSchema;
+    }
+
+    @Override
+    protected GenericData.Record reuseOrCreate(Object reuse) {
+      if (reuse instanceof GenericData.Record) {
+        return (GenericData.Record) reuse;
+      } else {
+        return new GenericData.Record(recordSchema);
+      }
+    }
+
+    @Override
+    protected Object get(GenericData.Record struct, int pos) {
+      return struct.get(pos);
+    }
+
+    @Override
+    protected void set(GenericData.Record struct, int pos, Object value) {
+      struct.put(pos, value);
+    }
+  }
+
+  static class IndexedRecordReader<R extends IndexedRecord> extends StructReader<R> {
     private final Class<R> recordClass;
     private final DynConstructors.Ctor<R> ctor;
     private final Schema schema;
 
     IndexedRecordReader(List<ValueReader<?>> readers, Class<R> recordClass, Schema schema) {
-      this.readers = new ValueReader[readers.size()];
+      super(readers);
       this.recordClass = recordClass;
       this.ctor = DynConstructors.builder(IndexedRecord.class)
           .hiddenImpl(recordClass, Schema.class)
           .hiddenImpl(recordClass)
           .build();
       this.schema = schema;
+    }
 
-      for (int i = 0; i < this.readers.length; i += 1) {
-        this.readers[i] = readers.get(i);
+    @Override
+    protected R reuseOrCreate(Object reuse) {
+      if (recordClass.isInstance(reuse)) {
+        return recordClass.cast(reuse);
+      } else {
+        return ctor.newInstance(schema);
       }
     }
 
     @Override
-    public R read(Decoder decoder, Object reuse) throws IOException {
-      R record;
-      if (recordClass.isInstance(reuse)) {
-        record = recordClass.cast(reuse);
-      } else {
-        record = ctor.newInstance(schema);
-      }
+    protected Object get(R struct, int pos) {
+      return struct.get(pos);
+    }
 
-      if (decoder instanceof ResolvingDecoder) {
-        // this may not set all of the fields. nulls are set by default.
-        for (Schema.Field field : ((ResolvingDecoder) decoder).readFieldOrder()) {
-          Object reusedValue = record.get(field.pos());
-          record.put(field.pos(), readers[field.pos()].read(decoder, reusedValue));
-        }
-
-      } else {
-        for (int i = 0; i < readers.length; i += 1) {
-          Object reusedValue = record.get(i);
-          record.put(i, readers[i].read(decoder, reusedValue));
-        }
-      }
-
-      return record;
+    @Override
+    protected void set(R struct, int pos, Object value) {
+      struct.put(pos, value);
     }
   }
 }
