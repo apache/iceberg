@@ -14,78 +14,117 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package com.netflix.iceberg.data.parquet;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.netflix.iceberg.avro.AvroSchemaUtil;
+import com.netflix.iceberg.Schema;
+import com.netflix.iceberg.data.GenericRecord;
+import com.netflix.iceberg.data.Record;
+import com.netflix.iceberg.parquet.ParquetValueReader;
+import com.netflix.iceberg.parquet.ParquetValueReaders;
+import com.netflix.iceberg.parquet.ParquetValueReaders.BinaryAsDecimalReader;
 import com.netflix.iceberg.parquet.ParquetValueReaders.BytesReader;
-import com.netflix.iceberg.parquet.ParquetValueReaders.FloatAsDoubleReader;
 import com.netflix.iceberg.parquet.ParquetValueReaders.IntAsLongReader;
 import com.netflix.iceberg.parquet.ParquetValueReaders.IntegerAsDecimalReader;
 import com.netflix.iceberg.parquet.ParquetValueReaders.ListReader;
 import com.netflix.iceberg.parquet.ParquetValueReaders.LongAsDecimalReader;
 import com.netflix.iceberg.parquet.ParquetValueReaders.MapReader;
+import com.netflix.iceberg.parquet.ParquetValueReaders.PrimitiveReader;
+import com.netflix.iceberg.parquet.ParquetValueReaders.StringReader;
 import com.netflix.iceberg.parquet.ParquetValueReaders.StructReader;
 import com.netflix.iceberg.parquet.ParquetValueReaders.UnboxedReader;
+import com.netflix.iceberg.parquet.TypeWithSchemaVisitor;
 import com.netflix.iceberg.types.Type.TypeID;
 import com.netflix.iceberg.types.Types;
-import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericData.Fixed;
-import org.apache.avro.generic.GenericData.Record;
-import org.apache.avro.util.Utf8;
+import com.netflix.iceberg.types.Types.StructType;
+import com.netflix.iceberg.types.Types.TimestampType;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
+import static com.netflix.iceberg.parquet.ParquetSchemaUtil.hasIds;
 import static com.netflix.iceberg.parquet.ParquetValueReaders.option;
 
-public class ParquetAvroValueReaders {
-  private ParquetAvroValueReaders() {
+public class GenericParquetReaders {
+  private GenericParquetReaders() {
   }
 
   @SuppressWarnings("unchecked")
-  public static ParquetValueReader<Record> buildReader(com.netflix.iceberg.Schema expectedSchema,
-                                                       MessageType fileSchema) {
-    return (ParquetValueReader<Record>)
-        TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
-            new ReadBuilder(expectedSchema, fileSchema));
+  public static ParquetValueReader<GenericRecord> buildReader(Schema expectedSchema,
+                                                              MessageType fileSchema) {
+    if (hasIds(fileSchema)) {
+      return (ParquetValueReader<GenericRecord>)
+          TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
+              new ReadBuilder(fileSchema));
+    } else {
+      return (ParquetValueReader<GenericRecord>)
+          TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
+              new FallbackReadBuilder(fileSchema));
+    }
+  }
+
+  private static class FallbackReadBuilder extends ReadBuilder {
+    FallbackReadBuilder(MessageType type) {
+      super(type);
+    }
+
+    @Override
+    public ParquetValueReader<?> message(StructType expected, MessageType message,
+                                         List<ParquetValueReader<?>> fieldReaders) {
+      // the top level matches by ID, but the remaining IDs are missing
+      return super.struct(expected, message, fieldReaders);
+    }
+
+    @Override
+    public ParquetValueReader<?> struct(StructType expected, GroupType struct,
+                                        List<ParquetValueReader<?>> fieldReaders) {
+      // the expected struct is ignored because nested fields are never found when the
+      List<ParquetValueReader<?>> newFields = Lists.newArrayListWithExpectedSize(
+          fieldReaders.size());
+      List<Type> types = Lists.newArrayListWithExpectedSize(fieldReaders.size());
+      List<Type> fields = struct.getFields();
+      for (int i = 0; i < fields.size(); i += 1) {
+        Type fieldType = fields.get(i);
+        int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName()))-1;
+        newFields.add(option(fieldType, fieldD, fieldReaders.get(i)));
+        types.add(fieldType);
+      }
+
+      return new RecordReader(types, newFields, expected);
+    }
   }
 
   private static class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
-    private final com.netflix.iceberg.Schema schema;
-    private final Map<com.netflix.iceberg.types.Type, Schema> avroSchemas;
-    private final MessageType type;
+    final MessageType type;
 
-    ReadBuilder(com.netflix.iceberg.Schema schema, MessageType type) {
-      this.schema = schema;
-      this.avroSchemas = AvroSchemaUtil.convertTypes(schema.asStruct(), type.getName());
+    ReadBuilder(MessageType type) {
       this.type = type;
     }
 
     @Override
-    public ParquetValueReader<?> message(Types.StructType expected, MessageType message,
+    public ParquetValueReader<?> message(StructType expected, MessageType message,
                                          List<ParquetValueReader<?>> fieldReaders) {
       return struct(expected, message.asGroupType(), fieldReaders);
     }
 
     @Override
-    public ParquetValueReader<?> struct(Types.StructType expected, GroupType struct,
+    public ParquetValueReader<?> struct(StructType expected, GroupType struct,
                                         List<ParquetValueReader<?>> fieldReaders) {
-      Schema avroSchema = avroSchemas.get(expected);
-
       // match the expected struct's order
       Map<Integer, ParquetValueReader<?>> readersById = Maps.newHashMap();
       Map<Integer, Type> typesById = Maps.newHashMap();
@@ -115,7 +154,7 @@ public class ParquetAvroValueReaders {
         }
       }
 
-      return new RecordReader(types, reorderedFields, avroSchema);
+      return new RecordReader(types, reorderedFields, expected);
     }
 
     @Override
@@ -157,39 +196,48 @@ public class ParquetAvroValueReaders {
                                            PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
 
-      boolean isMapKey = fieldNames.contains("key");
-
       if (primitive.getOriginalType() != null) {
         switch (primitive.getOriginalType()) {
           case ENUM:
           case JSON:
           case UTF8:
-            if (isMapKey) {
-              return new StringReader(desc);
-            }
-            return new Utf8Reader(desc);
-          case DATE:
+            return new StringReader(desc);
           case INT_8:
           case INT_16:
           case INT_32:
+            if (expected.typeId() == TypeID.LONG) {
+              return new IntAsLongReader(desc);
+            } else {
+              return new UnboxedReader<>(desc);
+            }
           case INT_64:
-          case TIME_MICROS:
-          case TIMESTAMP_MICROS:
             return new UnboxedReader<>(desc);
-          case TIME_MILLIS:
-            return new TimeMillisReader(desc);
+          case DATE:
+            return new DateReader(desc);
+          case TIMESTAMP_MICROS:
+            TimestampType tsMicrosType = (TimestampType) expected;
+            if (tsMicrosType.shouldAdjustToUTC()) {
+              return new TimestamptzReader(desc);
+            } else {
+              return new TimestampReader(desc);
+            }
           case TIMESTAMP_MILLIS:
-            return new TimestampMillisReader(desc);
+            TimestampType tsMillisType = (TimestampType) expected;
+            if (tsMillisType.shouldAdjustToUTC()) {
+              return new TimestamptzMillisReader(desc);
+            } else {
+              return new TimestampMillisReader(desc);
+            }
           case DECIMAL:
             DecimalMetadata decimal = primitive.getDecimalMetadata();
             switch (primitive.getPrimitiveTypeName()) {
               case BINARY:
               case FIXED_LEN_BYTE_ARRAY:
-                return new DecimalReader(desc, decimal.getScale());
+                return new BinaryAsDecimalReader(desc, decimal.getScale());
               case INT64:
-                return new IntegerAsDecimalReader(desc, decimal.getScale());
-              case INT32:
                 return new LongAsDecimalReader(desc, decimal.getScale());
+              case INT32:
+                return new IntegerAsDecimalReader(desc, decimal.getScale());
               default:
                 throw new UnsupportedOperationException(
                     "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
@@ -204,9 +252,7 @@ public class ParquetAvroValueReaders {
 
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
-          int fieldId = primitive.getId().intValue();
-          Schema avroSchema = AvroSchemaUtil.convert(schema.findType(fieldId));
-          return new FixedReader(desc, avroSchema);
+          return new FixedReader(desc);
         case BINARY:
           return new BytesReader(desc);
         case INT32:
@@ -217,7 +263,7 @@ public class ParquetAvroValueReaders {
           }
         case FLOAT:
           if (expected != null && expected.typeId() == TypeID.DOUBLE) {
-            return new FloatAsDoubleReader(desc);
+            return new ParquetValueReaders.FloatAsDoubleReader(desc);
           } else {
             return new UnboxedReader<>(desc);
           }
@@ -242,7 +288,7 @@ public class ParquetAvroValueReaders {
       return path;
     }
 
-    private String[] path(String name) {
+    protected String[] path(String name) {
       String[] path = new String[fieldNames.size() + 1];
       path[fieldNames.size()] = name;
 
@@ -257,128 +303,88 @@ public class ParquetAvroValueReaders {
     }
   }
 
-  static class DecimalReader extends ParquetValueReaders.PrimitiveReader<BigDecimal> {
-    private final int scale;
+  private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
+  private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
-    DecimalReader(ColumnDescriptor desc, int scale) {
+  private static class DateReader extends PrimitiveReader<LocalDate> {
+    private DateReader(ColumnDescriptor desc) {
       super(desc);
-      this.scale = scale;
     }
 
     @Override
-    public BigDecimal read(BigDecimal ignored) {
-      return new BigDecimal(new BigInteger(column.nextBinary().getBytesUnsafe()), scale);
+    public LocalDate read(LocalDate reuse) {
+      return EPOCH_DAY.plusDays(column.nextInteger());
     }
   }
 
-  static class StringReader extends ParquetValueReaders.PrimitiveReader<String> {
-    StringReader(ColumnDescriptor desc) {
+  private static class TimestampReader extends PrimitiveReader<LocalDateTime> {
+    private TimestampReader(ColumnDescriptor desc) {
       super(desc);
     }
 
     @Override
-    public String read(String ignored) {
-      return column.nextBinary().toStringUsingUTF8();
+    public LocalDateTime read(LocalDateTime reuse) {
+      return EPOCH.plus(column.nextLong(), ChronoUnit.MICROS).toLocalDateTime();
     }
   }
 
-  static class Utf8Reader extends ParquetValueReaders.PrimitiveReader<Utf8> {
-    Utf8Reader(ColumnDescriptor desc) {
+  private static class TimestampMillisReader extends PrimitiveReader<LocalDateTime> {
+    private TimestampMillisReader(ColumnDescriptor desc) {
       super(desc);
     }
 
     @Override
-    public Utf8 read(Utf8 reuse) {
-      Utf8 utf8;
+    public LocalDateTime read(LocalDateTime reuse) {
+      return EPOCH.plus(column.nextLong() * 1000, ChronoUnit.MICROS).toLocalDateTime();
+    }
+  }
+
+  private static class TimestamptzReader extends PrimitiveReader<OffsetDateTime> {
+    private TimestamptzReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public OffsetDateTime read(OffsetDateTime reuse) {
+      return EPOCH.plus(column.nextLong(), ChronoUnit.MICROS);
+    }
+  }
+
+  private static class TimestamptzMillisReader extends PrimitiveReader<OffsetDateTime> {
+    private TimestamptzMillisReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public OffsetDateTime read(OffsetDateTime reuse) {
+      return EPOCH.plus(column.nextLong() * 1000, ChronoUnit.MICROS);
+    }
+  }
+
+  private static class FixedReader extends PrimitiveReader<byte[]> {
+    private FixedReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public byte[] read(byte[] reuse) {
       if (reuse != null) {
-        utf8 = reuse;
+        column.nextBinary().toByteBuffer().duplicate().get(reuse);
+        return reuse;
       } else {
-        utf8 = new Utf8();
+        return column.nextBinary().getBytes();
       }
-
-      // use a byte buffer because it never results in a copy
-      ByteBuffer buffer = column.nextBinary().toByteBuffer();
-
-      // always copy the bytes into the Utf8. for constant binary data backed by an array starting
-      // at 0, it is possible to wrap the bytes in a Utf8, but reusing that Utf8 could corrupt the
-      // constant binary if its backing buffer is copied to.
-      utf8.setByteLength(buffer.remaining());
-      buffer.get(utf8.getBytes(), 0, buffer.remaining());
-
-      return utf8;
-    }
-  }
-
-  static class UUIDReader extends ParquetValueReaders.PrimitiveReader<UUID> {
-    UUIDReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public UUID read(UUID ignored) {
-      ByteBuffer buffer = column.nextBinary().toByteBuffer();
-      buffer.order(ByteOrder.BIG_ENDIAN);
-
-      long mostSigBits = buffer.getLong();
-      long leastSigBits = buffer.getLong();
-
-      return new UUID(mostSigBits, leastSigBits);
-    }
-  }
-
-  static class FixedReader extends ParquetValueReaders.PrimitiveReader<Fixed> {
-    private final Schema schema;
-
-    FixedReader(ColumnDescriptor desc, Schema schema) {
-      super(desc);
-      this.schema = schema;
-    }
-
-    @Override
-    public Fixed read(Fixed reuse) {
-      Fixed fixed;
-      if (reuse != null) {
-        fixed = reuse;
-      } else {
-        fixed = new Fixed(schema);
-      }
-
-      column.nextBinary().toByteBuffer().get(fixed.bytes());
-
-      return fixed;
-    }
-  }
-
-  public static class TimeMillisReader extends UnboxedReader<Long> {
-    TimeMillisReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public long readLong() {
-      return 1000 * column.nextLong();
-    }
-  }
-
-  public static class TimestampMillisReader extends UnboxedReader<Long> {
-    TimestampMillisReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public long readLong() {
-      return 1000 * column.nextLong();
     }
   }
 
   static class RecordReader extends StructReader<Record, Record> {
-    private final Schema schema;
+    private final StructType struct;
 
     RecordReader(List<Type> types,
                  List<ParquetValueReader<?>> readers,
-                 Schema schema) {
+                 StructType struct) {
       super(types, readers);
-      this.schema = schema;
+      this.struct = struct;
     }
 
     @Override
@@ -386,7 +392,7 @@ public class ParquetAvroValueReaders {
       if (reuse != null) {
         return reuse;
       } else {
-        return new Record(schema);
+        return GenericRecord.create(struct);
       }
     }
 
@@ -403,7 +409,7 @@ public class ParquetAvroValueReaders {
 
     @Override
     protected void set(Record struct, int pos, Object value) {
-      struct.put(pos, value);
+      struct.set(pos, value);
     }
   }
 }

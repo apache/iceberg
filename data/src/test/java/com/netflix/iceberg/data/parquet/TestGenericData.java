@@ -14,14 +14,18 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.data;
+package com.netflix.iceberg.data.parquet;
 
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.Files;
 import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.avro.Avro;
-import com.netflix.iceberg.avro.AvroIterable;
+import com.netflix.iceberg.data.DataTest;
+import com.netflix.iceberg.data.DataTestHelpers;
+import com.netflix.iceberg.data.RandomGenericData;
+import com.netflix.iceberg.data.Record;
+import com.netflix.iceberg.io.CloseableIterable;
 import com.netflix.iceberg.io.FileAppender;
+import com.netflix.iceberg.parquet.Parquet;
 import org.junit.Assert;
 import java.io.File;
 import java.io.IOException;
@@ -34,20 +38,17 @@ public class TestGenericData extends DataTest {
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
-    try (FileAppender<Record> writer = Avro.write(Files.localOutput(testFile))
+    try (FileAppender<Record> appender = Parquet.write(Files.localOutput(testFile))
         .schema(schema)
-        .createWriterFunc(DataWriter::create)
-        .named("test")
+        .createWriterFunc(GenericParquetWriter::buildWriter)
         .build()) {
-      for (Record rec : expected) {
-        writer.add(rec);
-      }
+      appender.addAll(expected);
     }
 
     List<Record> rows;
-    try (AvroIterable<Record> reader = Avro.read(Files.localInput(testFile))
+    try (CloseableIterable<Record> reader = Parquet.read(Files.localInput(testFile))
         .project(schema)
-        .createReaderFunc(DataReader::create)
+        .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
         .build()) {
       rows = Lists.newArrayList(reader);
     }

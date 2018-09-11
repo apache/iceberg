@@ -20,6 +20,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.SchemaParser;
+import com.netflix.iceberg.Table;
 import com.netflix.iceberg.avro.AvroSchemaUtil;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.expressions.Expression;
@@ -70,9 +71,16 @@ public class Parquet {
     private WriteSupport<?> writeSupport = null;
     private Map<String, String> metadata = Maps.newLinkedHashMap();
     private Map<String, String> config = Maps.newLinkedHashMap();
+    private Function<MessageType, ParquetValueWriter<?>> createWriterFunc = null;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
+    }
+
+    public WriteBuilder forTable(Table table) {
+      schema(table.schema());
+      setAll(table.properties());
+      return this;
     }
 
     public WriteBuilder schema(Schema schema) {
@@ -102,6 +110,12 @@ public class Parquet {
 
     public WriteBuilder meta(String property, String value) {
       metadata.put(property, value);
+      return this;
+    }
+
+    public WriteBuilder createWriterFunc(
+        Function<MessageType, ParquetValueWriter<?>> createWriterFunc) {
+      this.createWriterFunc = createWriterFunc;
       return this;
     }
 
@@ -151,14 +165,34 @@ public class Parquet {
       set("parquet.avro.write-old-list-structure", "false");
       MessageType type = ParquetSchemaUtil.convert(schema, name);
 
-      return new ParquetWriteAdapter<>(new ParquetWriteBuilder<D>(ParquetIO.file(file))
-          .setType(type)
-          .setConfig(config)
-          .setKeyValueMetadata(metadata)
-          .setWriteSupport(getWriteSupport(type))
-          .withCompressionCodec(codec())
-          .withWriteMode(ParquetFileWriter.Mode.OVERWRITE) // TODO: support modes
-          .build());
+      if (createWriterFunc != null) {
+        Preconditions.checkArgument(writeSupport == null,
+            "Cannot write with both write support and Parquet value writer");
+        Configuration conf;
+        if (file instanceof HadoopInputFile) {
+          conf = ((HadoopInputFile) file).getConf();
+        } else {
+          conf = new Configuration();
+        }
+
+        for (Map.Entry<String, String> entry : config.entrySet()) {
+          conf.set(entry.getKey(), entry.getValue());
+        }
+
+        long rowGroupSize = Long.parseLong(config.getOrDefault(
+            PARQUET_ROW_GROUP_SIZE_BYTES, PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT));
+        return new com.netflix.iceberg.parquet.ParquetWriter<>(
+            conf, file, schema, rowGroupSize, metadata, createWriterFunc, codec());
+      } else {
+        return new ParquetWriteAdapter<>(new ParquetWriteBuilder<D>(ParquetIO.file(file))
+            .setType(type)
+            .setConfig(config)
+            .setKeyValueMetadata(metadata)
+            .setWriteSupport(getWriteSupport(type))
+            .withCompressionCodec(codec())
+            .withWriteMode(ParquetFileWriter.Mode.OVERWRITE) // TODO: support modes
+            .build());
+      }
     }
   }
 
@@ -221,6 +255,7 @@ public class Parquet {
     private boolean filterRecords = true;
     private Map<String, String> properties = Maps.newHashMap();
     private boolean callInit = false;
+    private boolean reuseContainers = false;
 
     private ReadBuilder(InputFile file) {
       this.file = file;
@@ -274,6 +309,11 @@ public class Parquet {
       return this;
     }
 
+    public ReadBuilder reuseContainers() {
+      this.reuseContainers = true;
+      return this;
+    }
+
     @SuppressWarnings("unchecked")
     public <D> CloseableIterable<D> build() {
       if (readerFunc != null) {
@@ -295,7 +335,7 @@ public class Parquet {
         ParquetReadOptions options = optionsBuilder.build();
 
         return new com.netflix.iceberg.parquet.ParquetReader<>(
-            file, schema, options, readerFunc, filter);
+            file, schema, options, readerFunc, filter, reuseContainers);
       }
 
       ParquetReadBuilder<D> builder = new ParquetReadBuilder<>(ParquetIO.file(file));

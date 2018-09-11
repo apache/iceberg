@@ -1,11 +1,9 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Copyright 2017 Netflix, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -16,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.data;
+package com.netflix.iceberg.data.avro;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -24,6 +22,8 @@ import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.avro.AvroSchemaUtil;
+import com.netflix.iceberg.data.GenericRecord;
+import com.netflix.iceberg.data.Record;
 import com.netflix.iceberg.types.Types;
 import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.message.BadHeaderException;

@@ -45,16 +45,18 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   private final ParquetReadOptions options;
   private final Function<MessageType, ParquetValueReader<?>> readerFunc;
   private final Expression filter;
+  private final boolean reuseContainers;
 
   public ParquetReader(InputFile input, Schema expectedSchema, ParquetReadOptions options,
                        Function<MessageType, ParquetValueReader<?>> readerFunc,
-                       Expression filter) {
+                       Expression filter, boolean reuseContainers) {
     this.input = input;
     this.expectedSchema = expectedSchema;
     this.options = options;
     this.readerFunc = readerFunc;
     // replace alwaysTrue with null to avoid extra work evaluating a trivial filter
     this.filter = filter == Expressions.alwaysTrue() ? null : filter;
+    this.reuseContainers = reuseContainers;
   }
 
   private static class ReadConf<T> {
@@ -66,10 +68,11 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     private final List<BlockMetaData> rowGroups;
     private final boolean[] shouldSkip;
     private final long totalValues;
+    private final boolean reuseContainers;
 
     @SuppressWarnings("unchecked")
     ReadConf(InputFile file, ParquetReadOptions options, Schema expectedSchema, Expression filter,
-             Function<MessageType, ParquetValueReader<?>> readerFunc) {
+             Function<MessageType, ParquetValueReader<?>> readerFunc, boolean reuseContainers) {
       this.file = file;
       this.options = options;
       this.reader = newReader(file, options);
@@ -106,6 +109,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       }
 
       this.totalValues = totalValues;
+      this.reuseContainers = reuseContainers;
     }
 
     ReadConf(ReadConf<T> toCopy) {
@@ -117,6 +121,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       this.rowGroups = toCopy.rowGroups;
       this.shouldSkip = toCopy.shouldSkip;
       this.totalValues = toCopy.totalValues;
+      this.reuseContainers = toCopy.reuseContainers;
     }
 
     ParquetFileReader reader() {
@@ -142,6 +147,10 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       return totalValues;
     }
 
+    boolean reuseContainers() {
+      return reuseContainers;
+    }
+
     ReadConf<T> copy() {
       return new ReadConf<>(this);
     }
@@ -159,7 +168,8 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
   private ReadConf<T> init() {
     if (conf == null) {
-      ReadConf<T> conf = new ReadConf<>(input, options, expectedSchema, filter, readerFunc);
+      ReadConf<T> conf = new ReadConf<>(
+          input, options, expectedSchema, filter, readerFunc, reuseContainers);
       this.conf = conf.copy();
       return conf;
     }
@@ -179,6 +189,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     private final boolean[] shouldSkip;
     private final ParquetValueReader<T> model;
     private final long totalValues;
+    private final boolean reuseContainers;
 
     private int nextRowGroup = 0;
     private long nextRowGroupStart = 0;
@@ -190,6 +201,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       this.shouldSkip = conf.shouldSkip();
       this.model = conf.model();
       this.totalValues = conf.totalValues();
+      this.reuseContainers = conf.reuseContainers();
     }
 
     @Override
@@ -203,7 +215,11 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
         advance();
       }
 
-      this.last = model.read(last);
+      if (reuseContainers) {
+        this.last = model.read(last);
+      } else {
+        this.last = model.read(null);
+      }
       valuesRead += 1;
 
       return last;

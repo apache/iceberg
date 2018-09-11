@@ -27,6 +27,7 @@ import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.TableOperations;
 import com.netflix.iceberg.TableScan;
 import com.netflix.iceberg.avro.Avro;
+import com.netflix.iceberg.data.avro.DataReader;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.expressions.Binder;
 import com.netflix.iceberg.expressions.Evaluator;
@@ -47,6 +48,7 @@ import java.util.Set;
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.filter;
 import static com.google.common.collect.Iterables.transform;
+import static com.netflix.iceberg.data.parquet.GenericParquetReaders.buildReader;
 
 class TableScanIterable extends CloseableGroup implements CloseableIterable<Record> {
   private static final List<String> SNAPSHOT_COLUMNS = ImmutableList.of(
@@ -90,27 +92,32 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
     // TODO: join to partition data from the manifest file
     switch (task.file().format()) {
       case AVRO:
-        Avro.ReadBuilder builder = Avro.read(input)
+        Avro.ReadBuilder avro = Avro.read(input)
             .project(projection)
             .createReaderFunc(DataReader::create)
             .split(task.start(), task.length());
 
         if (reuseContainers) {
-          builder.reuseContainers();
+          avro.reuseContainers();
         }
 
-        return builder.build();
+        return avro.build();
 
       case PARQUET:
-//        return Parquet.read(input)
-//            .project(projection)
-//            .createReaderFunc(null) // TODO: build Parquet value readers
-//            .split(task.start(), task.length())
-//            .build();
+        Parquet.ReadBuilder parquet = Parquet.read(input)
+            .project(projection)
+            .createReaderFunc(fileSchema -> buildReader(projection, fileSchema))
+            .split(task.start(), task.length());
+
+        if (reuseContainers) {
+          parquet.reuseContainers();
+        }
+
+        return parquet.build();
 
       default:
         throw new UnsupportedOperationException(String.format("Cannot read %s file: %s",
-            task.file().format().toString().toLowerCase(Locale.ENGLISH), task.file().path()));
+            task.file().format().name(), task.file().path()));
     }
   }
 

@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package com.netflix.iceberg.data.parquet;
 
 import com.google.common.collect.Lists;
+import com.netflix.iceberg.data.Record;
+import com.netflix.iceberg.parquet.ParquetTypeVisitor;
+import com.netflix.iceberg.parquet.ParquetValueWriter;
 import com.netflix.iceberg.parquet.ParquetValueWriters.PrimitiveWriter;
 import com.netflix.iceberg.parquet.ParquetValueWriters.StructWriter;
-import org.apache.avro.generic.GenericData.Fixed;
-import org.apache.avro.generic.IndexedRecord;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.DecimalMetadata;
@@ -28,15 +29,28 @@ import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.Iterator;
 import java.util.List;
 
+import static com.netflix.iceberg.parquet.ParquetValueWriters.byteBuffers;
 import static com.netflix.iceberg.parquet.ParquetValueWriters.collections;
+import static com.netflix.iceberg.parquet.ParquetValueWriters.decimalAsFixed;
+import static com.netflix.iceberg.parquet.ParquetValueWriters.decimalAsInteger;
+import static com.netflix.iceberg.parquet.ParquetValueWriters.decimalAsLong;
 import static com.netflix.iceberg.parquet.ParquetValueWriters.maps;
 import static com.netflix.iceberg.parquet.ParquetValueWriters.option;
+import static com.netflix.iceberg.parquet.ParquetValueWriters.strings;
+import static com.netflix.iceberg.parquet.ParquetValueWriters.unboxed;
 
-public class ParquetAvroWriter {
-  private ParquetAvroWriter() {
+public class GenericParquetWriter {
+  private GenericParquetWriter() {
   }
 
   @SuppressWarnings("unchecked")
@@ -113,34 +127,34 @@ public class ParquetAvroWriter {
           case ENUM:
           case JSON:
           case UTF8:
-            return ParquetValueWriters.strings(desc);
-          case DATE:
+            return strings(desc);
           case INT_8:
           case INT_16:
           case INT_32:
           case INT_64:
+            return unboxed(desc);
+          case DATE:
+            return new DateWriter(desc);
           case TIME_MICROS:
+            return new TimeWriter(desc);
           case TIMESTAMP_MICROS:
-            return ParquetValueWriters.unboxed(desc);
+            return new TimestamptzWriter(desc);
           case DECIMAL:
             DecimalMetadata decimal = primitive.getDecimalMetadata();
             switch (primitive.getPrimitiveTypeName()) {
               case INT32:
-                return ParquetValueWriters.decimalAsInteger(
-                    desc, decimal.getPrecision(), decimal.getScale());
+                return decimalAsInteger(desc, decimal.getPrecision(), decimal.getScale());
               case INT64:
-                return ParquetValueWriters.decimalAsLong(
-                    desc, decimal.getPrecision(), decimal.getScale());
+                return decimalAsLong(desc, decimal.getPrecision(), decimal.getScale());
               case BINARY:
               case FIXED_LEN_BYTE_ARRAY:
-                return ParquetValueWriters.decimalAsFixed(
-                    desc, decimal.getPrecision(), decimal.getScale());
+                return decimalAsFixed(desc, decimal.getPrecision(), decimal.getScale());
               default:
                 throw new UnsupportedOperationException(
                     "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
             }
           case BSON:
-            return ParquetValueWriters.byteBuffers(desc);
+            return byteBuffers(desc);
           default:
             throw new UnsupportedOperationException(
                 "Unsupported logical type: " + primitive.getOriginalType());
@@ -151,13 +165,13 @@ public class ParquetAvroWriter {
         case FIXED_LEN_BYTE_ARRAY:
           return new FixedWriter(desc);
         case BINARY:
-          return ParquetValueWriters.byteBuffers(desc);
+          return byteBuffers(desc);
         case BOOLEAN:
         case INT32:
         case INT64:
         case FLOAT:
         case DOUBLE:
-          return ParquetValueWriters.unboxed(desc);
+          return unboxed(desc);
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
@@ -190,24 +204,72 @@ public class ParquetAvroWriter {
     }
   }
 
-  private static class FixedWriter extends PrimitiveWriter<Fixed> {
+  private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
+  private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
+
+  private static class DateWriter extends PrimitiveWriter<LocalDate> {
+    private DateWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, LocalDate value) {
+      column.writeInteger(repetitionLevel, (int) ChronoUnit.DAYS.between(EPOCH_DAY, value));
+    }
+  }
+
+  private static class TimeWriter extends PrimitiveWriter<LocalTime> {
+    private TimeWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, LocalTime value) {
+      column.writeLong(repetitionLevel, value.toNanoOfDay() / 1000);
+    }
+  }
+
+  private static class TimestampWriter extends PrimitiveWriter<LocalDateTime> {
+    private TimestampWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, LocalDateTime value) {
+      column.writeLong(repetitionLevel,
+          ChronoUnit.MICROS.between(EPOCH, value.atOffset(ZoneOffset.UTC)));
+    }
+  }
+
+  private static class TimestamptzWriter extends PrimitiveWriter<OffsetDateTime> {
+    private TimestamptzWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, OffsetDateTime value) {
+      column.writeLong(repetitionLevel, ChronoUnit.MICROS.between(EPOCH, value));
+    }
+  }
+
+  private static class FixedWriter extends PrimitiveWriter<byte[]> {
     private FixedWriter(ColumnDescriptor desc) {
       super(desc);
     }
 
     @Override
-    public void write(int repetitionLevel, Fixed buffer) {
-      column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(buffer.bytes()));
+    public void write(int repetitionLevel, byte[] value) {
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(value));
     }
   }
 
-  private static class RecordWriter extends StructWriter<IndexedRecord> {
+  private static class RecordWriter extends StructWriter<Record> {
     private RecordWriter(List<ParquetValueWriter<?>> writers) {
       super(writers);
     }
 
     @Override
-    protected Object get(IndexedRecord struct, int index) {
+    protected Object get(Record struct, int index) {
       return struct.get(index);
     }
   }

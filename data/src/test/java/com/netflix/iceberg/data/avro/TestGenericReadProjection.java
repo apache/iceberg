@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.data;
+package com.netflix.iceberg.data.avro;
 
 import com.google.common.collect.Iterables;
 import com.netflix.iceberg.Files;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.avro.Avro;
+import com.netflix.iceberg.data.Record;
+import com.netflix.iceberg.data.TestReadProjection;
 import com.netflix.iceberg.io.FileAppender;
 import java.io.File;
 import java.io.IOException;

@@ -16,15 +16,15 @@
 
 package com.netflix.iceberg.spark.data;
 
-import com.google.common.collect.ImmutableMap;
 import com.netflix.iceberg.Files;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.io.FileAppender;
+import com.netflix.iceberg.parquet.Parquet;
 import com.netflix.iceberg.parquet.ParquetAvroValueReaders;
+import com.netflix.iceberg.parquet.ParquetAvroWriter;
 import com.netflix.iceberg.parquet.ParquetReader;
 import com.netflix.iceberg.parquet.ParquetSchemaUtil;
-import com.netflix.iceberg.parquet.ParquetWriter;
 import com.netflix.iceberg.types.Types;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.parquet.ParquetReadOptions;
@@ -36,7 +36,6 @@ import org.junit.rules.TemporaryFolder;
 import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 
 import static com.netflix.iceberg.types.Types.NestedField.optional;
 import static com.netflix.iceberg.types.Types.NestedField.required;
@@ -78,8 +77,10 @@ public class TestParquetAvroWriter {
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
-    try (FileAppender<Record> writer = new ParquetWriter<>(
-        Files.localOutput(testFile), COMPLEX_SCHEMA, 128L*1024*1024, ImmutableMap.of())) {
+    try (FileAppender<Record> writer = Parquet.write(Files.localOutput(testFile))
+        .schema(COMPLEX_SCHEMA)
+        .createWriterFunc(ParquetAvroWriter::buildWriter)
+        .build()) {
       writer.addAll(records);
     }
 
@@ -89,7 +90,7 @@ public class TestParquetAvroWriter {
     try (ParquetReader<Record> reader = new ParquetReader<>(
         Files.localInput(testFile), COMPLEX_SCHEMA, ParquetReadOptions.builder().build(),
         fileSchema -> ParquetAvroValueReaders.buildReader(COMPLEX_SCHEMA, readSchema),
-        Expressions.alwaysTrue())) {
+        Expressions.alwaysTrue(), false)) {
       int i = 0;
       Iterator<Record> iter = records.iterator();
       for (Record actual : reader) {

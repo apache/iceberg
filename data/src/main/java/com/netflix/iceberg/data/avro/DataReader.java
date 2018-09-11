@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.data;
+package com.netflix.iceberg.data.avro;
 
 import com.google.common.collect.MapMaker;
 import com.netflix.iceberg.avro.AvroSchemaUtil;
@@ -35,7 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-class DataReader<T> implements DatumReader<T> {
+public class DataReader<T> implements DatumReader<T> {
 
   private static final ThreadLocal<Map<Schema, Map<Schema, ResolvingDecoder>>> DECODER_CACHES =
       ThreadLocal.withInitial(() -> new MapMaker().weakKeys().makeMap());

@@ -74,7 +74,7 @@ public class DynMethods {
         return this.invokeChecked(target, args);
       } catch (Exception e) {
         Throwables.propagateIfInstanceOf(e, RuntimeException.class);
-        throw Throwables.propagate(e.getCause());
+        throw Throwables.propagate(e);
       }
     }
 

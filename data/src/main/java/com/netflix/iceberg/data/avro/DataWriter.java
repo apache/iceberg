@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.data;
+package com.netflix.iceberg.data.avro;
 
 import com.google.common.base.Preconditions;
 import com.netflix.iceberg.avro.AvroSchemaUtil;

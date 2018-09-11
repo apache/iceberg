@@ -22,8 +22,8 @@ import org.junit.Assert;
 import java.util.List;
 import java.util.Map;
 
-class DataTestHelpers {
-  static void assertEquals(Types.StructType struct, Record expected, Record actual) {
+public class DataTestHelpers {
+  public static void assertEquals(Types.StructType struct, Record expected, Record actual) {
     List<Types.NestedField> fields = struct.fields();
     for (int i = 0; i < fields.size(); i += 1) {
       Type fieldType = fields.get(i).type();
@@ -35,7 +35,7 @@ class DataTestHelpers {
     }
   }
 
-  static void assertEquals(Types.ListType list, List<?> expected, List<?> actual) {
+  public static void assertEquals(Types.ListType list, List<?> expected, List<?> actual) {
     Type elementType = list.elementType();
 
     Assert.assertEquals("List size should match", expected.size(), actual.size());
@@ -48,7 +48,7 @@ class DataTestHelpers {
     }
   }
 
-  static void assertEquals(Types.MapType map, Map<?, ?> expected, Map<?, ?> actual) {
+  public static void assertEquals(Types.MapType map, Map<?, ?> expected, Map<?, ?> actual) {
     Type valueType = map.valueType();
 
     Assert.assertEquals("Map size should match", expected.size(), actual.size());

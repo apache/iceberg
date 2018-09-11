@@ -17,6 +17,9 @@
 package com.netflix.iceberg.parquet;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.io.api.Binary;
@@ -24,6 +27,8 @@ import org.apache.parquet.schema.Type;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -241,8 +246,30 @@ public class ParquetValueReaders {
 
     @Override
     public BigDecimal read(BigDecimal reuse) {
-      byte[] bytes = column.nextBinary().getBytes();
+      byte[] bytes = column.nextBinary().getBytesUnsafe();
       return new BigDecimal(new BigInteger(bytes), scale);
+    }
+  }
+
+  public static class BytesReader extends PrimitiveReader<ByteBuffer> {
+    public BytesReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public ByteBuffer read(ByteBuffer reuse) {
+      Binary binary = column.nextBinary();
+      ByteBuffer data = binary.toByteBuffer();
+      if (reuse != null && reuse.hasArray() && reuse.capacity() >= data.remaining()) {
+        data.get(reuse.array(), reuse.arrayOffset(), data.remaining());
+        reuse.position(0);
+        reuse.limit(data.remaining());
+        return reuse;
+      } else {
+        byte[] array = new byte[data.remaining()];
+        data.get(array, 0, data.remaining());
+        return ByteBuffer.wrap(array);
+      }
     }
   }
 
@@ -348,6 +375,56 @@ public class ParquetValueReaders {
     protected abstract T buildList(I list);
   }
 
+  public static class ListReader<E> extends RepeatedReader<List<E>, List<E>, E> {
+    private List<E> lastList = null;
+    private Iterator<E> elements = null;
+
+    public ListReader(int definitionLevel, int repetitionLevel,
+                      ParquetValueReader<E> reader) {
+      super(definitionLevel, repetitionLevel, reader);
+    }
+
+    @Override
+    protected List<E> newListData(List<E> reuse) {
+      List<E> list;
+      if (lastList != null) {
+        lastList.clear();
+        list = lastList;
+      } else {
+        list = Lists.newArrayList();
+      }
+
+      if (reuse != null) {
+        this.lastList = reuse;
+        this.elements = reuse.iterator();
+      } else {
+        this.lastList = null;
+        this.elements = Iterators.emptyIterator();
+      }
+
+      return list;
+    }
+
+    @Override
+    protected E getElement(List<E> reuse) {
+      if (elements.hasNext()) {
+        return elements.next();
+      }
+
+      return null;
+    }
+
+    @Override
+    protected void addElement(List<E> list, E element) {
+      list.add(element);
+    }
+
+    @Override
+    protected List<E> buildList(List<E> list) {
+      return list;
+    }
+  }
+
   public abstract static class RepeatedKeyValueReader<M, I, K, V> implements ParquetValueReader<M> {
     private final int definitionLevel;
     private final int repetitionLevel;
@@ -414,6 +491,58 @@ public class ParquetValueReaders {
     protected abstract void addPair(I map, K key, V value);
 
     protected abstract M buildMap(I map);
+  }
+
+  public static class MapReader<K, V> extends RepeatedKeyValueReader<Map<K, V>, Map<K, V>, K, V> {
+    private final ReusableEntry<K, V> nullEntry = new ReusableEntry<>();
+    private Map<K, V> lastMap = null;
+    private Iterator<Map.Entry<K, V>> pairs = null;
+
+    public MapReader(int definitionLevel, int repetitionLevel,
+                     ParquetValueReader<K> keyReader,
+                     ParquetValueReader<V> valueReader) {
+      super(definitionLevel, repetitionLevel, keyReader, valueReader);
+    }
+
+    @Override
+    protected Map<K, V> newMapData(Map<K, V> reuse) {
+      Map<K, V> map;
+      if (lastMap != null) {
+        lastMap.clear();
+        map = lastMap;
+      } else {
+        map = Maps.newLinkedHashMap();
+      }
+
+      if (reuse != null) {
+        this.lastMap = reuse;
+        this.pairs = reuse.entrySet().iterator();
+      } else {
+        this.lastMap = null;
+        this.pairs = Iterators.emptyIterator();
+      }
+
+      return map;
+    }
+
+    @Override
+    protected Map.Entry<K, V> getPair(Map<K, V> map) {
+      if (pairs.hasNext()) {
+        return pairs.next();
+      } else {
+        return nullEntry;
+      }
+    }
+
+    @Override
+    protected void addPair(Map<K, V> map, K key, V value) {
+      map.put(key, value);
+    }
+
+    @Override
+    protected Map<K, V> buildMap(Map<K, V> map) {
+      return map;
+    }
   }
 
   public static class ReusableEntry<K, V> implements Map.Entry<K, V> {

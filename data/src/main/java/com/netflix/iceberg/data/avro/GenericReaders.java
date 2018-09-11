@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.data;
+package com.netflix.iceberg.data.avro;
 
 import com.netflix.iceberg.avro.ValueReader;
 import com.netflix.iceberg.avro.ValueReaders;
+import com.netflix.iceberg.data.GenericRecord;
+import com.netflix.iceberg.data.Record;
 import com.netflix.iceberg.types.Types.StructType;
 import org.apache.avro.io.Decoder;
 import java.io.IOException;

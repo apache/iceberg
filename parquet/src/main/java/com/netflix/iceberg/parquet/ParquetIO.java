@@ -21,6 +21,7 @@ import com.netflix.iceberg.hadoop.HadoopInputFile;
 import com.netflix.iceberg.hadoop.HadoopOutputFile;
 import com.netflix.iceberg.io.DelegatingInputStream;
 import com.netflix.iceberg.io.DelegatingOutputStream;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.parquet.hadoop.util.HadoopStreams;
@@ -63,6 +64,18 @@ class ParquetIO {
       HadoopOutputFile hfile = (HadoopOutputFile) file;
       try {
         return fromPath(hfile.getPath(), hfile.getConf());
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to create Parquet output file for %s", file);
+      }
+    }
+    return new ParquetOutputFile(file);
+  }
+
+  static OutputFile file(com.netflix.iceberg.io.OutputFile file, Configuration conf) {
+    if (file instanceof HadoopOutputFile) {
+      HadoopOutputFile hfile = (HadoopOutputFile) file;
+      try {
+        return fromPath(hfile.getPath(), conf);
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to create Parquet output file for %s", file);
       }

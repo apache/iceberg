@@ -22,7 +22,6 @@ import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.common.DynConstructors;
 import com.netflix.iceberg.common.DynMethods;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.hadoop.HadoopOutputFile;
 import com.netflix.iceberg.io.FileAppender;
 import com.netflix.iceberg.io.OutputFile;
 import org.apache.hadoop.conf.Configuration;
@@ -32,18 +31,19 @@ import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.page.PageWriteStore;
 import org.apache.parquet.hadoop.CodecFactory;
 import org.apache.parquet.hadoop.ParquetFileWriter;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Function;
 
 import static com.netflix.iceberg.parquet.ParquetSchemaUtil.convert;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static org.apache.parquet.column.ParquetProperties.WriterVersion.PARQUET_1_0;
-import static org.apache.parquet.hadoop.metadata.CompressionCodecName.GZIP;
 
-public class ParquetWriter<T> implements FileAppender<T>, Closeable {
+class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private static final DynConstructors.Ctor<PageWriteStore> pageStoreCtor = DynConstructors
       .builder(PageWriteStore.class)
       .hiddenImpl("org.apache.parquet.hadoop.ColumnChunkPageWriteStore",
@@ -54,7 +54,7 @@ public class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   private static final DynMethods.UnboundMethod flushToWriter = DynMethods
       .builder("flushToFileWriter")
-      .impl("org.apache.parquet.hadoop.ColumnChunkPageWriteStore", ParquetFileWriter.class)
+      .hiddenImpl("org.apache.parquet.hadoop.ColumnChunkPageWriteStore", ParquetFileWriter.class)
       .build();
 
   private final OutputFile output;
@@ -65,7 +65,7 @@ public class ParquetWriter<T> implements FileAppender<T>, Closeable {
       .build();
   private final CodecFactory.BytesCompressor compressor;
   private final MessageType parquetSchema;
-  private final ParquetAvroWriter<T> model;
+  private final ParquetValueWriter<T> model;
   private final ParquetFileWriter writer;
 
   private DynMethods.BoundMethod flushPageStoreToWriter;
@@ -74,19 +74,20 @@ public class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private long recordCount = 0;
   private long nextCheckRecordCount = 10;
 
-  public ParquetWriter(OutputFile output, Schema schema, long rowGroupSize,
-                       Map<String, String> metadata) {
+  @SuppressWarnings("unchecked")
+  ParquetWriter(Configuration conf, OutputFile output, Schema schema, long rowGroupSize,
+                Map<String, String> metadata,
+                Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
+                CompressionCodecName codec) {
     this.output = output;
     this.targetRowGroupSize = rowGroupSize;
     this.metadata = ImmutableMap.copyOf(metadata);
-    Configuration conf = output instanceof HadoopOutputFile ?
-        ((HadoopOutputFile) output).getConf() : new Configuration();
-    this.compressor = new CodecFactory(conf, props.getPageSizeThreshold()).getCompressor(GZIP);
+    this.compressor = new CodecFactory(conf, props.getPageSizeThreshold()).getCompressor(codec);
     this.parquetSchema = convert(schema, "table");
-    this.model = new ParquetAvroWriter<>(parquetSchema);
+    this.model = (ParquetValueWriter<T>) createWriterFunc.apply(parquetSchema);
 
     try {
-      this.writer = new ParquetFileWriter(ParquetIO.file(output), parquetSchema,
+      this.writer = new ParquetFileWriter(ParquetIO.file(output, conf), parquetSchema,
           ParquetFileWriter.Mode.OVERWRITE, rowGroupSize, 0);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to create Parquet file");
@@ -103,7 +104,9 @@ public class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   @Override
   public void add(T value) {
-    model.write(value);
+    recordCount += 1;
+    model.write(0, value);
+    writeStore.endRecord();
     checkSize();
   }
 

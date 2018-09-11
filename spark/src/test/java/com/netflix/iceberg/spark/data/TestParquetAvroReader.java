@@ -101,7 +101,7 @@ public class TestParquetAvroReader {
       try (ParquetReader<Record> reader = new ParquetReader<>(
           Files.localInput(testFile), structSchema, ParquetReadOptions.builder().build(),
           fileSchema -> ParquetAvroValueReaders.buildReader(structSchema, readSchema),
-          Expressions.alwaysTrue())) {
+          Expressions.alwaysTrue(), true)) {
         long start = System.currentTimeMillis();
         long val = 0;
         long count = 0;
@@ -162,7 +162,7 @@ public class TestParquetAvroReader {
       try (ParquetReader<Record> reader = new ParquetReader<>(
           Files.localInput(testFile), COMPLEX_SCHEMA, ParquetReadOptions.builder().build(),
           fileSchema -> ParquetAvroValueReaders.buildReader(COMPLEX_SCHEMA, readSchema),
-          Expressions.alwaysTrue())) {
+          Expressions.alwaysTrue(), true)) {
         long start = System.currentTimeMillis();
         long val = 0;
         long count = 0;
@@ -198,7 +198,7 @@ public class TestParquetAvroReader {
     try (ParquetReader<Record> reader = new ParquetReader<>(
         Files.localInput(testFile), COMPLEX_SCHEMA, ParquetReadOptions.builder().build(),
         fileSchema -> ParquetAvroValueReaders.buildReader(COMPLEX_SCHEMA, readSchema),
-        Expressions.alwaysTrue())) {
+        Expressions.alwaysTrue(), true)) {
       int i = 0;
       Iterator<Record> iter = records.iterator();
       for (Record actual : reader) {

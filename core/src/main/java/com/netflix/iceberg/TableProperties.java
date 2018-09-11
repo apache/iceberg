@@ -39,7 +39,7 @@ public class TableProperties {
   public static final String DEFAULT_FILE_FORMAT_DEFAULT = "parquet";
 
   public static final String PARQUET_ROW_GROUP_SIZE_BYTES = "write.parquet.row-group-size-bytes";
-  public static final String PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT = null; // use Parquet's default
+  public static final String PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT = "134217728"; // 128 MB
 
   public static final String PARQUET_PAGE_SIZE_BYTES = "write.parquet.page-size-bytes";
   public static final String PARQUET_PAGE_SIZE_BYTES_DEFAULT = "1048576"; // 1 MB

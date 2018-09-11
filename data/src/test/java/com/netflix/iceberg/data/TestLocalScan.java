@@ -16,11 +16,8 @@
 
 package com.netflix.iceberg.data;
 
-import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.netflix.iceberg.AppendFiles;
@@ -33,11 +30,14 @@ import com.netflix.iceberg.Table;
 import com.netflix.iceberg.TableProperties;
 import com.netflix.iceberg.Tables;
 import com.netflix.iceberg.avro.Avro;
+import com.netflix.iceberg.data.avro.DataWriter;
+import com.netflix.iceberg.data.parquet.GenericParquetWriter;
 import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.hadoop.HadoopInputFile;
 import com.netflix.iceberg.hadoop.HadoopTables;
 import com.netflix.iceberg.io.FileAppender;
 import com.netflix.iceberg.io.InputFile;
+import com.netflix.iceberg.parquet.Parquet;
 import com.netflix.iceberg.types.Types;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -46,11 +46,12 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -60,13 +61,13 @@ import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.filter;
 import static com.google.common.collect.Iterables.transform;
 import static com.netflix.iceberg.DataFiles.fromInputFile;
-import static com.netflix.iceberg.FileFormat.AVRO;
 import static com.netflix.iceberg.expressions.Expressions.lessThan;
 import static com.netflix.iceberg.expressions.Expressions.lessThanOrEqual;
 import static com.netflix.iceberg.hadoop.HadoopOutputFile.fromPath;
 import static com.netflix.iceberg.types.Types.NestedField.optional;
 import static com.netflix.iceberg.types.Types.NestedField.required;
 
+@RunWith(Parameterized.class)
 public class TestLocalScan {
   private static final Schema SCHEMA = new Schema(
       required(1, "id", Types.LongType.get()),
@@ -77,6 +78,20 @@ public class TestLocalScan {
 
   @Rule
   public final TemporaryFolder temp = new TemporaryFolder();
+
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { "parquet" },
+        new Object[] { "avro" }
+    };
+  }
+
+  private final FileFormat format;
+
+  public TestLocalScan(String format) {
+    this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
+  }
 
   private String sharedTableLocation = null;
   private Table sharedTable = null;
@@ -91,7 +106,7 @@ public class TestLocalScan {
     this.sharedTableLocation = location.toString();
     this.sharedTable = TABLES.create(
         SCHEMA, PartitionSpec.unpartitioned(),
-        ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, "avro"),
+        ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()),
         sharedTableLocation);
 
     Record record = GenericRecord.create(SCHEMA);
@@ -101,21 +116,25 @@ public class TestLocalScan {
         record.copy(ImmutableMap.of("id", 1L, "data", "risky")),
         record.copy(ImmutableMap.of("id", 2L, "data", "falafel"))
     );
-    InputFile file1 = writeFile(sharedTableLocation, AVRO.addExtension("file-1"), file1Records);
+    InputFile file1 = writeFile(sharedTableLocation, format.addExtension("file-1"), file1Records);
+
+    Record nullData = record.copy();
+    nullData.setField("id", 11L);
+    nullData.setField("data", null);
 
     this.file2Records = Lists.newArrayList(
         record.copy(ImmutableMap.of("id", 10L, "data", "clammy")),
         record.copy(ImmutableMap.of("id", 11L, "data", "evacuate")),
         record.copy(ImmutableMap.of("id", 12L, "data", "tissue"))
     );
-    InputFile file2 = writeFile(sharedTableLocation, AVRO.addExtension("file-2"), file2Records);
+    InputFile file2 = writeFile(sharedTableLocation, format.addExtension("file-2"), file2Records);
 
     this.file3Records = Lists.newArrayList(
         record.copy(ImmutableMap.of("id", 20L, "data", "ocean")),
         record.copy(ImmutableMap.of("id", 21L, "data", "holistic")),
         record.copy(ImmutableMap.of("id", 22L, "data", "preventative"))
     );
-    InputFile file3 = writeFile(sharedTableLocation, AVRO.addExtension("file-3"), file3Records);
+    InputFile file3 = writeFile(sharedTableLocation, format.addExtension("file-3"), file3Records);
 
     // commit the test data
     sharedTable.newAppend()
@@ -153,12 +172,10 @@ public class TestLocalScan {
   public void testRandomData() throws IOException {
     List<Record> expected = RandomGenericData.generate(SCHEMA, 1000, 435691832918L);
 
-    FileFormat format = AVRO;
-    String formatName = format.toString().toLowerCase(Locale.ENGLISH);
-    File location = temp.newFolder(formatName);
+    File location = temp.newFolder(format.name());
     Assert.assertTrue(location.delete());
     Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(),
-        ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, formatName),
+        ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()),
         location.toString());
 
     AppendFiles append = table.newAppend();
@@ -170,18 +187,14 @@ public class TestLocalScan {
       Path path = new Path(location.toString(), format.addExtension("file-" + fileNum));
       int numRecords;
 
-      try (FileAppender<Record> appender = Avro.write(fromPath(path, CONF))
-          .schema(SCHEMA)
-          .createWriterFunc(DataWriter::create)
-          .named(formatName)
-          .build()) {
-
-        for (numRecords = 0; numRecords < recordsPerFile && iter.hasNext(); numRecords += 1) {
-          appender.add(iter.next());
-        }
+      List<Record> records = Lists.newArrayList();
+      for (numRecords = 0; numRecords < recordsPerFile && iter.hasNext(); numRecords += 1) {
+        records.add(iter.next());
       }
 
+      writeFile(location.toString(), format.addExtension("file-" + fileNum), records);
       append.appendFile(fromInputFile(HadoopInputFile.fromPath(path, CONF), numRecords));
+
       fileNum += 1;
     }
 
@@ -274,12 +287,21 @@ public class TestLocalScan {
             .createWriterFunc(DataWriter::create)
             .named(format.name())
             .build()) {
-
-          for (Record record : records) {
-            appender.add(record);
-          }
+          appender.addAll(records);
         }
+
         return HadoopInputFile.fromPath(path, CONF);
+
+      case PARQUET:
+        try (FileAppender<Record> appender = Parquet.write(fromPath(path, CONF))
+            .schema(SCHEMA)
+            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .build()) {
+          appender.addAll(records);
+        }
+
+        return HadoopInputFile.fromPath(path, CONF);
+
       default:
         throw new UnsupportedOperationException("Cannot write format: " + format);
     }
