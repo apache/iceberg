@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.netflix.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
 import static com.netflix.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT_DEFAULT;
@@ -72,6 +73,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
   private final int minManifestsCountToMerge;
 
   // update data
+  private final AtomicInteger manifestCount = new AtomicInteger(0);
   private final List<DataFile> newFiles = Lists.newArrayList();
   private final Set<CharSequenceWrapper> deletePaths = Sets.newHashSet();
   private final Set<StructLikeWrapper> dropPartitions = Sets.newHashSet();
@@ -322,7 +324,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
 
       // when this point is reached, there is at least one file that will be deleted in the
       // manifest. produce a copy of the manifest with all deleted files removed.
-      OutputFile filteredCopy = manifestPath(mergeManifests.size() + filteredManifests.size());
+      OutputFile filteredCopy = manifestPath(manifestCount.getAndIncrement());
       try (ManifestWriter writer = new ManifestWriter(reader.spec(), filteredCopy, snapshotId())) {
         for (ManifestEntry entry : reader.entries()) {
           DataFile file = entry.file();
@@ -420,7 +422,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
       return mergeManifests.get(key);
     }
 
-    OutputFile out = manifestPath(mergeManifests.size() + filteredManifests.size());
+    OutputFile out = manifestPath(manifestCount.getAndIncrement());
 
     try (ManifestWriter writer = new ManifestWriter(binSpec, out, snapshotId())) {
 
