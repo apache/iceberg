@@ -83,6 +83,27 @@ public abstract class BaseMetastoreTables implements Tables {
     return BaseTransaction.createTableTransaction(ops, metadata);
   }
 
+  public Transaction beginReplace(Schema schema, PartitionSpec spec,
+                                  String database, String table) {
+    return beginReplace(schema, spec, ImmutableMap.of(), database, table);
+  }
+
+  public Transaction beginReplace(Schema schema, PartitionSpec spec, Map<String, String> properties,
+                                  String database, String table) {
+    TableOperations ops = newTableOps(conf, database, table);
+    TableMetadata current = ops.current();
+
+    TableMetadata metadata;
+    if (current != null) {
+      metadata = current.buildReplacement(schema, spec, properties);
+      return BaseTransaction.replaceTableTransaction(ops, metadata);
+    } else {
+      String location = defaultWarehouseLocation(conf, database, table);
+      metadata = newTableMetadata(ops, schema, spec, location, properties);
+      return BaseTransaction.createTableTransaction(ops, metadata);
+    }
+  }
+
   private static String defaultWarehouseLocation(Configuration conf,
                                                  String database, String table) {
     String warehouseLocation = conf.get("hive.metastore.warehouse.dir");

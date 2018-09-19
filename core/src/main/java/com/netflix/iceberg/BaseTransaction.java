@@ -37,6 +37,16 @@ import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 class BaseTransaction implements Transaction {
+  private enum TransactionType {
+    CREATE_TABLE,
+    REPLACE_TABLE,
+    SIMPLE
+  }
+
+  static Transaction replaceTableTransaction(TableOperations ops, TableMetadata start) {
+    return new BaseTransaction(ops, start);
+  }
+
   static Transaction createTableTransaction(TableOperations ops, TableMetadata start) {
     Preconditions.checkArgument(ops.current() == null,
         "Cannot start create table transaction: table already exists");
@@ -47,22 +57,31 @@ class BaseTransaction implements Transaction {
     return new BaseTransaction(ops, ops.refresh());
   }
 
+  // exposed for testing
+  final TableOperations ops;
   private final TransactionTable transactionTable;
-  private final TableOperations ops;
   private final TableOperations transactionOps;
   private final List<PendingUpdate> updates;
   private final Set<Long> intermediateSnapshotIds;
+  private TransactionType type;
   private TableMetadata base;
   private TableMetadata lastBase;
   private TableMetadata current;
 
   private BaseTransaction(TableOperations ops, TableMetadata start) {
-    this.transactionTable = new TransactionTable();
     this.ops = ops;
+    this.transactionTable = new TransactionTable();
     this.transactionOps = new TransactionTableOperations();
     this.updates = Lists.newArrayList();
     this.intermediateSnapshotIds = Sets.newHashSet();
     this.base = ops.current();
+    if (base == null && start != null) {
+      this.type = TransactionType.CREATE_TABLE;
+    } else if (base != null && start != base) {
+      this.type = TransactionType.REPLACE_TABLE;
+    } else {
+      this.type = TransactionType.SIMPLE;
+    }
     this.lastBase = null;
     this.current = start;
   }
@@ -139,44 +158,67 @@ class BaseTransaction implements Transaction {
     Preconditions.checkState(lastBase != current,
         "Cannot commit transaction: last operation has not committed");
 
-    if (base != null) {
-      // fix up the snapshot log, which has entries for all of the new snapshots but should only
-      // record the last snapshot committed in the transaction
+    switch (type) {
+      case CREATE_TABLE:
+        // fix up the snapshot log, which should not contain intermediate snapshots
+        TableMetadata createMetadata = current.removeSnapshotLogEntries(intermediateSnapshotIds);
 
-      // if there were no changes, don't try to commit
-      if (base == current) {
-        return;
-      }
+        // this operation creates the table. if the commit fails, this cannot retry because another
+        // process has created the same table.
+        ops.commit(null, createMetadata);
+        break;
 
-      Tasks.foreach(ops)
-          .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
-          .exponentialBackoff(
-              base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-              base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
-              base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-              2.0 /* exponential */)
-          .onlyRetryOn(CommitFailedException.class)
-          .run(ops -> {
-            if (base != ops.refresh()) {
-              this.base = ops.current(); // just refreshed
-              this.current = base;
-              for (PendingUpdate update : updates) {
-                // re-commit each update in the chain to apply it and update current
-                update.commit();
+      case REPLACE_TABLE:
+        // fix up the snapshot log, which should not contain intermediate snapshots
+        TableMetadata replaceMetadata = current.removeSnapshotLogEntries(intermediateSnapshotIds);
+
+        Tasks.foreach(ops)
+            .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
+            .exponentialBackoff(
+                base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
+                base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+                base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
+                2.0 /* exponential */)
+            .onlyRetryOn(CommitFailedException.class)
+            .run(ops -> {
+              // because this is a replace table, it will always completely replace the table
+              // metadata. even if it was just updated.
+              if (base != ops.refresh()) {
+                this.base = ops.current(); // just refreshed
               }
-            }
 
-            // fix up the snapshot log, which should by empty or contain just the latest snapshot
-            ops.commit(base, current.removeSnapshotLogEntries(intermediateSnapshotIds));
-          });
+              ops.commit(base, replaceMetadata);
+            });
+        break;
 
-    } else {
-      // fix up the snapshot log, which should by empty or contain just the latest snapshot
-      TableMetadata toCommit = current.removeSnapshotLogEntries(intermediateSnapshotIds);
+      case SIMPLE:
+        // if there were no changes, don't try to commit
+        if (base == current) {
+          return;
+        }
 
-      // this operation creates the table. if the commit fails, this cannot retry because another
-      // process has created the same table.
-      ops.commit(null, toCommit);
+        Tasks.foreach(ops)
+            .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
+            .exponentialBackoff(
+                base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
+                base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+                base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
+                2.0 /* exponential */)
+            .onlyRetryOn(CommitFailedException.class)
+            .run(ops -> {
+              if (base != ops.refresh()) {
+                this.base = ops.current(); // just refreshed
+                this.current = base;
+                for (PendingUpdate update : updates) {
+                  // re-commit each update in the chain to apply it and update current
+                  update.commit();
+                }
+              }
+
+              // fix up the snapshot log, which should not contain intermediate snapshots
+              ops.commit(base, current.removeSnapshotLogEntries(intermediateSnapshotIds));
+            });
+        break;
     }
   }
 

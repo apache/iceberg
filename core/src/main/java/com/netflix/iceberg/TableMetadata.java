@@ -170,7 +170,7 @@ public class TableMetadata {
     }
 
     Preconditions.checkArgument(
-        snapshotsById.isEmpty() || snapshotsById.containsKey(currentSnapshotId),
+        currentSnapshotId < 0 || snapshotsById.containsKey(currentSnapshotId),
         "Invalid table metadata: Cannot find current version");
   }
 
@@ -329,5 +329,31 @@ public class TableMetadata {
     return new TableMetadata(ops, null, location,
         System.currentTimeMillis(), lastColumnId, schema, spec, properties, currentSnapshotId,
         snapshots, newSnapshotLog);
+  }
+
+  public TableMetadata buildReplacement(Schema schema, PartitionSpec partitionSpec,
+                                        Map<String, String> properties) {
+    AtomicInteger lastColumnId = new AtomicInteger(0);
+    Schema freshSchema = TypeUtil.assignFreshIds(schema, lastColumnId::incrementAndGet);
+
+    // rebuild the partition spec using the new column ids
+    PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(freshSchema);
+    for (PartitionField field : partitionSpec.fields()) {
+      // look up the name of the source field in the old schema to get the new schema's id
+      String sourceName = schema.findColumnName(field.sourceId());
+      specBuilder.add(
+          freshSchema.findField(sourceName).fieldId(),
+          field.name(),
+          field.transform().toString());
+    }
+    PartitionSpec freshSpec = specBuilder.build();
+
+    ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+    builder.putAll(this.properties);
+    builder.putAll(properties);
+
+    return new TableMetadata(ops, null, location,
+        System.currentTimeMillis(), lastColumnId.get(), freshSchema, freshSpec, properties, -1,
+        snapshots, ImmutableList.of());
   }
 }

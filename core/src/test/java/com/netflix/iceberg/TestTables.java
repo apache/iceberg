@@ -16,6 +16,7 @@
 
 package com.netflix.iceberg;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.netflix.iceberg.exceptions.AlreadyExistsException;
 import com.netflix.iceberg.exceptions.CommitFailedException;
@@ -24,6 +25,8 @@ import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 import java.io.File;
 import java.util.Map;
+
+import static com.netflix.iceberg.TableMetadata.newTableMetadata;
 
 class TestTables {
   static TestTable create(File temp, String name, Schema schema, PartitionSpec spec) {
@@ -44,6 +47,25 @@ class TestTables {
     TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, temp.toString());
 
     return BaseTransaction.createTableTransaction(ops, metadata);
+  }
+
+  public static Transaction beginReplace(File temp, String name, Schema schema, PartitionSpec spec) {
+    return beginReplace(temp, name, schema, spec, ImmutableMap.of());
+  }
+
+  public static Transaction beginReplace(File temp, String name, Schema schema, PartitionSpec spec,
+                                         Map<String, String> properties) {
+    TestTableOperations ops = new TestTableOperations(name, temp);
+    TableMetadata current = ops.current();
+
+    TableMetadata metadata;
+    if (current != null) {
+      metadata = current.buildReplacement(schema, spec, properties);
+      return BaseTransaction.replaceTableTransaction(ops, metadata);
+    } else {
+      metadata = newTableMetadata(ops, schema, spec, temp.toString(), properties);
+      return BaseTransaction.createTableTransaction(ops, metadata);
+    }
   }
 
   static TestTable load(File temp, String name) {
