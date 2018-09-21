@@ -23,7 +23,6 @@ import com.netflix.iceberg.expressions.Binder;
 import com.netflix.iceberg.expressions.BoundReference;
 import com.netflix.iceberg.expressions.Expression.Operation;
 import com.netflix.iceberg.expressions.ExpressionVisitors;
-import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.types.Types.TimestampType;
 import com.netflix.iceberg.util.Pair;
 import org.apache.spark.sql.Column;
@@ -123,13 +122,27 @@ public class SparkExpressions {
           BinaryExpression binary = (BinaryExpression) expr;
           return convert(op, binary.left(), binary.right());
         case NOT:
-          return not(convert(((Not) expr).child()));
+          com.netflix.iceberg.expressions.Expression child = convert(((Not) expr).child());
+          if (child != null) {
+            return not(child);
+          }
+          return null;
         case AND:
           And andExpr = (And) expr;
-          return and(convert(andExpr.left()), convert(andExpr.right()));
+          com.netflix.iceberg.expressions.Expression andLeft = convert(andExpr.left());
+          com.netflix.iceberg.expressions.Expression andRight = convert(andExpr.right());
+          if (andLeft != null && andRight != null) {
+            return and(convert(andExpr.left()), convert(andExpr.right()));
+          }
+          return null;
         case OR:
           Or orExpr = (Or) expr;
-          return or(convert(orExpr.left()), convert(orExpr.right()));
+          com.netflix.iceberg.expressions.Expression orLeft = convert(orExpr.left());
+          com.netflix.iceberg.expressions.Expression orRight = convert(orExpr.right());
+          if (orLeft != null && orRight != null) {
+            return or(orLeft, orRight);
+          }
+          return null;
         case IN:
           if (expr instanceof In) {
             In inExpr = (In) expr;

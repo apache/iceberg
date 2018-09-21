@@ -24,6 +24,8 @@ import com.netflix.iceberg.expressions.Expression.Operation;
  */
 public class Expressions {
   public static Expression and(Expression left, Expression right) {
+    Preconditions.checkNotNull(left, "Left expression cannot be null.");
+    Preconditions.checkNotNull(right, "Right expression cannot be null.");
     if (left == alwaysFalse() || right == alwaysFalse()) {
       return alwaysFalse();
     } else if (left == alwaysTrue()) {
@@ -35,6 +37,8 @@ public class Expressions {
   }
 
   public static Expression or(Expression left, Expression right) {
+    Preconditions.checkNotNull(left, "Left expression cannot be null.");
+    Preconditions.checkNotNull(right, "Right expression cannot be null.");
     if (left == alwaysTrue() || right == alwaysTrue()) {
       return alwaysTrue();
     } else if (left == alwaysFalse()) {
@@ -46,6 +50,7 @@ public class Expressions {
   }
 
   public static Expression not(Expression child) {
+    Preconditions.checkNotNull(child, "Child expression cannot be null.");
     if (child == alwaysTrue()) {
       return alwaysFalse();
     } else if (child == alwaysFalse()) {
