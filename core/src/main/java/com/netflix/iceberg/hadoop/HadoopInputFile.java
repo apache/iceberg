@@ -33,20 +33,37 @@ import java.io.IOException;
 public class HadoopInputFile implements InputFile {
 
   private final FileSystem fs;
-  private final FileStatus stat;
+  private final Path path;
   private final Configuration conf;
+  private FileStatus stat = null;
+  private Long length = null;
 
   public static HadoopInputFile fromLocation(CharSequence location, Configuration conf) {
     Path path = new Path(location.toString());
     return fromPath(path, conf);
   }
 
+  public static HadoopInputFile fromLocation(CharSequence location, long length,
+                                             Configuration conf) {
+    Path path = new Path(location.toString());
+    return fromPath(path, length, conf);
+  }
+
   public static HadoopInputFile fromPath(Path path, Configuration conf) {
     try {
       FileSystem fs = path.getFileSystem(conf);
-      return new HadoopInputFile(fs, fs.getFileStatus(path), conf);
+      return new HadoopInputFile(fs, path, conf);
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to get file status for path: %s", path);
+      throw new RuntimeIOException(e, "Failed to get file system for path: %s", path);
+    }
+  }
+
+  public static HadoopInputFile fromPath(Path path, long length, Configuration conf) {
+    try {
+      FileSystem fs = path.getFileSystem(conf);
+      return new HadoopInputFile(fs, path, length, conf);
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to get file system for path: %s", path);
     }
   }
 
@@ -59,23 +76,52 @@ public class HadoopInputFile implements InputFile {
     }
   }
 
+  private HadoopInputFile(FileSystem fs, Path path, Configuration conf) {
+    this.fs = fs;
+    this.path = path;
+    this.conf = conf;
+  }
+
+  private HadoopInputFile(FileSystem fs, Path path, long length, Configuration conf) {
+    this.fs = fs;
+    this.path = path;
+    this.conf = conf;
+    this.length = length;
+  }
+
   private HadoopInputFile(FileSystem fs, FileStatus stat, Configuration conf) {
     this.fs = fs;
+    this.path = stat.getPath();
     this.stat = stat;
     this.conf = conf;
+    this.length = stat.getLen();
+  }
+
+  private FileStatus lazyStat() {
+    if (stat == null) {
+      try {
+        this.stat = fs.getFileStatus(path);
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to get status for file: %s", path);
+      }
+    }
+    return stat;
   }
 
   @Override
   public long getLength() {
-    return stat.getLen();
+    if (length == null) {
+      this.length = lazyStat().getLen();
+    }
+    return length;
   }
 
   @Override
   public SeekableInputStream newStream() {
     try {
-      return HadoopStreams.wrap(fs.open(stat.getPath()));
+      return HadoopStreams.wrap(fs.open(path));
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to open input stream for file: %s", stat.getPath());
+      throw new RuntimeIOException(e, "Failed to open input stream for file: %s", path);
     }
   }
 
@@ -84,16 +130,16 @@ public class HadoopInputFile implements InputFile {
   }
 
   public FileStatus getStat() {
-    return stat;
+    return lazyStat();
   }
 
   @Override
   public String location() {
-    return stat.getPath().toString();
+    return path.toString();
   }
 
   @Override
   public String toString() {
-    return location();
+    return path.toString();
   }
 }
