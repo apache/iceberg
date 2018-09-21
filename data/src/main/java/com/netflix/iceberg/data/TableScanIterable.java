@@ -42,7 +42,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
+import java.util.NoSuchElementException;
 import java.util.Set;
 
 import static com.google.common.collect.Iterables.concat;
@@ -164,6 +164,10 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
 
     @Override
     public Record next() {
+      if (!hasNext()) {
+        throw new NoSuchElementException();
+      }
+
       return currentIterator.next();
     }
 
