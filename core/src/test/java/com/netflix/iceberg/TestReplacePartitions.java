@@ -20,6 +20,8 @@ import com.netflix.iceberg.ManifestEntry.Status;
 import com.netflix.iceberg.exceptions.ValidationException;
 import org.junit.Assert;
 import org.junit.Test;
+import java.io.File;
+import java.io.IOException;
 
 public class TestReplacePartitions extends TableTestBase {
 
@@ -76,7 +78,7 @@ public class TestReplacePartitions extends TableTestBase {
   }
 
   @Test
-  public void testReplaceOnePartitionWithMerge() {
+  public void testReplaceAndMergeOnePartition() {
     // ensure the overwrite results in a merge
     table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1").commit();
 
@@ -94,13 +96,91 @@ public class TestReplacePartitions extends TableTestBase {
 
     long replaceId = readMetadata().currentSnapshot().snapshotId();
     Assert.assertNotEquals("Should create a new snapshot", baseId, replaceId);
-    Assert.assertEquals("Table should have 2 manifests",
+    Assert.assertEquals("Table should have 1 manifest",
         1, table.currentSnapshot().manifests().size());
 
     validateManifestEntries(table.currentSnapshot().manifests().get(0),
         ids(replaceId, replaceId, baseId),
         files(FILE_E, FILE_A, FILE_B),
         statuses(Status.ADDED, Status.DELETED, Status.EXISTING));
+  }
+
+  @Test
+  public void testReplaceWithUnpartitionedTable() throws IOException {
+    File tableDir = temp.newFolder();
+    Assert.assertTrue(tableDir.delete());
+
+    Table unpartitioned = TestTables.create(
+        tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned());
+
+    Assert.assertEquals("Table version should be 0",
+        0, (long) TestTables.metadataVersion("unpartitioned"));
+
+    unpartitioned.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    // make sure the data was successfully added
+    Assert.assertEquals("Table version should be 1",
+        1, (long) TestTables.metadataVersion("unpartitioned"));
+    validateSnapshot(null, TestTables.readMetadata("unpartitioned").currentSnapshot(), FILE_A);
+
+    unpartitioned.newReplacePartitions()
+        .addFile(FILE_B)
+        .commit();
+
+    Assert.assertEquals("Table version should be 2",
+        2, (long) TestTables.metadataVersion("unpartitioned"));
+    TableMetadata replaceMetadata = TestTables.readMetadata("unpartitioned");
+    long replaceId = replaceMetadata.currentSnapshot().snapshotId();
+
+    Assert.assertEquals("Table should have 2 manifests",
+        2, replaceMetadata.currentSnapshot().manifests().size());
+
+    validateManifestEntries(replaceMetadata.currentSnapshot().manifests().get(0),
+        ids(replaceId), files(FILE_B), statuses(Status.ADDED));
+
+    validateManifestEntries(replaceMetadata.currentSnapshot().manifests().get(1),
+        ids(replaceId), files(FILE_A), statuses(Status.DELETED));
+  }
+
+  @Test
+  public void testReplaceAndMergeWithUnpartitionedTable() throws IOException {
+    File tableDir = temp.newFolder();
+    Assert.assertTrue(tableDir.delete());
+
+    Table unpartitioned = TestTables.create(
+        tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned());
+
+    // ensure the overwrite results in a merge
+    unpartitioned.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1").commit();
+
+    Assert.assertEquals("Table version should be 1",
+        1, (long) TestTables.metadataVersion("unpartitioned"));
+
+    unpartitioned.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    // make sure the data was successfully added
+    Assert.assertEquals("Table version should be 2",
+        2, (long) TestTables.metadataVersion("unpartitioned"));
+    validateSnapshot(null, TestTables.readMetadata("unpartitioned").currentSnapshot(), FILE_A);
+
+    unpartitioned.newReplacePartitions()
+        .addFile(FILE_B)
+        .commit();
+
+    Assert.assertEquals("Table version should be 3",
+        3, (long) TestTables.metadataVersion("unpartitioned"));
+    TableMetadata replaceMetadata = TestTables.readMetadata("unpartitioned");
+    long replaceId = replaceMetadata.currentSnapshot().snapshotId();
+
+    Assert.assertEquals("Table should have 1 manifest",
+        1, replaceMetadata.currentSnapshot().manifests().size());
+
+    validateManifestEntries(replaceMetadata.currentSnapshot().manifests().get(0),
+        ids(replaceId, replaceId), files(FILE_B, FILE_A), statuses(Status.ADDED, Status.DELETED));
   }
 
   @Test

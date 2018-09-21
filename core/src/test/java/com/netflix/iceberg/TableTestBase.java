@@ -100,7 +100,7 @@ public class TableTestBase {
         (dir, name) -> Files.getFileExtension(name).equalsIgnoreCase(ext)));
   }
 
-  TestTables.TestTable create(Schema schema, PartitionSpec spec) {
+  private TestTables.TestTable create(Schema schema, PartitionSpec spec) {
     return TestTables.create(tableDir, "test", schema, spec);
   }
 
