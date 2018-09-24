@@ -22,6 +22,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.io.Closeables;
+import com.netflix.iceberg.ManifestEntry.Status;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.exceptions.ValidationException;
 import com.netflix.iceberg.expressions.Evaluator;
@@ -330,16 +331,18 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
           DataFile file = entry.file();
           boolean fileDelete = (deletePaths.contains(pathWrapper.set(file.path())) ||
               dropPartitions.contains(partitionWrapper.set(file.partition())));
-          if (fileDelete || inclusive.eval(file.partition())) {
-            ValidationException.check(
-                fileDelete || strict.eval(file.partition()) || metricsEvaluator.eval(file),
-                "Cannot delete file where some, but not all, rows match filter %s: %s",
-                this.deleteExpression, file.path());
+          if (entry.status() != Status.DELETED) {
+            if (fileDelete || inclusive.eval(file.partition())) {
+              ValidationException.check(
+                  fileDelete || strict.eval(file.partition()) || metricsEvaluator.eval(file),
+                  "Cannot delete file where some, but not all, rows match filter %s: %s",
+                  this.deleteExpression, file.path());
 
-            writer.delete(entry);
+              writer.delete(entry);
 
-          } else {
-            writer.addExisting(entry);
+            } else {
+              writer.addExisting(entry);
+            }
           }
         }
       }
@@ -429,7 +432,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
       for (ManifestReader reader : bin) {
         if (reader.file() != null) {
           for (ManifestEntry entry : reader.entries()) {
-            if (entry.status() == ManifestEntry.Status.DELETED) {
+            if (entry.status() == Status.DELETED) {
               // suppress deletes from previous snapshots. only files deleted by this snapshot
               // should be added to the new manifest
               if (entry.snapshotId() == snapshotId()) {
