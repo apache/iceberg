@@ -197,14 +197,6 @@ public class SparkOrcWriter implements FileAppender<InternalRow> {
   }
 
   static class TimestampConverter implements Converter {
-    // The JDK has a bug where timestamps before 1970 with times like:
-    // HH:MM:SS.000XXX with non-zero XXX are off by 1 second.
-    private static final boolean NO_TIMESTAMP_BUG;
-    static {
-      Timestamp ts1 = Timestamp.valueOf("1969-12-25 12:34:56.000234");
-      Timestamp ts2 = Timestamp.valueOf("1969-12-25 12:34:56.001234");
-      NO_TIMESTAMP_BUG = ts1.getTime()/1000 == ts2.getTime()/1000;
-    }
 
     public void addValue(int rowId, int column, SpecializedGetters data,
                          ColumnVector output) {
@@ -219,9 +211,7 @@ public class SparkOrcWriter implements FileAppender<InternalRow> {
         int nanos = (int) (micros % 1_000_000) * 1000;
         if (nanos < 0) {
           nanos += 1_000_000_000;
-          if (NO_TIMESTAMP_BUG || nanos >= 1_000_000) {
-            cv.time[rowId] -= 1000;
-          }
+	  cv.time[rowId] -= 1000;
         }
         cv.nanos[rowId] = nanos;
       }
