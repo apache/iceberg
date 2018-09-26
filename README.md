@@ -14,6 +14,9 @@ The core Java library that tracks table snapshots and metadata is complete, but 
 
 The [Iceberg format specification][iceberg-spec] is being actively updated and is open for comment. Until the specification is complete and released, it carries no compatibility guarantees. The spec is currently evolving as the Java reference implementation changes.
 
+[Java API javadocs][iceberg-javadocs] are available for the 0.3.0 (latest) release.
+
+[iceberg-javadocs]: https://netflix.github.io/iceberg/current/javadoc/index.html?com/netflix/iceberg/package-summary.html
 [iceberg-spec]: https://docs.google.com/document/d/1Q-zL5lSCle6NEEdyfiYsXYzX_Q8Qf0ctMyGBKslOswA/edit?usp=sharing 
 
 
@@ -31,18 +34,28 @@ For other discussion, please use the [Iceberg mailing list][iceberg-devel] or op
 
 Iceberg is built using Gradle 4.4.
 
-Iceberg is organized as modules:
+Iceberg table support is organized in library modules:
 
 * `iceberg-common` contains utility classes used in other modules
 * `iceberg-api` contains the public Iceberg API
-* `iceberg-avro` contains helpers for working with Avro files with Iceberg schemas
-* `iceberg-core` contains implementations of the Iceberg API, **this is what most applications should depend on**
+* `iceberg-core` contains implementations of the Iceberg API and support for Avro data files, **this is what processing engines should depend on**
 * `iceberg-parquet` is an optional module for working with tables backed by Parquet files
-* `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg
+* `iceberg-orc` is an optional module for working with tables backed by ORC files (*experimental*)
 
-Current [Java API javadocs][iceberg-javadocs] are available.
+This project Iceberg also has modules for adding Iceberg support to processing engines:
 
-[iceberg-javadocs]: https://netflix.github.io/iceberg/current/javadoc/
+* `iceberg-spark` is an implementation of Pig's LoadFunc API for Iceberg (use iceberg-runtime for a shaded version)
+* `iceberg-data` is a client library used to read Iceberg tables from JVM applications
+* `iceberg-pig` is an implementation of Spark's Datasource V2 API for Iceberg
+
+### Compatibility
+
+Iceberg's Spark integration is compatible with the following Spark versions:
+
+| Iceberg version | Spark version |
+| --------------- | ------------- |
+| 0.2.0+          | 2.3.0         |
+| 0.3.0+          | 2.3.2         |
 
 
 ## About Iceberg
