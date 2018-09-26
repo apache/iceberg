@@ -88,6 +88,11 @@ public class ScanSummary {
       this.recordCount += file.recordCount();
       return this;
     }
+
+    @Override
+    public String toString() {
+      return "PartitionMetrics(fileCount=" + fileCount + ", recordCount=" + recordCount + ")";
+    }
   }
 
   private static class TopN<K, V> {
