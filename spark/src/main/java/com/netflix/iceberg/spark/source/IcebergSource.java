@@ -43,6 +43,7 @@ import static com.netflix.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 
 public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, DataSourceRegister {
 
+  private SparkSession lazySpark = null;
   private Configuration lazyConf = null;
 
   @Override
@@ -98,10 +99,16 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     return tables.load(location.get());
   }
 
+  protected SparkSession lazySparkSession() {
+    if (lazySpark == null) {
+      this.lazySpark = SparkSession.builder().getOrCreate();
+    }
+    return lazySpark;
+  }
+
   protected Configuration lazyConf() {
     if (lazyConf == null) {
-      SparkSession session = SparkSession.builder().getOrCreate();
-      this.lazyConf = session.sparkContext().hadoopConfiguration();
+      this.lazyConf = lazySparkSession().sparkContext().hadoopConfiguration();
     }
     return lazyConf;
   }
