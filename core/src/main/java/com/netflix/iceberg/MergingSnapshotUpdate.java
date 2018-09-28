@@ -30,6 +30,7 @@ import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.expressions.Projections;
 import com.netflix.iceberg.expressions.StrictMetricsEvaluator;
+import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 import com.netflix.iceberg.util.BinPacking.ListPacker;
 import com.netflix.iceberg.util.CharSequenceWrapper;
@@ -85,7 +86,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
   private final Map<List<String>, String> mergeManifests = Maps.newConcurrentMap();
 
   // cache filtered manifests to avoid extra work when commits fail.
-  private final Map<String, String> filteredManifests = Maps.newHashMap();
+  private final Map<String, ManifestReader> filteredManifests = Maps.newHashMap();
 
   private boolean filterUpdated = false; // used to clear caches of filtered and merged manifests
 
@@ -185,8 +186,8 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
             .stopOnFailure().throwFailureWhenFinished()
             .executeWith(getWorkerPool())
             .run(index -> {
-              ManifestReader manifest = filterManifest(deleteExpression, metricsEvaluator,
-                  ManifestReader.read(ops.newInputFile(manifests.get(index))));
+              ManifestReader manifest = filterManifest(
+                  deleteExpression, metricsEvaluator, ops.newInputFile(manifests.get(index)));
               readers[index] = manifest;
               toClose.add(manifest);
             });
@@ -242,14 +243,17 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
   }
 
   private void cleanUncommittedFilters(Set<String> committed) {
-    List<Map.Entry<String, String>> filterEntries = Lists.newArrayList(filteredManifests.entrySet());
-    for (Map.Entry<String, String> entry : filterEntries) {
+    List<Map.Entry<String, ManifestReader>> filterEntries = Lists.newArrayList(filteredManifests.entrySet());
+    for (Map.Entry<String, ManifestReader> entry : filterEntries) {
       // remove any new filtered manifests that aren't in the committed list
       String manifest = entry.getKey();
-      String filtered = entry.getValue();
-      if (filtered != null && !manifest.equals(filtered) && !committed.contains(filtered)) {
-        deleteFile(filtered);
-        filteredManifests.remove(entry.getKey());
+      ManifestReader filtered = entry.getValue();
+      if (filtered != null) {
+        String location = filtered.file().location();
+        if (!manifest.equals(location) && !committed.contains(location)) {
+          filteredManifests.remove(manifest);
+          deleteFile(location);
+        }
       }
     }
   }
@@ -260,14 +264,26 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
     cleanUncommittedFilters(committed);
   }
 
+  private boolean nothingToFilter() {
+    return (deleteExpression == null || deleteExpression == Expressions.alwaysFalse()) &&
+        deletePaths.isEmpty() && dropPartitions.isEmpty();
+  }
+
   /**
    * @return a ManifestReader that is a filtered version of the input manifest.
    */
   private ManifestReader filterManifest(Expression deleteExpression,
                                         StrictMetricsEvaluator metricsEvaluator,
-                                        ManifestReader reader) {
-    if ((deleteExpression == null || deleteExpression == Expressions.alwaysFalse()) &&
-        deletePaths.isEmpty() && dropPartitions.isEmpty()) {
+                                        InputFile manifest) {
+    ManifestReader cached = filteredManifests.get(manifest.location());
+    if (cached != null) {
+      return cached;
+    }
+
+    ManifestReader reader = ManifestReader.read(manifest);
+
+    if (nothingToFilter()) {
+      filteredManifests.put(manifest.location(), reader);
       return reader;
     }
 
@@ -352,7 +368,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
 
       // return the filtered manifest as a reader
       ManifestReader filtered = ManifestReader.read(ops.newInputFile(filteredCopy.location()));
-      filteredManifests.put(reader.file().location(), filteredCopy.location());
+      filteredManifests.put(manifest.location(), filtered);
       return filtered;
 
     } catch (IOException e) {
