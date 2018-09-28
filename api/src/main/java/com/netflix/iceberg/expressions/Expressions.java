@@ -23,6 +23,9 @@ import com.netflix.iceberg.expressions.Expression.Operation;
  * Factory methods for creating {@link Expression expressions}.
  */
 public class Expressions {
+  private Expressions() {
+  }
+
   public static Expression and(Expression left, Expression right) {
     Preconditions.checkNotNull(left, "Left expression cannot be null.");
     Preconditions.checkNotNull(right, "Right expression cannot be null.");
