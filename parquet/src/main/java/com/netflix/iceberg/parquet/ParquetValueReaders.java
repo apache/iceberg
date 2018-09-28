@@ -203,8 +203,8 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public long readLong() {
-      return super.readInteger();
+    public double readDouble() {
+      return super.readFloat();
     }
   }
 
