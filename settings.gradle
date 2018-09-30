@@ -24,6 +24,7 @@ include 'parquet'
 include 'spark'
 include 'pig'
 include 'runtime'
+include 'hive'
 
 
 project(':api').name = 'iceberg-api'
@@ -35,3 +36,5 @@ project(':parquet').name = 'iceberg-parquet'
 project(':spark').name = 'iceberg-spark'
 project(':pig').name = 'iceberg-pig'
 project(':runtime').name = 'iceberg-runtime'
+project(':hive').name = 'iceberg-hive'
+

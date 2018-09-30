@@ -122,6 +122,28 @@ project(':iceberg-data') {
   }
 }
 
+project(':iceberg-hive') {
+    dependencies {
+      compile project(':iceberg-core')
+
+      compileOnly "org.apache.hive:hive-metastore:3.1.0"
+
+      testCompile "org.apache.hive:hive-exec:3.1.0"
+
+      compileOnly('org.apache.hadoop:hadoop-client:2.7.3') {
+        exclude group: 'org.apache.avro', module: 'avro'
+        exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      }
+    }
+
+  test {
+    testLogging {
+      events "failed"
+      exceptionFormat "full"
+    }
+  }
+}
+
 project(':iceberg-orc') {
   dependencies {
     compile project(':iceberg-api')
@@ -222,6 +244,7 @@ project(':iceberg-runtime') {
     shadow project(':iceberg-parquet')
     shadow project(':iceberg-spark')
     shadow project(':iceberg-pig')
+    shadow project(':iceberg-hive')
 
     shadow "org.apache.avro:avro:$avroVersion"
     shadow "org.apache.parquet:parquet-avro:$parquetVersion"
