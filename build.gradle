@@ -63,6 +63,7 @@ subprojects {
     avroVersion = '1.8.2'
     orcVersion = '1.4.2'
     parquetVersion = '1.10.0'
+    hiveVersion = '3.1.0'
 
     jacksonVersion = '2.6.7'
 
@@ -126,7 +127,7 @@ project(':iceberg-hive') {
     dependencies {
       compile project(':iceberg-core')
 
-      compileOnly "org.apache.hive:hive-metastore:3.1.0"
+      compileOnly "org.apache.hive:hive-standalone-metastore:$hiveVersion"
 
       testCompile "org.apache.hive:hive-exec:3.1.0"
 
@@ -135,13 +136,6 @@ project(':iceberg-hive') {
         exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       }
     }
-
-  test {
-    testLogging {
-      events "failed"
-      exceptionFormat "full"
-    }
-  }
 }
 
 project(':iceberg-orc') {
@@ -271,5 +265,71 @@ project(':iceberg-runtime') {
 
     archiveName = "iceberg-runtime-${version}.${extension}"
   }
+}
+
+// Runtime jar for presto. Presto depends on hive fat jar that does not shade avro and bunch
+// of other dependencies. This artifact is used by presto-iceberg plugin.
+project(':iceberg-presto-runtime') {
+    apply plugin: 'com.github.johnrengelman.shadow'
+
+    configurations {
+        shadow
+        compileOnly.extendsFrom shadow
+    }
+
+    dependencies {
+        shadow project(':iceberg-api')
+        shadow project(':iceberg-core')
+        shadow project(':iceberg-parquet')
+        shadow project(':iceberg-hive')
+
+        shadow "org.apache.parquet:parquet-avro:$parquetVersion"
+        shadow "org.apache.avro:avro:$avroVersion"
+        shadow ("org.apache.hive:hive-standalone-metastore:$hiveVersion") {
+            exclude group: 'org.apache.hadoop', module: 'hadoop-common'
+            exclude group: 'org.apache.orc', module: 'orc-core'
+        }
+    }
+
+    tasks.build.dependsOn tasks.shadowJar
+    tasks.install.dependsOn tasks.shadowJar
+    tasks.javadocJar.dependsOn tasks.shadowJar
+
+    shadowJar {
+        zip64 true
+        exclude 'org/htrace/**'
+        exclude 'org/objectweb/**'
+        exclude 'org/apache/thrift/**'
+        exclude 'META-INF/services/org.apache.hadoop**'
+        exclude 'com/thoughtworks/**'
+        exclude 'org/slf4j/**'
+        exclude 'org/znerd/**'
+        exclude 'org/xerial/**'
+        exclude 'org/tukaani/**'
+        exclude 'org/objectweb/**'
+        exclude 'org/apache/commons/**'
+        exclude 'it/unimi/**'
+        exclude 'io/airlift/**'
+        exclude 'com/google/**'
+        exclude 'com/fasterxml/**'
+        exclude 'org/apache/log4j/**'
+        exclude 'org/apache/http/**'
+        exclude 'org/apache/http/version.properties'
+        exclude 'mozilla/public-suffix-list.txt'
+        exclude 'org/apache/http/client/version.properties'
+        exclude 'common-version-info.properties'
+        exclude 'core-default.xml'
+        exclude 'org/apache/hadoop/application-classloader.properties'
+        exclude '**application-classloader.properties'
+
+        configurations = [project.configurations.shadow]
+        from(project.sourceSets.main.output)
+
+        relocate 'org.apache.avro', 'com.netflix.iceberg.shaded.org.apache.avro'
+        relocate 'org.apache.parquet.avro', 'com.netflix.iceberg.shaded.org.apache.parquet.avro'
+        relocate 'org.apache.hadoop.hive', 'com.netflix.iceberg.shaded.org.apache.hadoop.hive'
+        relocate 'org.apache.hive', 'com.netflix.iceberg.shaded.org.apache.hive'
+        archiveName = "iceberg-presto-runtime-${version}.${extension}"
+    }
 }
 
