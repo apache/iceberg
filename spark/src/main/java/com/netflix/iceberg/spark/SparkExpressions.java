@@ -201,7 +201,7 @@ public class SparkExpressions {
     for (Expression value : values) {
       if (value instanceof Literal) {
         Literal lit = (Literal) value;
-        converted.add(lit.value());
+        converted.add(valueFromSpark(lit));
       } else {
         return null;
       }
