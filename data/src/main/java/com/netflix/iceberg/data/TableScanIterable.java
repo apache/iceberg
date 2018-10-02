@@ -18,7 +18,6 @@ package com.netflix.iceberg.data;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.CombinedScanTask;
 import com.netflix.iceberg.FileScanTask;
@@ -37,6 +36,7 @@ import com.netflix.iceberg.io.CloseableIterable;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.parquet.Parquet;
 import com.netflix.iceberg.types.TypeUtil;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
@@ -49,6 +49,7 @@ import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.filter;
 import static com.google.common.collect.Iterables.transform;
 import static com.netflix.iceberg.data.parquet.GenericParquetReaders.buildReader;
+import static java.util.Collections.emptyIterator;
 
 class TableScanIterable extends CloseableGroup implements CloseableIterable<Record> {
   private static final List<String> SNAPSHOT_COLUMNS = ImmutableList.of(
@@ -124,7 +125,7 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
   private class ScanIterator implements Iterator<Record>, Closeable {
     private final Iterator<FileScanTask> tasks;
     private Closeable currentCloseable = null;
-    private Iterator<Record> currentIterator = Iterators.emptyIterator();
+    private Iterator<Record> currentIterator = emptyIterator();
 
     private ScanIterator(Iterable<CombinedScanTask> tasks) {
       this.tasks = Lists.newArrayList(concat(transform(tasks, CombinedScanTask::files))).iterator();

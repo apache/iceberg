@@ -16,7 +16,6 @@
 
 package com.netflix.iceberg.avro;
 
-import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.netflix.iceberg.common.DynConstructors;
@@ -37,6 +36,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
+import static java.util.Collections.emptyIterator;
 
 public class ValueReaders {
   private ValueReaders() {
@@ -426,7 +427,7 @@ public class ValueReaders {
       }
 
       long chunkLength = decoder.readArrayStart();
-      Iterator<?> elIter = lastList != null ? lastList.iterator() : Iterators.emptyIterator();
+      Iterator<?> elIter = lastList != null ? lastList.iterator() : emptyIterator();
 
       while (chunkLength > 0) {
         for (long i = 0; i < chunkLength; i += 1) {
@@ -471,7 +472,7 @@ public class ValueReaders {
       long chunkLength = decoder.readArrayStart();
       Iterator<Map.Entry<?, ?>> kvIter = lastMap != null ?
           lastMap.entrySet().iterator() :
-          Iterators.emptyIterator();
+          emptyIterator();
 
       while (chunkLength > 0) {
         for (long i = 0; i < chunkLength; i += 1) {
@@ -525,7 +526,7 @@ public class ValueReaders {
       long chunkLength = decoder.readMapStart();
       Iterator<Map.Entry<?, ?>> kvIter = lastMap != null ?
           lastMap.entrySet().iterator() :
-          Iterators.emptyIterator();
+          emptyIterator();
 
       while (chunkLength > 0) {
         for (long i = 0; i < chunkLength; i += 1) {
