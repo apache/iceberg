@@ -41,14 +41,14 @@ Iceberg table support is organized in library modules:
 * `iceberg-core` contains implementations of the Iceberg API and support for Avro data files, **this is what processing engines should depend on**
 * `iceberg-parquet` is an optional module for working with tables backed by Parquet files
 * `iceberg-orc` is an optional module for working with tables backed by ORC files (*experimental*)
+* `iceberg-hive` is am implementation of iceberg tables backed by hive metastore thrift client
 
 This project Iceberg also has modules for adding Iceberg support to processing engines:
 
 * `iceberg-spark` is an implementation of Pig's LoadFunc API for Iceberg (use iceberg-runtime for a shaded version)
 * `iceberg-data` is a client library used to read Iceberg tables from JVM applications
 * `iceberg-pig` is an implementation of Spark's Datasource V2 API for Iceberg
-* `iceberg-presto` generates a shaded runtime jar that is used by presto to integrate with iceberg tables.
-* `iceberg-hive` is am implementation of iceberg tables backed by hive metastore thrift client. The metastore is only used to provide a **best effort** atomic swap of iceberg metadata location.
+* `iceberg-presto-runtime` generates a shaded runtime jar that is used by presto to integrate with iceberg tables
 
 ### Compatibility
 
