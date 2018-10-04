@@ -47,7 +47,7 @@ public class HadoopOutputFile implements OutputFile {
     FileSystem fs = Util.getFS(path, conf);
     try {
       return HadoopStreams.wrap(fs.create(path, false /* createOrOverwrite */));
-    } catch (FileAlreadyExistsException | org.apache.hadoop.mapred.FileAlreadyExistsException e) {
+    } catch (FileAlreadyExistsException e) {
       throw new AlreadyExistsException(e, "Path already exists: %s", path);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to create file: %s", path);
