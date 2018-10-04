@@ -74,7 +74,47 @@ public class TestReplaceFiles extends TableTestBase {
                       .apply();
             }
     );
+  }
 
+  @Test
+  public void testDeleteWithDuplicateEntriesInManifest() {
+    Assert.assertEquals("Table should start empty", 0, listMetadataFiles("avro").size());
+
+    table.newAppend()
+            .appendFile(FILE_A)
+            .appendFile(FILE_A)
+            .appendFile(FILE_B)
+            .commit();
+
+    TableMetadata base = readMetadata();
+    final long baseSnapshotId = base.currentSnapshot().snapshotId();
+    Assert.assertEquals("Should create 1 manifest for initial write",
+            1, base.currentSnapshot().manifests().size());
+    String initialManifest = base.currentSnapshot().manifests().get(0);
+
+    Snapshot pending = table.newRewrite()
+            .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_C))
+            .apply();
+
+    Assert.assertEquals("Should contain 2 manifest",
+            2, pending.manifests().size());
+    Assert.assertFalse("Should not contain manifest from initial write",
+            pending.manifests().contains(initialManifest));
+
+    long pendingId = pending.snapshotId();
+
+    validateManifestEntries(pending.manifests().get(0),
+            ids(pendingId,pendingId, baseSnapshotId),
+            concat(files(FILE_A, FILE_A, FILE_B)),
+            statuses(DELETED, DELETED, EXISTING));
+
+    validateManifestEntries(pending.manifests().get(1),
+            ids(pendingId),
+            concat(files(FILE_C)),
+            statuses(ADDED));
+
+    // We should only get the 3 manifests that this test is expected to add.
+    Assert.assertEquals("Only 3 manifests should exist", 3, listMetadataFiles("avro").size());
   }
 
   @Test

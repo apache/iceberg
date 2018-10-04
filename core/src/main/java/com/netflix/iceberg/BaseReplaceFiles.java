@@ -6,6 +6,8 @@ import com.netflix.iceberg.exceptions.ValidationException;
 import com.netflix.iceberg.io.OutputFile;
 import com.netflix.iceberg.util.Tasks;
 import com.netflix.iceberg.util.ThreadPools;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -18,13 +20,16 @@ import java.util.stream.Collectors;
 
 import static com.netflix.iceberg.ManifestEntry.Status.DELETED;
 import static java.util.Collections.synchronizedList;
+import static java.util.Collections.synchronizedSet;
 
 public abstract class BaseReplaceFiles extends SnapshotUpdate {
+
+  private final Logger LOG = LoggerFactory.getLogger(getClass());
 
   private final TableOperations ops;
   private final List<String> newManifests = synchronizedList(new ArrayList<>());
   private List<String> manifestFiles = synchronizedList(new ArrayList<>());
-  private List<String> deletedFiles = synchronizedList(new ArrayList<>());
+  private Set<String> deletedFiles = synchronizedSet(new HashSet<>());
   private String appendManifest;
   private final AtomicInteger manifestCount = new AtomicInteger(0);
 
@@ -74,7 +79,11 @@ public abstract class BaseReplaceFiles extends SnapshotUpdate {
               if (shouldDelete(reader.spec()).test(manifestEntry)) {
                 hasDeletes = true;
                 writer.delete(manifestEntry);
-                deletedFiles.add(manifestEntry.file().path().toString());
+                final String deletedPath = manifestEntry.file().path().toString();
+                if(deletedFiles.contains(deletedPath)) {
+                  LOG.warn(String.format("Deleting a duplicated path %s from manifest %s", deletedPath, manifest));
+                }
+                deletedFiles.add(deletedPath);
               } else {
                 writer.addExisting(manifestEntry);
               }
@@ -103,7 +112,7 @@ public abstract class BaseReplaceFiles extends SnapshotUpdate {
     return Iterables.filter(reader.entries(), entry -> entry.status() != DELETED);
   }
 
-  protected List<String> deletedFiles() {
+  protected Set<String> deletedFiles() {
     return this.deletedFiles;
   }
 
