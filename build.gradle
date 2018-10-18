@@ -19,11 +19,13 @@ buildscript {
   dependencies {
     classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.0'
     classpath 'com.netflix.nebula:gradle-aggregate-javadocs-plugin:2.2.+'
+    classpath 'com.netflix.nebula:nebula-publishing-plugin:5.1.5'
   }
 }
 
 plugins {
   id 'nebula.netflixoss' version '4.1.0'
+  id 'com.palantir.git-version' version '0.9.1'
 }
 
 if (JavaVersion.current() != JavaVersion.VERSION_1_8) {
@@ -32,7 +34,7 @@ if (JavaVersion.current() != JavaVersion.VERSION_1_8) {
 
 allprojects {
   group = "com.netflix.iceberg"
-  version = '0.3.1'
+  version = gitVersion()
 }
 
 apply plugin: 'nebula-aggregate-javadocs'
@@ -42,6 +44,7 @@ subprojects {
   apply plugin: 'nebula.source-jar'
   apply plugin: 'java'
   apply plugin: 'maven' // make pom files for deployment
+  apply plugin: 'nebula.maven-base-publish'
 
   repositories {
     mavenCentral()
@@ -81,6 +84,13 @@ subprojects {
     testCompile 'junit:junit:4.12'
     testCompile 'org.slf4j:slf4j-simple:1.7.5'
     testCompile 'org.mockito:mockito-all:1.10.19'
+  }
+  publishing {
+    publications {
+      nebula(MavenPublication) {
+        from components.java
+      }
+    }
   }
 }
 
