@@ -228,8 +228,8 @@ class PartitionKey implements StructLike {
   }
 
   private static class PositionAccessor implements Accessor<InternalRow> {
-    private final DataType type;
-    private int p;
+    protected final DataType type;
+    protected int p;
 
     private PositionAccessor(int p, DataType type) {
       this.p = p;
@@ -238,6 +238,9 @@ class PartitionKey implements StructLike {
 
     @Override
     public Object get(InternalRow row) {
+      if (row.isNullAt(p)) {
+        return null;
+      }
       return row.get(p, type);
     }
   }
@@ -249,7 +252,10 @@ class PartitionKey implements StructLike {
 
     @Override
     public Object get(InternalRow row) {
-      return super.get(row).toString();
+      if (row.isNullAt(p)) {
+        return null;
+      }
+      return row.get(p, type).toString();
     }
   }
 
@@ -260,7 +266,10 @@ class PartitionKey implements StructLike {
 
     @Override
     public Object get(InternalRow row) {
-      return ((Decimal) super.get(row)).toJavaBigDecimal();
+      if (row.isNullAt(p)) {
+        return null;
+      }
+      return ((Decimal) row.get(p, type)).toJavaBigDecimal();
     }
   }
 
