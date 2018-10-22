@@ -2,6 +2,7 @@
 
 [![](https://travis-ci.org/Netflix/iceberg.svg?branch=master)](https://travis-ci.org/Netflix/iceberg/branches)
 [![](https://jitpack.io/v/Netflix/iceberg.svg)](https://jitpack.io/#Netflix/iceberg)
+[![](https://badges.gitter.im/iceberg-tables/Lobby.svg)](https://gitter.im/iceberg-tables/Lobby)
 
 Iceberg is a new table format for storing large, slow-moving tabular data. It is designed to improve on the de-facto standard table layout built into Hive, Presto, and Spark.
 
