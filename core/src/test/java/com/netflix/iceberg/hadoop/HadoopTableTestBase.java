@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static com.netflix.iceberg.Files.localInput;
+import static com.netflix.iceberg.TableMetadataParser.getFileExtension;
 import static com.netflix.iceberg.types.Types.NestedField.optional;
 import static com.netflix.iceberg.types.Types.NestedField.required;
 
@@ -116,7 +117,7 @@ public class HadoopTableTestBase {
   }
 
   File version(int i) {
-    return new File(metadataDir, "v" + i + ".metadata.json");
+    return new File(metadataDir, "v" + i + getFileExtension(new Configuration()));
   }
 
   TableMetadata readMetadataVersion(int version) {

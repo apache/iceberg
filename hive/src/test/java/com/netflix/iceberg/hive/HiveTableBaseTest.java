@@ -17,6 +17,7 @@ package com.netflix.iceberg.hive;
 
 import com.netflix.iceberg.PartitionSpec;
 import com.netflix.iceberg.Schema;
+import com.netflix.iceberg.TableMetadataParser;
 import com.netflix.iceberg.types.Types;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -60,6 +61,7 @@ import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 import static com.netflix.iceberg.PartitionSpec.builderFor;
+import static com.netflix.iceberg.TableMetadataParser.getFileExtension;
 import static com.netflix.iceberg.types.Types.NestedField.optional;
 import static com.netflix.iceberg.types.Types.NestedField.required;
 import static java.nio.file.Files.createTempDirectory;
@@ -220,7 +222,7 @@ class HiveTableBaseTest {
   }
 
   List<String> metadataVersionFiles(String tableName) {
-    return filterByExtension(tableName, "metadata.json");
+    return filterByExtension(tableName, getFileExtension(hiveConf));
   }
 
   List<String> manifestFiles(String tableName) {
