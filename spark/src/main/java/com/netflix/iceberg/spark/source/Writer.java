@@ -39,10 +39,8 @@ import com.netflix.iceberg.hadoop.HadoopOutputFile;
 import com.netflix.iceberg.io.FileAppender;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
-import com.netflix.iceberg.orc.ORC;
 import com.netflix.iceberg.parquet.Parquet;
 import com.netflix.iceberg.spark.data.SparkAvroWriter;
-import com.netflix.iceberg.spark.data.SparkOrcWriter;
 import com.netflix.iceberg.transforms.Transform;
 import com.netflix.iceberg.transforms.Transforms;
 import com.netflix.iceberg.types.Types.StringType;
@@ -216,9 +214,8 @@ class Writer implements DataSourceWriter {
     }
 
     @Override
-    public DataWriter<InternalRow> createDataWriter(int partitionId, int attemptNumber) {
-      String filename = format.addExtension(String.format("%05d-%d-%s",
-          partitionId, attemptNumber, uuid));
+    public DataWriter<InternalRow> createDataWriter(int partitionId, long taskId, long epochId) {
+      String filename = format.addExtension(String.format("%05d-%d-%s", partitionId, taskId, uuid));
       AppenderFactory<InternalRow> factory = new SparkAppenderFactory();
       if (spec.fields().isEmpty()) {
         return new UnpartitionedWriter(lazyDataPath(), filename, format, conf.value(), factory);
@@ -299,13 +296,6 @@ class Writer implements DataSourceWriter {
                   .schema(schema)
                   .build();
 
-            case ORC: {
-              @SuppressWarnings("unchecked")
-              SparkOrcWriter writer = new SparkOrcWriter(ORC.write(file)
-                  .schema(schema)
-                  .build());
-              return writer;
-            }
             default:
               throw new UnsupportedOperationException("Cannot write unknown format: " + format);
           }

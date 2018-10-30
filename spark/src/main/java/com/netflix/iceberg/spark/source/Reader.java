@@ -38,10 +38,9 @@ import com.netflix.iceberg.hadoop.HadoopInputFile;
 import com.netflix.iceberg.io.CloseableIterable;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.parquet.Parquet;
-import com.netflix.iceberg.spark.SparkExpressions;
+import com.netflix.iceberg.spark.SparkFilters;
 import com.netflix.iceberg.spark.SparkSchemaUtil;
 import com.netflix.iceberg.spark.data.SparkAvroReader;
-import com.netflix.iceberg.spark.data.SparkOrcReader;
 import com.netflix.iceberg.spark.data.SparkParquetReaders;
 import com.netflix.iceberg.types.TypeUtil;
 import com.netflix.iceberg.types.Types;
@@ -52,11 +51,12 @@ import org.apache.spark.sql.catalyst.expressions.AttributeReference;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.expressions.JoinedRow;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
+import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.v2.reader.DataSourceReader;
 import org.apache.spark.sql.sources.v2.reader.InputPartition;
 import org.apache.spark.sql.sources.v2.reader.InputPartitionReader;
 import org.apache.spark.sql.sources.v2.reader.Statistics;
-import org.apache.spark.sql.sources.v2.reader.SupportsPushDownCatalystFilters;
+import org.apache.spark.sql.sources.v2.reader.SupportsPushDownFilters;
 import org.apache.spark.sql.sources.v2.reader.SupportsPushDownRequiredColumns;
 import org.apache.spark.sql.sources.v2.reader.SupportsReportStatistics;
 import org.apache.spark.sql.types.BinaryType;
@@ -83,17 +83,16 @@ import static com.netflix.iceberg.spark.SparkSchemaUtil.prune;
 import static scala.collection.JavaConverters.asScalaBufferConverter;
 import static scala.collection.JavaConverters.seqAsJavaListConverter;
 
-class Reader implements DataSourceReader, SupportsPushDownCatalystFilters,
-    SupportsPushDownRequiredColumns, SupportsReportStatistics {
+class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushDownRequiredColumns,
+    SupportsReportStatistics {
 
-  private static final org.apache.spark.sql.catalyst.expressions.Expression[] NO_EXPRS =
-      new org.apache.spark.sql.catalyst.expressions.Expression[0];
+  private static final Filter[] NO_FILTERS = new Filter[0];
 
   private final Table table;
   private final SerializableConfiguration conf;
   private StructType requestedSchema = null;
   private List<Expression> filterExpressions = null;
-  private org.apache.spark.sql.catalyst.expressions.Expression[] pushedExprs = NO_EXPRS;
+  private Filter[] pushedFilters = NO_FILTERS;
 
   // lazy variables
   private Schema schema = null;
@@ -143,16 +142,14 @@ class Reader implements DataSourceReader, SupportsPushDownCatalystFilters,
   }
 
   @Override
-  public org.apache.spark.sql.catalyst.expressions.Expression[] pushCatalystFilters(
-      org.apache.spark.sql.catalyst.expressions.Expression[] filters) {
+  public Filter[] pushFilters(Filter[] filters) {
     this.tasks = null; // invalidate cached tasks, if present
 
     List<Expression> expressions = Lists.newArrayListWithExpectedSize(filters.length);
-    List<org.apache.spark.sql.catalyst.expressions.Expression> pushed =
-        Lists.newArrayListWithExpectedSize(filters.length);
+    List<Filter> pushed = Lists.newArrayListWithExpectedSize(filters.length);
 
-    for (org.apache.spark.sql.catalyst.expressions.Expression filter : filters) {
-      Expression expr = SparkExpressions.convert(filter);
+    for (Filter filter : filters) {
+      Expression expr = SparkFilters.convert(filter);
       if (expr != null) {
         expressions.add(expr);
         pushed.add(filter);
@@ -160,7 +157,7 @@ class Reader implements DataSourceReader, SupportsPushDownCatalystFilters,
     }
 
     this.filterExpressions = expressions;
-    this.pushedExprs = pushed.toArray(new org.apache.spark.sql.catalyst.expressions.Expression[0]);
+    this.pushedFilters = pushed.toArray(new Filter[0]);
 
     // invalidate the schema that will be projected
     this.schema = null;
@@ -172,8 +169,8 @@ class Reader implements DataSourceReader, SupportsPushDownCatalystFilters,
   }
 
   @Override
-  public org.apache.spark.sql.catalyst.expressions.Expression[] pushedCatalystFilters() {
-    return pushedExprs;
+  public Filter[] pushedFilters() {
+    return pushedFilters;
   }
 
   @Override
@@ -186,7 +183,7 @@ class Reader implements DataSourceReader, SupportsPushDownCatalystFilters,
   }
 
   @Override
-  public Statistics getStatistics() {
+  public Statistics estimateStatistics() {
     long sizeInBytes = 0L;
     long numRows = 0L;
 
@@ -394,11 +391,6 @@ class Reader implements DataSourceReader, SupportsPushDownCatalystFilters,
       InputFile location = HadoopInputFile.fromLocation(task.file().path(), conf);
       CloseableIterable<InternalRow> iter;
       switch (task.file().format()) {
-        case ORC:
-          SparkOrcReader reader = new SparkOrcReader(location, task, readSchema);
-          this.currentCloseable = reader;
-          return reader;
-
         case PARQUET:
           iter = newParquetIterable(location, task, readSchema);
           break;

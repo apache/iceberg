@@ -55,7 +55,7 @@ subprojects {
     mavenLocal()
     maven {
       name 'stagedSpark'
-      url 'https://repository.apache.org/content/repositories/orgapachespark-1290/'
+      url 'https://repository.apache.org/content/repositories/orgapachespark-1291/'
     }
   }
 
@@ -156,22 +156,22 @@ project(':iceberg-hive') {
     }
 }
 
-project(':iceberg-orc') {
-  dependencies {
-    compile project(':iceberg-api')
-    compile project(':iceberg-core')
-
-    compile("org.apache.orc:orc-core:$orcVersion:nohive") {
-      exclude group: 'org.apache.hadoop', module: 'hadoop-common'
-    }
-    
-    
-    compileOnly("org.apache.hadoop:hadoop-client:$hadoopVersion") {
-      exclude group: 'org.apache.avro', module: 'avro'
-    }
-
-  }
-}
+// project(':iceberg-orc') {
+//   dependencies {
+//     compile project(':iceberg-api')
+//     compile project(':iceberg-core')
+//
+//     compile("org.apache.orc:orc-core:$orcVersion:nohive") {
+//       exclude group: 'org.apache.hadoop', module: 'hadoop-common'
+//     }
+//
+//
+//     compileOnly("org.apache.hadoop:hadoop-client:$hadoopVersion") {
+//       exclude group: 'org.apache.avro', module: 'avro'
+//     }
+//
+//   }
+// }
 
 project(':iceberg-parquet') {
   dependencies {
@@ -194,7 +194,7 @@ project(':iceberg-spark') {
     compile project(':iceberg-api')
     compile project(':iceberg-common')
     compile project(':iceberg-core')
-    compile project(':iceberg-orc')
+//    compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
 
     compileOnly "org.apache.avro:avro:$avroVersion"
@@ -253,7 +253,7 @@ project(':iceberg-runtime') {
     shadow project(':iceberg-api')
     shadow project(':iceberg-common')
     shadow project(':iceberg-core')
-    shadow project(':iceberg-orc')
+//    shadow project(':iceberg-orc')
     shadow project(':iceberg-parquet')
     shadow project(':iceberg-spark')
     shadow project(':iceberg-pig')
@@ -306,7 +306,7 @@ project(':iceberg-presto-runtime') {
         shadow "org.apache.avro:avro:$avroVersion"
         shadow ("org.apache.hive:hive-standalone-metastore:$hiveVersion") {
             exclude group: 'org.apache.hadoop', module: 'hadoop-common'
-            exclude group: 'org.apache.orc', module: 'orc-core'
+//            exclude group: 'org.apache.orc', module: 'orc-core'
         }
     }
 
