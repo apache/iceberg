@@ -163,7 +163,7 @@ public class TableMetadata {
     for (SnapshotLogEntry logEntry : snapshotLog) {
       if (last != null) {
         Preconditions.checkArgument(
-            (logEntry.timestampMillis() - last.timestampMillis()) > 0,
+            (logEntry.timestampMillis() - last.timestampMillis()) >= 0,
             "[BUG] Expected sorted snapshot log entries.");
       }
       last = logEntry;
