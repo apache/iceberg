@@ -26,6 +26,7 @@ import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Projections;
 import com.netflix.iceberg.io.CloseableGroup;
+import com.netflix.iceberg.io.CloseableIterable;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.types.Types;
 import org.slf4j.Logger;
@@ -173,14 +174,23 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
     this.deletes = deletes;
   }
 
-  Iterable<ManifestEntry> entries() {
+  CloseableIterable<ManifestEntry> entries() {
     return entries(ALL_COLUMNS);
   }
 
-  Iterable<ManifestEntry> entries(Collection<String> columns) {
+  CloseableIterable<ManifestEntry> entries(Collection<String> columns) {
     if (entries != null) {
       // if this reader is an in-memory list or if the entries have been cached, return the list.
-      return entries;
+      return new CloseableIterable<ManifestEntry>() {
+        @Override
+        public void close() {
+        }
+
+        @Override
+        public Iterator<ManifestEntry> iterator() {
+          return entries.iterator();
+        }
+      };
     }
 
     FileFormat format = FileFormat.fromFileName(file.location());

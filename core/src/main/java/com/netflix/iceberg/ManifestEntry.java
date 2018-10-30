@@ -16,6 +16,7 @@
 
 package com.netflix.iceberg;
 
+import com.google.common.base.Objects;
 import com.netflix.iceberg.avro.AvroSchemaUtil;
 import com.netflix.iceberg.types.Types.IntegerType;
 import com.netflix.iceberg.types.Types.LongType;
@@ -174,4 +175,12 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable{
         required(2, "data_file", fileStruct));
   }
 
+  @Override
+  public String toString() {
+    return Objects.toStringHelper(this)
+        .add("status", status)
+        .add("snapshot_id", snapshotId)
+        .add("file", file)
+        .toString();
+  }
 }
