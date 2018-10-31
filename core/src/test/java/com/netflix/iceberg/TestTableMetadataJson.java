@@ -42,10 +42,10 @@ public class TestTableMetadataJson {
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        null, previousSnapshotId, previousSnapshotId, ImmutableList.of("file:/tmp/manfiest.1.avro"));
+        null, previousSnapshotId, null, previousSnapshotId, ImmutableList.of("file:/tmp/manfiest.1.avro"));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        null, currentSnapshotId, currentSnapshotId, ImmutableList.of("file:/tmp/manfiest.2.avro"));
+        null, currentSnapshotId, previousSnapshotId, currentSnapshotId, ImmutableList.of("file:/tmp/manfiest.2.avro"));
 
     List<SnapshotLogEntry> snapshotLog = ImmutableList.<SnapshotLogEntry>builder()
         .add(new SnapshotLogEntry(previousSnapshot.timestampMillis(), previousSnapshot.snapshotId()))
@@ -74,6 +74,8 @@ public class TestTableMetadataJson {
         expected.snapshotLog(), metadata.snapshotLog());
     Assert.assertEquals("Current snapshot ID should match",
         currentSnapshotId, metadata.currentSnapshot().snapshotId());
+    Assert.assertEquals("Parent snapshot ID should match",
+        (Long) previousSnapshotId, metadata.currentSnapshot().parentId());
     Assert.assertEquals("Current snapshot files should match",
         currentSnapshot.manifests(), metadata.currentSnapshot().manifests());
     Assert.assertEquals("Previous snapshot ID should match",
@@ -95,10 +97,10 @@ public class TestTableMetadataJson {
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        null, previousSnapshotId, previousSnapshotId, ImmutableList.of("file:/tmp/manfiest.1.avro"));
+        null, previousSnapshotId, null, previousSnapshotId, ImmutableList.of("file:/tmp/manfiest.1.avro"));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        null, currentSnapshotId, currentSnapshotId, ImmutableList.of("file:/tmp/manfiest.2.avro"));
+        null, currentSnapshotId, previousSnapshotId, currentSnapshotId, ImmutableList.of("file:/tmp/manfiest.2.avro"));
 
     List<SnapshotLogEntry> reversedSnapshotLog = Lists.newArrayList();
 

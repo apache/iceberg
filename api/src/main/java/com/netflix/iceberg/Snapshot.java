@@ -35,6 +35,13 @@ public interface Snapshot extends Filterable<FilteredSnapshot> {
   long snapshotId();
 
   /**
+   * Return this snapshot's parent ID or null.
+   *
+   * @return a long ID for this snapshot's parent, or null if it has no parent
+   */
+  Long parentId();
+
+  /**
    * Return this snapshot's timestamp.
    * <p>
    * This timestamp is the same as those produced by {@link System#currentTimeMillis()}.

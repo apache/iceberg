@@ -33,6 +33,7 @@ import java.util.List;
 class BaseSnapshot extends CloseableGroup implements Snapshot, SnapshotIterable {
   private final TableOperations ops;
   private final long snapshotId;
+  private final Long parentId;
   private final long timestampMillis;
   private final List<String> manifestFiles;
 
@@ -46,15 +47,17 @@ class BaseSnapshot extends CloseableGroup implements Snapshot, SnapshotIterable 
   BaseSnapshot(TableOperations ops,
                long snapshotId,
                String... manifestFiles) {
-    this(ops, snapshotId, System.currentTimeMillis(), Arrays.asList(manifestFiles));
+    this(ops, snapshotId, null, System.currentTimeMillis(), Arrays.asList(manifestFiles));
   }
 
   BaseSnapshot(TableOperations ops,
                long snapshotId,
+               Long parentId,
                long timestampMillis,
                List<String> manifestFiles) {
     this.ops = ops;
     this.snapshotId = snapshotId;
+    this.parentId = parentId;
     this.timestampMillis = timestampMillis;
     this.manifestFiles = manifestFiles;
   }
@@ -62,6 +65,11 @@ class BaseSnapshot extends CloseableGroup implements Snapshot, SnapshotIterable 
   @Override
   public long snapshotId() {
     return snapshotId;
+  }
+
+  @Override
+  public Long parentId() {
+    return parentId;
   }
 
   @Override

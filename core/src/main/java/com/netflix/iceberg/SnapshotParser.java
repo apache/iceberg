@@ -28,12 +28,16 @@ import java.util.List;
 public class SnapshotParser {
 
   private static final String SNAPSHOT_ID = "snapshot-id";
+  private static final String PARENT_SNAPSHOT_ID = "parent-snapshot-id";
   private static final String TIMESTAMP_MS = "timestamp-ms";
   private static final String MANIFESTS = "manifests";
 
   static void toJson(Snapshot snapshot, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
     generator.writeNumberField(SNAPSHOT_ID, snapshot.snapshotId());
+    if (snapshot.parentId() != null) {
+      generator.writeNumberField(PARENT_SNAPSHOT_ID, snapshot.parentId());
+    }
     generator.writeNumberField(TIMESTAMP_MS, snapshot.timestampMillis());
     generator.writeArrayFieldStart(MANIFESTS);
     for (String file : snapshot.manifests()) {
@@ -61,10 +65,14 @@ public class SnapshotParser {
         "Cannot parse table version from a non-object: %s", node);
 
     long versionId = JsonUtil.getLong(SNAPSHOT_ID, node);
+    Long parentId = null;
+    if (node.has(PARENT_SNAPSHOT_ID)) {
+      parentId = JsonUtil.getLong(PARENT_SNAPSHOT_ID, node);
+    }
     long timestamp = JsonUtil.getLong(TIMESTAMP_MS, node);
     List<String> manifests = JsonUtil.getStringList(MANIFESTS, node);
 
-    return new BaseSnapshot(ops, versionId, timestamp, manifests);
+    return new BaseSnapshot(ops, versionId, parentId, timestamp, manifests);
   }
 
   public static Snapshot fromJson(TableOperations ops, String json) {

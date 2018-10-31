@@ -247,7 +247,7 @@ public class TableMetadata {
         snapshots,snapshotLog);
   }
 
-  public TableMetadata addSnapshot(Snapshot snapshot) {
+  public TableMetadata replaceCurrentSnapshot(Snapshot snapshot) {
     List<Snapshot> newSnapshots = ImmutableList.<Snapshot>builder()
         .addAll(snapshots)
         .add(snapshot)

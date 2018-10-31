@@ -76,7 +76,10 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
   public Snapshot apply() {
     this.base = ops.refresh();
     List<String> manifests = apply(base);
-    return new BaseSnapshot(ops, snapshotId(), System.currentTimeMillis(), manifests);
+    long currentSnapshotId = base.currentSnapshot() != null ?
+        base.currentSnapshot().snapshotId() : -1;
+    return new BaseSnapshot(ops,
+        snapshotId(), currentSnapshotId, System.currentTimeMillis(), manifests);
   }
 
   @Override
@@ -95,7 +98,7 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
           .run(ops -> {
             Snapshot newSnapshot = apply();
             newSnapshotId.set(newSnapshot.snapshotId());
-            TableMetadata updated = base.addSnapshot(newSnapshot);
+            TableMetadata updated = base.replaceCurrentSnapshot(newSnapshot);
             ops.commit(base, updated);
           });
 
