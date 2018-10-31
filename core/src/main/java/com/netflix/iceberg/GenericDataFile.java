@@ -19,6 +19,7 @@ package com.netflix.iceberg;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 import com.netflix.iceberg.avro.AvroSchemaUtil;
+import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Types;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
@@ -29,7 +30,8 @@ import java.util.Map;
 
 class GenericDataFile
     implements DataFile, IndexedRecord, SpecificData.SchemaConstructable, Serializable {
-  private static final PartitionData EMPTY_PARTITION_DATA = new PartitionData(Types.StructType.of()) {
+  private static final Types.StructType EMPTY_STRUCT_TYPE = Types.StructType.of();
+  private static final PartitionData EMPTY_PARTITION_DATA = new PartitionData(EMPTY_STRUCT_TYPE) {
     @Override
     public PartitionData copy() {
       return this; // this does not change
@@ -65,7 +67,14 @@ class GenericDataFile
     this.avroSchema = avroSchema;
 
     Types.StructType schema = AvroSchemaUtil.convert(avroSchema).asNestedType().asStructType();
-    this.partitionType = schema.fieldType("partition").asNestedType().asStructType();
+
+    // partition type may be null if the field was not projected
+    Type partType = schema.fieldType("partition");
+    if (partType != null) {
+      this.partitionType = partType.asNestedType().asStructType();
+    } else {
+      this.partitionType = EMPTY_STRUCT_TYPE;
+    }
 
     List<Types.NestedField> fields = schema.fields();
     List<Types.NestedField> allFields = DataFile.getType(partitionType).fields();
