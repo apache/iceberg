@@ -102,6 +102,8 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
             ops.commit(base, updated);
           });
 
+      LOG.info("Committed snapshot {} ({})", newSnapshotId.get(), getClass().getSimpleName());
+
       // at this point, the commit and refresh must have succeeded and the snapshot should be in
       // the table's current metadata. the snapshot is loaded by id in case another commit was
       // added between this commit and the refresh
