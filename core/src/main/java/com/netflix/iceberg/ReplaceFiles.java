@@ -17,58 +17,31 @@
 package com.netflix.iceberg;
 
 import com.google.common.base.Preconditions;
-import com.netflix.iceberg.exceptions.ValidationException;
-
-import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
-import static java.lang.String.format;
-
-class ReplaceFiles extends BaseReplaceFiles implements RewriteFiles {
-
-  private final TableOperations ops;
-  private final Set<CharSequence> pathsToDelete = new HashSet<>();
-
+class ReplaceFiles extends MergingSnapshotUpdate implements RewriteFiles {
   ReplaceFiles(TableOperations ops) {
     super(ops);
-    this.ops = ops;
-  }
 
-  /**
-   * @param base TableMetadata of the base snapshot
-   * @return list of manifestsToCommit that "may" get committed if commit is called on this instance.
-   */
-  @Override
-  protected List<String> apply(TableMetadata base) {
-    final List<String> manifests = super.apply(base);
-
-    if (deletedFiles().size() != pathsToDelete.size()) {
-      final String paths = pathsToDelete.stream()
-              .filter(path -> !deletedFiles().contains(path))
-              .collect(Collectors.joining(","));
-      String msg = format("files %s are no longer available in any manifestsToCommit", paths);
-      throw new ValidationException(msg);
-    }
-
-    return manifests;
-  }
-
-  @Override
-  protected Predicate<ManifestEntry> shouldDelete(PartitionSpec spec) {
-    return manifestEntry -> this.pathsToDelete.contains(manifestEntry.file().path());
+    // replace files must fail if any of the deleted paths is missing and cannot be deleted
+    failMissingDeletePaths();
   }
 
   @Override
   public RewriteFiles rewriteFiles(Set<DataFile> filesToDelete, Set<DataFile> filesToAdd) {
-    Preconditions.checkArgument(filesToDelete != null && !filesToDelete.isEmpty(), "files to delete can not be null or empty");
-    Preconditions.checkArgument(filesToAdd != null && !filesToAdd.isEmpty(), "files to add can not be null or empty");
+    Preconditions.checkArgument(filesToDelete != null && !filesToDelete.isEmpty(),
+        "Files to delete cannot be null or empty");
+    Preconditions.checkArgument(filesToAdd != null && !filesToAdd.isEmpty(),
+        "Files to add can not be null or empty");
 
-    this.pathsToDelete.addAll(filesToDelete.stream().map(d -> d.path()).collect(Collectors.toList()));
-    this.filesToAdd.addAll(filesToAdd);
-    this.hasNewFiles = true;
+    for (DataFile toDelete : filesToDelete) {
+      delete(toDelete.path());
+    }
+
+    for (DataFile toAdd : filesToAdd) {
+      add(toAdd);
+    }
+
     return this;
   }
 }

@@ -16,6 +16,7 @@
 
 package com.netflix.iceberg;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -36,6 +37,8 @@ import com.netflix.iceberg.util.BinPacking.ListPacker;
 import com.netflix.iceberg.util.CharSequenceWrapper;
 import com.netflix.iceberg.util.StructLikeWrapper;
 import com.netflix.iceberg.util.Tasks;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -47,6 +50,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.google.common.collect.Iterables.filter;
+import static com.google.common.collect.Iterables.transform;
 import static com.netflix.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
 import static com.netflix.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT_DEFAULT;
 import static com.netflix.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
@@ -54,7 +59,10 @@ import static com.netflix.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEF
 import static com.netflix.iceberg.util.ThreadPools.getWorkerPool;
 
 abstract class MergingSnapshotUpdate extends SnapshotUpdate {
+  private final Logger LOG = LoggerFactory.getLogger(getClass());
+
   private static final long SIZE_PER_FILE = 100; // assume each file will be ~100 bytes
+  private static final Joiner COMMA = Joiner.on(",");
 
   protected static class DeleteException extends ValidationException {
     private final String partition;
@@ -81,12 +89,17 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
   private final Set<StructLikeWrapper> dropPartitions = Sets.newHashSet();
   private Expression deleteExpression = Expressions.alwaysFalse();
   private boolean failAnyDelete = false;
+  private boolean failMissingDeletePaths = false;
 
   // cache merge results to reuse when retrying
   private final Map<List<String>, String> mergeManifests = Maps.newConcurrentMap();
 
   // cache filtered manifests to avoid extra work when commits fail.
-  private final Map<String, ManifestReader> filteredManifests = Maps.newHashMap();
+  private final Map<String, ManifestReader> filteredManifests = Maps.newConcurrentMap();
+
+  // tracking where files were deleted to validate retries quickly
+  private final Map<String, Set<CharSequenceWrapper>> filteredManifestToDeletedFiles =
+      Maps.newConcurrentMap();
 
   private boolean filterUpdated = false; // used to clear caches of filtered and merged manifests
 
@@ -115,6 +128,10 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
 
   protected void failAnyDelete() {
     this.failAnyDelete = true;
+  }
+
+  protected void failMissingDeletePaths() {
+    this.failMissingDeletePaths = true;
   }
 
   /**
@@ -177,6 +194,8 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
     ConcurrentLinkedQueue<ManifestReader> toClose = new ConcurrentLinkedQueue<>();
     boolean threw = true;
     try {
+      Set<CharSequenceWrapper> deletedFiles = Sets.newHashSet();
+
       // group manifests by compatible partition specs to be merged
       if (current != null) {
         List<String> manifests = current.manifests();
@@ -193,6 +212,14 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
             });
 
         for (ManifestReader reader : readers) {
+          if (reader.file() != null) {
+            String location = reader.file().location();
+            Set<CharSequenceWrapper> manifestDeletes = filteredManifestToDeletedFiles.get(location);
+            if (manifestDeletes != null) {
+              deletedFiles.addAll(manifestDeletes);
+            }
+          }
+
           int index = findMatch(specs, reader.spec());
           if (index < 0) {
             // not found, add a new one
@@ -213,6 +240,12 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
           manifests.add(manifest);
         }
       }
+
+      ValidationException.check(!failMissingDeletePaths || deletedFiles.containsAll(deletePaths),
+          "Missing required files to delete: %s",
+          COMMA.join(transform(filter(deletePaths,
+              path -> !deletedFiles.contains(path)),
+              CharSequenceWrapper::get)));
 
       threw = false;
 
@@ -341,6 +374,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
 
       // when this point is reached, there is at least one file that will be deleted in the
       // manifest. produce a copy of the manifest with all deleted files removed.
+      Set<CharSequenceWrapper> deletedPaths = Sets.newHashSet();
       OutputFile filteredCopy = manifestPath(manifestCount.getAndIncrement());
       try (ManifestWriter writer = new ManifestWriter(reader.spec(), filteredCopy, snapshotId())) {
         for (ManifestEntry entry : reader.entries()) {
@@ -356,6 +390,13 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
 
               writer.delete(entry);
 
+              CharSequenceWrapper wrapper = CharSequenceWrapper.wrap(entry.file().path());
+              if (deletedPaths.contains(wrapper)) {
+                LOG.warn("Deleting a duplicate path from manifest {}: {}",
+                    manifest.location(), wrapper.get());
+              }
+              deletedPaths.add(wrapper);
+
             } else {
               writer.addExisting(entry);
             }
@@ -368,7 +409,11 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
 
       // return the filtered manifest as a reader
       ManifestReader filtered = ManifestReader.read(ops.newInputFile(filteredCopy.location()));
+
+      // update caches
       filteredManifests.put(manifest.location(), filtered);
+      filteredManifestToDeletedFiles.put(filteredCopy.location(), deletedPaths);
+
       return filtered;
 
     } catch (IOException e) {
@@ -479,7 +524,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
     long id = snapshotId();
     ManifestEntry reused = new ManifestEntry(spec.partitionType());
     return ManifestReader.inMemory(spec,
-        Iterables.transform(newFiles, file -> {
+        transform(newFiles, file -> {
           reused.wrapAppend(id, file);
           return reused;
         }));

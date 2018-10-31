@@ -37,6 +37,10 @@ public class CharSequenceWrapper {
     return this;
   }
 
+  public CharSequence get() {
+    return wrapped;
+  }
+
   @Override
   public boolean equals(Object other) {
     if (this == other) {

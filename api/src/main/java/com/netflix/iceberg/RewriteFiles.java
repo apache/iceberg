@@ -16,8 +16,7 @@
 
 package com.netflix.iceberg;
 
-import com.netflix.iceberg.exceptions.CommitFailedException;
-
+import com.netflix.iceberg.exceptions.ValidationException;
 import java.util.Set;
 
 /**
@@ -29,14 +28,15 @@ import java.util.Set;
  * When committing, these changes will be applied to the latest table snapshot. Commit conflicts
  * will be resolved by applying the changes to the new latest snapshot and reattempting the commit.
  * If any of the deleted files are no longer in the latest snapshot when reattempting, the commit
- * will throw a {@link CommitFailedException}.
+ * will throw a {@link ValidationException}.
  */
 public interface RewriteFiles extends PendingUpdate<Snapshot> {
     /**
+     * Add a rewrite that replaces one set of files with another set that contains the same data.
      *
-     * @param filesToDelete files that will be deleted, can not be null or empty.
-     * @param filesToAdd files that will be added, can not be null or empty.
-     * @return this for chaining.
+     * @param filesToDelete files that will be replaced (deleted), cannot be null or empty.
+     * @param filesToAdd files that will be added, cannot be null or empty.
+     * @return this for method chaining
      */
     RewriteFiles rewriteFiles(Set<DataFile> filesToDelete, Set<DataFile> filesToAdd);
 }
