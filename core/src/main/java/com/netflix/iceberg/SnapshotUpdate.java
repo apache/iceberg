@@ -102,38 +102,26 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
             ops.commit(base, updated);
           });
 
-      LOG.info("Committed snapshot {} ({})", newSnapshotId.get(), getClass().getSimpleName());
+    } catch (RuntimeException e) {
+      Exceptions.suppressAndThrow(e, this::cleanAll);
+    }
 
-      // at this point, the commit and refresh must have succeeded and the snapshot should be in
-      // the table's current metadata. the snapshot is loaded by id in case another commit was
-      // added between this commit and the refresh
-      Snapshot saved = ops.current().snapshot(newSnapshotId.get());
+    LOG.info("Committed snapshot {} ({})", newSnapshotId.get(), getClass().getSimpleName());
+
+    try {
+      // at this point, the commit must have succeeded. after a refresh, the snapshot is loaded by
+      // id in case another commit was added between this commit and the refresh.
+      Snapshot saved = ops.refresh().snapshot(newSnapshotId.get());
       if (saved != null) {
         cleanUncommitted(Sets.newHashSet(saved.manifests()));
       } else {
         // saved may not be present if the latest metadata couldn't be loaded due to eventual
         // consistency problems in refresh. in that case, don't clean up.
-        LOG.info("Failed to load committed snapshot for clean-up, skipping manifest clean-up");
+        LOG.info("Failed to load committed snapshot, skipping manifest clean-up");
       }
 
-    } catch (ValidationException | CommitFailedException e) {
-      Exceptions.suppressAndThrow(e, this::cleanAll);
-
     } catch (RuntimeException e) {
-      Exceptions.suppressAndThrow(e, () -> {
-        Snapshot saved = ops.current().snapshot(newSnapshotId.get());
-        if (saved != null) {
-          LOG.info(String.format(
-              "Failed during commit after commit %d was complete. Cleaning up unused manifests.",
-              newSnapshotId.get()));
-          // the snapshot was committed, so only clean up uncommitted manifests
-          cleanUncommitted(Sets.newHashSet(saved.manifests()));
-        } else {
-          // the problem may be that the refresh is failing, so the commit may have succeeded.
-          // don't clean up manifests because it is not safe.
-          LOG.info("Failed during commit, skipping manifest clean-up", e);
-        }
-      });
+      LOG.info("Failed to load committed table metadata, skipping manifest clean-up");
     }
   }
 

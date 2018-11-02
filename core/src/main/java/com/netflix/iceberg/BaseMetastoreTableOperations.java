@@ -53,6 +53,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   private TableMetadata currentMetadata = null;
   private String currentMetadataLocation = null;
+  private boolean shouldRefresh = true;
   private String baseLocation = null;
   private int version = -1;
 
@@ -62,6 +63,9 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   @Override
   public TableMetadata current() {
+    if (shouldRefresh) {
+      return refresh();
+    }
     return currentMetadata;
   }
 
@@ -71,6 +75,10 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   public int currentVersion() {
     return version;
+  }
+
+  protected void requestRefresh() {
+    this.shouldRefresh = true;
   }
 
   public String hiveTableLocation() {
@@ -110,6 +118,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
             this.version = parseVersion(location);
           });
     }
+    this.shouldRefresh = false;
   }
 
   @Override

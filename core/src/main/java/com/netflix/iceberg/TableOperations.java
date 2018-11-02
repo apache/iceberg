@@ -44,6 +44,8 @@ public interface TableOperations {
    * This method should implement and document atomicity guarantees.
    * <p>
    * Implementations must check that the base metadata is current to avoid overwriting updates.
+   * Once the atomic commit operation succeeds, implementations must not perform any operations that
+   * may fail because failure in this method cannot be distinguished from commit failure.
    *
    * @param base     table metadata on which changes were based
    * @param metadata new table metadata with updates

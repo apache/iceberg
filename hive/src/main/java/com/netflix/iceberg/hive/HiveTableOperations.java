@@ -69,12 +69,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     super(conf);
     this.metaStoreClient = metaStoreClient;
     this.database = database;
-    tableName = table;
-    refresh();
+    this.tableName = table;
   }
 
   @Override
   public TableMetadata refresh() {
+    String metadataLocation = null;
     try {
       final Table table = metaStoreClient.get_table(database, tableName);
       String tableType = table.getParameters().get(TABLE_TYPE_PROP);
@@ -83,19 +83,22 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         throw new IllegalArgumentException(format("Invalid tableName, not Iceberg: %s.%s", database, table));
       }
 
-      String metadataLocation = table.getParameters().get(METADATA_LOCATION_PROP);
+      metadataLocation = table.getParameters().get(METADATA_LOCATION_PROP);
       if (metadataLocation == null) {
         throw new IllegalArgumentException(format("%s.%s is missing %s property", database, tableName, METADATA_LOCATION_PROP));
       }
 
-      refreshFromMetadataLocation(metadataLocation);
     } catch (NoSuchObjectException e) {
       if (currentMetadataLocation() != null) {
         throw new NoSuchTableException(format("No such table: %s.%s", database, tableName));
       }
+
     } catch (TException e) {
       throw new RuntimeException(format("Failed to get table info from metastore %s.%s", database, tableName));
     }
+
+    refreshFromMetadataLocation(metadataLocation);
+
     return current();
   }
 
@@ -163,7 +166,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       unlock(lockId);
     }
 
-    refresh();
+    requestRefresh();
   }
 
   private void setParameters(String newMetadataLocation, Table tbl) {

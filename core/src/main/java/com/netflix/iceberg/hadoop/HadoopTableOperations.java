@@ -49,14 +49,17 @@ class HadoopTableOperations implements TableOperations {
   private final Path location;
   private TableMetadata currentMetadata = null;
   private Integer version = null;
+  private boolean shouldRefresh = true;
 
   HadoopTableOperations(Path location, Configuration conf) {
     this.conf = conf;
     this.location = location;
-    refresh();
   }
 
   public TableMetadata current() {
+    if (shouldRefresh) {
+      return refresh();
+    }
     return currentMetadata;
   }
 
@@ -86,12 +89,13 @@ class HadoopTableOperations implements TableOperations {
     this.version = ver;
     this.currentMetadata = TableMetadataParser.read(this,
         HadoopInputFile.fromPath(metadataFile, conf));
+    this.shouldRefresh = false;
     return currentMetadata;
   }
 
   @Override
   public void commit(TableMetadata base, TableMetadata metadata) {
-    if (base != currentMetadata) {
+    if (base != current()) {
       throw new CommitFailedException("Cannot commit changes based on stale table metadata");
     }
 
@@ -131,7 +135,7 @@ class HadoopTableOperations implements TableOperations {
     // update the best-effort version pointer
     writeVersionHint(nextVersion);
 
-    refresh();
+    this.shouldRefresh = true;
   }
 
   @Override
