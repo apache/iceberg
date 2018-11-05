@@ -102,6 +102,7 @@ public class ScanSummary {
   public static class PartitionMetrics {
     private int fileCount = 0;
     private long recordCount = 0L;
+    private long totalSize = 0L;
 
     public int fileCount() {
       return fileCount;
@@ -111,9 +112,14 @@ public class ScanSummary {
       return recordCount;
     }
 
+    public long totalSize() {
+      return totalSize;
+    }
+
     private PartitionMetrics updateFromFile(DataFile file) {
       this.fileCount += 1;
       this.recordCount += file.recordCount();
+      this.totalSize += file.fileSizeInBytes();
       return this;
     }
 
