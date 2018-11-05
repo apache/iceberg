@@ -42,6 +42,8 @@ import static com.netflix.iceberg.util.ThreadPools.getWorkerPool;
 class BaseTableScan extends CloseableGroup implements TableScan {
   private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
   private static final Logger LOG = LoggerFactory.getLogger(TableScan.class);
+  private static final boolean PLAN_SCANS_WITH_WORKER_POOL =
+      SystemProperties.getBoolean(SystemProperties.SCAN_THREAD_POOL_ENABLED, true);
 
   private final TableOperations ops;
   private final Table table;
@@ -130,7 +132,7 @@ class BaseTableScan extends CloseableGroup implements TableScan {
             );
           });
 
-      if (snapshot.manifests().size() > 1) {
+      if (PLAN_SCANS_WITH_WORKER_POOL && snapshot.manifests().size() > 1) {
         return new ParallelIterable<>(readers, getPlannerPool(), getWorkerPool());
       } else {
         return Iterables.concat(readers);

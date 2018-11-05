@@ -18,13 +18,16 @@ package com.netflix.iceberg.util;
 
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.netflix.iceberg.SystemProperties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
 public class ThreadPools {
-  public static final String PLANNER_THREAD_POOL_SIZE_PROP = "iceberg.planner.num-threads";
-  public static final String WORKER_THREAD_POOL_SIZE_PROP = "iceberg.worker.num-threads";
+  public static final String PLANNER_THREAD_POOL_SIZE_PROP =
+      SystemProperties.PLANNER_THREAD_POOL_SIZE_PROP;
+  public static final String WORKER_THREAD_POOL_SIZE_PROP =
+      SystemProperties.WORKER_THREAD_POOL_SIZE_PROP;
 
   private static ExecutorService PLANNER_POOL = MoreExecutors.getExitingExecutorService(
       (ThreadPoolExecutor) Executors.newFixedThreadPool(
