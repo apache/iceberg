@@ -18,7 +18,6 @@ package com.netflix.iceberg;
 
 import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.CommitFailedException;
-import com.netflix.iceberg.exceptions.ValidationException;
 import com.netflix.iceberg.io.OutputFile;
 import com.netflix.iceberg.util.Exceptions;
 import com.netflix.iceberg.util.Tasks;
@@ -76,8 +75,8 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
   public Snapshot apply() {
     this.base = ops.refresh();
     List<String> manifests = apply(base);
-    long currentSnapshotId = base.currentSnapshot() != null ?
-        base.currentSnapshot().snapshotId() : -1;
+    Long currentSnapshotId = base.currentSnapshot() != null ?
+        base.currentSnapshot().snapshotId() : null;
     return new BaseSnapshot(ops,
         snapshotId(), currentSnapshotId, System.currentTimeMillis(), manifests);
   }
