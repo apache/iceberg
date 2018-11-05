@@ -18,7 +18,6 @@ package com.netflix.iceberg;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import com.google.common.io.Closeables;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.types.Comparators;
 import java.io.IOException;
@@ -45,10 +44,16 @@ public class ScanSummary {
     private final TableScan scan;
     private final Table table;
     private int limit = Integer.MAX_VALUE;
+    private boolean throwIfLimited = false;
 
     public Builder(TableScan scan) {
       this.scan = scan;
       this.table = scan.table();
+    }
+
+    public Builder throwIfLimited() {
+      this.throwIfLimited = true;
+      return this;
     }
 
     public Builder limit(int numPartitions) {
@@ -62,7 +67,8 @@ public class ScanSummary {
      * @return a map from partition key to metrics for that partition.
      */
     public Map<String, PartitionMetrics> build() {
-      TopN<String, PartitionMetrics> topN = new TopN<>(limit, Comparators.charSequences());
+      TopN<String, PartitionMetrics> topN = new TopN<>(
+          limit, throwIfLimited, Comparators.charSequences());
 
       try {
         for (FileScanTask task : scan.planFiles()) {
@@ -113,12 +119,14 @@ public class ScanSummary {
 
   private static class TopN<K, V> {
     private final int maxSize;
+    private final boolean throwIfLimited;
     private final TreeMap<K, V> map;
     private final Comparator<? super K> keyComparator;
     private K cut = null;
 
-    TopN(int N, Comparator<? super K> keyComparator) {
+    TopN(int N, boolean throwIfLimited, Comparator<? super K> keyComparator) {
       this.maxSize = N;
+      this.throwIfLimited = throwIfLimited;
       this.map = Maps.newTreeMap(keyComparator);
       this.keyComparator = keyComparator;
     }
@@ -134,6 +142,10 @@ public class ScanSummary {
 
       // enforce the size constraint and update the cut if some keys are excluded
       while (map.size() > maxSize) {
+        if (throwIfLimited) {
+          throw new IllegalStateException(
+              String.format("Too many matching keys: more than %d", maxSize));
+        }
         this.cut = map.lastKey();
         map.remove(cut);
       }
