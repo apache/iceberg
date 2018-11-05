@@ -16,7 +16,72 @@
 
 package com.netflix.iceberg.io;
 
+import com.google.common.base.Preconditions;
 import java.io.Closeable;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.function.Function;
 
 public interface CloseableIterable<T> extends Iterable<T>, Closeable {
+  static <E> CloseableIterable<E> empty() {
+    return new CloseableIterable<E>() {
+      @Override
+      public void close() {
+      }
+
+      @Override
+      public Iterator<E> iterator() {
+        return Collections.emptyIterator();
+      }
+    };
+  }
+
+  static <E> CloseableIterable<E> combine(Iterable<E> iterable, Iterable<Closeable> closeables) {
+    return new CloseableGroup.ClosingIterable<>(iterable, closeables);
+  }
+
+  static <I, O> CloseableIterable<O> wrap(CloseableIterable<I> iterable, Function<Iterable<I>, Iterable<O>> wrap) {
+    Iterable<O> wrappedIterable = wrap.apply(iterable);
+
+    return new CloseableIterable<O>() {
+      @Override
+      public void close() throws IOException {
+        iterable.close();
+      }
+
+      @Override
+      public Iterator<O> iterator() {
+        return wrappedIterable.iterator();
+      }
+    };
+  }
+
+  static <I, O> CloseableIterable<O> transform(CloseableIterable<I> iterable, Function<I, O> transform) {
+    Preconditions.checkNotNull(transform, "Cannot apply a null transform");
+
+    return new CloseableIterable<O>() {
+      @Override
+      public void close() throws IOException {
+        iterable.close();
+      }
+
+      @Override
+      public Iterator<O> iterator() {
+        return new Iterator<O>() {
+          private final Iterator<I> inner = iterable.iterator();
+
+          @Override
+          public boolean hasNext() {
+            return inner.hasNext();
+          }
+
+          @Override
+          public O next() {
+            return transform.apply(inner.next());
+          }
+        };
+      }
+    };
+  }
 }

@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
+import com.netflix.iceberg.io.CloseableIterable;
 import com.netflix.iceberg.types.Comparators;
 import java.io.IOException;
 import java.util.Comparator;
@@ -46,13 +47,13 @@ public class ScanSummary {
   }
 
   public static class Builder {
-    private final TableScan filteredScan;
+    private final TableScan scan;
     private final Table table;
     private int limit = Integer.MAX_VALUE;
     private boolean throwIfLimited = false;
 
     public Builder(TableScan scan) {
-      this.filteredScan = scan;
+      this.scan = scan.select(SCAN_SUMMARY_COLUMNS);
       this.table = scan.table();
     }
 
@@ -75,27 +76,18 @@ public class ScanSummary {
       TopN<String, PartitionMetrics> topN = new TopN<>(
           limit, throwIfLimited, Comparators.charSequences());
 
-      TableScan scan = filteredScan.select(SCAN_SUMMARY_COLUMNS);
-      try {
-        for (FileScanTask task : scan.planFiles()) {
+      try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+        for (FileScanTask task : tasks) {
           String partition = task.spec().partitionToPath(task.file().partition());
           topN.update(partition, metrics ->
               (metrics == null ? new PartitionMetrics() : metrics).updateFromFile(task.file()));
         }
 
-      } finally {
-        closeScan(scan);
+      } catch (IOException e) {
+        throw new RuntimeIOException(e);
       }
 
       return topN.get();
-    }
-  }
-
-  private static void closeScan(TableScan scan) {
-    try {
-      scan.close();
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
     }
   }
 

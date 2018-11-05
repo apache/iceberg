@@ -61,7 +61,7 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
   private final TableOperations ops;
   private final Schema projection;
   private final boolean reuseContainers;
-  private final Iterable<CombinedScanTask> tasks;
+  private final CloseableIterable<CombinedScanTask> tasks;
 
   TableScanIterable(TableScan scan, List<String> columns, boolean reuseContainers) {
     Preconditions.checkArgument(scan.table() instanceof HasTableOperations,
@@ -120,6 +120,12 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
         throw new UnsupportedOperationException(String.format("Cannot read %s file: %s",
             task.file().format().name(), task.file().path()));
     }
+  }
+
+  @Override
+  public void close() throws IOException {
+    tasks.close(); // close manifests from scan planning
+    super.close(); // close data files
   }
 
   private class ScanIterator implements Iterator<Record>, Closeable {

@@ -98,7 +98,9 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
     }
 
     //Wrap in Splits
-    scan.planTasks().forEach((scanTask) -> splits.add(new IcebergSplit(scanTask)));
+    try (CloseableIterable<CombinedScanTask> tasks = scan.planTasks()) {
+      tasks.forEach((scanTask) -> splits.add(new IcebergSplit(scanTask)));
+    }
 
     return splits;
   }

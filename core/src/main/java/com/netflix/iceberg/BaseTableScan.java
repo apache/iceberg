@@ -19,19 +19,21 @@ package com.netflix.iceberg;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import com.netflix.iceberg.TableMetadata.SnapshotLogEntry;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.expressions.ResidualEvaluator;
-import com.netflix.iceberg.io.CloseableGroup;
+import com.netflix.iceberg.io.CloseableIterable;
 import com.netflix.iceberg.util.BinPacking;
 import com.netflix.iceberg.util.ParallelIterable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.io.Closeable;
 import java.text.SimpleDateFormat;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 
 import static com.netflix.iceberg.util.ThreadPools.getPlannerPool;
 import static com.netflix.iceberg.util.ThreadPools.getWorkerPool;
@@ -39,7 +41,7 @@ import static com.netflix.iceberg.util.ThreadPools.getWorkerPool;
 /**
  * Base class for {@link TableScan} implementations.
  */
-class BaseTableScan extends CloseableGroup implements TableScan {
+class BaseTableScan implements TableScan {
   private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
   private static final Logger LOG = LoggerFactory.getLogger(TableScan.class);
   private static final boolean PLAN_SCANS_WITH_WORKER_POOL =
@@ -108,7 +110,7 @@ class BaseTableScan extends CloseableGroup implements TableScan {
   }
 
   @Override
-  public Iterable<FileScanTask> planFiles() {
+  public CloseableIterable<FileScanTask> planFiles() {
     Snapshot snapshot = snapshotId != null ?
         ops.current().snapshot(snapshotId) :
         ops.current().currentSnapshot();
@@ -118,11 +120,12 @@ class BaseTableScan extends CloseableGroup implements TableScan {
           snapshot.snapshotId(), DATE_FORMAT.format(new Date(snapshot.timestampMillis())),
           rowFilter);
 
+      List<Closeable> toClose = Lists.newArrayList();
       Iterable<Iterable<FileScanTask>> readers = Iterables.transform(
           snapshot.manifests(),
           manifest -> {
             ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest));
-            addCloseable(reader);
+            toClose.add(reader);
             String schemaString = SchemaParser.toJson(reader.spec().schema());
             String specString = PartitionSpecParser.toJson(reader.spec());
             ResidualEvaluator residuals = new ResidualEvaluator(reader.spec(), rowFilter);
@@ -133,26 +136,29 @@ class BaseTableScan extends CloseableGroup implements TableScan {
           });
 
       if (PLAN_SCANS_WITH_WORKER_POOL && snapshot.manifests().size() > 1) {
-        return new ParallelIterable<>(readers, getPlannerPool(), getWorkerPool());
+        return CloseableIterable.combine(
+            new ParallelIterable<>(readers, getPlannerPool(), getWorkerPool()),
+            toClose);
       } else {
-        return Iterables.concat(readers);
+        return CloseableIterable.combine(Iterables.concat(readers), toClose);
       }
 
     } else {
       LOG.info("Scanning empty table {}", table);
-      return Collections.emptyList();
+      return CloseableIterable.empty();
     }
   }
 
   @Override
-  public Iterable<CombinedScanTask> planTasks() {
+  public CloseableIterable<CombinedScanTask> planTasks() {
     long splitSize = ops.current().propertyAsLong(
         TableProperties.SPLIT_SIZE, TableProperties.SPLIT_SIZE_DEFAULT);
     int lookback = ops.current().propertyAsInt(
         TableProperties.SPLIT_LOOKBACK, TableProperties.SPLIT_LOOKBACK_DEFAULT);
 
-    return Iterables.transform(
-        new BinPacking.PackingIterable<>(planFiles(), splitSize, lookback, FileScanTask::length),
+    return CloseableIterable.transform(
+        CloseableIterable.wrap(planFiles(), files ->
+            new BinPacking.PackingIterable<>(files, splitSize, lookback, FileScanTask::length)),
         BaseCombinedScanTask::new);
   }
 

@@ -218,16 +218,10 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow, SupportsPushDow
         }
       }
 
-      boolean threw = true;
-      try {
-        this.tasks = Lists.newArrayList(scan.planTasks());
-        threw = false;
-      } finally {
-        try {
-          Closeables.close(scan, threw);
-        } catch (IOException e) {
-          throw new RuntimeIOException(e, "Failed to close table scan: %s", scan);
-        }
+      try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
+        this.tasks = Lists.newArrayList(tasksIterable);
+      }  catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to close table scan: %s", scan);
       }
     }
 

@@ -18,6 +18,7 @@ package com.netflix.iceberg;
 
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.expressions.Expression;
+import com.netflix.iceberg.io.CloseableIterable;
 import java.io.Closeable;
 import java.util.Collection;
 
@@ -27,7 +28,7 @@ import java.util.Collection;
  * TableScan objects are immutable and can be shared between threads. Refinement methods, like
  * {@link #select(Collection)} and {@link #filter(Expression)}, create new TableScan instances.
  */
-public interface TableScan extends Closeable {
+public interface TableScan {
   /**
    * Returns the {@link Table} from which this scan loads data.
    *
@@ -92,7 +93,7 @@ public interface TableScan extends Closeable {
    *
    * @return an Iterable of file tasks that are required by this scan
    */
-  Iterable<FileScanTask> planFiles();
+  CloseableIterable<FileScanTask> planFiles();
 
   /**
    * Plan the {@link CombinedScanTask tasks} for this scan.
@@ -101,7 +102,7 @@ public interface TableScan extends Closeable {
    *
    * @return an Iterable of tasks for this scan
    */
-  Iterable<CombinedScanTask> planTasks();
+  CloseableIterable<CombinedScanTask> planTasks();
 
   /**
    * Returns this scan's filter {@link Expression}.
