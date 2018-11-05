@@ -16,12 +16,14 @@
 
 package com.netflix.iceberg;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.types.Comparators;
 import java.io.IOException;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Function;
@@ -29,6 +31,9 @@ import java.util.function.Function;
 public class ScanSummary {
   private ScanSummary() {
   }
+
+  private static final List<String> SCAN_SUMMARY_COLUMNS = ImmutableList.of(
+      "partition", "record_count", "file_size_in_bytes");
 
   /**
    * Create a scan summary builder for a table scan.
@@ -41,13 +46,13 @@ public class ScanSummary {
   }
 
   public static class Builder {
-    private final TableScan scan;
+    private final TableScan filteredScan;
     private final Table table;
     private int limit = Integer.MAX_VALUE;
     private boolean throwIfLimited = false;
 
     public Builder(TableScan scan) {
-      this.scan = scan;
+      this.filteredScan = scan;
       this.table = scan.table();
     }
 
@@ -70,6 +75,7 @@ public class ScanSummary {
       TopN<String, PartitionMetrics> topN = new TopN<>(
           limit, throwIfLimited, Comparators.charSequences());
 
+      TableScan scan = filteredScan.select(SCAN_SUMMARY_COLUMNS);
       try {
         for (FileScanTask task : scan.planFiles()) {
           String partition = task.spec().partitionToPath(task.file().partition());
