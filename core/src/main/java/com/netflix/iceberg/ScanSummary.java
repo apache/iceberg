@@ -18,7 +18,10 @@ package com.netflix.iceberg;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import com.google.common.io.Closeables;
+import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.types.Comparators;
+import java.io.IOException;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.TreeMap;
@@ -61,13 +64,26 @@ public class ScanSummary {
     public Map<String, PartitionMetrics> build() {
       TopN<String, PartitionMetrics> topN = new TopN<>(limit, Comparators.charSequences());
 
-      for (FileScanTask task : scan.planFiles()) {
-        String partition = task.spec().partitionToPath(task.file().partition());
-        topN.update(partition, metrics ->
-            (metrics == null ? new PartitionMetrics() : metrics).updateFromFile(task.file()));
+      try {
+        for (FileScanTask task : scan.planFiles()) {
+          String partition = task.spec().partitionToPath(task.file().partition());
+          topN.update(partition, metrics ->
+              (metrics == null ? new PartitionMetrics() : metrics).updateFromFile(task.file()));
+        }
+
+      } finally {
+        closeScan(scan);
       }
 
       return topN.get();
+    }
+  }
+
+  private static void closeScan(TableScan scan) {
+    try {
+      scan.close();
+    } catch (IOException e) {
+      throw new RuntimeIOException(e);
     }
   }
 
