@@ -117,7 +117,10 @@ public class ScanSummary {
 
     @Override
     public String toString() {
-      return "PartitionMetrics(fileCount=" + fileCount + ", recordCount=" + recordCount + ")";
+      return "PartitionMetrics(fileCount=" + fileCount +
+          ", recordCount=" + recordCount +
+          ", totalSize=" + totalSize +
+          ")";
     }
   }
 
