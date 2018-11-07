@@ -24,6 +24,19 @@ import java.util.Iterator;
 import java.util.function.Function;
 
 public interface CloseableIterable<T> extends Iterable<T>, Closeable {
+  static <E> CloseableIterable<E> withNoopClose(Iterable<E> iterable) {
+    return new CloseableIterable<E>() {
+      @Override
+      public void close() {
+      }
+
+      @Override
+      public Iterator<E> iterator() {
+        return iterable.iterator();
+      }
+    };
+  }
+
   static <E> CloseableIterable<E> empty() {
     return new CloseableIterable<E>() {
       @Override

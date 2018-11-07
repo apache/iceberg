@@ -181,16 +181,7 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
   CloseableIterable<ManifestEntry> entries(Collection<String> columns) {
     if (entries != null) {
       // if this reader is an in-memory list or if the entries have been cached, return the list.
-      return new CloseableIterable<ManifestEntry>() {
-        @Override
-        public void close() {
-        }
-
-        @Override
-        public Iterator<ManifestEntry> iterator() {
-          return entries.iterator();
-        }
-      };
+      return CloseableIterable.withNoopClose(entries);
     }
 
     FileFormat format = FileFormat.fromFileName(file.location());
