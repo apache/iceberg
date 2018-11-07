@@ -19,7 +19,6 @@ package com.netflix.iceberg;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.io.CloseableIterable;
-import java.io.Closeable;
 import java.util.Collection;
 
 /**

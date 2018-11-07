@@ -34,6 +34,7 @@ import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static com.netflix.iceberg.util.ThreadPools.getPlannerPool;
 import static com.netflix.iceberg.util.ThreadPools.getWorkerPool;
@@ -120,7 +121,7 @@ class BaseTableScan implements TableScan {
           snapshot.snapshotId(), DATE_FORMAT.format(new Date(snapshot.timestampMillis())),
           rowFilter);
 
-      List<Closeable> toClose = Lists.newArrayList();
+      ConcurrentLinkedQueue<Closeable> toClose = new ConcurrentLinkedQueue<>();
       Iterable<Iterable<FileScanTask>> readers = Iterables.transform(
           snapshot.manifests(),
           manifest -> {
