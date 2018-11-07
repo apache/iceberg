@@ -24,6 +24,7 @@ import com.netflix.iceberg.io.CloseableIterable;
 import com.netflix.iceberg.types.Comparators;
 import java.io.IOException;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -49,12 +50,20 @@ public class ScanSummary {
   public static class Builder {
     private final TableScan scan;
     private final Table table;
+    private final TableOperations ops;
+    private final Map<Long, Long> snapshotTimestamps;
     private int limit = Integer.MAX_VALUE;
     private boolean throwIfLimited = false;
 
     public Builder(TableScan scan) {
       this.scan = scan.select(SCAN_SUMMARY_COLUMNS);
       this.table = scan.table();
+      this.ops = ((HasTableOperations) table).operations();
+      ImmutableMap.Builder<Long, Long> builder = ImmutableMap.builder();
+      for (Snapshot snap : table.snapshots()) {
+        builder.put(snap.snapshotId(), snap.timestampMillis());
+      }
+      this.snapshotTimestamps = builder.build();
     }
 
     public Builder throwIfLimited() {
@@ -76,11 +85,18 @@ public class ScanSummary {
       TopN<String, PartitionMetrics> topN = new TopN<>(
           limit, throwIfLimited, Comparators.charSequences());
 
-      try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-        for (FileScanTask task : tasks) {
-          String partition = task.spec().partitionToPath(task.file().partition());
-          topN.update(partition, metrics ->
-              (metrics == null ? new PartitionMetrics() : metrics).updateFromFile(task.file()));
+      try (CloseableIterable<ManifestEntry> entries =
+               new ManifestGroup(ops, table.currentSnapshot().manifests())
+                   .filterData(scan.filter())
+                   .select(SCAN_SUMMARY_COLUMNS)
+                   .entries()) {
+
+        PartitionSpec spec = table.spec();
+        for (ManifestEntry entry : entries) {
+          String partition = spec.partitionToPath(entry.file().partition());
+          Long timestamp = snapshotTimestamps.get(entry.snapshotId());
+          topN.update(partition, metrics -> (metrics == null ? new PartitionMetrics() : metrics)
+              .updateFromFile(entry.file(), timestamp));
         }
 
       } catch (IOException e) {
@@ -95,6 +111,7 @@ public class ScanSummary {
     private int fileCount = 0;
     private long recordCount = 0L;
     private long totalSize = 0L;
+    private Long lastUpdatedMillis = null;
 
     public int fileCount() {
       return fileCount;
@@ -108,10 +125,14 @@ public class ScanSummary {
       return totalSize;
     }
 
-    private PartitionMetrics updateFromFile(DataFile file) {
+    private PartitionMetrics updateFromFile(DataFile file, Long timestampMillis) {
       this.fileCount += 1;
       this.recordCount += file.recordCount();
       this.totalSize += file.fileSizeInBytes();
+      if (timestampMillis != null &&
+          (lastUpdatedMillis == null || lastUpdatedMillis < timestampMillis)) {
+        this.lastUpdatedMillis = timestampMillis;
+      }
       return this;
     }
 
@@ -120,7 +141,7 @@ public class ScanSummary {
       return "PartitionMetrics(fileCount=" + fileCount +
           ", recordCount=" + recordCount +
           ", totalSize=" + totalSize +
-          ")";
+          ", lastUpdatedMillis=" + new Date(lastUpdatedMillis).toString() + ")";
     }
   }
 

@@ -22,14 +22,12 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.expressions.Literal;
+import com.netflix.iceberg.io.CloseableIterable;
 import com.netflix.iceberg.types.Types;
 import com.netflix.iceberg.util.CharSequenceWrapper;
-import com.netflix.iceberg.util.Tasks;
-import com.netflix.iceberg.util.ThreadPools;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class FileHistory {
   private static final List<String> HISTORY_COLUMNS = ImmutableList.of("file_path");
@@ -90,35 +88,24 @@ public class FileHistory {
         snapshots = Iterables.filter(snapshots, snap -> snap.timestampMillis() <= endTime);
       }
 
-      // deduplicate the manifests to avoid reading each one multiple times
-      Set<String> manifests = Sets.newHashSet();
-      for (Snapshot snap : snapshots) {
-        manifests.addAll(snap.manifests());
+      // a manifest group will only read each manifest once
+      ManifestGroup manifests = new ManifestGroup(((HasTableOperations) table).operations(),
+          Iterables.concat(Iterables.transform(snapshots, Snapshot::manifests)));
+
+      List<ManifestEntry> results = Lists.newArrayList();
+      try (CloseableIterable<ManifestEntry> entries = manifests.select(HISTORY_COLUMNS).entries()) {
+        // TODO: replace this with an IN predicate
+        CharSequenceWrapper locationWrapper = CharSequenceWrapper.wrap(null);
+        for (ManifestEntry entry : entries) {
+          if (entry != null && locations.contains(locationWrapper.set(entry.file().path()))) {
+            results.add(entry.copy());
+          }
+        }
+      } catch (IOException e) {
+        throw new RuntimeIOException(e);
       }
 
-      ConcurrentLinkedQueue<Iterable<ManifestEntry>> results = new ConcurrentLinkedQueue<>();
-      Tasks.foreach(manifests)
-          .stopOnFailure().throwFailureWhenFinished()
-          .executeWith(ThreadPools.getWorkerPool())
-          .run(manifest -> {
-            List<ManifestEntry> matchingEntries = Lists.newArrayList();
-
-            try (ManifestReader reader = ManifestReader
-                .read(((HasTableOperations) table).operations().newInputFile(manifest))) {
-              CharSequenceWrapper locationWrapper = CharSequenceWrapper.wrap(null);
-              for (ManifestEntry entry : reader.entries(HISTORY_COLUMNS)) {
-                if (entry != null && locations.contains(locationWrapper.set(entry.file().path()))) {
-                  matchingEntries.add(entry.copy());
-                }
-              }
-            } catch (IOException e) {
-              throw new RuntimeIOException(e);
-            }
-
-            results.add(matchingEntries);
-          });
-
-      return Iterables.concat(results);
+      return results;
     }
   }
 }
