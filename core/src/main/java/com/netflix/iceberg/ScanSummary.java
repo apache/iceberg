@@ -138,10 +138,12 @@ public class ScanSummary {
 
     @Override
     public String toString() {
+      String lastUpdated = lastUpdatedMillis != null ?
+          new Date(lastUpdatedMillis).toString() : null;
       return "PartitionMetrics(fileCount=" + fileCount +
           ", recordCount=" + recordCount +
           ", totalSize=" + totalSize +
-          ", lastUpdatedMillis=" + new Date(lastUpdatedMillis).toString() + ")";
+          ", lastUpdated=" + lastUpdated + ")";
     }
   }
 
