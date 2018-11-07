@@ -17,6 +17,7 @@
 package com.netflix.iceberg;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.netflix.iceberg.expressions.Evaluator;
 import com.netflix.iceberg.expressions.Expression;
@@ -31,6 +32,10 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
   private final Expression partFilter;
   private final Expression rowFilter;
   private final Collection<String> columns;
+
+  // lazy state
+  private Evaluator lazyEvaluator = null;
+  private InclusiveMetricsEvaluator lazyMetricsEvaluator = null;
 
   FilteredManifest(ManifestReader reader, Expression partFilter, Expression rowFilter,
                    Collection<String> columns) {
@@ -63,11 +68,20 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
         columns);
   }
 
+  Iterable<ManifestEntry> entries() {
+    Evaluator evaluator = evaluator();
+    InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
+
+    return Iterables.filter(reader.entries(columns),
+        entry -> (entry != null &&
+            evaluator.eval(entry.file().partition()) &&
+            metricsEvaluator.eval(entry.file())));
+  }
+
   @Override
   public Iterator<DataFile> iterator() {
-    Evaluator evaluator = new Evaluator(reader.spec().partitionType(), partFilter);
-    InclusiveMetricsEvaluator metricsEvaluator =
-        new InclusiveMetricsEvaluator(reader.spec().schema(), rowFilter);
+    Evaluator evaluator = evaluator();
+    InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
 
     return Iterators.transform(
         Iterators.filter(reader.iterator(partFilter, columns),
@@ -75,5 +89,19 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
                 evaluator.eval(input.partition()) &&
                 metricsEvaluator.eval(input))),
         DataFile::copy);
+  }
+
+  private Evaluator evaluator() {
+    if (lazyEvaluator == null) {
+      this.lazyEvaluator = new Evaluator(reader.spec().partitionType(), partFilter);
+    }
+    return lazyEvaluator;
+  }
+
+  private InclusiveMetricsEvaluator metricsEvaluator() {
+    if (lazyMetricsEvaluator == null) {
+      this.lazyMetricsEvaluator = new InclusiveMetricsEvaluator(reader.spec().schema(), rowFilter);
+    }
+    return lazyMetricsEvaluator;
   }
 }
