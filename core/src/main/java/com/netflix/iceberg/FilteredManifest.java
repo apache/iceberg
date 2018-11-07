@@ -69,26 +69,38 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
   }
 
   Iterable<ManifestEntry> entries() {
-    Evaluator evaluator = evaluator();
-    InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
+    if (rowFilter != null && rowFilter != Expressions.alwaysTrue() &&
+        partFilter != null && partFilter != Expressions.alwaysTrue()) {
+      Evaluator evaluator = evaluator();
+      InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
 
-    return Iterables.filter(reader.entries(columns),
-        entry -> (entry != null &&
-            evaluator.eval(entry.file().partition()) &&
-            metricsEvaluator.eval(entry.file())));
+      return Iterables.filter(reader.entries(columns),
+          entry -> (entry != null &&
+              evaluator.eval(entry.file().partition()) &&
+              metricsEvaluator.eval(entry.file())));
+
+    } else {
+      return reader.entries(columns);
+    }
   }
 
   @Override
   public Iterator<DataFile> iterator() {
-    Evaluator evaluator = evaluator();
-    InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
+    if (rowFilter != null && rowFilter != Expressions.alwaysTrue() &&
+        partFilter != null && partFilter != Expressions.alwaysTrue()) {
+      Evaluator evaluator = evaluator();
+      InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
 
-    return Iterators.transform(
-        Iterators.filter(reader.iterator(partFilter, columns),
-            input -> (input != null &&
-                evaluator.eval(input.partition()) &&
-                metricsEvaluator.eval(input))),
-        DataFile::copy);
+      return Iterators.transform(
+          Iterators.filter(reader.iterator(partFilter, columns),
+              input -> (input != null &&
+                  evaluator.eval(input.partition()) &&
+                  metricsEvaluator.eval(input))),
+          DataFile::copy);
+
+    } else {
+      return Iterators.transform(reader.iterator(partFilter, columns), DataFile::copy);
+    }
   }
 
   private Evaluator evaluator() {
