@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 
 class GenericDataFile
-    implements DataFile, IndexedRecord, SpecificData.SchemaConstructable, Serializable {
+    implements DataFile, IndexedRecord, StructLike, SpecificData.SchemaConstructable, Serializable {
   private static final Types.StructType EMPTY_STRUCT_TYPE = Types.StructType.of();
   private static final PartitionData EMPTY_PARTITION_DATA = new PartitionData(EMPTY_STRUCT_TYPE) {
     @Override
@@ -363,6 +363,21 @@ class GenericDataFile
     return AvroSchemaUtil.convert(type, ImmutableMap.of(
         type, GenericDataFile.class.getName(),
         partitionType, PartitionData.class.getName()));
+  }
+
+  @Override
+  public int size() {
+    return 13;
+  }
+
+  @Override
+  public <T> T get(int pos, Class<T> javaClass) {
+    return javaClass.cast(get(pos));
+  }
+
+  @Override
+  public <T> void set(int pos, T value) {
+    put(pos, value);
   }
 
   @Override
