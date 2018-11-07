@@ -19,11 +19,16 @@ package com.netflix.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.base.Preconditions;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
+import com.netflix.iceberg.types.Types;
 import com.netflix.iceberg.util.JsonUtil;
+import com.netflix.iceberg.util.Pair;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.Iterator;
+import java.util.concurrent.ExecutionException;
 
 public class PartitionSpecParser {
   private PartitionSpecParser() {
@@ -86,11 +91,23 @@ public class PartitionSpecParser {
     return builder.build();
   }
 
+  private static Cache<Pair<Types.StructType, String>, PartitionSpec> SPEC_CACHE = CacheBuilder
+      .newBuilder()
+      .weakValues()
+      .build();
+
   public static PartitionSpec fromJson(Schema schema, String json) {
     try {
-      return fromJson(schema, JsonUtil.mapper().readValue(json, JsonNode.class));
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to parse partition spec: %s", json);
+      return SPEC_CACHE.get(Pair.of(schema.asStruct(), json),
+          () -> fromJson(schema, JsonUtil.mapper().readValue(json, JsonNode.class)));
+
+    } catch (ExecutionException e) {
+      if (e.getCause() instanceof IOException) {
+        throw new RuntimeIOException(
+            (IOException) e.getCause(), "Failed to parse partition spec: %s", json);
+      } else {
+        throw new RuntimeException("Failed to parse partition spec: " + json, e.getCause());
+      }
     }
   }
 }

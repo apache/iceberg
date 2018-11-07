@@ -19,6 +19,8 @@ package com.netflix.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.base.Preconditions;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.types.Type;
@@ -28,6 +30,7 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 public class SchemaParser {
   private static final String TYPE = "type";
@@ -226,11 +229,22 @@ public class SchemaParser {
     return new Schema(type.asNestedType().asStructType().fields());
   }
 
+  private static Cache<String, Schema> SCHEMA_CACHE = CacheBuilder.newBuilder()
+      .weakValues()
+      .build();
+
   public static Schema fromJson(String json) {
     try {
-      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to parse schema: %s", json);
+      return SCHEMA_CACHE.get(json,
+          () -> fromJson(JsonUtil.mapper().readValue(json, JsonNode.class)));
+
+    } catch (ExecutionException e) {
+      if (e.getCause() instanceof IOException) {
+        throw new RuntimeIOException(
+            (IOException) e.getCause(), "Failed to parse schema: %s", json);
+      } else {
+        throw new RuntimeException("Failed to parse schema: " + json, e.getCause());
+      }
     }
   }
 }
