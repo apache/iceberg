@@ -37,34 +37,42 @@ class ManifestGroup {
   private final Set<String> manifests;
   private final Expression dataFilter;
   private final Expression fileFilter;
+  private final boolean ignoreDeleted;
   private final List<String> columns;
 
   ManifestGroup(TableOperations ops, Iterable<String> manifests) {
     this(ops, Sets.newHashSet(manifests), Expressions.alwaysTrue(), Expressions.alwaysTrue(),
-        ImmutableList.of("*"));
+        false, ImmutableList.of("*"));
   }
 
   private ManifestGroup(TableOperations ops, Set<String> manifests,
-                        Expression dataFilter, Expression fileFilter, List<String> columns) {
+                        Expression dataFilter, Expression fileFilter, boolean ignoreDeleted,
+                        List<String> columns) {
     this.ops = ops;
     this.manifests = manifests;
     this.dataFilter = dataFilter;
     this.fileFilter = fileFilter;
+    this.ignoreDeleted = ignoreDeleted;
     this.columns = columns;
   }
 
   public ManifestGroup filterData(Expression expr) {
     return new ManifestGroup(
-        ops, manifests, Expressions.and(dataFilter, expr), fileFilter, columns);
+        ops, manifests, Expressions.and(dataFilter, expr), fileFilter, ignoreDeleted, columns);
   }
 
   public ManifestGroup filterFiles(Expression expr) {
     return new ManifestGroup(
-        ops, manifests, dataFilter, Expressions.and(fileFilter, expr), columns);
+        ops, manifests, dataFilter, Expressions.and(fileFilter, expr), ignoreDeleted, columns);
+  }
+
+  public ManifestGroup ignoreDeleted() {
+    return new ManifestGroup(ops, manifests, dataFilter, fileFilter, true, columns);
   }
 
   public ManifestGroup select(List<String> columns) {
-    return new ManifestGroup(ops, manifests, dataFilter, fileFilter, Lists.newArrayList(columns));
+    return new ManifestGroup(
+        ops, manifests, dataFilter, fileFilter, ignoreDeleted, Lists.newArrayList(columns));
   }
 
   public ManifestGroup select(String... columns) {
@@ -82,13 +90,15 @@ class ManifestGroup {
   public CloseableIterable<ManifestEntry> entries() {
     Evaluator evaluator = new Evaluator(DataFile.getType(EMPTY_STRUCT), fileFilter);
     List<Closeable> toClose = Lists.newArrayList();
+
     Iterable<Iterable<ManifestEntry>> readers = Iterables.transform(
         manifests,
         manifest -> {
           ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest));
+          FilteredManifest filtered = reader.filterRows(dataFilter).select(columns);
           toClose.add(reader);
           return Iterables.filter(
-              reader.filterRows(dataFilter).select(columns).entries(),
+              ignoreDeleted ? filtered.liveEntries() : filtered.allEntries(),
               entry -> evaluator.eval((GenericDataFile) entry.file()));
         });
 

@@ -19,6 +19,7 @@ package com.netflix.iceberg;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
+import com.netflix.iceberg.ManifestEntry.Status;
 import com.netflix.iceberg.expressions.Evaluator;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Expressions;
@@ -68,7 +69,7 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
         columns);
   }
 
-  Iterable<ManifestEntry> entries() {
+  Iterable<ManifestEntry> allEntries() {
     if (rowFilter != null && rowFilter != Expressions.alwaysTrue() &&
         partFilter != null && partFilter != Expressions.alwaysTrue()) {
       Evaluator evaluator = evaluator();
@@ -81,6 +82,24 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
 
     } else {
       return reader.entries(columns);
+    }
+  }
+
+  Iterable<ManifestEntry> liveEntries() {
+    if (rowFilter != null && rowFilter != Expressions.alwaysTrue() &&
+        partFilter != null && partFilter != Expressions.alwaysTrue()) {
+      Evaluator evaluator = evaluator();
+      InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
+
+      return Iterables.filter(reader.entries(columns),
+          entry -> (entry != null &&
+              entry.status() != Status.DELETED &&
+              evaluator.eval(entry.file().partition()) &&
+              metricsEvaluator.eval(entry.file())));
+
+    } else {
+      return Iterables.filter(reader.entries(columns),
+          entry -> entry != null && entry.status() != Status.DELETED);
     }
   }
 

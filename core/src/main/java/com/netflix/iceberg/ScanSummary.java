@@ -88,6 +88,7 @@ public class ScanSummary {
       try (CloseableIterable<ManifestEntry> entries =
                new ManifestGroup(ops, table.currentSnapshot().manifests())
                    .filterData(scan.filter())
+                   .ignoreDeleted()
                    .select(SCAN_SUMMARY_COLUMNS)
                    .entries()) {
 
