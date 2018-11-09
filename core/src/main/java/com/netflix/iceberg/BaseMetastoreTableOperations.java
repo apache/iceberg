@@ -104,12 +104,16 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   }
 
   protected void refreshFromMetadataLocation(String newLocation) {
+    refreshFromMetadataLocation(newLocation, 20);
+  }
+
+  protected void refreshFromMetadataLocation(String newLocation, int numRetries) {
     // use null-safe equality check because new tables have a null metadata location
     if (!Objects.equal(currentMetadataLocation, newLocation)) {
       LOG.info("Refreshing table metadata from new version: " + newLocation);
 
       Tasks.foreach(newLocation)
-          .retry(20).exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */ )
+          .retry(numRetries).exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */ )
           .suppressFailureWhenFinished()
           .run(location -> {
             this.currentMetadata = read(this, fromLocation(location, conf));
