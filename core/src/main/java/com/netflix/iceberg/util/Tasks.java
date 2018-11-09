@@ -425,7 +425,7 @@ public class Tasks {
           int jitter = ThreadLocalRandom.current()
               .nextInt(Math.max(1, (int) (delayMs * 0.1)));
 
-          LOG.warn("Retrying task after failure: " + e.getMessage());
+          LOG.warn("Retrying task after failure: " + e.getMessage(), e);
 
           try {
             TimeUnit.MILLISECONDS.sleep(delayMs + jitter);
