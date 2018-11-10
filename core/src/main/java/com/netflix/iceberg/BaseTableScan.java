@@ -19,8 +19,9 @@ package com.netflix.iceberg;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import com.netflix.iceberg.TableMetadata.SnapshotLogEntry;
+import com.netflix.iceberg.events.Listeners;
+import com.netflix.iceberg.events.ScanEvent;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.expressions.ResidualEvaluator;
@@ -33,7 +34,6 @@ import java.io.Closeable;
 import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.Date;
-import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static com.netflix.iceberg.util.ThreadPools.getPlannerPool;
@@ -120,6 +120,8 @@ class BaseTableScan implements TableScan {
       LOG.info("Scanning table {} snapshot {} created at {} with filter {}", table,
           snapshot.snapshotId(), DATE_FORMAT.format(new Date(snapshot.timestampMillis())),
           rowFilter);
+
+      Listeners.notifyAll(new ScanEvent(table.toString(), snapshot.snapshotId(), rowFilter));
 
       ConcurrentLinkedQueue<Closeable> toClose = new ConcurrentLinkedQueue<>();
       Iterable<Iterable<FileScanTask>> readers = Iterables.transform(
