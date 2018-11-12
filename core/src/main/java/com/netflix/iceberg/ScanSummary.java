@@ -56,7 +56,7 @@ public class ScanSummary {
     private boolean throwIfLimited = false;
 
     public Builder(TableScan scan) {
-      this.scan = scan.select(SCAN_SUMMARY_COLUMNS);
+      this.scan = scan;
       this.table = scan.table();
       this.ops = ((HasTableOperations) table).operations();
       ImmutableMap.Builder<Long, Long> builder = ImmutableMap.builder();

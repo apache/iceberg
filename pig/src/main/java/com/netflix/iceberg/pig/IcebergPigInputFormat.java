@@ -49,7 +49,6 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -63,12 +62,6 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
   static final String ICEBERG_SCHEMA = "iceberg.schema";
   static final String ICEBERG_PROJECTED_FIELDS = "iceberg.projected.fields";
   static final String ICEBERG_FILTER_EXPRESSION = "iceberg.filter.expression";
-
-  private static final List<String> SNAPSHOT_COLUMNS = Arrays.asList(
-      "snapshot_id", "file_path", "file_ordinal", "file_format", "block_size_in_bytes",
-      "file_size_in_bytes", "record_count", "partition", "value_counts", "null_value_counts",
-      "lower_bounds", "upper_bounds"
-  );
 
   private Table table;
   private List<InputSplit> splits;
@@ -87,7 +80,7 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
 
     splits = Lists.newArrayList();
 
-    TableScan scan = table.newScan().select(SNAPSHOT_COLUMNS);
+    TableScan scan = table.newScan();
 
     //Apply Filters
     Expression filterExpression = (Expression) ObjectSerializer.deserialize(context.getConfiguration().get(ICEBERG_FILTER_EXPRESSION));

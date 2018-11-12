@@ -39,7 +39,7 @@ public class IcebergGenerics {
   public static class ScanBuilder {
     private final Table table;
     private Expression where = Expressions.alwaysTrue();
-    private List<String> select = ImmutableList.of("*");
+    private List<String> columns = ImmutableList.of("*");
     private boolean reuseContainers = false;
 
     public ScanBuilder(Table table) {
@@ -57,12 +57,12 @@ public class IcebergGenerics {
     }
 
     public ScanBuilder select(String... columns) {
-      this.select = ImmutableList.copyOf(columns);
+      this.columns = ImmutableList.copyOf(columns);
       return this;
     }
 
     public Iterable<Record> build() {
-      return new TableScanIterable(table.newScan().filter(where), select, reuseContainers);
+      return new TableScanIterable(table.newScan().filter(where).select(columns), reuseContainers);
     }
   }
 }

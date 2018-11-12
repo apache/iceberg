@@ -52,32 +52,20 @@ import static com.netflix.iceberg.data.parquet.GenericParquetReaders.buildReader
 import static java.util.Collections.emptyIterator;
 
 class TableScanIterable extends CloseableGroup implements CloseableIterable<Record> {
-  private static final List<String> SNAPSHOT_COLUMNS = ImmutableList.of(
-      "snapshot_id", "file_path", "file_ordinal", "file_format", "block_size_in_bytes",
-      "file_size_in_bytes", "record_count", "partition", "value_counts", "null_value_counts",
-      "lower_bounds", "upper_bounds"
-  );
-
   private final TableOperations ops;
   private final Schema projection;
   private final boolean reuseContainers;
   private final CloseableIterable<CombinedScanTask> tasks;
 
-  TableScanIterable(TableScan scan, List<String> columns, boolean reuseContainers) {
+  TableScanIterable(TableScan scan, boolean reuseContainers) {
     Preconditions.checkArgument(scan.table() instanceof HasTableOperations,
         "Cannot scan table that doesn't expose its TableOperations");
     this.ops = ((HasTableOperations) scan.table()).operations();
-
-    TableScan finalScan = scan.select(SNAPSHOT_COLUMNS);
-    Set<Integer> requiredColumns = Binder.boundReferences(
-        finalScan.table().schema().asStruct(), Collections.singletonList(scan.filter()));
-    requiredColumns.addAll(TypeUtil.getProjectedIds(finalScan.table().schema().select(columns)));
-    this.projection = TypeUtil.select(finalScan.table().schema(), requiredColumns);
-
+    this.projection = scan.schema();
     this.reuseContainers = reuseContainers;
 
     // start planning tasks in the background
-    this.tasks = finalScan.planTasks();
+    this.tasks = scan.planTasks();
   }
 
   @Override

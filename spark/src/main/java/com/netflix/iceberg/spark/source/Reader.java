@@ -16,10 +16,8 @@
 
 package com.netflix.iceberg.spark.source;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import com.google.common.io.Closeables;
 import com.netflix.iceberg.CombinedScanTask;
 import com.netflix.iceberg.DataFile;
 import com.netflix.iceberg.FileScanTask;
@@ -90,12 +88,6 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow, SupportsPushDow
 
   private static final org.apache.spark.sql.catalyst.expressions.Expression[] NO_EXPRS =
       new org.apache.spark.sql.catalyst.expressions.Expression[0];
-
-  private static final List<String> SNAPSHOT_COLUMNS = ImmutableList.of(
-      "snapshot_id", "file_path", "file_ordinal", "file_format", "block_size_in_bytes",
-      "file_size_in_bytes", "record_count", "partition", "value_counts", "null_value_counts",
-      "lower_bounds", "upper_bounds"
-  );
 
   private final Table table;
   private final SerializableConfiguration conf;
@@ -210,7 +202,7 @@ class Reader implements DataSourceReader, SupportsScanUnsafeRow, SupportsPushDow
 
   private List<CombinedScanTask> tasks() {
     if (tasks == null) {
-      TableScan scan = table.newScan().select(SNAPSHOT_COLUMNS);
+      TableScan scan = table.newScan().project(lazySchema());
 
       if (filterExpressions != null) {
         for (Expression filter : filterExpressions) {

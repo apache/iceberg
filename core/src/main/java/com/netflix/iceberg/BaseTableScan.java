@@ -18,14 +18,18 @@ package com.netflix.iceberg;
 
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 import com.netflix.iceberg.TableMetadata.SnapshotLogEntry;
 import com.netflix.iceberg.events.Listeners;
 import com.netflix.iceberg.events.ScanEvent;
+import com.netflix.iceberg.expressions.Binder;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.expressions.ResidualEvaluator;
 import com.netflix.iceberg.io.CloseableIterable;
+import com.netflix.iceberg.types.TypeUtil;
 import com.netflix.iceberg.util.BinPacking;
 import com.netflix.iceberg.util.ParallelIterable;
 import org.slf4j.Logger;
@@ -33,7 +37,10 @@ import org.slf4j.LoggerFactory;
 import java.io.Closeable;
 import java.text.SimpleDateFormat;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static com.netflix.iceberg.util.ThreadPools.getPlannerPool;
@@ -43,26 +50,32 @@ import static com.netflix.iceberg.util.ThreadPools.getWorkerPool;
  * Base class for {@link TableScan} implementations.
  */
 class BaseTableScan implements TableScan {
-  private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
   private static final Logger LOG = LoggerFactory.getLogger(TableScan.class);
+
+  private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+  private static final List<String> SNAPSHOT_COLUMNS = ImmutableList.of(
+      "snapshot_id", "file_path", "file_ordinal", "file_format", "block_size_in_bytes",
+      "file_size_in_bytes", "record_count", "partition", "value_counts", "null_value_counts",
+      "lower_bounds", "upper_bounds"
+  );
   private static final boolean PLAN_SCANS_WITH_WORKER_POOL =
       SystemProperties.getBoolean(SystemProperties.SCAN_THREAD_POOL_ENABLED, true);
 
   private final TableOperations ops;
   private final Table table;
   private final Long snapshotId;
-  private final Collection<String> columns;
+  private final Schema schema;
   private final Expression rowFilter;
 
   BaseTableScan(TableOperations ops, Table table) {
-    this(ops, table, null, Filterable.ALL_COLUMNS, Expressions.alwaysTrue());
+    this(ops, table, null, table.schema(), Expressions.alwaysTrue());
   }
 
-  private BaseTableScan(TableOperations ops, Table table, Long snapshotId, Collection<String> columns, Expression rowFilter) {
+  private BaseTableScan(TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter) {
     this.ops = ops;
     this.table = table;
     this.snapshotId = snapshotId;
-    this.columns = columns;
+    this.schema = schema;
     this.rowFilter = rowFilter;
   }
 
@@ -77,7 +90,7 @@ class BaseTableScan implements TableScan {
         "Cannot override snapshot, already set to id=%s", snapshotId);
     Preconditions.checkArgument(ops.current().snapshot(snapshotId) != null,
         "Cannot find snapshot with ID %s", snapshotId);
-    return new BaseTableScan(ops, table, snapshotId, columns, rowFilter);
+    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter);
   }
 
   @Override
@@ -100,14 +113,29 @@ class BaseTableScan implements TableScan {
     return useSnapshot(lastSnapshotId);
   }
 
+  public TableScan project(Schema schema) {
+    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter);
+  }
+
   @Override
   public TableScan select(Collection<String> columns) {
-    return new BaseTableScan(ops, table, snapshotId, columns, rowFilter);
+    Set<Integer> requiredFieldIds = Sets.newHashSet();
+
+    // all of the filter columns are required
+    requiredFieldIds.addAll(
+        Binder.boundReferences(table.schema().asStruct(), Collections.singletonList(rowFilter)));
+
+    // all of the projection columns are required
+    requiredFieldIds.addAll(TypeUtil.getProjectedIds(table.schema().select(columns)));
+
+    Schema projection = TypeUtil.select(table.schema(), requiredFieldIds);
+
+    return new BaseTableScan(ops, table, snapshotId, projection, rowFilter);
   }
 
   @Override
   public TableScan filter(Expression expr) {
-    return new BaseTableScan(ops, table, snapshotId, columns, Expressions.and(rowFilter, expr));
+    return new BaseTableScan(ops, table, snapshotId, schema, Expressions.and(rowFilter, expr));
   }
 
   @Override
@@ -121,7 +149,8 @@ class BaseTableScan implements TableScan {
           snapshot.snapshotId(), DATE_FORMAT.format(new Date(snapshot.timestampMillis())),
           rowFilter);
 
-      Listeners.notifyAll(new ScanEvent(table.toString(), snapshot.snapshotId(), rowFilter));
+      Listeners.notifyAll(
+          new ScanEvent(table.toString(), snapshot.snapshotId(), rowFilter, schema));
 
       ConcurrentLinkedQueue<Closeable> toClose = new ConcurrentLinkedQueue<>();
       Iterable<Iterable<FileScanTask>> readers = Iterables.transform(
@@ -133,7 +162,7 @@ class BaseTableScan implements TableScan {
             String specString = PartitionSpecParser.toJson(reader.spec());
             ResidualEvaluator residuals = new ResidualEvaluator(reader.spec(), rowFilter);
             return Iterables.transform(
-                reader.filterRows(rowFilter).select(columns),
+                reader.filterRows(rowFilter).select(SNAPSHOT_COLUMNS),
                 file -> new BaseFileScanTask(file, schemaString, specString, residuals)
             );
           });
@@ -166,6 +195,11 @@ class BaseTableScan implements TableScan {
   }
 
   @Override
+  public Schema schema() {
+    return schema;
+  }
+
+  @Override
   public Expression filter() {
     return rowFilter;
   }
@@ -174,7 +208,7 @@ class BaseTableScan implements TableScan {
   public String toString() {
     return Objects.toStringHelper(this)
         .add("table", table)
-        .add("columns", columns)
+        .add("projection", schema.asStruct())
         .add("filter", rowFilter)
         .toString();
   }

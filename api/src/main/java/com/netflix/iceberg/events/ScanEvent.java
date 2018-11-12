@@ -16,6 +16,7 @@
 
 package com.netflix.iceberg.events;
 
+import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.expressions.Expression;
 
 /**
@@ -24,12 +25,14 @@ import com.netflix.iceberg.expressions.Expression;
 public final class ScanEvent {
   private final String tableName;
   private final long snapshotId;
-  private final Expression rowFilter;
+  private final Expression filter;
+  private final Schema projection;
 
-  public ScanEvent(String tableName, long snapshotId, Expression rowFilter) {
+  public ScanEvent(String tableName, long snapshotId, Expression filter, Schema projection) {
     this.tableName = tableName;
     this.snapshotId = snapshotId;
-    this.rowFilter = rowFilter;
+    this.filter = filter;
+    this.projection = projection;
   }
 
   public String tableName() {
@@ -40,7 +43,11 @@ public final class ScanEvent {
     return snapshotId;
   }
 
-  public Expression rowFilter() {
-    return rowFilter;
+  public Expression filter() {
+    return filter;
+  }
+
+  public Schema projection() {
+    return projection;
   }
 }

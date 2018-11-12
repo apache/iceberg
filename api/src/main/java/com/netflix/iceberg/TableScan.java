@@ -56,7 +56,17 @@ public interface TableScan {
   TableScan asOfTime(long timestampMillis);
 
   /**
-   * Create a new {@link TableScan} from the results of this that will project the given columns.
+   * Create a new {@link TableScan} from this with the schema as its projection.
+   *
+   * @param schema a projection schema
+   * @return a new scan based on this with the given projection
+   */
+  TableScan project(Schema schema);
+
+  /**
+   * Create a new {@link TableScan} from this that will read the given data columns. This produces
+   * an expected schema that includes all fields that are either selected or used by this scan's
+   * filter expression.
    *
    * @param columns column names from the table's schema
    * @return a new scan based on this with the given projection columns
@@ -66,7 +76,9 @@ public interface TableScan {
   }
 
   /**
-   * Create a new {@link TableScan} from this that will read the given manifest columns.
+   * Create a new {@link TableScan} from this that will read the given data columns. This produces
+   * an expected schema that includes all fields that are either selected or used by this scan's
+   * filter expression.
    *
    * @param columns column names from the manifest file schema
    * @return a new scan based on this with the given manifest columns
@@ -102,6 +114,18 @@ public interface TableScan {
    * @return an Iterable of tasks for this scan
    */
   CloseableIterable<CombinedScanTask> planTasks();
+
+  /**
+   * Returns this scan's projection {@link Schema}.
+   * <p>
+   * If the projection schema was set directly using {@link #project(Schema)}, returns that schema.
+   * <p>
+   * If the projection schema was set by calling {@link #select(Collection)}, returns a projection
+   * schema that includes the selected data fields and any fields used in the filter expression.
+   *
+   * @return this scan's projection schema
+   */
+  Schema schema();
 
   /**
    * Returns this scan's filter {@link Expression}.
