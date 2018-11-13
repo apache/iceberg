@@ -239,6 +239,7 @@ project(':iceberg-runtime') {
   }
 
   tasks.build.dependsOn tasks.shadowJar
+  tasks.install.dependsOn tasks.shadowJar
   tasks.javadocJar.dependsOn tasks.shadowJar
 
   dependencies {
