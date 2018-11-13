@@ -54,6 +54,9 @@ public class ScanSummary {
     private final Map<Long, Long> snapshotTimestamps;
     private int limit = Integer.MAX_VALUE;
     private boolean throwIfLimited = false;
+    private boolean filterByTimestamp = false;
+    private long minTimestamp = 0L;
+    private long maxTimestamp = Long.MAX_VALUE;
 
     public Builder(TableScan scan) {
       this.scan = scan;
@@ -64,6 +67,20 @@ public class ScanSummary {
         builder.put(snap.snapshotId(), snap.timestampMillis());
       }
       this.snapshotTimestamps = builder.build();
+    }
+
+    public Builder after(long timestampMillis) {
+      throwIfLimited(); // ensure all partitions can be returned
+      this.filterByTimestamp = true;
+      this.minTimestamp = timestampMillis;
+      return this;
+    }
+
+    public Builder before(long timestampMillis) {
+      throwIfLimited(); // ensure all partitions can be returned
+      this.filterByTimestamp = true;
+      this.maxTimestamp = timestampMillis;
+      return this;
     }
 
     public Builder throwIfLimited() {
@@ -94,8 +111,15 @@ public class ScanSummary {
 
         PartitionSpec spec = table.spec();
         for (ManifestEntry entry : entries) {
-          String partition = spec.partitionToPath(entry.file().partition());
           Long timestamp = snapshotTimestamps.get(entry.snapshotId());
+
+          // if filtering, skip timestamps that are outside the range
+          if (filterByTimestamp &&
+              (timestamp == null || timestamp < minTimestamp || timestamp > maxTimestamp)) {
+            continue;
+          }
+
+          String partition = spec.partitionToPath(entry.file().partition());
           topN.update(partition, metrics -> (metrics == null ? new PartitionMetrics() : metrics)
               .updateFromFile(entry.file(), timestamp));
         }
