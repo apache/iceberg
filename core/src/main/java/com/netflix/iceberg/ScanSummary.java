@@ -112,7 +112,7 @@ public class ScanSummary {
     private int fileCount = 0;
     private long recordCount = 0L;
     private long totalSize = 0L;
-    private Long lastUpdatedMillis = null;
+    private Long dataTimestampMillis = null;
 
     public int fileCount() {
       return fileCount;
@@ -126,25 +126,29 @@ public class ScanSummary {
       return totalSize;
     }
 
+    public Long dataTimestampMillis() {
+      return dataTimestampMillis;
+    }
+
     private PartitionMetrics updateFromFile(DataFile file, Long timestampMillis) {
       this.fileCount += 1;
       this.recordCount += file.recordCount();
       this.totalSize += file.fileSizeInBytes();
       if (timestampMillis != null &&
-          (lastUpdatedMillis == null || lastUpdatedMillis < timestampMillis)) {
-        this.lastUpdatedMillis = timestampMillis;
+          (dataTimestampMillis == null || dataTimestampMillis < timestampMillis)) {
+        this.dataTimestampMillis = timestampMillis;
       }
       return this;
     }
 
     @Override
     public String toString() {
-      String lastUpdated = lastUpdatedMillis != null ?
-          new Date(lastUpdatedMillis).toString() : null;
+      String dataTimestamp = dataTimestampMillis != null ?
+          new Date(dataTimestampMillis).toString() : null;
       return "PartitionMetrics(fileCount=" + fileCount +
           ", recordCount=" + recordCount +
           ", totalSize=" + totalSize +
-          ", lastUpdated=" + lastUpdated + ")";
+          ", dataTimestamp=" + dataTimestamp + ")";
     }
   }
 
