@@ -152,22 +152,22 @@ project(':iceberg-hive') {
     }
 }
 
-// project(':iceberg-orc') {
-//   dependencies {
-//     compile project(':iceberg-api')
-//     compile project(':iceberg-core')
-//
-//     compile("org.apache.orc:orc-core:$orcVersion:nohive") {
-//       exclude group: 'org.apache.hadoop', module: 'hadoop-common'
-//     }
-//
-//
-//     compileOnly("org.apache.hadoop:hadoop-client:$hadoopVersion") {
-//       exclude group: 'org.apache.avro', module: 'avro'
-//     }
-//
-//   }
-// }
+project(':iceberg-orc') {
+  dependencies {
+    compile project(':iceberg-api')
+    compile project(':iceberg-core')
+
+    compile("org.apache.orc:orc-core:$orcVersion:nohive") {
+      exclude group: 'org.apache.hadoop', module: 'hadoop-common'
+    }
+
+
+    compileOnly("org.apache.hadoop:hadoop-client:$hadoopVersion") {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
+
+  }
+}
 
 project(':iceberg-parquet') {
   dependencies {
@@ -190,7 +190,6 @@ project(':iceberg-spark') {
     compile project(':iceberg-api')
     compile project(':iceberg-common')
     compile project(':iceberg-core')
-//    compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
 
     compileOnly "org.apache.avro:avro:$avroVersion"
@@ -249,7 +248,6 @@ project(':iceberg-runtime') {
     shadow project(':iceberg-api')
     shadow project(':iceberg-common')
     shadow project(':iceberg-core')
-//    shadow project(':iceberg-orc')
     shadow project(':iceberg-parquet')
     shadow project(':iceberg-spark')
     shadow project(':iceberg-pig')
