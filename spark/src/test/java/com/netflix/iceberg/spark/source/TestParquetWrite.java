@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import com.netflix.iceberg.PartitionSpec;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.Table;
+import com.netflix.iceberg.TableProperties;
 import com.netflix.iceberg.hadoop.HadoopTables;
 import com.netflix.iceberg.types.Types;
 import org.apache.hadoop.conf.Configuration;
@@ -71,7 +72,9 @@ public class TestParquetWrite {
   public void testBasicWrite() throws IOException {
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test");
+    File dataLocation = new File(parent, "test-data");
     location.mkdirs();
+    dataLocation.mkdirs();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
@@ -88,6 +91,7 @@ public class TestParquetWrite {
     // TODO: incoming columns must be ordered according to the table's schema
     df.select("id", "data").write()
         .format("iceberg")
+        .option(TableProperties.WRITE_NEW_DATA_LOCATION, "file://" + dataLocation.getAbsolutePath())
         .mode("append")
         .save(location.toString());
 
