@@ -91,16 +91,18 @@ class Writer implements DataSourceWriter, SupportsWriteInternalRow {
   private final Table table;
   private final Configuration conf;
   private final FileFormat format;
+  private final String dataLocation;
 
-  Writer(Table table, Configuration conf, FileFormat format) {
+  Writer(Table table, Configuration conf, FileFormat format, String dataLocation) {
     this.table = table;
     this.conf = conf;
     this.format = format;
+    this.dataLocation = dataLocation;
   }
 
   @Override
   public DataWriterFactory<InternalRow> createInternalRowWriterFactory() {
-    return new WriterFactory(table.spec(), format, dataLocation(), table.properties(), conf);
+    return new WriterFactory(table.spec(), format, dataLocation, table.properties(), conf);
   }
 
   @Override
@@ -164,16 +166,11 @@ class Writer implements DataSourceWriter, SupportsWriteInternalRow {
     return defaultValue;
   }
 
-  private String dataLocation() {
-    return new Path(new Path(table.location()), "data").toString();
-  }
-
   @Override
   public String toString() {
     return String.format("IcebergWrite(table=%s, type=%s, format=%s)",
         table, table.schema().asStruct(), format);
   }
-
 
   private static class TaskCommit implements WriterCommitMessage {
     private final DataFile[] files;

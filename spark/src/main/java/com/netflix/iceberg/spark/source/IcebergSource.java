@@ -20,10 +20,13 @@ import com.google.common.base.Preconditions;
 import com.netflix.iceberg.FileFormat;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.Table;
+import com.netflix.iceberg.TableProperties;
 import com.netflix.iceberg.hadoop.HadoopTables;
 import com.netflix.iceberg.spark.SparkSchemaUtil;
 import com.netflix.iceberg.types.CheckCompatibility;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.sources.DataSourceRegister;
@@ -86,7 +89,11 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
           .toUpperCase(Locale.ENGLISH));
     }
 
-    return Optional.of(new Writer(table, lazyConf(), format));
+    String dataLocation = options.get(TableProperties.WRITE_NEW_DATA_LOCATION)
+        .orElse(table.properties().getOrDefault(
+            TableProperties.WRITE_NEW_DATA_LOCATION,
+            new Path(new Path(table.location()), "data").toString()));
+    return Optional.of(new Writer(table, lazyConf(), format, dataLocation));
   }
 
   protected Table findTable(DataSourceOptions options) {
