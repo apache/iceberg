@@ -31,20 +31,25 @@ import java.io.IOException;
  */
 public class HadoopOutputFile implements OutputFile {
   public static OutputFile fromPath(Path path, Configuration conf) {
-    return new HadoopOutputFile(path, conf);
+    return new HadoopOutputFile(Util.getFS(path, conf), path, conf);
+  }
+
+  static OutputFile fromFsPath(FileSystem fs, Path path, Configuration conf) {
+    return new HadoopOutputFile(fs, path, conf);
   }
 
   private final Path path;
   private final Configuration conf;
+  private final FileSystem fs;
 
-  private HadoopOutputFile(Path path, Configuration conf) {
+  private HadoopOutputFile(FileSystem fs, Path path, Configuration conf) {
     this.path = path;
     this.conf = conf;
+    this.fs = fs;
   }
 
   @Override
   public PositionOutputStream create() {
-    FileSystem fs = Util.getFS(path, conf);
     try {
       return HadoopStreams.wrap(fs.create(path, false /* createOrOverwrite */));
     } catch (FileAlreadyExistsException e) {

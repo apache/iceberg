@@ -47,6 +47,7 @@ class HadoopTableOperations implements TableOperations {
 
   private final Configuration conf;
   private final Path location;
+  private final FileSystem metadataFs;
   private TableMetadata currentMetadata = null;
   private Integer version = null;
   private boolean shouldRefresh = true;
@@ -54,6 +55,7 @@ class HadoopTableOperations implements TableOperations {
   HadoopTableOperations(Path location, Configuration conf) {
     this.conf = conf;
     this.location = location;
+    this.metadataFs = Util.getFS(location, conf);
   }
 
   public TableMetadata current() {
@@ -67,10 +69,9 @@ class HadoopTableOperations implements TableOperations {
   public TableMetadata refresh() {
     int ver = version != null ? version : readVersionHint();
     Path metadataFile = metadataFile(ver);
-    FileSystem fs = Util.getFS(metadataFile, conf);
     try {
       // don't check if the file exists if version is non-null because it was already checked
-      if (version == null && !fs.exists(metadataFile)) {
+      if (version == null && !metadataFs.exists(metadataFile)) {
         if (ver == 0) {
           // no v0 metadata means the table doesn't exist yet
           return null;
@@ -78,7 +79,7 @@ class HadoopTableOperations implements TableOperations {
         throw new ValidationException("Metadata file is missing: %s", metadataFile);
       }
 
-      while (fs.exists(metadataFile(ver + 1))) {
+      while (metadataFs.exists(metadataFile(ver + 1))) {
         ver += 1;
         metadataFile = metadataFile(ver);
       }
@@ -88,7 +89,7 @@ class HadoopTableOperations implements TableOperations {
     }
     this.version = ver;
     this.currentMetadata = TableMetadataParser.read(this,
-        HadoopInputFile.fromPath(metadataFile, conf));
+        HadoopInputFile.fromFsPath(metadataFs, metadataFile, conf));
     this.shouldRefresh = false;
     return currentMetadata;
   }
@@ -105,14 +106,13 @@ class HadoopTableOperations implements TableOperations {
     }
 
     Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + getFileExtension(conf));
-    TableMetadataParser.write(metadata, HadoopOutputFile.fromPath(tempMetadataFile, conf));
+    TableMetadataParser.write(metadata, HadoopOutputFile.fromFsPath(metadataFs, tempMetadataFile, conf));
 
     int nextVersion = (version != null ? version : 0) + 1;
     Path finalMetadataFile = metadataFile(nextVersion);
-    FileSystem fs = Util.getFS(tempMetadataFile, conf);
 
     try {
-      if (fs.exists(finalMetadataFile)) {
+      if (metadataFs.exists(finalMetadataFile)) {
         throw new CommitFailedException(
             "Version %d already exists: %s", nextVersion, finalMetadataFile);
       }
@@ -123,7 +123,7 @@ class HadoopTableOperations implements TableOperations {
 
     try {
       // this rename operation is the atomic commit operation
-      if (!fs.rename(tempMetadataFile, finalMetadataFile)) {
+      if (!metadataFs.rename(tempMetadataFile, finalMetadataFile)) {
         throw new CommitFailedException(
             "Failed to commit changes using rename: %s", finalMetadataFile);
       }
@@ -140,20 +140,19 @@ class HadoopTableOperations implements TableOperations {
 
   @Override
   public InputFile newInputFile(String path) {
-    return HadoopInputFile.fromPath(new Path(path), conf);
+    return HadoopInputFile.fromFsPath(metadataFs, new Path(path), conf);
   }
 
   @Override
   public OutputFile newMetadataFile(String filename) {
-    return HadoopOutputFile.fromPath(metadataPath(filename), conf);
+    return HadoopOutputFile.fromFsPath(metadataFs, metadataPath(filename), conf);
   }
 
   @Override
   public void deleteFile(String path) {
     Path toDelete = new Path(path);
-    FileSystem fs = Util.getFS(toDelete, conf);
     try {
-      fs.delete(toDelete, false /* not recursive */ );
+      metadataFs.delete(toDelete, false /* not recursive */ );
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to delete file: %s", path);
     }
@@ -178,9 +177,7 @@ class HadoopTableOperations implements TableOperations {
 
   private void writeVersionHint(int version) {
     Path versionHintFile = versionHintFile();
-    FileSystem fs = Util.getFS(versionHintFile, conf);
-
-    try (FSDataOutputStream out = fs.create(versionHintFile, true /* overwrite */ )) {
+    try (FSDataOutputStream out = metadataFs.create(versionHintFile, true /* overwrite */ )) {
       out.write(String.valueOf(version).getBytes("UTF-8"));
 
     } catch (IOException e) {

@@ -76,6 +76,10 @@ public class HadoopInputFile implements InputFile {
     }
   }
 
+  static HadoopInputFile fromFsPath(FileSystem fs, Path path, Configuration conf) {
+    return new HadoopInputFile(fs, path, conf);
+  }
+
   private HadoopInputFile(FileSystem fs, Path path, Configuration conf) {
     this.fs = fs;
     this.path = path;
