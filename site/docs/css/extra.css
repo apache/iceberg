@@ -1,0 +1,10 @@
+.navbar-brand:before {
+  content: '';
+  display: block;
+  background: url("/img/favicon-96x96.png") no-repeat;
+  background-size: cover;
+  width: 1.3em;
+  height: 1.3em;
+  margin-left: -1.6em;
+  float: left;
+}

@@ -1,0 +1,16 @@
+site_name: Apache Iceberg (incubating)
+site_description: A table format for large, slow-moving tabular data
+
+remote_name: apache
+remote_branch: asf-site
+use_directory_urls: true
+
+theme: cinder
+extra_css:
+  - css/extra.css
+markdown_extensions:
+  - smarty
+  - sane_lists
+nav:
+  - About: index.md
+  - Community: community.md

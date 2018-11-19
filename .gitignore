@@ -5,3 +5,5 @@
 .gradle
 build
 out
+# web site build
+site/site
