@@ -263,3 +263,13 @@ Copyright: 2011-2018 The Apache Software Foundation
 Home page: http://hive.apache.org/
 License: http://www.apache.org/licenses/LICENSE-2.0
 
+--------------------------------------------------------------------------------
+
+This product includes code from Apache Spark.
+
+* dev/check-license script
+
+Copyright: 2011-2018 The Apache Software Foundation
+Home page: http://hive.apache.org/
+License: http://www.apache.org/licenses/LICENSE-2.0
+
