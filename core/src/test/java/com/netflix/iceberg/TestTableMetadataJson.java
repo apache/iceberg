@@ -19,18 +19,33 @@
 
 package com.netflix.iceberg;
 
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.TableMetadata.SnapshotLogEntry;
+import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.types.Types;
 import com.netflix.iceberg.util.JsonUtil;
 import org.junit.Assert;
 import org.junit.Test;
+import java.io.IOException;
+import java.io.StringWriter;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
+
+import static com.netflix.iceberg.TableMetadataParser.CURRENT_SNAPSHOT_ID;
+import static com.netflix.iceberg.TableMetadataParser.FORMAT_VERSION;
+import static com.netflix.iceberg.TableMetadataParser.LAST_COLUMN_ID;
+import static com.netflix.iceberg.TableMetadataParser.LAST_UPDATED_MILLIS;
+import static com.netflix.iceberg.TableMetadataParser.LOCATION;
+import static com.netflix.iceberg.TableMetadataParser.PARTITION_SPEC;
+import static com.netflix.iceberg.TableMetadataParser.PROPERTIES;
+import static com.netflix.iceberg.TableMetadataParser.SCHEMA;
+import static com.netflix.iceberg.TableMetadataParser.SNAPSHOTS;
 
 public class TestTableMetadataJson {
   @Test
@@ -56,8 +71,9 @@ public class TestTableMetadataJson {
         .build();
 
     TableMetadata expected = new TableMetadata(null, null, "s3://bucket/test/location",
-        System.currentTimeMillis(), 3, schema, spec, ImmutableMap.of("property", "value"),
-        currentSnapshotId, Arrays.asList(previousSnapshot, currentSnapshot), snapshotLog);
+        System.currentTimeMillis(), 3, schema, 5, ImmutableMap.of(5, spec),
+        ImmutableMap.of("property", "value"), currentSnapshotId,
+        Arrays.asList(previousSnapshot, currentSnapshot), snapshotLog);
 
     String asJson = TableMetadataParser.toJson(expected);
     TableMetadata metadata = TableMetadataParser.fromJson(null, null,
@@ -71,6 +87,10 @@ public class TestTableMetadataJson {
         expected.schema().asStruct(), metadata.schema().asStruct());
     Assert.assertEquals("Partition spec should match",
         expected.spec().toString(), metadata.spec().toString());
+    Assert.assertEquals("Default spec ID should match",
+        expected.defaultSpecId(), metadata.defaultSpecId());
+    Assert.assertEquals("PartitionSpec map should match",
+        expected.specs(), metadata.specs());
     Assert.assertEquals("Properties should match",
         expected.properties(), metadata.properties());
     Assert.assertEquals("Snapshot logs should match",
@@ -108,8 +128,9 @@ public class TestTableMetadataJson {
     List<SnapshotLogEntry> reversedSnapshotLog = Lists.newArrayList();
 
     TableMetadata expected = new TableMetadata(null, null, "s3://bucket/test/location",
-        System.currentTimeMillis(), 3, schema, spec, ImmutableMap.of("property", "value"),
-        currentSnapshotId, Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog);
+        System.currentTimeMillis(), 3, schema, 5, ImmutableMap.of(5, spec),
+        ImmutableMap.of("property", "value"), currentSnapshotId,
+        Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog);
 
     // add the entries after creating TableMetadata to avoid the sorted check
     reversedSnapshotLog.add(
@@ -128,5 +149,105 @@ public class TestTableMetadataJson {
 
     Assert.assertEquals("Snapshot logs should match",
         expectedSnapshotLog, metadata.snapshotLog());
+  }
+
+  @Test
+  public void testBackwardCompatMissingPartitionSpecList() throws Exception {
+    Schema schema = new Schema(
+        Types.NestedField.required(1, "x", Types.LongType.get()),
+        Types.NestedField.required(2, "y", Types.LongType.get()),
+        Types.NestedField.required(3, "z", Types.LongType.get())
+    );
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("x").build();
+
+    long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
+    Snapshot previousSnapshot = new BaseSnapshot(
+        null, previousSnapshotId, null, previousSnapshotId, ImmutableList.of("file:/tmp/manfiest.1.avro"));
+    long currentSnapshotId = System.currentTimeMillis();
+    Snapshot currentSnapshot = new BaseSnapshot(
+        null, currentSnapshotId, previousSnapshotId, currentSnapshotId, ImmutableList.of("file:/tmp/manfiest.2.avro"));
+
+    TableMetadata expected = new TableMetadata(null, null, "s3://bucket/test/location",
+        System.currentTimeMillis(), 3, schema, 5, ImmutableMap.of(5, spec),
+        ImmutableMap.of("property", "value"), currentSnapshotId,
+        Arrays.asList(previousSnapshot, currentSnapshot), ImmutableList.of());
+
+    String asJson = toJsonWithoutSpecList(expected);
+    TableMetadata metadata = TableMetadataParser.fromJson(null, null,
+        JsonUtil.mapper().readValue(asJson, JsonNode.class));
+
+    Assert.assertEquals("Table location should match",
+        expected.location(), metadata.location());
+    Assert.assertEquals("Last column ID should match",
+        expected.lastColumnId(), metadata.lastColumnId());
+    Assert.assertEquals("Schema should match",
+        expected.schema().asStruct(), metadata.schema().asStruct());
+    Assert.assertEquals("Partition spec should match",
+        expected.spec().toString(), metadata.spec().toString());
+    Assert.assertEquals("Default spec ID should default to 0",
+        0, metadata.defaultSpecId());
+    Assert.assertEquals("PartitionSpec map should contain the spec as the default",
+        ImmutableMap.of(0, spec), metadata.specs());
+    Assert.assertEquals("Properties should match",
+        expected.properties(), metadata.properties());
+    Assert.assertEquals("Snapshot logs should match",
+        expected.snapshotLog(), metadata.snapshotLog());
+    Assert.assertEquals("Current snapshot ID should match",
+        currentSnapshotId, metadata.currentSnapshot().snapshotId());
+    Assert.assertEquals("Parent snapshot ID should match",
+        (Long) previousSnapshotId, metadata.currentSnapshot().parentId());
+    Assert.assertEquals("Current snapshot files should match",
+        currentSnapshot.manifests(), metadata.currentSnapshot().manifests());
+    Assert.assertEquals("Previous snapshot ID should match",
+        previousSnapshotId, metadata.snapshot(previousSnapshotId).snapshotId());
+    Assert.assertEquals("Previous snapshot files should match",
+        previousSnapshot.manifests(),
+        metadata.snapshot(previousSnapshotId).manifests());
+  }
+
+  public static String toJsonWithoutSpecList(TableMetadata metadata) {
+    StringWriter writer = new StringWriter();
+    try {
+      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+
+      generator.writeStartObject(); // start table metadata object
+
+      generator.writeNumberField(FORMAT_VERSION, TableMetadata.TABLE_FORMAT_VERSION);
+      generator.writeStringField(LOCATION, metadata.location());
+      generator.writeNumberField(LAST_UPDATED_MILLIS, metadata.lastUpdatedMillis());
+      generator.writeNumberField(LAST_COLUMN_ID, metadata.lastColumnId());
+
+      generator.writeFieldName(SCHEMA);
+      SchemaParser.toJson(metadata.schema(), generator);
+
+      // mimic an old writer by writing only partition-spec and not the default ID or spec list
+      generator.writeFieldName(PARTITION_SPEC);
+      PartitionSpecParser.toJson(metadata.spec(), generator);
+
+      generator.writeObjectFieldStart(PROPERTIES);
+      for (Map.Entry<String, String> keyValue : metadata.properties().entrySet()) {
+        generator.writeStringField(keyValue.getKey(), keyValue.getValue());
+      }
+      generator.writeEndObject();
+
+      generator.writeNumberField(CURRENT_SNAPSHOT_ID,
+          metadata.currentSnapshot() != null ? metadata.currentSnapshot().snapshotId() : -1);
+
+      generator.writeArrayFieldStart(SNAPSHOTS);
+      for (Snapshot snapshot : metadata.snapshots()) {
+        SnapshotParser.toJson(snapshot, generator);
+      }
+      generator.writeEndArray();
+
+      // skip the snapshot log
+
+      generator.writeEndObject(); // end table metadata object
+
+      generator.flush();
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to write json for: %s", metadata);
+    }
+    return writer.toString();
   }
 }

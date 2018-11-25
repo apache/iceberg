@@ -146,6 +146,13 @@ public class PartitionSpec implements Serializable {
     return sb.toString();
   }
 
+  /**
+   * Returns true if this spec is equivalent to the other, with field names ignored. That is, if
+   * both specs have the same number of fields, field order, source columns, and transforms.
+   *
+   * @param other another PartitionSpec
+   * @return true if the specs have the same fields, source columns, and transforms.
+   */
   public boolean compatibleWith(PartitionSpec other) {
     if (equals(other)) {
       return true;
