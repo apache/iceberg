@@ -45,7 +45,7 @@ import static com.netflix.iceberg.TableMetadataParser.getFileExtension;
  * <p>
  * This maintains metadata in a "metadata" folder under the table location.
  */
-class HadoopTableOperations implements TableOperations {
+public class HadoopTableOperations implements TableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HadoopTableOperations.class);
 
   private final Configuration conf;
@@ -54,7 +54,7 @@ class HadoopTableOperations implements TableOperations {
   private Integer version = null;
   private boolean shouldRefresh = true;
 
-  HadoopTableOperations(Path location, Configuration conf) {
+  protected HadoopTableOperations(Path location, Configuration conf) {
     this.conf = conf;
     this.location = location;
   }
