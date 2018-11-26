@@ -107,8 +107,8 @@ public abstract class BaseMetastoreTables implements Tables {
     }
   }
 
-  private static String defaultWarehouseLocation(Configuration conf,
-                                                 String database, String table) {
+  protected String defaultWarehouseLocation(Configuration conf,
+                                            String database, String table) {
     String warehouseLocation = conf.get("hive.metastore.warehouse.dir");
     Preconditions.checkNotNull(warehouseLocation,
         "Warehouse location is not set: hive.metastore.warehouse.dir=null");
