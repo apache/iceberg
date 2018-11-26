@@ -56,7 +56,7 @@ public class TestTableMetadataJson {
         Types.NestedField.required(3, "z", Types.LongType.get())
     );
 
-    PartitionSpec spec = PartitionSpec.builderFor(schema).build();
+    PartitionSpec spec = PartitionSpec.builderFor(schema).withSpecId(5).build();
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
@@ -71,7 +71,7 @@ public class TestTableMetadataJson {
         .build();
 
     TableMetadata expected = new TableMetadata(null, null, "s3://bucket/test/location",
-        System.currentTimeMillis(), 3, schema, 5, ImmutableMap.of(5, spec),
+        System.currentTimeMillis(), 3, schema, 5, ImmutableList.of(spec),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), snapshotLog);
 
@@ -116,7 +116,7 @@ public class TestTableMetadataJson {
         Types.NestedField.required(3, "z", Types.LongType.get())
     );
 
-    PartitionSpec spec = PartitionSpec.builderFor(schema).build();
+    PartitionSpec spec = PartitionSpec.builderFor(schema).withSpecId(5).build();
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
@@ -128,7 +128,7 @@ public class TestTableMetadataJson {
     List<SnapshotLogEntry> reversedSnapshotLog = Lists.newArrayList();
 
     TableMetadata expected = new TableMetadata(null, null, "s3://bucket/test/location",
-        System.currentTimeMillis(), 3, schema, 5, ImmutableMap.of(5, spec),
+        System.currentTimeMillis(), 3, schema, 5, ImmutableList.of(spec),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog);
 
@@ -159,7 +159,7 @@ public class TestTableMetadataJson {
         Types.NestedField.required(3, "z", Types.LongType.get())
     );
 
-    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("x").build();
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("x").withSpecId(6).build();
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
@@ -169,7 +169,7 @@ public class TestTableMetadataJson {
         null, currentSnapshotId, previousSnapshotId, currentSnapshotId, ImmutableList.of("file:/tmp/manfiest.2.avro"));
 
     TableMetadata expected = new TableMetadata(null, null, "s3://bucket/test/location",
-        System.currentTimeMillis(), 3, schema, 5, ImmutableMap.of(5, spec),
+        System.currentTimeMillis(), 3, schema, 6, ImmutableList.of(spec),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), ImmutableList.of());
 
@@ -183,12 +183,16 @@ public class TestTableMetadataJson {
         expected.lastColumnId(), metadata.lastColumnId());
     Assert.assertEquals("Schema should match",
         expected.schema().asStruct(), metadata.schema().asStruct());
-    Assert.assertEquals("Partition spec should match",
+    Assert.assertEquals("Partition spec should be the default",
         expected.spec().toString(), metadata.spec().toString());
-    Assert.assertEquals("Default spec ID should default to 0",
-        0, metadata.defaultSpecId());
-    Assert.assertEquals("PartitionSpec map should contain the spec as the default",
-        ImmutableMap.of(0, spec), metadata.specs());
+    Assert.assertEquals("Default spec ID should default to TableMetadata.INITIAL_SPEC_ID",
+        TableMetadata.INITIAL_SPEC_ID, metadata.defaultSpecId());
+    Assert.assertEquals("PartitionSpec should contain the spec",
+        1, metadata.specs().size());
+    Assert.assertTrue("PartitionSpec should contain the spec",
+        metadata.specs().get(0).compatibleWith(spec));
+    Assert.assertEquals("PartitionSpec should have ID TableMetadata.INITIAL_SPEC_ID",
+        TableMetadata.INITIAL_SPEC_ID, metadata.specs().get(0).specId());
     Assert.assertEquals("Properties should match",
         expected.properties(), metadata.properties());
     Assert.assertEquals("Snapshot logs should match",
@@ -223,7 +227,7 @@ public class TestTableMetadataJson {
 
       // mimic an old writer by writing only partition-spec and not the default ID or spec list
       generator.writeFieldName(PARTITION_SPEC);
-      PartitionSpecParser.toJson(metadata.spec(), generator);
+      PartitionSpecParser.toJsonFields(metadata.spec(), generator);
 
       generator.writeObjectFieldStart(PROPERTIES);
       for (Map.Entry<String, String> keyValue : metadata.properties().entrySet()) {

@@ -23,7 +23,6 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.netflix.iceberg.TableMetadata.SnapshotLogEntry;
@@ -55,7 +54,6 @@ public class TableMetadataParser {
   static final String SCHEMA = "schema";
   static final String PARTITION_SPEC = "partition-spec";
   static final String PARTITION_SPECS = "partition-specs";
-  static final String SPEC_ID = "spec-id";
   static final String DEFAULT_SPEC_ID = "default-spec-id";
   static final String PROPERTIES = "properties";
   static final String CURRENT_SNAPSHOT_ID = "current-snapshot-id";
@@ -107,17 +105,13 @@ public class TableMetadataParser {
 
     // for older readers, continue writing the default spec as "partition-spec"
     generator.writeFieldName(PARTITION_SPEC);
-    PartitionSpecParser.toJson(metadata.spec(), generator);
+    PartitionSpecParser.toJsonFields(metadata.spec(), generator);
 
     // write the default spec ID and spec list
     generator.writeNumberField(DEFAULT_SPEC_ID, metadata.defaultSpecId());
     generator.writeArrayFieldStart(PARTITION_SPECS);
-    for (Map.Entry<Integer, PartitionSpec> entry : metadata.specs().entrySet()) {
-      generator.writeStartObject();
-      generator.writeNumberField(SPEC_ID, entry.getKey());
-      generator.writeFieldName(PARTITION_SPEC);
-      PartitionSpecParser.toJson(entry.getValue(), generator);
-      generator.writeEndObject();
+    for (PartitionSpec spec : metadata.specs()) {
+      PartitionSpecParser.toJson(spec, generator);
     }
     generator.writeEndArray();
 
@@ -170,8 +164,8 @@ public class TableMetadataParser {
     Schema schema = SchemaParser.fromJson(node.get(SCHEMA));
 
     JsonNode specArray = node.get(PARTITION_SPECS);
-    Map<Integer, PartitionSpec> specs;
-    int defaultSpecId = 0;
+    List<PartitionSpec> specs;
+    int defaultSpecId;
     if (specArray != null) {
       Preconditions.checkArgument(specArray.isArray(),
           "Cannot parse partition specs from non-array: %s", specArray);
@@ -179,13 +173,9 @@ public class TableMetadataParser {
       defaultSpecId = JsonUtil.getInt(DEFAULT_SPEC_ID, node);
 
       // parse the spec array
-      ImmutableMap.Builder<Integer, PartitionSpec> builder = ImmutableMap.builder();
-      Iterator<JsonNode> iterator = specArray.iterator();
-      while (iterator.hasNext()) {
-        JsonNode specObject = iterator.next();
-        int specId = JsonUtil.getInt(SPEC_ID, specObject);
-        PartitionSpec spec = PartitionSpecParser.fromJson(schema, specObject.get(PARTITION_SPEC));
-        builder.put(specId, spec);
+      ImmutableList.Builder<PartitionSpec> builder = ImmutableList.builder();
+      for (JsonNode spec : specArray) {
+        builder.add(PartitionSpecParser.fromJson(schema, spec));
       }
       specs = builder.build();
 
@@ -193,8 +183,9 @@ public class TableMetadataParser {
       // partition spec is required for older readers, but is always set to the default if the spec
       // array is set. it is only used to default the spec map is missing, indicating that the
       // table metadata was written by an older writer.
-      PartitionSpec spec = PartitionSpecParser.fromJson(schema, node.get(PARTITION_SPEC));
-      specs = ImmutableMap.of(defaultSpecId, spec);
+      defaultSpecId = TableMetadata.INITIAL_SPEC_ID;
+      specs = ImmutableList.of(PartitionSpecParser.fromJsonFields(
+          schema, TableMetadata.INITIAL_SPEC_ID, node.get(PARTITION_SPEC)));
     }
 
     Map<String, String> properties = JsonUtil.getStringMap(PROPERTIES, node);
@@ -226,5 +217,4 @@ public class TableMetadataParser {
         lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs, properties,
         currentVersionId, snapshots, ImmutableList.copyOf(entries.iterator()));
   }
-
 }

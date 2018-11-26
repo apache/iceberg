@@ -50,14 +50,16 @@ public class PartitionSpec implements Serializable {
   private final Schema schema;
 
   // this is ordered so that DataFile has a consistent schema
+  private final int specId;
   private final PartitionField[] fields;
   private transient Map<Integer, PartitionField> fieldsBySourceId = null;
   private transient Map<String, PartitionField> fieldsByName = null;
   private transient Class<?>[] javaClasses = null;
   private transient List<PartitionField> fieldList = null;
 
-  private PartitionSpec(Schema schema, List<PartitionField> fields) {
+  private PartitionSpec(Schema schema, int specId, List<PartitionField> fields) {
     this.schema = schema;
+    this.specId = specId;
     this.fields = new PartitionField[fields.size()];
     for (int i = 0; i < this.fields.length; i += 1) {
       this.fields[i] = fields.get(i);
@@ -69,6 +71,13 @@ public class PartitionSpec implements Serializable {
    */
   public Schema schema() {
     return schema;
+  }
+
+  /**
+   * @return the ID of this spec
+   */
+  public int specId() {
+    return specId;
   }
 
   /**
@@ -184,6 +193,9 @@ public class PartitionSpec implements Serializable {
     }
 
     PartitionSpec that = (PartitionSpec) other;
+    if (this.specId != that.specId) {
+      return false;
+    }
     return Arrays.equals(fields, that.fields);
   }
 
@@ -257,7 +269,7 @@ public class PartitionSpec implements Serializable {
   }
 
   private static final PartitionSpec UNPARTITIONED_SPEC =
-      new PartitionSpec(new Schema(), ImmutableList.of());
+      new PartitionSpec(new Schema(), 0, ImmutableList.of());
 
   /**
    * Returns a spec for unpartitioned tables.
@@ -287,6 +299,7 @@ public class PartitionSpec implements Serializable {
     private final Schema schema;
     private final List<PartitionField> fields = Lists.newArrayList();
     private final Set<String> partitionNames = Sets.newHashSet();
+    private int specId = 0;
 
     private Builder(Schema schema) {
       this.schema = schema;
@@ -298,6 +311,11 @@ public class PartitionSpec implements Serializable {
       Preconditions.checkArgument(!partitionNames.contains(name),
           "Cannot use partition name more than once: %s", name);
       partitionNames.add(name);
+    }
+
+    public Builder withSpecId(int specId) {
+      this.specId = specId;
+      return this;
     }
 
     private Types.NestedField findSourceColumn(String sourceName) {
@@ -378,7 +396,7 @@ public class PartitionSpec implements Serializable {
     }
 
     public PartitionSpec build() {
-      PartitionSpec spec = new PartitionSpec(schema, fields);
+      PartitionSpec spec = new PartitionSpec(schema, specId, fields);
       checkCompatibility(spec, schema);
       return spec;
     }
