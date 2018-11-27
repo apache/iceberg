@@ -9,6 +9,3 @@ build
 out
 # web site build
 site/site
-*.avro
-*.avro.crc
-hive/derby.log
