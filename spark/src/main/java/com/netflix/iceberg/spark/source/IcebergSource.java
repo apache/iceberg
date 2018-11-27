@@ -29,7 +29,6 @@ import com.netflix.iceberg.spark.SparkSchemaUtil;
 import com.netflix.iceberg.types.CheckCompatibility;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.sources.DataSourceRegister;

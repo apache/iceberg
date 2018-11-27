@@ -19,7 +19,6 @@
 
 package com.netflix.iceberg.spark.source;
 
-import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
@@ -175,6 +174,7 @@ class Writer implements DataSourceWriter, SupportsWriteInternalRow {
         table, table.schema().asStruct(), format);
   }
 
+  
   private static class TaskCommit implements WriterCommitMessage {
     private final DataFile[] files;
 
