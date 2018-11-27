@@ -158,6 +158,11 @@ class TestTables {
     }
 
     @Override
+    public String resolveMetadataPath(String fileName) {
+      return new File(new File(current.location(), "metadata"), fileName).getAbsolutePath();
+    }
+
+    @Override
     public long newSnapshotId() {
       long nextSnapshotId = lastSnapshotId + 1;
       this.lastSnapshotId = nextSnapshotId;

@@ -179,8 +179,8 @@ class TestTables {
     }
 
     @Override
-    public OutputFile newMetadataFile(String filename) {
-      return Files.localOutput(new File(metadata, filename));
+    public String resolveMetadataPath(String fileName) {
+      return new File(metadata, fileName).getAbsolutePath();
     }
 
     @Override

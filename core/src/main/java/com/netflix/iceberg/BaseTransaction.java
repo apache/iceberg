@@ -268,8 +268,8 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
-    public OutputFile newMetadataFile(String filename) {
-      return ops.newMetadataFile(filename);
+    public String resolveMetadataPath(String fileName) {
+      return ops.resolveMetadataPath(fileName);
     }
 
     @Override

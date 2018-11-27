@@ -151,8 +151,8 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @Override
-  public OutputFile newMetadataFile(String filename) {
-    return fileIo().newOutputFile(metadataPath(filename).toString());
+  public String resolveMetadataPath(String fileName) {
+    return metadataPath(fileName).toString();
   }
 
   @Override

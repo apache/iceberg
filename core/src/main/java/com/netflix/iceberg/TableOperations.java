@@ -59,7 +59,11 @@ public interface TableOperations {
    */
   FileIO fileIo();
 
-  OutputFile newMetadataFile(String fileName);
+  String resolveMetadataPath(String fileName);
+
+  default OutputFile newMetadataFile(String fileName) {
+    return fileIo().newOutputFile(resolveMetadataPath(fileName));
+  }
 
   /**
    * Create a new ID for a Snapshot

@@ -132,9 +132,8 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   }
 
   @Override
-  public OutputFile newMetadataFile(String filename) {
-    return HadoopOutputFile.fromPath(
-        new Path(newMetadataLocation(baseLocation, filename)), conf);
+  public String resolveMetadataPath(String fileName) {
+    return newMetadataLocation(baseLocation, fileName);
   }
 
   @Override
