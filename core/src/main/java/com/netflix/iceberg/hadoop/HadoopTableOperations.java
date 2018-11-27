@@ -19,6 +19,7 @@
 
 package com.netflix.iceberg.hadoop;
 
+import com.netflix.iceberg.FileIO;
 import com.netflix.iceberg.TableMetadata;
 import com.netflix.iceberg.TableMetadataParser;
 import com.netflix.iceberg.TableOperations;
@@ -53,10 +54,11 @@ public class HadoopTableOperations implements TableOperations {
   private TableMetadata currentMetadata = null;
   private Integer version = null;
   private boolean shouldRefresh = true;
+  private HadoopFileIO defaultFileIo = null;
 
   protected HadoopTableOperations(Path location, Configuration conf) {
-    this.conf = conf;
     this.location = location;
+    this.conf = conf;
   }
 
   public TableMetadata current() {
@@ -70,7 +72,7 @@ public class HadoopTableOperations implements TableOperations {
   public TableMetadata refresh() {
     int ver = version != null ? version : readVersionHint();
     Path metadataFile = metadataFile(ver);
-    FileSystem fs = Util.getFS(metadataFile, conf);
+    FileSystem fs = getFs(metadataFile, conf);
     try {
       // don't check if the file exists if version is non-null because it was already checked
       if (version == null && !fs.exists(metadataFile)) {
@@ -108,11 +110,11 @@ public class HadoopTableOperations implements TableOperations {
     }
 
     Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + getFileExtension(conf));
-    TableMetadataParser.write(metadata, HadoopOutputFile.fromPath(tempMetadataFile, conf));
+    TableMetadataParser.write(metadata, fileIo().newOutputFile(tempMetadataFile.toString()));
 
     int nextVersion = (version != null ? version : 0) + 1;
     Path finalMetadataFile = metadataFile(nextVersion);
-    FileSystem fs = Util.getFS(tempMetadataFile, conf);
+    FileSystem fs = getFs(tempMetadataFile, conf);
 
     try {
       if (fs.exists(finalMetadataFile)) {
@@ -142,24 +144,16 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @Override
-  public InputFile newInputFile(String path) {
-    return HadoopInputFile.fromPath(new Path(path), conf);
+  public FileIO fileIo() {
+    if (defaultFileIo == null) {
+      defaultFileIo = new HadoopFileIO(conf);
+    }
+    return defaultFileIo;
   }
 
   @Override
   public OutputFile newMetadataFile(String filename) {
-    return HadoopOutputFile.fromPath(metadataPath(filename), conf);
-  }
-
-  @Override
-  public void deleteFile(String path) {
-    Path toDelete = new Path(path);
-    FileSystem fs = Util.getFS(toDelete, conf);
-    try {
-      fs.delete(toDelete, false /* not recursive */ );
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to delete file: %s", path);
-    }
+    return fileIo().newOutputFile(metadataPath(filename).toString());
   }
 
   @Override
@@ -181,7 +175,7 @@ public class HadoopTableOperations implements TableOperations {
 
   private void writeVersionHint(int version) {
     Path versionHintFile = versionHintFile();
-    FileSystem fs = Util.getFS(versionHintFile, conf);
+    FileSystem fs = getFs(versionHintFile, conf);
 
     try (FSDataOutputStream out = fs.create(versionHintFile, true /* overwrite */ )) {
       out.write(String.valueOf(version).getBytes("UTF-8"));
@@ -194,7 +188,7 @@ public class HadoopTableOperations implements TableOperations {
   private int readVersionHint() {
     Path versionHintFile = versionHintFile();
     try {
-      FileSystem fs = versionHintFile.getFileSystem(conf);
+      FileSystem fs = getFs(versionHintFile, conf);
       if (!fs.exists(versionHintFile)) {
         return 0;
       }
@@ -206,5 +200,9 @@ public class HadoopTableOperations implements TableOperations {
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to get file system for path: %s", versionHintFile);
     }
+  }
+
+  protected FileSystem getFs(Path path, Configuration conf) {
+    return Util.getFS(path, conf);
   }
 }

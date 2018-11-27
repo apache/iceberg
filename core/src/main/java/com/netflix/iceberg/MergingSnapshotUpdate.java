@@ -209,7 +209,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
             .executeWith(getWorkerPool())
             .run(index -> {
               ManifestReader manifest = filterManifest(
-                  deleteExpression, metricsEvaluator, ops.newInputFile(manifests.get(index)));
+                  deleteExpression, metricsEvaluator, ops.fileIo().newInputFile(manifests.get(index)));
               readers[index] = manifest;
               toClose.add(manifest);
             });
@@ -411,7 +411,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
       reader.close();
 
       // return the filtered manifest as a reader
-      ManifestReader filtered = ManifestReader.read(ops.newInputFile(filteredCopy.location()));
+      ManifestReader filtered = ManifestReader.read(ops.fileIo().newInputFile(filteredCopy.location()));
 
       // update caches
       filteredManifests.put(manifest.location(), filtered);

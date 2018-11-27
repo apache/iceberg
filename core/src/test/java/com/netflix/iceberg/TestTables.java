@@ -174,8 +174,8 @@ class TestTables {
     }
 
     @Override
-    public InputFile newInputFile(String path) {
-      return Files.localInput(path);
+    public FileIO fileIo() {
+      return new LocalFileIO();
     }
 
     @Override
@@ -184,17 +184,30 @@ class TestTables {
     }
 
     @Override
-    public void deleteFile(String path) {
-      if (!new File(path).delete()) {
-        throw new RuntimeIOException("Failed to delete file: " + path);
-      }
-    }
-
-    @Override
     public long newSnapshotId() {
       long nextSnapshotId = lastSnapshotId + 1;
       this.lastSnapshotId = nextSnapshotId;
       return nextSnapshotId;
+    }
+  }
+
+  static class LocalFileIO implements FileIO {
+
+    @Override
+    public InputFile newInputFile(String path) {
+      return Files.localInput(path);
+    }
+
+    @Override
+    public OutputFile newOutputFile(String path) {
+      return Files.localOutput(new File(path));
+    }
+
+    @Override
+    public void deleteFile(String path) {
+      if (!new File(path).delete()) {
+        throw new RuntimeIOException("Failed to delete file: " + path);
+      }
     }
   }
 }

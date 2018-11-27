@@ -263,18 +263,13 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
-    public InputFile newInputFile(String path) {
-      return ops.newInputFile(path);
+    public FileIO fileIo() {
+      return ops.fileIo();
     }
 
     @Override
     public OutputFile newMetadataFile(String filename) {
       return ops.newMetadataFile(filename);
-    }
-
-    @Override
-    public void deleteFile(String path) {
-      ops.deleteFile(path);
     }
 
     @Override

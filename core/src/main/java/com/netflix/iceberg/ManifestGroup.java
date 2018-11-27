@@ -97,7 +97,7 @@ class ManifestGroup {
     Iterable<Iterable<ManifestEntry>> readers = Iterables.transform(
         manifests,
         manifest -> {
-          ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest));
+          ManifestReader reader = ManifestReader.read(ops.fileIo().newInputFile(manifest));
           FilteredManifest filtered = reader.filterRows(dataFilter).select(columns);
           toClose.add(reader);
           return Iterables.filter(

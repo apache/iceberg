@@ -106,7 +106,7 @@ class BaseSnapshot extends CloseableGroup implements Snapshot, SnapshotIterable 
                                      Collection<String> columns) {
     return Iterables.concat(Iterables.transform(manifestFiles,
         (Function<String, Iterable<DataFile>>) path -> {
-          ManifestReader reader = ManifestReader.read(ops.newInputFile(path));
+          ManifestReader reader = ManifestReader.read(ops.fileIo().newInputFile(path));
           addCloseable(reader);
           return reader.filterPartitions(partFilter)
               .filterRows(rowFilter)
@@ -142,7 +142,7 @@ class BaseSnapshot extends CloseableGroup implements Snapshot, SnapshotIterable 
     // accumulate adds and deletes from all manifests.
     // because manifests can be reused in newer snapshots, filter the changes by snapshot id.
     for (String manifest : manifestFiles) {
-      try (ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest))) {
+      try (ManifestReader reader = ManifestReader.read(ops.fileIo().newInputFile(manifest))) {
         for (ManifestEntry add : reader.addedFiles()) {
           if (add.snapshotId() == snapshotId) {
             adds.add(add.file().copy());

@@ -22,6 +22,7 @@ package com.netflix.iceberg;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
+import com.netflix.iceberg.hadoop.HadoopFileIO;
 import com.netflix.iceberg.hadoop.HadoopOutputFile;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
@@ -53,6 +54,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   private static final String HIVE_LOCATION_FOLDER_NAME = "empty";
 
   private final Configuration conf;
+  private final FileIO fileIo;
 
   private TableMetadata currentMetadata = null;
   private String currentMetadataLocation = null;
@@ -62,6 +64,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   protected BaseMetastoreTableOperations(Configuration conf) {
     this.conf = conf;
+    this.fileIo = new HadoopFileIO(conf);
   }
 
   @Override
@@ -98,7 +101,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     }
 
     String newFilename = newTableMetadataFilename(baseLocation, version);
-    OutputFile newMetadataLocation = HadoopOutputFile.fromPath(new Path(newFilename), conf);
+    OutputFile newMetadataLocation = fileIo.newOutputFile(new Path(newFilename).toString());
 
     // write the new metadata
     TableMetadataParser.write(metadata, newMetadataLocation);
@@ -129,24 +132,14 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   }
 
   @Override
-  public InputFile newInputFile(String path) {
-    return fromLocation(path, conf);
-  }
-
-  @Override
   public OutputFile newMetadataFile(String filename) {
     return HadoopOutputFile.fromPath(
         new Path(newMetadataLocation(baseLocation, filename)), conf);
   }
 
   @Override
-  public void deleteFile(String file) {
-    Path path = new Path(file);
-    try {
-      getFS(path, conf).delete(path, false /* should be a file, not recursive */ );
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    }
+  public FileIO fileIo() {
+    return fileIo;
   }
 
   @Override
@@ -165,18 +158,6 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   private static String newMetadataLocation(String baseLocation, String filename) {
     return String.format("%s/%s/%s", baseLocation, METADATA_FOLDER_NAME, filename);
-  }
-
-  private static String parseBaseLocation(String metadataLocation) {
-    int lastSlash = metadataLocation.lastIndexOf('/');
-    int secondToLastSlash = metadataLocation.lastIndexOf('/', lastSlash);
-
-    // verify that the metadata file was contained in a "metadata" folder
-    String parentFolderName = metadataLocation.substring(secondToLastSlash + 1, lastSlash);
-    Preconditions.checkArgument(METADATA_FOLDER_NAME.equals(parentFolderName),
-        "Invalid metadata location, not in metadata/ folder: %s", metadataLocation);
-
-    return metadataLocation.substring(0, secondToLastSlash);
   }
 
   private static int parseVersion(String metadataLocation) {

@@ -19,7 +19,6 @@
 
 package com.netflix.iceberg;
 
-import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 
 /**
@@ -56,27 +55,11 @@ public interface TableOperations {
   void commit(TableMetadata base, TableMetadata metadata);
 
   /**
-   * Create a new {@link InputFile} for a path.
-   *
-   * @param path a string file path
-   * @return an InputFile instance for the path
+   * Obtain a handler to read and write files.
    */
-  InputFile newInputFile(String path);
+  FileIO fileIo();
 
-  /**
-   * Create a new {@link OutputFile} in the table's metadata store.
-   *
-   * @param filename a string file name, not a full path
-   * @return an OutputFile instance for the path
-   */
-  OutputFile newMetadataFile(String filename);
-
-  /**
-   * Delete a file.
-   *
-   * @param path path to the file
-   */
-  void deleteFile(String path);
+  OutputFile newMetadataFile(String fileName);
 
   /**
    * Create a new ID for a Snapshot

@@ -132,7 +132,7 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
   }
 
   protected void deleteFile(String path) {
-    ops.deleteFile(path);
+    ops.fileIo().deleteFile(path);
   }
 
   protected OutputFile manifestPath(int i) {
