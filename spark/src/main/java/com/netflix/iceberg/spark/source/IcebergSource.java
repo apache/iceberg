@@ -57,7 +57,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
 
   @Override
   public DataSourceReader createReader(DataSourceOptions options) {
-    Configuration conf = mergeIcebergHadoopConfs(lazyBaseConf(), options.asMap());
+    Configuration conf = mergeIcebergHadoopConfs(new Configuration(lazyBaseConf()), options.asMap());
     Table table = findTable(options, conf);
     Configuration withTableConfs = mergeIcebergHadoopConfs(conf, table.properties());
     return new Reader(table, withTableConfs);
@@ -67,7 +67,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
   public Optional<DataSourceWriter> createWriter(String jobId, StructType dfStruct, SaveMode mode,
                                                    DataSourceOptions options) {
     Preconditions.checkArgument(mode == SaveMode.Append, "Save mode %s is not supported", mode);
-    Configuration conf = mergeIcebergHadoopConfs(lazyBaseConf(), options.asMap());
+    Configuration conf = mergeIcebergHadoopConfs(new Configuration(lazyBaseConf()), options.asMap());
     Table table = findTable(options, conf);
     Configuration withTableHadoopConfs = mergeIcebergHadoopConfs(conf, table.properties());
 
@@ -121,11 +121,10 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
   }
 
   protected Configuration mergeIcebergHadoopConfs(Configuration baseConf, Map<String, String> options) {
-    Configuration resolvedConf = new Configuration(baseConf);
     options.keySet().stream()
         .filter(key -> key.startsWith("iceberg.hadoop"))
         .filter(key -> baseConf.get(key) == null)
-        .forEach(key -> resolvedConf.set(key.replaceFirst("iceberg.hadoop", ""), options.get(key)));
-    return resolvedConf;
+        .forEach(key -> baseConf.set(key.replaceFirst("iceberg.hadoop", ""), options.get(key)));
+    return baseConf;
   }
 }
