@@ -150,28 +150,8 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @Override
-<<<<<<< HEAD
   public String resolveMetadataPath(String fileName) {
     return metadataPath(fileName).toString();
-||||||| merged common ancestors
-  public void deleteFile(String path) {
-    Path toDelete = new Path(path);
-    FileSystem fs = Util.getFS(toDelete, conf);
-    try {
-      fs.delete(toDelete, false /* not recursive */ );
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to delete file: %s", path);
-    }
-=======
-  public void deleteFile(String path) {
-    Path toDelete = new Path(path);
-    FileSystem fs = getFS(toDelete, conf);
-    try {
-      fs.delete(toDelete, false /* not recursive */ );
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to delete file: %s", path);
-    }
->>>>>>> upstream-incubator/master
   }
 
   @Override
