@@ -55,8 +55,8 @@ public class HadoopTableOperations implements TableOperations {
   private HadoopFileIO defaultFileIo = null;
 
   protected HadoopTableOperations(Path location, Configuration conf) {
-    this.location = location;
     this.conf = conf;
+    this.location = location;
   }
 
   public TableMetadata current() {
@@ -70,7 +70,7 @@ public class HadoopTableOperations implements TableOperations {
   public TableMetadata refresh() {
     int ver = version != null ? version : readVersionHint();
     Path metadataFile = metadataFile(ver);
-    FileSystem fs = Util.getFS(metadataFile, conf);
+    FileSystem fs = getFS(metadataFile, conf);
     try {
       // don't check if the file exists if version is non-null because it was already checked
       if (version == null && !fs.exists(metadataFile)) {
@@ -112,7 +112,7 @@ public class HadoopTableOperations implements TableOperations {
 
     int nextVersion = (version != null ? version : 0) + 1;
     Path finalMetadataFile = metadataFile(nextVersion);
-    FileSystem fs = Util.getFS(tempMetadataFile, conf);
+    FileSystem fs = getFS(tempMetadataFile, conf);
 
     try {
       if (fs.exists(finalMetadataFile)) {
@@ -150,8 +150,28 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @Override
+<<<<<<< HEAD
   public String resolveMetadataPath(String fileName) {
     return metadataPath(fileName).toString();
+||||||| merged common ancestors
+  public void deleteFile(String path) {
+    Path toDelete = new Path(path);
+    FileSystem fs = Util.getFS(toDelete, conf);
+    try {
+      fs.delete(toDelete, false /* not recursive */ );
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to delete file: %s", path);
+    }
+=======
+  public void deleteFile(String path) {
+    Path toDelete = new Path(path);
+    FileSystem fs = getFS(toDelete, conf);
+    try {
+      fs.delete(toDelete, false /* not recursive */ );
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to delete file: %s", path);
+    }
+>>>>>>> upstream-incubator/master
   }
 
   @Override
@@ -173,7 +193,7 @@ public class HadoopTableOperations implements TableOperations {
 
   private void writeVersionHint(int version) {
     Path versionHintFile = versionHintFile();
-    FileSystem fs = Util.getFS(versionHintFile, conf);
+    FileSystem fs = getFS(versionHintFile, conf);
 
     try (FSDataOutputStream out = fs.create(versionHintFile, true /* overwrite */ )) {
       out.write(String.valueOf(version).getBytes("UTF-8"));
@@ -198,5 +218,9 @@ public class HadoopTableOperations implements TableOperations {
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to get file system for path: %s", versionHintFile);
     }
+  }
+
+  protected FileSystem getFS(Path path, Configuration conf) {
+    return Util.getFS(path, conf);
   }
 }
