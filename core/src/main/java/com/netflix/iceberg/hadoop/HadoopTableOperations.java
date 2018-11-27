@@ -26,7 +26,6 @@ import com.netflix.iceberg.TableOperations;
 import com.netflix.iceberg.exceptions.CommitFailedException;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.exceptions.ValidationException;
-import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -72,7 +71,7 @@ public class HadoopTableOperations implements TableOperations {
   public TableMetadata refresh() {
     int ver = version != null ? version : readVersionHint();
     Path metadataFile = metadataFile(ver);
-    FileSystem fs = getFs(metadataFile, conf);
+    FileSystem fs = Util.getFS(metadataFile, conf);
     try {
       // don't check if the file exists if version is non-null because it was already checked
       if (version == null && !fs.exists(metadataFile)) {
@@ -93,7 +92,7 @@ public class HadoopTableOperations implements TableOperations {
     }
     this.version = ver;
     this.currentMetadata = TableMetadataParser.read(this,
-        HadoopInputFile.fromPath(metadataFile, conf));
+        fileIo().newInputFile(metadataFile.toString()));
     this.shouldRefresh = false;
     return currentMetadata;
   }
@@ -114,7 +113,7 @@ public class HadoopTableOperations implements TableOperations {
 
     int nextVersion = (version != null ? version : 0) + 1;
     Path finalMetadataFile = metadataFile(nextVersion);
-    FileSystem fs = getFs(tempMetadataFile, conf);
+    FileSystem fs = Util.getFS(tempMetadataFile, conf);
 
     try {
       if (fs.exists(finalMetadataFile)) {
@@ -175,7 +174,7 @@ public class HadoopTableOperations implements TableOperations {
 
   private void writeVersionHint(int version) {
     Path versionHintFile = versionHintFile();
-    FileSystem fs = getFs(versionHintFile, conf);
+    FileSystem fs = Util.getFS(versionHintFile, conf);
 
     try (FSDataOutputStream out = fs.create(versionHintFile, true /* overwrite */ )) {
       out.write(String.valueOf(version).getBytes("UTF-8"));
@@ -188,7 +187,7 @@ public class HadoopTableOperations implements TableOperations {
   private int readVersionHint() {
     Path versionHintFile = versionHintFile();
     try {
-      FileSystem fs = getFs(versionHintFile, conf);
+      FileSystem fs = Util.getFS(versionHintFile, conf);
       if (!fs.exists(versionHintFile)) {
         return 0;
       }
@@ -200,9 +199,5 @@ public class HadoopTableOperations implements TableOperations {
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to get file system for path: %s", versionHintFile);
     }
-  }
-
-  protected FileSystem getFs(Path path, Configuration conf) {
-    return Util.getFS(path, conf);
   }
 }
