@@ -32,6 +32,7 @@ import com.netflix.iceberg.io.FileAppender;
 import com.netflix.iceberg.spark.data.AvroDataTest;
 import com.netflix.iceberg.spark.data.RandomData;
 import com.netflix.iceberg.spark.data.SparkAvroReader;
+import com.netflix.iceberg.types.Types;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.spark.api.java.JavaRDD;
@@ -43,10 +44,12 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.util.List;
 
 import static com.netflix.iceberg.spark.SparkSchemaUtil.convert;
@@ -115,6 +118,55 @@ public class TestDataFrameWrites extends AvroDataTest {
         .format("iceberg")
         .load(location.toString());
 
+    List<Row> actual = result.collectAsList();
+
+    Assert.assertEquals("Result size should match expected", expected.size(), actual.size());
+    for (int i = 0; i < expected.size(); i += 1) {
+      assertEqualsSafe(tableSchema.asStruct(), expected.get(i), actual.get(i));
+    }
+  }
+
+  @Test
+  public void testWriteToOverriddenLocationByOptions() throws IOException {
+    File parent = temp.newFolder("parquet");
+    File location = new File(parent, "test-metadata");
+    Assert.assertTrue("Mkdir should succeed.", location.mkdirs());
+    File tableDataLocation = new File(parent, "test-data-from-table");
+    Assert.assertTrue("Mkdir should succeed.", tableDataLocation.mkdirs());
+    File optionDataLocation = new File(parent, "test-data-from-options");
+    Assert.assertTrue("Mkdir should succeed.", optionDataLocation.mkdirs());
+
+    Schema schema = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get()),
+        Types.NestedField.optional(1, "data", Types.MapType.ofOptional(2, 3,
+            Types.LongType.get(),
+            Types.StringType.get())));
+    HadoopTables tables = new HadoopTables(CONF);
+    Table table = tables.create(schema, PartitionSpec.unpartitioned(), location.toString());
+    Schema tableSchema = table.schema(); // use the table schema because ids are reassigned
+
+    table.updateProperties()
+        .set(TableProperties.DEFAULT_FILE_FORMAT, format)
+        .set(TableProperties.WRITE_NEW_DATA_LOCATION, tableDataLocation.getAbsolutePath())
+        .commit();
+
+    List<Record> expected = RandomData.generateList(tableSchema, 100, 0L);
+    Dataset<Row> df = createDataset(expected, tableSchema);
+
+    df.write()
+        .format("iceberg")
+        .mode("append")
+        .option(TableProperties.WRITE_NEW_DATA_LOCATION, optionDataLocation.getAbsolutePath())
+        .save(location.toString());
+
+    table.refresh();
+    table.currentSnapshot().addedFiles().forEach(file ->
+      Assert.assertTrue(
+          String.format("File should have the parent directory %s.", optionDataLocation.getAbsolutePath()),
+          URI.create(file.path().toString()).getPath().startsWith(optionDataLocation.getAbsolutePath())));
+    Dataset<Row> result = spark.read()
+        .format("iceberg")
+        .load(location.toString());
     List<Row> actual = result.collectAsList();
 
     Assert.assertEquals("Result size should match expected", expected.size(), actual.size());

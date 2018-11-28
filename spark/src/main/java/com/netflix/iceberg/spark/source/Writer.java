@@ -174,7 +174,7 @@ class Writer implements DataSourceWriter, SupportsWriteInternalRow {
         table, table.schema().asStruct(), format);
   }
 
-  
+
   private static class TaskCommit implements WriterCommitMessage {
     private final DataFile[] files;
 
