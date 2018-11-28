@@ -37,18 +37,18 @@ class ManifestGroup {
   private static final Types.StructType EMPTY_STRUCT = Types.StructType.of();
 
   private final TableOperations ops;
-  private final Set<String> manifests;
+  private final Set<ManifestFile> manifests;
   private final Expression dataFilter;
   private final Expression fileFilter;
   private final boolean ignoreDeleted;
   private final List<String> columns;
 
-  ManifestGroup(TableOperations ops, Iterable<String> manifests) {
+  ManifestGroup(TableOperations ops, Iterable<ManifestFile> manifests) {
     this(ops, Sets.newHashSet(manifests), Expressions.alwaysTrue(), Expressions.alwaysTrue(),
         false, ImmutableList.of("*"));
   }
 
-  private ManifestGroup(TableOperations ops, Set<String> manifests,
+  private ManifestGroup(TableOperations ops, Set<ManifestFile> manifests,
                         Expression dataFilter, Expression fileFilter, boolean ignoreDeleted,
                         List<String> columns) {
     this.ops = ops;
@@ -97,7 +97,7 @@ class ManifestGroup {
     Iterable<Iterable<ManifestEntry>> readers = Iterables.transform(
         manifests,
         manifest -> {
-          ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest));
+          ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest.path()));
           FilteredManifest filtered = reader.filterRows(dataFilter).select(columns);
           toClose.add(reader);
           return Iterables.filter(

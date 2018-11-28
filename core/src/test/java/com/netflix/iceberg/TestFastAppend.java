@@ -54,7 +54,7 @@ public class TestFastAppend extends TableTestBase {
 
     TableMetadata base = readMetadata();
     Assert.assertNotNull("Should have a current snapshot", base.currentSnapshot());
-    List<String> v2manifests = base.currentSnapshot().manifests();
+    List<ManifestFile> v2manifests = base.currentSnapshot().manifests();
     Assert.assertEquals("Should have one existing manifest", 1, v2manifests.size());
 
     // prepare a new append
@@ -80,7 +80,7 @@ public class TestFastAppend extends TableTestBase {
 
     TableMetadata base = readMetadata();
     Assert.assertNotNull("Should have a current snapshot", base.currentSnapshot());
-    List<String> v3manifests = base.currentSnapshot().manifests();
+    List<ManifestFile> v3manifests = base.currentSnapshot().manifests();
     Assert.assertEquals("Should have 2 existing manifests", 2, v3manifests.size());
 
     // prepare a new append
@@ -110,7 +110,7 @@ public class TestFastAppend extends TableTestBase {
 
     TableMetadata base = readMetadata();
     Assert.assertNotNull("Should have a current snapshot", base.currentSnapshot());
-    List<String> v2manifests = base.currentSnapshot().manifests();
+    List<ManifestFile> v2manifests = base.currentSnapshot().manifests();
     Assert.assertEquals("Should have 1 existing manifest", 1, v2manifests.size());
 
     // commit from the stale table
@@ -137,7 +137,7 @@ public class TestFastAppend extends TableTestBase {
 
     TableMetadata base = readMetadata();
     Assert.assertNotNull("Should have a current snapshot", base.currentSnapshot());
-    List<String> v2manifests = base.currentSnapshot().manifests();
+    List<ManifestFile> v2manifests = base.currentSnapshot().manifests();
     Assert.assertEquals("Should have 1 existing manifest", 1, v2manifests.size());
 
     append.commit();
@@ -147,7 +147,7 @@ public class TestFastAppend extends TableTestBase {
     // apply was called before the conflicting commit, but the commit was still consistent
     validateSnapshot(base.currentSnapshot(), committed.currentSnapshot(), FILE_D);
 
-    List<String> committedManifests = Lists.newArrayList(committed.currentSnapshot().manifests());
+    List<ManifestFile> committedManifests = Lists.newArrayList(committed.currentSnapshot().manifests());
     committedManifests.removeAll(base.currentSnapshot().manifests());
     Assert.assertEquals("Should reused manifest created by apply",
         pending.manifests().get(0), committedManifests.get(0));
@@ -161,13 +161,13 @@ public class TestFastAppend extends TableTestBase {
 
     AppendFiles append = table.newFastAppend().appendFile(FILE_B);
     Snapshot pending = append.apply();
-    String newManifest = pending.manifests().get(0);
-    Assert.assertTrue("Should create new manifest", new File(newManifest).exists());
+    ManifestFile newManifest = pending.manifests().get(0);
+    Assert.assertTrue("Should create new manifest", new File(newManifest.path()).exists());
 
     AssertHelpers.assertThrows("Should retry 4 times and throw last failure",
         CommitFailedException.class, "Injected failure", append::commit);
 
-    Assert.assertFalse("Should clean up new manifest", new File(newManifest).exists());
+    Assert.assertFalse("Should clean up new manifest", new File(newManifest.path()).exists());
   }
 
   @Test
@@ -178,15 +178,15 @@ public class TestFastAppend extends TableTestBase {
 
     AppendFiles append = table.newFastAppend().appendFile(FILE_B);
     Snapshot pending = append.apply();
-    String newManifest = pending.manifests().get(0);
-    Assert.assertTrue("Should create new manifest", new File(newManifest).exists());
+    ManifestFile newManifest = pending.manifests().get(0);
+    Assert.assertTrue("Should create new manifest", new File(newManifest.path()).exists());
 
     append.commit();
 
     TableMetadata metadata = readMetadata();
 
     validateSnapshot(null, metadata.currentSnapshot(), FILE_B);
-    Assert.assertTrue("Should commit same new manifest", new File(newManifest).exists());
+    Assert.assertTrue("Should commit same new manifest", new File(newManifest.path()).exists());
     Assert.assertTrue("Should commit the same new manifest",
         metadata.currentSnapshot().manifests().contains(newManifest));
   }

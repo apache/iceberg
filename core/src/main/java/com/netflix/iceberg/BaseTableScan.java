@@ -159,7 +159,7 @@ class BaseTableScan implements TableScan {
       Iterable<Iterable<FileScanTask>> readers = Iterables.transform(
           snapshot.manifests(),
           manifest -> {
-            ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest));
+            ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest.path()));
             toClose.add(reader);
             String schemaString = SchemaParser.toJson(reader.spec().schema());
             String specString = PartitionSpecParser.toJson(reader.spec());

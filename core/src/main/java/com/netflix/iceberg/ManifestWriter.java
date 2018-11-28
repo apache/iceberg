@@ -19,6 +19,7 @@
 
 package com.netflix.iceberg;
 
+import com.google.common.base.Preconditions;
 import com.netflix.iceberg.avro.Avro;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.FileAppender;
@@ -35,11 +36,20 @@ import static com.netflix.iceberg.ManifestEntry.Status.DELETED;
 class ManifestWriter implements FileAppender<DataFile> {
   private static final Logger LOG = LoggerFactory.getLogger(ManifestWriter.class);
 
+  private final String location;
+  private final int specId;
   private final FileAppender<ManifestEntry> writer;
   private final long snapshotId;
-  private ManifestEntry reused = null;
+  private final ManifestEntry reused;
+
+  private boolean closed = false;
+  private int addedFiles = 0;
+  private int existingFiles = 0;
+  private int deletedFiles = 0;
 
   ManifestWriter(PartitionSpec spec, OutputFile file, long snapshotId) {
+    this.location = file.location();
+    this.specId = spec.specId();
     this.writer = newAppender(FileFormat.AVRO, spec, file);
     this.snapshotId = snapshotId;
     this.reused = new ManifestEntry(spec.partitionType());
@@ -71,8 +81,19 @@ class ManifestWriter implements FileAppender<DataFile> {
     writer.add(reused.wrapDelete(snapshotId, file));
   }
 
-  public void add(ManifestEntry file) {
-    writer.add(file);
+  public void add(ManifestEntry entry) {
+    switch (entry.status()) {
+      case ADDED:
+        addedFiles += 1;
+        break;
+      case EXISTING:
+        existingFiles += 1;
+        break;
+      case DELETED:
+        deletedFiles += 1;
+        break;
+    }
+    writer.add(entry);
   }
 
   public void addEntries(Iterable<ManifestEntry> entries) {
@@ -93,8 +114,15 @@ class ManifestWriter implements FileAppender<DataFile> {
     return writer.metrics();
   }
 
+  public ManifestFile toManifestFile() {
+    Preconditions.checkState(closed, "Cannot build ManifestFile, writer is not closed");
+    return new GenericManifestFile(location, specId, snapshotId,
+        addedFiles, existingFiles, deletedFiles, null);
+  }
+
   @Override
   public void close() throws IOException {
+    this.closed = true;
     writer.close();
   }
 

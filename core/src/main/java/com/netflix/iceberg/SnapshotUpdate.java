@@ -42,7 +42,7 @@ import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEF
 
 abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotUpdate.class);
-  static final Set<String> EMPTY_SET = Sets.newHashSet();
+  static final Set<ManifestFile> EMPTY_SET = Sets.newHashSet();
 
   private final TableOperations ops;
   private final String commitUUID = UUID.randomUUID().toString();
@@ -60,7 +60,7 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
    * @param base the base table metadata to apply changes to
    * @return a manifest list for the new snapshot.
    */
-  protected abstract List<String> apply(TableMetadata base);
+  protected abstract List<ManifestFile> apply(TableMetadata base);
 
   /**
    * Clean up any uncommitted manifests that were created.
@@ -72,12 +72,12 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
    *
    * @param committed a set of manifest paths that were actually committed
    */
-  protected abstract void cleanUncommitted(Set<String> committed);
+  protected abstract void cleanUncommitted(Set<ManifestFile> committed);
 
   @Override
   public Snapshot apply() {
     this.base = ops.refresh();
-    List<String> manifests = apply(base);
+    List<ManifestFile> manifests = apply(base);
     Long currentSnapshotId = base.currentSnapshot() != null ?
         base.currentSnapshot().snapshotId() : null;
     return new BaseSnapshot(ops,

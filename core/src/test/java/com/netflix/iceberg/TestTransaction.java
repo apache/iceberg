@@ -274,7 +274,7 @@ public class TestTransaction extends TableTestBase {
         .appendFile(FILE_B)
         .commit();
 
-    Set<String> appendManifests = Sets.newHashSet(t.table().currentSnapshot().manifests());
+    Set<ManifestFile> appendManifests = Sets.newHashSet(t.table().currentSnapshot().manifests());
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
@@ -313,7 +313,7 @@ public class TestTransaction extends TableTestBase {
         .appendFile(FILE_B)
         .commit();
 
-    Set<String> appendManifests = Sets.newHashSet(t.table().currentSnapshot().manifests());
+    Set<ManifestFile> appendManifests = Sets.newHashSet(t.table().currentSnapshot().manifests());
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
@@ -327,13 +327,13 @@ public class TestTransaction extends TableTestBase {
 
     Assert.assertEquals("Table should be on version 2 after real append", 2, (int) version());
 
-    Set<String> conflictAppendManifests = Sets.newHashSet(table.currentSnapshot().manifests());
+    Set<ManifestFile> conflictAppendManifests = Sets.newHashSet(table.currentSnapshot().manifests());
 
     t.commitTransaction();
 
     Assert.assertEquals("Table should be on version 3 after commit", 3, (int) version());
 
-    Set<String> expectedManifests = Sets.newHashSet();
+    Set<ManifestFile> expectedManifests = Sets.newHashSet();
     expectedManifests.addAll(appendManifests);
     expectedManifests.addAll(conflictAppendManifests);
 
@@ -370,7 +370,7 @@ public class TestTransaction extends TableTestBase {
 
     Assert.assertEquals("Append should create one manifest",
         1, t.table().currentSnapshot().manifests().size());
-    String appendManifest = t.table().currentSnapshot().manifests().get(0);
+    ManifestFile appendManifest = t.table().currentSnapshot().manifests().get(0);
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
@@ -384,13 +384,13 @@ public class TestTransaction extends TableTestBase {
 
     Assert.assertEquals("Table should be on version 2 after real append", 2, (int) version());
 
-    Set<String> conflictAppendManifests = Sets.newHashSet(table.currentSnapshot().manifests());
+    Set<ManifestFile> conflictAppendManifests = Sets.newHashSet(table.currentSnapshot().manifests());
 
     t.commitTransaction();
 
     Assert.assertEquals("Table should be on version 3 after commit", 3, (int) version());
 
-    Set<String> previousManifests = Sets.newHashSet();
+    Set<ManifestFile> previousManifests = Sets.newHashSet();
     previousManifests.add(appendManifest);
     previousManifests.addAll(conflictAppendManifests);
 
@@ -399,7 +399,7 @@ public class TestTransaction extends TableTestBase {
     Assert.assertFalse("Should merge both commit manifests into a new manifest",
         previousManifests.contains(table.currentSnapshot().manifests().get(0)));
 
-    Assert.assertFalse("Append manifest should be deleted", new File(appendManifest).exists());
+    Assert.assertFalse("Append manifest should be deleted", new File(appendManifest.path()).exists());
   }
 
   @Test
@@ -427,7 +427,7 @@ public class TestTransaction extends TableTestBase {
 
     Assert.assertEquals("Append should create one manifest",
         1, t.table().currentSnapshot().manifests().size());
-    String appendManifest = t.table().currentSnapshot().manifests().get(0);
+    ManifestFile appendManifest = t.table().currentSnapshot().manifests().get(0);
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
@@ -441,13 +441,13 @@ public class TestTransaction extends TableTestBase {
 
     Assert.assertEquals("Table should be on version 2 after real append", 2, (int) version());
 
-    Set<String> conflictAppendManifests = Sets.newHashSet(table.currentSnapshot().manifests());
+    Set<ManifestFile> conflictAppendManifests = Sets.newHashSet(table.currentSnapshot().manifests());
 
     t.commitTransaction();
 
     Assert.assertEquals("Table should be on version 3 after commit", 3, (int) version());
 
-    Set<String> previousManifests = Sets.newHashSet();
+    Set<ManifestFile> previousManifests = Sets.newHashSet();
     previousManifests.add(appendManifest);
     previousManifests.addAll(conflictAppendManifests);
 
@@ -456,6 +456,6 @@ public class TestTransaction extends TableTestBase {
     Assert.assertFalse("Should merge both commit manifests into a new manifest",
         previousManifests.contains(table.currentSnapshot().manifests().get(0)));
 
-    Assert.assertFalse("Append manifest should be deleted", new File(appendManifest).exists());
+    Assert.assertFalse("Append manifest should be deleted", new File(appendManifest.path()).exists());
   }
 }

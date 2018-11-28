@@ -22,6 +22,7 @@ package com.netflix.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.util.JsonUtil;
 import java.io.IOException;
@@ -43,8 +44,8 @@ public class SnapshotParser {
     }
     generator.writeNumberField(TIMESTAMP_MS, snapshot.timestampMillis());
     generator.writeArrayFieldStart(MANIFESTS);
-    for (String file : snapshot.manifests()) {
-      generator.writeString(file);
+    for (ManifestFile file : snapshot.manifests()) {
+      generator.writeString(file.path());
     }
     generator.writeEndArray();
     generator.writeEndObject();
@@ -73,7 +74,8 @@ public class SnapshotParser {
       parentId = JsonUtil.getLong(PARENT_SNAPSHOT_ID, node);
     }
     long timestamp = JsonUtil.getLong(TIMESTAMP_MS, node);
-    List<String> manifests = JsonUtil.getStringList(MANIFESTS, node);
+    List<ManifestFile> manifests = Lists.transform(JsonUtil.getStringList(MANIFESTS, node),
+        location -> new GenericManifestFile(location, 0));
 
     return new BaseSnapshot(ops, versionId, parentId, timestamp, manifests);
   }

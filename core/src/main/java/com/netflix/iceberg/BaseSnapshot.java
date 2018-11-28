@@ -20,21 +20,25 @@
 package com.netflix.iceberg;
 
 import com.google.common.base.Objects;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.netflix.iceberg.avro.Avro;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.io.CloseableGroup;
+import com.netflix.iceberg.io.CloseableIterable;
+import com.netflix.iceberg.io.InputFile;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
-class BaseSnapshot extends CloseableGroup implements Snapshot {
+class BaseSnapshot implements Snapshot {
   private final TableOperations ops;
   private final long snapshotId;
   private final Long parentId;
   private final long timestampMillis;
-  private final List<String> manifestFiles;
 
   // lazily initialized
+  private List<ManifestFile> manifests = null;
+  private InputFile snapshotFile = null;
   private List<DataFile> adds = null;
   private List<DataFile> deletes = null;
 
@@ -44,19 +48,36 @@ class BaseSnapshot extends CloseableGroup implements Snapshot {
   BaseSnapshot(TableOperations ops,
                long snapshotId,
                String... manifestFiles) {
-    this(ops, snapshotId, null, System.currentTimeMillis(), Arrays.asList(manifestFiles));
+    this(ops, snapshotId, null, System.currentTimeMillis(),
+        Lists.transform(Arrays.asList(manifestFiles), path -> new GenericManifestFile(path, 0)));
+  }
+
+  private BaseSnapshot(TableOperations ops,
+                       long snapshotId,
+                       Long parentId,
+                       long timestampMillis) {
+    this.ops = ops;
+    this.snapshotId = snapshotId;
+    this.parentId = parentId;
+    this.timestampMillis = timestampMillis;
   }
 
   BaseSnapshot(TableOperations ops,
                long snapshotId,
                Long parentId,
                long timestampMillis,
-               List<String> manifestFiles) {
-    this.ops = ops;
-    this.snapshotId = snapshotId;
-    this.parentId = parentId;
-    this.timestampMillis = timestampMillis;
-    this.manifestFiles = manifestFiles;
+               InputFile snapshotFile) {
+    this(ops, snapshotId, parentId, timestampMillis);
+    this.snapshotFile = snapshotFile;
+  }
+
+  BaseSnapshot(TableOperations ops,
+               long snapshotId,
+               Long parentId,
+               long timestampMillis,
+               List<ManifestFile> manifests) {
+    this(ops, snapshotId, parentId, timestampMillis);
+    this.manifests = manifests;
   }
 
   @Override
@@ -75,8 +96,22 @@ class BaseSnapshot extends CloseableGroup implements Snapshot {
   }
 
   @Override
-  public List<String> manifests() {
-    return manifestFiles;
+  public List<ManifestFile> manifests() {
+    if (manifests == null) {
+      // if manifests isn't set, then the snapshotFile is set and should be read to get the list
+      try (CloseableIterable<ManifestFile> files = Avro.read(snapshotFile)
+          .rename("manifest_file", GenericManifestFile.class.getName())
+          .reuseContainers(false)
+          .build()) {
+
+        this.manifests = Lists.newLinkedList(files);
+
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Cannot read snapshot file: %s", snapshotFile.location());
+      }
+    }
+
+    return manifests;
   }
 
   @Override
@@ -101,7 +136,7 @@ class BaseSnapshot extends CloseableGroup implements Snapshot {
 
     // accumulate adds and deletes from all manifests.
     // because manifests can be reused in newer snapshots, filter the changes by snapshot id.
-    for (String manifest : manifestFiles) {
+    for (String manifest : Iterables.transform(manifests, ManifestFile::path)) {
       try (ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest))) {
         for (ManifestEntry add : reader.addedFiles()) {
           if (add.snapshotId() == snapshotId) {
@@ -127,7 +162,7 @@ class BaseSnapshot extends CloseableGroup implements Snapshot {
     return Objects.toStringHelper(this)
         .add("id", snapshotId)
         .add("timestamp_ms", timestampMillis)
-        .add("manifests", manifestFiles)
+        .add("manifests", manifests)
         .toString();
   }
 }
