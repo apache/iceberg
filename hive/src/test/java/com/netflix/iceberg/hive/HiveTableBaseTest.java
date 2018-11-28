@@ -17,7 +17,6 @@ package com.netflix.iceberg.hive;
 
 import com.netflix.iceberg.PartitionSpec;
 import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.TableMetadataParser;
 import com.netflix.iceberg.types.Types;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -108,6 +107,8 @@ class HiveTableBaseTest {
           NoSuchFieldException, SQLException {
     this.executorService = Executors.newSingleThreadExecutor();
     hiveLocalDir = createTempDirectory("hive", asFileAttribute(fromString("rwxrwxrwx"))).toFile();
+    File derbyLogFile = new File(hiveLocalDir, "derby.log");
+    System.setProperty("derby.stream.error.file", derbyLogFile.getAbsolutePath());
     setupDB("jdbc:derby:" + getDerbyPath() + ";create=true");
 
     this.server = thriftServer();
@@ -132,10 +133,7 @@ class HiveTableBaseTest {
     }
   }
 
-  private HiveConf hiveConf(Configuration conf, int port) throws IOException {
-    File derbyLogFile = new File(hiveLocalDir, "derby.log");
-    derbyLogFile.createNewFile();
-    System.setProperty("derby.stream.error.file", derbyLogFile.getPath());
+  private HiveConf hiveConf(Configuration conf, int port) {
     final HiveConf hiveConf = new HiveConf(conf, this.getClass());
     // Setting AUTO_CREATE_ALL in hadoop config somehow still reverts to false.
     hiveConf.set(SCHEMA_VERIFICATION.getVarname(), "false");
@@ -148,13 +146,14 @@ class HiveTableBaseTest {
     hiveConf.set(COMPACTOR_INITIATOR_ON.getVarname(), "true");
     hiveConf.set(COMPACTOR_WORKER_THREADS.getVarname(), "1");
     hiveConf.set(HIVE_SUPPORT_CONCURRENCY.getVarname(), "true");
+    hiveConf.set("derby.system.home", getDerbyPath());
 
     return hiveConf;
   }
 
   private String getDerbyPath() {
     final File metastore_db = new File(hiveLocalDir, "metastore_db");
-    return metastore_db.getPath();
+    return metastore_db.getAbsolutePath();
   }
 
   private TServer thriftServer() throws IOException,
