@@ -19,21 +19,15 @@
 
 package com.netflix.iceberg;
 
-import com.google.common.base.Function;
 import com.google.common.base.Objects;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.io.CloseableGroup;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 
-class BaseSnapshot extends CloseableGroup implements Snapshot, SnapshotIterable {
+class BaseSnapshot extends CloseableGroup implements Snapshot {
   private final TableOperations ops;
   private final long snapshotId;
   private final Long parentId;
@@ -83,40 +77,6 @@ class BaseSnapshot extends CloseableGroup implements Snapshot, SnapshotIterable 
   @Override
   public List<String> manifests() {
     return manifestFiles;
-  }
-
-  @Override
-  public FilteredSnapshot select(Collection<String> columns) {
-    return new FilteredSnapshot(this, Expressions.alwaysTrue(), Expressions.alwaysTrue(), columns);
-  }
-
-  @Override
-  public FilteredSnapshot filterPartitions(Expression expr) {
-    return new FilteredSnapshot(this, expr, Expressions.alwaysTrue(), ALL_COLUMNS);
-  }
-
-  @Override
-  public FilteredSnapshot filterRows(Expression expr) {
-    return new FilteredSnapshot(this, Expressions.alwaysTrue(), expr, ALL_COLUMNS);
-  }
-
-  @Override
-  public Iterator<DataFile> iterator(Expression partFilter,
-                                     Expression rowFilter,
-                                     Collection<String> columns) {
-    return Iterables.concat(Iterables.transform(manifestFiles,
-        (Function<String, Iterable<DataFile>>) path -> {
-          ManifestReader reader = ManifestReader.read(ops.newInputFile(path));
-          addCloseable(reader);
-          return reader.filterPartitions(partFilter)
-              .filterRows(rowFilter)
-              .select(columns);
-        })).iterator();
-  }
-
-  @Override
-  public Iterator<DataFile> iterator() {
-    return iterator(Expressions.alwaysTrue(), Expressions.alwaysTrue(), ALL_COLUMNS);
   }
 
   @Override

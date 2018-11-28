@@ -19,11 +19,9 @@
 
 package com.netflix.iceberg;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.expressions.Expression;
 import java.util.Collection;
-import java.util.List;
 
 /**
  * Methods to filter files in a snapshot or manifest when reading.
@@ -31,8 +29,6 @@ import java.util.List;
  * @param <T> Java class returned by filter methods, also filterable
  */
 public interface Filterable<T extends Filterable<T>> extends Iterable<DataFile> {
-  List<String> ALL_COLUMNS = ImmutableList.of("*");
-
   /**
    * Selects the columns of a file manifest to read.
    * <p>
