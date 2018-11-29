@@ -152,7 +152,7 @@ class HiveTableBaseTest {
 
   private String getDerbyPath() {
     final File metastore_db = new File(hiveLocalDir, "metastore_db");
-    return metastore_db.getAbsolutePath();
+    return metastore_db.getPath();
   }
 
   private TServer thriftServer() throws IOException,
