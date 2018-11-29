@@ -146,7 +146,6 @@ class HiveTableBaseTest {
     hiveConf.set(COMPACTOR_INITIATOR_ON.getVarname(), "true");
     hiveConf.set(COMPACTOR_WORKER_THREADS.getVarname(), "1");
     hiveConf.set(HIVE_SUPPORT_CONCURRENCY.getVarname(), "true");
-    hiveConf.set("derby.system.home", getDerbyPath());
 
     return hiveConf;
   }
