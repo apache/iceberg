@@ -21,11 +21,13 @@ package com.netflix.iceberg;
 
 import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.CommitFailedException;
+import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.OutputFile;
 import com.netflix.iceberg.util.Exceptions;
 import com.netflix.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -39,6 +41,8 @@ import static com.netflix.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static com.netflix.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
+import static com.netflix.iceberg.TableProperties.MANIFEST_LISTS_ENABLED;
+import static com.netflix.iceberg.TableProperties.MANIFEST_LISTS_ENABLED_DEFAULT;
 
 abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotUpdate.class);
@@ -77,11 +81,29 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
   @Override
   public Snapshot apply() {
     this.base = ops.refresh();
-    List<ManifestFile> manifests = apply(base);
-    Long currentSnapshotId = base.currentSnapshot() != null ?
+    Long parentSnapshotId = base.currentSnapshot() != null ?
         base.currentSnapshot().snapshotId() : null;
-    return new BaseSnapshot(ops,
-        snapshotId(), currentSnapshotId, System.currentTimeMillis(), manifests);
+
+    List<ManifestFile> manifests = apply(base);
+
+    if (base.propertyAsBoolean(MANIFEST_LISTS_ENABLED, MANIFEST_LISTS_ENABLED_DEFAULT)) {
+      OutputFile manifestList = manifestListPath();
+
+      try (ManifestListWriter writer = new ManifestListWriter(
+          manifestListPath(), snapshotId(), parentSnapshotId)) {
+        writer.addAll(manifests);
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to write manifest list file");
+      }
+
+      return new BaseSnapshot(ops,
+          snapshotId(), parentSnapshotId, System.currentTimeMillis(),
+          ops.newInputFile(manifestList.location()));
+
+    } else {
+      return new BaseSnapshot(ops,
+          snapshotId(), parentSnapshotId, System.currentTimeMillis(), manifests);
+    }
   }
 
   @Override
@@ -133,6 +155,11 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
 
   protected void deleteFile(String path) {
     ops.deleteFile(path);
+  }
+
+  protected OutputFile manifestListPath() {
+    return ops.newMetadataFile(FileFormat.AVRO.addExtension(
+        String.format("snap-%d-%s", snapshotId(), commitUUID)));
   }
 
   protected OutputFile manifestPath(int i) {

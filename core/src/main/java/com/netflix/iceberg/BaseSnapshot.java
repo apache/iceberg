@@ -35,10 +35,10 @@ class BaseSnapshot implements Snapshot {
   private final long snapshotId;
   private final Long parentId;
   private final long timestampMillis;
+  private final InputFile manifestList;
 
   // lazily initialized
   private List<ManifestFile> manifests = null;
-  private InputFile snapshotFile = null;
   private List<DataFile> adds = null;
   private List<DataFile> deletes = null;
 
@@ -52,23 +52,16 @@ class BaseSnapshot implements Snapshot {
         Lists.transform(Arrays.asList(manifestFiles), path -> new GenericManifestFile(path, 0)));
   }
 
-  private BaseSnapshot(TableOperations ops,
-                       long snapshotId,
-                       Long parentId,
-                       long timestampMillis) {
-    this.ops = ops;
-    this.snapshotId = snapshotId;
-    this.parentId = parentId;
-    this.timestampMillis = timestampMillis;
-  }
-
   BaseSnapshot(TableOperations ops,
                long snapshotId,
                Long parentId,
                long timestampMillis,
-               InputFile snapshotFile) {
-    this(ops, snapshotId, parentId, timestampMillis);
-    this.snapshotFile = snapshotFile;
+               InputFile manifestList) {
+    this.ops = ops;
+    this.snapshotId = snapshotId;
+    this.parentId = parentId;
+    this.timestampMillis = timestampMillis;
+    this.manifestList = manifestList;
   }
 
   BaseSnapshot(TableOperations ops,
@@ -76,7 +69,7 @@ class BaseSnapshot implements Snapshot {
                Long parentId,
                long timestampMillis,
                List<ManifestFile> manifests) {
-    this(ops, snapshotId, parentId, timestampMillis);
+    this(ops, snapshotId, parentId, timestampMillis, (InputFile) null);
     this.manifests = manifests;
   }
 
@@ -99,15 +92,16 @@ class BaseSnapshot implements Snapshot {
   public List<ManifestFile> manifests() {
     if (manifests == null) {
       // if manifests isn't set, then the snapshotFile is set and should be read to get the list
-      try (CloseableIterable<ManifestFile> files = Avro.read(snapshotFile)
+      try (CloseableIterable<ManifestFile> files = Avro.read(manifestList)
           .rename("manifest_file", GenericManifestFile.class.getName())
+          .project(ManifestFile.schema())
           .reuseContainers(false)
           .build()) {
 
         this.manifests = Lists.newLinkedList(files);
 
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Cannot read snapshot file: %s", snapshotFile.location());
+        throw new RuntimeIOException(e, "Cannot read snapshot file: %s", manifestList.location());
       }
     }
 
@@ -128,6 +122,11 @@ class BaseSnapshot implements Snapshot {
       cacheChanges();
     }
     return deletes;
+  }
+
+  @Override
+  public String manifestListLocation() {
+    return manifestList != null ? manifestList.location() : null;
   }
 
   private void cacheChanges() {

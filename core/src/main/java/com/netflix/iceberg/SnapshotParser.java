@@ -35,19 +35,30 @@ public class SnapshotParser {
   private static final String PARENT_SNAPSHOT_ID = "parent-snapshot-id";
   private static final String TIMESTAMP_MS = "timestamp-ms";
   private static final String MANIFESTS = "manifests";
+  private static final String MANIFEST_LIST = "manifest-list";
 
-  static void toJson(Snapshot snapshot, JsonGenerator generator) throws IOException {
+  static void toJson(Snapshot snapshot, JsonGenerator generator)
+      throws IOException {
     generator.writeStartObject();
     generator.writeNumberField(SNAPSHOT_ID, snapshot.snapshotId());
     if (snapshot.parentId() != null) {
       generator.writeNumberField(PARENT_SNAPSHOT_ID, snapshot.parentId());
     }
     generator.writeNumberField(TIMESTAMP_MS, snapshot.timestampMillis());
-    generator.writeArrayFieldStart(MANIFESTS);
-    for (ManifestFile file : snapshot.manifests()) {
-      generator.writeString(file.path());
+
+    String manifestList = snapshot.manifestListLocation();
+    if (manifestList != null) {
+      // write just the location. manifests should not be embedded in JSON along with a list
+      generator.writeStringField(MANIFEST_LIST, manifestList);
+    } else {
+      // embed the manifest list in the JSON
+      generator.writeArrayFieldStart(MANIFESTS);
+      for (ManifestFile file : snapshot.manifests()) {
+        generator.writeString(file.path());
+      }
+      generator.writeEndArray();
     }
-    generator.writeEndArray();
+
     generator.writeEndObject();
   }
 
@@ -74,10 +85,18 @@ public class SnapshotParser {
       parentId = JsonUtil.getLong(PARENT_SNAPSHOT_ID, node);
     }
     long timestamp = JsonUtil.getLong(TIMESTAMP_MS, node);
-    List<ManifestFile> manifests = Lists.transform(JsonUtil.getStringList(MANIFESTS, node),
-        location -> new GenericManifestFile(location, 0));
 
-    return new BaseSnapshot(ops, versionId, parentId, timestamp, manifests);
+    if (node.has(MANIFEST_LIST)) {
+      // the manifest list is stored in a manifest list file
+      String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
+      return new BaseSnapshot(ops, versionId, parentId, timestamp, ops.newInputFile(manifestList));
+
+    } else {
+      // fall back to an embedded manifest list
+      List<ManifestFile> manifests = Lists.transform(JsonUtil.getStringList(MANIFESTS, node),
+          location -> new GenericManifestFile(location, 0));
+      return new BaseSnapshot(ops, versionId, parentId, timestamp, manifests);
+    }
   }
 
   public static Snapshot fromJson(TableOperations ops, String json) {

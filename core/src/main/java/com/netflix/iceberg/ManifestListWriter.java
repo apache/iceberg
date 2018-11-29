@@ -19,6 +19,7 @@
 
 package com.netflix.iceberg;
 
+import com.google.common.collect.ImmutableMap;
 import com.netflix.iceberg.avro.Avro;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.FileAppender;
@@ -27,11 +28,13 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 
-public class SnapshotFileWriter implements FileAppender<ManifestFile> {
+class ManifestListWriter implements FileAppender<ManifestFile> {
   private final FileAppender<ManifestFile> writer;
 
-  public SnapshotFileWriter(OutputFile snapshotFile, Map<String, String> metadata) {
-    this.writer = newAppender(snapshotFile, metadata);
+  ManifestListWriter(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId) {
+    this.writer = newAppender(snapshotFile, ImmutableMap.of(
+        "snapshot-id", String.valueOf(snapshotId),
+        "parent-snapshot-id", String.valueOf(parentSnapshotId)));
   }
 
   @Override

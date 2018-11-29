@@ -66,4 +66,7 @@ public class TableProperties {
   public static final boolean OBJECT_STORE_ENABLED_DEFAULT = false;
 
   public static final String OBJECT_STORE_PATH = "write.object-storage.path";
+
+  public static final String MANIFEST_LISTS_ENABLED = "write.manifest-lists.enabled";
+  public static final boolean MANIFEST_LISTS_ENABLED_DEFAULT = false;
 }

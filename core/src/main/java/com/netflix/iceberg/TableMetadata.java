@@ -221,6 +221,14 @@ public class TableMetadata {
     return properties;
   }
 
+  public boolean propertyAsBoolean(String property, boolean defaultValue) {
+    String value = properties.get(property);
+    if (value != null) {
+      return Boolean.parseBoolean(properties.get(property));
+    }
+    return defaultValue;
+  }
+
   public int propertyAsInt(String property, int defaultValue) {
     String value = properties.get(property);
     if (value != null) {
