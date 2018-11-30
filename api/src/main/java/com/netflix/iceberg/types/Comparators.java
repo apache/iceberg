@@ -19,10 +19,41 @@
 
 package com.netflix.iceberg.types;
 
+import com.google.common.collect.ImmutableMap;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 
 public class Comparators {
+  private static final ImmutableMap<Type.PrimitiveType, Comparator<?>> COMPARATORS = ImmutableMap
+      .<Type.PrimitiveType, Comparator<?>>builder()
+      .put(Types.BooleanType.get(), Comparator.naturalOrder())
+      .put(Types.IntegerType.get(), Comparator.naturalOrder())
+      .put(Types.LongType.get(), Comparator.naturalOrder())
+      .put(Types.FloatType.get(), Comparator.naturalOrder())
+      .put(Types.DoubleType.get(), Comparator.naturalOrder())
+      .put(Types.DateType.get(), Comparator.naturalOrder())
+      .put(Types.TimeType.get(), Comparator.naturalOrder())
+      .put(Types.TimestampType.withZone(), Comparator.naturalOrder())
+      .put(Types.TimestampType.withoutZone(), Comparator.naturalOrder())
+      .put(Types.StringType.get(), Comparators.charSequences())
+      .put(Types.UUIDType.get(), Comparator.naturalOrder())
+      .put(Types.BinaryType.get(), Comparators.unsignedBytes())
+      .build();
+
+  @SuppressWarnings("unchecked")
+  public static <T> Comparator<T> forType(Type.PrimitiveType type) {
+    Comparator<?> cmp = COMPARATORS.get(type);
+    if (cmp != null) {
+      return (Comparator<T>) cmp;
+    } else if (type instanceof Types.FixedType) {
+      return (Comparator<T>) Comparators.unsignedBytes();
+    } else if (type instanceof Types.DecimalType) {
+      return (Comparator<T>) Comparator.naturalOrder();
+    }
+
+    throw new UnsupportedOperationException("Cannot determine comparator for type: " + type);
+  }
+
   public static Comparator<ByteBuffer> unsignedBytes() {
     return UnsignedByteBufComparator.INSTANCE;
   }

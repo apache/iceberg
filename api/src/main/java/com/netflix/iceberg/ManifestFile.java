@@ -40,8 +40,8 @@ public interface ManifestFile {
       optional(505, "deleted_data_files_count", Types.IntegerType.get()),
       optional(506, "partitions", Types.ListType.ofRequired(507, Types.StructType.of(
           required(508, "contains_null", Types.BooleanType.get()),
-          required(509, "lower_bound", Types.BinaryType.get()),
-          required(510, "upper_bound", Types.BinaryType.get())
+          optional(509, "lower_bound", Types.BinaryType.get()), // null if no non-null values
+          optional(510, "upper_bound", Types.BinaryType.get())
       ))));
 
   static Schema schema() {
