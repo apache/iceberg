@@ -96,6 +96,7 @@ class Literals {
     private final T value;
 
     BaseLiteral(T value) {
+      Preconditions.checkNotNull(value, "Literal values cannot be null");
       this.value = value;
     }
 
