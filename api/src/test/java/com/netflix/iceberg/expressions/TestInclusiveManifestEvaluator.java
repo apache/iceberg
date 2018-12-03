@@ -69,10 +69,10 @@ public class TestInclusiveManifestEvaluator {
   private static final ByteBuffer STRING_MAX = toByteBuffer(Types.StringType.get(), "z");
 
   private static final ManifestFile NO_STATS = new TestHelpers.TestManifestFile(
-      "manifest-list.avro", 0, System.currentTimeMillis(), null, null, null, null);
+      "manifest-list.avro", 1024, 0, System.currentTimeMillis(), null, null, null, null);
 
   private static final ManifestFile FILE = new TestHelpers.TestManifestFile("manifest-list.avro",
-      0, System.currentTimeMillis(), 5, 10, 0, ImmutableList.of(
+      1024, 0, System.currentTimeMillis(), 5, 10, 0, ImmutableList.of(
           new TestHelpers.TestFieldSummary(false, INT_MIN, INT_MAX),
           new TestHelpers.TestFieldSummary(true, null, null),
           new TestHelpers.TestFieldSummary(true, STRING_MIN, STRING_MAX),

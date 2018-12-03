@@ -22,9 +22,12 @@ package com.netflix.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.util.JsonUtil;
+import com.netflix.iceberg.util.Tasks;
+import com.netflix.iceberg.util.ThreadPools;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.List;
@@ -92,9 +95,10 @@ public class SnapshotParser {
       return new BaseSnapshot(ops, versionId, parentId, timestamp, ops.newInputFile(manifestList));
 
     } else {
-      // fall back to an embedded manifest list
+      // fall back to an embedded manifest list. pass in the manifest's InputFile so length can be
+      // loaded lazily, if it is needed
       List<ManifestFile> manifests = Lists.transform(JsonUtil.getStringList(MANIFESTS, node),
-          location -> new GenericManifestFile(location, 0));
+          location -> new GenericManifestFile(ops.newInputFile(location), 0));
       return new BaseSnapshot(ops, versionId, parentId, timestamp, manifests);
     }
   }

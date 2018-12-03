@@ -29,7 +29,9 @@ import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.types.Types;
 import com.netflix.iceberg.util.JsonUtil;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.Arrays;
@@ -37,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
+import static com.netflix.iceberg.Files.localInput;
 import static com.netflix.iceberg.TableMetadataParser.CURRENT_SNAPSHOT_ID;
 import static com.netflix.iceberg.TableMetadataParser.FORMAT_VERSION;
 import static com.netflix.iceberg.TableMetadataParser.LAST_COLUMN_ID;
@@ -48,6 +51,11 @@ import static com.netflix.iceberg.TableMetadataParser.SCHEMA;
 import static com.netflix.iceberg.TableMetadataParser.SNAPSHOTS;
 
 public class TestTableMetadataJson {
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
+
+  public TableOperations ops = new LocalTableOperations(temp);
+
   @Test
   public void testJsonConversion() throws Exception {
     Schema schema = new Schema(
@@ -60,25 +68,25 @@ public class TestTableMetadataJson {
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        null, previousSnapshotId, null, previousSnapshotId,
-        ImmutableList.of(new GenericManifestFile("file:/tmp/manfiest.1.avro", spec.specId())));
+        null, previousSnapshotId, null, previousSnapshotId, ImmutableList.of(
+        new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), spec.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        null, currentSnapshotId, previousSnapshotId, currentSnapshotId,
-        ImmutableList.of(new GenericManifestFile("file:/tmp/manfiest.2.avro", spec.specId())));
+        null, currentSnapshotId, previousSnapshotId, currentSnapshotId, ImmutableList.of(
+        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
     List<SnapshotLogEntry> snapshotLog = ImmutableList.<SnapshotLogEntry>builder()
         .add(new SnapshotLogEntry(previousSnapshot.timestampMillis(), previousSnapshot.snapshotId()))
         .add(new SnapshotLogEntry(currentSnapshot.timestampMillis(), currentSnapshot.snapshotId()))
         .build();
 
-    TableMetadata expected = new TableMetadata(null, null, "s3://bucket/test/location",
+    TableMetadata expected = new TableMetadata(ops, null, "s3://bucket/test/location",
         System.currentTimeMillis(), 3, schema, 5, ImmutableList.of(spec),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), snapshotLog);
 
     String asJson = TableMetadataParser.toJson(expected);
-    TableMetadata metadata = TableMetadataParser.fromJson(null, null,
+    TableMetadata metadata = TableMetadataParser.fromJson(ops, null,
         JsonUtil.mapper().readValue(asJson, JsonNode.class));
 
     Assert.assertEquals("Table location should match",
@@ -122,16 +130,16 @@ public class TestTableMetadataJson {
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        null, previousSnapshotId, null, previousSnapshotId,
-        ImmutableList.of(new GenericManifestFile("file:/tmp/manfiest.1.avro", spec.specId())));
+        ops, previousSnapshotId, null, previousSnapshotId, ImmutableList.of(
+        new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), spec.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        null, currentSnapshotId, previousSnapshotId, currentSnapshotId,
-        ImmutableList.of(new GenericManifestFile("file:/tmp/manfiest.2.avro", spec.specId())));
+        ops, currentSnapshotId, previousSnapshotId, currentSnapshotId, ImmutableList.of(
+        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
     List<SnapshotLogEntry> reversedSnapshotLog = Lists.newArrayList();
 
-    TableMetadata expected = new TableMetadata(null, null, "s3://bucket/test/location",
+    TableMetadata expected = new TableMetadata(ops, null, "s3://bucket/test/location",
         System.currentTimeMillis(), 3, schema, 5, ImmutableList.of(spec),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog);
@@ -143,7 +151,7 @@ public class TestTableMetadataJson {
         new SnapshotLogEntry(previousSnapshot.timestampMillis(), previousSnapshot.snapshotId()));
 
     String asJson = TableMetadataParser.toJson(expected);
-    TableMetadata metadata = TableMetadataParser.fromJson(null, null,
+    TableMetadata metadata = TableMetadataParser.fromJson(ops, null,
         JsonUtil.mapper().readValue(asJson, JsonNode.class));
 
     List<SnapshotLogEntry> expectedSnapshotLog = ImmutableList.<SnapshotLogEntry>builder()
@@ -167,20 +175,20 @@ public class TestTableMetadataJson {
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        null, previousSnapshotId, null, previousSnapshotId,
-        ImmutableList.of(new GenericManifestFile("file:/tmp/manfiest.1.avro", spec.specId())));
+        ops, previousSnapshotId, null, previousSnapshotId, ImmutableList.of(
+        new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), spec.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        null, currentSnapshotId, previousSnapshotId, currentSnapshotId,
-        ImmutableList.of(new GenericManifestFile("file:/tmp/manfiest.2.avro", spec.specId())));
+        ops, currentSnapshotId, previousSnapshotId, currentSnapshotId, ImmutableList.of(
+        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
-    TableMetadata expected = new TableMetadata(null, null, "s3://bucket/test/location",
+    TableMetadata expected = new TableMetadata(ops, null, "s3://bucket/test/location",
         System.currentTimeMillis(), 3, schema, 6, ImmutableList.of(spec),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), ImmutableList.of());
 
     String asJson = toJsonWithoutSpecList(expected);
-    TableMetadata metadata = TableMetadataParser.fromJson(null, null,
+    TableMetadata metadata = TableMetadataParser.fromJson(ops, null,
         JsonUtil.mapper().readValue(asJson, JsonNode.class));
 
     Assert.assertEquals("Table location should match",

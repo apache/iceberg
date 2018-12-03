@@ -33,15 +33,16 @@ import static com.netflix.iceberg.types.Types.NestedField.required;
 public interface ManifestFile {
   Schema SCHEMA = new Schema(
       required(500, "manifest_path", Types.StringType.get()),
-      required(501, "partition_spec_id", Types.IntegerType.get()),
-      optional(502, "added_snapshot_id", Types.LongType.get()),
-      optional(503, "added_data_files_count", Types.IntegerType.get()),
-      optional(504, "existing_data_files_count", Types.IntegerType.get()),
-      optional(505, "deleted_data_files_count", Types.IntegerType.get()),
-      optional(506, "partitions", Types.ListType.ofRequired(507, Types.StructType.of(
-          required(508, "contains_null", Types.BooleanType.get()),
-          optional(509, "lower_bound", Types.BinaryType.get()), // null if no non-null values
-          optional(510, "upper_bound", Types.BinaryType.get())
+      required(501, "manifest_length", Types.LongType.get()),
+      required(502, "partition_spec_id", Types.IntegerType.get()),
+      optional(503, "added_snapshot_id", Types.LongType.get()),
+      optional(504, "added_data_files_count", Types.IntegerType.get()),
+      optional(505, "existing_data_files_count", Types.IntegerType.get()),
+      optional(506, "deleted_data_files_count", Types.IntegerType.get()),
+      optional(507, "partitions", Types.ListType.ofRequired(508, Types.StructType.of(
+          required(509, "contains_null", Types.BooleanType.get()),
+          optional(510, "lower_bound", Types.BinaryType.get()), // null if no non-null values
+          optional(511, "upper_bound", Types.BinaryType.get())
       ))));
 
   static Schema schema() {
@@ -52,6 +53,11 @@ public interface ManifestFile {
    * @return fully qualified path to the file, suitable for constructing a Hadoop Path
    */
   String path();
+
+  /**
+   * @return length of the manifest file
+   */
+  long length();
 
   /**
    * @return ID of the {@link PartitionSpec} used to write the manifest file

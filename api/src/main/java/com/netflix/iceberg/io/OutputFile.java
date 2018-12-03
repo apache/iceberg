@@ -58,4 +58,10 @@ public interface OutputFile {
    */
   String location();
 
+  /**
+   * Return an {@link InputFile} for the location of this output file.
+   *
+   * @return an input file for the location of this output file
+   */
+  InputFile toInputFile();
 }

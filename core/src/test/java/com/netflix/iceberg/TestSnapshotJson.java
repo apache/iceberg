@@ -20,9 +20,6 @@
 package com.netflix.iceberg;
 
 import com.google.common.collect.ImmutableList;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.io.InputFile;
-import com.netflix.iceberg.io.OutputFile;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -31,16 +28,20 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 
+import static com.netflix.iceberg.Files.localInput;
+
 public class TestSnapshotJson {
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
+  public TableOperations ops = new LocalTableOperations(temp);
+
   @Test
   public void testJsonConversion() {
-    Snapshot expected = new BaseSnapshot(null, System.currentTimeMillis(),
+    Snapshot expected = new BaseSnapshot(ops, System.currentTimeMillis(),
         "file:/tmp/manifest1.avro", "file:/tmp/manifest2.avro");
     String json = SnapshotParser.toJson(expected);
-    Snapshot snapshot = SnapshotParser.fromJson(null, json);
+    Snapshot snapshot = SnapshotParser.fromJson(ops, json);
 
     Assert.assertEquals("Snapshot ID should match",
         expected.snapshotId(), snapshot.snapshotId());
@@ -53,8 +54,8 @@ public class TestSnapshotJson {
     long parentId = 1;
     long id = 2;
     List<ManifestFile> manifests = ImmutableList.of(
-        new GenericManifestFile("file:/tmp/manifest1.avro", 0),
-        new GenericManifestFile("file:/tmp/manifest2.avro", 0));
+        new GenericManifestFile(localInput("file:/tmp/manifest1.avro"), 0),
+        new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0));
 
     File manifestList = temp.newFile("manifests");
     Assert.assertTrue(manifestList.delete());
@@ -66,15 +67,15 @@ public class TestSnapshotJson {
     }
 
     Snapshot expected = new BaseSnapshot(
-        null, id, parentId, System.currentTimeMillis(), Files.localInput(manifestList));
+        ops, id, parentId, System.currentTimeMillis(), localInput(manifestList));
     Snapshot inMemory = new BaseSnapshot(
-        null, id, parentId, expected.timestampMillis(), manifests);
+        ops, id, parentId, expected.timestampMillis(), manifests);
 
     Assert.assertEquals("Files should match in memory list",
         inMemory.manifests(), expected.manifests());
 
     String json = SnapshotParser.toJson(expected);
-    Snapshot snapshot = SnapshotParser.fromJson(new LocalTableOperations(), json);
+    Snapshot snapshot = SnapshotParser.fromJson(ops, json);
 
     Assert.assertEquals("Snapshot ID should match",
         expected.snapshotId(), snapshot.snapshotId());
@@ -86,49 +87,5 @@ public class TestSnapshotJson {
         expected.manifestListLocation(), snapshot.manifestListLocation());
     Assert.assertEquals("Files should match",
         expected.manifests(), snapshot.manifests());
-  }
-
-  private class LocalTableOperations implements TableOperations {
-    @Override
-    public TableMetadata current() {
-      throw new UnsupportedOperationException("Not implemented for tests");
-    }
-
-    @Override
-    public TableMetadata refresh() {
-      throw new UnsupportedOperationException("Not implemented for tests");
-    }
-
-    @Override
-    public void commit(TableMetadata base, TableMetadata metadata) {
-      throw new UnsupportedOperationException("Not implemented for tests");
-    }
-
-    @Override
-    public InputFile newInputFile(String path) {
-      return Files.localInput(path);
-    }
-
-    @Override
-    public OutputFile newMetadataFile(String filename) {
-      try {
-        File metadataFile = temp.newFile(filename);
-        metadataFile.delete();
-        metadataFile.deleteOnExit();
-        return Files.localOutput(metadataFile);
-      } catch (IOException e) {
-        throw new RuntimeIOException(e);
-      }
-    }
-
-    @Override
-    public void deleteFile(String path) {
-      new File(path).delete();
-    }
-
-    @Override
-    public long newSnapshotId() {
-      throw new UnsupportedOperationException("Not implemented for tests");
-    }
   }
 }

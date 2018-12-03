@@ -21,6 +21,7 @@ package com.netflix.iceberg;
 
 import com.google.common.base.Objects;
 import com.netflix.iceberg.avro.AvroSchemaUtil;
+import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.types.Types;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
@@ -40,7 +41,9 @@ public class GenericManifestFile
   private int[] fromProjectionPos;
 
   // data fields
+  private InputFile file = null;
   private String manifestPath = null;
+  private Long length = null;
   private int specId = -1;
   private Long snapshotId = null;
   private Integer addedFilesCount = null;
@@ -76,9 +79,11 @@ public class GenericManifestFile
     }
   }
 
-  GenericManifestFile(String location, int specId) {
+  GenericManifestFile(InputFile file, int specId) {
     this.avroSchema = AVRO_SCHEMA;
-    this.manifestPath = location;
+    this.file = file;
+    this.manifestPath = file.location();
+    this.length = null; // lazily loaded from file
     this.specId = specId;
     this.snapshotId = null;
     this.addedFilesCount = null;
@@ -88,11 +93,12 @@ public class GenericManifestFile
     this.fromProjectionPos = null;
   }
 
-  public GenericManifestFile(String path, int specId, long snapshotId,
+  public GenericManifestFile(String path, long length, int specId, long snapshotId,
                              int addedFilesCount, int existingFilesCount, int deletedFilesCount,
                              List<PartitionFieldSummary> partitions) {
     this.avroSchema = AVRO_SCHEMA;
     this.manifestPath = path;
+    this.length = length;
     this.specId = specId;
     this.snapshotId = snapshotId;
     this.addedFilesCount = addedFilesCount;
@@ -110,6 +116,7 @@ public class GenericManifestFile
   private GenericManifestFile(GenericManifestFile toCopy) {
     this.avroSchema = toCopy.avroSchema;
     this.manifestPath = toCopy.manifestPath;
+    this.length = toCopy.length;
     this.specId = toCopy.specId;
     this.snapshotId = toCopy.snapshotId;
     this.addedFilesCount = toCopy.addedFilesCount;
@@ -128,6 +135,24 @@ public class GenericManifestFile
   @Override
   public String path() {
     return manifestPath;
+  }
+
+  public Long lazyLength() {
+    if (length == null) {
+      if (file != null) {
+        // this was created from an input file and length is lazily loaded
+        this.length = file.getLength();
+      } else {
+        // this was loaded from a file without projecting length, throw an exception
+        return null;
+      }
+    }
+    return length;
+  }
+
+  @Override
+  public long length() {
+    return lazyLength();
   }
 
   @Override
@@ -186,16 +211,18 @@ public class GenericManifestFile
       case 0:
         return manifestPath;
       case 1:
-        return specId;
+        return lazyLength();
       case 2:
-        return snapshotId;
+        return specId;
       case 3:
-        return addedFilesCount;
+        return snapshotId;
       case 4:
-        return existingFilesCount;
+        return addedFilesCount;
       case 5:
-        return deletedFilesCount;
+        return existingFilesCount;
       case 6:
+        return deletedFilesCount;
+      case 7:
         return partitions;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
@@ -216,21 +243,24 @@ public class GenericManifestFile
         this.manifestPath = value.toString();
         return;
       case 1:
-        this.specId = (Integer) value;
+        this.length = (Long) value;
         return;
       case 2:
-        this.snapshotId = (Long) value;
+        this.specId = (Integer) value;
         return;
       case 3:
-        this.addedFilesCount = (Integer) value;
+        this.snapshotId = (Long) value;
         return;
       case 4:
-        this.existingFilesCount = (Integer) value;
+        this.addedFilesCount = (Integer) value;
         return;
       case 5:
-        this.deletedFilesCount = (Integer) value;
+        this.existingFilesCount = (Integer) value;
         return;
       case 6:
+        this.deletedFilesCount = (Integer) value;
+        return;
+      case 7:
         this.partitions = (List<PartitionFieldSummary>) value;
         return;
       default:
@@ -269,6 +299,7 @@ public class GenericManifestFile
   public String toString() {
     return Objects.toStringHelper(this)
         .add("path", manifestPath)
+        .add("length", length)
         .add("partition_spec_id", specId)
         .add("added_snapshot_id", snapshotId)
         .add("added_data_files_count", addedFilesCount)

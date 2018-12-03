@@ -413,8 +413,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
     // from the end so that the manifest that gets under-filled is the first one, which will be
     // merged the next time.
     ListPacker<ManifestFile> packer = new ListPacker<>(manifestTargetSizeBytes, 1);
-    List<List<ManifestFile>> bins = packer.packEnd(group,
-        manifest -> ops.newInputFile(manifest.path()).getLength());
+    List<List<ManifestFile>> bins = packer.packEnd(group, manifest -> manifest.length());
 
     // process bins in parallel, but put results in the order of the bins into an array to preserve
     // the order of manifests and contents. preserving the order helps avoid random deletes when

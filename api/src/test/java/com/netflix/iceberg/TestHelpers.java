@@ -210,6 +210,7 @@ public class TestHelpers {
 
   public static class TestManifestFile implements ManifestFile {
     private final String path;
+    private final long length;
     private final int specId;
     private final Long snapshotId;
     private final Integer addedFiles;
@@ -217,10 +218,11 @@ public class TestHelpers {
     private final Integer deletedFiles;
     private final List<PartitionFieldSummary> partitions;
 
-    public TestManifestFile(String path, int specId, Long snapshotId,
+    public TestManifestFile(String path, long length, int specId, Long snapshotId,
                             Integer addedFiles, Integer existingFiles, Integer deletedFiles,
                             List<PartitionFieldSummary> partitions) {
       this.path = path;
+      this.length = length;
       this.specId = specId;
       this.snapshotId = snapshotId;
       this.addedFiles = addedFiles;
@@ -232,6 +234,11 @@ public class TestHelpers {
     @Override
     public String path() {
       return path;
+    }
+
+    @Override
+    public long length() {
+      return length;
     }
 
     @Override
