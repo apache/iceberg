@@ -19,6 +19,9 @@
 
 package com.netflix.iceberg;
 
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.CommitFailedException;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
@@ -28,6 +31,7 @@ import com.netflix.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -43,10 +47,26 @@ import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 import static com.netflix.iceberg.TableProperties.MANIFEST_LISTS_ENABLED;
 import static com.netflix.iceberg.TableProperties.MANIFEST_LISTS_ENABLED_DEFAULT;
+import static com.netflix.iceberg.util.ThreadPools.getWorkerPool;
 
 abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotUpdate.class);
   static final Set<ManifestFile> EMPTY_SET = Sets.newHashSet();
+
+  /**
+   * Cache used to enrich ManifestFile instances that are written to a ManifestListWriter.
+   */
+  private final LoadingCache<ManifestFile, ManifestFile> manifestsWithMetadata = CacheBuilder
+      .newBuilder()
+      .build(new CacheLoader<ManifestFile, ManifestFile>() {
+        @Override
+        public ManifestFile load(ManifestFile file) {
+          if (file.snapshotId() != null) {
+            return file;
+          }
+          return addMetadata(ops, file);
+        }
+      });
 
   private final TableOperations ops;
   private final String commitUUID = UUID.randomUUID().toString();
@@ -91,7 +111,21 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
 
       try (ManifestListWriter writer = new ManifestListWriter(
           manifestListPath(), snapshotId(), parentSnapshotId)) {
-        writer.addAll(manifests);
+        ManifestFile[] manifestFiles = new ManifestFile[manifests.size()];
+
+        Tasks.range(manifestFiles.length)
+            .stopOnFailure().throwFailureWhenFinished()
+            .retry(4).exponentialBackoff(
+                base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
+                base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+                base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
+                2.0 /* exponential */ )
+            .executeWith(getWorkerPool())
+            .run(index ->
+                manifestFiles[index] = manifestsWithMetadata.getUnchecked(manifests.get(index)));
+
+        writer.addAll(Arrays.asList(manifestFiles));
+
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to write manifest list file");
       }
@@ -171,5 +205,53 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
       this.snapshotId = ops.newSnapshotId();
     }
     return snapshotId;
+  }
+
+  private static ManifestFile addMetadata(TableOperations ops, ManifestFile manifest) {
+    try (ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest.path()))) {
+      PartitionSummary stats = new PartitionSummary(ops.current().spec(manifest.partitionSpecId()));
+      int addedFiles = 0;
+      int existingFiles = 0;
+      int deletedFiles = 0;
+
+      Long snapshotId = null;
+      long maxSnapshotId = Long.MIN_VALUE;
+      for (ManifestEntry entry : reader.entries()) {
+        if (entry.snapshotId() > maxSnapshotId) {
+          maxSnapshotId = entry.snapshotId();
+        }
+
+        switch (entry.status()) {
+          case ADDED:
+            addedFiles += 1;
+            if (snapshotId == null) {
+              snapshotId = entry.snapshotId();
+            }
+            break;
+          case EXISTING:
+            existingFiles += 1;
+            break;
+          case DELETED:
+            deletedFiles += 1;
+            if (snapshotId == null) {
+              snapshotId = entry.snapshotId();
+            }
+            break;
+        }
+
+        stats.update(entry.file().partition());
+      }
+
+      if (snapshotId == null) {
+        // if no files were added or deleted, use the largest snapshot ID in the manifest
+        snapshotId = maxSnapshotId;
+      }
+
+      return new GenericManifestFile(manifest.path(), manifest.length(), manifest.partitionSpecId(),
+          snapshotId, addedFiles, existingFiles, deletedFiles, stats.summaries());
+
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to read manifest: %s", manifest.path());
+    }
   }
 }
