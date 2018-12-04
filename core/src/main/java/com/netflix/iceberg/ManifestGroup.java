@@ -94,8 +94,18 @@ class ManifestGroup {
     Evaluator evaluator = new Evaluator(DataFile.getType(EMPTY_STRUCT), fileFilter);
     List<Closeable> toClose = Lists.newArrayList();
 
+    Iterable<ManifestFile> matchingManifests = manifests;
+
+    if (ignoreDeleted) {
+      // remove any manifests that don't have any existing or added files. if either the added or
+      // existing files count is missing, the manifest must be scanned.
+      matchingManifests = Iterables.filter(manifests, manifest ->
+          manifest.addedFilesCount() == null || manifest.existingFilesCount() == null ||
+              manifest.addedFilesCount() + manifest.existingFilesCount() > 0);
+    }
+
     Iterable<Iterable<ManifestEntry>> readers = Iterables.transform(
-        manifests,
+        matchingManifests,
         manifest -> {
           ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest.path()));
           FilteredManifest filtered = reader.filterRows(dataFilter).select(columns);
