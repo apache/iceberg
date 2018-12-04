@@ -95,6 +95,7 @@ class BaseSnapshot implements Snapshot {
       // if manifests isn't set, then the snapshotFile is set and should be read to get the list
       try (CloseableIterable<ManifestFile> files = Avro.read(manifestList)
           .rename("manifest_file", GenericManifestFile.class.getName())
+          .rename("partitions", GenericPartitionFieldSummary.class.getName())
           .rename("r508", GenericPartitionFieldSummary.class.getName())
           .project(ManifestFile.schema())
           .reuseContainers(false)

@@ -179,7 +179,7 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
       }
 
     } catch (RuntimeException e) {
-      LOG.info("Failed to load committed table metadata, skipping manifest clean-up");
+      LOG.info("Failed to load committed table metadata, skipping manifest clean-up", e);
     }
   }
 
