@@ -37,20 +37,18 @@ public class PartitionSpecParser {
   private PartitionSpecParser() {
   }
 
+  private static final String SPEC_ID = "spec-id";
+  private static final String FIELDS = "fields";
   private static final String SOURCE_ID = "source-id";
   private static final String TRANSFORM = "transform";
   private static final String NAME = "name";
 
   public static void toJson(PartitionSpec spec, JsonGenerator generator) throws IOException {
-    generator.writeStartArray();
-    for (PartitionField field : spec.fields()) {
-      generator.writeStartObject();
-      generator.writeStringField(NAME, field.name());
-      generator.writeStringField(TRANSFORM, field.transform().toString());
-      generator.writeNumberField(SOURCE_ID, field.sourceId());
-      generator.writeEndObject();
-    }
-    generator.writeEndArray();
+    generator.writeStartObject();
+    generator.writeNumberField(SPEC_ID, spec.specId());
+    generator.writeFieldName(FIELDS);
+    toJsonFields(spec, generator);
+    generator.writeEndObject();
   }
 
   public static String toJson(PartitionSpec spec) {
@@ -74,23 +72,10 @@ public class PartitionSpecParser {
   }
 
   public static PartitionSpec fromJson(Schema schema, JsonNode json) {
-    Preconditions.checkArgument(json.isArray(),
-        "Cannot parse partition spec, not an array: %s", json);
-
-    PartitionSpec.Builder builder = PartitionSpec.builderFor(schema);
-    Iterator<JsonNode> elements = json.elements();
-    while (elements.hasNext()) {
-      JsonNode element = elements.next();
-      Preconditions.checkArgument(element.isObject(),
-          "Cannot parse partition field, not an object: %s", element);
-
-      String name = JsonUtil.getString(NAME, element);
-      String transform = JsonUtil.getString(TRANSFORM, element);
-      int sourceId = JsonUtil.getInt(SOURCE_ID, element);
-
-      builder.add(sourceId, name, transform);
-    }
-
+    Preconditions.checkArgument(json.isObject(), "Cannot parse spec from non-object: %s", json);
+    int specId = JsonUtil.getInt(SPEC_ID, json);
+    PartitionSpec.Builder builder = PartitionSpec.builderFor(schema).withSpecId(specId);
+    buildFromJsonFields(builder, json.get(FIELDS));
     return builder.build();
   }
 
@@ -111,6 +96,63 @@ public class PartitionSpecParser {
       } else {
         throw new RuntimeException("Failed to parse partition spec: " + json, e.getCause());
       }
+    }
+  }
+
+  static void toJsonFields(PartitionSpec spec, JsonGenerator generator) throws IOException {
+    generator.writeStartArray();
+    for (PartitionField field : spec.fields()) {
+      generator.writeStartObject();
+      generator.writeStringField(NAME, field.name());
+      generator.writeStringField(TRANSFORM, field.transform().toString());
+      generator.writeNumberField(SOURCE_ID, field.sourceId());
+      generator.writeEndObject();
+    }
+    generator.writeEndArray();
+  }
+
+  static String toJsonFields(PartitionSpec spec) {
+    try {
+      StringWriter writer = new StringWriter();
+      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+      toJsonFields(spec, generator);
+      generator.flush();
+      return writer.toString();
+
+    } catch (IOException e) {
+      throw new RuntimeIOException(e);
+    }
+  }
+
+  static PartitionSpec fromJsonFields(Schema schema, int specId, JsonNode json) {
+    PartitionSpec.Builder builder = PartitionSpec.builderFor(schema).withSpecId(specId);
+    buildFromJsonFields(builder, json);
+    return builder.build();
+  }
+
+  static PartitionSpec fromJsonFields(Schema schema, int specId, String json) {
+    try {
+      return fromJsonFields(schema, specId, JsonUtil.mapper().readValue(json, JsonNode.class));
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to parse partition spec fields: " + json);
+    }
+  }
+
+  private static void buildFromJsonFields(PartitionSpec.Builder builder, JsonNode json) {
+    Preconditions.checkArgument(json.isArray(),
+        "Cannot parse partition spec fields, not an array: %s", json);
+
+    Iterator<JsonNode> elements = json.elements();
+    while (elements.hasNext()) {
+      JsonNode element = elements.next();
+      Preconditions.checkArgument(element.isObject(),
+          "Cannot parse partition field, not an object: %s", element);
+
+      String name = JsonUtil.getString(NAME, element);
+      String transform = JsonUtil.getString(TRANSFORM, element);
+      int sourceId = JsonUtil.getInt(SOURCE_ID, element);
+
+      builder.add(sourceId, name, transform);
     }
   }
 }

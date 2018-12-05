@@ -102,7 +102,12 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
       throw new RuntimeIOException(e);
     }
     this.schema = SchemaParser.fromJson(metadata.get("schema"));
-    this.spec = PartitionSpecParser.fromJson(schema, metadata.get("partition-spec"));
+    int specId = TableMetadata.INITIAL_SPEC_ID;
+    String specProperty = metadata.get("partition-spec-id");
+    if (specProperty != null) {
+      specId = Integer.parseInt(specProperty);
+    }
+    this.spec = PartitionSpecParser.fromJsonFields(schema, specId, metadata.get("partition-spec"));
     this.entries = null;
   }
 
