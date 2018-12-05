@@ -25,6 +25,9 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.avro.Avro;
 import com.netflix.iceberg.avro.AvroIterable;
+import com.netflix.iceberg.encryption.EncryptionTypes;
+import com.netflix.iceberg.encryption.GenericFileEncryptionMetadata;
+import com.netflix.iceberg.encryption.GenericKeyDescription;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Projections;
@@ -200,6 +203,10 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
             .rename("r102", PartitionData.class.getName())
             .rename("data_file", GenericDataFile.class.getName())
             .rename("r2", GenericDataFile.class.getName())
+            .rename("encryption_metadata", GenericFileEncryptionMetadata.class.getName())
+            .rename("r131", GenericFileEncryptionMetadata.class.getName())
+            .rename("key_description", GenericKeyDescription.class.getName())
+            .rename("r9000", GenericKeyDescription.class.getName())
             .reuseContainers()
             .build();
 

@@ -24,22 +24,20 @@ import java.util
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
-
 import com.netflix.iceberg.parquet.ParquetMetrics
 import org.apache.parquet.hadoop.ParquetFileReader
 import scala.collection.JavaConverters._
-
 import org.apache.hadoop.fs.PathFilter
 
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.catalog.CatalogTablePartition
-
 import com.google.common.collect.Maps
 import com.netflix.iceberg.DataFile
 import com.netflix.iceberg.DataFiles
 import com.netflix.iceberg.Metrics
 import com.netflix.iceberg.PartitionSpec
+import com.netflix.iceberg.encryption.EncryptionTypes.FileEncryptionMetadata
 import com.netflix.iceberg.spark.hacks.Hive
 
 object SparkTableUtil {
@@ -102,7 +100,8 @@ object SparkTableUtil {
       valueCounts: Array[Long],
       nullValueCounts: Array[Long],
       lowerBounds: Seq[Array[Byte]],
-      upperBounds: Seq[Array[Byte]]
+      upperBounds: Seq[Array[Byte]],
+      fileEncryptionMetadata: FileEncryptionMetadata
     ) {
 
     /**
@@ -129,6 +128,7 @@ object SparkTableUtil {
             arrayToMap(nullValueCounts),
             arrayToMap(lowerBounds),
             arrayToMap(upperBounds)))
+          .withFileEncryptionMetadata(fileEncryptionMetadata)
           .build()
     }
   }
@@ -232,7 +232,8 @@ object SparkTableUtil {
         null,
         null,
         null,
-        null)
+        null,
+        null) // TODO support encryption here
     }
   }
 
@@ -256,7 +257,8 @@ object SparkTableUtil {
         mapToArray(metrics.valueCounts),
         mapToArray(metrics.nullValueCounts),
         bytesMapToArray(metrics.lowerBounds),
-        bytesMapToArray(metrics.upperBounds))
+        bytesMapToArray(metrics.upperBounds),
+        null) // TODO support encryption here.
     }
   }
 }

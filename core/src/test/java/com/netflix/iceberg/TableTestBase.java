@@ -23,6 +23,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.io.Files;
+import com.netflix.iceberg.encryption.EncryptionBuilders;
+import com.netflix.iceberg.encryption.EncryptionTypes;
 import com.netflix.iceberg.types.Types;
 import org.junit.After;
 import org.junit.Assert;
@@ -30,6 +32,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 import java.io.File;
+import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 
@@ -47,6 +50,17 @@ public class TableTestBase {
   static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
       .bucket("data", 16)
       .build();
+
+  static final EncryptionTypes.FileEncryptionMetadata ENCRYPTION =
+      EncryptionBuilders.newFileEncryptionMetadataBuilder()
+          .withEncryptedKey(ByteBuffer.wrap(new byte[] { 0, 1, 2 }))
+          .withIv(ByteBuffer.wrap(new byte[] { 3, 4, 5, 6}))
+          .withKeyAlgorithm("RSA")
+          .withKeyDescription(EncryptionBuilders.newKeyDescriptionBuilder()
+              .withKeyVersion(0)
+              .withKeyName("key")
+              .build())
+          .build();
 
   static final DataFile FILE_A = DataFiles.builder(SPEC)
       .withPath("/path/to/data-a.parquet")

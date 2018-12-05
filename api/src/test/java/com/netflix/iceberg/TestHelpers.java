@@ -19,6 +19,7 @@
 
 package com.netflix.iceberg;
 
+import com.netflix.iceberg.encryption.EncryptionTypes;
 import com.netflix.iceberg.expressions.BoundPredicate;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.ExpressionVisitors;
@@ -184,16 +185,26 @@ public class TestHelpers {
     private final Map<Integer, Long> nullValueCounts;
     private final Map<Integer, ByteBuffer> lowerBounds;
     private final Map<Integer, ByteBuffer> upperBounds;
+    private final EncryptionTypes.FileEncryptionMetadata encryptionMetadata;
 
     public TestDataFile(String path, StructLike partition, long recordCount) {
-      this(path, partition, recordCount, null, null, null, null);
+      this(
+          path,
+          partition,
+          recordCount,
+          null,
+          null,
+          null,
+          null,
+          null);
     }
 
     public TestDataFile(String path, StructLike partition, long recordCount,
                         Map<Integer, Long> valueCounts,
                         Map<Integer, Long> nullValueCounts,
                         Map<Integer, ByteBuffer> lowerBounds,
-                        Map<Integer, ByteBuffer> upperBounds) {
+                        Map<Integer, ByteBuffer> upperBounds,
+                        EncryptionTypes.FileEncryptionMetadata encryptionMetadata) {
       this.path = path;
       this.partition = partition;
       this.recordCount = recordCount;
@@ -201,6 +212,7 @@ public class TestHelpers {
       this.nullValueCounts = nullValueCounts;
       this.lowerBounds = lowerBounds;
       this.upperBounds = upperBounds;
+      this.encryptionMetadata = encryptionMetadata;
     }
 
     @Override
@@ -269,8 +281,86 @@ public class TestHelpers {
     }
 
     @Override
+    public EncryptionTypes.FileEncryptionMetadata fileEncryptionMetadata() {
+      return encryptionMetadata;
+    }
+
+    @Override
     public DataFile copy() {
       return this;
+    }
+  }
+
+  public static final class TestKeyDescription implements EncryptionTypes.KeyDescription {
+    private final String keyName;
+    private final int keyVersion;
+
+    public TestKeyDescription(String keyName, int keyVersion) {
+      this.keyName = keyName;
+      this.keyVersion = keyVersion;
+    }
+
+    @Override
+    public String keyName() {
+      return keyName;
+    }
+
+    @Override
+    public int keyVersion() {
+      return keyVersion;
+    }
+
+    @Override
+    public EncryptionTypes.KeyDescription copy() {
+      return new TestKeyDescription(keyName, keyVersion);
+    }
+  }
+
+  public static final class TestFileEncryptionMetadata implements EncryptionTypes.FileEncryptionMetadata {
+
+    private final EncryptionTypes.KeyDescription keyDescription;
+    private final String keyAlgorithm;
+    private final ByteBuffer iv;
+    private final ByteBuffer encryptedKey;
+
+    public TestFileEncryptionMetadata(
+        EncryptionTypes.KeyDescription keyDescription,
+        String keyAlgorithm,
+        byte[] iv,
+        byte[] encryptedKey) {
+      this.keyDescription = keyDescription;
+      this.keyAlgorithm = keyAlgorithm;
+      this.iv = ByteBuffer.wrap(iv);
+      this.encryptedKey = ByteBuffer.wrap(encryptedKey);
+    }
+
+    @Override
+    public EncryptionTypes.KeyDescription keyDescription() {
+      return keyDescription;
+    }
+
+    @Override
+    public String keyAlgorithm() {
+      return keyAlgorithm;
+    }
+
+    @Override
+    public ByteBuffer iv() {
+      return iv;
+    }
+
+    @Override
+    public ByteBuffer encryptedKey() {
+      return encryptedKey;
+    }
+
+    @Override
+    public EncryptionTypes.FileEncryptionMetadata copy() {
+      return new TestFileEncryptionMetadata(
+          keyDescription,
+          keyAlgorithm,
+          iv.array(),
+          encryptedKey.array());
     }
   }
 }

@@ -25,6 +25,7 @@ import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.TestHelpers;
 import com.netflix.iceberg.TestHelpers.Row;
 import com.netflix.iceberg.TestHelpers.TestDataFile;
+import com.netflix.iceberg.encryption.EncryptionTypes;
 import com.netflix.iceberg.exceptions.ValidationException;
 import com.netflix.iceberg.types.Types;
 import com.netflix.iceberg.types.Types.IntegerType;
@@ -48,6 +49,14 @@ import static com.netflix.iceberg.types.Types.NestedField.optional;
 import static com.netflix.iceberg.types.Types.NestedField.required;
 
 public class TestInclusiveMetricsEvaluator {
+
+  private static final EncryptionTypes.FileEncryptionMetadata ENCRYPTION =
+      new TestHelpers.TestFileEncryptionMetadata(
+          new TestHelpers.TestKeyDescription("key", 0),
+          "RSA",
+          new byte[] { 9, 1, 3},
+          new byte[] { 4, 2, 7});
+
   private static final Schema SCHEMA = new Schema(
       required(1, "id", IntegerType.get()),
       optional(2, "no_stats", Types.IntegerType.get()),
@@ -73,7 +82,8 @@ public class TestInclusiveMetricsEvaluator {
           1, toByteBuffer(IntegerType.get(), 30)),
       // upper bounds
       ImmutableMap.of(
-          1, toByteBuffer(IntegerType.get(), 79)));
+          1, toByteBuffer(IntegerType.get(), 79)),
+      ENCRYPTION);
 
   @Test
   public void testAllNulls() {

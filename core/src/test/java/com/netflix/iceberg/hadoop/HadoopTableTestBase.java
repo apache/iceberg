@@ -29,6 +29,7 @@ import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.Table;
 import com.netflix.iceberg.TableMetadata;
 import com.netflix.iceberg.TableMetadataParser;
+import com.netflix.iceberg.encryption.EncryptionBuilders;
 import com.netflix.iceberg.types.Types;
 import org.apache.hadoop.conf.Configuration;
 import org.junit.Before;
@@ -36,6 +37,7 @@ import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.List;
 
 import static com.netflix.iceberg.Files.localInput;

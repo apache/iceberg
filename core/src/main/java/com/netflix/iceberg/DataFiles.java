@@ -20,6 +20,7 @@
 package com.netflix.iceberg;
 
 import com.google.common.base.Preconditions;
+import com.netflix.iceberg.encryption.EncryptionTypes;
 import com.netflix.iceberg.hadoop.HadoopInputFile;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.types.Conversions;
@@ -131,14 +132,14 @@ public class DataFiles {
     String location = file.location();
     FileFormat format = FileFormat.fromFileName(location);
     return new GenericDataFile(
-        location, format, partition, file.getLength(), DEFAULT_BLOCK_SIZE, metrics);
+        location, format, partition, file.getLength(), DEFAULT_BLOCK_SIZE, metrics, null);
   }
 
   public static DataFile fromStat(FileStatus stat, PartitionData partition, Metrics metrics) {
     String location = stat.getPath().toString();
     FileFormat format = FileFormat.fromFileName(location);
     return new GenericDataFile(
-        location, format, partition, stat.getLen(), stat.getBlockSize(), metrics);
+        location, format, partition, stat.getLen(), stat.getBlockSize(), metrics, null);
   }
 
   public static DataFile fromParquetInputFile(InputFile file,
@@ -151,14 +152,14 @@ public class DataFiles {
     String location = file.location();
     FileFormat format = FileFormat.PARQUET;
     return new GenericDataFile(
-        location, format, partition, file.getLength(), DEFAULT_BLOCK_SIZE, metrics);
+        location, format, partition, file.getLength(), DEFAULT_BLOCK_SIZE, metrics, null);
   }
 
   public static DataFile fromParquetStat(FileStatus stat, PartitionData partition, Metrics metrics) {
     String location = stat.getPath().toString();
     FileFormat format = FileFormat.PARQUET;
     return new GenericDataFile(
-        location, format, partition, stat.getLen(), stat.getBlockSize(), metrics);
+        location, format, partition, stat.getLen(), stat.getBlockSize(), metrics, null);
   }
 
   public static Builder builder(PartitionSpec spec) {
@@ -185,6 +186,7 @@ public class DataFiles {
     private Map<Integer, Long> nullValueCounts = null;
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
+    private EncryptionTypes.FileEncryptionMetadata fileEncryptionMetadata = null;
 
     public Builder() {
       this.spec = null;
@@ -301,6 +303,11 @@ public class DataFiles {
       return this;
     }
 
+    public Builder withFileEncryptionMetadata(EncryptionTypes.FileEncryptionMetadata fileEncryptionMetadata) {
+      this.fileEncryptionMetadata = fileEncryptionMetadata;
+      return this;
+    }
+
     public DataFile build() {
       Preconditions.checkArgument(filePath != null, "File path is required");
       if (format == null) {
@@ -317,7 +324,8 @@ public class DataFiles {
       return new GenericDataFile(
           filePath, format, isPartitioned ? partitionData.copy() : null,
           fileSizeInBytes, blockSizeInBytes, new Metrics(
-              recordCount, columnSizes, valueCounts, nullValueCounts, lowerBounds, upperBounds));
+              recordCount, columnSizes, valueCounts, nullValueCounts, lowerBounds, upperBounds),
+          fileEncryptionMetadata);
     }
   }
 }

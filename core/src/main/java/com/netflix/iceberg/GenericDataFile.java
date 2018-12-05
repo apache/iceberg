@@ -22,6 +22,9 @@ package com.netflix.iceberg;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 import com.netflix.iceberg.avro.AvroSchemaUtil;
+import com.netflix.iceberg.encryption.EncryptionTypes;
+import com.netflix.iceberg.encryption.GenericFileEncryptionMetadata;
+import com.netflix.iceberg.encryption.GenericKeyDescription;
 import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Types;
 import org.apache.avro.generic.IndexedRecord;
@@ -59,6 +62,7 @@ class GenericDataFile
   private Map<Integer, Long> nullValueCounts = null;
   private Map<Integer, ByteBuffer> lowerBounds = null;
   private Map<Integer, ByteBuffer> upperBounds = null;
+  private EncryptionTypes.FileEncryptionMetadata fileEncryptionMetadata = null;
 
   // cached schema
   private transient org.apache.avro.Schema avroSchema = null;
@@ -138,7 +142,8 @@ class GenericDataFile
   }
 
   GenericDataFile(String filePath, FileFormat format, PartitionData partition,
-                  long fileSizeInBytes, long blockSizeInBytes, Metrics metrics) {
+                  long fileSizeInBytes, long blockSizeInBytes, Metrics metrics,
+                  EncryptionTypes.FileEncryptionMetadata fileEncryptionMetadata) {
     this.filePath = filePath;
     this.format = format;
 
@@ -163,6 +168,7 @@ class GenericDataFile
     this.lowerBounds = SerializableByteBufferMap.wrap(metrics.lowerBounds());
     this.upperBounds = SerializableByteBufferMap.wrap(metrics.upperBounds());
     this.fromProjectionPos = null;
+    this.fileEncryptionMetadata = fileEncryptionMetadata;
   }
 
   /**
@@ -187,6 +193,7 @@ class GenericDataFile
     this.lowerBounds = toCopy.lowerBounds;
     this.upperBounds = toCopy.upperBounds;
     this.fromProjectionPos = toCopy.fromProjectionPos;
+    this.fileEncryptionMetadata = toCopy.fileEncryptionMetadata == null ? null : toCopy.fileEncryptionMetadata.copy();
   }
 
   /**
@@ -261,6 +268,11 @@ class GenericDataFile
   }
 
   @Override
+  public EncryptionTypes.FileEncryptionMetadata fileEncryptionMetadata() {
+    return fileEncryptionMetadata;
+  }
+
+  @Override
   public org.apache.avro.Schema getSchema() {
     if (avroSchema == null) {
       this.avroSchema = getAvroSchema(partitionType);
@@ -317,6 +329,8 @@ class GenericDataFile
       case 12:
         this.upperBounds= SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) v);
         return;
+      case 13:
+        this.fileEncryptionMetadata = (EncryptionTypes.FileEncryptionMetadata) v;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -356,6 +370,8 @@ class GenericDataFile
         return lowerBounds;
       case 12:
         return upperBounds;
+      case 13:
+        return fileEncryptionMetadata;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -365,7 +381,9 @@ class GenericDataFile
     Types.StructType type = DataFile.getType(partitionType);
     return AvroSchemaUtil.convert(type, ImmutableMap.of(
         type, GenericDataFile.class.getName(),
-        partitionType, PartitionData.class.getName()));
+        partitionType, PartitionData.class.getName(),
+        EncryptionTypes.ENCRYPTION_METADATA_TYPE, GenericFileEncryptionMetadata.class.getName(),
+        EncryptionTypes.KEY_DESCRIPTION_TYPE, GenericKeyDescription.class.getName()));
   }
 
   @Override
