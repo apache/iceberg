@@ -108,7 +108,8 @@ class ManifestWriter implements FileAppender<DataFile> {
               .schema(manifestSchema)
               .named("manifest_entry")
               .meta("schema", SchemaParser.toJson(spec.schema()))
-              .meta("partition-spec", PartitionSpecParser.toJson(spec))
+              .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
+              .meta("partition-spec-id", String.valueOf(spec.specId()))
               .build();
         default:
           throw new IllegalArgumentException("Unsupported format: " + format);
