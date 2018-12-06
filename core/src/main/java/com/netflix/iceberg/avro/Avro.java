@@ -22,7 +22,6 @@ package com.netflix.iceberg.avro;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.netflix.iceberg.SchemaParser;
-import com.netflix.iceberg.io.CloseableIterable;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 import org.apache.avro.Conversions;
@@ -115,6 +114,11 @@ public class Avro {
 
     public WriteBuilder meta(String property, String value) {
       metadata.put(property, value);
+      return this;
+    }
+
+    public WriteBuilder meta(Map<String, String> properties) {
+      metadata.putAll(properties);
       return this;
     }
 
