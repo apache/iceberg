@@ -23,10 +23,10 @@ import com.google.common.collect.Lists;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.LinkedList;
+import java.util.Queue;
 
 public abstract class CloseableGroup implements Closeable {
-  private final LinkedList<Closeable> closeables = Lists.newLinkedList();
+  private final Queue<Closeable> closeables = Lists.newLinkedList();
 
   protected void addCloseable(Closeable closeable) {
     closeables.add(closeable);
@@ -35,7 +35,7 @@ public abstract class CloseableGroup implements Closeable {
   @Override
   public void close() throws IOException {
     while (!closeables.isEmpty()) {
-      Closeable toClose = closeables.removeFirst();
+      Closeable toClose = closeables.remove();
       if (toClose != null) {
         toClose.close();
       }
@@ -45,7 +45,7 @@ public abstract class CloseableGroup implements Closeable {
   static class ClosingIterable<T> extends CloseableGroup implements CloseableIterable<T> {
     private final Iterable<T> iterable;
 
-    public ClosingIterable(Iterable<T> iterable, Iterable<Closeable> closeables) {
+    ClosingIterable(Iterable<T> iterable, Iterable<Closeable> closeables) {
       this.iterable = iterable;
       for (Closeable closeable : closeables) {
         addCloseable(closeable);

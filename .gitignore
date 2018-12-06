@@ -9,3 +9,6 @@ build
 out
 # web site build
 site/site
+# Expected by Baseline but we don't manage versions this way just yet
+# TODO manage versions via baseline's versions plugin
+versions.props

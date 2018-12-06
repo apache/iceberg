@@ -35,6 +35,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class Types {
+
+  private Types() {}
+
   private static final ImmutableMap<String, PrimitiveType> TYPES = ImmutableMap
       .<String, PrimitiveType>builder()
       .put(BooleanType.get().toString(), BooleanType.get())
@@ -241,14 +244,14 @@ public class Types {
     }
 
     @Override
-    public boolean equals(Object o) {
-      if (this == o) {
+    public boolean equals(Object other) {
+      if (this == other) {
         return true;
-      } else if (o == null || getClass() != o.getClass()) {
+      } else if (other == null || getClass() != other.getClass()) {
         return false;
       }
 
-      TimestampType timestampType = (TimestampType) o;
+      TimestampType timestampType = (TimestampType) other;
       return adjustToUTC == timestampType.adjustToUTC;
     }
 
@@ -320,14 +323,14 @@ public class Types {
     }
 
     @Override
-    public boolean equals(Object o) {
-      if (this == o) {
+    public boolean equals(Object other) {
+      if (this == other) {
         return true;
-      } else if (o == null || getClass() != o.getClass()) {
+      } else if (other == null || getClass() != other.getClass()) {
         return false;
       }
 
-      FixedType fixedType = (FixedType) o;
+      FixedType fixedType = (FixedType) other;
       return length == fixedType.length;
     }
 
@@ -389,14 +392,14 @@ public class Types {
     }
 
     @Override
-    public boolean equals(Object o) {
-      if (this == o) {
+    public boolean equals(Object other) {
+      if (this == other) {
         return true;
-      } else if (o == null || getClass() != o.getClass()) {
+      } else if (other == null || getClass() != other.getClass()) {
         return false;
       }
 
-      DecimalType that = (DecimalType) o;
+      DecimalType that = (DecimalType) other;
       if (scale != that.scale) {
         return false;
       }
@@ -459,14 +462,14 @@ public class Types {
     }
 
     @Override
-    public boolean equals(Object o) {
-      if (this == o) {
+    public boolean equals(Object other) {
+      if (this == other) {
         return true;
-      } else if (o == null || getClass() != o.getClass()) {
+      } else if (other == null || getClass() != other.getClass()) {
         return false;
       }
 
-      NestedField that = (NestedField) o;
+      NestedField that = (NestedField) other;
       if (isOptional != that.isOptional) {
         return false;
       } else if (id != that.id) {
@@ -519,17 +522,17 @@ public class Types {
     }
 
     @Override
+    public NestedField field(int id) {
+      return lazyFieldsById().get(id);
+    }
+
+    @Override
     public Type fieldType(String name) {
       NestedField field = field(name);
       if (field != null) {
         return field.type();
       }
       return null;
-    }
-
-    @Override
-    public NestedField field(int id) {
-      return lazyFieldsById().get(id);
     }
 
     @Override
@@ -553,14 +556,14 @@ public class Types {
     }
 
     @Override
-    public boolean equals(Object o) {
-      if (this == o) {
+    public boolean equals(Object other) {
+      if (this == other) {
         return true;
-      } else if (o == null || getClass() != o.getClass()) {
+      } else if (other == null || getClass() != other.getClass()) {
         return false;
       }
 
-      StructType that = (StructType) o;
+      StructType that = (StructType) other;
       return Arrays.equals(fields, that.fields);
     }
 
@@ -678,14 +681,14 @@ public class Types {
     }
 
     @Override
-    public boolean equals(Object o) {
-      if (this == o) {
+    public boolean equals(Object other) {
+      if (this == other) {
         return true;
-      } else if (o == null || getClass() != o.getClass()) {
+      } else if (other == null || getClass() != other.getClass()) {
         return false;
       }
 
-      ListType listType = (ListType) o;
+      ListType listType = (ListType) other;
       return elementField.equals(listType.elementField);
     }
 
@@ -796,14 +799,14 @@ public class Types {
     }
 
     @Override
-    public boolean equals(Object o) {
-      if (this == o) {
+    public boolean equals(Object other) {
+      if (this == other) {
         return true;
-      } else if (o == null || getClass() != o.getClass()) {
+      } else if (other == null || getClass() != other.getClass()) {
         return false;
       }
 
-      MapType mapType = (MapType) o;
+      MapType mapType = (MapType) other;
       if (!keyField.equals(mapType.keyField)) {
         return false;
       }

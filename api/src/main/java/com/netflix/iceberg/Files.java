@@ -32,6 +32,8 @@ import java.io.RandomAccessFile;
 
 public class Files {
 
+  private Files() {}
+
   public static OutputFile localOutput(File file) {
     return new LocalOutputFile(file);
   }
@@ -144,21 +146,21 @@ public class Files {
     }
 
     @Override
-    public int read(byte[] b) throws IOException {
-      return stream.read(b);
+    public int read(byte[] buf) throws IOException {
+      return stream.read(buf);
     }
 
     @Override
-    public int read(byte[] b, int off, int len) throws IOException {
-      return stream.read(b, off, len);
+    public int read(byte[] buf, int off, int len) throws IOException {
+      return stream.read(buf, off, len);
     }
 
     @Override
-    public long skip(long n) throws IOException {
-      if (n > Integer.MAX_VALUE) {
+    public long skip(long numSkip) throws IOException {
+      if (numSkip > Integer.MAX_VALUE) {
         return stream.skipBytes(Integer.MAX_VALUE);
       } else {
-        return stream.skipBytes((int) n);
+        return stream.skipBytes((int) numSkip);
       }
     }
 
@@ -181,23 +183,23 @@ public class Files {
     }
 
     @Override
-    public void write(byte[] b) throws IOException {
-      stream.write(b);
+    public void write(byte[] value) throws IOException {
+      stream.write(value);
     }
 
     @Override
-    public void write(byte[] b, int off, int len) throws IOException {
-      stream.write(b, off, len);
+    public void write(byte[] values, int off, int len) throws IOException {
+      stream.write(values, off, len);
+    }
+
+    @Override
+    public void write(int value) throws IOException {
+      stream.write(value);
     }
 
     @Override
     public void close() throws IOException {
       stream.close();
-    }
-
-    @Override
-    public void write(int b) throws IOException {
-      stream.write(b);
     }
   }
 }

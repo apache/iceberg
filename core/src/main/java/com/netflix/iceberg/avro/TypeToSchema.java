@@ -81,7 +81,7 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
 
     String recordName = names.get(struct);
     if (recordName == null) {
-      recordName = "r" + fieldIds.peek();
+      recordName = "r" + fieldIds().peek();
     }
 
     List<Types.NestedField> structFields = struct.fields();

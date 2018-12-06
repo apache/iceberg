@@ -21,10 +21,10 @@ package com.netflix.iceberg.expressions;
 
 import com.netflix.iceberg.TestHelpers;
 import com.netflix.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
 import java.math.BigDecimal;
 import java.util.UUID;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class TestLiteralSerialization {
   @Test

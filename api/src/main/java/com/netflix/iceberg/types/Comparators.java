@@ -23,6 +23,9 @@ import java.nio.ByteBuffer;
 import java.util.Comparator;
 
 public class Comparators {
+
+  private Comparators() {}
+
   public static Comparator<ByteBuffer> unsignedBytes() {
     return UnsignedByteBufComparator.INSTANCE;
   }
@@ -99,7 +102,7 @@ public class Comparators {
     private final Comparator<T> first;
     private final Comparator<? super T> second;
 
-    public NullSafeChainedComparator(Comparator<T> first, Comparator<? super T> second) {
+    NullSafeChainedComparator(Comparator<T> first, Comparator<? super T> second) {
       this.first = first;
       this.second = second;
     }

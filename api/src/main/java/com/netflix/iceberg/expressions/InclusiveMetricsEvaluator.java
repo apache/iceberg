@@ -29,8 +29,6 @@ import com.netflix.iceberg.types.Types.StructType;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
-import static com.netflix.iceberg.expressions.Expressions.rewriteNot;
-
 /**
  * Evaluates an {@link Expression} on a {@link DataFile} to test whether rows in the file may match.
  * <p>
@@ -56,14 +54,14 @@ public class InclusiveMetricsEvaluator {
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound) {
     this.schema = schema;
     this.struct = schema.asStruct();
-    this.expr = Binder.bind(struct, rewriteNot(unbound));
+    this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound));
   }
 
   /**
    * Test whether the file may contain records that match the expression.
    *
    * @param file a data file
-   * @return false if the file cannot contain rows that match the expression, true otherwise.
+   * @return false if the file cannot contain rows that match the expression, true otherwise
    */
   public boolean eval(DataFile file) {
     // TODO: detect the case where a column is missing from the file using file's max field id.
@@ -140,9 +138,11 @@ public class InclusiveMetricsEvaluator {
       Preconditions.checkNotNull(struct.field(id),
           "Cannot filter by nested column: %s", schema.findField(id));
 
-      if (valueCounts != null && valueCounts.containsKey(id) &&
-          nullCounts != null && nullCounts.containsKey(id) &&
-          valueCounts.get(id) - nullCounts.get(id) == 0) {
+      if (valueCounts != null
+          && valueCounts.containsKey(id)
+          && nullCounts != null
+          && nullCounts.containsKey(id)
+          && valueCounts.get(id) - nullCounts.get(id) == 0) {
         return ROWS_CANNOT_MATCH;
       }
 

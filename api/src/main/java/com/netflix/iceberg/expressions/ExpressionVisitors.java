@@ -23,6 +23,9 @@ package com.netflix.iceberg.expressions;
  * Utils for traversing {@link Expression expressions}.
  */
 public class ExpressionVisitors {
+
+  private ExpressionVisitors() {}
+
   public abstract static class ExpressionVisitor<R> {
     public R alwaysTrue() {
       return null;

@@ -36,19 +36,20 @@ public class TestListeners {
 
   public static class TestListener {
     private static final TestListener INSTANCE = new TestListener();
+
     public static TestListener get() {
       return INSTANCE;
     }
 
-    private Event1 e1 = null;
-    private Event2 e2 = null;
+    private Event1 event1 = null;
+    private Event2 event2 = null;
 
-    public void event1(Event1 e) {
-      this.e1 = e;
+    public void event1(Event1 receivedEvent1) {
+      this.event1 = receivedEvent1;
     }
 
-    public void event2(Event2 e) {
-      this.e2 = e;
+    public void event2(Event2 receivedEvent2) {
+      this.event2 = receivedEvent2;
     }
   }
 
@@ -58,7 +59,7 @@ public class TestListeners {
 
     Listeners.notifyAll(e1);
 
-    Assert.assertEquals(e1, TestListener.get().e1);
+    Assert.assertEquals(e1, TestListener.get().event1);
   }
 
   @Test
@@ -67,7 +68,7 @@ public class TestListeners {
 
     Listeners.notifyAll(e2);
 
-    Assert.assertEquals(e2, TestListener.get().e2);
+    Assert.assertEquals(e2, TestListener.get().event2);
   }
 
   @Test
@@ -79,7 +80,7 @@ public class TestListeners {
 
     Listeners.notifyAll(e1);
 
-    Assert.assertEquals(e1, TestListener.get().e1);
-    Assert.assertEquals(e1, other.e1);
+    Assert.assertEquals(e1, TestListener.get().event1);
+    Assert.assertEquals(e1, other.event1);
   }
 }

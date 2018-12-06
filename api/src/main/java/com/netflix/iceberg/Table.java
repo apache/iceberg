@@ -71,14 +71,14 @@ public interface Table {
   /**
    * Get the current {@link Snapshot snapshot} for this table.
    *
-   * @return the current table Snapshot.
+   * @return the current table Snapshot
    */
   Snapshot currentSnapshot();
 
   /**
    * Get the {@link Snapshot snapshots} of this table.
    *
-   * @return an Iterable of snapshots of this table.
+   * @return an Iterable of snapshots of this table
    */
   Iterable<Snapshot> snapshots();
 

@@ -20,10 +20,10 @@
 package com.netflix.iceberg.transforms;
 
 import com.netflix.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class TestTruncate {
   @Test

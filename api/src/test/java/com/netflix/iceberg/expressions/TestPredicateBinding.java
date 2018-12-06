@@ -19,15 +19,7 @@
 
 package com.netflix.iceberg.expressions;
 
-import com.netflix.iceberg.exceptions.ValidationException;
-import com.netflix.iceberg.types.Types;
-import com.netflix.iceberg.types.Types.StructType;
-import org.junit.Assert;
-import org.junit.Test;
-import java.math.BigDecimal;
-import java.util.Arrays;
-import java.util.List;
-
+import static com.netflix.iceberg.TestHelpers.assertAndUnwrap;
 import static com.netflix.iceberg.expressions.Expression.Operation.EQ;
 import static com.netflix.iceberg.expressions.Expression.Operation.GT;
 import static com.netflix.iceberg.expressions.Expression.Operation.GT_EQ;
@@ -37,12 +29,20 @@ import static com.netflix.iceberg.expressions.Expression.Operation.LT_EQ;
 import static com.netflix.iceberg.expressions.Expression.Operation.NOT_EQ;
 import static com.netflix.iceberg.expressions.Expression.Operation.NOT_NULL;
 import static com.netflix.iceberg.expressions.Expressions.ref;
-import static com.netflix.iceberg.TestHelpers.assertAndUnwrap;
 import static com.netflix.iceberg.types.Types.NestedField.optional;
 import static com.netflix.iceberg.types.Types.NestedField.required;
 
+import com.netflix.iceberg.exceptions.ValidationException;
+import com.netflix.iceberg.types.Types;
+import com.netflix.iceberg.types.Types.StructType;
+import java.math.BigDecimal;
+import java.util.Arrays;
+import java.util.List;
+import org.junit.Assert;
+import org.junit.Test;
+
 public class TestPredicateBinding {
-  private static List<Expression.Operation> COMPARISONS = Arrays.asList(
+  private static final List<Expression.Operation> COMPARISONS = Arrays.asList(
       LT, LT_EQ, GT, GT_EQ, EQ, NOT_EQ);
 
   @Test

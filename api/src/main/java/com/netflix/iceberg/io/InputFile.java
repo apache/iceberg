@@ -35,7 +35,7 @@ public interface InputFile {
   long getLength();
 
   /**
-   * Opens a new {@link SeekableInputStream} for the underlying data file
+   * Opens a new {@link SeekableInputStream} for the underlying data file.
    *
    * @return a seekable stream for reading the file
    * @throws RuntimeIOException If the implementation throws an {@link IOException}

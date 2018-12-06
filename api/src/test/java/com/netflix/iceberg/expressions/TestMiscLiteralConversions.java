@@ -21,13 +21,13 @@ package com.netflix.iceberg.expressions;
 
 import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class TestMiscLiteralConversions {
   @Test
@@ -321,24 +321,24 @@ public class TestMiscLiteralConversions {
   }
 
   private static class Pair<X, Y> {
-    public static <X, Y> Pair<X, Y> of(X x, Y y) {
-      return new Pair<>(x, y);
+    public static <X, Y> Pair<X, Y> of(X first, Y second) {
+      return new Pair<>(first, second);
     }
 
-    private final X x;
-    private final Y y;
+    private final X first;
+    private final Y second;
 
-    private Pair(X x, Y y) {
-      this.x = x;
-      this.y = y;
+    private Pair(X first, Y second) {
+      this.first = first;
+      this.second = second;
     }
 
-    public X first() {
-      return x;
+    X first() {
+      return first;
     }
 
-    public Y second() {
-      return y;
+    Y second() {
+      return second;
     }
   }
 }

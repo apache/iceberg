@@ -100,12 +100,12 @@ public interface Expression extends Serializable {
   }
 
   /**
-   * @return the operation for an expression node.
+   * @return the operation for an expression node
    */
   Operation op();
 
   /**
-   * @return the negation of this expression, equivalent to not(this).
+   * @return the negation of this expression, equivalent to not(this)
    */
   default Expression negate() {
     throw new UnsupportedOperationException(String.format("%s cannot be negated", this));

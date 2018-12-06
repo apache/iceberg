@@ -45,8 +45,8 @@ class Identity<T> implements Transform<T, T> {
   }
 
   @Override
-  public boolean canTransform(Type type) {
-    return type.isPrimitiveType();
+  public boolean canTransform(Type typeToTransform) {
+    return typeToTransform.isPrimitiveType();
   }
 
   @Override
@@ -105,15 +105,15 @@ class Identity<T> implements Transform<T, T> {
   }
 
   @Override
-  public boolean equals(Object o) {
-    if (this == o) {
+  public boolean equals(Object other) {
+    if (this == other) {
       return true;
     }
-    if (o == null || getClass() != o.getClass()) {
+    if (other == null || getClass() != other.getClass()) {
       return false;
     }
 
-    Identity<?> that = (Identity<?>) o;
+    Identity<?> that = (Identity<?>) other;
     return type.equals(that.type);
   }
 

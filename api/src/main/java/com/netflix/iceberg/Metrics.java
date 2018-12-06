@@ -23,8 +23,6 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
-import static com.google.common.collect.ImmutableMap.copyOf;
-
 public class Metrics implements Serializable {
 
   private Long rowCount = null;

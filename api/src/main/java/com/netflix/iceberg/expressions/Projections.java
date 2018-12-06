@@ -19,9 +19,9 @@
 
 package com.netflix.iceberg.expressions;
 
-import com.netflix.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
 import com.netflix.iceberg.PartitionField;
 import com.netflix.iceberg.PartitionSpec;
+import com.netflix.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
 import com.netflix.iceberg.transforms.Transform;
 
 /**
@@ -43,7 +43,7 @@ public class Projections {
    * A strict projection guarantees that if a partition matches a projected expression, then all
    * rows in that partition will match the original expression.
    */
-  public static abstract class ProjectionEvaluator extends ExpressionVisitor<Expression> {
+  public abstract static class ProjectionEvaluator extends ExpressionVisitor<Expression> {
     /**
      * Project the given row expression to a partition expression.
      *
@@ -92,7 +92,7 @@ public class Projections {
   }
 
   private static class BaseProjectionEvaluator extends ProjectionEvaluator {
-    final PartitionSpec spec;
+    private final PartitionSpec spec;
 
     private BaseProjectionEvaluator(PartitionSpec spec) {
       this.spec = spec;
@@ -143,6 +143,10 @@ public class Projections {
 
       return bound;
     }
+
+    protected PartitionSpec spec() {
+      return spec;
+    }
   }
 
   private static class InclusiveProjection extends BaseProjectionEvaluator {
@@ -153,7 +157,7 @@ public class Projections {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Expression predicate(BoundPredicate<T> pred) {
-      PartitionField part = spec.getFieldBySourceId(pred.ref().fieldId());
+      PartitionField part = spec().getFieldBySourceId(pred.ref().fieldId());
       if (part == null) {
         // the predicate has no partition column
         return alwaysTrue();
@@ -178,7 +182,7 @@ public class Projections {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Expression predicate(BoundPredicate<T> pred) {
-      PartitionField part = spec.getFieldBySourceId(pred.ref().fieldId());
+      PartitionField part = spec().getFieldBySourceId(pred.ref().fieldId());
       if (part == null) {
         // the predicate has no partition column
         return alwaysFalse();

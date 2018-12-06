@@ -46,7 +46,7 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   @Override
   public Type struct(Types.StructType struct, Iterable<Type> fieldTypes) {
     Preconditions.checkNotNull(sourceType, "Evaluation must start with a schema.");
-    Preconditions.checkArgument(sourceType.isStructType(), "Not a struct: " + sourceType);
+    Preconditions.checkArgument(sourceType.isStructType(), "Not a struct: %s", sourceType);
 
     Types.StructType sourceStruct = sourceType.asStructType();
     List<Types.NestedField> fields = struct.fields();
@@ -69,7 +69,7 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
   @Override
   public Type field(Types.NestedField field, Supplier<Type> future) {
-    Preconditions.checkArgument(sourceType.isStructType(), "Not a struct: " + sourceType);
+    Preconditions.checkArgument(sourceType.isStructType(), "Not a struct: %s", sourceType);
 
     Types.StructType sourceStruct = sourceType.asStructType();
     Types.NestedField sourceField = sourceStruct.field(field.name());
@@ -84,7 +84,7 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
   @Override
   public Type list(Types.ListType list, Supplier<Type> elementTypeFuture) {
-    Preconditions.checkArgument(sourceType.isListType(), "Not a list: " + sourceType);
+    Preconditions.checkArgument(sourceType.isListType(), "Not a list: %s", sourceType);
 
     Types.ListType sourceList = sourceType.asListType();
     int sourceElementId = sourceList.elementId();
@@ -104,7 +104,7 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
   @Override
   public Type map(Types.MapType map, Supplier<Type> keyTypeFuture, Supplier<Type> valueTypeFuture) {
-    Preconditions.checkArgument(sourceType.isMapType(), "Not a map: " + sourceType);
+    Preconditions.checkArgument(sourceType.isMapType(), "Not a map: %s", sourceType);
 
     Types.MapType sourceMap = sourceType.asMapType();
     int sourceKeyId = sourceMap.keyId();

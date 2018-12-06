@@ -20,9 +20,9 @@
 package com.netflix.iceberg.types;
 
 import com.netflix.iceberg.expressions.Literal;
+import java.util.Comparator;
 import org.junit.Assert;
 import org.junit.Test;
-import java.util.Comparator;
 
 /**
  * This tests the Comparator returned by ComparableLiteral, which is used for most types.

@@ -67,7 +67,7 @@ public class PartitionSpec implements Serializable {
   }
 
   /**
-   * @return the {@link Schema} for this spec.
+   * @return the {@link Schema} for this spec
    */
   public Schema schema() {
     return schema;
@@ -81,7 +81,7 @@ public class PartitionSpec implements Serializable {
   }
 
   /**
-   * @return the list of {@link PartitionField partition fields} for this spec.
+   * @return the list of {@link PartitionField partition fields} for this spec
    */
   public List<PartitionField> fields() {
     return lazyFieldList();
@@ -96,7 +96,7 @@ public class PartitionSpec implements Serializable {
   }
 
   /**
-   * @return a {@link Types.StructType} for partition data defined by this spec.
+   * @return a {@link Types.StructType} for partition data defined by this spec
    */
   public Types.StructType partitionType() {
     List<Types.NestedField> structFields = Lists.newArrayListWithExpectedSize(fields.length);
@@ -142,10 +142,10 @@ public class PartitionSpec implements Serializable {
 
   public String partitionToPath(StructLike data) {
     StringBuilder sb = new StringBuilder();
-    Class<?>[] javaClasses = javaClasses();
-    for (int i = 0; i < javaClasses.length; i += 1) {
+    Class<?>[] classes = javaClasses();
+    for (int i = 0; i < classes.length; i += 1) {
       PartitionField field = fields[i];
-      String valueString = field.transform().toHumanString(get(data, i, javaClasses[i]));
+      String valueString = field.transform().toHumanString(get(data, i, classes[i]));
 
       if (i > 0) {
         sb.append("/");
@@ -160,7 +160,7 @@ public class PartitionSpec implements Serializable {
    * both specs have the same number of fields, field order, source columns, and transforms.
    *
    * @param other another PartitionSpec
-   * @return true if the specs have the same fields, source columns, and transforms.
+   * @return true if the specs have the same fields, source columns, and transforms
    */
   public boolean compatibleWith(PartitionSpec other) {
     if (equals(other)) {
@@ -174,8 +174,8 @@ public class PartitionSpec implements Serializable {
     for (int i = 0; i < fields.length; i += 1) {
       PartitionField thisField = fields[i];
       PartitionField thatField = other.fields[i];
-      if (thisField.sourceId() != thatField.sourceId() ||
-          !thisField.transform().toString().equals(thatField.transform().toString())) {
+      if (thisField.sourceId() != thatField.sourceId()
+          || !thisField.transform().toString().equals(thatField.transform().toString())) {
         return false;
       }
     }
@@ -238,12 +238,12 @@ public class PartitionSpec implements Serializable {
   /**
    * Returns the source field ids for identity partitions.
    *
-   * @return a set of source ids for the identity partitions.
+   * @return a set of source ids for the identity partitions
    */
   public Set<Integer> identitySourceIds() {
     Set<Integer> sourceIds = Sets.newHashSet();
-    List<PartitionField> fields = this.fields();
-    for (PartitionField field : fields) {
+    List<PartitionField> resolvedFields = fields();
+    for (PartitionField field : resolvedFields) {
       if ("identity".equals(field.transform().toString())) {
         sourceIds.add(field.sourceId());
       }
@@ -295,6 +295,8 @@ public class PartitionSpec implements Serializable {
    * <p>
    * Call {@link #builderFor(Schema)} to create a new builder.
    */
+  // SuppressWarnings because builder classes should be allowed to copy names of passed in fields trivially.
+  @SuppressWarnings("checkstyle:HiddenField")
   public static class Builder {
     private final Schema schema;
     private final List<PartitionField> fields = Lists.newArrayList();

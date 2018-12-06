@@ -26,7 +26,7 @@ import java.io.Serializable;
  */
 public interface ScanTask extends Serializable {
   /**
-   * @return true if this is a {@link FileScanTask}, false otherwise.
+   * @return true if this is a {@link FileScanTask}, false otherwise
    */
   default boolean isFileScanTask() {
     return false;

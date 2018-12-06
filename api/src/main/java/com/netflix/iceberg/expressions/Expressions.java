@@ -19,6 +19,15 @@
 
 package com.netflix.iceberg.expressions;
 
+import static com.netflix.iceberg.expressions.Expression.Operation.EQ;
+import static com.netflix.iceberg.expressions.Expression.Operation.GT;
+import static com.netflix.iceberg.expressions.Expression.Operation.GT_EQ;
+import static com.netflix.iceberg.expressions.Expression.Operation.IS_NULL;
+import static com.netflix.iceberg.expressions.Expression.Operation.LT;
+import static com.netflix.iceberg.expressions.Expression.Operation.LT_EQ;
+import static com.netflix.iceberg.expressions.Expression.Operation.NOT_EQ;
+import static com.netflix.iceberg.expressions.Expression.Operation.NOT_NULL;
+
 import com.google.common.base.Preconditions;
 import com.netflix.iceberg.expressions.Expression.Operation;
 
@@ -68,51 +77,51 @@ public class Expressions {
   }
 
   public static <T> UnboundPredicate<T> isNull(String name) {
-    return new UnboundPredicate<>(Expression.Operation.IS_NULL, ref(name));
+    return new UnboundPredicate<>(IS_NULL, ref(name));
   }
 
   public static <T> UnboundPredicate<T> notNull(String name) {
-    return new UnboundPredicate<>(Expression.Operation.NOT_NULL, ref(name));
+    return new UnboundPredicate<>(NOT_NULL, ref(name));
   }
 
   public static <T> UnboundPredicate<T> lessThan(String name, T value) {
-    return new UnboundPredicate<>(Expression.Operation.LT, ref(name), value);
+    return new UnboundPredicate<>(LT, ref(name), value);
   }
 
   public static <T> UnboundPredicate<T> lessThanOrEqual(String name, T value) {
-    return new UnboundPredicate<>(Expression.Operation.LT_EQ, ref(name), value);
+    return new UnboundPredicate<>(LT_EQ, ref(name), value);
   }
 
   public static <T> UnboundPredicate<T> greaterThan(String name, T value) {
-    return new UnboundPredicate<>(Expression.Operation.GT, ref(name), value);
+    return new UnboundPredicate<>(GT, ref(name), value);
   }
 
   public static <T> UnboundPredicate<T> greaterThanOrEqual(String name, T value) {
-    return new UnboundPredicate<>(Expression.Operation.GT_EQ, ref(name), value);
+    return new UnboundPredicate<>(GT_EQ, ref(name), value);
   }
 
   public static <T> UnboundPredicate<T> equal(String name, T value) {
-    return new UnboundPredicate<>(Expression.Operation.EQ, ref(name), value);
+    return new UnboundPredicate<>(EQ, ref(name), value);
   }
 
   public static <T> UnboundPredicate<T> notEqual(String name, T value) {
-    return new UnboundPredicate<>(Expression.Operation.NOT_EQ, ref(name), value);
+    return new UnboundPredicate<>(NOT_EQ, ref(name), value);
   }
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name, T value) {
-    Preconditions.checkArgument(op != Operation.IS_NULL && op != Operation.NOT_NULL,
+    Preconditions.checkArgument(op != IS_NULL && op != NOT_NULL,
         "Cannot create %s predicate inclusive a value", op);
     return new UnboundPredicate<>(op, ref(name), value);
   }
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name, Literal<T> lit) {
-    Preconditions.checkArgument(op != Operation.IS_NULL && op != Operation.NOT_NULL,
+    Preconditions.checkArgument(op != IS_NULL && op != NOT_NULL,
         "Cannot create %s predicate inclusive a value", op);
     return new UnboundPredicate<>(op, ref(name), lit);
   }
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name) {
-    Preconditions.checkArgument(op == Operation.IS_NULL || op == Operation.NOT_NULL,
+    Preconditions.checkArgument(op == IS_NULL || op == NOT_NULL,
         "Cannot create %s predicate without a value", op);
     return new UnboundPredicate<>(op, ref(name));
   }

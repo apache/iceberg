@@ -19,9 +19,9 @@
 
 package com.netflix.iceberg.expressions;
 
-import com.netflix.iceberg.StructLike;
 import com.netflix.iceberg.PartitionField;
 import com.netflix.iceberg.PartitionSpec;
+import com.netflix.iceberg.StructLike;
 import com.netflix.iceberg.transforms.Transform;
 import java.io.Serializable;
 import java.util.Comparator;
@@ -76,8 +76,8 @@ public class ResidualEvaluator implements Serializable {
   private class ResidualVisitor extends ExpressionVisitors.BoundExpressionVisitor<Expression> {
     private StructLike struct;
 
-    private Expression eval(StructLike struct) {
-      this.struct = struct;
+    private Expression eval(StructLike newStruct) {
+      this.struct = newStruct;
       return ExpressionVisitors.visit(expr, this);
     }
 

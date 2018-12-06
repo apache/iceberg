@@ -20,6 +20,9 @@
 package com.netflix.iceberg.expressions;
 
 import com.netflix.iceberg.types.Types;
+import java.math.BigDecimal;
+import java.time.DateTimeException;
+import java.util.UUID;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.data.TimeConversions;
@@ -29,9 +32,6 @@ import org.joda.time.LocalDateTime;
 import org.joda.time.LocalTime;
 import org.junit.Assert;
 import org.junit.Test;
-import java.math.BigDecimal;
-import java.time.DateTimeException;
-import java.util.UUID;
 
 
 public class TestStringLiteralConversions {

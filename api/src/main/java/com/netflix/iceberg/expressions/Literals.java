@@ -52,7 +52,8 @@ class Literals {
    * @param <T> Java type of value
    * @return a Literal for the given value
    */
-  @SuppressWarnings("unchecked")
+  // Ignore cyclomatic complexity because of the instanceof branches.
+  @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
   static <T> Literal<T> from(T value) {
     Preconditions.checkNotNull(value, "Cannot create expression literal from null");
 
@@ -69,7 +70,7 @@ class Literals {
     } else if (value instanceof CharSequence) {
       return (Literal<T>) new Literals.StringLiteral((CharSequence) value);
     } else if (value instanceof UUID) {
-      return (Literal<T>) new Literals.UUIDLiteral((UUID) value);
+      return (Literal<T>) new UuidLiteral((UUID) value);
     } else if (value instanceof byte[]) {
       return (Literal<T>) new Literals.FixedLiteral(ByteBuffer.wrap((byte[]) value));
     } else if (value instanceof ByteBuffer) {
@@ -115,7 +116,7 @@ class Literals {
     private static final Comparator<? extends Comparable> CMP =
         Comparators.<Comparable>nullsFirst().thenComparing(Comparator.naturalOrder());
 
-    public ComparableLiteral(C value) {
+    ComparableLiteral(C value) {
       super(value);
     }
 
@@ -339,7 +340,7 @@ class Literals {
     @SuppressWarnings("unchecked")
     public <T> Literal<T> to(Type type) {
       if (type.typeId() == Type.TypeID.TIME) {
-        return (Literal<T>) this ;
+        return (Literal<T>) this;
       }
       return null;
     }
@@ -424,7 +425,7 @@ class Literals {
           return (Literal<T>) this;
 
         case UUID:
-          return (Literal<T>) new UUIDLiteral(UUID.fromString(value().toString()));
+          return (Literal<T>) new UuidLiteral(UUID.fromString(value().toString()));
 
         case DECIMAL:
           int scale = ((Types.DecimalType) type).scale();
@@ -450,8 +451,8 @@ class Literals {
     }
   }
 
-  static class UUIDLiteral extends ComparableLiteral<UUID> {
-    UUIDLiteral(UUID value) {
+  static class UuidLiteral extends ComparableLiteral<UUID> {
+    UuidLiteral(UUID value) {
       super(value);
     }
 

@@ -22,9 +22,6 @@ package com.netflix.iceberg.expressions;
 import com.netflix.iceberg.exceptions.ValidationException;
 import com.netflix.iceberg.types.Types;
 
-import static com.netflix.iceberg.expressions.Expression.Operation.IS_NULL;
-import static com.netflix.iceberg.expressions.Expression.Operation.NOT_NULL;
-
 public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
 
   UnboundPredicate(Operation op, NamedReference namedRef, T value) {
@@ -55,12 +52,12 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
           if (field.isRequired()) {
             return Expressions.alwaysFalse();
           }
-          return new BoundPredicate<>(IS_NULL, new BoundReference<>(struct, field.fieldId()));
+          return new BoundPredicate<>(Expression.Operation.IS_NULL, new BoundReference<>(struct, field.fieldId()));
         case NOT_NULL:
           if (field.isRequired()) {
             return Expressions.alwaysTrue();
           }
-          return new BoundPredicate<>(NOT_NULL, new BoundReference<>(struct, field.fieldId()));
+          return new BoundPredicate<>(Expression.Operation.NOT_NULL, new BoundReference<>(struct, field.fieldId()));
         default:
           throw new ValidationException("Operation must be IS_NULL or NOT_NULL");
       }

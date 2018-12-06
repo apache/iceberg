@@ -40,6 +40,8 @@ public interface PartitionSpecVisitor<T> {
 
   T hour(String sourceName, int sourceId);
 
+  // Suppressing cyclomatic complexity because of the instanceof checks and inherent branching.
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   static <R> List<R> visit(Schema schema, PartitionSpec spec, PartitionSpecVisitor<R> visitor) {
     List<R> results = Lists.newArrayListWithExpectedSize(spec.fields().size());
 

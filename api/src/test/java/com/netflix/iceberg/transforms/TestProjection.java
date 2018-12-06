@@ -19,20 +19,6 @@
 
 package com.netflix.iceberg.transforms;
 
-import com.google.common.collect.Lists;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.expressions.BoundPredicate;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.expressions.Expressions;
-import com.netflix.iceberg.expressions.Or;
-import com.netflix.iceberg.expressions.Projections;
-import com.netflix.iceberg.expressions.UnboundPredicate;
-import com.netflix.iceberg.PartitionSpec;
-import com.netflix.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
-import java.util.List;
-
 import static com.netflix.iceberg.TestHelpers.assertAndUnwrap;
 import static com.netflix.iceberg.TestHelpers.assertAndUnwrapUnbound;
 import static com.netflix.iceberg.expressions.Expressions.and;
@@ -42,6 +28,20 @@ import static com.netflix.iceberg.expressions.Expressions.lessThanOrEqual;
 import static com.netflix.iceberg.expressions.Expressions.or;
 import static com.netflix.iceberg.types.Types.NestedField.optional;
 import static com.netflix.iceberg.types.Types.NestedField.required;
+
+import com.google.common.collect.Lists;
+import com.netflix.iceberg.PartitionSpec;
+import com.netflix.iceberg.Schema;
+import com.netflix.iceberg.expressions.BoundPredicate;
+import com.netflix.iceberg.expressions.Expression;
+import com.netflix.iceberg.expressions.Expressions;
+import com.netflix.iceberg.expressions.Or;
+import com.netflix.iceberg.expressions.Projections;
+import com.netflix.iceberg.expressions.UnboundPredicate;
+import com.netflix.iceberg.types.Types;
+import java.util.List;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class TestProjection {
   private static final Schema SCHEMA = new Schema(

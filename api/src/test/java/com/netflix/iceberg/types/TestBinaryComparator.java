@@ -20,10 +20,10 @@
 package com.netflix.iceberg.types;
 
 import com.netflix.iceberg.expressions.Literal;
-import org.junit.Assert;
-import org.junit.Test;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Tests the comparator returned by binary and fixed literals.

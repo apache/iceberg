@@ -37,7 +37,7 @@ public interface FileAppender<D> extends Closeable {
   }
 
   /**
-   * @return {@link Metrics} for this file. Only valid after the file is closed.
+   * @return {@link Metrics} for this file. Only valid after the file is closed
    */
   Metrics metrics();
 }

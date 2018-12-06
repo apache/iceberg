@@ -19,20 +19,6 @@
 
 package com.netflix.iceberg.expressions;
 
-import com.google.common.collect.ImmutableMap;
-import com.netflix.iceberg.DataFile;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.TestHelpers;
-import com.netflix.iceberg.TestHelpers.Row;
-import com.netflix.iceberg.TestHelpers.TestDataFile;
-import com.netflix.iceberg.exceptions.ValidationException;
-import com.netflix.iceberg.types.Types;
-import com.netflix.iceberg.types.Types.IntegerType;
-import com.netflix.iceberg.types.Types.StringType;
-import org.junit.Assert;
-import org.junit.Ignore;
-import org.junit.Test;
-
 import static com.netflix.iceberg.expressions.Expressions.and;
 import static com.netflix.iceberg.expressions.Expressions.equal;
 import static com.netflix.iceberg.expressions.Expressions.greaterThan;
@@ -47,6 +33,18 @@ import static com.netflix.iceberg.expressions.Expressions.or;
 import static com.netflix.iceberg.types.Conversions.toByteBuffer;
 import static com.netflix.iceberg.types.Types.NestedField.optional;
 import static com.netflix.iceberg.types.Types.NestedField.required;
+
+import com.google.common.collect.ImmutableMap;
+import com.netflix.iceberg.DataFile;
+import com.netflix.iceberg.Schema;
+import com.netflix.iceberg.TestHelpers;
+import com.netflix.iceberg.TestHelpers.Row;
+import com.netflix.iceberg.TestHelpers.TestDataFile;
+import com.netflix.iceberg.exceptions.ValidationException;
+import com.netflix.iceberg.types.Types.IntegerType;
+import com.netflix.iceberg.types.Types.StringType;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class TestStrictMetricsEvaluator {
   private static final Schema SCHEMA = new Schema(

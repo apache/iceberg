@@ -27,7 +27,7 @@ import java.util.Collection;
 public interface CombinedScanTask extends ScanTask {
   /**
    * Return the {@link FileScanTask tasks} in this combined task.
-   * @return a Collection of FileScanTask instances.
+   * @return a Collection of FileScanTask instances
    */
   Collection<FileScanTask> files();
 

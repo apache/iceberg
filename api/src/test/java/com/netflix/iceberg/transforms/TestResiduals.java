@@ -19,16 +19,6 @@
 
 package com.netflix.iceberg.transforms;
 
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.TestHelpers.Row;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.expressions.ResidualEvaluator;
-import com.netflix.iceberg.expressions.UnboundPredicate;
-import com.netflix.iceberg.PartitionSpec;
-import com.netflix.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
-
 import static com.netflix.iceberg.TestHelpers.assertAndUnwrapUnbound;
 import static com.netflix.iceberg.expressions.Expression.Operation.GT;
 import static com.netflix.iceberg.expressions.Expression.Operation.LT;
@@ -39,6 +29,16 @@ import static com.netflix.iceberg.expressions.Expressions.equal;
 import static com.netflix.iceberg.expressions.Expressions.greaterThan;
 import static com.netflix.iceberg.expressions.Expressions.lessThan;
 import static com.netflix.iceberg.expressions.Expressions.or;
+
+import com.netflix.iceberg.PartitionSpec;
+import com.netflix.iceberg.Schema;
+import com.netflix.iceberg.TestHelpers.Row;
+import com.netflix.iceberg.expressions.Expression;
+import com.netflix.iceberg.expressions.ResidualEvaluator;
+import com.netflix.iceberg.expressions.UnboundPredicate;
+import com.netflix.iceberg.types.Types;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class TestResiduals {
   @Test

@@ -20,10 +20,10 @@
 package com.netflix.iceberg.types;
 
 import com.netflix.iceberg.expressions.Literal;
+import java.util.Comparator;
 import org.apache.avro.util.Utf8;
 import org.junit.Assert;
 import org.junit.Test;
-import java.util.Comparator;
 
 /**
  * Tests the comparator returned by CharSequence literals.

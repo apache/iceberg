@@ -27,7 +27,7 @@ import java.util.Comparator;
 import java.util.UUID;
 
 /**
- * Represents a literal fixed value in an expression predicate
+ * Represents a literal fixed value in an expression predicate.
  * @param <T> The Java type of the value wrapped by a {@link Literal}
  */
 public interface Literal<T> extends Serializable {
@@ -56,7 +56,7 @@ public interface Literal<T> extends Serializable {
   }
 
   static Literal<UUID> of(UUID value) {
-    return new Literals.UUIDLiteral(value);
+    return new Literals.UuidLiteral(value);
   }
 
   static Literal<ByteBuffer> of(byte[] value) {

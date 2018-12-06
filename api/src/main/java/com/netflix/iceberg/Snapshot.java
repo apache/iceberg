@@ -68,7 +68,7 @@ public interface Snapshot {
    * The files returned include the following columns: file_path, file_format, partition,
    * record_count, and file_size_in_bytes. Other columns will be null.
    *
-   * @return all files added to the table in this snapshot.
+   * @return all files added to the table in this snapshot
    */
   Iterable<DataFile> addedFiles();
 
@@ -78,7 +78,7 @@ public interface Snapshot {
    * The files returned include the following columns: file_path, file_format, partition,
    * record_count, and file_size_in_bytes. Other columns will be null.
    *
-   * @return all files deleted from the table in this snapshot.
+   * @return all files deleted from the table in this snapshot
    */
   Iterable<DataFile> deletedFiles();
 }

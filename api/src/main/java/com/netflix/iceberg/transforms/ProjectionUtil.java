@@ -21,29 +21,31 @@ package com.netflix.iceberg.transforms;
 
 import com.netflix.iceberg.expressions.BoundPredicate;
 import com.netflix.iceberg.expressions.Expression;
+import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.expressions.UnboundPredicate;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 
-import static com.netflix.iceberg.expressions.Expressions.predicate;
-
 class ProjectionUtil {
+
+  private ProjectionUtil() {}
+
   static <T> UnboundPredicate<T> truncateInteger(
       String name, BoundPredicate<Integer> pred, Transform<Integer, T> transform) {
     int boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
         // adjust closed and then transform ltEq
-        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary - 1));
+        return Expressions.predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary - 1));
       case LT_EQ:
-        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
+        return Expressions.predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
       case GT:
         // adjust closed and then transform gtEq
-        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary + 1));
+        return Expressions.predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary + 1));
       case GT_EQ:
-        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
+        return Expressions.predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
       case EQ:
-        return predicate(pred.op(), name, transform.apply(boundary));
+        return Expressions.predicate(pred.op(), name, transform.apply(boundary));
       default:
         return null;
     }
@@ -55,16 +57,16 @@ class ProjectionUtil {
     switch (pred.op()) {
       case LT:
         // adjust closed and then transform ltEq
-        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary - 1L));
+        return Expressions.predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary - 1L));
       case LT_EQ:
-        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
+        return Expressions.predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
       case GT:
         // adjust closed and then transform gtEq
-        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary + 1L));
+        return Expressions.predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary + 1L));
       case GT_EQ:
-        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
+        return Expressions.predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
       case EQ:
-        return predicate(pred.op(), name, transform.apply(boundary));
+        return Expressions.predicate(pred.op(), name, transform.apply(boundary));
       default:
         return null;
     }
@@ -80,19 +82,19 @@ class ProjectionUtil {
         BigDecimal minusOne = new BigDecimal(
             boundary.unscaledValue().subtract(BigInteger.ONE),
             boundary.scale());
-        return predicate(Expression.Operation.LT_EQ, name, transform.apply(minusOne));
+        return Expressions.predicate(Expression.Operation.LT_EQ, name, transform.apply(minusOne));
       case LT_EQ:
-        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
+        return Expressions.predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
       case GT:
         // adjust closed and then transform gtEq
         BigDecimal plusOne = new BigDecimal(
             boundary.unscaledValue().add(BigInteger.ONE),
             boundary.scale());
-        return predicate(Expression.Operation.GT_EQ, name, transform.apply(plusOne));
+        return Expressions.predicate(Expression.Operation.GT_EQ, name, transform.apply(plusOne));
       case GT_EQ:
-        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
+        return Expressions.predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
       case EQ:
-        return predicate(pred.op(), name, transform.apply(boundary));
+        return Expressions.predicate(pred.op(), name, transform.apply(boundary));
       default:
         return null;
     }
@@ -104,12 +106,12 @@ class ProjectionUtil {
     switch (pred.op()) {
       case LT:
       case LT_EQ:
-        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
+        return Expressions.predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
       case GT:
       case GT_EQ:
-        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
+        return Expressions.predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
       case EQ:
-        return predicate(Expression.Operation.EQ, name, transform.apply(boundary));
+        return Expressions.predicate(Expression.Operation.EQ, name, transform.apply(boundary));
 //        case IN: // TODO
 //          return Expressions.predicate(Operation.IN, name, transform.apply(boundary));
       default:

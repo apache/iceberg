@@ -19,10 +19,6 @@
 
 package com.netflix.iceberg.expressions;
 
-import com.netflix.iceberg.TestHelpers;
-import org.junit.Assert;
-import org.junit.Test;
-
 import static com.netflix.iceberg.expressions.Expressions.alwaysFalse;
 import static com.netflix.iceberg.expressions.Expressions.alwaysTrue;
 import static com.netflix.iceberg.expressions.Expressions.and;
@@ -30,6 +26,10 @@ import static com.netflix.iceberg.expressions.Expressions.equal;
 import static com.netflix.iceberg.expressions.Expressions.lessThan;
 import static com.netflix.iceberg.expressions.Expressions.not;
 import static com.netflix.iceberg.expressions.Expressions.or;
+
+import com.netflix.iceberg.TestHelpers;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class TestExpressionHelpers {
   private final UnboundPredicate<?> pred = lessThan("x", 7);

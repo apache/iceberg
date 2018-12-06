@@ -20,7 +20,6 @@
 package com.netflix.iceberg.transforms;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Charsets;
 import com.google.common.base.Objects;
 import com.google.common.collect.Sets;
 import com.google.common.hash.HashFunction;
@@ -33,46 +32,45 @@ import com.netflix.iceberg.types.Types;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.UUID;
-
-import static com.netflix.iceberg.types.Type.TypeID;
 
 abstract class Bucket<T> implements Transform<T, Integer> {
   private static final HashFunction MURMUR3 = Hashing.murmur3_32();
 
   @SuppressWarnings("unchecked")
-  static <T> Bucket<T> get(Type type, int N) {
+  static <T> Bucket<T> get(Type type, int numBuckets) {
     switch (type.typeId()) {
       case DATE:
       case INTEGER:
-        return (Bucket<T>) new BucketInteger(N);
+        return (Bucket<T>) new BucketInteger(numBuckets);
       case TIME:
       case TIMESTAMP:
       case LONG:
-        return (Bucket<T>) new BucketLong(N);
+        return (Bucket<T>) new BucketLong(numBuckets);
       case DECIMAL:
-        return (Bucket<T>) new BucketDecimal(N);
+        return (Bucket<T>) new BucketDecimal(numBuckets);
       case STRING:
-        return (Bucket<T>) new BucketString(N);
+        return (Bucket<T>) new BucketString(numBuckets);
       case FIXED:
       case BINARY:
-        return (Bucket<T>) new BucketByteBuffer(N);
+        return (Bucket<T>) new BucketByteBuffer(numBuckets);
       case UUID:
-        return (Bucket<T>) new BucketUUID(N);
+        return (Bucket<T>) new BucketUuid(numBuckets);
       default:
         throw new IllegalArgumentException("Cannot bucket by type: " + type);
     }
   }
 
-  private final int N;
+  private final int numBuckets;
 
-  private Bucket(int N) {
-    this.N = N;
+  private Bucket(int numBuckets) {
+    this.numBuckets = numBuckets;
   }
 
   public Integer numBuckets() {
-    return N;
+    return numBuckets;
   }
 
   @VisibleForTesting
@@ -80,30 +78,30 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
   @Override
   public Integer apply(T value) {
-    return (hash(value) & Integer.MAX_VALUE) % N;
+    return (hash(value) & Integer.MAX_VALUE) % numBuckets;
   }
 
   @Override
-  public boolean equals(Object o) {
-    if (this == o) {
+  public boolean equals(Object other) {
+    if (this == other) {
       return true;
     }
-    if (o == null || getClass() != o.getClass()) {
+    if (other == null || getClass() != other.getClass()) {
       return false;
     }
 
-    Bucket<?> bucket = (Bucket<?>) o;
-    return N == bucket.N;
+    Bucket<?> bucket = (Bucket<?>) other;
+    return numBuckets == bucket.numBuckets;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(N);
+    return Objects.hashCode(numBuckets);
   }
 
   @Override
   public String toString() {
-    return "bucket[" + N + "]";
+    return "bucket[" + numBuckets + "]";
   }
 
   @Override
@@ -141,8 +139,8 @@ abstract class Bucket<T> implements Transform<T, Integer> {
   }
 
   private static class BucketInteger extends Bucket<Integer> {
-    private BucketInteger(int N) {
-      super(N);
+    private BucketInteger(int numBuckets) {
+      super(numBuckets);
     }
 
     public int hash(Integer value) {
@@ -151,13 +149,13 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public boolean canTransform(Type type) {
-      return type.typeId() == TypeID.INTEGER || type.typeId() == TypeID.DATE;
+      return type.typeId() == Type.TypeID.INTEGER || type.typeId() == Type.TypeID.DATE;
     }
   }
 
   private static class BucketLong extends Bucket<Long> {
-    private BucketLong(int N) {
-      super(N);
+    private BucketLong(int numBuckets) {
+      super(numBuckets);
     }
 
     public int hash(Long value) {
@@ -166,19 +164,17 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public boolean canTransform(Type type) {
-      return (
-          type.typeId() == TypeID.LONG ||
-          type.typeId() == TypeID.TIME ||
-          type.typeId() == TypeID.TIMESTAMP
-      );
+      return type.typeId() == Type.TypeID.LONG
+          || type.typeId() == Type.TypeID.TIME
+          || type.typeId() == Type.TypeID.TIMESTAMP;
     }
   }
 
   // bucketing by Double is not allowed by the spec, but this has the float hash implementation
   static class BucketFloat extends Bucket<Float> {
     // used by tests because the factory method will not instantiate a bucket function for floats
-    BucketFloat(int N) {
-      super(N);
+    BucketFloat(int numBuckets) {
+      super(numBuckets);
     }
 
     public int hash(Float value) {
@@ -187,15 +183,15 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public boolean canTransform(Type type) {
-      return type.typeId() == TypeID.FLOAT;
+      return type.typeId() == Type.TypeID.FLOAT;
     }
   }
 
   // bucketing by Double is not allowed by the spec, but this has the double hash implementation
   static class BucketDouble extends Bucket<Double> {
     // used by tests because the factory method will not instantiate a bucket function for doubles
-    BucketDouble(int N) {
-      super(N);
+    BucketDouble(int numBuckets) {
+      super(numBuckets);
     }
 
     public int hash(Double value) {
@@ -204,31 +200,31 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public boolean canTransform(Type type) {
-      return type.typeId() == TypeID.DOUBLE;
+      return type.typeId() == Type.TypeID.DOUBLE;
     }
   }
 
   private static class BucketString extends Bucket<CharSequence> {
-    private BucketString(int N) {
-      super(N);
+    private BucketString(int numBuckets) {
+      super(numBuckets);
     }
 
     public int hash(CharSequence value) {
-      return MURMUR3.hashString(value, Charsets.UTF_8).asInt();
+      return MURMUR3.hashString(value, StandardCharsets.UTF_8).asInt();
     }
 
     @Override
     public boolean canTransform(Type type) {
-      return type.typeId() == TypeID.STRING;
+      return type.typeId() == Type.TypeID.STRING;
     }
   }
 
   private static class BucketBytes extends Bucket<byte[]> {
-    private static final Set<TypeID> SUPPORTED_TYPES = Sets.newHashSet(
-        TypeID.BINARY, TypeID.FIXED);
+    private static final Set<Type.TypeID> SUPPORTED_TYPES = Sets.newHashSet(
+        Type.TypeID.BINARY, Type.TypeID.FIXED);
 
-    private BucketBytes(int N) {
-      super(N);
+    private BucketBytes(int numBuckets) {
+      super(numBuckets);
     }
 
     public int hash(byte[] value) {
@@ -242,11 +238,11 @@ abstract class Bucket<T> implements Transform<T, Integer> {
   }
 
   private static class BucketByteBuffer extends Bucket<ByteBuffer> {
-    private static final Set<TypeID> SUPPORTED_TYPES = Sets.newHashSet(
-        TypeID.BINARY, TypeID.FIXED);
+    private static final Set<Type.TypeID> SUPPORTED_TYPES = Sets.newHashSet(
+        Type.TypeID.BINARY, Type.TypeID.FIXED);
 
-    private BucketByteBuffer(int N) {
-      super(N);
+    private BucketByteBuffer(int numBuckets) {
+      super(numBuckets);
     }
 
     public int hash(ByteBuffer value) {
@@ -273,15 +269,15 @@ abstract class Bucket<T> implements Transform<T, Integer> {
     }
   }
 
-  private static class BucketUUID extends Bucket<UUID> {
+  private static class BucketUuid extends Bucket<UUID> {
     private static final ThreadLocal<ByteBuffer> BUFFER = ThreadLocal.withInitial(() -> {
       ByteBuffer buffer = ByteBuffer.allocate(16);
       buffer.order(ByteOrder.BIG_ENDIAN);
       return buffer;
     });
 
-    private BucketUUID(int N) {
-      super(N);
+    private BucketUuid(int numBuckets) {
+      super(numBuckets);
     }
 
     public int hash(UUID value) {
@@ -294,13 +290,13 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public boolean canTransform(Type type) {
-      return type.typeId() == TypeID.UUID;
+      return type.typeId() == Type.TypeID.UUID;
     }
   }
 
   private static class BucketDecimal extends Bucket<BigDecimal> {
-    private BucketDecimal(int N) {
-      super(N);
+    private BucketDecimal(int numBuckets) {
+      super(numBuckets);
     }
 
     public int hash(BigDecimal value) {
@@ -309,7 +305,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public boolean canTransform(Type type) {
-      return type.typeId() == TypeID.DECIMAL;
+      return type.typeId() == Type.TypeID.DECIMAL;
     }
   }
 }

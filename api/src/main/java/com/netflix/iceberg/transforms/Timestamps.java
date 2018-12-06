@@ -19,6 +19,9 @@
 
 package com.netflix.iceberg.transforms;
 
+import static com.netflix.iceberg.expressions.Expression.Operation.IS_NULL;
+import static com.netflix.iceberg.expressions.Expression.Operation.NOT_NULL;
+
 import com.netflix.iceberg.expressions.BoundPredicate;
 import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.expressions.UnboundPredicate;
@@ -28,9 +31,6 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-
-import static com.netflix.iceberg.expressions.Expression.Operation.IS_NULL;
-import static com.netflix.iceberg.expressions.Expression.Operation.NOT_NULL;
 
 enum Timestamps implements Transform<Long, Integer> {
   YEAR(ChronoUnit.YEARS, "year"),
@@ -53,7 +53,8 @@ enum Timestamps implements Transform<Long, Integer> {
     OffsetDateTime timestamp = Instant
         .ofEpochSecond(timestampMicros / 1_000_000)
         .atOffset(ZoneOffset.UTC);
-    return (int) granularity.between(EPOCH, timestamp);
+    Integer year = Long.valueOf(granularity.between(EPOCH, timestamp)).intValue();
+    return year;
   }
 
   @Override
@@ -67,15 +68,15 @@ enum Timestamps implements Transform<Long, Integer> {
   }
 
   @Override
-  public UnboundPredicate<Integer> project(String name, BoundPredicate<Long> pred) {
+  public UnboundPredicate<Integer> project(String nameToProject, BoundPredicate<Long> pred) {
     if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
-      return Expressions.predicate(pred.op(), name);
+      return Expressions.predicate(pred.op(), nameToProject);
     }
-    return ProjectionUtil.truncateLong(name, pred, this);
+    return ProjectionUtil.truncateLong(nameToProject, pred, this);
   }
 
   @Override
-  public UnboundPredicate<Integer> projectStrict(String name, BoundPredicate<Long> predicate) {
+  public UnboundPredicate<Integer> projectStrict(String nameToProject, BoundPredicate<Long> predicate) {
     return null;
   }
 

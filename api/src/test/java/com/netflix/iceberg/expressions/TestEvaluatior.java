@@ -19,13 +19,6 @@
 
 package com.netflix.iceberg.expressions;
 
-import com.netflix.iceberg.TestHelpers;
-import com.netflix.iceberg.types.Types;
-import com.netflix.iceberg.types.Types.StructType;
-import org.apache.avro.util.Utf8;
-import org.junit.Assert;
-import org.junit.Test;
-
 import static com.netflix.iceberg.expressions.Expressions.alwaysFalse;
 import static com.netflix.iceberg.expressions.Expressions.alwaysTrue;
 import static com.netflix.iceberg.expressions.Expressions.and;
@@ -41,6 +34,13 @@ import static com.netflix.iceberg.expressions.Expressions.notNull;
 import static com.netflix.iceberg.expressions.Expressions.or;
 import static com.netflix.iceberg.types.Types.NestedField.optional;
 import static com.netflix.iceberg.types.Types.NestedField.required;
+
+import com.netflix.iceberg.TestHelpers;
+import com.netflix.iceberg.types.Types;
+import com.netflix.iceberg.types.Types.StructType;
+import org.apache.avro.util.Utf8;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class TestEvaluatior {
   private static final StructType STRUCT = StructType.of(

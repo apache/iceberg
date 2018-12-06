@@ -20,8 +20,8 @@
 package com.netflix.iceberg.transforms;
 
 import com.google.common.base.Preconditions;
-import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.PartitionSpec;
+import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.types.Type;
 import java.util.Locale;
 import java.util.regex.Matcher;
@@ -45,11 +45,11 @@ public class Transforms {
     Matcher width = HAS_WIDTH.matcher(transform);
     if (width.matches()) {
       String name = width.group(1);
-      int w = Integer.parseInt(width.group(2));
+      int parsedWidth = Integer.parseInt(width.group(2));
       if (name.equalsIgnoreCase("truncate")) {
-        return Truncate.get(type, w);
+        return Truncate.get(type, parsedWidth);
       } else if (name.equals("bucket")) {
-        return Bucket.get(type, w);
+        return Bucket.get(type, parsedWidth);
       }
     }
 

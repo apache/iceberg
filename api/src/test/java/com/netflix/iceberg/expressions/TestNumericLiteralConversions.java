@@ -20,9 +20,9 @@
 package com.netflix.iceberg.expressions;
 
 import com.netflix.iceberg.types.Types;
+import java.math.BigDecimal;
 import org.junit.Assert;
 import org.junit.Test;
-import java.math.BigDecimal;
 
 public class TestNumericLiteralConversions {
   @Test

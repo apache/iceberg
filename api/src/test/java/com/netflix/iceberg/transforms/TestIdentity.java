@@ -21,10 +21,10 @@ package com.netflix.iceberg.transforms;
 
 import com.netflix.iceberg.expressions.Literal;
 import com.netflix.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class TestIdentity {
   @Test
@@ -60,10 +60,10 @@ public class TestIdentity {
     Transform<Integer, Integer> identity = Transforms.identity(date);
 
     String dateString = "2017-12-01";
-    Literal<Integer> d = Literal.of(dateString).to(date);
+    Literal<Integer> dateLiteral = Literal.of(dateString).to(date);
 
     Assert.assertEquals("Should produce identical date",
-        dateString, identity.toHumanString(d.value()));
+        dateString, identity.toHumanString(dateLiteral.value()));
   }
 
   @Test
@@ -72,10 +72,10 @@ public class TestIdentity {
     Transform<Long, Long> identity = Transforms.identity(time);
 
     String timeString = "10:12:55.038194";
-    Literal<Long> d = Literal.of(timeString).to(time);
+    Literal<Long> timeLiteral = Literal.of(timeString).to(time);
 
     Assert.assertEquals("Should produce identical time",
-        timeString, identity.toHumanString(d.value()));
+        timeString, identity.toHumanString(timeLiteral.value()));
   }
 
   @Test
@@ -127,7 +127,7 @@ public class TestIdentity {
     Transform<BigDecimal, BigDecimal> identity = Transforms.identity(decimal);
 
     String decimalString = "-1.50";
-    BigDecimal d = new BigDecimal(decimalString);
-    Assert.assertEquals("Should not modify Strings", decimalString, identity.toHumanString(d));
+    BigDecimal decimalLiteral = new BigDecimal(decimalString);
+    Assert.assertEquals("Should not modify Strings", decimalString, identity.toHumanString(decimalLiteral));
   }
 }

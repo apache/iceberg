@@ -19,6 +19,7 @@
 
 package com.netflix.iceberg;
 
+import com.netflix.iceberg.types.Types;
 import com.netflix.iceberg.types.Types.BinaryType;
 import com.netflix.iceberg.types.Types.IntegerType;
 import com.netflix.iceberg.types.Types.ListType;
@@ -30,9 +31,6 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 
-import static com.netflix.iceberg.types.Types.NestedField.optional;
-import static com.netflix.iceberg.types.Types.NestedField.required;
-
 /**
  * Interface for files listed in a table manifest.
  */
@@ -40,23 +38,23 @@ public interface DataFile {
   static StructType getType(StructType partitionType) {
     // IDs start at 100 to leave room for changes to ManifestEntry
     return StructType.of(
-        required(100, "file_path", StringType.get()),
-        required(101, "file_format", StringType.get()),
-        required(102, "partition", partitionType),
-        required(103, "record_count", LongType.get()),
-        required(104, "file_size_in_bytes", LongType.get()),
-        required(105, "block_size_in_bytes", LongType.get()),
-        optional(106, "file_ordinal", IntegerType.get()),
-        optional(107, "sort_columns", ListType.ofRequired(112, IntegerType.get())),
-        optional(108, "column_sizes", MapType.ofRequired(117, 118,
+        Types.NestedField.required(100, "file_path", StringType.get()),
+        Types.NestedField.required(101, "file_format", StringType.get()),
+        Types.NestedField.required(102, "partition", partitionType),
+        Types.NestedField.required(103, "record_count", LongType.get()),
+        Types.NestedField.required(104, "file_size_in_bytes", LongType.get()),
+        Types.NestedField.required(105, "block_size_in_bytes", LongType.get()),
+        Types.NestedField.optional(106, "file_ordinal", IntegerType.get()),
+        Types.NestedField.optional(107, "sort_columns", ListType.ofRequired(112, IntegerType.get())),
+        Types.NestedField.optional(108, "column_sizes", MapType.ofRequired(117, 118,
             IntegerType.get(), LongType.get())),
-        optional(109, "value_counts", MapType.ofRequired(119, 120,
+        Types.NestedField.optional(109, "value_counts", MapType.ofRequired(119, 120,
             IntegerType.get(), LongType.get())),
-        optional(110, "null_value_counts", MapType.ofRequired(121, 122,
+        Types.NestedField.optional(110, "null_value_counts", MapType.ofRequired(121, 122,
             IntegerType.get(), LongType.get())),
-        optional(125, "lower_bounds", MapType.ofRequired(126, 127,
+        Types.NestedField.optional(125, "lower_bounds", MapType.ofRequired(126, 127,
             IntegerType.get(), BinaryType.get())),
-        optional(128, "upper_bounds", MapType.ofRequired(129, 130,
+        Types.NestedField.optional(128, "upper_bounds", MapType.ofRequired(129, 130,
             IntegerType.get(), BinaryType.get()))
         // NEXT ID TO ASSIGN: 131
     );

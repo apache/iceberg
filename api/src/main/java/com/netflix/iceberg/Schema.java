@@ -89,14 +89,14 @@ public class Schema implements Serializable {
   /**
    * Returns the underlying {@link Types.StructType struct type} for this schema.
    *
-   * @return the StructType version of this schema.
+   * @return the StructType version of this schema
    */
   public Types.StructType asStruct() {
     return struct;
   }
 
   /**
-   * @return a List of the {@link Types.NestedField columns} in this Schema.
+   * @return a List of the {@link Types.NestedField columns} in this Schema
    */
   public List<Types.NestedField> columns() {
     return struct.fields();

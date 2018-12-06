@@ -18,11 +18,16 @@
  */
 
 buildscript {
-  repositories { jcenter() }
+  repositories {
+      jcenter()
+      maven { url  "http://palantir.bintray.com/releases" }
+  }
   dependencies {
     classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.0'
     classpath 'com.netflix.nebula:gradle-aggregate-javadocs-plugin:2.2.+'
     classpath 'com.netflix.nebula:nebula-publishing-plugin:5.1.5'
+    classpath 'com.palantir.baseline:gradle-baseline-java:0.42.0'
+    classpath 'gradle.plugin.org.inferred:gradle-processors:2.1.0'
   }
 }
 
@@ -37,11 +42,20 @@ if (JavaVersion.current() != JavaVersion.VERSION_1_8) {
 
 allprojects {
   group = "com.netflix.iceberg"
-  apply plugin: 'idea'
   version = gitVersion()
+  apply plugin: 'com.palantir.baseline-idea'
 }
 
 apply plugin: 'nebula-aggregate-javadocs'
+apply plugin: 'org.inferred.processors'
+
+allprojects {
+  repositories {
+    mavenCentral()
+    mavenLocal()
+    maven { url  "http://palantir.bintray.com/releases" }
+  }
+}
 
 subprojects {
   apply plugin: 'nebula.javadoc-jar'
@@ -49,11 +63,6 @@ subprojects {
   apply plugin: 'java'
   apply plugin: 'maven' // make pom files for deployment
   apply plugin: 'nebula.maven-base-publish'
-
-  repositories {
-    mavenCentral()
-    mavenLocal()
-  }
 
   configurations {
     testCompile.extendsFrom compileOnly
@@ -99,6 +108,7 @@ subprojects {
 }
 
 project(':iceberg-api') {
+  apply plugin: 'com.palantir.baseline-checkstyle'
   dependencies {
     testCompile "org.apache.avro:avro:$avroVersion"
     testCompile 'joda-time:joda-time:2.9.9'

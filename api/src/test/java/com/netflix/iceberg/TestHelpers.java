@@ -23,7 +23,6 @@ import com.netflix.iceberg.expressions.BoundPredicate;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.ExpressionVisitors;
 import com.netflix.iceberg.expressions.UnboundPredicate;
-import org.junit.Assert;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -33,8 +32,12 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import org.junit.Assert;
 
 public class TestHelpers {
+
+  private TestHelpers() {}
+
   public static <T> T assertAndUnwrap(Expression expr, Class<T> expected) {
     Assert.assertTrue("Expression should have expected type: " + expected,
         expected.isInstance(expr));
@@ -75,7 +78,7 @@ public class TestHelpers {
   private static class CheckReferencesBound extends ExpressionVisitors.ExpressionVisitor<Void> {
     private final String message;
 
-    public CheckReferencesBound(String message) {
+    CheckReferencesBound(String message) {
       this.message = message;
     }
 
@@ -131,8 +134,8 @@ public class TestHelpers {
                                   Callable callable) {
     try {
       callable.call();
-      Assert.fail("No exception was thrown (" + message + "), expected: " +
-          expected.getName());
+      Assert.fail("No exception was thrown (" + message + "), expected: "
+          + expected.getName());
     } catch (Exception actual) {
       handleException(message, expected, containedInMessage, actual);
     }
@@ -152,8 +155,8 @@ public class TestHelpers {
                                   Runnable runnable) {
     try {
       runnable.run();
-      Assert.fail("No exception was thrown (" + message + "), expected: " +
-          expected.getName());
+      Assert.fail("No exception was thrown (" + message + "), expected: "
+          + expected.getName());
     } catch (Exception actual) {
       handleException(message, expected, containedInMessage, actual);
     }
@@ -166,8 +169,8 @@ public class TestHelpers {
     try {
       Assert.assertEquals(message, expected, actual.getClass());
       Assert.assertTrue(
-          "Expected exception message (" + containedInMessage + ") missing: " +
-              actual.getMessage(),
+          "Expected exception message (" + containedInMessage + ") missing: "
+              + actual.getMessage(),
           actual.getMessage().contains(containedInMessage)
       );
     } catch (AssertionError e) {
