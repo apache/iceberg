@@ -69,7 +69,7 @@ public interface Table {
   String location();
 
   /**
-   * Get the current {@link Snapshot snapshot} for this table.
+   * Get the current {@link Snapshot snapshot} for this table, or null if there are no snapshots.
    *
    * @return the current table Snapshot.
    */
