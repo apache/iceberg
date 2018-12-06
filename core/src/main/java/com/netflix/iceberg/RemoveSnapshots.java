@@ -115,7 +115,10 @@ class RemoveSnapshots implements ExpireSnapshots {
         .onlyRetryOn(CommitFailedException.class)
         .run(item -> {
           TableMetadata updated = internalApply();
-          ops.commit(base, updated);
+          // only commit the updated metadata if at least one snapshot was removed
+          if (updated.snapshots().size() != base.snapshots().size()) {
+            ops.commit(base, updated);
+          }
         });
 
     LOG.info("Committed snapshot changes; cleaning up expired manifests and data files.");
