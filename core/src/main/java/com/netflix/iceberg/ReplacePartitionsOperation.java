@@ -42,7 +42,7 @@ public class ReplacePartitionsOperation extends MergingSnapshotUpdate implements
   }
 
   @Override
-  public List<String> apply(TableMetadata base) {
+  public List<ManifestFile> apply(TableMetadata base) {
     if (writeSpec().fields().size() <= 0) {
       // replace all data in an unpartitioned table
       deleteByRowFilter(Expressions.alwaysTrue());

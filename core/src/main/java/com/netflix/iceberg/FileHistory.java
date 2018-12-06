@@ -32,6 +32,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
+import static com.google.common.collect.Iterables.concat;
+import static com.google.common.collect.Iterables.transform;
+
 public class FileHistory {
   private static final List<String> HISTORY_COLUMNS = ImmutableList.of("file_path");
 
@@ -91,12 +94,17 @@ public class FileHistory {
         snapshots = Iterables.filter(snapshots, snap -> snap.timestampMillis() <= endTime);
       }
 
+      // only use manifests that were added in the matching snapshots
+      Set<Long> matchingIds = Sets.newHashSet(transform(snapshots, snap -> snap.snapshotId()));
+      Iterable<ManifestFile> manifests = Iterables.filter(
+          concat(transform(snapshots, Snapshot::manifests)),
+          manifest -> manifest.snapshotId() == null || matchingIds.contains(manifest.snapshotId()));
+
       // a manifest group will only read each manifest once
-      ManifestGroup manifests = new ManifestGroup(((HasTableOperations) table).operations(),
-          Iterables.concat(Iterables.transform(snapshots, Snapshot::manifests)));
+      ManifestGroup group = new ManifestGroup(((HasTableOperations) table).operations(), manifests);
 
       List<ManifestEntry> results = Lists.newArrayList();
-      try (CloseableIterable<ManifestEntry> entries = manifests.select(HISTORY_COLUMNS).entries()) {
+      try (CloseableIterable<ManifestEntry> entries = group.select(HISTORY_COLUMNS).entries()) {
         // TODO: replace this with an IN predicate
         CharSequenceWrapper locationWrapper = CharSequenceWrapper.wrap(null);
         for (ManifestEntry entry : entries) {

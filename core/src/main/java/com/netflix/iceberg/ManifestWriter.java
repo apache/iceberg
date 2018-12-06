@@ -19,6 +19,7 @@
 
 package com.netflix.iceberg;
 
+import com.google.common.base.Preconditions;
 import com.netflix.iceberg.avro.Avro;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.FileAppender;
@@ -35,14 +36,27 @@ import static com.netflix.iceberg.ManifestEntry.Status.DELETED;
 class ManifestWriter implements FileAppender<DataFile> {
   private static final Logger LOG = LoggerFactory.getLogger(ManifestWriter.class);
 
+  private final String location;
+  private final OutputFile file;
+  private final int specId;
   private final FileAppender<ManifestEntry> writer;
   private final long snapshotId;
-  private ManifestEntry reused = null;
+  private final ManifestEntry reused;
+  private final PartitionSummary stats;
+
+  private boolean closed = false;
+  private int addedFiles = 0;
+  private int existingFiles = 0;
+  private int deletedFiles = 0;
 
   ManifestWriter(PartitionSpec spec, OutputFile file, long snapshotId) {
+    this.location = file.location();
+    this.file = file;
+    this.specId = spec.specId();
     this.writer = newAppender(FileFormat.AVRO, spec, file);
     this.snapshotId = snapshotId;
     this.reused = new ManifestEntry(spec.partitionType());
+    this.stats = new PartitionSummary(spec);
   }
 
   public void addExisting(Iterable<ManifestEntry> entries) {
@@ -54,25 +68,37 @@ class ManifestWriter implements FileAppender<DataFile> {
   }
 
   public void addExisting(ManifestEntry entry) {
-    writer.add(reused.wrapExisting(entry.snapshotId(), entry.file()));
+    add(reused.wrapExisting(entry.snapshotId(), entry.file()));
   }
 
   public void addExisting(long snapshotId, DataFile file) {
-    writer.add(reused.wrapExisting(snapshotId, file));
+    add(reused.wrapExisting(snapshotId, file));
   }
 
   public void delete(ManifestEntry entry) {
     // Use the current Snapshot ID for the delete. It is safe to delete the data file from disk
     // when this Snapshot has been removed or when there are no Snapshots older than this one.
-    writer.add(reused.wrapDelete(snapshotId, entry.file()));
+    add(reused.wrapDelete(snapshotId, entry.file()));
   }
 
   public void delete(DataFile file) {
-    writer.add(reused.wrapDelete(snapshotId, file));
+    add(reused.wrapDelete(snapshotId, file));
   }
 
-  public void add(ManifestEntry file) {
-    writer.add(file);
+  public void add(ManifestEntry entry) {
+    switch (entry.status()) {
+      case ADDED:
+        addedFiles += 1;
+        break;
+      case EXISTING:
+        existingFiles += 1;
+        break;
+      case DELETED:
+        deletedFiles += 1;
+        break;
+    }
+    stats.update(entry.file().partition());
+    writer.add(entry);
   }
 
   public void addEntries(Iterable<ManifestEntry> entries) {
@@ -85,7 +111,7 @@ class ManifestWriter implements FileAppender<DataFile> {
   public void add(DataFile file) {
     // TODO: this assumes that file is a GenericDataFile that can be written directly to Avro
     // Eventually, this should check in case there are other DataFile implementations.
-    writer.add(reused.wrapAppend(snapshotId, file));
+    add(reused.wrapAppend(snapshotId, file));
   }
 
   @Override
@@ -93,8 +119,15 @@ class ManifestWriter implements FileAppender<DataFile> {
     return writer.metrics();
   }
 
+  public ManifestFile toManifestFile() {
+    Preconditions.checkState(closed, "Cannot build ManifestFile, writer is not closed");
+    return new GenericManifestFile(location, file.toInputFile().getLength(), specId, snapshotId,
+        addedFiles, existingFiles, deletedFiles, stats.summaries());
+  }
+
   @Override
   public void close() throws IOException {
+    this.closed = true;
     writer.close();
   }
 

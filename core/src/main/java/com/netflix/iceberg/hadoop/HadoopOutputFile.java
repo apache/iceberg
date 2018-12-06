@@ -21,6 +21,7 @@ package com.netflix.iceberg.hadoop;
 
 import com.netflix.iceberg.exceptions.AlreadyExistsException;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
+import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 import com.netflix.iceberg.io.PositionOutputStream;
 import org.apache.hadoop.conf.Configuration;
@@ -78,6 +79,11 @@ public class HadoopOutputFile implements OutputFile {
   @Override
   public String location() {
     return path.toString();
+  }
+
+  @Override
+  public InputFile toInputFile() {
+    return HadoopInputFile.fromPath(path, conf);
   }
 
   @Override
