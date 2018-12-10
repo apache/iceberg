@@ -33,3 +33,5 @@ markdown_extensions:
 nav:
   - About: index.md
   - Community: community.md
+  - Docs:
+    - partitioning.md
