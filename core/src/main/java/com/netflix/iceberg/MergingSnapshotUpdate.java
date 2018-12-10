@@ -316,7 +316,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
       return manifest;
     }
 
-    try (ManifestReader reader = ManifestReader.read(ops.fileIo().newInputFile(manifest.path()))) {
+    try (ManifestReader reader = ManifestReader.read(ops.io().newInputFile(manifest.path()))) {
       Expression inclusiveExpr = Projections
           .inclusive(reader.spec())
           .project(deleteExpression);
@@ -463,7 +463,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
     try {
 
       for (ManifestFile manifest : bin) {
-        try (ManifestReader reader = ManifestReader.read(ops.fileIo().newInputFile(manifest.path()))) {
+        try (ManifestReader reader = ManifestReader.read(ops.io().newInputFile(manifest.path()))) {
           for (ManifestEntry entry : reader.entries()) {
             if (entry.status() == Status.DELETED) {
               // suppress deletes from previous snapshots. only files deleted by this snapshot

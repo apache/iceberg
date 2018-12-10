@@ -55,15 +55,17 @@ public interface TableOperations {
   void commit(TableMetadata base, TableMetadata metadata);
 
   /**
-   * Obtain a handler to read and write files.
+   * @return a {@link com.netflix.iceberg.FileIO} to read and write table data and metadata files
    */
-  FileIO fileIo();
+  FileIO io();
 
+  /**
+   * Given the name of a metadata file, return the full path that points to that data file.
+   * <p>
+   * The file may not exist yet, in which case the path should be returned as if it were to be created by e.g.
+   * {@link FileIO#newOutputFile(String)}.
+   */
   String resolveMetadataPath(String fileName);
-
-  default OutputFile newMetadataFile(String fileName) {
-    return fileIo().newOutputFile(resolveMetadataPath(fileName));
-  }
 
   /**
    * Create a new ID for a Snapshot

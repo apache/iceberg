@@ -50,7 +50,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   private final Consumer<String> defaultDelete = new Consumer<String>() {
     @Override
     public void accept(String file) {
-      ops.fileIo().deleteFile(file);
+      ops.io().deleteFile(file);
     }
   };
 
@@ -164,7 +164,7 @@ class RemoveSnapshots implements ExpireSnapshots {
         ).run(manifest -> {
           // even if the manifest is still used, it may contain files that can be deleted
           // TODO: eliminate manifests with no deletes without scanning
-          try (ManifestReader reader = ManifestReader.read(ops.fileIo().newInputFile(manifest.path()))) {
+          try (ManifestReader reader = ManifestReader.read(ops.io().newInputFile(manifest.path()))) {
             for (ManifestEntry entry : reader.entries()) {
               // if the snapshot ID of the DELETE entry is no longer valid, the data can be deleted
               if (entry.status() == ManifestEntry.Status.DELETED &&

@@ -91,7 +91,7 @@ public class HadoopTableOperations implements TableOperations {
     }
     this.version = ver;
     this.currentMetadata = TableMetadataParser.read(this,
-        fileIo().newInputFile(metadataFile.toString()));
+        io().newInputFile(metadataFile.toString()));
     this.shouldRefresh = false;
     return currentMetadata;
   }
@@ -108,7 +108,7 @@ public class HadoopTableOperations implements TableOperations {
     }
 
     Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + getFileExtension(conf));
-    TableMetadataParser.write(metadata, fileIo().newOutputFile(tempMetadataFile.toString()));
+    TableMetadataParser.write(metadata, io().newOutputFile(tempMetadataFile.toString()));
 
     int nextVersion = (version != null ? version : 0) + 1;
     Path finalMetadataFile = metadataFile(nextVersion);
@@ -142,7 +142,7 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @Override
-  public FileIO fileIo() {
+  public FileIO io() {
     if (defaultFileIo == null) {
       defaultFileIo = new HadoopFileIO(conf);
     }

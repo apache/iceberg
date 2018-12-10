@@ -20,11 +20,8 @@
 package com.netflix.iceberg;
 
 import com.google.common.base.Objects;
-import com.google.common.base.Preconditions;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.hadoop.HadoopFileIO;
-import com.netflix.iceberg.hadoop.HadoopOutputFile;
-import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 import com.netflix.iceberg.util.Tasks;
 import org.apache.hadoop.conf.Configuration;
@@ -101,7 +98,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     }
 
     String newFilename = newTableMetadataFilename(baseLocation, version);
-    OutputFile newMetadataLocation = fileIo.newOutputFile(new Path(newFilename).toString());
+    OutputFile newMetadataLocation = fileIo.newOutputFile(resolveMetadataPath(newFilename));
 
     // write the new metadata
     TableMetadataParser.write(metadata, newMetadataLocation);
@@ -133,11 +130,11 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   @Override
   public String resolveMetadataPath(String fileName) {
-    return newMetadataLocation(baseLocation, fileName);
+    return String.format("%s/%s/%s", baseLocation, METADATA_FOLDER_NAME, fileName);
   }
 
   @Override
-  public FileIO fileIo() {
+  public FileIO io() {
     return fileIo;
   }
 
@@ -153,10 +150,6 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
             newVersion,
             UUID.randomUUID(),
             getFileExtension(this.conf));
-  }
-
-  private static String newMetadataLocation(String baseLocation, String filename) {
-    return String.format("%s/%s/%s", baseLocation, METADATA_FOLDER_NAME, filename);
   }
 
   private static int parseVersion(String metadataLocation) {

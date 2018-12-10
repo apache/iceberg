@@ -162,7 +162,7 @@ class TestTables {
     }
 
     @Override
-    public FileIO fileIo() {
+    public FileIO io() {
       return new LocalFileIO();
     }
 

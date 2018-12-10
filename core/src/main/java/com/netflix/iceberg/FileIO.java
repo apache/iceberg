@@ -24,11 +24,28 @@ import com.netflix.iceberg.io.OutputFile;
 
 import java.io.Serializable;
 
+/**
+ * Pluggable module for reading, writing, and deleting files.
+ * <p>
+ * Both table metadata files and data files can be written and read by this module. Implementations must be
+ * serializable because various clients of Spark tables may initialize this once and pass it off to a separate
+ * module that would then interact with the streams. For example, the Spark Iceberg DataSource initializes this module
+ * on the driver but then serializes and sends it to the executors to perform the data reading and writing.
+ */
 public interface FileIO extends Serializable {
 
+  /**
+   * Get a {@link InputFile} instance to read bytes from the file at the given path.
+   */
   InputFile newInputFile(String path);
 
+  /**
+   * Get a {@link OutputFile} instance to write bytes to the file at the given path.
+   */
   OutputFile newOutputFile(String path);
 
+  /**
+   * Delete the file at the given path.
+   */
   void deleteFile(String path);
 }
