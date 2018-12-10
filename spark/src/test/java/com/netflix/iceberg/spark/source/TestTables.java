@@ -52,7 +52,16 @@ class TestTables {
 
   static TestTable load(String name) {
     TestTableOperations ops = new TestTableOperations(name);
+    if (ops.current() == null) {
+      return null;
+    }
     return new TestTable(ops, name);
+  }
+
+  static boolean drop(String name) {
+    synchronized (METADATA) {
+      return METADATA.remove(name) != null;
+    }
   }
 
   static class TestTable extends BaseTable {

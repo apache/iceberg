@@ -33,3 +33,6 @@ markdown_extensions:
 nav:
   - About: index.md
   - Community: community.md
+  - Docs:
+    - Partitioning: partitioning.md
+    - Javadoc: http://iceberg.apache.org/javadoc/0.6.0/

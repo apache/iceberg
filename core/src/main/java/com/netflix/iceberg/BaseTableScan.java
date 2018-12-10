@@ -21,6 +21,9 @@ package com.netflix.iceberg;
 
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
@@ -30,6 +33,8 @@ import com.netflix.iceberg.events.ScanEvent;
 import com.netflix.iceberg.expressions.Binder;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Expressions;
+import com.netflix.iceberg.expressions.InclusiveManifestEvaluator;
+import com.netflix.iceberg.expressions.Projections;
 import com.netflix.iceberg.expressions.ResidualEvaluator;
 import com.netflix.iceberg.io.CloseableIterable;
 import com.netflix.iceberg.types.TypeUtil;
@@ -141,6 +146,16 @@ class BaseTableScan implements TableScan {
     return new BaseTableScan(ops, table, snapshotId, schema, Expressions.and(rowFilter, expr));
   }
 
+  private final LoadingCache<Integer, InclusiveManifestEvaluator> EVAL_CACHE = CacheBuilder
+      .newBuilder()
+      .build(new CacheLoader<Integer, InclusiveManifestEvaluator>() {
+        @Override
+        public InclusiveManifestEvaluator load(Integer specId) {
+          PartitionSpec spec = ops.current().spec(specId);
+          return new InclusiveManifestEvaluator(spec, rowFilter);
+        }
+      });
+
   @Override
   public CloseableIterable<FileScanTask> planFiles() {
     Snapshot snapshot = snapshotId != null ?
@@ -155,11 +170,14 @@ class BaseTableScan implements TableScan {
       Listeners.notifyAll(
           new ScanEvent(table.toString(), snapshot.snapshotId(), rowFilter, schema));
 
+      Iterable<ManifestFile> matchingManifests = Iterables.filter(snapshot.manifests(),
+          manifest -> EVAL_CACHE.getUnchecked(manifest.partitionSpecId()).eval(manifest));
+
       ConcurrentLinkedQueue<Closeable> toClose = new ConcurrentLinkedQueue<>();
       Iterable<Iterable<FileScanTask>> readers = Iterables.transform(
-          snapshot.manifests(),
+          matchingManifests,
           manifest -> {
-            ManifestReader reader = ManifestReader.read(ops.fileIo().newInputFile(manifest));
+            ManifestReader reader = ManifestReader.read(ops.fileIo().newInputFile(manifest.path()));
             toClose.add(reader);
             String schemaString = SchemaParser.toJson(reader.spec().schema());
             String specString = PartitionSpecParser.toJson(reader.spec());

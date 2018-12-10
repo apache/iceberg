@@ -22,6 +22,7 @@ package com.netflix.iceberg;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -90,9 +91,19 @@ public class ScanSummary {
       timeFilters.add(filter);
     }
 
+    public Builder after(String timestamp) {
+      Literal<Long> tsLiteral = Literal.of(timestamp).to(Types.TimestampType.withoutZone());
+      return after(tsLiteral.value() / 1000);
+    }
+
     public Builder after(long timestampMillis) {
       addTimestampFilter(Expressions.greaterThanOrEqual("timestamp_ms", timestampMillis));
       return this;
+    }
+
+    public Builder before(String timestamp) {
+      Literal<Long> tsLiteral = Literal.of(timestamp).to(Types.TimestampType.withoutZone());
+      return before(tsLiteral.value() / 1000);
     }
 
     public Builder before(long timestampMillis) {
@@ -145,29 +156,45 @@ public class ScanSummary {
       removeTimeFilters(filters, Expressions.rewriteNot(scan.filter()));
       Expression rowFilter = joinFilters(filters);
 
-      long minTimestamp = Long.MIN_VALUE;
-      long maxTimestamp = Long.MAX_VALUE;
+      Iterable<ManifestFile> manifests = table.currentSnapshot().manifests();
+
       boolean filterByTimestamp = !timeFilters.isEmpty();
+      Set<Long> snapshotsInTimeRange = Sets.newHashSet();
       if (filterByTimestamp) {
         Pair<Long, Long> range = timestampRange(timeFilters);
-        minTimestamp = range.first();
-        maxTimestamp = range.second();
+        long minTimestamp = range.first();
+        long maxTimestamp = range.second();
+
+        for (Map.Entry<Long, Long> entry : snapshotTimestamps.entrySet()) {
+          long snapshotId = entry.getKey();
+          long timestamp = entry.getValue();
+          if (timestamp >= minTimestamp && timestamp <= maxTimestamp) {
+            snapshotsInTimeRange.add(snapshotId);
+          }
+        }
+
+        // when filtering by dateCreated or lastUpdated timestamp, this matches the set of files
+        // that were added in the time range. files are added in new snapshots, so to get the new
+        // files, this only needs to scan new manifests in the set of snapshots that match the
+        // filter. ManifestFile.snapshotId() returns the snapshot when the manifest was added, so
+        // the only manifests that need to be scanned are those with snapshotId() in the timestamp
+        // range, or those that don't have a snapshot ID.
+        manifests = Iterables.filter(manifests, manifest ->
+            manifest.snapshotId() == null || snapshotsInTimeRange.contains(manifest.snapshotId()));
       }
 
-      try (CloseableIterable<ManifestEntry> entries =
-               new ManifestGroup(ops, table.currentSnapshot().manifests())
-                   .filterData(rowFilter)
-                   .ignoreDeleted()
-                   .select(SCAN_SUMMARY_COLUMNS)
-                   .entries()) {
+      try (CloseableIterable<ManifestEntry> entries = new ManifestGroup(ops, manifests)
+          .filterData(rowFilter)
+          .ignoreDeleted()
+          .select(SCAN_SUMMARY_COLUMNS)
+          .entries()) {
 
         PartitionSpec spec = table.spec();
         for (ManifestEntry entry : entries) {
           Long timestamp = snapshotTimestamps.get(entry.snapshotId());
 
           // if filtering, skip timestamps that are outside the range
-          if (filterByTimestamp &&
-              (timestamp == null || timestamp < minTimestamp || timestamp > maxTimestamp)) {
+          if (filterByTimestamp && !snapshotsInTimeRange.contains(entry.snapshotId())) {
             continue;
           }
 

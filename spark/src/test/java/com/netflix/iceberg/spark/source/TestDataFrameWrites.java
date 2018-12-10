@@ -63,7 +63,6 @@ public class TestDataFrameWrites extends AvroDataTest {
   public static Object[][] parameters() {
     return new Object[][] {
         new Object[] { "parquet" },
-        new Object[] { "orc" },
         new Object[] { "avro" }
     };
   }

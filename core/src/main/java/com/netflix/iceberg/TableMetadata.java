@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.ValidationException;
 import com.netflix.iceberg.io.InputFile;
@@ -40,6 +41,7 @@ import java.util.function.Predicate;
  */
 public class TableMetadata {
   static final int TABLE_FORMAT_VERSION = 1;
+  static final int INITIAL_SPEC_ID = 0;
 
   public static TableMetadata newTableMetadata(TableOperations ops,
                                                Schema schema,
@@ -58,7 +60,8 @@ public class TableMetadata {
     Schema freshSchema = TypeUtil.assignFreshIds(schema, lastColumnId::incrementAndGet);
 
     // rebuild the partition spec using the new column ids
-    PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(freshSchema);
+    PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(freshSchema)
+        .withSpecId(INITIAL_SPEC_ID);
     for (PartitionField field : spec.fields()) {
       // look up the name of the source field in the old schema to get the new schema's id
       String sourceName = schema.findColumnName(field.sourceId());
@@ -71,7 +74,7 @@ public class TableMetadata {
 
     return new TableMetadata(ops, null, location,
         System.currentTimeMillis(),
-        lastColumnId.get(), freshSchema, freshSpec,
+        lastColumnId.get(), freshSchema, INITIAL_SPEC_ID, ImmutableList.of(freshSpec),
         ImmutableMap.copyOf(properties), -1, ImmutableList.of(), ImmutableList.of());
   }
 
@@ -126,11 +129,13 @@ public class TableMetadata {
   private final long lastUpdatedMillis;
   private final int lastColumnId;
   private final Schema schema;
-  private final PartitionSpec spec;
+  private final int defaultSpecId;
+  private final List<PartitionSpec> specs;
   private final Map<String, String> properties;
   private final long currentSnapshotId;
   private final List<Snapshot> snapshots;
   private final Map<Long, Snapshot> snapshotsById;
+  private final Map<Integer, PartitionSpec> specsById;
   private final List<SnapshotLogEntry> snapshotLog;
 
   TableMetadata(TableOperations ops,
@@ -139,7 +144,8 @@ public class TableMetadata {
                 long lastUpdatedMillis,
                 int lastColumnId,
                 Schema schema,
-                PartitionSpec spec,
+                int defaultSpecId,
+                List<PartitionSpec> specs,
                 Map<String, String> properties,
                 long currentSnapshotId,
                 List<Snapshot> snapshots,
@@ -150,17 +156,15 @@ public class TableMetadata {
     this.lastUpdatedMillis = lastUpdatedMillis;
     this.lastColumnId = lastColumnId;
     this.schema = schema;
-    this.spec = spec;
+    this.specs = specs;
+    this.defaultSpecId = defaultSpecId;
     this.properties = properties;
     this.currentSnapshotId = currentSnapshotId;
     this.snapshots = snapshots;
     this.snapshotLog = snapshotLog;
 
-    ImmutableMap.Builder<Long, Snapshot> builder = ImmutableMap.builder();
-    for (Snapshot version : snapshots) {
-      builder.put(version.snapshotId(), version);
-    }
-    this.snapshotsById = builder.build();
+    this.snapshotsById = indexSnapshots(snapshots);
+    this.specsById = indexSpecs(specs);
 
     SnapshotLogEntry last = null;
     for (SnapshotLogEntry logEntry : snapshotLog) {
@@ -194,7 +198,19 @@ public class TableMetadata {
   }
 
   public PartitionSpec spec() {
-    return spec;
+    return specsById.get(defaultSpecId);
+  }
+
+  public int defaultSpecId() {
+    return defaultSpecId;
+  }
+
+  public PartitionSpec spec(int id) {
+    return specsById.get(id);
+  }
+
+  public List<PartitionSpec> specs() {
+    return specs;
   }
 
   public String location() {
@@ -203,6 +219,14 @@ public class TableMetadata {
 
   public Map<String, String> properties() {
     return properties;
+  }
+
+  public boolean propertyAsBoolean(String property, boolean defaultValue) {
+    String value = properties.get(property);
+    if (value != null) {
+      return Boolean.parseBoolean(properties.get(property));
+    }
+    return defaultValue;
   }
 
   public int propertyAsInt(String property, int defaultValue) {
@@ -239,15 +263,45 @@ public class TableMetadata {
 
   public TableMetadata updateTableLocation(String newLocation) {
     return new TableMetadata(ops, null, newLocation,
-        System.currentTimeMillis(), lastColumnId, schema, spec, properties, currentSnapshotId,
-        snapshots, snapshotLog);
+        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
+        currentSnapshotId, snapshots, snapshotLog);
   }
 
   public TableMetadata updateSchema(Schema schema, int lastColumnId) {
-    PartitionSpec.checkCompatibility(spec, schema);
+    PartitionSpec.checkCompatibility(spec(), schema);
     return new TableMetadata(ops, null, location,
-        System.currentTimeMillis(), lastColumnId, schema, spec, properties, currentSnapshotId,
-        snapshots,snapshotLog);
+        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
+        currentSnapshotId, snapshots, snapshotLog);
+  }
+
+  public TableMetadata updatePartitionSpec(PartitionSpec partitionSpec) {
+    PartitionSpec.checkCompatibility(partitionSpec, schema);
+
+    // if the spec already exists, use the same ID. otherwise, use 1 more than the highest ID.
+    int newDefaultSpecId = INITIAL_SPEC_ID;
+    for (PartitionSpec spec : specs) {
+      if (partitionSpec.compatibleWith(spec)) {
+        newDefaultSpecId = spec.specId();
+        break;
+      } else if (newDefaultSpecId <= spec.specId()) {
+        newDefaultSpecId = spec.specId() + 1;
+      }
+    }
+
+    Preconditions.checkArgument(defaultSpecId != newDefaultSpecId,
+        "Cannot set default partition spec to the current default");
+
+    ImmutableList.Builder<PartitionSpec> builder = ImmutableList.<PartitionSpec>builder()
+        .addAll(specs);
+    if (!specsById.containsKey(newDefaultSpecId)) {
+      // get a fresh spec to ensure the spec ID is set to the new default
+      builder.add(freshSpec(newDefaultSpecId, schema, partitionSpec));
+    }
+
+    return new TableMetadata(ops, null, location,
+        System.currentTimeMillis(), lastColumnId, schema, newDefaultSpecId,
+        builder.build(), properties,
+        currentSnapshotId, snapshots, snapshotLog);
   }
 
   public TableMetadata replaceCurrentSnapshot(Snapshot snapshot) {
@@ -260,8 +314,8 @@ public class TableMetadata {
         .add(new SnapshotLogEntry(snapshot.timestampMillis(), snapshot.snapshotId()))
         .build();
     return new TableMetadata(ops, null, location,
-        snapshot.timestampMillis(), lastColumnId, schema, spec, properties, snapshot.snapshotId(),
-        newSnapshots, newSnapshotLog);
+        snapshot.timestampMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
+        snapshot.snapshotId(), newSnapshots, newSnapshotLog);
   }
 
   public TableMetadata removeSnapshotsIf(Predicate<Snapshot> removeIf) {
@@ -291,8 +345,8 @@ public class TableMetadata {
     }
 
     return new TableMetadata(ops, null, location,
-        System.currentTimeMillis(), lastColumnId, schema, spec, properties, currentSnapshotId,
-        filtered, ImmutableList.copyOf(newSnapshotLog));
+        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
+        currentSnapshotId, filtered, ImmutableList.copyOf(newSnapshotLog));
   }
 
   public TableMetadata rollbackTo(Snapshot snapshot) {
@@ -306,15 +360,15 @@ public class TableMetadata {
         .build();
 
     return new TableMetadata(ops, null, location,
-        nowMillis, lastColumnId, schema, spec, properties, snapshot.snapshotId(), snapshots,
-        newSnapshotLog);
+        nowMillis, lastColumnId, schema, defaultSpecId, specs, properties,
+        snapshot.snapshotId(), snapshots, newSnapshotLog);
   }
 
   public TableMetadata replaceProperties(Map<String, String> newProperties) {
     ValidationException.check(newProperties != null, "Cannot set properties to null");
     return new TableMetadata(ops, null, location,
-        System.currentTimeMillis(), lastColumnId, schema, spec, newProperties, currentSnapshotId,
-        snapshots, snapshotLog);
+        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, newProperties,
+        currentSnapshotId, snapshots, snapshotLog);
   }
 
   public TableMetadata removeSnapshotLogEntries(Set<Long> snapshotIds) {
@@ -330,8 +384,8 @@ public class TableMetadata {
             Iterables.getLast(newSnapshotLog).snapshotId() == currentSnapshotId,
         "Cannot set invalid snapshot log: latest entry is not the current snapshot");
     return new TableMetadata(ops, null, location,
-        System.currentTimeMillis(), lastColumnId, schema, spec, properties, currentSnapshotId,
-        snapshots, newSnapshotLog);
+        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
+        currentSnapshotId, snapshots, newSnapshotLog);
   }
 
   public TableMetadata buildReplacement(Schema schema, PartitionSpec partitionSpec,
@@ -339,24 +393,70 @@ public class TableMetadata {
     AtomicInteger lastColumnId = new AtomicInteger(0);
     Schema freshSchema = TypeUtil.assignFreshIds(schema, lastColumnId::incrementAndGet);
 
+    int nextSpecId = TableMetadata.INITIAL_SPEC_ID;
+    for (Integer specId : specsById.keySet()) {
+      if (nextSpecId <= specId) {
+        nextSpecId = specId + 1;
+      }
+    }
+
     // rebuild the partition spec using the new column ids
-    PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(freshSchema);
+    PartitionSpec freshSpec = freshSpec(nextSpecId, freshSchema, partitionSpec);
+
+    // if the spec already exists, use the same ID. otherwise, use 1 more than the highest ID.
+    int specId = nextSpecId;
+    for (PartitionSpec spec : specs) {
+      if (freshSpec.compatibleWith(spec)) {
+        specId = spec.specId();
+        break;
+      }
+    }
+
+    ImmutableList.Builder<PartitionSpec> builder = ImmutableList.<PartitionSpec>builder()
+        .addAll(specs);
+    if (!specsById.containsKey(specId)) {
+      builder.add(freshSpec);
+    }
+
+    Map<String, String> newProperties = Maps.newHashMap();
+    newProperties.putAll(this.properties);
+    newProperties.putAll(properties);
+
+    return new TableMetadata(ops, null, location,
+        System.currentTimeMillis(), lastColumnId.get(), freshSchema,
+        specId, builder.build(), ImmutableMap.copyOf(newProperties),
+        -1, snapshots, ImmutableList.of());
+  }
+
+  private static PartitionSpec freshSpec(int specId, Schema schema, PartitionSpec partitionSpec) {
+    PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(schema)
+        .withSpecId(specId);
+
     for (PartitionField field : partitionSpec.fields()) {
       // look up the name of the source field in the old schema to get the new schema's id
-      String sourceName = schema.findColumnName(field.sourceId());
+      String sourceName = partitionSpec.schema().findColumnName(field.sourceId());
       specBuilder.add(
-          freshSchema.findField(sourceName).fieldId(),
+          schema.findField(sourceName).fieldId(),
           field.name(),
           field.transform().toString());
     }
-    PartitionSpec freshSpec = specBuilder.build();
 
-    ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-    builder.putAll(this.properties);
-    builder.putAll(properties);
+    return specBuilder.build();
+  }
 
-    return new TableMetadata(ops, null, location,
-        System.currentTimeMillis(), lastColumnId.get(), freshSchema, freshSpec, properties, -1,
-        snapshots, ImmutableList.of());
+  private static Map<Long, Snapshot> indexSnapshots(List<Snapshot> snapshots) {
+    ImmutableMap.Builder<Long, Snapshot> builder = ImmutableMap.builder();
+    for (Snapshot version : snapshots) {
+      builder.put(version.snapshotId(), version);
+    }
+    return builder.build();
+  }
+
+  private static Map<Integer, PartitionSpec> indexSpecs(List<PartitionSpec> specs) {
+    ImmutableMap.Builder<Integer, PartitionSpec> builder = ImmutableMap.builder();
+    for (PartitionSpec spec : specs) {
+      builder.put(spec.specId(), spec);
+    }
+    return builder.build();
   }
 }
