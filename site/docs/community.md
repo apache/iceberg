@@ -36,8 +36,14 @@ Issues are tracked in GitHub:
 
 ### Contributing
 
+Iceberg uses Apache's GitHub integration. The code is available at https://github.com/apache/incubator-iceberg
+
 The Iceberg community prefers to receive contributions as [Github pull requests][github-pr-docs].
 
+* [View open pull requests][iceberg-prs]
+* [Learn about pull requests][github-pr-docs]
+
+[iceberg-prs]: https://github.com/apache/incubator-iceberg/pulls
 [github-pr-docs]: https://help.github.com/articles/about-pull-requests/
 
 
