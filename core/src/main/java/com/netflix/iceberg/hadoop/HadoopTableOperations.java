@@ -150,7 +150,7 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @Override
-  public String resolveMetadataPath(String fileName) {
+  public String metadataFileLocation(String fileName) {
     return metadataPath(fileName).toString();
   }
 

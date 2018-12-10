@@ -125,7 +125,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   }
 
   @Override
-  public String resolveMetadataPath(String fileName) {
+  public String metadataFileLocation(String fileName) {
     return String.format("%s/%s/%s", baseLocation, METADATA_FOLDER_NAME, fileName);
   }
 

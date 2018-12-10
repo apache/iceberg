@@ -180,7 +180,7 @@ class TestTables {
     }
 
     @Override
-    public String resolveMetadataPath(String fileName) {
+    public String metadataFileLocation(String fileName) {
       return new File(metadata, fileName).getAbsolutePath();
     }
 

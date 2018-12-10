@@ -266,8 +266,8 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
-    public String resolveMetadataPath(String fileName) {
-      return ops.resolveMetadataPath(fileName);
+    public String metadataFileLocation(String fileName) {
+      return ops.metadataFileLocation(fileName);
     }
 
     @Override

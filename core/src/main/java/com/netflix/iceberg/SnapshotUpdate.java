@@ -192,13 +192,13 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
   }
 
   protected OutputFile manifestListPath() {
-    return ops.io().newOutputFile(ops.resolveMetadataPath(FileFormat.AVRO.addExtension(
+    return ops.io().newOutputFile(ops.metadataFileLocation(FileFormat.AVRO.addExtension(
         String.format("snap-%d-%s", snapshotId(), commitUUID))));
   }
 
   protected OutputFile manifestPath(int i) {
     return ops.io().newOutputFile(
-        ops.resolveMetadataPath(FileFormat.AVRO.addExtension(commitUUID + "-m" + i)));
+        ops.metadataFileLocation(FileFormat.AVRO.addExtension(commitUUID + "-m" + i)));
   }
 
   protected long snapshotId() {

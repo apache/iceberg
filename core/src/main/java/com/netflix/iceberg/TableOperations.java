@@ -65,7 +65,7 @@ public interface TableOperations {
    * The file may not exist yet, in which case the path should be returned as if it were to be created by e.g.
    * {@link FileIO#newOutputFile(String)}.
    */
-  String resolveMetadataPath(String fileName);
+  String metadataFileLocation(String fileName);
 
   /**
    * Create a new ID for a Snapshot

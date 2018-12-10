@@ -58,7 +58,7 @@ class LocalTableOperations implements TableOperations {
   }
 
   @Override
-  public String resolveMetadataPath(String fileName) {
+  public String metadataFileLocation(String fileName) {
     return createdMetadataFilePaths.computeIfAbsent(fileName, name -> {
       try {
         return temp.newFile(name).getAbsolutePath();
