@@ -27,6 +27,7 @@ import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 import java.io.File;
+import java.io.IOException;
 import java.util.Map;
 
 import static com.netflix.iceberg.TableMetadata.newTableMetadata;
@@ -200,7 +201,12 @@ class TestTables {
 
     @Override
     public OutputFile newOutputFile(String path) {
-      return Files.localOutput(new File(path));
+      File file = new File(path);
+      if (!file.getParentFile().isDirectory() && !file.getParentFile().mkdirs()) {
+        throw new RuntimeIOException(
+            String.format("Failed to create parent directory for %s", file.getAbsolutePath()));
+      }
+      return Files.localOutput(file);
     }
 
     @Override

@@ -20,6 +20,7 @@
 package com.netflix.iceberg.data;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.CombinedScanTask;
 import com.netflix.iceberg.FileScanTask;
@@ -39,11 +40,17 @@ import com.netflix.iceberg.parquet.Parquet;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.filter;
+import static com.google.common.collect.Iterables.transform;
 import static com.netflix.iceberg.data.parquet.GenericParquetReaders.buildReader;
 import static java.util.Collections.emptyIterator;
 
@@ -118,7 +125,10 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
     private Iterator<Record> currentIterator = emptyIterator();
 
     private ScanIterator(Iterable<CombinedScanTask> tasks) {
-      this.tasks = Lists.newArrayList(concat(transform(tasks, CombinedScanTask::files))).iterator();
+      this.tasks = StreamSupport.stream(tasks.spliterator(), false)
+          .flatMap(task -> task.files().stream())
+          .collect(Collectors.toList())
+          .iterator();
     }
 
     @Override

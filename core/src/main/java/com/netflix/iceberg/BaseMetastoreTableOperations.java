@@ -88,22 +88,18 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     return String.format("%s/%s", baseLocation, HIVE_LOCATION_FOLDER_NAME);
   }
 
-  public String dataLocation() {
-    return String.format("%s/%s", baseLocation, DATA_FOLDER_NAME);
-  }
-
   protected String writeNewMetadata(TableMetadata metadata, int version) {
     if (baseLocation == null) {
       baseLocation = metadata.location();
     }
 
-    String newFilename = newTableMetadataFilename(baseLocation, version);
-    OutputFile newMetadataLocation = fileIo.newOutputFile(resolveMetadataPath(newFilename));
+    String newTableMetadataFilePath = newTableMetadataFilePath(baseLocation, version);
+    OutputFile newMetadataLocation = fileIo.newOutputFile(newTableMetadataFilePath);
 
     // write the new metadata
     TableMetadataParser.write(metadata, newMetadataLocation);
 
-    return newFilename;
+    return newTableMetadataFilePath;
   }
 
   protected void refreshFromMetadataLocation(String newLocation) {
@@ -143,7 +139,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     return System.currentTimeMillis();
   }
 
-  private String newTableMetadataFilename(String baseLocation, int newVersion) {
+  private String newTableMetadataFilePath(String baseLocation, int newVersion) {
     return String.format("%s/%s/%05d-%s%s",
             baseLocation,
             METADATA_FOLDER_NAME,
