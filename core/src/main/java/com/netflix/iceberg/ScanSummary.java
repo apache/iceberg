@@ -1,32 +1,49 @@
 /*
- * Copyright 2017 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package com.netflix.iceberg;
 
+import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
+import com.netflix.iceberg.expressions.And;
+import com.netflix.iceberg.expressions.Expression;
+import com.netflix.iceberg.expressions.Expression.Operation;
+import com.netflix.iceberg.expressions.Expressions;
+import com.netflix.iceberg.expressions.Literal;
+import com.netflix.iceberg.expressions.NamedReference;
+import com.netflix.iceberg.expressions.UnboundPredicate;
 import com.netflix.iceberg.io.CloseableIterable;
 import com.netflix.iceberg.types.Comparators;
+import com.netflix.iceberg.types.Types;
+import com.netflix.iceberg.util.Pair;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
 
@@ -48,15 +65,15 @@ public class ScanSummary {
   }
 
   public static class Builder {
+    private static final Set<String> TIMESTAMP_NAMES = Sets.newHashSet(
+        "dateCreated", "lastUpdated");
     private final TableScan scan;
     private final Table table;
     private final TableOperations ops;
     private final Map<Long, Long> snapshotTimestamps;
     private int limit = Integer.MAX_VALUE;
     private boolean throwIfLimited = false;
-    private boolean filterByTimestamp = false;
-    private long minTimestamp = 0L;
-    private long maxTimestamp = Long.MAX_VALUE;
+    private List<UnboundPredicate<Long>> timeFilters = Lists.newArrayList();
 
     public Builder(TableScan scan) {
       this.scan = scan;
@@ -69,17 +86,28 @@ public class ScanSummary {
       this.snapshotTimestamps = builder.build();
     }
 
-    public Builder after(long timestampMillis) {
+    private void addTimestampFilter(UnboundPredicate<Long> filter) {
       throwIfLimited(); // ensure all partitions can be returned
-      this.filterByTimestamp = true;
-      this.minTimestamp = timestampMillis;
+      timeFilters.add(filter);
+    }
+
+    public Builder after(String timestamp) {
+      Literal<Long> tsLiteral = Literal.of(timestamp).to(Types.TimestampType.withoutZone());
+      return after(tsLiteral.value() / 1000);
+    }
+
+    public Builder after(long timestampMillis) {
+      addTimestampFilter(Expressions.greaterThanOrEqual("timestamp_ms", timestampMillis));
       return this;
     }
 
+    public Builder before(String timestamp) {
+      Literal<Long> tsLiteral = Literal.of(timestamp).to(Types.TimestampType.withoutZone());
+      return before(tsLiteral.value() / 1000);
+    }
+
     public Builder before(long timestampMillis) {
-      throwIfLimited(); // ensure all partitions can be returned
-      this.filterByTimestamp = true;
-      this.maxTimestamp = timestampMillis;
+      addTimestampFilter(Expressions.lessThanOrEqual("timestamp_ms", timestampMillis));
       return this;
     }
 
@@ -93,6 +121,28 @@ public class ScanSummary {
       return this;
     }
 
+    private void removeTimeFilters(List<Expression> expressions, Expression expression) {
+      if (expression.op() == Operation.AND) {
+        And and = (And) expression;
+        removeTimeFilters(expressions, and.left());
+        removeTimeFilters(expressions, and.right());
+        return;
+
+      } else if (expression instanceof UnboundPredicate) {
+        UnboundPredicate pred = (UnboundPredicate) expression;
+        NamedReference ref = (NamedReference) pred.ref();
+        Literal<?> lit = pred.literal();
+        if (TIMESTAMP_NAMES.contains(ref.name())) {
+          Literal<Long> tsLiteral = lit.to(Types.TimestampType.withoutZone());
+          long millis = toMillis(tsLiteral.value());
+          addTimestampFilter(Expressions.predicate(pred.op(), "timestamp_ms", millis));
+          return;
+        }
+      }
+
+      expressions.add(expression);
+    }
+
     /**
      * Summarizes a table scan as a map of partition key to metrics for that partition.
      *
@@ -102,20 +152,49 @@ public class ScanSummary {
       TopN<String, PartitionMetrics> topN = new TopN<>(
           limit, throwIfLimited, Comparators.charSequences());
 
-      try (CloseableIterable<ManifestEntry> entries =
-               new ManifestGroup(ops, table.currentSnapshot().manifests())
-                   .filterData(scan.filter())
-                   .ignoreDeleted()
-                   .select(SCAN_SUMMARY_COLUMNS)
-                   .entries()) {
+      List<Expression> filters = Lists.newArrayList();
+      removeTimeFilters(filters, Expressions.rewriteNot(scan.filter()));
+      Expression rowFilter = joinFilters(filters);
+
+      Iterable<ManifestFile> manifests = table.currentSnapshot().manifests();
+
+      boolean filterByTimestamp = !timeFilters.isEmpty();
+      Set<Long> snapshotsInTimeRange = Sets.newHashSet();
+      if (filterByTimestamp) {
+        Pair<Long, Long> range = timestampRange(timeFilters);
+        long minTimestamp = range.first();
+        long maxTimestamp = range.second();
+
+        for (Map.Entry<Long, Long> entry : snapshotTimestamps.entrySet()) {
+          long snapshotId = entry.getKey();
+          long timestamp = entry.getValue();
+          if (timestamp >= minTimestamp && timestamp <= maxTimestamp) {
+            snapshotsInTimeRange.add(snapshotId);
+          }
+        }
+
+        // when filtering by dateCreated or lastUpdated timestamp, this matches the set of files
+        // that were added in the time range. files are added in new snapshots, so to get the new
+        // files, this only needs to scan new manifests in the set of snapshots that match the
+        // filter. ManifestFile.snapshotId() returns the snapshot when the manifest was added, so
+        // the only manifests that need to be scanned are those with snapshotId() in the timestamp
+        // range, or those that don't have a snapshot ID.
+        manifests = Iterables.filter(manifests, manifest ->
+            manifest.snapshotId() == null || snapshotsInTimeRange.contains(manifest.snapshotId()));
+      }
+
+      try (CloseableIterable<ManifestEntry> entries = new ManifestGroup(ops, manifests)
+          .filterData(rowFilter)
+          .ignoreDeleted()
+          .select(SCAN_SUMMARY_COLUMNS)
+          .entries()) {
 
         PartitionSpec spec = table.spec();
         for (ManifestEntry entry : entries) {
           Long timestamp = snapshotTimestamps.get(entry.snapshotId());
 
           // if filtering, skip timestamps that are outside the range
-          if (filterByTimestamp &&
-              (timestamp == null || timestamp < minTimestamp || timestamp > maxTimestamp)) {
+          if (filterByTimestamp && !snapshotsInTimeRange.contains(entry.snapshotId())) {
             continue;
           }
 
@@ -213,5 +292,75 @@ public class ScanSummary {
     public Map<K, V> get() {
       return ImmutableMap.copyOf(map);
     }
+  }
+
+  static Expression joinFilters(List<Expression> expressions) {
+    Expression result = Expressions.alwaysTrue();
+    for (Expression expression : expressions) {
+      result = Expressions.and(result, expression);
+    }
+    return result;
+  }
+
+  static long toMillis(long timestamp) {
+    if (timestamp < 10000000000L) {
+      // in seconds
+      return timestamp * 1000;
+    } else if (timestamp < 10000000000000L) {
+      // in millis
+      return timestamp;
+    }
+    // in micros
+    return timestamp / 1000;
+  }
+
+  static Pair<Long, Long> timestampRange(List<UnboundPredicate<Long>> timeFilters) {
+    // evaluation is inclusive
+    long minTimestamp = Long.MIN_VALUE;
+    long maxTimestamp = Long.MAX_VALUE;
+
+    for (UnboundPredicate<Long> pred : timeFilters) {
+      long value = pred.literal().value();
+      switch (pred.op()) {
+        case LT:
+          if (value - 1 < maxTimestamp) {
+            maxTimestamp = value - 1;
+          }
+          break;
+        case LT_EQ:
+          if (value < maxTimestamp) {
+            maxTimestamp = value;
+          }
+          break;
+        case GT:
+          if (value + 1 > minTimestamp) {
+            minTimestamp = value + 1;
+          }
+          break;
+        case GT_EQ:
+          if (value > minTimestamp) {
+            minTimestamp = value;
+          }
+          break;
+        case EQ:
+          if (value < maxTimestamp) {
+            maxTimestamp = value;
+          }
+          if (value > minTimestamp) {
+            minTimestamp = value;
+          }
+          break;
+        default:
+          throw new UnsupportedOperationException(
+              "Cannot filter timestamps using predicate: " + pred);
+      }
+    }
+
+    if (maxTimestamp < minTimestamp) {
+      throw new IllegalArgumentException(
+          "No timestamps can match filters: " + Joiner.on(", ").join(timeFilters));
+    }
+
+    return Pair.of(minTimestamp, maxTimestamp);
   }
 }

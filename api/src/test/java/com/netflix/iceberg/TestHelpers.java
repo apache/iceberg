@@ -1,17 +1,20 @@
 /*
- * Copyright 2017 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package com.netflix.iceberg;
@@ -170,6 +173,107 @@ public class TestHelpers {
     } catch (AssertionError e) {
       e.addSuppressed(actual);
       throw e;
+    }
+  }
+
+  public static class TestFieldSummary implements ManifestFile.PartitionFieldSummary {
+    private final boolean containsNull;
+    private final ByteBuffer lowerBound;
+    private final ByteBuffer upperBound;
+
+    public TestFieldSummary(boolean containsNull, ByteBuffer lowerBound, ByteBuffer upperBound) {
+      this.containsNull = containsNull;
+      this.lowerBound = lowerBound;
+      this.upperBound = upperBound;
+    }
+
+    @Override
+    public boolean containsNull() {
+      return containsNull;
+    }
+
+    @Override
+    public ByteBuffer lowerBound() {
+      return lowerBound;
+    }
+
+    @Override
+    public ByteBuffer upperBound() {
+      return upperBound;
+    }
+
+    @Override
+    public ManifestFile.PartitionFieldSummary copy() {
+      return this;
+    }
+  }
+
+  public static class TestManifestFile implements ManifestFile {
+    private final String path;
+    private final long length;
+    private final int specId;
+    private final Long snapshotId;
+    private final Integer addedFiles;
+    private final Integer existingFiles;
+    private final Integer deletedFiles;
+    private final List<PartitionFieldSummary> partitions;
+
+    public TestManifestFile(String path, long length, int specId, Long snapshotId,
+                            Integer addedFiles, Integer existingFiles, Integer deletedFiles,
+                            List<PartitionFieldSummary> partitions) {
+      this.path = path;
+      this.length = length;
+      this.specId = specId;
+      this.snapshotId = snapshotId;
+      this.addedFiles = addedFiles;
+      this.existingFiles = existingFiles;
+      this.deletedFiles = deletedFiles;
+      this.partitions = partitions;
+    }
+
+    @Override
+    public String path() {
+      return path;
+    }
+
+    @Override
+    public long length() {
+      return length;
+    }
+
+    @Override
+    public int partitionSpecId() {
+      return specId;
+    }
+
+    @Override
+    public Long snapshotId() {
+      return snapshotId;
+    }
+
+    @Override
+    public Integer addedFilesCount() {
+      return addedFiles;
+    }
+
+    @Override
+    public Integer existingFilesCount() {
+      return existingFiles;
+    }
+
+    @Override
+    public Integer deletedFilesCount() {
+      return deletedFiles;
+    }
+
+    @Override
+    public List<PartitionFieldSummary> partitions() {
+      return partitions;
+    }
+
+    @Override
+    public ManifestFile copy() {
+      return this;
     }
   }
 

@@ -1,17 +1,20 @@
 /*
- * Copyright 2017 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package com.netflix.iceberg;
@@ -34,18 +37,18 @@ class ManifestGroup {
   private static final Types.StructType EMPTY_STRUCT = Types.StructType.of();
 
   private final TableOperations ops;
-  private final Set<String> manifests;
+  private final Set<ManifestFile> manifests;
   private final Expression dataFilter;
   private final Expression fileFilter;
   private final boolean ignoreDeleted;
   private final List<String> columns;
 
-  ManifestGroup(TableOperations ops, Iterable<String> manifests) {
+  ManifestGroup(TableOperations ops, Iterable<ManifestFile> manifests) {
     this(ops, Sets.newHashSet(manifests), Expressions.alwaysTrue(), Expressions.alwaysTrue(),
         false, ImmutableList.of("*"));
   }
 
-  private ManifestGroup(TableOperations ops, Set<String> manifests,
+  private ManifestGroup(TableOperations ops, Set<ManifestFile> manifests,
                         Expression dataFilter, Expression fileFilter, boolean ignoreDeleted,
                         List<String> columns) {
     this.ops = ops;
@@ -91,10 +94,20 @@ class ManifestGroup {
     Evaluator evaluator = new Evaluator(DataFile.getType(EMPTY_STRUCT), fileFilter);
     List<Closeable> toClose = Lists.newArrayList();
 
+    Iterable<ManifestFile> matchingManifests = manifests;
+
+    if (ignoreDeleted) {
+      // remove any manifests that don't have any existing or added files. if either the added or
+      // existing files count is missing, the manifest must be scanned.
+      matchingManifests = Iterables.filter(manifests, manifest ->
+          manifest.addedFilesCount() == null || manifest.existingFilesCount() == null ||
+              manifest.addedFilesCount() + manifest.existingFilesCount() > 0);
+    }
+
     Iterable<Iterable<ManifestEntry>> readers = Iterables.transform(
-        manifests,
+        matchingManifests,
         manifest -> {
-          ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest));
+          ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest.path()));
           FilteredManifest filtered = reader.filterRows(dataFilter).select(columns);
           toClose.add(reader);
           return Iterables.filter(

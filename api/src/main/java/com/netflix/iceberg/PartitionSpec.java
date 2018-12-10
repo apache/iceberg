@@ -1,17 +1,20 @@
 /*
- * Copyright 2017 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package com.netflix.iceberg;
@@ -47,14 +50,16 @@ public class PartitionSpec implements Serializable {
   private final Schema schema;
 
   // this is ordered so that DataFile has a consistent schema
+  private final int specId;
   private final PartitionField[] fields;
   private transient Map<Integer, PartitionField> fieldsBySourceId = null;
   private transient Map<String, PartitionField> fieldsByName = null;
   private transient Class<?>[] javaClasses = null;
   private transient List<PartitionField> fieldList = null;
 
-  private PartitionSpec(Schema schema, List<PartitionField> fields) {
+  private PartitionSpec(Schema schema, int specId, List<PartitionField> fields) {
     this.schema = schema;
+    this.specId = specId;
     this.fields = new PartitionField[fields.size()];
     for (int i = 0; i < this.fields.length; i += 1) {
       this.fields[i] = fields.get(i);
@@ -66,6 +71,13 @@ public class PartitionSpec implements Serializable {
    */
   public Schema schema() {
     return schema;
+  }
+
+  /**
+   * @return the ID of this spec
+   */
+  public int specId() {
+    return specId;
   }
 
   /**
@@ -143,6 +155,13 @@ public class PartitionSpec implements Serializable {
     return sb.toString();
   }
 
+  /**
+   * Returns true if this spec is equivalent to the other, with field names ignored. That is, if
+   * both specs have the same number of fields, field order, source columns, and transforms.
+   *
+   * @param other another PartitionSpec
+   * @return true if the specs have the same fields, source columns, and transforms.
+   */
   public boolean compatibleWith(PartitionSpec other) {
     if (equals(other)) {
       return true;
@@ -174,6 +193,9 @@ public class PartitionSpec implements Serializable {
     }
 
     PartitionSpec that = (PartitionSpec) other;
+    if (this.specId != that.specId) {
+      return false;
+    }
     return Arrays.equals(fields, that.fields);
   }
 
@@ -247,7 +269,7 @@ public class PartitionSpec implements Serializable {
   }
 
   private static final PartitionSpec UNPARTITIONED_SPEC =
-      new PartitionSpec(new Schema(), ImmutableList.of());
+      new PartitionSpec(new Schema(), 0, ImmutableList.of());
 
   /**
    * Returns a spec for unpartitioned tables.
@@ -277,6 +299,7 @@ public class PartitionSpec implements Serializable {
     private final Schema schema;
     private final List<PartitionField> fields = Lists.newArrayList();
     private final Set<String> partitionNames = Sets.newHashSet();
+    private int specId = 0;
 
     private Builder(Schema schema) {
       this.schema = schema;
@@ -288,6 +311,11 @@ public class PartitionSpec implements Serializable {
       Preconditions.checkArgument(!partitionNames.contains(name),
           "Cannot use partition name more than once: %s", name);
       partitionNames.add(name);
+    }
+
+    public Builder withSpecId(int specId) {
+      this.specId = specId;
+      return this;
     }
 
     private Types.NestedField findSourceColumn(String sourceName) {
@@ -368,7 +396,7 @@ public class PartitionSpec implements Serializable {
     }
 
     public PartitionSpec build() {
-      PartitionSpec spec = new PartitionSpec(schema, fields);
+      PartitionSpec spec = new PartitionSpec(schema, specId, fields);
       checkCompatibility(spec, schema);
       return spec;
     }

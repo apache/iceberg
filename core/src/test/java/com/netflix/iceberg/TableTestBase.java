@@ -1,17 +1,20 @@
 /*
- * Copyright 2017 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package com.netflix.iceberg;
@@ -117,23 +120,23 @@ public class TableTestBase {
   }
 
   void validateSnapshot(Snapshot old, Snapshot snap, DataFile... newFiles) {
-    List<String> oldManifests = old != null ? old.manifests() : ImmutableList.of();
+    List<ManifestFile> oldManifests = old != null ? old.manifests() : ImmutableList.of();
 
     // copy the manifests to a modifiable list and remove the existing manifests
-    List<String> newManifests = Lists.newArrayList(snap.manifests());
-    for (String oldManifest : oldManifests) {
+    List<ManifestFile> newManifests = Lists.newArrayList(snap.manifests());
+    for (ManifestFile oldManifest : oldManifests) {
       Assert.assertTrue("New snapshot should contain old manifests",
           newManifests.remove(oldManifest));
     }
 
     Assert.assertEquals("Should create 1 new manifest and reuse old manifests",
         1, newManifests.size());
-    String manifest = newManifests.get(0);
+    ManifestFile manifest = newManifests.get(0);
 
     long id = snap.snapshotId();
     Iterator<String> newPaths = paths(newFiles).iterator();
 
-    for (ManifestEntry entry : ManifestReader.read(localInput(manifest)).entries()) {
+    for (ManifestEntry entry : ManifestReader.read(localInput(manifest.path())).entries()) {
       DataFile file = entry.file();
       Assert.assertEquals("Path should match expected", newPaths.next(), file.path().toString());
       Assert.assertEquals("File's snapshot ID should match", id, entry.snapshotId());
@@ -150,9 +153,15 @@ public class TableTestBase {
     return paths;
   }
 
+  static void validateManifest(ManifestFile manifest,
+                               Iterator<Long> ids,
+                               Iterator<DataFile> expectedFiles) {
+    validateManifest(manifest.path(), ids, expectedFiles);
+  }
+
   static void validateManifest(String manifest,
-                                Iterator<Long> ids,
-                                Iterator<DataFile> expectedFiles) {
+                               Iterator<Long> ids,
+                               Iterator<DataFile> expectedFiles) {
     for (ManifestEntry entry : ManifestReader.read(localInput(manifest)).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
@@ -163,6 +172,13 @@ public class TableTestBase {
     }
 
     Assert.assertFalse("Should find all files in the manifest", expectedFiles.hasNext());
+  }
+
+  static void validateManifestEntries(ManifestFile manifest,
+                                      Iterator<Long> ids,
+                                      Iterator<DataFile> expectedFiles,
+                                      Iterator<ManifestEntry.Status> expectedStatuses) {
+    validateManifestEntries(manifest.path(), ids, expectedFiles, expectedStatuses);
   }
 
   static void validateManifestEntries(String manifest,
@@ -196,7 +212,7 @@ public class TableTestBase {
     return Iterators.forArray(files);
   }
 
-  static Iterator<DataFile> files(String manifest) {
-    return ManifestReader.read(localInput(manifest)).iterator();
+  static Iterator<DataFile> files(ManifestFile manifest) {
+    return ManifestReader.read(localInput(manifest.path())).iterator();
   }
 }

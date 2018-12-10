@@ -1,7 +1,11 @@
 # intellij files
 .idea
+*.ipr
+*.iws
 *.iml
 # gradle build
 .gradle
 build
 out
+# web site build
+site/site

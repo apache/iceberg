@@ -1,17 +1,20 @@
 /*
- * Copyright 2017 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 buildscript {
@@ -72,7 +75,7 @@ subprojects {
     jacksonVersion = '2.6.7'
 
     scalaVersion = '2.11'
-    sparkVersion = '2.3.2'
+    sparkVersion = '2.4.0'
   }
 
   sourceCompatibility = '1.8'
@@ -157,8 +160,8 @@ project(':iceberg-orc') {
     compile("org.apache.orc:orc-core:$orcVersion:nohive") {
       exclude group: 'org.apache.hadoop', module: 'hadoop-common'
     }
-    
-    
+
+
     compileOnly("org.apache.hadoop:hadoop-client:$hadoopVersion") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
@@ -187,7 +190,6 @@ project(':iceberg-spark') {
     compile project(':iceberg-api')
     compile project(':iceberg-common')
     compile project(':iceberg-core')
-    compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
 
     compileOnly "org.apache.avro:avro:$avroVersion"
@@ -246,7 +248,6 @@ project(':iceberg-runtime') {
     shadow project(':iceberg-api')
     shadow project(':iceberg-common')
     shadow project(':iceberg-core')
-    shadow project(':iceberg-orc')
     shadow project(':iceberg-parquet')
     shadow project(':iceberg-spark')
     shadow project(':iceberg-pig')
@@ -299,7 +300,7 @@ project(':iceberg-presto-runtime') {
         shadow "org.apache.avro:avro:$avroVersion"
         shadow ("org.apache.hive:hive-standalone-metastore:$hiveVersion") {
             exclude group: 'org.apache.hadoop', module: 'hadoop-common'
-            exclude group: 'org.apache.orc', module: 'orc-core'
+//            exclude group: 'org.apache.orc', module: 'orc-core'
         }
     }
 

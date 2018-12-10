@@ -1,17 +1,20 @@
 /*
- * Copyright 2017 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package com.netflix.iceberg;
@@ -96,7 +99,12 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
       throw new RuntimeIOException(e);
     }
     this.schema = SchemaParser.fromJson(metadata.get("schema"));
-    this.spec = PartitionSpecParser.fromJson(schema, metadata.get("partition-spec"));
+    int specId = TableMetadata.INITIAL_SPEC_ID;
+    String specProperty = metadata.get("partition-spec-id");
+    if (specProperty != null) {
+      specId = Integer.parseInt(specProperty);
+    }
+    this.spec = PartitionSpecParser.fromJsonFields(schema, specId, metadata.get("partition-spec"));
     this.entries = null;
   }
 

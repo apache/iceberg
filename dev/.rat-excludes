@@ -1,0 +1,11 @@
+build
+.gitignore
+.rat-excludes
+LICENSE
+NOTICE
+gradlew
+iceberg.iml
+docs/current/*
+examples/*
+gradle/*
+.*\.sql

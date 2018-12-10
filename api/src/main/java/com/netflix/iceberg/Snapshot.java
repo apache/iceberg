@@ -1,17 +1,20 @@
 /*
- * Copyright 2017 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package com.netflix.iceberg;
@@ -26,7 +29,7 @@ import java.util.List;
  * <p>
  * Snapshots are created by table operations, like {@link AppendFiles} and {@link RewriteFiles}.
  */
-public interface Snapshot extends Filterable<FilteredSnapshot> {
+public interface Snapshot {
   /**
    * Return this snapshot's ID.
    *
@@ -57,7 +60,7 @@ public interface Snapshot extends Filterable<FilteredSnapshot> {
    *
    * @return a list of fully-qualified manifest locations
    */
-  List<String> manifests();
+  List<ManifestFile> manifests();
 
   /**
    * Return all files added to the table in this snapshot.
@@ -78,4 +81,11 @@ public interface Snapshot extends Filterable<FilteredSnapshot> {
    * @return all files deleted from the table in this snapshot.
    */
   Iterable<DataFile> deletedFiles();
+
+  /**
+   * Return the location of this snapshot's manifest list, or null if it is not separate.
+   *
+   * @return the location of the manifest list for this Snapshot
+   */
+  String manifestListLocation();
 }

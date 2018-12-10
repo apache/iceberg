@@ -1,22 +1,24 @@
 /*
- * Copyright 2017 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package com.netflix.iceberg.spark.source;
 
-import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
@@ -37,10 +39,8 @@ import com.netflix.iceberg.hadoop.HadoopOutputFile;
 import com.netflix.iceberg.io.FileAppender;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
-import com.netflix.iceberg.orc.ORC;
 import com.netflix.iceberg.parquet.Parquet;
 import com.netflix.iceberg.spark.data.SparkAvroWriter;
-import com.netflix.iceberg.spark.data.SparkOrcWriter;
 import com.netflix.iceberg.transforms.Transform;
 import com.netflix.iceberg.transforms.Transforms;
 import com.netflix.iceberg.types.Types.StringType;
@@ -53,7 +53,6 @@ import org.apache.spark.sql.execution.datasources.parquet.ParquetWriteSupport;
 import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
 import org.apache.spark.sql.sources.v2.writer.DataWriter;
 import org.apache.spark.sql.sources.v2.writer.DataWriterFactory;
-import org.apache.spark.sql.sources.v2.writer.SupportsWriteInternalRow;
 import org.apache.spark.sql.sources.v2.writer.WriterCommitMessage;
 import org.apache.spark.util.SerializableConfiguration;
 import org.slf4j.Logger;
@@ -83,7 +82,7 @@ import static com.netflix.iceberg.TableProperties.OBJECT_STORE_PATH;
 import static com.netflix.iceberg.spark.SparkSchemaUtil.convert;
 
 // TODO: parameterize DataSourceWriter with subclass of WriterCommitMessage
-class Writer implements DataSourceWriter, SupportsWriteInternalRow {
+class Writer implements DataSourceWriter {
   private static final Transform<String, Integer> HASH_FUNC = Transforms
       .bucket(StringType.get(), Integer.MAX_VALUE);
   private static final Logger LOG = LoggerFactory.getLogger(Writer.class);
@@ -99,7 +98,7 @@ class Writer implements DataSourceWriter, SupportsWriteInternalRow {
   }
 
   @Override
-  public DataWriterFactory<InternalRow> createInternalRowWriterFactory() {
+  public DataWriterFactory<InternalRow> createWriterFactory() {
     return new WriterFactory(table.spec(), format, dataLocation(), table.properties(), conf);
   }
 
@@ -215,9 +214,8 @@ class Writer implements DataSourceWriter, SupportsWriteInternalRow {
     }
 
     @Override
-    public DataWriter<InternalRow> createDataWriter(int partitionId, int attemptNumber) {
-      String filename = format.addExtension(String.format("%05d-%d-%s",
-          partitionId, attemptNumber, uuid));
+    public DataWriter<InternalRow> createDataWriter(int partitionId, long taskId, long epochId) {
+      String filename = format.addExtension(String.format("%05d-%d-%s", partitionId, taskId, uuid));
       AppenderFactory<InternalRow> factory = new SparkAppenderFactory();
       if (spec.fields().isEmpty()) {
         return new UnpartitionedWriter(lazyDataPath(), filename, format, conf.value(), factory);
@@ -298,13 +296,6 @@ class Writer implements DataSourceWriter, SupportsWriteInternalRow {
                   .schema(schema)
                   .build();
 
-            case ORC: {
-              @SuppressWarnings("unchecked")
-              SparkOrcWriter writer = new SparkOrcWriter(ORC.write(file)
-                  .schema(schema)
-                  .build());
-              return writer;
-            }
             default:
               throw new UnsupportedOperationException("Cannot write unknown format: " + format);
           }

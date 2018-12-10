@@ -1,43 +1,44 @@
 /*
- * Copyright 2017 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package com.netflix.iceberg;
 
-import com.google.common.base.Function;
 import com.google.common.base.Objects;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.netflix.iceberg.avro.Avro;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.expressions.Expressions;
-import com.netflix.iceberg.io.CloseableGroup;
+import com.netflix.iceberg.io.CloseableIterable;
+import com.netflix.iceberg.io.InputFile;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 
-class BaseSnapshot extends CloseableGroup implements Snapshot, SnapshotIterable {
+class BaseSnapshot implements Snapshot {
   private final TableOperations ops;
   private final long snapshotId;
   private final Long parentId;
   private final long timestampMillis;
-  private final List<String> manifestFiles;
+  private final InputFile manifestList;
 
   // lazily initialized
+  private List<ManifestFile> manifests = null;
   private List<DataFile> adds = null;
   private List<DataFile> deletes = null;
 
@@ -47,19 +48,30 @@ class BaseSnapshot extends CloseableGroup implements Snapshot, SnapshotIterable 
   BaseSnapshot(TableOperations ops,
                long snapshotId,
                String... manifestFiles) {
-    this(ops, snapshotId, null, System.currentTimeMillis(), Arrays.asList(manifestFiles));
+    this(ops, snapshotId, null, System.currentTimeMillis(),
+        Lists.transform(Arrays.asList(manifestFiles),
+            path -> new GenericManifestFile(ops.newInputFile(path), 0)));
   }
 
   BaseSnapshot(TableOperations ops,
                long snapshotId,
                Long parentId,
                long timestampMillis,
-               List<String> manifestFiles) {
+               InputFile manifestList) {
     this.ops = ops;
     this.snapshotId = snapshotId;
     this.parentId = parentId;
     this.timestampMillis = timestampMillis;
-    this.manifestFiles = manifestFiles;
+    this.manifestList = manifestList;
+  }
+
+  BaseSnapshot(TableOperations ops,
+               long snapshotId,
+               Long parentId,
+               long timestampMillis,
+               List<ManifestFile> manifests) {
+    this(ops, snapshotId, parentId, timestampMillis, (InputFile) null);
+    this.manifests = manifests;
   }
 
   @Override
@@ -78,42 +90,25 @@ class BaseSnapshot extends CloseableGroup implements Snapshot, SnapshotIterable 
   }
 
   @Override
-  public List<String> manifests() {
-    return manifestFiles;
-  }
+  public List<ManifestFile> manifests() {
+    if (manifests == null) {
+      // if manifests isn't set, then the snapshotFile is set and should be read to get the list
+      try (CloseableIterable<ManifestFile> files = Avro.read(manifestList)
+          .rename("manifest_file", GenericManifestFile.class.getName())
+          .rename("partitions", GenericPartitionFieldSummary.class.getName())
+          .rename("r508", GenericPartitionFieldSummary.class.getName())
+          .project(ManifestFile.schema())
+          .reuseContainers(false)
+          .build()) {
 
-  @Override
-  public FilteredSnapshot select(Collection<String> columns) {
-    return new FilteredSnapshot(this, Expressions.alwaysTrue(), Expressions.alwaysTrue(), columns);
-  }
+        this.manifests = Lists.newLinkedList(files);
 
-  @Override
-  public FilteredSnapshot filterPartitions(Expression expr) {
-    return new FilteredSnapshot(this, expr, Expressions.alwaysTrue(), ALL_COLUMNS);
-  }
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Cannot read snapshot file: %s", manifestList.location());
+      }
+    }
 
-  @Override
-  public FilteredSnapshot filterRows(Expression expr) {
-    return new FilteredSnapshot(this, Expressions.alwaysTrue(), expr, ALL_COLUMNS);
-  }
-
-  @Override
-  public Iterator<DataFile> iterator(Expression partFilter,
-                                     Expression rowFilter,
-                                     Collection<String> columns) {
-    return Iterables.concat(Iterables.transform(manifestFiles,
-        (Function<String, Iterable<DataFile>>) path -> {
-          ManifestReader reader = ManifestReader.read(ops.newInputFile(path));
-          addCloseable(reader);
-          return reader.filterPartitions(partFilter)
-              .filterRows(rowFilter)
-              .select(columns);
-        })).iterator();
-  }
-
-  @Override
-  public Iterator<DataFile> iterator() {
-    return iterator(Expressions.alwaysTrue(), Expressions.alwaysTrue(), ALL_COLUMNS);
+    return manifests;
   }
 
   @Override
@@ -132,13 +127,18 @@ class BaseSnapshot extends CloseableGroup implements Snapshot, SnapshotIterable 
     return deletes;
   }
 
+  @Override
+  public String manifestListLocation() {
+    return manifestList != null ? manifestList.location() : null;
+  }
+
   private void cacheChanges() {
     List<DataFile> adds = Lists.newArrayList();
     List<DataFile> deletes = Lists.newArrayList();
 
     // accumulate adds and deletes from all manifests.
     // because manifests can be reused in newer snapshots, filter the changes by snapshot id.
-    for (String manifest : manifestFiles) {
+    for (String manifest : Iterables.transform(manifests, ManifestFile::path)) {
       try (ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest))) {
         for (ManifestEntry add : reader.addedFiles()) {
           if (add.snapshotId() == snapshotId) {
@@ -164,7 +164,7 @@ class BaseSnapshot extends CloseableGroup implements Snapshot, SnapshotIterable 
     return Objects.toStringHelper(this)
         .add("id", snapshotId)
         .add("timestamp_ms", timestampMillis)
-        .add("manifests", manifestFiles)
+        .add("manifests", manifests)
         .toString();
   }
 }

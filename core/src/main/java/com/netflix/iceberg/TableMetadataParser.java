@@ -1,17 +1,20 @@
 /*
- * Copyright 2017 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package com.netflix.iceberg;
@@ -43,18 +46,21 @@ import java.util.SortedSet;
 
 public class TableMetadataParser {
 
-  private static final String FORMAT_VERSION = "format-version";
-  private static final String LOCATION = "location";
-  private static final String LAST_UPDATED_MILLIS = "last-updated-ms";
-  private static final String LAST_COLUMN_ID = "last-column-id";
-  private static final String SCHEMA = "schema";
-  private static final String PARTITION_SPEC = "partition-spec";
-  private static final String PROPERTIES = "properties";
-  private static final String CURRENT_SNAPSHOT_ID = "current-snapshot-id";
-  private static final String SNAPSHOTS = "snapshots";
-  private static final String SNAPSHOT_ID = "snapshot-id";
-  private static final String TIMESTAMP_MS = "timestamp-ms";
-  private static final String SNAPSHOT_LOG = "snapshot-log";
+  // visible for testing
+  static final String FORMAT_VERSION = "format-version";
+  static final String LOCATION = "location";
+  static final String LAST_UPDATED_MILLIS = "last-updated-ms";
+  static final String LAST_COLUMN_ID = "last-column-id";
+  static final String SCHEMA = "schema";
+  static final String PARTITION_SPEC = "partition-spec";
+  static final String PARTITION_SPECS = "partition-specs";
+  static final String DEFAULT_SPEC_ID = "default-spec-id";
+  static final String PROPERTIES = "properties";
+  static final String CURRENT_SNAPSHOT_ID = "current-snapshot-id";
+  static final String SNAPSHOTS = "snapshots";
+  static final String SNAPSHOT_ID = "snapshot-id";
+  static final String TIMESTAMP_MS = "timestamp-ms";
+  static final String SNAPSHOT_LOG = "snapshot-log";
 
   public static String toJson(TableMetadata metadata) {
     StringWriter writer = new StringWriter();
@@ -97,8 +103,17 @@ public class TableMetadataParser {
     generator.writeFieldName(SCHEMA);
     SchemaParser.toJson(metadata.schema(), generator);
 
+    // for older readers, continue writing the default spec as "partition-spec"
     generator.writeFieldName(PARTITION_SPEC);
-    PartitionSpecParser.toJson(metadata.spec(), generator);
+    PartitionSpecParser.toJsonFields(metadata.spec(), generator);
+
+    // write the default spec ID and spec list
+    generator.writeNumberField(DEFAULT_SPEC_ID, metadata.defaultSpecId());
+    generator.writeArrayFieldStart(PARTITION_SPECS);
+    for (PartitionSpec spec : metadata.specs()) {
+      PartitionSpecParser.toJson(spec, generator);
+    }
+    generator.writeEndArray();
 
     generator.writeObjectFieldStart(PROPERTIES);
     for (Map.Entry<String, String> keyValue : metadata.properties().entrySet()) {
@@ -147,7 +162,32 @@ public class TableMetadataParser {
     String location = JsonUtil.getString(LOCATION, node);
     int lastAssignedColumnId = JsonUtil.getInt(LAST_COLUMN_ID, node);
     Schema schema = SchemaParser.fromJson(node.get(SCHEMA));
-    PartitionSpec spec = PartitionSpecParser.fromJson(schema, node.get(PARTITION_SPEC));
+
+    JsonNode specArray = node.get(PARTITION_SPECS);
+    List<PartitionSpec> specs;
+    int defaultSpecId;
+    if (specArray != null) {
+      Preconditions.checkArgument(specArray.isArray(),
+          "Cannot parse partition specs from non-array: %s", specArray);
+      // default spec ID is required when the spec array is present
+      defaultSpecId = JsonUtil.getInt(DEFAULT_SPEC_ID, node);
+
+      // parse the spec array
+      ImmutableList.Builder<PartitionSpec> builder = ImmutableList.builder();
+      for (JsonNode spec : specArray) {
+        builder.add(PartitionSpecParser.fromJson(schema, spec));
+      }
+      specs = builder.build();
+
+    } else {
+      // partition spec is required for older readers, but is always set to the default if the spec
+      // array is set. it is only used to default the spec map is missing, indicating that the
+      // table metadata was written by an older writer.
+      defaultSpecId = TableMetadata.INITIAL_SPEC_ID;
+      specs = ImmutableList.of(PartitionSpecParser.fromJsonFields(
+          schema, TableMetadata.INITIAL_SPEC_ID, node.get(PARTITION_SPEC)));
+    }
+
     Map<String, String> properties = JsonUtil.getStringMap(PROPERTIES, node);
     long currentVersionId = JsonUtil.getLong(CURRENT_SNAPSHOT_ID, node);
     long lastUpdatedMillis = JsonUtil.getLong(LAST_UPDATED_MILLIS, node);
@@ -174,8 +214,7 @@ public class TableMetadataParser {
     }
 
     return new TableMetadata(ops, file, location,
-        lastUpdatedMillis, lastAssignedColumnId, schema, spec, properties, currentVersionId,
-        snapshots, ImmutableList.copyOf(entries.iterator()));
+        lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs, properties,
+        currentVersionId, snapshots, ImmutableList.copyOf(entries.iterator()));
   }
-
 }
