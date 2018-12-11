@@ -34,7 +34,6 @@ import com.netflix.iceberg.expressions.Binder;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.expressions.InclusiveManifestEvaluator;
-import com.netflix.iceberg.expressions.Projections;
 import com.netflix.iceberg.expressions.ResidualEvaluator;
 import com.netflix.iceberg.io.CloseableIterable;
 import com.netflix.iceberg.types.TypeUtil;
@@ -51,7 +50,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import static com.netflix.iceberg.util.ThreadPools.getPlannerPool;
 import static com.netflix.iceberg.util.ThreadPools.getWorkerPool;
 
 /**
@@ -190,7 +188,7 @@ class BaseTableScan implements TableScan {
 
       if (PLAN_SCANS_WITH_WORKER_POOL && snapshot.manifests().size() > 1) {
         return CloseableIterable.combine(
-            new ParallelIterable<>(readers, getPlannerPool(), getWorkerPool()),
+            new ParallelIterable<>(readers, getWorkerPool()),
             toClose);
       } else {
         return CloseableIterable.combine(Iterables.concat(readers), toClose);
