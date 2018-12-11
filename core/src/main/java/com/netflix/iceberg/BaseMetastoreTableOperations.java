@@ -134,11 +134,6 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     return fileIo;
   }
 
-  @Override
-  public long newSnapshotId() {
-    return System.currentTimeMillis();
-  }
-
   private String newTableMetadataFilePath(String baseLocation, int newVersion) {
     return String.format("%s/%s/%05d-%s%s",
             baseLocation,

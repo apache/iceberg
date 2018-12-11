@@ -57,6 +57,9 @@ import static java.lang.String.format;
 /**
  * TODO we should be able to extract some more commonalities to BaseMetastoreTableOperations to
  * avoid code duplication between this class and Metacat Tables.
+ *
+ * Note! This class is not thread-safe as {@link ThriftHiveMetastore.Client} does not behave
+ * correctly in a multi-threaded environment.
  */
 public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HiveTableOperations.class);
