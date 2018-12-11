@@ -32,10 +32,12 @@ import com.netflix.iceberg.io.FileAppender;
 import com.netflix.iceberg.spark.data.AvroDataTest;
 import com.netflix.iceberg.spark.data.RandomData;
 import com.netflix.iceberg.spark.data.SparkAvroReader;
+import com.netflix.iceberg.types.Types;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.sql.DataFrameWriter;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
@@ -43,10 +45,12 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.util.List;
 
 import static com.netflix.iceberg.spark.SparkSchemaUtil.convert;
@@ -57,7 +61,7 @@ import static com.netflix.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 public class TestDataFrameWrites extends AvroDataTest {
   private static final Configuration CONF = new Configuration();
 
-  private String format = null;
+  private final String format;
 
   @Parameterized.Parameters
   public static Object[][] parameters() {
@@ -90,23 +94,43 @@ public class TestDataFrameWrites extends AvroDataTest {
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
+    File location = createTableFolder();
+    Table table = createTable(schema, location);
+    writeAndValidateWithLocations(table, location, new File(location, "data"));
+  }
+
+  @Test
+  public void testWriteWithCustomDataLocation() throws IOException {
+    File location = createTableFolder();
+    File tablePropertyDataLocation = temp.newFolder("test-table-property-data-dir");
+    Table table = createTable(new Schema(SUPPORTED_PRIMITIVES.fields()), location);
+    table.updateProperties().set(
+        TableProperties.WRITE_NEW_DATA_LOCATION, tablePropertyDataLocation.getAbsolutePath()).commit();
+    writeAndValidateWithLocations(table, location, tablePropertyDataLocation);
+  }
+
+  private File createTableFolder() throws IOException {
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test");
     Assert.assertTrue("Mkdir should succeed", location.mkdirs());
+    return location;
+  }
 
+  private Table createTable(Schema schema, File location) {
     HadoopTables tables = new HadoopTables(CONF);
-    Table table = tables.create(schema, PartitionSpec.unpartitioned(), location.toString());
+    return tables.create(schema, PartitionSpec.unpartitioned(), location.toString());
+  }
+
+  private void writeAndValidateWithLocations(Table table, File location, File expectedDataDir) throws IOException {
     Schema tableSchema = table.schema(); // use the table schema because ids are reassigned
 
     table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
 
     List<Record> expected = RandomData.generateList(tableSchema, 100, 0L);
     Dataset<Row> df = createDataset(expected, tableSchema);
+    DataFrameWriter<?> writer = df.write().format("iceberg").mode("append");
 
-    df.write()
-        .format("iceberg")
-        .mode("append")
-        .save(location.toString());
+    writer.save(location.toString());
 
     table.refresh();
 
@@ -120,6 +144,14 @@ public class TestDataFrameWrites extends AvroDataTest {
     for (int i = 0; i < expected.size(); i += 1) {
       assertEqualsSafe(tableSchema.asStruct(), expected.get(i), actual.get(i));
     }
+
+    table.currentSnapshot().addedFiles().forEach(dataFile ->
+        Assert.assertTrue(
+            String.format(
+                "File should have the parent directory %s, but has: %s.",
+                expectedDataDir.getAbsolutePath(),
+                dataFile.path()),
+            URI.create(dataFile.path().toString()).getPath().startsWith(expectedDataDir.getAbsolutePath())));
   }
 
   private Dataset<Row> createDataset(List<Record> records, Schema schema) throws IOException {

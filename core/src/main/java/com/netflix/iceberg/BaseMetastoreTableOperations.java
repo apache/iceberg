@@ -20,10 +20,8 @@
 package com.netflix.iceberg;
 
 import com.google.common.base.Objects;
-import com.google.common.base.Preconditions;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.hadoop.HadoopOutputFile;
-import com.netflix.iceberg.io.InputFile;
+import com.netflix.iceberg.hadoop.HadoopFileIO;
 import com.netflix.iceberg.io.OutputFile;
 import com.netflix.iceberg.util.Tasks;
 import org.apache.hadoop.conf.Configuration;
@@ -53,6 +51,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   private static final String HIVE_LOCATION_FOLDER_NAME = "empty";
 
   private final Configuration conf;
+  private final FileIO fileIo;
 
   private TableMetadata currentMetadata = null;
   private String currentMetadataLocation = null;
@@ -62,6 +61,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   protected BaseMetastoreTableOperations(Configuration conf) {
     this.conf = conf;
+    this.fileIo = new HadoopFileIO(conf);
   }
 
   @Override
@@ -88,22 +88,18 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     return String.format("%s/%s", baseLocation, HIVE_LOCATION_FOLDER_NAME);
   }
 
-  public String dataLocation() {
-    return String.format("%s/%s", baseLocation, DATA_FOLDER_NAME);
-  }
-
   protected String writeNewMetadata(TableMetadata metadata, int version) {
     if (baseLocation == null) {
       baseLocation = metadata.location();
     }
 
-    String newFilename = newTableMetadataFilename(baseLocation, version);
-    OutputFile newMetadataLocation = HadoopOutputFile.fromPath(new Path(newFilename), conf);
+    String newTableMetadataFilePath = newTableMetadataFilePath(baseLocation, version);
+    OutputFile newMetadataLocation = fileIo.newOutputFile(newTableMetadataFilePath);
 
     // write the new metadata
     TableMetadataParser.write(metadata, newMetadataLocation);
 
-    return newFilename;
+    return newTableMetadataFilePath;
   }
 
   protected void refreshFromMetadataLocation(String newLocation) {
@@ -129,24 +125,13 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   }
 
   @Override
-  public InputFile newInputFile(String path) {
-    return fromLocation(path, conf);
+  public String metadataFileLocation(String fileName) {
+    return String.format("%s/%s/%s", baseLocation, METADATA_FOLDER_NAME, fileName);
   }
 
   @Override
-  public OutputFile newMetadataFile(String filename) {
-    return HadoopOutputFile.fromPath(
-        new Path(newMetadataLocation(baseLocation, filename)), conf);
-  }
-
-  @Override
-  public void deleteFile(String file) {
-    Path path = new Path(file);
-    try {
-      getFS(path, conf).delete(path, false /* should be a file, not recursive */ );
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    }
+  public FileIO io() {
+    return fileIo;
   }
 
   @Override
@@ -154,29 +139,13 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     return System.currentTimeMillis();
   }
 
-  private String newTableMetadataFilename(String baseLocation, int newVersion) {
+  private String newTableMetadataFilePath(String baseLocation, int newVersion) {
     return String.format("%s/%s/%05d-%s%s",
             baseLocation,
             METADATA_FOLDER_NAME,
             newVersion,
             UUID.randomUUID(),
             getFileExtension(this.conf));
-  }
-
-  private static String newMetadataLocation(String baseLocation, String filename) {
-    return String.format("%s/%s/%s", baseLocation, METADATA_FOLDER_NAME, filename);
-  }
-
-  private static String parseBaseLocation(String metadataLocation) {
-    int lastSlash = metadataLocation.lastIndexOf('/');
-    int secondToLastSlash = metadataLocation.lastIndexOf('/', lastSlash);
-
-    // verify that the metadata file was contained in a "metadata" folder
-    String parentFolderName = metadataLocation.substring(secondToLastSlash + 1, lastSlash);
-    Preconditions.checkArgument(METADATA_FOLDER_NAME.equals(parentFolderName),
-        "Invalid metadata location, not in metadata/ folder: %s", metadataLocation);
-
-    return metadataLocation.substring(0, secondToLastSlash);
   }
 
   private static int parseVersion(String metadataLocation) {

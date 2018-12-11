@@ -71,7 +71,6 @@ public class TestParquetWrite {
   public void testBasicWrite() throws IOException {
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test");
-    location.mkdirs();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();

@@ -23,8 +23,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.CommitFailedException;
-import com.netflix.iceberg.io.InputFile;
-import com.netflix.iceberg.io.OutputFile;
 import com.netflix.iceberg.util.Tasks;
 import java.util.List;
 import java.util.Map;
@@ -263,18 +261,13 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
-    public InputFile newInputFile(String path) {
-      return ops.newInputFile(path);
+    public FileIO io() {
+      return ops.io();
     }
 
     @Override
-    public OutputFile newMetadataFile(String filename) {
-      return ops.newMetadataFile(filename);
-    }
-
-    @Override
-    public void deleteFile(String path) {
-      ops.deleteFile(path);
+    public String metadataFileLocation(String fileName) {
+      return ops.metadataFileLocation(fileName);
     }
 
     @Override

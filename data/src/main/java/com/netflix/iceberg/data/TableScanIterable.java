@@ -79,7 +79,7 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
   }
 
   private CloseableIterable<Record> open(FileScanTask task) {
-    InputFile input = ops.newInputFile(task.file().path().toString());
+    InputFile input = ops.io().newInputFile(task.file().path().toString());
 
     // TODO: join to partition data from the manifest file
     switch (task.file().format()) {

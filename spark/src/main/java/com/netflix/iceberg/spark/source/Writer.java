@@ -32,6 +32,7 @@ import com.netflix.iceberg.Metrics;
 import com.netflix.iceberg.PartitionSpec;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.Table;
+import com.netflix.iceberg.TableProperties;
 import com.netflix.iceberg.avro.Avro;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.hadoop.HadoopInputFile;
@@ -164,7 +165,9 @@ class Writer implements DataSourceWriter {
   }
 
   private String dataLocation() {
-    return new Path(new Path(table.location()), "data").toString();
+    return table.properties().getOrDefault(
+        TableProperties.WRITE_NEW_DATA_LOCATION,
+        new Path(new Path(table.location()), "data").toString());
   }
 
   @Override
