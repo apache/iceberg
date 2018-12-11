@@ -58,11 +58,8 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
   @Override
   public DataSourceReader createReader(DataSourceOptions options) {
     Configuration conf = new Configuration(lazyBaseConf());
-    // Overwrite configurations from the Spark Context with configurations from the options.
-    mergeIcebergHadoopConfs(conf, options.asMap(), true);
-    Table table = findTable(options, conf);
-    // Do not overwrite options from the Spark Context with configurations from the table
-    mergeIcebergHadoopConfs(conf, table.properties(), false);
+    Table table = getTableAndResolveHadoopConfiguration(options, conf);
+
     return new Reader(table, conf);
   }
 
@@ -71,11 +68,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
                                                    DataSourceOptions options) {
     Preconditions.checkArgument(mode == SaveMode.Append, "Save mode %s is not supported", mode);
     Configuration conf = new Configuration(lazyBaseConf());
-    // Overwrite configurations from the Spark Context with configurations from the options.
-    mergeIcebergHadoopConfs(conf, options.asMap(), true);
-    Table table = findTable(options, conf);
-    // Do not overwrite options from the Spark Context with configurations from the table
-    mergeIcebergHadoopConfs(conf, table.properties(), false);
+    Table table = getTableAndResolveHadoopConfiguration(options, conf);
 
     Schema dfSchema = SparkSchemaUtil.convert(table.schema(), dfStruct);
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(table.schema(), dfSchema);
@@ -124,6 +117,19 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
       this.lazyConf = lazySparkSession().sparkContext().hadoopConfiguration();
     }
     return lazyConf;
+  }
+
+  private Table getTableAndResolveHadoopConfiguration(
+      DataSourceOptions options, Configuration conf) {
+    // Overwrite configurations from the Spark Context with configurations from the options.
+    mergeIcebergHadoopConfs(conf, options.asMap(), true);
+    Table table = findTable(options, conf);
+    // Set confs from table properties, but do not overwrite options from the Spark Context with
+    // configurations from the table
+    mergeIcebergHadoopConfs(conf, table.properties(), false);
+    // Re-overwrite values set in options and table properties but were not in the environment.
+    mergeIcebergHadoopConfs(conf, options.asMap(), true);
+    return table;
   }
 
   private static void mergeIcebergHadoopConfs(
