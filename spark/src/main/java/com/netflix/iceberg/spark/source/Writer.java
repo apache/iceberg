@@ -176,6 +176,7 @@ class Writer implements DataSourceWriter {
         table, table.schema().asStruct(), format);
   }
 
+
   private static class TaskCommit implements WriterCommitMessage {
     private final DataFile[] files;
 
