@@ -22,7 +22,7 @@ package com.netflix.iceberg.avro;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.netflix.iceberg.SchemaParser;
-import com.netflix.iceberg.io.CloseableIterable;
+import com.netflix.iceberg.io.FileAppender;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 import org.apache.avro.Conversions;
@@ -118,6 +118,11 @@ public class Avro {
       return this;
     }
 
+    public WriteBuilder meta(Map<String, String> properties) {
+      metadata.putAll(properties);
+      return this;
+    }
+
     private CodecFactory codec() {
       String codec = config.getOrDefault(AVRO_COMPRESSION, AVRO_COMPRESSION_DEFAULT);
       try {
@@ -127,7 +132,7 @@ public class Avro {
       }
     }
 
-    public <D> AvroFileAppender<D> build() throws IOException {
+    public <D> FileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(name, "Table name is required and cannot be null");
 

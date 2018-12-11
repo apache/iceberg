@@ -76,6 +76,11 @@ public class Files {
     }
 
     @Override
+    public InputFile toInputFile() {
+      return localInput(file);
+    }
+
+    @Override
     public String toString() {
       return location();
     }

@@ -29,7 +29,7 @@ import java.util.List;
  * <p>
  * Snapshots are created by table operations, like {@link AppendFiles} and {@link RewriteFiles}.
  */
-public interface Snapshot extends Filterable<FilteredSnapshot> {
+public interface Snapshot {
   /**
    * Return this snapshot's ID.
    *
@@ -60,7 +60,7 @@ public interface Snapshot extends Filterable<FilteredSnapshot> {
    *
    * @return a list of fully-qualified manifest locations
    */
-  List<String> manifests();
+  List<ManifestFile> manifests();
 
   /**
    * Return all files added to the table in this snapshot.
@@ -81,4 +81,11 @@ public interface Snapshot extends Filterable<FilteredSnapshot> {
    * @return all files deleted from the table in this snapshot.
    */
   Iterable<DataFile> deletedFiles();
+
+  /**
+   * Return the location of this snapshot's manifest list, or null if it is not separate.
+   *
+   * @return the location of the manifest list for this Snapshot
+   */
+  String manifestListLocation();
 }

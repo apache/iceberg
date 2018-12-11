@@ -92,11 +92,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
           .toUpperCase(Locale.ENGLISH));
     }
 
-    String dataLocation = options.get(TableProperties.WRITE_NEW_DATA_LOCATION)
-        .orElse(table.properties().getOrDefault(
-            TableProperties.WRITE_NEW_DATA_LOCATION,
-            new Path(new Path(table.location()), "data").toString()));
-    return Optional.of(new Writer(table, lazyConf(), format, dataLocation));
+    return Optional.of(new Writer(table, lazyConf(), format));
   }
 
   protected Table findTable(DataSourceOptions options) {

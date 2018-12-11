@@ -115,7 +115,10 @@ class RemoveSnapshots implements ExpireSnapshots {
         .onlyRetryOn(CommitFailedException.class)
         .run(item -> {
           TableMetadata updated = internalApply();
-          ops.commit(base, updated);
+          // only commit the updated metadata if at least one snapshot was removed
+          if (updated.snapshots().size() != base.snapshots().size()) {
+            ops.commit(base, updated);
+          }
         });
 
     LOG.info("Committed snapshot changes; cleaning up expired manifests and data files.");
@@ -130,22 +133,22 @@ class RemoveSnapshots implements ExpireSnapshots {
 
     TableMetadata current = ops.refresh();
     Set<Long> currentIds = Sets.newHashSet();
-    Set<String> currentManifests = Sets.newHashSet();
+    Set<ManifestFile> currentManifests = Sets.newHashSet();
     for (Snapshot snapshot : current.snapshots()) {
       currentIds.add(snapshot.snapshotId());
       currentManifests.addAll(snapshot.manifests());
     }
 
-    Set<String> allManifests = Sets.newHashSet(currentManifests);
+    Set<ManifestFile> allManifests = Sets.newHashSet(currentManifests);
     Set<String> manifestsToDelete = Sets.newHashSet();
     for (Snapshot snapshot : base.snapshots()) {
       long snapshotId = snapshot.snapshotId();
       if (!currentIds.contains(snapshotId)) {
         // the snapshot was removed, find any manifests that are no longer needed
         LOG.info("Removing snapshot: {}", snapshot);
-        for (String manifest : snapshot.manifests()) {
+        for (ManifestFile manifest : snapshot.manifests()) {
           if (!currentManifests.contains(manifest)) {
-            manifestsToDelete.add(manifest);
+            manifestsToDelete.add(manifest.path());
             allManifests.add(manifest);
           }
         }
@@ -161,7 +164,7 @@ class RemoveSnapshots implements ExpireSnapshots {
         ).run(manifest -> {
           // even if the manifest is still used, it may contain files that can be deleted
           // TODO: eliminate manifests with no deletes without scanning
-          try (ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest))) {
+          try (ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest.path()))) {
             for (ManifestEntry entry : reader.entries()) {
               // if the snapshot ID of the DELETE entry is no longer valid, the data can be deleted
               if (entry.status() == ManifestEntry.Status.DELETED &&
@@ -171,7 +174,7 @@ class RemoveSnapshots implements ExpireSnapshots {
               }
             }
           } catch (IOException e) {
-            throw new RuntimeIOException(e, "Failed to read manifest: " + manifest);
+            throw new RuntimeIOException(e, "Failed to read manifest file: " + manifest.path());
           }
     });
 
