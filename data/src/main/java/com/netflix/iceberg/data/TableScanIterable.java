@@ -125,10 +125,7 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
     private Iterator<Record> currentIterator = emptyIterator();
 
     private ScanIterator(Iterable<CombinedScanTask> tasks) {
-      this.tasks = StreamSupport.stream(tasks.spliterator(), false)
-          .flatMap(task -> task.files().stream())
-          .collect(Collectors.toList())
-          .iterator();
+      this.tasks = Lists.newArrayList(concat(transform(tasks, CombinedScanTask::files))).iterator();
     }
 
     @Override
