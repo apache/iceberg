@@ -60,16 +60,15 @@ import static com.netflix.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 @RunWith(Parameterized.class)
 public class TestDataFrameWrites extends AvroDataTest {
   private static final Configuration CONF = new Configuration();
-  private static final Schema BASIC_SCHEMA = new Schema(
-      Types.NestedField.required(0, "id", Types.LongType.get()),
-      Types.NestedField.optional(1, "data", Types.ListType.ofOptional(2, Types.StringType.get())));
 
-  private String format = null;
+  private final String format;
 
   @Parameterized.Parameters
   public static Object[][] parameters() {
     return new Object[][] {
         new Object[] { "parquet" },
+        new Object[] { "parquet" },
+        new Object[] { "avro" },
         new Object[] { "avro" }
     };
   }
@@ -97,53 +96,41 @@ public class TestDataFrameWrites extends AvroDataTest {
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    writeAndValidateWithLocations(schema, false, false);
+    File location = createTableFolder();
+    Table table = createTable(schema, location);
+    writeAndValidateWithLocations(table, location, new File(location, "data"));
   }
 
   @Test
-  public void testWrite_overridingDataLocation_tablePropertyOnly() throws IOException {
-    writeAndValidateWithLocations(BASIC_SCHEMA, true, false);
+  public void testWriteWithCustomDataLocation() throws IOException {
+    File location = createTableFolder();
+    File tablePropertyDataLocation = temp.newFolder("test-table-property-data-dir");
+    Table table = createTable(new Schema(SUPPORTED_PRIMITIVES.fields()), location);
+    table.updateProperties().set(
+        TableProperties.WRITE_NEW_DATA_LOCATION, tablePropertyDataLocation.getAbsolutePath()).commit();
+    writeAndValidateWithLocations(table, location, tablePropertyDataLocation);
   }
 
-  @Test
-  public void testWrite_overridingDataLocation_sourceOptionOnly() throws IOException {
-    writeAndValidateWithLocations(BASIC_SCHEMA, false, true);
-  }
-
-  @Test
-  public void testWrite_overridingDataLocation_sourceOptionTakesPrecedence() throws IOException {
-    writeAndValidateWithLocations(BASIC_SCHEMA, true, true);
-  }
-
-  private void writeAndValidateWithLocations(
-      Schema schema,
-      boolean setTablePropertyDataLocation,
-      boolean setWriterOptionDataLocation) throws IOException {
+  private File createTableFolder() throws IOException {
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test");
     Assert.assertTrue("Mkdir should succeed", location.mkdirs());
+    return location;
+  }
 
-    File tablePropertyDataLocation = new File(parent, "test-table-property-data-dir");
-    Assert.assertTrue("Mkdir should succeed", tablePropertyDataLocation.mkdirs());
-    File writerPropertyDataLocation = new File(parent, "test-source-option-data-dir");
-    Assert.assertTrue("Mkdir should succeed", writerPropertyDataLocation.mkdirs());
-
+  private Table createTable(Schema schema, File location) {
     HadoopTables tables = new HadoopTables(CONF);
-    Table table = tables.create(schema, PartitionSpec.unpartitioned(), location.toString());
+    return tables.create(schema, PartitionSpec.unpartitioned(), location.toString());
+  }
+
+  private void writeAndValidateWithLocations(Table table, File location, File expectedDataDir) throws IOException {
     Schema tableSchema = table.schema(); // use the table schema because ids are reassigned
 
     table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
-    if (setTablePropertyDataLocation) {
-      table.updateProperties().set(
-          TableProperties.WRITE_NEW_DATA_LOCATION, tablePropertyDataLocation.getAbsolutePath()).commit();
-    }
 
     List<Record> expected = RandomData.generateList(tableSchema, 100, 0L);
     Dataset<Row> df = createDataset(expected, tableSchema);
     DataFrameWriter<?> writer = df.write().format("iceberg").mode("append");
-    if (setWriterOptionDataLocation) {
-      writer = writer.option(TableProperties.WRITE_NEW_DATA_LOCATION, writerPropertyDataLocation.getAbsolutePath());
-    }
 
     writer.save(location.toString());
 
@@ -160,14 +147,6 @@ public class TestDataFrameWrites extends AvroDataTest {
       assertEqualsSafe(tableSchema.asStruct(), expected.get(i), actual.get(i));
     }
 
-    File expectedDataDir;
-    if (setWriterOptionDataLocation) {
-      expectedDataDir = writerPropertyDataLocation;
-    } else if (setTablePropertyDataLocation) {
-      expectedDataDir = tablePropertyDataLocation;
-    } else {
-      expectedDataDir = new File(location, "data");
-    }
     table.currentSnapshot().addedFiles().forEach(dataFile ->
         Assert.assertTrue(
             String.format(
