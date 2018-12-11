@@ -57,19 +57,25 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
 
   @Override
   public DataSourceReader createReader(DataSourceOptions options) {
-    Configuration conf = mergeIcebergHadoopConfs(lazyBaseConf(), options.asMap());
+    Configuration conf = new Configuration(lazyBaseConf());
+    // Overwrite configurations from the Spark Context with configurations from the options.
+    mergeIcebergHadoopConfs(conf, options.asMap(), true);
     Table table = findTable(options, conf);
-    Configuration withTableConfs = mergeIcebergHadoopConfs(conf, table.properties());
-    return new Reader(table, withTableConfs);
+    // Do not overwrite options from the Spark Context with configurations from the table
+    mergeIcebergHadoopConfs(conf, table.properties(), false);
+    return new Reader(table, conf);
   }
 
   @Override
   public Optional<DataSourceWriter> createWriter(String jobId, StructType dfStruct, SaveMode mode,
                                                    DataSourceOptions options) {
     Preconditions.checkArgument(mode == SaveMode.Append, "Save mode %s is not supported", mode);
-    Configuration conf = mergeIcebergHadoopConfs(lazyBaseConf(), options.asMap());
+    Configuration conf = new Configuration(lazyBaseConf());
+    // Overwrite configurations from the Spark Context with configurations from the options.
+    mergeIcebergHadoopConfs(conf, options.asMap(), true);
     Table table = findTable(options, conf);
-    Configuration withTableHadoopConfs = mergeIcebergHadoopConfs(conf, table.properties());
+    // Do not overwrite options from the Spark Context with configurations from the table
+    mergeIcebergHadoopConfs(conf, table.properties(), false);
 
     Schema dfSchema = SparkSchemaUtil.convert(table.schema(), dfStruct);
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(table.schema(), dfSchema);
@@ -93,7 +99,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
           .toUpperCase(Locale.ENGLISH));
     }
 
-    return Optional.of(new Writer(table, withTableHadoopConfs, format));
+    return Optional.of(new Writer(table, conf, format));
   }
 
   protected Table findTable(DataSourceOptions options, Configuration conf) {
@@ -106,26 +112,25 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     return tables.load(location.get());
   }
 
-  protected SparkSession lazySparkSession() {
+  private SparkSession lazySparkSession() {
     if (lazySpark == null) {
       this.lazySpark = SparkSession.builder().getOrCreate();
     }
     return lazySpark;
   }
 
-  protected Configuration lazyBaseConf() {
+  private Configuration lazyBaseConf() {
     if (lazyConf == null) {
       this.lazyConf = lazySparkSession().sparkContext().hadoopConfiguration();
     }
     return lazyConf;
   }
 
-  protected Configuration mergeIcebergHadoopConfs(Configuration baseConf, Map<String, String> options) {
-    Configuration resolvedConf = new Configuration(baseConf);
+  private static void mergeIcebergHadoopConfs(
+      Configuration baseConf, Map<String, String> options, boolean overwrite) {
     options.keySet().stream()
         .filter(key -> key.startsWith("iceberg.hadoop"))
-        .filter(key -> baseConf.get(key) == null)
-        .forEach(key -> resolvedConf.set(key.replaceFirst("iceberg.hadoop", ""), options.get(key)));
-    return resolvedConf;
+        .filter(key -> overwrite || baseConf.get(key.replaceFirst("iceberg.hadoop", "")) == null)
+        .forEach(key -> baseConf.set(key.replaceFirst("iceberg.hadoop", ""), options.get(key)));
   }
 }
