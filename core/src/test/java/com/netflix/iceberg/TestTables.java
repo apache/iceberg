@@ -27,6 +27,7 @@ import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 import java.io.File;
+import java.io.IOException;
 import java.util.Map;
 
 import static com.netflix.iceberg.TableMetadata.newTableMetadata;
@@ -174,20 +175,13 @@ class TestTables {
     }
 
     @Override
-    public InputFile newInputFile(String path) {
-      return Files.localInput(path);
+    public FileIO io() {
+      return new LocalFileIO();
     }
 
     @Override
-    public OutputFile newMetadataFile(String filename) {
-      return Files.localOutput(new File(metadata, filename));
-    }
-
-    @Override
-    public void deleteFile(String path) {
-      if (!new File(path).delete()) {
-        throw new RuntimeIOException("Failed to delete file: " + path);
-      }
+    public String metadataFileLocation(String fileName) {
+      return new File(metadata, fileName).getAbsolutePath();
     }
 
     @Override
@@ -195,6 +189,26 @@ class TestTables {
       long nextSnapshotId = lastSnapshotId + 1;
       this.lastSnapshotId = nextSnapshotId;
       return nextSnapshotId;
+    }
+  }
+
+  static class LocalFileIO implements FileIO {
+
+    @Override
+    public InputFile newInputFile(String path) {
+      return Files.localInput(path);
+    }
+
+    @Override
+    public OutputFile newOutputFile(String path) {
+      return Files.localOutput(path);
+    }
+
+    @Override
+    public void deleteFile(String path) {
+      if (!new File(path).delete()) {
+        throw new RuntimeIOException("Failed to delete file: " + path);
+      }
     }
   }
 }

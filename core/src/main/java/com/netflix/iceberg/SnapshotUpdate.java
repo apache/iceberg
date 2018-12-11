@@ -132,7 +132,7 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
 
       return new BaseSnapshot(ops,
           snapshotId(), parentSnapshotId, System.currentTimeMillis(),
-          ops.newInputFile(manifestList.location()));
+          ops.io().newInputFile(manifestList.location()));
 
     } else {
       return new BaseSnapshot(ops,
@@ -188,16 +188,17 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
   }
 
   protected void deleteFile(String path) {
-    ops.deleteFile(path);
+    ops.io().deleteFile(path);
   }
 
   protected OutputFile manifestListPath() {
-    return ops.newMetadataFile(FileFormat.AVRO.addExtension(
-        String.format("snap-%d-%s", snapshotId(), commitUUID)));
+    return ops.io().newOutputFile(ops.metadataFileLocation(FileFormat.AVRO.addExtension(
+        String.format("snap-%d-%s", snapshotId(), commitUUID))));
   }
 
   protected OutputFile manifestPath(int i) {
-    return ops.newMetadataFile(FileFormat.AVRO.addExtension(commitUUID + "-m" + i));
+    return ops.io().newOutputFile(
+        ops.metadataFileLocation(FileFormat.AVRO.addExtension(commitUUID + "-m" + i)));
   }
 
   protected long snapshotId() {
@@ -208,7 +209,7 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
   }
 
   private static ManifestFile addMetadata(TableOperations ops, ManifestFile manifest) {
-    try (ManifestReader reader = ManifestReader.read(ops.newInputFile(manifest.path()))) {
+    try (ManifestReader reader = ManifestReader.read(ops.io().newInputFile(manifest.path()))) {
       PartitionSummary stats = new PartitionSummary(ops.current().spec(manifest.partitionSpecId()));
       int addedFiles = 0;
       int existingFiles = 0;
