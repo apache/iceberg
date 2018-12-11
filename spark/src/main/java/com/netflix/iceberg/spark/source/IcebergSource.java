@@ -122,21 +122,19 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
   private Table getTableAndResolveHadoopConfiguration(
       DataSourceOptions options, Configuration conf) {
     // Overwrite configurations from the Spark Context with configurations from the options.
-    mergeIcebergHadoopConfs(conf, options.asMap(), true);
+    mergeIcebergHadoopConfs(conf, options.asMap());
     Table table = findTable(options, conf);
-    // Set confs from table properties, but do not overwrite options from the Spark Context with
-    // configurations from the table
-    mergeIcebergHadoopConfs(conf, table.properties(), false);
+    // Set confs from table properties
+    mergeIcebergHadoopConfs(conf, table.properties());
     // Re-overwrite values set in options and table properties but were not in the environment.
-    mergeIcebergHadoopConfs(conf, options.asMap(), true);
+    mergeIcebergHadoopConfs(conf, options.asMap());
     return table;
   }
 
   private static void mergeIcebergHadoopConfs(
-      Configuration baseConf, Map<String, String> options, boolean overwrite) {
+      Configuration baseConf, Map<String, String> options) {
     options.keySet().stream()
         .filter(key -> key.startsWith("iceberg.hadoop"))
-        .filter(key -> overwrite || baseConf.get(key.replaceFirst("iceberg.hadoop", "")) == null)
         .forEach(key -> baseConf.set(key.replaceFirst("iceberg.hadoop", ""), options.get(key)));
   }
 }
