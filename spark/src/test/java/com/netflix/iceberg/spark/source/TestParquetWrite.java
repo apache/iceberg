@@ -23,7 +23,6 @@ import com.google.common.collect.Lists;
 import com.netflix.iceberg.PartitionSpec;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.Table;
-import com.netflix.iceberg.TableProperties;
 import com.netflix.iceberg.hadoop.HadoopTables;
 import com.netflix.iceberg.types.Types;
 import org.apache.hadoop.conf.Configuration;
