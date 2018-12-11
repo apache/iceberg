@@ -20,7 +20,7 @@
 package com.netflix.iceberg.data;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterables;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.CombinedScanTask;
 import com.netflix.iceberg.FileScanTask;
@@ -31,22 +31,22 @@ import com.netflix.iceberg.TableScan;
 import com.netflix.iceberg.avro.Avro;
 import com.netflix.iceberg.data.avro.DataReader;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
+import com.netflix.iceberg.expressions.Binder;
 import com.netflix.iceberg.expressions.Evaluator;
 import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.io.CloseableGroup;
 import com.netflix.iceberg.io.CloseableIterable;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.parquet.Parquet;
+import com.netflix.iceberg.types.TypeUtil;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
+import java.util.Set;
 
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.filter;
