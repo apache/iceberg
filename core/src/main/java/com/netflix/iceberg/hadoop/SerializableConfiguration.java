@@ -26,8 +26,7 @@ import java.io.Serializable;
 import org.apache.hadoop.conf.Configuration;
 
 /**
- * Similar to Spark's SerializableConfiguration, but since this module doesn't depend on Spark we provide our own
- * version.
+ * Wraps a {@link Configuration} object in a {@link Serializable} layer.
  */
 public class SerializableConfiguration implements Serializable {
 

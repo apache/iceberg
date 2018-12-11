@@ -29,6 +29,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.file.Paths;
 
 public class Files {
 
@@ -37,7 +38,7 @@ public class Files {
   }
 
   public static OutputFile localOutput(String file) {
-    return localOutput(new File(file));
+    return localOutput(Paths.get(file).toAbsolutePath().toFile());
   }
 
   private static class LocalOutputFile implements OutputFile {
@@ -51,6 +52,13 @@ public class Files {
     public PositionOutputStream create() {
       if (file.exists()) {
         throw new AlreadyExistsException("File already exists: %s", file);
+      }
+
+      if (!file.getParentFile().isDirectory() && !file.getParentFile().mkdirs()) {
+        throw new RuntimeIOException(
+            String.format(
+                "Failed to create the file's directory at %s.",
+                file.getParentFile().getAbsolutePath()));
       }
 
       try {

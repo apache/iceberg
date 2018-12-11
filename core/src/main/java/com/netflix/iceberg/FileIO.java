@@ -27,10 +27,9 @@ import java.io.Serializable;
 /**
  * Pluggable module for reading, writing, and deleting files.
  * <p>
- * Both table metadata files and data files can be written and read by this module. Implementations must be
- * serializable because various clients of Spark tables may initialize this once and pass it off to a separate
- * module that would then interact with the streams. For example, the Spark Iceberg DataSource initializes this module
- * on the driver but then serializes and sends it to the executors to perform the data reading and writing.
+ * Both table metadata files and data files can be written and read by this module. Implementations
+ * must be serializable because various clients of Spark tables may initialize this once and pass
+ * it off to a separate module that would then interact with the streams.
  */
 public interface FileIO extends Serializable {
 

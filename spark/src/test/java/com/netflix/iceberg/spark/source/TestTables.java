@@ -182,12 +182,7 @@ class TestTables {
 
     @Override
     public OutputFile newOutputFile(String path) {
-      File file = new File(path);
-      if (!file.getParentFile().isDirectory() && !file.getParentFile().mkdirs()) {
-        throw new RuntimeIOException(
-            String.format("Failed to create parent directory for %s", file.getAbsolutePath()));
-      }
-      return Files.localOutput(file);
+      return Files.localOutput(new File(path));
     }
 
     @Override
