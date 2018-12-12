@@ -162,8 +162,11 @@ class RemoveSnapshots implements ExpireSnapshots {
         .onFailure((item, exc) ->
             LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc)
         ).run(manifest -> {
-          // even if the manifest is still used, it may contain files that can be deleted
-          // TODO: eliminate manifests with no deletes without scanning
+          if (manifest.deletedFilesCount() != null && manifest.deletedFilesCount() == 0) {
+            return;
+          }
+
+          // the manifest has deletes, scan it to find files to delete
           try (ManifestReader reader = ManifestReader.read(ops.io().newInputFile(manifest.path()))) {
             for (ManifestEntry entry : reader.entries()) {
               // if the snapshot ID of the DELETE entry is no longer valid, the data can be deleted
