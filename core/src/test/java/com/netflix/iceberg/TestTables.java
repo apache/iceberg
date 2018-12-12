@@ -27,12 +27,11 @@ import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 import java.io.File;
-import java.io.IOException;
 import java.util.Map;
 
 import static com.netflix.iceberg.TableMetadata.newTableMetadata;
 
-class TestTables {
+public class TestTables {
   static TestTable create(File temp, String name, Schema schema, PartitionSpec spec) {
     TestTableOperations ops = new TestTableOperations(name, temp);
     if (ops.current() != null) {
@@ -112,7 +111,7 @@ class TestTables {
     }
   }
 
-  static class TestTableOperations implements TableOperations {
+  public static class TestTableOperations implements TableOperations {
 
     private final String tableName;
     private final File metadata;
@@ -120,7 +119,7 @@ class TestTables {
     private long lastSnapshotId = 0;
     private int failCommits = 0;
 
-    TestTableOperations(String tableName, File location) {
+    public TestTableOperations(String tableName, File location) {
       this.tableName = tableName;
       this.metadata = new File(location, "metadata");
       metadata.mkdirs();
