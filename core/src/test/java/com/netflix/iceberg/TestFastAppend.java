@@ -32,7 +32,7 @@ public class TestFastAppend extends TableTestBase {
 
   @Test
   public void testEmptyTableAppend() {
-    Assert.assertEquals("Table should start empty", 0, listMetadataFiles("avro").size());
+    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
 
     TableMetadata base = readMetadata();
     Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
