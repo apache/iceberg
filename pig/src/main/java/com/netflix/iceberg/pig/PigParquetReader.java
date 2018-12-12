@@ -38,6 +38,7 @@ import com.netflix.iceberg.parquet.ParquetValueReaders.StringReader;
 import com.netflix.iceberg.parquet.ParquetValueReaders.StructReader;
 import com.netflix.iceberg.parquet.ParquetValueReaders.UnboxedReader;
 import com.netflix.iceberg.parquet.TypeWithSchemaVisitor;
+import com.netflix.iceberg.types.Type.TypeID;
 import com.netflix.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.DecimalMetadata;
@@ -208,8 +209,10 @@ public class PigParquetReader {
           case INT_8:
           case INT_16:
           case INT_32:
-            if(expected.typeId() == Types.LongType.get().typeId()) {
+            if (expected != null && expected.typeId() == Types.LongType.get().typeId()) {
               return new IntAsLongReader(desc);
+            } else {
+              return new UnboxedReader(desc);
             }
           case INT_64: return new UnboxedReader<>(desc);
           case TIMESTAMP_MILLIS: return new TimestampMillisReader(desc);
@@ -234,13 +237,20 @@ public class PigParquetReader {
         case FIXED_LEN_BYTE_ARRAY:
         case BINARY:
           return new BytesReader(desc);
-        case BOOLEAN:
         case INT32:
-        case INT64:
-        case FLOAT:
-          if(expected.typeId() == Types.DoubleType.get().typeId()) {
-            return new FloatAsDoubleReader(desc);
+          if (expected != null && expected.typeId() == TypeID.LONG) {
+            return new IntAsLongReader(desc);
+          } else {
+            return new UnboxedReader<>(desc);
           }
+        case FLOAT:
+          if (expected != null && expected.typeId() == TypeID.DOUBLE) {
+            return new FloatAsDoubleReader(desc);
+          } else {
+            return new UnboxedReader<>(desc);
+          }
+        case BOOLEAN:
+        case INT64:
         case DOUBLE:
           return new UnboxedReader<>(desc);
         default:
