@@ -73,7 +73,8 @@ class TestTables {
       this.ops = ops;
     }
 
-    TestTableOperations ops() {
+    @Override
+    public TestTableOperations operations() {
       return ops;
     }
   }

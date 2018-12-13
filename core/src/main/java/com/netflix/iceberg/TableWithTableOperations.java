@@ -17,19 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark.source;
+package com.netflix.iceberg;
 
-import com.netflix.iceberg.TableWithTableOperations;
-import org.apache.spark.sql.sources.v2.DataSourceOptions;
-
-public class TestIcebergSource extends IcebergSource {
-  @Override
-  public String shortName() {
-    return "iceberg-test";
-  }
-
-  @Override
-  protected TableWithTableOperations findTable(DataSourceOptions options) {
-    return TestTables.load(options.get("iceberg.table.name").get());
-  }
+public interface TableWithTableOperations extends Table, HasTableOperations {
 }

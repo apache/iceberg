@@ -26,7 +26,7 @@ import java.util.Map;
  * <p>
  * This can be extended by providing a {@link TableOperations} to the constructor.
  */
-public class BaseTable implements Table, HasTableOperations {
+public class BaseTable implements TableWithTableOperations {
   private final TableOperations ops;
   private final String name;
 
