@@ -1,0 +1,45 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""
+  A snapshot of the data in a table at a point in time.
+  <p>
+  A snapshot consist of one or more file manifests, and the complete table contents is the union
+  of all the data files in those manifests.
+  <p>
+  Snapshots are created by table operations, like {@link AppendFiles} and {@link RewriteFiles}.
+"""
+
+
+class Snapshot(object):
+
+    @property
+    def snapshot_id(self):
+        raise RuntimeError("Interface implementation")
+
+    @property
+    def timestamp_millis(self):
+        raise RuntimeError("Interface implementation")
+
+    @property
+    def manifests(self):
+        raise RuntimeError("Interface implementation")
+
+    def added_files(self):
+        raise RuntimeError("Interface implementation")
+
+    def deleted_files(self):
+        raise RuntimeError("Interface implementation")
