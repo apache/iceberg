@@ -22,6 +22,7 @@ package com.netflix.iceberg;
 import com.google.common.base.Objects;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.hadoop.HadoopFileIO;
+import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.io.OutputFile;
 import com.netflix.iceberg.util.Tasks;
 import org.apache.hadoop.conf.Configuration;

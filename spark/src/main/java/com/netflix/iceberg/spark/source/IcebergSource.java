@@ -23,7 +23,6 @@ import com.google.common.base.Preconditions;
 import com.netflix.iceberg.FileFormat;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.Table;
-import com.netflix.iceberg.TableWithTableOperations;
 import com.netflix.iceberg.hadoop.HadoopTables;
 import com.netflix.iceberg.spark.SparkSchemaUtil;
 import com.netflix.iceberg.types.CheckCompatibility;
@@ -57,8 +56,8 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
 
   @Override
   public DataSourceReader createReader(DataSourceOptions options) {
-    TableWithTableOperations table = findTable(options);
-    return new Reader(table, table.operations().io());
+    Table table = findTable(options);
+    return new Reader(table);
   }
 
   @Override
@@ -66,7 +65,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
                                                    DataSourceOptions options) {
     Preconditions.checkArgument(mode == SaveMode.Append, "Save mode %s is not supported", mode);
 
-    TableWithTableOperations table = findTable(options);
+    Table table = findTable(options);
 
     Schema dfSchema = SparkSchemaUtil.convert(table.schema(), dfStruct);
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(table.schema(), dfSchema);
@@ -90,10 +89,10 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
           .toUpperCase(Locale.ENGLISH));
     }
 
-    return Optional.of(new Writer(table, format, table.operations().io()));
+    return Optional.of(new Writer(table, format));
   }
 
-  protected TableWithTableOperations findTable(DataSourceOptions options) {
+  protected Table findTable(DataSourceOptions options) {
     Optional<String> location = options.get("path");
     Preconditions.checkArgument(location.isPresent(),
         "Cannot open table without a location: path is not set");

@@ -28,7 +28,7 @@ import com.netflix.iceberg.AppendFiles;
 import com.netflix.iceberg.DataFile;
 import com.netflix.iceberg.DataFiles;
 import com.netflix.iceberg.FileFormat;
-import com.netflix.iceberg.FileIO;
+import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.Metrics;
 import com.netflix.iceberg.PartitionSpec;
 import com.netflix.iceberg.Schema;
@@ -90,10 +90,10 @@ class Writer implements DataSourceWriter {
   private final FileFormat format;
   private final FileIO fileIo;
 
-  Writer(Table table, FileFormat format, FileIO fileIo) {
+  Writer(Table table, FileFormat format) {
     this.table = table;
     this.format = format;
-    this.fileIo = fileIo;
+    this.fileIo = table.io();
   }
 
   @Override

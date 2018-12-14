@@ -24,10 +24,10 @@ import com.google.common.collect.Maps;
 import com.netflix.iceberg.exceptions.AlreadyExistsException;
 import com.netflix.iceberg.exceptions.CommitFailedException;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
+import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 import java.io.File;
-import java.io.IOException;
 import java.util.Map;
 
 import static com.netflix.iceberg.TableMetadata.newTableMetadata;

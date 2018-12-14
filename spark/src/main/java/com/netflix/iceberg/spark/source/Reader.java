@@ -22,7 +22,7 @@ package com.netflix.iceberg.spark.source;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.CombinedScanTask;
 import com.netflix.iceberg.DataFile;
-import com.netflix.iceberg.FileIO;
+import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.FileScanTask;
 import com.netflix.iceberg.PartitionField;
 import com.netflix.iceberg.PartitionSpec;
@@ -97,10 +97,10 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
   private StructType type = null; // cached because Spark accesses it multiple times
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
 
-  Reader(Table table, FileIO fileIo) {
+  Reader(Table table) {
     this.table = table;
     this.schema = table.schema();
-    this.fileIo = fileIo;
+    this.fileIo = table.io();
   }
 
   private Schema lazySchema() {

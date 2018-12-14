@@ -19,7 +19,7 @@
 
 package com.netflix.iceberg.spark.source;
 
-import com.netflix.iceberg.TableWithTableOperations;
+import com.netflix.iceberg.Table;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
 
 public class TestIcebergSource extends IcebergSource {
@@ -29,7 +29,7 @@ public class TestIcebergSource extends IcebergSource {
   }
 
   @Override
-  protected TableWithTableOperations findTable(DataSourceOptions options) {
+  protected Table findTable(DataSourceOptions options) {
     return TestTables.load(options.get("iceberg.table.name").get());
   }
 }

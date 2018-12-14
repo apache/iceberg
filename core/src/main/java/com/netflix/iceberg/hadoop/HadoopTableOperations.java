@@ -19,7 +19,7 @@
 
 package com.netflix.iceberg.hadoop;
 
-import com.netflix.iceberg.FileIO;
+import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.TableMetadata;
 import com.netflix.iceberg.TableMetadataParser;
 import com.netflix.iceberg.TableOperations;

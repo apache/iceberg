@@ -19,6 +19,7 @@
 
 package com.netflix.iceberg;
 
+import com.netflix.iceberg.io.FileIO;
 import java.util.Map;
 
 /**
@@ -26,7 +27,7 @@ import java.util.Map;
  * <p>
  * This can be extended by providing a {@link TableOperations} to the constructor.
  */
-public class BaseTable implements TableWithTableOperations {
+public class BaseTable implements Table, HasTableOperations {
   private final TableOperations ops;
   private final String name;
 
@@ -133,6 +134,11 @@ public class BaseTable implements TableWithTableOperations {
   @Override
   public Transaction newTransaction() {
     return BaseTransaction.newTransaction(ops);
+  }
+
+  @Override
+  public FileIO io() {
+    return operations().io();
   }
 
   @Override

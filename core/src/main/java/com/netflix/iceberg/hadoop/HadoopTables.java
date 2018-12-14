@@ -25,7 +25,6 @@ import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.Table;
 import com.netflix.iceberg.TableMetadata;
 import com.netflix.iceberg.TableOperations;
-import com.netflix.iceberg.TableWithTableOperations;
 import com.netflix.iceberg.Tables;
 import com.netflix.iceberg.exceptions.AlreadyExistsException;
 import com.netflix.iceberg.exceptions.NoSuchTableException;
@@ -58,7 +57,7 @@ public class HadoopTables implements Tables, Configurable {
    * @return table implementation
    */
   @Override
-  public TableWithTableOperations load(String location) {
+  public Table load(String location) {
     TableOperations ops = newTableOps(location);
     if (ops.current() == null) {
       throw new NoSuchTableException("Table does not exist at location: " + location);
@@ -77,7 +76,7 @@ public class HadoopTables implements Tables, Configurable {
    * @return newly created table implementation
    */
   @Override
-  public TableWithTableOperations create(Schema schema, PartitionSpec spec, Map<String, String> properties,
+  public Table create(Schema schema, PartitionSpec spec, Map<String, String> properties,
                       String location) {
     TableOperations ops = newTableOps(location);
     if (ops.current() != null) {
