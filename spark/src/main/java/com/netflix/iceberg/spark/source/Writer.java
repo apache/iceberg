@@ -45,8 +45,6 @@ import com.netflix.iceberg.transforms.Transform;
 import com.netflix.iceberg.transforms.Transforms;
 import com.netflix.iceberg.types.Types.StringType;
 import com.netflix.iceberg.util.Tasks;
-import java.net.URI;
-import javax.ws.rs.core.UriBuilder;
 import org.apache.hadoop.fs.Path;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.execution.datasources.parquet.ParquetWriteSupport;
@@ -192,8 +190,6 @@ class Writer implements DataSourceWriter {
     private final String uuid = UUID.randomUUID().toString();
     private final FileIO fileIo;
 
-    private transient URI dataPath = null;
-
     WriterFactory(PartitionSpec spec, FileFormat format, String dataLocation,
                   Map<String, String> properties, FileIO fileIo) {
       this.spec = spec;
@@ -208,14 +204,14 @@ class Writer implements DataSourceWriter {
       String filename = format.addExtension(String.format("%05d-%d-%s", partitionId, taskId, uuid));
       AppenderFactory<InternalRow> factory = new SparkAppenderFactory();
       if (spec.fields().isEmpty()) {
-        return new UnpartitionedWriter(lazyDataPath(), filename, format, factory, fileIo);
+        return new UnpartitionedWriter(dataLocation, filename, format, factory, fileIo);
       } else {
-        URI baseDataPath = lazyDataPath(); // avoid calling this in the output path function
-        Function<PartitionKey, URI> outputPathFunc = key ->
-            UriBuilder.fromUri(baseDataPath)
-                .path(key.toPath())
-                .path(filename)
-                .build();
+        String baseDataPath = stripTrailingSlash(dataLocation); // avoid calling this in the output path function
+        Function<PartitionKey, String> outputPathFunc = key ->
+            String.format("%s/%s/%s",
+                stripTrailingSlash(baseDataPath),
+                stripTrailingSlash(stripLeadingSlash(key.toPath())),
+                filename);
 
         boolean useObjectStorage = (
             Boolean.parseBoolean(properties.get(OBJECT_STORE_ENABLED)) ||
@@ -230,13 +226,15 @@ class Writer implements DataSourceWriter {
               "Cannot use object storage, missing location: " + OBJECT_STORE_PATH);
 
           outputPathFunc = key -> {
-            String partitionAndFilename = key.toPath() + "/" + filename;
+            String partitionAndFilename = String.format("%s/%s", key.toPath(), filename);
             int hash = HASH_FUNC.apply(partitionAndFilename);
-            return UriBuilder.fromUri(URI.create(objectStore))
-                .path(String.format("%08x", hash))
-                .path(context)
-                .path(partitionAndFilename)
-                .build();
+            return String.format(
+                "%s/%08x/%s/%s/%s",
+                stripTrailingSlash(objectStore),
+                hash,
+                stripTrailingSlash(stripLeadingSlash(context)),
+                stripTrailingSlash(stripLeadingSlash(key.toPath())),
+                filename);
           };
         }
 
@@ -256,13 +254,6 @@ class Writer implements DataSourceWriter {
       }
 
       return dataPath.getName();
-    }
-
-    private URI lazyDataPath() {
-      if (dataPath == null) {
-        this.dataPath = URI.create(dataLocation);
-      }
-      return dataPath;
     }
 
     private class SparkAppenderFactory implements AppenderFactory<InternalRow> {
@@ -311,12 +302,12 @@ class Writer implements DataSourceWriter {
     private Metrics metrics = null;
 
     UnpartitionedWriter(
-        URI dataPath,
+        String dataPath,
         String filename,
         FileFormat format,
         AppenderFactory<InternalRow> factory,
         FileIO fileIo) {
-      this.file = UriBuilder.fromUri(dataPath).path(filename).build().toString();
+      this.file = String.format("%s/%s", stripTrailingSlash(dataPath), filename);
       this.fileIo = fileIo;
       this.appender = factory.newAppender(fileIo.newOutputFile(file), format);
     }
@@ -367,18 +358,20 @@ class Writer implements DataSourceWriter {
     private final PartitionSpec spec;
     private final FileFormat format;
     private final AppenderFactory<InternalRow> factory;
-    private final Function<PartitionKey, URI> outputPathFunc;
+    private final Function<PartitionKey, String> outputPathFunc;
     private final PartitionKey key;
     private final FileIO fileIo;
 
     private PartitionKey currentKey = null;
     private FileAppender<InternalRow> currentAppender = null;
-    private URI currentPath = null;
+    private String currentPath = null;
 
-    PartitionedWriter(PartitionSpec spec, FileFormat format,
-                      AppenderFactory<InternalRow> factory,
-                      Function<PartitionKey, URI> outputPathFunc,
-                      FileIO fileIo) {
+    PartitionedWriter(
+        PartitionSpec spec,
+        FileFormat format,
+        AppenderFactory<InternalRow> factory,
+        Function<PartitionKey, String> outputPathFunc,
+        FileIO fileIo) {
       this.spec = spec;
       this.format = format;
       this.factory = factory;
@@ -427,7 +420,7 @@ class Writer implements DataSourceWriter {
       if (currentAppender != null) {
         currentAppender.close();
         this.currentAppender = null;
-        fileIo.deleteFile(currentPath.toString());
+        fileIo.deleteFile(currentPath);
       }
     }
 
@@ -438,7 +431,7 @@ class Writer implements DataSourceWriter {
         Metrics metrics = currentAppender.metrics();
         this.currentAppender = null;
 
-        InputFile inFile = fileIo.newInputFile(currentPath.toString());
+        InputFile inFile = fileIo.newInputFile(currentPath);
         DataFile dataFile = DataFiles.builder(spec)
             .withInputFile(inFile)
             .withPartition(currentKey)
@@ -449,5 +442,21 @@ class Writer implements DataSourceWriter {
         completedFiles.add(dataFile);
       }
     }
+  }
+
+  private static String stripTrailingSlash(String path) {
+    String result = path;
+    while (result.endsWith("/")) {
+      result = result.substring(0, path.length() - 1);
+    }
+    return result;
+  }
+
+  private static String stripLeadingSlash(String path) {
+    String result = path;
+    while (result.startsWith("/")) {
+      result = result.substring(1, path.length());
+    }
+    return result;
   }
 }
