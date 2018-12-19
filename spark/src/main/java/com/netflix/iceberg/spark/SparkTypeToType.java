@@ -80,10 +80,12 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
         id = getNextId();
       }
 
+      String doc = field.getComment().isDefined() ? field.getComment().get() : null;
+
       if (field.nullable()) {
-        newFields.add(Types.NestedField.optional(id, field.name(), type));
+        newFields.add(Types.NestedField.optional(id, field.name(), type, doc));
       } else {
-        newFields.add(Types.NestedField.required(id, field.name(), type));
+        newFields.add(Types.NestedField.required(id, field.name(), type, doc));
       }
     }
 
