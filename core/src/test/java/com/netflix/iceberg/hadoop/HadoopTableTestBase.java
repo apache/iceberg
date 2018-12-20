@@ -47,18 +47,18 @@ import static com.netflix.iceberg.types.Types.NestedField.required;
 public class HadoopTableTestBase {
   // Schema passed to create tables
   static final Schema SCHEMA = new Schema(
-      required(3, "id", Types.IntegerType.get()),
+      required(3, "id", Types.IntegerType.get(), "unique ID"),
       required(4, "data", Types.StringType.get())
   );
 
   // This is the actual schema for the table, with column IDs reassigned
   static final Schema TABLE_SCHEMA = new Schema(
-      required(1, "id", Types.IntegerType.get()),
+      required(1, "id", Types.IntegerType.get(), "unique ID"),
       required(2, "data", Types.StringType.get())
   );
 
   static final Schema UPDATED_SCHEMA = new Schema(
-      required(1, "id", Types.IntegerType.get()),
+      required(1, "id", Types.IntegerType.get(), "unique ID"),
       required(2, "data", Types.StringType.get()),
       optional(3, "n", Types.IntegerType.get())
   );

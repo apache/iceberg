@@ -73,6 +73,16 @@ public class JsonUtil {
     return pNode.asText();
   }
 
+  public static String getStringOrNull(String property, JsonNode node) {
+    if (!node.has(property)) {
+      return null;
+    }
+    JsonNode pNode = node.get(property);
+    Preconditions.checkArgument(pNode != null && !pNode.isNull() && pNode.isTextual(),
+        "Cannot parse %s from non-string value: %s", property, pNode);
+    return pNode.asText();
+  }
+
   public static Map<String, String> getStringMap(String property, JsonNode node) {
     Preconditions.checkArgument(node.has(property), "Cannot parse missing map %s", property);
     JsonNode pNode = node.get(property);

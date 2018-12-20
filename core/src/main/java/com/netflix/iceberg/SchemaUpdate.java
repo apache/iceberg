@@ -31,6 +31,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static com.netflix.iceberg.types.Types.NestedField.optional;
+import static com.netflix.iceberg.types.Types.NestedField.required;
+
 /**
  * Schema evolution API implementation.
  */
@@ -64,14 +67,14 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   @Override
-  public UpdateSchema addColumn(String name, Type type) {
+  public UpdateSchema addColumn(String name, Type type, String doc) {
     Preconditions.checkArgument(!name.contains("."),
         "Cannot add column with ambiguous name: %s, use addColumn(parent, name, type)", name);
-    return addColumn(null, name, type);
+    return addColumn(null, name, type, doc);
   }
 
   @Override
-  public UpdateSchema addColumn(String parent, String name, Type type) {
+  public UpdateSchema addColumn(String parent, String name, Type type, String doc) {
     int parentId = TABLE_ROOT_ID;
     if (parent != null) {
       Types.NestedField parentField = schema.findField(parent);
@@ -102,8 +105,8 @@ class SchemaUpdate implements UpdateSchema {
 
     // assign new IDs in order
     int newId = assignNewColumnId();
-    adds.put(parentId, Types.NestedField.optional(newId, name,
-        TypeUtil.assignFreshIds(type, this::assignNewColumnId)));
+    adds.put(parentId, optional(newId, name,
+        TypeUtil.assignFreshIds(type, this::assignNewColumnId), doc));
 
     return this;
   }
@@ -126,6 +129,7 @@ class SchemaUpdate implements UpdateSchema {
   public UpdateSchema renameColumn(String name, String newName) {
     Types.NestedField field = schema.findField(name);
     Preconditions.checkArgument(field != null, "Cannot rename missing column: %s", name);
+    Preconditions.checkArgument(newName != null, "Cannot rename a column to null");
     Preconditions.checkArgument(!deletes.contains(field.fieldId()),
         "Cannot rename a column that will be deleted: %s", field.name());
 
@@ -133,9 +137,9 @@ class SchemaUpdate implements UpdateSchema {
     int fieldId = field.fieldId();
     Types.NestedField update = updates.get(fieldId);
     if (update != null) {
-      updates.put(fieldId, Types.NestedField.required(fieldId, newName, update.type()));
+      updates.put(fieldId, required(fieldId, newName, update.type(), update.doc()));
     } else {
-      updates.put(fieldId, Types.NestedField.required(fieldId, newName, field.type()));
+      updates.put(fieldId, required(fieldId, newName, field.type(), field.doc()));
     }
 
     return this;
@@ -154,9 +158,28 @@ class SchemaUpdate implements UpdateSchema {
     int fieldId = field.fieldId();
     Types.NestedField rename = updates.get(fieldId);
     if (rename != null) {
-      updates.put(fieldId, Types.NestedField.required(fieldId, rename.name(), newType));
+      updates.put(fieldId, required(fieldId, rename.name(), newType, rename.doc()));
     } else {
-      updates.put(fieldId, Types.NestedField.required(fieldId, field.name(), newType));
+      updates.put(fieldId, required(fieldId, field.name(), newType, field.doc()));
+    }
+
+    return this;
+  }
+
+  @Override
+  public UpdateSchema updateColumnDoc(String name, String doc) {
+    Types.NestedField field = schema.findField(name);
+    Preconditions.checkArgument(field != null, "Cannot update missing column: %s", name);
+    Preconditions.checkArgument(!deletes.contains(field.fieldId()),
+        "Cannot update a column that will be deleted: %s", field.name());
+
+    // merge with a rename or update, if present
+    int fieldId = field.fieldId();
+    Types.NestedField update = updates.get(fieldId);
+    if (update != null) {
+      updates.put(fieldId, required(fieldId, update.name(), update.type(), doc));
+    } else {
+      updates.put(fieldId, required(fieldId, field.name(), field.type(), doc));
     }
 
     return this;
@@ -231,17 +254,19 @@ class SchemaUpdate implements UpdateSchema {
 
         Types.NestedField field = struct.fields().get(i);
         String name = field.name();
+        String doc = field.doc();
         Types.NestedField update = updates.get(field.fieldId());
-        if (update != null && update.name() != null) {
+        if (update != null) {
           name = update.name();
+          doc = update.doc();
         }
 
         if (!name.equals(field.name()) || field.type() != resultType) {
           hasChange = true;
           if (field.isOptional()) {
-            newFields.add(Types.NestedField.optional(field.fieldId(), name, resultType));
+            newFields.add(optional(field.fieldId(), name, resultType, doc));
           } else {
-            newFields.add(Types.NestedField.required(field.fieldId(), name, resultType));
+            newFields.add(required(field.fieldId(), name, resultType, doc));
           }
         } else {
           newFields.add(field);
@@ -259,17 +284,20 @@ class SchemaUpdate implements UpdateSchema {
     @Override
     public Type field(Types.NestedField field, Type fieldResult) {
       // the API validates deletes, updates, and additions don't conflict
+      // handle deletes
       int fieldId = field.fieldId();
       if (deletes.contains(fieldId)) {
         return null;
       }
 
+      // handle updates
       Types.NestedField update = updates.get(field.fieldId());
       if (update != null && update.type() != field.type()) {
-        // rename is handled in struct
+        // rename is handled in struct, but struct needs the correct type from the field result
         return update.type();
       }
 
+      // handle adds
       Collection<Types.NestedField> newFields = adds.get(fieldId);
       if (newFields != null && !newFields.isEmpty()) {
         return addFields(fieldResult.asNestedType().asStructType(), newFields);
