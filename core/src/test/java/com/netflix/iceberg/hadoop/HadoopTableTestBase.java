@@ -29,6 +29,7 @@ import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.Table;
 import com.netflix.iceberg.TableMetadata;
 import com.netflix.iceberg.TableMetadataParser;
+import com.netflix.iceberg.TestTables;
 import com.netflix.iceberg.types.Types;
 import org.apache.hadoop.conf.Configuration;
 import org.junit.Before;
@@ -114,9 +115,9 @@ public class HadoopTableTestBase {
     this.table = TABLES.create(SCHEMA, SPEC, tableLocation);
   }
 
-  List<File> listMetadataFiles(String ext) {
-    return Lists.newArrayList(metadataDir.listFiles(
-        (dir, name) -> Files.getFileExtension(name).equalsIgnoreCase(ext)));
+  List<File> listManifestFiles() {
+    return Lists.newArrayList(metadataDir.listFiles((dir, name) ->
+        !name.startsWith("snap") && Files.getFileExtension(name).equalsIgnoreCase("avro")));
   }
 
   File version(int i) {
@@ -124,7 +125,8 @@ public class HadoopTableTestBase {
   }
 
   TableMetadata readMetadataVersion(int version) {
-    return TableMetadataParser.read(null, localInput(version(version)));
+    return TableMetadataParser.read(new TestTables.TestTableOperations("table", tableDir),
+        localInput(version(version)));
   }
 
   int readVersionHint() throws IOException {

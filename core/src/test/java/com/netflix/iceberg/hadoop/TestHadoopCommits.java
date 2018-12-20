@@ -62,7 +62,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     Assert.assertEquals("Should write the current version to the hint file",
         1, readVersionHint());
 
-    List<File> manifests = listMetadataFiles("avro");
+    List<File> manifests = listManifestFiles();
     Assert.assertEquals("Should contain 0 Avro manifest files", 0, manifests.size());
   }
 
@@ -88,7 +88,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles());
     Assert.assertEquals("Should not create any scan tasks", 0, tasks.size());
 
-    List<File> manifests = listMetadataFiles("avro");
+    List<File> manifests = listManifestFiles();
     Assert.assertEquals("Should contain 0 Avro manifest files", 0, manifests.size());
   }
 
@@ -108,7 +108,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     AssertHelpers.assertThrows("Should fail to commit change based on v1 when v2 exists",
         CommitFailedException.class, "Version 2 already exists", update::commit);
 
-    List<File> manifests = listMetadataFiles("avro");
+    List<File> manifests = listManifestFiles();
     Assert.assertEquals("Should contain 0 Avro manifest files", 0, manifests.size());
   }
 
@@ -144,7 +144,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     AssertHelpers.assertThrows("Should fail with stale base metadata",
         CommitFailedException.class, "based on stale table metadata", updateCopy::commit);
 
-    List<File> manifests = listMetadataFiles("avro");
+    List<File> manifests = listManifestFiles();
     Assert.assertEquals("Should contain 0 Avro manifest files", 0, manifests.size());
   }
 
@@ -196,7 +196,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles());
     Assert.assertEquals("Should scan 1 file", 1, tasks.size());
 
-    List<File> manifests = listMetadataFiles("avro");
+    List<File> manifests = listManifestFiles();
     Assert.assertEquals("Should contain only one Avro manifest file", 1, manifests.size());
 
     // second append
@@ -213,7 +213,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     Assert.assertEquals("Should scan 2 files", 2, tasks.size());
 
     Assert.assertEquals("Should contain 2 Avro manifest files",
-        2, listMetadataFiles("avro").size());
+        2, listManifestFiles().size());
 
     TableMetadata metadata = readMetadataVersion(3);
     Assert.assertEquals("Current snapshot should contain 2 manifests",
@@ -236,7 +236,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     Assert.assertEquals("Should scan 3 files", 3, tasks.size());
 
     Assert.assertEquals("Should contain 3 Avro manifest files",
-        3, listMetadataFiles("avro").size());
+        3, listManifestFiles().size());
 
     TableMetadata metadata = readMetadataVersion(5);
     Assert.assertEquals("Current snapshot should contain 1 merged manifest",

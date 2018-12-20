@@ -94,13 +94,13 @@ public class TableTestBase {
     TestTables.clearTables();
   }
 
-  List<File> listMetadataFiles(String ext) {
-    return listMetadataFiles(tableDir, ext);
+  List<File> listManifestFiles() {
+    return listManifestFiles(tableDir);
   }
 
-  List<File> listMetadataFiles(File tableDir, String ext) {
-    return Lists.newArrayList(new File(tableDir, "metadata").listFiles(
-        (dir, name) -> Files.getFileExtension(name).equalsIgnoreCase(ext)));
+  List<File> listManifestFiles(File tableDir) {
+    return Lists.newArrayList(new File(tableDir, "metadata").listFiles((dir, name) ->
+        !name.startsWith("snap") && Files.getFileExtension(name).equalsIgnoreCase("avro")));
   }
 
   private TestTables.TestTable create(Schema schema, PartitionSpec spec) {
