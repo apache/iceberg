@@ -44,7 +44,26 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    * @return this for method chaining
    * @throws IllegalArgumentException If name contains "."
    */
-  UpdateSchema addColumn(String name, Type type);
+  default UpdateSchema addColumn(String name, Type type) {
+    return addColumn(name, type, null);
+  }
+
+  /**
+   * Add a new top-level column.
+   * <p>
+   * Because "." may be interpreted as a column path separator or may be used in field names, it is
+   * not allowed in names passed to this method. To add to nested structures or to add fields with
+   * names that contain ".", use {@link #addColumn(String, String, Type)}.
+   * <p>
+   * If type is a nested type, its field IDs are reassigned when added to the existing schema.
+   *
+   * @param name name for the new column
+   * @param type type for the new column
+   * @param doc documentation string for the new column
+   * @return this for method chaining
+   * @throws IllegalArgumentException If name contains "."
+   */
+  UpdateSchema addColumn(String name, Type type, String doc);
 
   /**
    * Add a new column to a nested struct.
@@ -66,7 +85,32 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    * @return this for method chaining
    * @throws IllegalArgumentException If parent doesn't identify a struct
    */
-  UpdateSchema addColumn(String parent, String name, Type type);
+  default UpdateSchema addColumn(String parent, String name, Type type) {
+    return addColumn(parent, name, type, null);
+  }
+
+  /**
+   * Add a new column to a nested struct.
+   * <p>
+   * The parent name is used to find the parent using {@link Schema#findField(String)}. If the
+   * parent name is null, the new column will be added to the root as a top-level column. If parent
+   * identifies a struct, a new column is added to that struct. If it identifies a list, the column
+   * is added to the list element struct, and if it identifies a map, the new column is added to
+   * the map's value struct.
+   * <p>
+   * The given name is used to name the new column and names containing "." are not handled
+   * differently.
+   * <p>
+   * If type is a nested type, its field IDs are reassigned when added to the existing schema.
+   *
+   * @param parent name of the parent struct to the column will be added to
+   * @param name name for the new column
+   * @param type type for the new column
+   * @param doc documentation string for the new column
+   * @return this for method chaining
+   * @throws IllegalArgumentException If parent doesn't identify a struct
+   */
+  UpdateSchema addColumn(String parent, String name, Type type, String doc);
 
   /**
    * Rename a column in the schema.
@@ -102,6 +146,43 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    *                                  with other additions, renames, or updates.
    */
   UpdateSchema updateColumn(String name, Type.PrimitiveType newType);
+
+  /**
+   * Update a column in the schema to a new primitive type.
+   * <p>
+   * The name is used to find the column to update using {@link Schema#findField(String)}.
+   * <p>
+   * Columns may be updated and renamed in the same schema update.
+   *
+   * @param name name of the column to rename
+   * @param newDoc replacement documentation string for the column
+   * @return this for method chaining
+   * @throws IllegalArgumentException If name doesn't identify a column in the schema or if this
+   *                                  change introduces a type incompatibility or if it conflicts
+   *                                  with other additions, renames, or updates.
+   */
+  UpdateSchema updateColumnDoc(String name, String newDoc);
+
+  /**
+   * Update a column in the schema to a new primitive type.
+   * <p>
+   * The name is used to find the column to update using {@link Schema#findField(String)}.
+   * <p>
+   * Only updates that widen types are allowed.
+   * <p>
+   * Columns may be updated and renamed in the same schema update.
+   *
+   * @param name name of the column to rename
+   * @param newType replacement type for the column
+   * @param newDoc replacement documentation string for the column
+   * @return this for method chaining
+   * @throws IllegalArgumentException If name doesn't identify a column in the schema or if this
+   *                                  change introduces a type incompatibility or if it conflicts
+   *                                  with other additions, renames, or updates.
+   */
+  default UpdateSchema updateColumn(String name, Type.PrimitiveType newType, String newDoc) {
+    return updateColumn(name, newType).updateColumnDoc(name, newDoc);
+  }
 
   /**
    * Delete a column in the schema.

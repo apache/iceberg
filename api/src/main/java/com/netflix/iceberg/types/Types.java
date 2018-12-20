@@ -469,7 +469,8 @@ public class Types {
     @Override
     public String toString() {
       return String.format("%d: %s: %s %s",
-          id, name, isOptional ? "optional" : "required", type);
+          id, name, isOptional ? "optional" : "required", type) +
+          (doc != null ? " (" + doc + ")" : "");
     }
 
     @Override
