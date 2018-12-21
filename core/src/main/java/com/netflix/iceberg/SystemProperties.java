@@ -24,12 +24,6 @@ package com.netflix.iceberg;
  */
 public class SystemProperties {
   /**
-   * Sets the size of the planner pool. The planner pool limits the number of concurrent planning
-   * operations in the base table implementation.
-   */
-  public static final String PLANNER_THREAD_POOL_SIZE_PROP = "iceberg.planner.num-threads";
-
-  /**
    * Sets the size of the worker pool. The worker pool limits the number of tasks concurrently
    * processing manifests in the base table implementation across all concurrent planning or commit
    * operations.
