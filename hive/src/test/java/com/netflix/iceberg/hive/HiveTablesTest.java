@@ -15,8 +15,12 @@
  */
 package com.netflix.iceberg.hive;
 
+import com.netflix.iceberg.DataFile;
+import com.netflix.iceberg.DataFiles;
+import com.netflix.iceberg.FileFormat;
 import com.netflix.iceberg.exceptions.CommitFailedException;
 import com.netflix.iceberg.types.Types;
+import com.netflix.iceberg.util.Tasks;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.thrift.TException;
 import org.junit.Assert;
@@ -24,11 +28,14 @@ import org.junit.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static com.netflix.iceberg.BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE;
 import static com.netflix.iceberg.BaseMetastoreTableOperations.METADATA_LOCATION_PROP;
 import static com.netflix.iceberg.BaseMetastoreTableOperations.TABLE_TYPE_PROP;
+import static com.netflix.iceberg.util.ThreadPools.getWorkerPool;
 
 public class HiveTablesTest extends HiveTableBaseTest {
   @Test
@@ -86,5 +93,39 @@ public class HiveTablesTest extends HiveTableBaseTest {
     icebergTable.updateSchema()
             .addColumn("data", Types.LongType.get())
             .commit();
+  }
+
+  @Test
+  public void testConcurrentFastAppends() {
+    HiveTables hiveTables = new HiveTables(hiveConf);
+    com.netflix.iceberg.Table icebergTable = hiveTables.load(DB_NAME, TABLE_NAME);
+    com.netflix.iceberg.Table anotherIcebergTable = hiveTables.load(DB_NAME, TABLE_NAME);
+
+    String fileName = UUID.randomUUID().toString();
+    DataFile file = DataFiles.builder(icebergTable.spec())
+      .withPath(FileFormat.PARQUET.addExtension(fileName))
+      .withRecordCount(2)
+      .withFileSizeInBytes(0)
+      .build();
+
+    Tasks.foreach(icebergTable, anotherIcebergTable)
+      .stopOnFailure().throwFailureWhenFinished()
+      .executeWith(getWorkerPool())
+      .run(table -> {
+        for (int numCommittedFiles = 0; numCommittedFiles < 10; numCommittedFiles++) {
+          long commitStartTime = System.currentTimeMillis();
+          table.newFastAppend().appendFile(file).commit();
+          long commitEndTime = System.currentTimeMillis();
+          long commitDuration = commitEndTime - commitStartTime;
+          try {
+            TimeUnit.MILLISECONDS.sleep(200 - commitDuration);
+          } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+          }
+        }
+      });
+
+    icebergTable.refresh();
+    Assert.assertEquals(20, icebergTable.currentSnapshot().manifests().size());
   }
 }
