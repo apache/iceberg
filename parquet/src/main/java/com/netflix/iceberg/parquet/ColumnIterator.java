@@ -32,7 +32,7 @@ import java.io.IOException;
 public abstract class ColumnIterator<T> implements TripleIterator<T> {
   @SuppressWarnings("unchecked")
   static <T> ColumnIterator<T> newIterator(ColumnDescriptor desc, String writerVersion) {
-    switch (desc.getType()) {
+    switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
       case BOOLEAN:
         return (ColumnIterator<T>) new ColumnIterator<Boolean>(desc, writerVersion) {
           @Override
@@ -77,7 +77,8 @@ public abstract class ColumnIterator<T> implements TripleIterator<T> {
           }
         };
       default:
-        throw new UnsupportedOperationException("Unsupported primitive type: " + desc.getType());
+        throw new UnsupportedOperationException("Unsupported primitive type: "
+                + desc.getPrimitiveType().getPrimitiveTypeName());
     }
   }
 

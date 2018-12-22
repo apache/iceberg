@@ -50,7 +50,7 @@ abstract class PageIterator<T> implements TripleIterator<T> {
 
   @SuppressWarnings("unchecked")
   static <T> PageIterator<T> newIterator(ColumnDescriptor desc, String writerVersion) {
-    switch (desc.getType()) {
+    switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
       case BOOLEAN:
         return (PageIterator<T>) new PageIterator<Boolean>(desc, writerVersion) {
           @Override
@@ -95,7 +95,8 @@ abstract class PageIterator<T> implements TripleIterator<T> {
           }
         };
       default:
-        throw new UnsupportedOperationException("Unsupported primitive type: " + desc.getType());
+        throw new UnsupportedOperationException("Unsupported primitive type: "
+                + desc.getPrimitiveType().getPrimitiveTypeName());
     }
   }
 
