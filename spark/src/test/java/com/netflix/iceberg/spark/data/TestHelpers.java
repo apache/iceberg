@@ -20,6 +20,7 @@
 package com.netflix.iceberg.spark.data;
 
 import com.google.common.collect.Lists;
+import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Types;
 import org.apache.avro.generic.GenericData;
@@ -32,7 +33,12 @@ import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 import org.apache.spark.sql.catalyst.util.MapData;
+import org.apache.spark.sql.types.ArrayType;
+import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.types.MapType;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.Assert;
 import scala.collection.Seq;
@@ -555,6 +561,80 @@ public class TestHelpers {
       Assert.assertEquals(context, expected, actual);
     } else {
       Assert.assertArrayEquals(context, expected, actual);
+    }
+  }
+
+  static void assertEquals(Schema schema, Object expected, Object actual) {
+    assertEquals("schema", convert(schema), expected, actual);
+  }
+
+  private static void assertEquals(String context, DataType type, Object expected, Object actual) {
+    if (expected == null && actual == null) {
+      return;
+    }
+
+    if (type instanceof StructType) {
+      Assert.assertTrue("Expected should be an InternalRow: " + context,
+          expected instanceof InternalRow);
+      Assert.assertTrue("Actual should be an InternalRow: " + context,
+          actual instanceof InternalRow);
+      assertEquals(context, (StructType) type, (InternalRow) expected, (InternalRow) actual);
+
+    } else if (type instanceof ArrayType) {
+      Assert.assertTrue("Expected should be an ArrayData: " + context,
+          expected instanceof ArrayData);
+      Assert.assertTrue("Actual should be an ArrayData: " + context,
+          actual instanceof ArrayData);
+      assertEquals(context, (ArrayType) type, (ArrayData) expected, (ArrayData) actual);
+
+    } else if (type instanceof MapType) {
+      Assert.assertTrue("Expected should be a MapData: " + context,
+          expected instanceof MapData);
+      Assert.assertTrue("Actual should be a MapData: " + context,
+          actual instanceof MapData);
+      assertEquals(context, (MapType) type, (MapData) expected, (MapData) actual);
+
+    } else {
+      Assert.assertEquals("Value should match expected: " + context, expected, actual);
+    }
+  }
+
+  private static void assertEquals(String context, StructType struct,
+                           InternalRow expected, InternalRow actual) {
+    Assert.assertEquals("Should have correct number of fields", struct.size(), actual.numFields());
+    for (int i = 0; i < actual.numFields(); i += 1) {
+      StructField field = struct.fields()[i];
+      DataType type = field.dataType();
+      assertEquals(context + "." + field.name(), type, expected.get(i, type), actual.get(i, type));
+    }
+  }
+
+  private static void assertEquals(String context, ArrayType array, ArrayData expected, ArrayData actual) {
+    Assert.assertEquals("Should have the same number of elements",
+        expected.numElements(), actual.numElements());
+    DataType type = array.elementType();
+    for (int i = 0; i < actual.numElements(); i += 1) {
+      assertEquals(context + ".element", type, expected.get(i, type), actual.get(i, type));
+    }
+  }
+
+  private static void assertEquals(String context, MapType map, MapData expected, MapData actual) {
+    Assert.assertEquals("Should have the same number of elements",
+        expected.numElements(), actual.numElements());
+
+    DataType keyType = map.keyType();
+    ArrayData expectedKeys = expected.keyArray();
+    ArrayData expectedValues = expected.valueArray();
+
+    DataType valueType = map.valueType();
+    ArrayData actualKeys = actual.keyArray();
+    ArrayData actualValues = actual.valueArray();
+
+    for (int i = 0; i < actual.numElements(); i += 1) {
+      assertEquals(context + ".key", keyType,
+          expectedKeys.get(i, keyType), actualKeys.get(i, keyType));
+      assertEquals(context + ".value", valueType,
+          expectedValues.get(i, valueType), actualValues.get(i, valueType));
     }
   }
 }
