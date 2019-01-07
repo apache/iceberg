@@ -15,6 +15,7 @@
  */
 package com.netflix.iceberg.hive;
 
+import com.google.common.util.concurrent.MoreExecutors;
 import com.netflix.iceberg.DataFile;
 import com.netflix.iceberg.DataFiles;
 import com.netflix.iceberg.FileFormat;
@@ -29,13 +30,15 @@ import org.junit.Test;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static com.netflix.iceberg.BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE;
 import static com.netflix.iceberg.BaseMetastoreTableOperations.METADATA_LOCATION_PROP;
 import static com.netflix.iceberg.BaseMetastoreTableOperations.TABLE_TYPE_PROP;
-import static com.netflix.iceberg.util.ThreadPools.getWorkerPool;
 
 public class HiveTablesTest extends HiveTableBaseTest {
   @Test
@@ -108,9 +111,12 @@ public class HiveTablesTest extends HiveTableBaseTest {
       .withFileSizeInBytes(0)
       .build();
 
+    ExecutorService executorService = MoreExecutors.getExitingExecutorService(
+      (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
+
     Tasks.foreach(icebergTable, anotherIcebergTable)
       .stopOnFailure().throwFailureWhenFinished()
-      .executeWith(getWorkerPool())
+      .executeWith(executorService)
       .run(table -> {
         for (int numCommittedFiles = 0; numCommittedFiles < 10; numCommittedFiles++) {
           long commitStartTime = System.currentTimeMillis();
