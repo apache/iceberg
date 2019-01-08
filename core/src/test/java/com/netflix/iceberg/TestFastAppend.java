@@ -32,7 +32,7 @@ public class TestFastAppend extends TableTestBase {
 
   @Test
   public void testEmptyTableAppend() {
-    Assert.assertEquals("Table should start empty", 0, listMetadataFiles("avro").size());
+    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
 
     TableMetadata base = readMetadata();
     Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
@@ -171,7 +171,32 @@ public class TestFastAppend extends TableTestBase {
   }
 
   @Test
-  public void testRecovery() {
+  public void testRecoveryWithManifestList() {
+    table.updateProperties().set(TableProperties.MANIFEST_LISTS_ENABLED, "true").commit();
+
+    // inject 3 failures, the last try will succeed
+    TestTables.TestTableOperations ops = table.ops();
+    ops.failCommits(3);
+
+    AppendFiles append = table.newFastAppend().appendFile(FILE_B);
+    Snapshot pending = append.apply();
+    ManifestFile newManifest = pending.manifests().get(0);
+    Assert.assertTrue("Should create new manifest", new File(newManifest.path()).exists());
+
+    append.commit();
+
+    TableMetadata metadata = readMetadata();
+
+    validateSnapshot(null, metadata.currentSnapshot(), FILE_B);
+    Assert.assertTrue("Should commit same new manifest", new File(newManifest.path()).exists());
+    Assert.assertTrue("Should commit the same new manifest",
+        metadata.currentSnapshot().manifests().contains(newManifest));
+  }
+
+  @Test
+  public void testRecoveryWithoutManifestList() {
+    table.updateProperties().set(TableProperties.MANIFEST_LISTS_ENABLED, "false").commit();
+
     // inject 3 failures, the last try will succeed
     TestTables.TestTableOperations ops = table.ops();
     ops.failCommits(3);

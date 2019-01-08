@@ -73,5 +73,5 @@ public class TableProperties {
   public static final String WRITE_NEW_DATA_LOCATION = "write.folder-storage.path";
 
   public static final String MANIFEST_LISTS_ENABLED = "write.manifest-lists.enabled";
-  public static final boolean MANIFEST_LISTS_ENABLED_DEFAULT = false;
+  public static final boolean MANIFEST_LISTS_ENABLED_DEFAULT = true;
 }

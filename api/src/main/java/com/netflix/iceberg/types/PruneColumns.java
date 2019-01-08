@@ -53,10 +53,10 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
         sameTypes = false; // signal that some types were altered
         if (field.isOptional()) {
           selectedFields.add(
-              Types.NestedField.optional(field.fieldId(), field.name(), projectedType));
+              Types.NestedField.optional(field.fieldId(), field.name(), projectedType, field.doc()));
         } else {
           selectedFields.add(
-              Types.NestedField.required(field.fieldId(), field.name(), projectedType));
+              Types.NestedField.required(field.fieldId(), field.name(), projectedType, field.doc()));
         }
       }
     }

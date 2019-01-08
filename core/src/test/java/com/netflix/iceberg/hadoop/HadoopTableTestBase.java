@@ -29,6 +29,7 @@ import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.Table;
 import com.netflix.iceberg.TableMetadata;
 import com.netflix.iceberg.TableMetadataParser;
+import com.netflix.iceberg.TestTables;
 import com.netflix.iceberg.types.Types;
 import org.apache.hadoop.conf.Configuration;
 import org.junit.Before;
@@ -46,18 +47,18 @@ import static com.netflix.iceberg.types.Types.NestedField.required;
 public class HadoopTableTestBase {
   // Schema passed to create tables
   static final Schema SCHEMA = new Schema(
-      required(3, "id", Types.IntegerType.get()),
+      required(3, "id", Types.IntegerType.get(), "unique ID"),
       required(4, "data", Types.StringType.get())
   );
 
   // This is the actual schema for the table, with column IDs reassigned
   static final Schema TABLE_SCHEMA = new Schema(
-      required(1, "id", Types.IntegerType.get()),
+      required(1, "id", Types.IntegerType.get(), "unique ID"),
       required(2, "data", Types.StringType.get())
   );
 
   static final Schema UPDATED_SCHEMA = new Schema(
-      required(1, "id", Types.IntegerType.get()),
+      required(1, "id", Types.IntegerType.get(), "unique ID"),
       required(2, "data", Types.StringType.get()),
       optional(3, "n", Types.IntegerType.get())
   );
@@ -114,9 +115,9 @@ public class HadoopTableTestBase {
     this.table = TABLES.create(SCHEMA, SPEC, tableLocation);
   }
 
-  List<File> listMetadataFiles(String ext) {
-    return Lists.newArrayList(metadataDir.listFiles(
-        (dir, name) -> Files.getFileExtension(name).equalsIgnoreCase(ext)));
+  List<File> listManifestFiles() {
+    return Lists.newArrayList(metadataDir.listFiles((dir, name) ->
+        !name.startsWith("snap") && Files.getFileExtension(name).equalsIgnoreCase("avro")));
   }
 
   File version(int i) {
@@ -124,7 +125,8 @@ public class HadoopTableTestBase {
   }
 
   TableMetadata readMetadataVersion(int version) {
-    return TableMetadataParser.read(null, localInput(version(version)));
+    return TableMetadataParser.read(new TestTables.TestTableOperations("table", tableDir),
+        localInput(version(version)));
   }
 
   int readVersionHint() throws IOException {

@@ -204,10 +204,15 @@ public class SparkParquetReaders {
           case JSON:
           case UTF8:
             return new StringReader(desc);
-          case DATE:
           case INT_8:
           case INT_16:
           case INT_32:
+            if (expected != null && expected.typeId() == Types.LongType.get().typeId()) {
+              return new IntAsLongReader(desc);
+            } else {
+              return new UnboxedReader(desc);
+            }
+          case DATE:
           case INT_64:
           case TIMESTAMP_MICROS:
             return new UnboxedReader<>(desc);

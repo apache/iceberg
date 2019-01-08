@@ -60,7 +60,7 @@ public class TestTableMetadataJson {
   public void testJsonConversion() throws Exception {
     Schema schema = new Schema(
         Types.NestedField.required(1, "x", Types.LongType.get()),
-        Types.NestedField.required(2, "y", Types.LongType.get()),
+        Types.NestedField.required(2, "y", Types.LongType.get(), "comment"),
         Types.NestedField.required(3, "z", Types.LongType.get())
     );
 

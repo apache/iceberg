@@ -411,25 +411,35 @@ public class Types {
 
   public static class NestedField implements Serializable {
     public static NestedField optional(int id, String name, Type type) {
-      return new NestedField(true, id, name, type);
+      return new NestedField(true, id, name, type, null);
+    }
+
+    public static NestedField optional(int id, String name, Type type, String doc) {
+      return new NestedField(true, id, name, type, doc);
     }
 
     public static NestedField required(int id, String name, Type type) {
-      return new NestedField(false, id, name, type);
+      return new NestedField(false, id, name, type, null);
+    }
+
+    public static NestedField required(int id, String name, Type type, String doc) {
+      return new NestedField(false, id, name, type, doc);
     }
 
     private final boolean isOptional;
     private final int id;
     private final String name;
     private final Type type;
+    private final String doc;
 
-    private NestedField(boolean isOptional, int id, String name, Type type) {
+    private NestedField(boolean isOptional, int id, String name, Type type, String doc) {
       Preconditions.checkNotNull(name, "Name cannot be null");
       Preconditions.checkNotNull(type, "Type cannot be null");
       this.isOptional = isOptional;
       this.id = id;
       this.name = name;
       this.type = type;
+      this.doc = doc;
     }
 
     public boolean isOptional() {
@@ -452,10 +462,15 @@ public class Types {
       return type;
     }
 
+    public String doc() {
+      return doc;
+    }
+
     @Override
     public String toString() {
       return String.format("%d: %s: %s %s",
-          id, name, isOptional ? "optional" : "required", type);
+          id, name, isOptional ? "optional" : "required", type) +
+          (doc != null ? " (" + doc + ")" : "");
     }
 
     @Override
@@ -472,6 +487,8 @@ public class Types {
       } else if (id != that.id) {
         return false;
       } else if (!name.equals(that.name)) {
+        return false;
+      } else if (!Objects.equals(doc, that.doc)) {
         return false;
       }
       return type.equals(that.type);

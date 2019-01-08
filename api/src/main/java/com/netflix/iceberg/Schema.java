@@ -226,7 +226,7 @@ public class Schema implements Serializable {
   public String toString() {
     return String.format("table {\n%s\n}",
         NEWLINE.join(struct.fields().stream()
-            .map(f -> "  " + f)
+            .map(f -> "  " + f + (f.doc() == null ? "" : " COMMENT '" + f.doc() + "'"))
             .collect(Collectors.toList())));
   }
 }
