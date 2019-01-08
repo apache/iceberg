@@ -19,15 +19,8 @@
 
 package com.netflix.iceberg;
 
-<<<<<<< HEAD
 import com.netflix.iceberg.io.FileIO;
-||||||| merged common ancestors
-import com.netflix.iceberg.io.OutputFile;
-=======
 import java.util.UUID;
-
-import com.netflix.iceberg.io.OutputFile;
->>>>>>> upstream-incubator/master
 
 /**
  * SPI interface to abstract table metadata access and updates.
