@@ -150,9 +150,10 @@ class Writer implements DataSourceWriter {
   }
 
   private String dataLocation() {
-    return table.properties().getOrDefault(
-        TableProperties.WRITE_NEW_DATA_LOCATION,
-        new Path(new Path(table.location()), "data").toString());
+    return stripTrailingSlash(
+        table.properties().getOrDefault(
+            TableProperties.WRITE_NEW_DATA_LOCATION,
+            String.format("%s/data", table.location())));
   }
 
   @Override
@@ -206,12 +207,8 @@ class Writer implements DataSourceWriter {
       if (spec.fields().isEmpty()) {
         return new UnpartitionedWriter(dataLocation, filename, format, factory, fileIo);
       } else {
-        String baseDataPath = stripTrailingSlash(dataLocation); // avoid calling this in the output path function
         Function<PartitionKey, String> outputPathFunc = key ->
-            String.format("%s/%s/%s",
-                stripTrailingSlash(baseDataPath),
-                stripTrailingSlash(stripLeadingSlash(key.toPath())),
-                filename);
+            String.format("%s/%s/%s", dataLocation, key.toPath(), filename);
 
         boolean useObjectStorage = (
             Boolean.parseBoolean(properties.get(OBJECT_STORE_ENABLED)) ||
@@ -220,8 +217,8 @@ class Writer implements DataSourceWriter {
 
         if (useObjectStorage) {
           // try to get db and table portions of the path for context in the object store
-          String context = pathContext(new Path(baseDataPath));
-          String objectStore = properties.get(OBJECT_STORE_PATH);
+          String context = pathContext(new Path(dataLocation));
+          String objectStore = stripTrailingSlash(properties.get(OBJECT_STORE_PATH));
           Preconditions.checkNotNull(objectStore,
               "Cannot use object storage, missing location: " + OBJECT_STORE_PATH);
 
@@ -230,10 +227,10 @@ class Writer implements DataSourceWriter {
             int hash = HASH_FUNC.apply(partitionAndFilename);
             return String.format(
                 "%s/%08x/%s/%s/%s",
-                stripTrailingSlash(objectStore),
+                objectStore,
                 hash,
-                stripTrailingSlash(stripLeadingSlash(context)),
-                stripTrailingSlash(stripLeadingSlash(key.toPath())),
+                context,
+                key.toPath(),
                 filename);
           };
         }
@@ -244,16 +241,22 @@ class Writer implements DataSourceWriter {
 
     private static String pathContext(Path dataPath) {
       Path parent = dataPath.getParent();
+      String resolvedContext;
       if (parent != null) {
         // remove the data folder
         if (dataPath.getName().equals("data")) {
-          return pathContext(parent);
+          resolvedContext = pathContext(parent);
+        } else {
+          resolvedContext = String.format("%s/%s", parent.getName(), dataPath.getName());
         }
-
-        return parent.getName() + "/" + dataPath.getName();
+      } else {
+        resolvedContext = dataPath.getName();
       }
 
-      return dataPath.getName();
+      Preconditions.checkState(
+          !resolvedContext.endsWith("/"),
+          "Path context must not end with a slash.");
+      return resolvedContext;
     }
 
     private class SparkAppenderFactory implements AppenderFactory<InternalRow> {
@@ -307,7 +310,7 @@ class Writer implements DataSourceWriter {
         FileFormat format,
         AppenderFactory<InternalRow> factory,
         FileIO fileIo) {
-      this.file = String.format("%s/%s", stripTrailingSlash(dataPath), filename);
+      this.file = String.format("%s/%s", dataPath, filename);
       this.fileIo = fileIo;
       this.appender = factory.newAppender(fileIo.newOutputFile(file), format);
     }
@@ -448,14 +451,6 @@ class Writer implements DataSourceWriter {
     String result = path;
     while (result.endsWith("/")) {
       result = result.substring(0, path.length() - 1);
-    }
-    return result;
-  }
-
-  private static String stripLeadingSlash(String path) {
-    String result = path;
-    while (result.startsWith("/")) {
-      result = result.substring(1, path.length());
     }
     return result;
   }
