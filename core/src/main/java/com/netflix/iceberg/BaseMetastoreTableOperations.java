@@ -126,7 +126,12 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   @Override
   public String metadataFileLocation(String fileName) {
-    return String.format("%s/%s/%s", baseLocation, METADATA_FOLDER_NAME, fileName);
+    String metadataLocation = current().properties().get(TableProperties.WRITE_METADATA_LOCATION);
+    if (metadataLocation != null) {
+      return String.format("%s/%s", metadataLocation, fileName);
+    } else {
+      return String.format("%s/%s/%s", baseLocation, METADATA_FOLDER_NAME, fileName);
+    }
   }
 
   @Override
