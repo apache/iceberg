@@ -99,6 +99,14 @@ class BaseTransaction implements Transaction {
   }
 
   @Override
+  public UpdateSchema updateSchema() {
+    checkLastOperationCommitted("UpdateSchema");
+    UpdateSchema schemaChange = new SchemaUpdate(transactionOps);
+    updates.add(schemaChange);
+    return schemaChange;
+  }
+
+  @Override
   public UpdateProperties updateProperties() {
     checkLastOperationCommitted("UpdateProperties");
     UpdateProperties props = new PropertiesUpdate(transactionOps);
@@ -318,7 +326,7 @@ class BaseTransaction implements Transaction {
 
     @Override
     public UpdateSchema updateSchema() {
-      throw new UnsupportedOperationException("Transaction tables do not support schema updates");
+      return BaseTransaction.this.updateSchema();
     }
 
     @Override
