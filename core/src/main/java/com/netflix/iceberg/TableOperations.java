@@ -19,9 +19,8 @@
 
 package com.netflix.iceberg;
 
+import com.netflix.iceberg.io.FileIO;
 import java.util.UUID;
-
-import com.netflix.iceberg.io.OutputFile;
 
 /**
  * SPI interface to abstract table metadata access and updates.
@@ -57,7 +56,7 @@ public interface TableOperations {
   void commit(TableMetadata base, TableMetadata metadata);
 
   /**
-   * @return a {@link com.netflix.iceberg.FileIO} to read and write table data and metadata files
+   * @return a {@link FileIO} to read and write table data and metadata files
    */
   FileIO io();
 

@@ -19,6 +19,7 @@
 
 package com.netflix.iceberg;
 
+import com.netflix.iceberg.io.FileIO;
 import java.util.Map;
 
 /**
@@ -133,6 +134,11 @@ public class BaseTable implements Table, HasTableOperations {
   @Override
   public Transaction newTransaction() {
     return BaseTransaction.newTransaction(ops);
+  }
+
+  @Override
+  public FileIO io() {
+    return operations().io();
   }
 
   @Override
