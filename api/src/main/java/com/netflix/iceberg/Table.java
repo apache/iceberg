@@ -97,6 +97,13 @@ public interface Table {
   UpdateProperties updateProperties();
 
   /**
+   * Create a new {@link UpdateLocation} to update table location and commit the changes.
+   *
+   * @return a new {@link UpdateLocation}
+   */
+  UpdateLocation updateLocation();
+
+  /**
    * Create a new {@link AppendFiles append API} to add files to this table and commit.
    *
    * @return a new {@link AppendFiles}

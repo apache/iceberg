@@ -41,6 +41,13 @@ public interface Transaction {
   UpdateProperties updateProperties();
 
   /**
+   * Create a new {@link UpdateLocation} to update table location.
+   *
+   * @return a new {@link UpdateLocation}
+   */
+  UpdateLocation updateLocation();
+
+  /**
    * Create a new {@link AppendFiles append API} to add files to this table.
    *
    * @return a new {@link AppendFiles}

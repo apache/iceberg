@@ -56,7 +56,6 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   private TableMetadata currentMetadata = null;
   private String currentMetadataLocation = null;
   private boolean shouldRefresh = true;
-  private String baseLocation = null;
   private int version = -1;
 
   protected BaseMetastoreTableOperations(Configuration conf) {
@@ -85,15 +84,11 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   }
 
   public String hiveTableLocation() {
-    return String.format("%s/%s", baseLocation, HIVE_LOCATION_FOLDER_NAME);
+    return String.format("%s/%s", current().location(), HIVE_LOCATION_FOLDER_NAME);
   }
 
   protected String writeNewMetadata(TableMetadata metadata, int version) {
-    if (baseLocation == null) {
-      baseLocation = metadata.location();
-    }
-
-    String newTableMetadataFilePath = newTableMetadataFilePath(baseLocation, version);
+    String newTableMetadataFilePath = newTableMetadataFilePath(metadata, version);
     OutputFile newMetadataLocation = fileIo.newOutputFile(newTableMetadataFilePath);
 
     // write the new metadata
@@ -114,24 +109,29 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
       Tasks.foreach(newLocation)
           .retry(numRetries).exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */ )
           .suppressFailureWhenFinished()
-          .run(location -> {
-            this.currentMetadata = read(this, fromLocation(location, conf));
-            this.currentMetadataLocation = location;
-            this.baseLocation = currentMetadata.location();
-            this.version = parseVersion(location);
+          .run(metadataLocation -> {
+            this.currentMetadata = read(this, fromLocation(metadataLocation, conf));
+            this.currentMetadataLocation = metadataLocation;
+            this.version = parseVersion(metadataLocation);
           });
     }
     this.shouldRefresh = false;
   }
 
-  @Override
-  public String metadataFileLocation(String fileName) {
-    String metadataLocation = current().properties().get(TableProperties.WRITE_METADATA_LOCATION);
+  private String metadataFileLocation(TableMetadata metadata, String filename) {
+    String metadataLocation = metadata.properties()
+        .get(TableProperties.WRITE_METADATA_LOCATION);
+
     if (metadataLocation != null) {
-      return String.format("%s/%s", metadataLocation, fileName);
+      return String.format("%s/%s", metadataLocation, filename);
     } else {
-      return String.format("%s/%s/%s", baseLocation, METADATA_FOLDER_NAME, fileName);
+      return String.format("%s/%s/%s", metadata.location(), METADATA_FOLDER_NAME, filename);
     }
+  }
+
+  @Override
+  public String metadataFileLocation(String filename) {
+    return metadataFileLocation(current(), filename);
   }
 
   @Override
@@ -139,13 +139,9 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     return fileIo;
   }
 
-  private String newTableMetadataFilePath(String baseLocation, int newVersion) {
-    return String.format("%s/%s/%05d-%s%s",
-            baseLocation,
-            METADATA_FOLDER_NAME,
-            newVersion,
-            UUID.randomUUID(),
-            getFileExtension(this.conf));
+  private String newTableMetadataFilePath(TableMetadata meta, int newVersion) {
+    return metadataFileLocation(meta,
+        String.format("%05d-%s%s", newVersion, UUID.randomUUID(), getFileExtension(this.conf)));
   }
 
   private static int parseVersion(String metadataLocation) {

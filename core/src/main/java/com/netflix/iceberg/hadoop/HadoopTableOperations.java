@@ -109,6 +109,8 @@ public class HadoopTableOperations implements TableOperations {
       return;
     }
 
+    Preconditions.checkArgument(base == null || base.location().equals(metadata.location()),
+        "Hadoop path-based tables cannot be relocated");
     Preconditions.checkArgument(
         !metadata.properties().containsKey(TableProperties.WRITE_METADATA_LOCATION),
         "Hadoop path-based tables cannot relocate metadata");

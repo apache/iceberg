@@ -107,6 +107,14 @@ class BaseTransaction implements Transaction {
   }
 
   @Override
+  public UpdateLocation updateLocation() {
+    checkLastOperationCommitted("UpdateLocation");
+    UpdateLocation setLocation = new SetLocation(transactionOps);
+    updates.add(setLocation);
+    return setLocation;
+  }
+
+  @Override
   public AppendFiles newAppend() {
     checkLastOperationCommitted("AppendFiles");
     AppendFiles append = new MergeAppend(transactionOps);
@@ -324,6 +332,11 @@ class BaseTransaction implements Transaction {
     @Override
     public UpdateProperties updateProperties() {
       return BaseTransaction.this.updateProperties();
+    }
+
+    @Override
+    public UpdateLocation updateLocation() {
+      return BaseTransaction.this.updateLocation();
     }
 
     @Override
