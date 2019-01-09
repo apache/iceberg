@@ -206,7 +206,7 @@ class HiveTableBaseTest {
   }
 
   String getTableLocation(String tableName) {
-    return new Path("file", null, Paths.get(getTableBasePath(tableName), "empty").toString()).toString();
+    return new Path("file", null, Paths.get(getTableBasePath(tableName)).toString()).toString();
   }
 
   String metadataLocation(String tableName) {

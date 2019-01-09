@@ -48,7 +48,6 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   private static final String METADATA_FOLDER_NAME = "metadata";
   private static final String DATA_FOLDER_NAME = "data";
-  private static final String HIVE_LOCATION_FOLDER_NAME = "empty";
 
   private final Configuration conf;
   private final FileIO fileIo;
@@ -81,10 +80,6 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   protected void requestRefresh() {
     this.shouldRefresh = true;
-  }
-
-  public String hiveTableLocation() {
-    return String.format("%s/%s", current().location(), HIVE_LOCATION_FOLDER_NAME);
   }
 
   protected String writeNewMetadata(TableMetadata metadata, int version) {

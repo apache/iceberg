@@ -136,7 +136,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
                 (int) currentTimeMillis / 1000,
                 (int) currentTimeMillis / 1000,
                 Integer.MAX_VALUE,
-                storageDescriptor(metadata.schema()),
+                storageDescriptor(metadata),
                 Collections.emptyList(),
                 new HashMap<>(),
                 null,
@@ -144,7 +144,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
                 ICEBERG_TABLE_TYPE_VALUE);
       }
 
-      tbl.setSd(storageDescriptor(metadata.schema())); // set to pickup any schema changes
+      tbl.setSd(storageDescriptor(metadata)); // set to pickup any schema changes
       final String metadataLocation = tbl.getParameters().get(METADATA_LOCATION_PROP);
       if (!Objects.equals(currentMetadataLocation(), metadataLocation)) {
         throw new CommitFailedException(format("metadataLocation = %s is not same as table metadataLocation %s for %s.%s",
@@ -189,11 +189,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     tbl.setParameters(parameters);
   }
 
-  private StorageDescriptor storageDescriptor(Schema schema) {
+  private StorageDescriptor storageDescriptor(TableMetadata metadata) {
 
     final StorageDescriptor storageDescriptor = new StorageDescriptor();
-    storageDescriptor.setCols(columns(schema));
-    storageDescriptor.setLocation(hiveTableLocation());
+    storageDescriptor.setCols(columns(metadata.schema()));
+    storageDescriptor.setLocation(metadata.location());
     storageDescriptor.setOutputFormat("org.apache.hadoop.mapred.FileInputFormat");
     storageDescriptor.setInputFormat("org.apache.hadoop.mapred.FileOutputFormat");
     SerDeInfo serDeInfo = new SerDeInfo();
