@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package com.netflix.iceberg.io;
 
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;

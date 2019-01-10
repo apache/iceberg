@@ -21,6 +21,7 @@ package com.netflix.iceberg;
 
 import com.google.common.collect.Maps;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
+import com.netflix.iceberg.io.FileIO;
 import java.util.Map;
 import org.junit.rules.TemporaryFolder;
 

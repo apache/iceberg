@@ -19,6 +19,7 @@
 
 package com.netflix.iceberg;
 
+import com.netflix.iceberg.io.FileIO;
 import java.util.Map;
 
 /**
@@ -178,4 +179,10 @@ public interface Table {
    * @return a new {@link Transaction}
    */
   Transaction newTransaction();
+
+  /**
+   * @return a {@link FileIO} to read and write table data and metadata files
+   */
+  FileIO io();
+
 }
