@@ -21,14 +21,8 @@ package com.netflix.iceberg.spark.source;
 
 import com.google.common.collect.Maps;
 import com.netflix.iceberg.BaseTable;
-<<<<<<< HEAD
 import com.netflix.iceberg.StructLike;
 import com.netflix.iceberg.io.FileIO;
-||||||| merged common ancestors
-import com.netflix.iceberg.FileIO;
-=======
-import com.netflix.iceberg.io.FileIO;
->>>>>>> upstream-incubator/master
 import com.netflix.iceberg.Files;
 import com.netflix.iceberg.PartitionSpec;
 import com.netflix.iceberg.Schema;
@@ -41,12 +35,7 @@ import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 import java.io.File;
-<<<<<<< HEAD
 import java.nio.file.Paths;
-||||||| merged common ancestors
-import java.io.IOException;
-=======
->>>>>>> upstream-incubator/master
 import java.util.Map;
 
 // TODO: Use the copy of this from core.
