@@ -267,11 +267,6 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
-    public String metadataFileLocation(String fileName) {
-      return ops.metadataFileLocation(fileName);
-    }
-
-    @Override
     public long newSnapshotId() {
       return ops.newSnapshotId();
     }

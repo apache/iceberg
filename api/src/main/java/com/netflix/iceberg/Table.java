@@ -174,8 +174,7 @@ public interface Table {
   Transaction newTransaction();
 
   /**
-   * @return a {@link FileIO} to read and write table data and metadata files
+   * @return a {@link FileIO} to read and write table data and metadata files.
    */
   FileIO io();
-
 }

@@ -19,23 +19,17 @@
 
 package com.netflix.iceberg;
 
-import com.google.common.collect.Maps;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.FileIO;
-import java.util.Map;
-import org.junit.rules.TemporaryFolder;
-
 import java.io.IOException;
+import org.junit.rules.TemporaryFolder;
 
 class LocalTableOperations implements TableOperations {
   private final TemporaryFolder temp;
-  private final FileIO io;
-
-  private final Map<String, String> createdMetadataFilePaths = Maps.newHashMap();
+  private FileIO io;
 
   LocalTableOperations(TemporaryFolder temp) {
     this.temp = temp;
-    this.io = new TestTables.LocalFileIO();
   }
 
   @Override
@@ -55,18 +49,16 @@ class LocalTableOperations implements TableOperations {
 
   @Override
   public FileIO io() {
-    return io;
-  }
-
-  @Override
-  public String metadataFileLocation(String fileName) {
-    return createdMetadataFilePaths.computeIfAbsent(fileName, name -> {
+    if (io == null) {
       try {
-        return temp.newFile(name).getAbsolutePath();
+        io = new TestTables.LocalFileIO(
+            temp.newFolder("metadata"),
+            temp.newFolder("data"));
       } catch (IOException e) {
         throw new RuntimeIOException(e);
       }
-    });
+    }
+    return io;
   }
 
   @Override

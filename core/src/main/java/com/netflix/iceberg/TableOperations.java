@@ -61,15 +61,6 @@ public interface TableOperations {
   FileIO io();
 
   /**
-   * Given the name of a metadata file, obtain the full path of that file using an appropriate base
-   * location of the implementation's choosing.
-   * <p>
-   * The file may not exist yet, in which case the path should be returned as if it were to be created
-   * by e.g. {@link FileIO#newOutputFile(String)}.
-   */
-  String metadataFileLocation(String fileName);
-
-  /**
    * Create a new ID for a Snapshot
    *
    * @return a long snapshot ID

@@ -20,24 +20,19 @@
 package com.netflix.iceberg;
 
 import com.google.common.base.Objects;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
+import com.google.common.collect.ImmutableMap;
 import com.netflix.iceberg.hadoop.HadoopFileIO;
 import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.io.OutputFile;
 import com.netflix.iceberg.util.Tasks;
+import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.util.UUID;
 
 import static com.netflix.iceberg.TableMetadataParser.getFileExtension;
 import static com.netflix.iceberg.TableMetadataParser.read;
 import static com.netflix.iceberg.hadoop.HadoopInputFile.fromLocation;
-
 
 public abstract class BaseMetastoreTableOperations implements TableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(BaseMetastoreTableOperations.class);
@@ -52,8 +47,8 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   private static final String HIVE_LOCATION_FOLDER_NAME = "empty";
 
   private final Configuration conf;
-  private final FileIO fileIo;
 
+  private HadoopFileIO fileIo;
   private TableMetadata currentMetadata = null;
   private String currentMetadataLocation = null;
   private boolean shouldRefresh = true;
@@ -62,7 +57,6 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   protected BaseMetastoreTableOperations(Configuration conf) {
     this.conf = conf;
-    this.fileIo = new HadoopFileIO(conf);
   }
 
   @Override
@@ -95,10 +89,13 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     }
 
     String newTableMetadataFilePath = newTableMetadataFilePath(baseLocation, version);
-    OutputFile newMetadataLocation = fileIo.newOutputFile(newTableMetadataFilePath);
+    OutputFile newMetadataLocation = io().newOutputFile(newTableMetadataFilePath);
 
     // write the new metadata
     TableMetadataParser.write(metadata, newMetadataLocation);
+    if (fileIo != null) {
+      fileIo.updateProperties(metadata.properties());
+    }
 
     return newTableMetadataFilePath;
   }
@@ -126,12 +123,13 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   }
 
   @Override
-  public String metadataFileLocation(String fileName) {
-    return String.format("%s/%s/%s", baseLocation, METADATA_FOLDER_NAME, fileName);
-  }
-
-  @Override
   public FileIO io() {
+    if (fileIo == null) {
+      fileIo = new HadoopFileIO(
+          conf,
+          baseLocation,
+          currentMetadata == null ? ImmutableMap.of() : currentMetadata.properties());
+    }
     return fileIo;
   }
 
@@ -152,14 +150,6 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     } catch (NumberFormatException e) {
       LOG.warn("Unable to parse version from metadata location: " + metadataLocation);
       return -1;
-    }
-  }
-
-  private static FileSystem getFS(Path path, Configuration conf) {
-    try {
-      return path.getFileSystem(conf);
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
     }
   }
 }

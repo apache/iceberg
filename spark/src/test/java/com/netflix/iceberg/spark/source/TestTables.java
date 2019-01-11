@@ -21,7 +21,14 @@ package com.netflix.iceberg.spark.source;
 
 import com.google.common.collect.Maps;
 import com.netflix.iceberg.BaseTable;
+<<<<<<< HEAD
+import com.netflix.iceberg.StructLike;
 import com.netflix.iceberg.io.FileIO;
+||||||| merged common ancestors
+import com.netflix.iceberg.FileIO;
+=======
+import com.netflix.iceberg.io.FileIO;
+>>>>>>> upstream-incubator/master
 import com.netflix.iceberg.Files;
 import com.netflix.iceberg.PartitionSpec;
 import com.netflix.iceberg.Schema;
@@ -34,6 +41,12 @@ import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 import java.io.File;
+<<<<<<< HEAD
+import java.nio.file.Paths;
+||||||| merged common ancestors
+import java.io.IOException;
+=======
+>>>>>>> upstream-incubator/master
 import java.util.Map;
 
 // TODO: Use the copy of this from core.
@@ -67,7 +80,7 @@ class TestTables {
   static class TestTable extends BaseTable {
     private final TestTableOperations ops;
 
-    private TestTable(TestTableOperations ops, String name) {
+    TestTable(TestTableOperations ops, String name) {
       super(ops, name);
       this.ops = ops;
     }
@@ -157,12 +170,9 @@ class TestTables {
 
     @Override
     public FileIO io() {
-      return new LocalFileIO();
-    }
-
-    @Override
-    public String metadataFileLocation(String fileName) {
-      return new File(new File(current.location(), "metadata"), fileName).getAbsolutePath();
+      return new LocalFileIO(
+          new File(current.location(), "metadata"),
+          new File(current.location(), "data"));
     }
 
     @Override
@@ -172,8 +182,16 @@ class TestTables {
       return nextSnapshotId;
     }
   }
-  
+
   static class LocalFileIO implements FileIO {
+
+    private final File metadata;
+    private final File data;
+
+    public LocalFileIO(File metadata, File data) {
+      this.metadata = metadata;
+      this.data = data;
+    }
 
     @Override
     public InputFile newInputFile(String path) {
@@ -182,7 +200,7 @@ class TestTables {
 
     @Override
     public OutputFile newOutputFile(String path) {
-      return Files.localOutput(new File(path));
+      return Files.localOutput(path);
     }
 
     @Override
@@ -190,6 +208,41 @@ class TestTables {
       if (!new File(path).delete()) {
         throw new RuntimeIOException("Failed to delete file: " + path);
       }
+    }
+
+    private String metadataFileLocation(String fileName) {
+      return new File(metadata, fileName).getAbsolutePath();
+    }
+
+    @Override
+    public InputFile readMetadataFile(String fileName) {
+      return newInputFile(metadataFileLocation(fileName));
+    }
+
+    @Override
+    public OutputFile newMetadataFile(String fileName) {
+      return newOutputFile(metadataFileLocation(fileName));
+    }
+
+    private String partitionedDataFileLocation(
+        PartitionSpec partitionSpec, StructLike filePartition, String fileName) {
+      return Paths.get(
+          data.getAbsolutePath(),
+          partitionSpec.partitionToPath(filePartition),
+          fileName)
+          .toAbsolutePath()
+          .toString();
+    }
+
+    @Override
+    public OutputFile newPartitionedDataFile(
+        PartitionSpec partitionSpec, StructLike filePartition, String fileName) {
+      return newOutputFile(partitionedDataFileLocation(partitionSpec, filePartition, fileName));
+    }
+
+    @Override
+    public OutputFile newUnpartitionedDataFile(String fileName) {
+      return newOutputFile(new File(data, fileName).getAbsolutePath());
     }
   }
 }

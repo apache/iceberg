@@ -19,6 +19,9 @@
 
 package com.netflix.iceberg.hadoop;
 
+import com.google.common.collect.ImmutableMap;
+import com.netflix.iceberg.io.InputFile;
+import com.netflix.iceberg.io.OutputFile;
 import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.TableMetadata;
 import com.netflix.iceberg.TableMetadataParser;
@@ -26,8 +29,8 @@ import com.netflix.iceberg.TableOperations;
 import com.netflix.iceberg.exceptions.CommitFailedException;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.exceptions.ValidationException;
+import java.io.OutputStream;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.slf4j.Logger;
@@ -45,6 +48,7 @@ import static com.netflix.iceberg.TableMetadataParser.getFileExtension;
  * This maintains metadata in a "metadata" folder under the table location.
  */
 public class HadoopTableOperations implements TableOperations {
+  private static final String VERSION_HINT_FILE_NAME = "version-hint.text";
   private static final Logger LOG = LoggerFactory.getLogger(HadoopTableOperations.class);
 
   private final Configuration conf;
@@ -69,11 +73,12 @@ public class HadoopTableOperations implements TableOperations {
   @Override
   public TableMetadata refresh() {
     int ver = version != null ? version : readVersionHint();
-    Path metadataFile = metadataFile(ver);
-    FileSystem fs = getFS(metadataFile, conf);
+    InputFile metadataFile = io().readMetadataFile(metadataFileName(ver));
+    Path metadataFilePath = new Path(metadataFile.location());
+    FileSystem fs = getFS(metadataFilePath, conf);
     try {
       // don't check if the file exists if version is non-null because it was already checked
-      if (version == null && !fs.exists(metadataFile)) {
+      if (version == null && !fs.exists(metadataFilePath)) {
         if (ver == 0) {
           // no v0 metadata means the table doesn't exist yet
           return null;
@@ -81,18 +86,20 @@ public class HadoopTableOperations implements TableOperations {
         throw new ValidationException("Metadata file is missing: %s", metadataFile);
       }
 
-      while (fs.exists(metadataFile(ver + 1))) {
+      while (fs.exists(new Path(io().readMetadataFile(metadataFileName(ver + 1)).location()))) {
         ver += 1;
-        metadataFile = metadataFile(ver);
+        metadataFile = io().readMetadataFile(metadataFileName(ver));
       }
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to get file system for path: %s", metadataFile);
     }
     this.version = ver;
-    this.currentMetadata = TableMetadataParser.read(this,
-        io().newInputFile(metadataFile.toString()));
+    this.currentMetadata = TableMetadataParser.read(this, metadataFile);
     this.shouldRefresh = false;
+    if (defaultFileIo != null) {
+      defaultFileIo.updateProperties(currentMetadata.properties());
+    }
     return currentMetadata;
   }
 
@@ -107,11 +114,14 @@ public class HadoopTableOperations implements TableOperations {
       return;
     }
 
-    Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + getFileExtension(conf));
-    TableMetadataParser.write(metadata, io().newOutputFile(tempMetadataFile.toString()));
+    OutputFile newTempMetadataFile = io().newMetadataFile(
+        UUID.randomUUID().toString() + getFileExtension(conf));
+    TableMetadataParser.write(metadata, newTempMetadataFile);
 
     int nextVersion = (version != null ? version : 0) + 1;
-    Path finalMetadataFile = metadataFile(nextVersion);
+    Path tempMetadataFile = new Path(newTempMetadataFile.location());
+    Path finalMetadataFile = new Path(io().newMetadataFile(
+        metadataFileName(nextVersion)).location());
     FileSystem fs = getFS(tempMetadataFile, conf);
 
     try {
@@ -141,36 +151,23 @@ public class HadoopTableOperations implements TableOperations {
     this.shouldRefresh = true;
   }
 
+  private String metadataFileName(int metadataVersion) {
+    return "v" + metadataVersion + getFileExtension(conf);
+  }
+
   @Override
   public FileIO io() {
     if (defaultFileIo == null) {
-      defaultFileIo = new HadoopFileIO(conf);
+      defaultFileIo = new HadoopFileIO(
+          conf,
+          location.toString(),
+          currentMetadata == null ? ImmutableMap.of() : currentMetadata.properties());
     }
     return defaultFileIo;
   }
 
-  @Override
-  public String metadataFileLocation(String fileName) {
-    return metadataPath(fileName).toString();
-  }
-
-  private Path metadataFile(int version) {
-    return metadataPath("v" + version + getFileExtension(conf));
-  }
-
-  private Path metadataPath(String filename) {
-    return new Path(new Path(location, "metadata"), filename);
-  }
-
-  private Path versionHintFile() {
-    return metadataPath("version-hint.text");
-  }
-
   private void writeVersionHint(int version) {
-    Path versionHintFile = versionHintFile();
-    FileSystem fs = getFS(versionHintFile, conf);
-
-    try (FSDataOutputStream out = fs.create(versionHintFile, true /* overwrite */ )) {
+    try (OutputStream out = io().newMetadataFile(VERSION_HINT_FILE_NAME).createOrOverwrite()) {
       out.write(String.valueOf(version).getBytes("UTF-8"));
 
     } catch (IOException e) {
@@ -179,19 +176,20 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   private int readVersionHint() {
-    Path versionHintFile = versionHintFile();
+    InputFile versionHintFile = io().readMetadataFile(VERSION_HINT_FILE_NAME);
     try {
-      FileSystem fs = Util.getFS(versionHintFile, conf);
-      if (!fs.exists(versionHintFile)) {
+      Path versionHintFilePath = new Path(versionHintFile.location());
+      FileSystem fs = Util.getFS(versionHintFilePath, conf);
+      if (!fs.exists(versionHintFilePath)) {
         return 0;
       }
 
-      try (BufferedReader in = new BufferedReader(new InputStreamReader(fs.open(versionHintFile)))) {
+      try (BufferedReader in = new BufferedReader(new InputStreamReader(versionHintFile.newStream()))) {
         return Integer.parseInt(in.readLine().replace("\n", ""));
       }
 
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to get file system for path: %s", versionHintFile);
+      throw new RuntimeIOException(e, "Failed to get file system for path: %s", versionHintFile.location());
     }
   }
 
