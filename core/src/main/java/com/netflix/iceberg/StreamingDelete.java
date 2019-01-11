@@ -33,6 +33,11 @@ class StreamingDelete extends MergingSnapshotUpdate implements DeleteFiles {
   }
 
   @Override
+  protected String operation() {
+    return DataOperations.DELETE;
+  }
+
+  @Override
   public StreamingDelete deleteFile(CharSequence path) {
     delete(path);
     return this;

@@ -20,6 +20,7 @@
 package com.netflix.iceberg;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -47,6 +48,39 @@ public class TestSnapshotJson {
         expected.snapshotId(), snapshot.snapshotId());
     Assert.assertEquals("Files should match",
         expected.manifests(), snapshot.manifests());
+    Assert.assertNull("Operation should be null", snapshot.operation());
+    Assert.assertNull("Summary should be null", snapshot.summary());
+  }
+
+  @Test
+  public void testJsonConversionWithOperation() {
+    long parentId = 1;
+    long id = 2;
+    List<ManifestFile> manifests = ImmutableList.of(
+        new GenericManifestFile(localInput("file:/tmp/manifest1.avro"), 0),
+        new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0));
+
+    Snapshot expected = new BaseSnapshot(ops, id, parentId, System.currentTimeMillis(),
+        DataOperations.REPLACE, ImmutableMap.of("files-added", "4", "files-deleted", "100"),
+        manifests);
+
+    String json = SnapshotParser.toJson(expected);
+    Snapshot snapshot = SnapshotParser.fromJson(ops, json);
+
+    Assert.assertEquals("Snapshot ID should match",
+        expected.snapshotId(), snapshot.snapshotId());
+    Assert.assertEquals("Timestamp should match",
+        expected.timestampMillis(), snapshot.timestampMillis());
+    Assert.assertEquals("Parent ID should match",
+        expected.parentId(), snapshot.parentId());
+    Assert.assertEquals("Manifest list should match",
+        expected.manifestListLocation(), snapshot.manifestListLocation());
+    Assert.assertEquals("Files should match",
+        expected.manifests(), snapshot.manifests());
+    Assert.assertEquals("Operation should match",
+        expected.operation(), snapshot.operation());
+    Assert.assertEquals("Summary should match",
+        expected.summary(), snapshot.summary());
   }
 
   @Test
@@ -67,9 +101,9 @@ public class TestSnapshotJson {
     }
 
     Snapshot expected = new BaseSnapshot(
-        ops, id, parentId, System.currentTimeMillis(), localInput(manifestList));
+        ops, id, parentId, System.currentTimeMillis(), null, null, localInput(manifestList));
     Snapshot inMemory = new BaseSnapshot(
-        ops, id, parentId, expected.timestampMillis(), manifests);
+        ops, id, parentId, expected.timestampMillis(), null, null, manifests);
 
     Assert.assertEquals("Files should match in memory list",
         inMemory.manifests(), expected.manifests());
@@ -87,5 +121,7 @@ public class TestSnapshotJson {
         expected.manifestListLocation(), snapshot.manifestListLocation());
     Assert.assertEquals("Files should match",
         expected.manifests(), snapshot.manifests());
+    Assert.assertNull("Operation should be null", snapshot.operation());
+    Assert.assertNull("Summary should be null", snapshot.summary());
   }
 }

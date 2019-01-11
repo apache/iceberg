@@ -44,6 +44,11 @@ class FastAppend extends SnapshotUpdate implements AppendFiles {
   }
 
   @Override
+  protected String operation() {
+    return DataOperations.APPEND;
+  }
+
+  @Override
   public FastAppend appendFile(DataFile file) {
     this.hasNewFiles = true;
     newFiles.add(file);

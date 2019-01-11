@@ -22,6 +22,7 @@ package com.netflix.iceberg;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.CommitFailedException;
@@ -34,6 +35,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -102,6 +104,22 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
    */
   protected abstract void cleanUncommitted(Set<ManifestFile> committed);
 
+  /**
+   * A string that describes the action that produced the new snapshot.
+   *
+   * @return a string operation
+   */
+  protected abstract String operation();
+
+  /**
+   * A string map with a summary of the changes in this snapshot update.
+   *
+   * @return a string map that summarizes the update
+   */
+  protected Map<String, String> summary() {
+    return ImmutableMap.of();
+  }
+
   @Override
   public Snapshot apply() {
     this.base = ops.refresh();
@@ -139,12 +157,13 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
       }
 
       return new BaseSnapshot(ops,
-          snapshotId(), parentSnapshotId, System.currentTimeMillis(),
+          snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(),
           ops.io().newInputFile(manifestList.location()));
 
     } else {
       return new BaseSnapshot(ops,
-          snapshotId(), parentSnapshotId, System.currentTimeMillis(), manifests);
+          snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(),
+          manifests);
     }
   }
 
