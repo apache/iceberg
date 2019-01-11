@@ -26,7 +26,7 @@ import org.apache.parquet.io.api.Binary;
 public abstract class ColumnWriter<T> implements TripleWriter<T> {
   @SuppressWarnings("unchecked")
   static <T> ColumnWriter<T> newWriter(ColumnDescriptor desc) {
-    switch (desc.getType()) {
+    switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
       case BOOLEAN:
         return (ColumnWriter<T>) new ColumnWriter<Boolean>(desc) {
           @Override
@@ -71,7 +71,8 @@ public abstract class ColumnWriter<T> implements TripleWriter<T> {
           }
         };
       default:
-        throw new UnsupportedOperationException("Unsupported primitive type: " + desc.getType());
+        throw new UnsupportedOperationException("Unsupported primitive type: "
+                + desc.getPrimitiveType().getPrimitiveTypeName());
     }
   }
 
