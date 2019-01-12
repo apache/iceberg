@@ -62,6 +62,8 @@ public abstract class Predicate<T, R extends Reference> implements Expression {
         return String.valueOf(ref()) + " == " + literal();
       case NOT_EQ:
         return String.valueOf(ref()) + " != " + literal();
+      case STARTS_WITH:
+        return "startsWith(" + ref() + "," + literal() + ")";
 //      case IN:
 //        break;
 //      case NOT_IN:

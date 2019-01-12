@@ -94,6 +94,10 @@ public class ExpressionVisitors {
       return null;
     }
 
+    public R startsWith(BoundReference<String> ref, Literal<String> lit) {
+      return null;
+    }
+
     public <T> R predicate(BoundPredicate<T> pred) {
       switch (pred.op()) {
         case IS_NULL:
@@ -116,6 +120,9 @@ public class ExpressionVisitors {
           return in(pred.ref(), pred.literal());
         case NOT_IN:
           return notIn(pred.ref(), pred.literal());
+        case STARTS_WITH:
+          // Expressions.startsWith accepts only strings, thus type casting is done here.
+          return startsWith((BoundReference<String>) pred.ref(), (Literal<String>) pred.literal());
         default:
           throw new UnsupportedOperationException(
               "Unknown operation for predicate: " + pred.op());

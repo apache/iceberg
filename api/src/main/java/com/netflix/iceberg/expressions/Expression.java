@@ -40,7 +40,8 @@ public interface Expression extends Serializable {
     NOT_IN,
     NOT,
     AND,
-    OR;
+    OR,
+    STARTS_WITH;
 
     /**
      * @return the operation used when this is negated

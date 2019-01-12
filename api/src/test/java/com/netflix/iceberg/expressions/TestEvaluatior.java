@@ -39,6 +39,7 @@ import static com.netflix.iceberg.expressions.Expressions.not;
 import static com.netflix.iceberg.expressions.Expressions.notEqual;
 import static com.netflix.iceberg.expressions.Expressions.notNull;
 import static com.netflix.iceberg.expressions.Expressions.or;
+import static com.netflix.iceberg.expressions.Expressions.startsWith;
 import static com.netflix.iceberg.types.Types.NestedField.optional;
 import static com.netflix.iceberg.types.Types.NestedField.required;
 
@@ -143,6 +144,16 @@ public class TestEvaluatior {
     Evaluator evaluator = new Evaluator(STRUCT, not(equal("x", 7)));
     Assert.assertFalse("not(7 == 7) => false", evaluator.eval(TestHelpers.Row.of(7)));
     Assert.assertTrue("not(8 == 7) => false", evaluator.eval(TestHelpers.Row.of(8)));
+  }
+
+  @Test
+  public void testStartsWith() {
+    StructType struct = StructType.of(required(33, "s", Types.StringType.get()));
+    Evaluator evaluator = new Evaluator(struct, startsWith("s", "qw"));
+    Assert.assertTrue("startsWith(qwerty, qw)  => true",
+            evaluator.eval(TestHelpers.Row.of(("qwerty"))));
+    Assert.assertFalse("startsWith(abcde, qw)  => false",
+            evaluator.eval(TestHelpers.Row.of(("abcde"))));
   }
 
   @Test

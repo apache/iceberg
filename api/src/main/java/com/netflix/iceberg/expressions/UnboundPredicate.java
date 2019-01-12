@@ -24,6 +24,7 @@ import com.netflix.iceberg.types.Types;
 
 import static com.netflix.iceberg.expressions.Expression.Operation.IS_NULL;
 import static com.netflix.iceberg.expressions.Expression.Operation.NOT_NULL;
+import static com.netflix.iceberg.expressions.Expression.Operation.STARTS_WITH;
 
 public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
 
