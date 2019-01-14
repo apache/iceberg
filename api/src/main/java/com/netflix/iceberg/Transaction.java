@@ -34,6 +34,13 @@ public interface Transaction {
   Table table();
 
   /**
+   * Create a new {@link UpdateSchema} to alter the columns of this table.
+   *
+   * @return a new {@link UpdateSchema}
+   */
+  UpdateSchema updateSchema();
+
+  /**
    * Create a new {@link UpdateProperties} to update table properties.
    *
    * @return a new {@link UpdateProperties}
