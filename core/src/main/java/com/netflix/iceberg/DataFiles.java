@@ -194,8 +194,8 @@ public class DataFiles {
 
     public Builder(PartitionSpec spec) {
       this.spec = spec;
-      this.partitionData = newPartitionData(spec);
-      this.isPartitioned = true;
+      this.isPartitioned = spec.fields().size() > 0;
+      this.partitionData = isPartitioned ? newPartitionData(spec) : null;
     }
 
     public void clear() {
@@ -284,7 +284,7 @@ public class DataFiles {
     }
 
     public Builder withPartitionPath(String partitionPath) {
-      Preconditions.checkArgument(isPartitioned,
+      Preconditions.checkArgument(isPartitioned || partitionPath.isEmpty(),
           "Cannot add partition data for an unpartitioned table");
       this.partitionData = fillFromPath(spec, partitionPath, partitionData);
       return this;
