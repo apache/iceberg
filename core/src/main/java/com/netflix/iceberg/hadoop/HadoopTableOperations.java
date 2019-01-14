@@ -19,10 +19,12 @@
 
 package com.netflix.iceberg.hadoop;
 
+import com.google.common.base.Preconditions;
 import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.TableMetadata;
 import com.netflix.iceberg.TableMetadataParser;
 import com.netflix.iceberg.TableOperations;
+import com.netflix.iceberg.TableProperties;
 import com.netflix.iceberg.exceptions.CommitFailedException;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.exceptions.ValidationException;
@@ -106,6 +108,12 @@ public class HadoopTableOperations implements TableOperations {
       LOG.info("Nothing to commit.");
       return;
     }
+
+    Preconditions.checkArgument(base == null || base.location().equals(metadata.location()),
+        "Hadoop path-based tables cannot be relocated");
+    Preconditions.checkArgument(
+        !metadata.properties().containsKey(TableProperties.WRITE_METADATA_LOCATION),
+        "Hadoop path-based tables cannot relocate metadata");
 
     Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + getFileExtension(conf));
     TableMetadataParser.write(metadata, io().newOutputFile(tempMetadataFile.toString()));

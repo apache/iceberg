@@ -92,6 +92,11 @@ public class BaseTable implements Table, HasTableOperations {
   }
 
   @Override
+  public UpdateLocation updateLocation() {
+    return new SetLocation(ops);
+  }
+
+  @Override
   public AppendFiles newAppend() {
     return new MergeAppend(ops);
   }
