@@ -42,9 +42,6 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   public static final String METADATA_LOCATION_PROP = "metadata_location";
   public static final String PREVIOUS_METADATA_LOCATION_PROP = "previous_metadata_location";
 
-  private static final String METADATA_FOLDER_NAME = "metadata";
-  private static final String DATA_FOLDER_NAME = "data";
-
   private final Configuration conf;
 
   private HadoopFileIO defaultIo;
@@ -78,31 +75,24 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   }
 
   protected String writeNewMetadata(TableMetadata metadata, int version) {
-<<<<<<< HEAD
-    if (baseLocation == null) {
-      baseLocation = metadata.location();
+    FileIO initializedFileIo = io();
+    // This would be false if the subclass overrides io() and returns a different kind.
+    if (initializedFileIo instanceof HadoopFileIO) {
+      ((HadoopFileIO) initializedFileIo).updateTableMetadata(metadata);
     }
-
-    String newTableMetadataFilePath = newTableMetadataFilePath(baseLocation, version);
-    OutputFile newMetadataLocation = io().newOutputFile(newTableMetadataFilePath);
-||||||| merged common ancestors
-    if (baseLocation == null) {
-      baseLocation = metadata.location();
-    }
-
-    String newTableMetadataFilePath = newTableMetadataFilePath(baseLocation, version);
-    OutputFile newMetadataLocation = fileIo.newOutputFile(newTableMetadataFilePath);
-=======
-    String newTableMetadataFilePath = newTableMetadataFilePath(metadata, version);
-    OutputFile newMetadataLocation = fileIo.newOutputFile(newTableMetadataFilePath);
->>>>>>> upstream-incubator/master
+    OutputFile newMetadataOutputFile = initializedFileIo.newMetadataOutputFile(
+        newTableMetadataFileName(version));
 
     // write the new metadata
-    TableMetadataParser.write(metadata, newMetadataLocation);
-    if (defaultIo != null) {
-      defaultIo.updateTableMetadata(metadata);
+    try {
+      TableMetadataParser.write(metadata, newMetadataOutputFile);
+    } catch (RuntimeException e) {
+      if (initializedFileIo instanceof HadoopFileIO) {
+        ((HadoopFileIO) initializedFileIo).updateTableMetadata(currentMetadata);
+      }
+      throw e;
     }
-    return newTableMetadataFilePath;
+    return newMetadataOutputFile.location();
   }
 
   protected void refreshFromMetadataLocation(String newLocation) {
@@ -117,71 +107,38 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
       Tasks.foreach(newLocation)
           .retry(numRetries).exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */ )
           .suppressFailureWhenFinished()
-<<<<<<< HEAD
-          .run(location -> {
-            this.currentMetadata = read(this, fromLocation(location, conf));
-            this.currentMetadataLocation = location;
-            this.baseLocation = currentMetadata.location();
-            this.version = parseVersion(location);
-            if (defaultIo != null) {
-              defaultIo.updateTableMetadata(currentMetadata);
-            }
-||||||| merged common ancestors
-          .run(location -> {
-            this.currentMetadata = read(this, fromLocation(location, conf));
-            this.currentMetadataLocation = location;
-            this.baseLocation = currentMetadata.location();
-            this.version = parseVersion(location);
-=======
           .run(metadataLocation -> {
             this.currentMetadata = read(this, fromLocation(metadataLocation, conf));
             this.currentMetadataLocation = metadataLocation;
             this.version = parseVersion(metadataLocation);
->>>>>>> upstream-incubator/master
+            FileIO initializedFileIo = io();
+            // This would be false if the subclass overrides io() and returns a different kind.
+            if (initializedFileIo instanceof HadoopFileIO) {
+              ((HadoopFileIO) initializedFileIo).updateTableMetadata(currentMetadata);
+            }
           });
     }
     this.shouldRefresh = false;
   }
 
-  private String metadataFileLocation(TableMetadata metadata, String filename) {
-    String metadataLocation = metadata.properties()
-        .get(TableProperties.WRITE_METADATA_LOCATION);
-
-    if (metadataLocation != null) {
-      return String.format("%s/%s", metadataLocation, filename);
-    } else {
-      return String.format("%s/%s/%s", metadata.location(), METADATA_FOLDER_NAME, filename);
-    }
-  }
-
   @Override
-<<<<<<< HEAD
-||||||| merged common ancestors
-  public String metadataFileLocation(String fileName) {
-    return String.format("%s/%s/%s", baseLocation, METADATA_FOLDER_NAME, fileName);
-  }
-
-  @Override
-=======
-  public String metadataFileLocation(String filename) {
-    return metadataFileLocation(current(), filename);
-  }
-
-  @Override
->>>>>>> upstream-incubator/master
   public FileIO io() {
+    return getLazyDefaultFileIO();
+  }
+
+  private HadoopFileIO getLazyDefaultFileIO() {
     if (defaultIo == null) {
       defaultIo = new HadoopFileIO(
           conf,
-          baseLocation,
+          currentMetadata == null ? null : currentMetadata.location(),
           currentMetadata == null ? ImmutableMap.of() : currentMetadata.properties());
     }
     return defaultIo;
   }
 
-  private String newTableMetadataFilePath(TableMetadata meta, int newVersion) {
-    return metadataFileLocation(meta,
-        String.format("%05d-%s%s", newVersion, UUID.randomUUID(), getFileExtension(this.conf)));
+  private String newTableMetadataFileName(int newVersion) {
+    return String.format(
+        "%05d-%s%s", newVersion, UUID.randomUUID(), getFileExtension(this.conf));
   }
 
   private static int parseVersion(String metadataLocation) {

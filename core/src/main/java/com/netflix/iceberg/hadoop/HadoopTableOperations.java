@@ -19,14 +19,10 @@
 
 package com.netflix.iceberg.hadoop;
 
-<<<<<<< HEAD
 import com.google.common.collect.ImmutableMap;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
-||||||| merged common ancestors
-=======
 import com.google.common.base.Preconditions;
->>>>>>> upstream-incubator/master
 import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.TableMetadata;
 import com.netflix.iceberg.TableMetadataParser;
@@ -113,23 +109,14 @@ public class HadoopTableOperations implements TableOperations {
       return;
     }
 
-<<<<<<< HEAD
     OutputFile newTempMetadataFile = io().newMetadataOutputFile(
         UUID.randomUUID().toString() + getFileExtension(conf));
     TableMetadataParser.write(metadata, newTempMetadataFile);
-||||||| merged common ancestors
-    Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + getFileExtension(conf));
-    TableMetadataParser.write(metadata, io().newOutputFile(tempMetadataFile.toString()));
-=======
     Preconditions.checkArgument(base == null || base.location().equals(metadata.location()),
         "Hadoop path-based tables cannot be relocated");
     Preconditions.checkArgument(
         !metadata.properties().containsKey(TableProperties.WRITE_METADATA_LOCATION),
         "Hadoop path-based tables cannot relocate metadata");
-
-    Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + getFileExtension(conf));
-    TableMetadataParser.write(metadata, io().newOutputFile(tempMetadataFile.toString()));
->>>>>>> upstream-incubator/master
 
     int nextVersion = (version != null ? version : 0) + 1;
     Path tempMetadataFile = new Path(newTempMetadataFile.location());
