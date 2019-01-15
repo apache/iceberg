@@ -40,7 +40,7 @@ import java.util.function.Predicate;
 /**
  * Metadata for a table.
  */
-public class TableMetadata implements Serializable {
+public class TableMetadata {
   static final int TABLE_FORMAT_VERSION = 1;
   static final int INITIAL_SPEC_ID = 0;
 
