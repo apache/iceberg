@@ -429,6 +429,12 @@ public class TableMetadata implements Serializable {
         -1, snapshots, ImmutableList.of());
   }
 
+  public TableMetadata updateLocation(String newLocation) {
+    return new TableMetadata(ops, null, newLocation,
+        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
+        currentSnapshotId, snapshots, snapshotLog);
+  }
+
   private static PartitionSpec freshSpec(int specId, Schema schema, PartitionSpec partitionSpec) {
     PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(schema)
         .withSpecId(specId);

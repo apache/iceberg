@@ -30,6 +30,7 @@ import com.netflix.iceberg.types.Types;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static com.netflix.iceberg.types.Types.NestedField.optional;
 import static com.netflix.iceberg.types.Types.NestedField.required;
@@ -261,7 +262,9 @@ class SchemaUpdate implements UpdateSchema {
           doc = update.doc();
         }
 
-        if (!name.equals(field.name()) || field.type() != resultType) {
+        if (!name.equals(field.name()) ||
+            field.type() != resultType ||
+            !Objects.equals(doc, field.doc())) {
           hasChange = true;
           if (field.isOptional()) {
             newFields.add(optional(field.fieldId(), name, resultType, doc));

@@ -73,8 +73,8 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
   }
 
   Iterable<ManifestEntry> allEntries() {
-    if (rowFilter != null && rowFilter != Expressions.alwaysTrue() &&
-        partFilter != null && partFilter != Expressions.alwaysTrue()) {
+    if ((rowFilter != null && rowFilter != Expressions.alwaysTrue()) ||
+        (partFilter != null && partFilter != Expressions.alwaysTrue())) {
       Evaluator evaluator = evaluator();
       InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
 
@@ -89,8 +89,8 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
   }
 
   Iterable<ManifestEntry> liveEntries() {
-    if (rowFilter != null && rowFilter != Expressions.alwaysTrue() &&
-        partFilter != null && partFilter != Expressions.alwaysTrue()) {
+    if ((rowFilter != null && rowFilter != Expressions.alwaysTrue()) ||
+        (partFilter != null && partFilter != Expressions.alwaysTrue())) {
       Evaluator evaluator = evaluator();
       InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
 
@@ -108,8 +108,8 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
 
   @Override
   public Iterator<DataFile> iterator() {
-    if (rowFilter != null && rowFilter != Expressions.alwaysTrue() &&
-        partFilter != null && partFilter != Expressions.alwaysTrue()) {
+    if ((rowFilter != null && rowFilter != Expressions.alwaysTrue()) ||
+        (partFilter != null && partFilter != Expressions.alwaysTrue())) {
       Evaluator evaluator = evaluator();
       InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
 
@@ -127,14 +127,24 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
 
   private Evaluator evaluator() {
     if (lazyEvaluator == null) {
-      this.lazyEvaluator = new Evaluator(reader.spec().partitionType(), partFilter);
+      if (partFilter != null) {
+        this.lazyEvaluator = new Evaluator(reader.spec().partitionType(), partFilter);
+      } else {
+        this.lazyEvaluator = new Evaluator(reader.spec().partitionType(), Expressions.alwaysTrue());
+      }
     }
     return lazyEvaluator;
   }
 
   private InclusiveMetricsEvaluator metricsEvaluator() {
     if (lazyMetricsEvaluator == null) {
-      this.lazyMetricsEvaluator = new InclusiveMetricsEvaluator(reader.spec().schema(), rowFilter);
+      if (rowFilter != null) {
+        this.lazyMetricsEvaluator = new InclusiveMetricsEvaluator(
+            reader.spec().schema(), rowFilter);
+      } else {
+        this.lazyMetricsEvaluator = new InclusiveMetricsEvaluator(
+            reader.spec().schema(), Expressions.alwaysTrue());
+      }
     }
     return lazyMetricsEvaluator;
   }
