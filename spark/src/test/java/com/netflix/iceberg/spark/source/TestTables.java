@@ -204,12 +204,7 @@ class TestTables {
     }
 
     @Override
-    public InputFile readMetadataFile(String fileName) {
-      return newInputFile(metadataFileLocation(fileName));
-    }
-
-    @Override
-    public OutputFile newMetadataFile(String fileName) {
+    public OutputFile newMetadataOutputFile(String fileName) {
       return newOutputFile(metadataFileLocation(fileName));
     }
 
@@ -224,13 +219,13 @@ class TestTables {
     }
 
     @Override
-    public OutputFile newPartitionedDataFile(
+    public OutputFile newDataOutputFile(
         PartitionSpec partitionSpec, StructLike filePartition, String fileName) {
       return newOutputFile(partitionedDataFileLocation(partitionSpec, filePartition, fileName));
     }
 
     @Override
-    public OutputFile newUnpartitionedDataFile(String fileName) {
+    public OutputFile newDataOutputFile(String fileName) {
       return newOutputFile(new File(data, fileName).getAbsolutePath());
     }
   }

@@ -245,7 +245,7 @@ class Writer implements DataSourceWriter {
         AppenderFactory<InternalRow> factory,
         FileIO fileIo) {
       this.fileIo = fileIo;
-      this.file = fileIo.newUnpartitionedDataFile(filename);
+      this.file = fileIo.newDataOutputFile(filename);
       this.appender = factory.newAppender(file, format);
     }
 
@@ -332,7 +332,7 @@ class Writer implements DataSourceWriter {
         }
 
         this.currentKey = key.copy();
-        this.currentFile = fileIo.newPartitionedDataFile(spec, currentKey, filename);
+        this.currentFile = fileIo.newDataOutputFile(spec, currentKey, filename);
         this.currentAppender = factory.newAppender(currentFile, format);
       }
 

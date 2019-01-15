@@ -132,6 +132,11 @@ public class Files {
     }
 
     @Override
+    public boolean exists() {
+      return file.exists();
+    }
+
+    @Override
     public String toString() {
       return location();
     }

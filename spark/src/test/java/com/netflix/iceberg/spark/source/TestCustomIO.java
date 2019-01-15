@@ -237,26 +237,21 @@ public class TestCustomIO {
     }
 
     @Override
-    public InputFile readMetadataFile(String fileName) {
-      return newInputFile(String.format("%s/%s", metadataPath, fileName));
-    }
-
-    @Override
-    public OutputFile newMetadataFile(String fileName) {
+    public OutputFile newMetadataOutputFile(String fileName) {
       return newOutputFile(String.format("%s/%s", metadataPath, fileName));
     }
 
     @Override
-    public OutputFile newPartitionedDataFile(
+    public OutputFile newDataOutputFile(
         PartitionSpec partitionSpec, StructLike partitionData, String fileName) {
       UUID randomFileName = UUID.randomUUID();
       GENERATED_FILE_NAMES.add(randomFileName);
-      return newUnpartitionedDataFile(
+      return newDataOutputFile(
           String.format("%s/%s/%s", dataPath, partitionSpec.partitionToPath(partitionData), randomFileName));
     }
 
     @Override
-    public OutputFile newUnpartitionedDataFile(String fileName) {
+    public OutputFile newDataOutputFile(String fileName) {
       // Slightly different naming compared to metadata files.
       UUID randomFileName = UUID.randomUUID();
       GENERATED_FILE_NAMES.add(randomFileName);

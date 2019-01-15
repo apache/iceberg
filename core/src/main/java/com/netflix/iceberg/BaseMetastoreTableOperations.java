@@ -48,7 +48,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   private final Configuration conf;
 
-  private HadoopFileIO fileIo;
+  private HadoopFileIO defaultIo;
   private TableMetadata currentMetadata = null;
   private String currentMetadataLocation = null;
   private boolean shouldRefresh = true;
@@ -93,10 +93,9 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
     // write the new metadata
     TableMetadataParser.write(metadata, newMetadataLocation);
-    if (fileIo != null) {
-      fileIo.updateProperties(metadata.properties());
+    if (defaultIo != null) {
+      defaultIo.updateTableMetadata(metadata);
     }
-
     return newTableMetadataFilePath;
   }
 
@@ -117,6 +116,9 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
             this.currentMetadataLocation = location;
             this.baseLocation = currentMetadata.location();
             this.version = parseVersion(location);
+            if (defaultIo != null) {
+              defaultIo.updateTableMetadata(currentMetadata);
+            }
           });
     }
     this.shouldRefresh = false;
@@ -124,13 +126,13 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   @Override
   public FileIO io() {
-    if (fileIo == null) {
-      fileIo = new HadoopFileIO(
+    if (defaultIo == null) {
+      defaultIo = new HadoopFileIO(
           conf,
           baseLocation,
           currentMetadata == null ? ImmutableMap.of() : currentMetadata.properties());
     }
-    return fileIo;
+    return defaultIo;
   }
 
   private String newTableMetadataFilePath(String baseLocation, int newVersion) {

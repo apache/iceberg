@@ -30,6 +30,7 @@ import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.ValidationException;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.types.TypeUtil;
+import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -39,7 +40,7 @@ import java.util.function.Predicate;
 /**
  * Metadata for a table.
  */
-public class TableMetadata {
+public class TableMetadata implements Serializable {
   static final int TABLE_FORMAT_VERSION = 1;
   static final int INITIAL_SPEC_ID = 0;
 

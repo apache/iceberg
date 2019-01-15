@@ -48,14 +48,9 @@ public interface FileIO extends Serializable {
   void deleteFile(String path);
 
   /**
-   * Get an {@link InputFile} to get the bytes for this table's metadata file with the given name.
-   */
-  InputFile readMetadataFile(String fileName);
-
-  /**
    * Get an {@link OutputFile} to write bytes for a new table metadata file with the given name.
    */
-  OutputFile newMetadataFile(String fileName);
+  OutputFile newMetadataOutputFile(String fileName);
 
   /**
    * Get an {@link OutputFile} for writing bytes to a new data file for this table.
@@ -63,7 +58,7 @@ public interface FileIO extends Serializable {
    * The partition values of the rows in this file may be used to derive the final location of
    * the file.
    */
-  OutputFile newPartitionedDataFile(
+  OutputFile newDataOutputFile(
       PartitionSpec partitionSpec, StructLike partitionData, String fileName);
 
   /**
@@ -71,5 +66,5 @@ public interface FileIO extends Serializable {
    * <p>
    * The table is not partitioned in this case.
    */
-  OutputFile newUnpartitionedDataFile(String fileName);
+  OutputFile newDataOutputFile(String fileName);
 }

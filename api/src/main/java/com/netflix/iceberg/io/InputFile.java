@@ -48,4 +48,9 @@ public interface InputFile {
    * @return the input file location
    */
   String location();
+
+  /**
+   * @return true if the file exists in the backing store, false otherwise.
+   */
+  boolean exists();
 }

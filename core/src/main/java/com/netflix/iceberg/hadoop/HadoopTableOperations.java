@@ -73,33 +73,26 @@ public class HadoopTableOperations implements TableOperations {
   @Override
   public TableMetadata refresh() {
     int ver = version != null ? version : readVersionHint();
-    InputFile metadataFile = io().readMetadataFile(metadataFileName(ver));
-    Path metadataFilePath = new Path(metadataFile.location());
-    FileSystem fs = getFS(metadataFilePath, conf);
-    try {
-      // don't check if the file exists if version is non-null because it was already checked
-      if (version == null && !fs.exists(metadataFilePath)) {
-        if (ver == 0) {
-          // no v0 metadata means the table doesn't exist yet
-          return null;
-        }
-        throw new ValidationException("Metadata file is missing: %s", metadataFile);
+    InputFile metadataFile = io().newMetadataOutputFile(metadataFileName(ver)).toInputFile();
+    // don't check if the file exists if version is non-null because it was already checked
+    if (version == null && !metadataFile.exists()) {
+      if (ver == 0) {
+        // no v0 metadata means the table doesn't exist yet
+        return null;
       }
+      throw new ValidationException("Metadata file is missing: %s", metadataFile);
+    }
 
-      while (fs.exists(new Path(io().readMetadataFile(metadataFileName(ver + 1)).location()))) {
-        ver += 1;
-        metadataFile = io().readMetadataFile(metadataFileName(ver));
-      }
-
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to get file system for path: %s", metadataFile);
+    while (io().newMetadataOutputFile(metadataFileName(ver + 1)).toInputFile().exists()) {
+      ver += 1;
+      metadataFile = io().newMetadataOutputFile(metadataFileName(ver)).toInputFile();
     }
     this.version = ver;
     this.currentMetadata = TableMetadataParser.read(this, metadataFile);
-    this.shouldRefresh = false;
     if (defaultFileIo != null) {
-      defaultFileIo.updateProperties(currentMetadata.properties());
+      defaultFileIo.updateTableMetadata(currentMetadata);
     }
+    this.shouldRefresh = false;
     return currentMetadata;
   }
 
@@ -114,29 +107,24 @@ public class HadoopTableOperations implements TableOperations {
       return;
     }
 
-    OutputFile newTempMetadataFile = io().newMetadataFile(
+    OutputFile newTempMetadataFile = io().newMetadataOutputFile(
         UUID.randomUUID().toString() + getFileExtension(conf));
     TableMetadataParser.write(metadata, newTempMetadataFile);
 
     int nextVersion = (version != null ? version : 0) + 1;
     Path tempMetadataFile = new Path(newTempMetadataFile.location());
-    Path finalMetadataFile = new Path(io().newMetadataFile(
-        metadataFileName(nextVersion)).location());
+    OutputFile finalMetadataFile = io().newMetadataOutputFile(
+        metadataFileName(nextVersion));
     FileSystem fs = getFS(tempMetadataFile, conf);
 
-    try {
-      if (fs.exists(finalMetadataFile)) {
-        throw new CommitFailedException(
-            "Version %d already exists: %s", nextVersion, finalMetadataFile);
-      }
-    } catch (IOException e) {
-      throw new RuntimeIOException(e,
-          "Failed to check if next version exists: " + finalMetadataFile);
+    if (finalMetadataFile.toInputFile().exists()) {
+      throw new CommitFailedException(
+          "Version %d already exists: %s", nextVersion, finalMetadataFile);
     }
 
     try {
       // this rename operation is the atomic commit operation
-      if (!fs.rename(tempMetadataFile, finalMetadataFile)) {
+      if (!fs.rename(tempMetadataFile, new Path(finalMetadataFile.location()))) {
         throw new CommitFailedException(
             "Failed to commit changes using rename: %s", finalMetadataFile);
       }
@@ -167,7 +155,7 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   private void writeVersionHint(int version) {
-    try (OutputStream out = io().newMetadataFile(VERSION_HINT_FILE_NAME).createOrOverwrite()) {
+    try (OutputStream out = io().newMetadataOutputFile(VERSION_HINT_FILE_NAME).createOrOverwrite()) {
       out.write(String.valueOf(version).getBytes("UTF-8"));
 
     } catch (IOException e) {
@@ -176,10 +164,10 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   private int readVersionHint() {
-    InputFile versionHintFile = io().readMetadataFile(VERSION_HINT_FILE_NAME);
+    InputFile versionHintFile = io().newMetadataOutputFile(VERSION_HINT_FILE_NAME).toInputFile();
     try {
       Path versionHintFilePath = new Path(versionHintFile.location());
-      FileSystem fs = Util.getFS(versionHintFilePath, conf);
+      FileSystem fs = getFS(versionHintFilePath, conf);
       if (!fs.exists(versionHintFilePath)) {
         return 0;
       }

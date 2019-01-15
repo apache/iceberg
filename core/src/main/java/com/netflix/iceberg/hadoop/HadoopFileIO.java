@@ -3,6 +3,7 @@ package com.netflix.iceberg.hadoop;
 import com.google.common.base.Preconditions;
 import com.netflix.iceberg.PartitionSpec;
 import com.netflix.iceberg.StructLike;
+import com.netflix.iceberg.TableMetadata;
 import com.netflix.iceberg.TableProperties;
 import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
@@ -23,16 +24,15 @@ public class HadoopFileIO implements FileIO {
       .bucket(Types.StringType.get(), Integer.MAX_VALUE);
 
   private final SerializableConfiguration hadoopConf;
-  private final String tableLocation;
+  private String tableLocation;
   private String newDataFileLocation;
   private boolean useObjectStorage = TableProperties.OBJECT_STORE_ENABLED_DEFAULT;
   private String objectStorePath;
 
   public HadoopFileIO(
-      Configuration hadoopConf, String tableLocation, Map<String, String> initialProperties) {
+      Configuration hadoopConf, String initialTableLocation, Map<String, String> initialProperties) {
     this.hadoopConf = new SerializableConfiguration(hadoopConf);
-    this.tableLocation = tableLocation;
-    updateProperties(initialProperties);
+    update(initialTableLocation, initialProperties);
   }
 
   @Override
@@ -57,17 +57,12 @@ public class HadoopFileIO implements FileIO {
   }
 
   @Override
-  public InputFile readMetadataFile(String fileName) {
-    return newInputFile(metadataPath(fileName).toString());
-  }
-
-  @Override
-  public OutputFile newMetadataFile(String fileName) {
+  public OutputFile newMetadataOutputFile(String fileName) {
     return newOutputFile(metadataPath(fileName).toString());
   }
 
   @Override
-  public OutputFile newPartitionedDataFile(
+  public OutputFile newDataOutputFile(
       PartitionSpec partitionSpec, StructLike filePartition, String fileName) {
     String location;
     if (useObjectStorage) {
@@ -94,7 +89,7 @@ public class HadoopFileIO implements FileIO {
   }
 
   @Override
-  public OutputFile newUnpartitionedDataFile(String fileName) {
+  public OutputFile newDataOutputFile(String fileName) {
     return newOutputFile(String.format("%s/%s", newDataFileLocation, fileName));
   }
 
@@ -102,7 +97,11 @@ public class HadoopFileIO implements FileIO {
     return new Path(new Path(tableLocation, "metadata"), filename);
   }
 
-  public void updateProperties(Map<String, String> newTableProperties) {
+  public void updateTableMetadata(TableMetadata newMetadata) {
+    update(newMetadata.location(), newMetadata.properties());
+  }
+
+  private void update(String newTableLocation, Map<String, String> newTableProperties) {
     this.newDataFileLocation = stripTrailingSlash(
         newTableProperties
             .getOrDefault(
@@ -120,6 +119,7 @@ public class HadoopFileIO implements FileIO {
           "Cannot use object storage, missing location: %s",
           TableProperties.OBJECT_STORE_PATH);
     }
+    this.tableLocation = newTableLocation;
   }
 
   private static String stripTrailingSlash(String path) {
