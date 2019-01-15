@@ -30,7 +30,6 @@ import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.ValidationException;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.types.TypeUtil;
-import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
