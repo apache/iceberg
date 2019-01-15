@@ -49,6 +49,8 @@ public interface FileIO extends Serializable {
 
   /**
    * Get an {@link OutputFile} to write bytes for a new table metadata file with the given name.
+   *
+   * @param fileName Name of the file to create. Note that this is NOT a full path.
    */
   OutputFile newMetadataOutputFile(String fileName);
 
@@ -56,7 +58,12 @@ public interface FileIO extends Serializable {
    * Get an {@link OutputFile} for writing bytes to a new data file for this table.
    * <p>
    * The partition values of the rows in this file may be used to derive the final location of
-   * the file.
+   * the file. To convert the partitioning information into a path, use
+   * {@link PartitionSpec#partitionToPath(StructLike)} with the partitionData as the argument.
+   *
+   * @param partitionSpec The partitioning of the table this file is in.
+   * @param partitionData The partition tuple the rows in this file satisfy.
+   * @param fileName The suggested name of the file to create. Note that this is NOT a full path.
    */
   OutputFile newDataOutputFile(
       PartitionSpec partitionSpec, StructLike partitionData, String fileName);
@@ -65,6 +72,8 @@ public interface FileIO extends Serializable {
    * Get an {@link OutputFile} for writing bytes to a new data file for this table.
    * <p>
    * The table is not partitioned in this case.
+   *
+   * @param fileName THe suggested name of the file to create. Note that this is NOT a full path.
    */
   OutputFile newDataOutputFile(String fileName);
 }

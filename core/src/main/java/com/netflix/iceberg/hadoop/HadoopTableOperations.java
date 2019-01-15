@@ -19,7 +19,6 @@
 
 package com.netflix.iceberg.hadoop;
 
-import com.google.common.collect.ImmutableMap;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 import com.google.common.base.Preconditions;
@@ -58,7 +57,6 @@ public class HadoopTableOperations implements TableOperations {
   private TableMetadata currentMetadata = null;
   private Integer version = null;
   private boolean shouldRefresh = true;
-  private HadoopFileIO defaultFileIo = null;
 
   protected HadoopTableOperations(Path location, Configuration conf) {
     this.conf = conf;
@@ -91,9 +89,6 @@ public class HadoopTableOperations implements TableOperations {
     }
     this.version = ver;
     this.currentMetadata = TableMetadataParser.read(this, metadataFile);
-    if (defaultFileIo != null) {
-      defaultFileIo.updateTableMetadata(currentMetadata);
-    }
     this.shouldRefresh = false;
     return currentMetadata;
   }
@@ -109,7 +104,8 @@ public class HadoopTableOperations implements TableOperations {
       return;
     }
 
-    OutputFile newTempMetadataFile = io().newMetadataOutputFile(
+    FileIO newMetadataIO = io(metadata);
+    OutputFile newTempMetadataFile = newMetadataIO.newMetadataOutputFile(
         UUID.randomUUID().toString() + getFileExtension(conf));
     TableMetadataParser.write(metadata, newTempMetadataFile);
     Preconditions.checkArgument(base == null || base.location().equals(metadata.location()),
@@ -120,7 +116,7 @@ public class HadoopTableOperations implements TableOperations {
 
     int nextVersion = (version != null ? version : 0) + 1;
     Path tempMetadataFile = new Path(newTempMetadataFile.location());
-    OutputFile finalMetadataFile = io().newMetadataOutputFile(
+    OutputFile finalMetadataFile = newMetadataIO.newMetadataOutputFile(
         metadataFileName(nextVersion));
     FileSystem fs = getFS(tempMetadataFile, conf);
 
@@ -151,14 +147,17 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @Override
+  public FileIO io(TableMetadata tableMetadata) {
+    return new HadoopFileIO(conf, tableMetadata);
+  }
+
+  @Override
   public FileIO io() {
-    if (defaultFileIo == null) {
-      defaultFileIo = new HadoopFileIO(
-          conf,
-          location.toString(),
-          currentMetadata == null ? ImmutableMap.of() : currentMetadata.properties());
+    if (currentMetadata == null) {
+      return new HadoopFileIO(conf, location.toString());
+    } else {
+      return new HadoopFileIO(conf, currentMetadata);
     }
-    return defaultFileIo;
   }
 
   private void writeVersionHint(int version) {

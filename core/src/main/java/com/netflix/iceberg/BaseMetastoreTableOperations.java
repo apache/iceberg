@@ -20,7 +20,6 @@
 package com.netflix.iceberg;
 
 import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableMap;
 import com.netflix.iceberg.hadoop.HadoopFileIO;
 import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.io.OutputFile;
@@ -44,7 +43,6 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   private final Configuration conf;
 
-  private HadoopFileIO defaultIo;
   private TableMetadata currentMetadata = null;
   private String currentMetadataLocation = null;
   private boolean shouldRefresh = true;
@@ -75,23 +73,12 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   }
 
   protected String writeNewMetadata(TableMetadata metadata, int version) {
-    FileIO initializedFileIo = io();
     // This would be false if the subclass overrides io() and returns a different kind.
-    if (initializedFileIo instanceof HadoopFileIO) {
-      ((HadoopFileIO) initializedFileIo).updateTableMetadata(metadata);
-    }
-    OutputFile newMetadataOutputFile = initializedFileIo.newMetadataOutputFile(
+    OutputFile newMetadataOutputFile = io(metadata).newMetadataOutputFile(
         newTableMetadataFileName(version));
 
     // write the new metadata
-    try {
-      TableMetadataParser.write(metadata, newMetadataOutputFile);
-    } catch (RuntimeException e) {
-      if (initializedFileIo instanceof HadoopFileIO) {
-        ((HadoopFileIO) initializedFileIo).updateTableMetadata(currentMetadata);
-      }
-      throw e;
-    }
+    TableMetadataParser.write(metadata, newMetadataOutputFile);
     return newMetadataOutputFile.location();
   }
 
@@ -111,11 +98,6 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
             this.currentMetadata = read(this, fromLocation(metadataLocation, conf));
             this.currentMetadataLocation = metadataLocation;
             this.version = parseVersion(metadataLocation);
-            FileIO initializedFileIo = io();
-            // This would be false if the subclass overrides io() and returns a different kind.
-            if (initializedFileIo instanceof HadoopFileIO) {
-              ((HadoopFileIO) initializedFileIo).updateTableMetadata(currentMetadata);
-            }
           });
     }
     this.shouldRefresh = false;
@@ -123,17 +105,12 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   @Override
   public FileIO io() {
-    return getLazyDefaultFileIO();
+    return new HadoopFileIO(conf, currentMetadata);
   }
 
-  private HadoopFileIO getLazyDefaultFileIO() {
-    if (defaultIo == null) {
-      defaultIo = new HadoopFileIO(
-          conf,
-          currentMetadata == null ? null : currentMetadata.location(),
-          currentMetadata == null ? ImmutableMap.of() : currentMetadata.properties());
-    }
-    return defaultIo;
+  @Override
+  public FileIO io(TableMetadata tableMetadata) {
+    return new HadoopFileIO(conf, tableMetadata);
   }
 
   private String newTableMetadataFileName(int newVersion) {

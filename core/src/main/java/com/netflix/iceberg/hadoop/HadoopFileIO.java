@@ -42,20 +42,65 @@ public class HadoopFileIO implements FileIO {
   private static final Transform<String, Integer> HASH_FUNC = Transforms
       .bucket(Types.StringType.get(), Integer.MAX_VALUE);
 
-  private static final String METADATA_FOLDER_NAME = "metadata";
-  private static final String DATA_FOLDER_NAME = "data";
+  private static final String METADATA_DIR_NAME = "metadata";
+  private static final String DATA_DIR_NAME = "data";
 
   private final SerializableConfiguration hadoopConf;
-  private String tableLocation;
-  private String newDataFileLocation;
-  private boolean useObjectStorage = TableProperties.OBJECT_STORE_ENABLED_DEFAULT;
-  private String objectStorePath;
-  private String newMetadataFileDir;
+  private final String tableLocation;
+  private final String newDataFileDir;
+  private final boolean useObjectStorage;
+  private final String objectStorePath;
+  private final String newMetadataFileDir;
 
   public HadoopFileIO(
-      Configuration hadoopConf, String initialTableLocation, Map<String, String> initialProperties) {
+      Configuration hadoopConf, TableMetadata tableMetadata) {
     this.hadoopConf = new SerializableConfiguration(hadoopConf);
-    update(initialTableLocation, initialProperties);
+    this.tableLocation = tableMetadata.location();
+    Map<String, String> tableProperties = tableMetadata.properties();
+    this.newDataFileDir = stripTrailingSlash(
+        tableProperties
+            .getOrDefault(
+                TableProperties.WRITE_NEW_DATA_LOCATION,
+                defaultDataDir()));
+    this.useObjectStorage = Boolean.parseBoolean(
+        tableProperties.getOrDefault(
+            TableProperties.OBJECT_STORE_ENABLED,
+            String.valueOf(TableProperties.OBJECT_STORE_ENABLED_DEFAULT)));
+    if (useObjectStorage) {
+      this.objectStorePath = stripTrailingSlash(
+          tableProperties.get(TableProperties.OBJECT_STORE_PATH));
+      Preconditions.checkNotNull(
+          objectStorePath,
+          "Cannot use object storage, missing location: %s",
+          TableProperties.OBJECT_STORE_PATH);
+    } else {
+      this.objectStorePath = null;
+    }
+    String metadataLocation = tableProperties
+        .get(TableProperties.WRITE_METADATA_LOCATION);
+
+    if (metadataLocation != null) {
+      this.newMetadataFileDir = stripTrailingSlash(metadataLocation);
+    } else {
+      this.newMetadataFileDir = defaultMetadataDir();
+    }
+  }
+
+  private String defaultDataDir() {
+    return String.format("%s/%s", tableLocation, DATA_DIR_NAME);
+  }
+
+  public HadoopFileIO(Configuration hadoopConf, String location) {
+    this.tableLocation = location;
+    this.hadoopConf = new SerializableConfiguration(hadoopConf);
+    this.newMetadataFileDir = defaultMetadataDir();
+    this.useObjectStorage = TableProperties.OBJECT_STORE_ENABLED_DEFAULT;
+    this.objectStorePath = null;
+    this.newDataFileDir = defaultDataDir();
+  }
+
+  private String defaultMetadataDir() {
+    return String.format("%s/%s", tableLocation, METADATA_DIR_NAME);
   }
 
   @Override
@@ -90,7 +135,7 @@ public class HadoopFileIO implements FileIO {
     String location;
     if (useObjectStorage) {
       // try to get db and table portions of the path for context in the object store
-      String context = pathContext(new Path(newDataFileLocation));
+      String context = pathContext(new Path(newDataFileDir));
       String partitionAndFilename = String.format(
           "%s/%s", partitionSpec.partitionToPath(filePartition), fileName);
       int hash = HASH_FUNC.apply(partitionAndFilename);
@@ -104,7 +149,7 @@ public class HadoopFileIO implements FileIO {
     } else {
       location = String.format(
           "%s/%s/%s",
-          newDataFileLocation,
+          newDataFileDir,
           partitionSpec.partitionToPath(filePartition),
           fileName);
     }
@@ -113,40 +158,7 @@ public class HadoopFileIO implements FileIO {
 
   @Override
   public OutputFile newDataOutputFile(String fileName) {
-    return newOutputFile(String.format("%s/%s", newDataFileLocation, fileName));
-  }
-
-  public void updateTableMetadata(TableMetadata newMetadata) {
-    update(newMetadata.location(), newMetadata.properties());
-  }
-
-  private void update(String newTableLocation, Map<String, String> newTableProperties) {
-    this.newDataFileLocation = stripTrailingSlash(
-        newTableProperties
-            .getOrDefault(
-                TableProperties.WRITE_NEW_DATA_LOCATION,
-                String.format("%s/data", tableLocation)));
-    this.useObjectStorage = Boolean.parseBoolean(
-        newTableProperties.getOrDefault(
-            TableProperties.OBJECT_STORE_ENABLED,
-            String.valueOf(TableProperties.OBJECT_STORE_ENABLED_DEFAULT)));
-    if (useObjectStorage) {
-      this.objectStorePath = stripTrailingSlash(
-          newTableProperties.get(TableProperties.OBJECT_STORE_PATH));
-      Preconditions.checkNotNull(
-          objectStorePath,
-          "Cannot use object storage, missing location: %s",
-          TableProperties.OBJECT_STORE_PATH);
-    }
-    this.tableLocation = newTableLocation;
-    String metadataLocation = newTableProperties
-        .get(TableProperties.WRITE_METADATA_LOCATION);
-
-    if (metadataLocation != null) {
-      this.newMetadataFileDir = stripTrailingSlash(metadataLocation);
-    } else {
-      this.newMetadataFileDir = String.format("%s/%s", newTableLocation, METADATA_FOLDER_NAME);
-    }
+    return newOutputFile(String.format("%s/%s", newDataFileDir, fileName));
   }
 
   private static String stripTrailingSlash(String path) {
