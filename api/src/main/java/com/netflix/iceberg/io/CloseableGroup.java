@@ -47,6 +47,9 @@ public abstract class CloseableGroup implements Closeable {
 
     public ClosingIterable(Iterable<T> iterable, Iterable<Closeable> closeables) {
       this.iterable = iterable;
+      if (iterable instanceof Closeable) {
+        addCloseable((Closeable) iterable);
+      }
       for (Closeable closeable : closeables) {
         addCloseable(closeable);
       }

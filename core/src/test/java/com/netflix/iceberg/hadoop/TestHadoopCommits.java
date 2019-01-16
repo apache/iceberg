@@ -55,7 +55,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
         metadataDir.exists() && metadataDir.isDirectory());
     Assert.assertTrue("Should create v1 metadata",
         version(1).exists() && version(1).isFile());
-    Assert.assertFalse("Should not create v2 or newer verions",
+    Assert.assertFalse("Should not create v2 or newer versions",
         version(2).exists());
     Assert.assertTrue("Should create version hint file",
         versionHintFile.exists());
