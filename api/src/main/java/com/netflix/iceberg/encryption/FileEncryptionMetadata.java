@@ -29,7 +29,7 @@ public interface FileEncryptionMetadata {
 
   Schema SCHEMA = new Schema(
       Types.NestedField.required(10000, "key_metadata", Types.BinaryType.get()),
-      Types.NestedField.required(10002, "cipher_algorithm", Types.StringType.get()));
+      Types.NestedField.required(10001, "cipher_algorithm", Types.StringType.get()));
 
   static Schema schema() {
     return SCHEMA;

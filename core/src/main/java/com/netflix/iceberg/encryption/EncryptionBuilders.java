@@ -66,6 +66,12 @@ public class EncryptionBuilders {
           Preconditions.checkNotNull(keyMetadata, "Key metadata should not be null.")));
     }
 
+    public FileEncryptionMetadataBuilder cipherAlgorithm(String cipherAlgorithm) {
+      this.cipherAlgorithm = Preconditions.checkNotNull(
+          cipherAlgorithm, "Cipher algorithm should not be null.");
+      return this;
+    }
+
     public FileEncryptionMetadata build() {
       return new GenericFileEncryptionMetadata(
           Preconditions.checkNotNull(keyMetadata, "Key metadata must be specified."),

@@ -22,6 +22,7 @@ package com.netflix.iceberg;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 import com.netflix.iceberg.avro.AvroSchemaUtil;
+import com.netflix.iceberg.encryption.FileEncryptionMetadata;
 import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Types;
 import org.apache.avro.generic.IndexedRecord;
@@ -50,6 +51,7 @@ class GenericDataFile
   private Long recordCount = null;
   private long fileSizeInBytes = -1L;
   private long blockSizeInBytes = -1L;
+  private FileEncryptionMetadata encryption = null;
 
   // optional fields
   private Integer fileOrdinal = null; // boxed for nullability
@@ -165,6 +167,13 @@ class GenericDataFile
     this.fromProjectionPos = null;
   }
 
+  GenericDataFile(String filePath, FileFormat format, PartitionData partition,
+                  long fileSizeInBytes, long blockSizeInBytes, Metrics metrics,
+                  FileEncryptionMetadata encryption) {
+    this(filePath, format, partition, fileSizeInBytes, blockSizeInBytes, metrics);
+    this.encryption = encryption;
+  }
+
   /**
    * Copy constructor.
    *
@@ -187,6 +196,7 @@ class GenericDataFile
     this.lowerBounds = toCopy.lowerBounds;
     this.upperBounds = toCopy.upperBounds;
     this.fromProjectionPos = toCopy.fromProjectionPos;
+    this.encryption = toCopy.encryption == null ? null : toCopy.encryption.copy();
   }
 
   /**
@@ -261,6 +271,11 @@ class GenericDataFile
   }
 
   @Override
+  public FileEncryptionMetadata encryption() {
+    return encryption;
+  }
+
+  @Override
   public org.apache.avro.Schema getSchema() {
     if (avroSchema == null) {
       this.avroSchema = getAvroSchema(partitionType);
@@ -317,6 +332,9 @@ class GenericDataFile
       case 12:
         this.upperBounds= SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) v);
         return;
+      case 13:
+        this.encryption = (FileEncryptionMetadata) v;
+        return;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -356,6 +374,8 @@ class GenericDataFile
         return lowerBounds;
       case 12:
         return upperBounds;
+      case 13:
+        return encryption;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -370,7 +390,7 @@ class GenericDataFile
 
   @Override
   public int size() {
-    return 13;
+    return 14;
   }
 
   @Override
@@ -402,6 +422,7 @@ class GenericDataFile
         .add("null_value_counts", nullValueCounts)
         .add("lower_bounds", lowerBounds)
         .add("upper_bounds", upperBounds)
+        .add("encryption", "<redacted>")
         .toString();
   }
 

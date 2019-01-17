@@ -20,6 +20,7 @@
 package com.netflix.iceberg;
 
 import com.google.common.base.Preconditions;
+import com.netflix.iceberg.encryption.FileEncryptionMetadata;
 import com.netflix.iceberg.hadoop.HadoopInputFile;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.types.Conversions;
@@ -178,6 +179,7 @@ public class DataFiles {
     private long recordCount = -1L;
     private long fileSizeInBytes = -1L;
     private long blockSizeInBytes = -1L;
+    private FileEncryptionMetadata encryption;
 
     // optional fields
     private Map<Integer, Long> columnSizes = null;
@@ -301,6 +303,11 @@ public class DataFiles {
       return this;
     }
 
+    public Builder withEncryption(FileEncryptionMetadata encryption) {
+      this.encryption = encryption;
+      return this;
+    }
+
     public DataFile build() {
       Preconditions.checkArgument(filePath != null, "File path is required");
       if (format == null) {
@@ -317,7 +324,7 @@ public class DataFiles {
       return new GenericDataFile(
           filePath, format, isPartitioned ? partitionData.copy() : null,
           fileSizeInBytes, blockSizeInBytes, new Metrics(
-              recordCount, columnSizes, valueCounts, nullValueCounts, lowerBounds, upperBounds));
+              recordCount, columnSizes, valueCounts, nullValueCounts, lowerBounds, upperBounds), encryption);
     }
   }
 }

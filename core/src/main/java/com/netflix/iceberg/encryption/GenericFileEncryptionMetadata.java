@@ -31,7 +31,7 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-class GenericFileEncryptionMetadata
+public class GenericFileEncryptionMetadata
   implements
     FileEncryptionMetadata,
     StructLike,
@@ -150,7 +150,7 @@ class GenericFileEncryptionMetadata
     }
     switch (pos) {
       case 0:
-        return keyMetadata().keyMetadata();
+        return keyMetadata == null ? null : keyMetadata().keyMetadata();
       case 1:
         return cipherAlgorithm;
       default:
