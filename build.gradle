@@ -53,6 +53,7 @@ subprojects {
   repositories {
     mavenCentral()
     mavenLocal()
+    maven { url  "http://palantir.bintray.com/releases" }
   }
 
   configurations {
@@ -67,6 +68,7 @@ subprojects {
 
   ext {
     hadoopVersion = '2.7.3'
+    hadoopCryptoVersion = '2.6.0'
     avroVersion = '1.8.2'
     orcVersion = '1.4.2'
     parquetVersion = '1.10.0'
@@ -117,6 +119,10 @@ project(':iceberg-core') {
 
     compile "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
     compile "com.fasterxml.jackson.core:jackson-core:$jacksonVersion"
+    compile("com.palantir.hadoop-crypto2:hadoop-crypto:$hadoopCryptoVersion") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+    }
     compileOnly("org.apache.hadoop:hadoop-client:$hadoopVersion") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
