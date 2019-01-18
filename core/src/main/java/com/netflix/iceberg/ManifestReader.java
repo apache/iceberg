@@ -25,7 +25,6 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.avro.Avro;
 import com.netflix.iceberg.avro.AvroIterable;
-import com.netflix.iceberg.encryption.EncryptionKeyMetadata;
 import com.netflix.iceberg.encryption.GenericEncryptionKeyMetadata;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.expressions.Expression;
