@@ -19,6 +19,9 @@
 
 package com.netflix.iceberg.encryption;
 
+import com.netflix.iceberg.Schema;
+import com.netflix.iceberg.types.Types;
+
 import java.nio.ByteBuffer;
 
 /**
@@ -29,10 +32,30 @@ import java.nio.ByteBuffer;
  */
 public interface EncryptionKeyMetadata {
 
+  Schema SCHEMA = new Schema(
+      Types.NestedField.required(10000, "key_metadata", Types.BinaryType.get()),
+      Types.NestedField.required(10001, "cipher_algorithm", Types.StringType.get()),
+      Types.NestedField.required(10002, "key_algorithm", Types.StringType.get()));
+
+  static Schema schema() {
+    return SCHEMA;
+  }
+
   /**
    * Header description of the key.
    */
   ByteBuffer keyMetadata();
+
+  /**
+   * Cipher algorithm used to decrypt the file with this file's encryption key.
+   */
+  String cipherAlgorithm();
+
+  /**
+   * Algorithm to use when converting the key bytes into key material that can be used for
+   * creating cryptographic ciphers.
+   */
+  String keyAlgorithm();
 
   EncryptionKeyMetadata copy();
 }

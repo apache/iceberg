@@ -19,7 +19,7 @@
 
 package com.netflix.iceberg;
 
-import com.netflix.iceberg.encryption.FileEncryptionMetadata;
+import com.netflix.iceberg.encryption.EncryptionKeyMetadata;
 import com.netflix.iceberg.expressions.BoundPredicate;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.ExpressionVisitors;
@@ -371,7 +371,7 @@ public class TestHelpers {
     }
 
     @Override
-    public FileEncryptionMetadata encryption() {
+    public EncryptionKeyMetadata encryption() {
       return null;
     }
 

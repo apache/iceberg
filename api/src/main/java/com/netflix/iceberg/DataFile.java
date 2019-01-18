@@ -19,7 +19,7 @@
 
 package com.netflix.iceberg;
 
-import com.netflix.iceberg.encryption.FileEncryptionMetadata;
+import com.netflix.iceberg.encryption.EncryptionKeyMetadata;
 import com.netflix.iceberg.types.Types.BinaryType;
 import com.netflix.iceberg.types.Types.IntegerType;
 import com.netflix.iceberg.types.Types.ListType;
@@ -59,7 +59,7 @@ public interface DataFile {
             IntegerType.get(), BinaryType.get())),
         optional(128, "upper_bounds", MapType.ofRequired(129, 130,
             IntegerType.get(), BinaryType.get())),
-        optional(131, "encryption_metadata", FileEncryptionMetadata.schema().asStruct())
+        optional(131, "encryption_metadata", EncryptionKeyMetadata.SCHEMA.asStruct())
         // NEXT ID TO ASSIGN: 132
     );
   }
@@ -130,9 +130,10 @@ public interface DataFile {
   Map<Integer, ByteBuffer> upperBounds();
 
   /**
-   * @return metadata how this file was encrypted, or null if the file is written in plain text
+   * @return metadata about the key that would be used to decrypt this file, or null if this is
+   *         file is written in plain text.
    */
-  FileEncryptionMetadata encryption();
+  EncryptionKeyMetadata encryption();
 
   /**
    * Copies this {@link DataFile data file}. Manifest readers can reuse data file instances; use

@@ -22,7 +22,7 @@ package com.netflix.iceberg;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 import com.netflix.iceberg.avro.AvroSchemaUtil;
-import com.netflix.iceberg.encryption.FileEncryptionMetadata;
+import com.netflix.iceberg.encryption.EncryptionKeyMetadata;
 import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Types;
 import org.apache.avro.generic.IndexedRecord;
@@ -51,7 +51,7 @@ class GenericDataFile
   private Long recordCount = null;
   private long fileSizeInBytes = -1L;
   private long blockSizeInBytes = -1L;
-  private FileEncryptionMetadata encryption = null;
+  private EncryptionKeyMetadata encryption = null;
 
   // optional fields
   private Integer fileOrdinal = null; // boxed for nullability
@@ -169,7 +169,7 @@ class GenericDataFile
 
   GenericDataFile(String filePath, FileFormat format, PartitionData partition,
                   long fileSizeInBytes, long blockSizeInBytes, Metrics metrics,
-                  FileEncryptionMetadata encryption) {
+                  EncryptionKeyMetadata encryption) {
     this(filePath, format, partition, fileSizeInBytes, blockSizeInBytes, metrics);
     this.encryption = encryption;
   }
@@ -271,7 +271,7 @@ class GenericDataFile
   }
 
   @Override
-  public FileEncryptionMetadata encryption() {
+  public EncryptionKeyMetadata encryption() {
     return encryption;
   }
 
@@ -333,7 +333,7 @@ class GenericDataFile
         this.upperBounds= SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) v);
         return;
       case 13:
-        this.encryption = (FileEncryptionMetadata) v;
+        this.encryption = (EncryptionKeyMetadata) v;
         return;
       default:
         // ignore the object, it must be from a newer version of the format

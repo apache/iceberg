@@ -35,11 +35,6 @@ public interface PhysicalEncryptionKey {
   ByteBuffer secretKeyBytes();
 
   /**
-   * Key algorithm to use to convert the secret key bytes into a cryptographic KeyMaterial.
-   */
-  String keyAlgorithm();
-
-  /**
    * The initialization vector bytes to use with this encryption key when generating ciphers.
    */
   ByteBuffer iv();

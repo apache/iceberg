@@ -36,6 +36,7 @@ import java.util.List;
 public class TestWriteEncryptionMetadata {
 
   private static final byte[] KEY_METADATA = "key-metadata".getBytes(StandardCharsets.UTF_8);
+  private static final String KEY_ALGORITHM = "AES";
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -47,9 +48,10 @@ public class TestWriteEncryptionMetadata {
     java.nio.file.Files.write(tempDataFile.toPath(), "test".getBytes(StandardCharsets.UTF_8));
     DataFile dataFile = DataFiles.builder()
         .withInputFile(Files.localInput(tempDataFile))
-        .withEncryption(EncryptionBuilders.newFileEncryptionMetadataBuilder()
+        .withEncryption(EncryptionBuilders.encryptionKeyMetadataBuilder()
             .keyMetadata(KEY_METADATA)
             .cipherAlgorithm(TableProperties.DEFAULT_CIPHER_ALGORITHM)
+            .keyAlgorithm(KEY_ALGORITHM)
             .build())
         .withFileSizeInBytes(tempDataFile.length())
         .withFormat(FileFormat.AVRO)
@@ -76,10 +78,14 @@ public class TestWriteEncryptionMetadata {
     Assert.assertArrayEquals(
         "Encryption key metadata was incorrect.",
         KEY_METADATA,
-        ByteBuffers.toByteArray(writtenFile.encryption().keyMetadata().keyMetadata()));
+        ByteBuffers.toByteArray(writtenFile.encryption().keyMetadata()));
     Assert.assertEquals(
         "Cipher algorithm was incorrect.",
         TableProperties.DEFAULT_CIPHER_ALGORITHM,
         writtenFile.encryption().cipherAlgorithm());
+    Assert.assertEquals(
+        "Key algorithm was incorrect.",
+        KEY_ALGORITHM,
+        writtenFile.encryption().keyAlgorithm());
   }
 }

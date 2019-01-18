@@ -26,17 +26,14 @@ class GenericPhysicalEncryptionKey implements PhysicalEncryptionKey {
   private final byte[] secretKeyBytes;
   private final byte[] iv;
   private final EncryptionKeyMetadata encryptionKeyMetadata;
-  private final String keyAlgorithm;
 
   public GenericPhysicalEncryptionKey(
       byte[] secretKeyBytes,
       byte[] iv,
-      EncryptionKeyMetadata encryptionKeyMetadata,
-      String keyAlgorithm) {
+      EncryptionKeyMetadata encryptionKeyMetadata) {
     this.secretKeyBytes = secretKeyBytes;
     this.iv = iv;
     this.encryptionKeyMetadata = encryptionKeyMetadata;
-    this.keyAlgorithm = keyAlgorithm;
   }
 
   @Override
@@ -54,8 +51,4 @@ class GenericPhysicalEncryptionKey implements PhysicalEncryptionKey {
     return encryptionKeyMetadata;
   }
 
-  @Override
-  public String keyAlgorithm() {
-    return keyAlgorithm;
-  }
 }

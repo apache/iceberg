@@ -25,8 +25,8 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.avro.Avro;
 import com.netflix.iceberg.avro.AvroIterable;
-import com.netflix.iceberg.encryption.FileEncryptionMetadata;
-import com.netflix.iceberg.encryption.GenericFileEncryptionMetadata;
+import com.netflix.iceberg.encryption.EncryptionKeyMetadata;
+import com.netflix.iceberg.encryption.GenericEncryptionKeyMetadata;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Projections;
@@ -36,6 +36,7 @@ import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
@@ -207,8 +208,8 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
             .rename("r102", PartitionData.class.getName())
             .rename("data_file", GenericDataFile.class.getName())
             .rename("r2", GenericDataFile.class.getName())
-            .rename("encryption_metadata", GenericFileEncryptionMetadata.class.getName())
-            .rename("r131", GenericFileEncryptionMetadata.class.getName())
+            .rename("encryption_metadata", GenericEncryptionKeyMetadata.class.getName())
+            .rename("r131", GenericEncryptionKeyMetadata.class.getName())
             .reuseContainers()
             .build();
 

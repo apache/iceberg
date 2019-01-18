@@ -26,89 +26,56 @@ import java.nio.ByteBuffer;
 
 public class EncryptionBuilders {
 
-  public static EncryptionKeyMetadata of(ByteBuffer keyMetadata) {
-    return GenericEncryptionKeyMetadata.of(
-        ByteBuffers.toByteArray(
-            Preconditions.checkNotNull(keyMetadata, "Key metadata should not be null.")));
+  public static EncryptionKeyMetadataBuilder encryptionKeyMetadataBuilder() {
+    return new EncryptionKeyMetadataBuilder();
   }
 
-  public static EncryptionKeyMetadata of(byte[] keyMetadata) {
-    return GenericEncryptionKeyMetadata.of(
-        Preconditions.checkNotNull(
-            keyMetadata, "Key metadata should not be null."));
+  public static PhysicalEncryptionKeyBuilder physicalEncryptionKeyBuilder() {
+    return new PhysicalEncryptionKeyBuilder();
   }
 
-  public static FileEncryptionMetadataBuilder newFileEncryptionMetadataBuilder() {
-    return new FileEncryptionMetadataBuilder();
-  }
-
-  public static final class FileEncryptionMetadataBuilder {
-    private EncryptionKeyMetadata keyMetadata;
+  public static final class EncryptionKeyMetadataBuilder {
+    private byte[] keyMetadata;
     private String cipherAlgorithm;
+    private String keyAlgorithm;
 
-    public FileEncryptionMetadataBuilder keyMetadata(EncryptionKeyMetadata keyMetadata) {
-      this.keyMetadata = GenericEncryptionKeyMetadata.of(
-          ByteBuffers.toByteArray(
-              Preconditions.checkNotNull(
-                  keyMetadata, "Key metadata should not be null.").keyMetadata()));
-      return this;
-    }
-
-    public FileEncryptionMetadataBuilder keyMetadata(ByteBuffer keyMetadata) {
-      this.keyMetadata = GenericEncryptionKeyMetadata.of(
-          ByteBuffers.toByteArray(
-              Preconditions.checkNotNull(keyMetadata, "Key metadata should not be null.")));
-      return this;
-    }
-
-    public FileEncryptionMetadataBuilder keyMetadata(byte[] keyMetadata) {
-      return keyMetadata(ByteBuffer.wrap(
+    public EncryptionKeyMetadataBuilder keyMetadata(ByteBuffer keyMetadata) {
+      return keyMetadata(ByteBuffers.toByteArray(
           Preconditions.checkNotNull(keyMetadata, "Key metadata should not be null.")));
     }
 
-    public FileEncryptionMetadataBuilder cipherAlgorithm(String cipherAlgorithm) {
+    public EncryptionKeyMetadataBuilder keyMetadata(byte[] keyMetadata) {
+      this.keyMetadata = Preconditions.checkNotNull(
+          keyMetadata, "Key metadata should not be null.");
+      return this;
+    }
+
+    public EncryptionKeyMetadataBuilder cipherAlgorithm(String cipherAlgorithm) {
       this.cipherAlgorithm = Preconditions.checkNotNull(
           cipherAlgorithm, "Cipher algorithm should not be null.");
       return this;
     }
 
-    public FileEncryptionMetadata build() {
-      return new GenericFileEncryptionMetadata(
+    public EncryptionKeyMetadataBuilder keyAlgorithm(String keyAlgorithm) {
+      this.keyAlgorithm = keyAlgorithm;
+      return this;
+    }
+
+    public EncryptionKeyMetadata build() {
+      return new GenericEncryptionKeyMetadata(
           Preconditions.checkNotNull(keyMetadata, "Key metadata must be specified."),
-          Preconditions.checkNotNull(cipherAlgorithm, "Cipher algorithm cannot be null."));
+          Preconditions.checkNotNull(cipherAlgorithm, "Cipher algorithm must be specified."),
+          Preconditions.checkNotNull(keyAlgorithm, "Key algorithm must be spcified."));
     }
   }
 
   public static final class PhysicalEncryptionKeyBuilder {
     private EncryptionKeyMetadata keyMetadata;
-    private String keyAlgorithm;
     private byte[] iv;
     private byte[] secretKeyBytes;
 
     public PhysicalEncryptionKeyBuilder keyMetadata(EncryptionKeyMetadata keyMetadata) {
-      this.keyMetadata = GenericEncryptionKeyMetadata.of(
-          ByteBuffers.toByteArray(
-              Preconditions.checkNotNull(
-                  keyMetadata, "Key metadata should not be null.").keyMetadata()));
-      return this;
-    }
-
-    public PhysicalEncryptionKeyBuilder keyMetadata(byte[] keyMetadata) {
-      this.keyMetadata = GenericEncryptionKeyMetadata.of(
-          Preconditions.checkNotNull(
-              keyMetadata, "Key metadata should not be null."));
-      return this;
-    }
-
-    public PhysicalEncryptionKeyBuilder keyMetadata(ByteBuffer keyMetadata) {
-      return keyMetadata(
-          ByteBuffers.toByteArray(
-              Preconditions.checkNotNull(keyMetadata, "Key metadata should not be null.")));
-    }
-
-    public PhysicalEncryptionKeyBuilder keyAlgorithm(String keyAlgorithm) {
-      this.keyAlgorithm = Preconditions.checkNotNull(
-          keyAlgorithm, "Key algorithm should not be null.");
+      this.keyMetadata = keyMetadata;
       return this;
     }
 
@@ -137,8 +104,7 @@ public class EncryptionBuilders {
       return new GenericPhysicalEncryptionKey(
           Preconditions.checkNotNull(iv, "Iv must be provided."),
           Preconditions.checkNotNull(secretKeyBytes, "Secret key bytes must be provided."),
-          Preconditions.checkNotNull(keyMetadata, "Key metadata must be provided."),
-          Preconditions.checkNotNull(keyAlgorithm, "Key algorithm must be provided."));
+          Preconditions.checkNotNull(keyMetadata, "Key metadata must be provided."));
     }
   }
 

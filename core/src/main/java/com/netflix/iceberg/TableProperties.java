@@ -85,6 +85,7 @@ public class TableProperties {
   // retroactively encrypted to reflect this parameter.
   public static final String WRITE_NEW_DATA_ENCRYPTED = "write.encryption.enabled";
   public static final boolean WRITE_NEW_DATA_ENCRYPTED_DEFAULT = false;
+  // Algorithms are applied to newly generated keys from Iceberg's built-in key managers.
   public static final String CIPHER_ALGORITHM = "write.encryption.cipher.algorithm";
   public static final String DEFAULT_CIPHER_ALGORITHM = "AES/CTR/NoPadding";
 }
