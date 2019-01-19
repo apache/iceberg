@@ -51,31 +51,35 @@ public class Binder {
    *
    * @param struct The {@link StructType struct type} to resolve references by name.
    * @param expr An {@link Expression expression} to rewrite with bound references.
+   * @param caseSensitive A boolean flag to control whether the bind should enforce case sensitivity.
    * @return the expression rewritten with bound references
    * @throws ValidationException if literals do not match bound references
    * @throws IllegalStateException if any references are already bound
    */
   public static Expression bind(StructType struct,
-                                Expression expr) {
-    return ExpressionVisitors.visit(expr, new BindVisitor(struct));
+                                Expression expr,
+                                boolean caseSensitive) {
+    return ExpressionVisitors.visit(expr, new BindVisitor(struct, caseSensitive));
   }
 
-  public static Set<Integer> boundReferences(StructType struct, List<Expression> exprs) {
+  public static Set<Integer> boundReferences(StructType struct, List<Expression> exprs, boolean caseSensitive) {
     if (exprs == null) {
       return ImmutableSet.of();
     }
     ReferenceVisitor visitor = new ReferenceVisitor();
     for (Expression expr : exprs) {
-      ExpressionVisitors.visit(bind(struct, expr), visitor);
+      ExpressionVisitors.visit(bind(struct, expr, caseSensitive), visitor);
     }
     return visitor.references;
   }
 
   private static class BindVisitor extends ExpressionVisitor<Expression> {
     private final StructType struct;
+    private final boolean caseSensitive;
 
-    private BindVisitor(StructType struct) {
+    private BindVisitor(StructType struct, boolean caseSensitive) {
       this.struct = struct;
+      this.caseSensitive = caseSensitive;
     }
 
     @Override
@@ -110,7 +114,7 @@ public class Binder {
 
     @Override
     public <T> Expression predicate(UnboundPredicate<T> pred) {
-      return pred.bind(struct);
+      return pred.bind(struct, caseSensitive);
     }
   }
 

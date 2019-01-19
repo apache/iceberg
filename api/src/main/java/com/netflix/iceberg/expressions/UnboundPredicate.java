@@ -44,8 +44,14 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
     return new UnboundPredicate<>(op().negate(), ref(), literal());
   }
 
-  public Expression bind(Types.StructType struct) {
-    Types.NestedField field = struct.field(ref().name());
+  public Expression bind(Types.StructType struct, boolean caseSensitive) {
+    Types.NestedField field;
+    if (caseSensitive) {
+      field = struct.field(ref().name());
+    } else {
+      field = struct.caseInsensitiveField(ref().name());
+    }
+
     ValidationException.check(field != null,
         "Cannot find field '%s' in struct: %s", ref().name(), struct);
 

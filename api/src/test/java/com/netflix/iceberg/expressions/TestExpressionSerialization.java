@@ -47,7 +47,7 @@ public class TestExpressionSerialization {
         Expressions.not(Expressions.greaterThan("a", 10)),
         Expressions.and(Expressions.greaterThanOrEqual("a", 0), Expressions.lessThan("a", 3)),
         Expressions.or(Expressions.lessThan("a", 0), Expressions.greaterThan("a", 10)),
-        Expressions.equal("a", 5).bind(schema.asStruct())
+        Expressions.equal("a", 5).bind(schema.asStruct(), true)
     };
 
     for (Expression expression : expressions) {

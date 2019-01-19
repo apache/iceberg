@@ -54,7 +54,7 @@ public class InclusiveManifestEvaluator {
 
   public InclusiveManifestEvaluator(PartitionSpec spec, Expression rowFilter) {
     this.struct = spec.partitionType();
-    this.expr = Binder.bind(struct, rewriteNot(Projections.inclusive(spec).project(rowFilter)));
+    this.expr = Binder.bind(struct, rewriteNot(Projections.inclusive(spec).project(rowFilter)), true);
   }
 
   /**
