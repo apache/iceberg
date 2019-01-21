@@ -28,6 +28,7 @@ import com.netflix.iceberg.avro.AvroSchemaUtil;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.hadoop.HadoopInputFile;
+import com.netflix.iceberg.hadoop.HadoopOutputFile;
 import com.netflix.iceberg.io.CloseableIterable;
 import com.netflix.iceberg.io.FileAppender;
 import com.netflix.iceberg.io.InputFile;
@@ -172,8 +173,8 @@ public class Parquet {
         Preconditions.checkArgument(writeSupport == null,
             "Cannot write with both write support and Parquet value writer");
         Configuration conf;
-        if (file instanceof HadoopInputFile) {
-          conf = ((HadoopInputFile) file).getConf();
+        if (file instanceof HadoopOutputFile) {
+          conf = ((HadoopOutputFile) file).getConf();
         } else {
           conf = new Configuration();
         }
