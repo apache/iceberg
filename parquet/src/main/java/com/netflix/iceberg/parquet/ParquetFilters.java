@@ -161,7 +161,7 @@ class ParquetFilters {
     }
 
     protected Expression bind(UnboundPredicate<?> pred) {
-      return pred.bind(schema.asStruct());
+      return pred.bind(schema.asStruct(), true);
     }
 
     @Override
@@ -189,7 +189,7 @@ class ParquetFilters {
 
     protected Expression bind(UnboundPredicate<?> pred) {
       // instead of binding the predicate using the top-level schema, bind it to the partition data
-      return pred.bind(partitionStruct);
+      return pred.bind(partitionStruct, true);
     }
   }
 

@@ -129,7 +129,7 @@ class BaseTableScan implements TableScan {
 
     // all of the filter columns are required
     requiredFieldIds.addAll(
-        Binder.boundReferences(table.schema().asStruct(), Collections.singletonList(rowFilter)));
+        Binder.boundReferences(table.schema().asStruct(), Collections.singletonList(rowFilter), true));
 
     // all of the projection columns are required
     requiredFieldIds.addAll(TypeUtil.getProjectedIds(table.schema().select(columns)));

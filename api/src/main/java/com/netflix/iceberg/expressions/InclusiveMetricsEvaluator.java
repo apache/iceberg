@@ -56,7 +56,7 @@ public class InclusiveMetricsEvaluator {
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound) {
     this.schema = schema;
     this.struct = schema.asStruct();
-    this.expr = Binder.bind(struct, rewriteNot(unbound));
+    this.expr = Binder.bind(struct, rewriteNot(unbound), true);
   }
 
   /**

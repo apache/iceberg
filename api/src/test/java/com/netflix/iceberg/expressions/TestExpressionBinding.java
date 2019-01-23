@@ -64,7 +64,19 @@ public class TestExpressionBinding {
   @Test
   public void testSingleReference() {
     Expression expr = not(equal("x", 7));
-    TestHelpers.assertAllReferencesBound("Single reference", Binder.bind(STRUCT, expr));
+    TestHelpers.assertAllReferencesBound("Single reference", Binder.bind(STRUCT, expr, true));
+  }
+
+  @Test
+  public void testCaseInsensitiveReference() {
+    Expression expr = not(equal("X", 7));
+    TestHelpers.assertAllReferencesBound("Single reference", Binder.bind(STRUCT, expr, false));
+  }
+
+  @Test(expected = ValidationException.class)
+  public void testCaseSensitiveReference() {
+    Expression expr = not(equal("X", 7));
+    Binder.bind(STRUCT, expr, true);
   }
 
   @Test
