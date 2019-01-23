@@ -62,6 +62,34 @@ public class Binder {
     return ExpressionVisitors.visit(expr, new BindVisitor(struct, caseSensitive));
   }
 
+  /**
+   * Replaces all unbound/named references with bound references to fields in the given struct,
+   * defaulting to case sensitive mode.
+   *
+   * Access modifier is package-private, to only allow use from existing tests.
+   *
+   * <p>
+   * When a reference is resolved, any literal used in a predicate for that field is converted to
+   * the field's type using {@link Literal#to(Type)}. If automatic conversion to that type isn't
+   * allowed, a {@link ValidationException validation exception} is thrown.
+   * <p>
+   * The result expression may be simplified when constructed. For example, {@code isNull("a")} is
+   * replaced with {@code alwaysFalse()} when {@code "a"} is resolved to a required field.
+   * <p>
+   * The expression cannot contain references that are already bound, or an
+   * {@link IllegalStateException} will be thrown.
+   *
+   * @param struct The {@link StructType struct type} to resolve references by name.
+   * @param expr An {@link Expression expression} to rewrite with bound references.
+   * @return the expression rewritten with bound references
+   *
+   * @throws IllegalStateException if any references are already bound
+   */
+  static Expression bind(StructType struct,
+                                   Expression expr) {
+    return Binder.bind(struct, expr, true);
+  }
+
   public static Set<Integer> boundReferences(StructType struct, List<Expression> exprs, boolean caseSensitive) {
     if (exprs == null) {
       return ImmutableSet.of();

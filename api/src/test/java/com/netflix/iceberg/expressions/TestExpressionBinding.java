@@ -47,7 +47,7 @@ public class TestExpressionBinding {
   public void testMissingReference() {
     Expression expr = and(equal("t", 5), equal("x", 7));
     try {
-      Binder.bind(STRUCT, expr, true);
+      Binder.bind(STRUCT, expr);
       Assert.fail("Should not successfully bind to struct without field 't'");
     } catch (ValidationException e) {
       Assert.assertTrue("Should complain about missing field",
@@ -58,7 +58,7 @@ public class TestExpressionBinding {
   @Test(expected = IllegalStateException.class)
   public void testBoundExpressionFails() {
     Expression expr = not(equal("x", 7));
-    Binder.bind(STRUCT, Binder.bind(STRUCT, expr, true), true);
+    Binder.bind(STRUCT, Binder.bind(STRUCT, expr));
   }
 
   @Test
@@ -82,13 +82,13 @@ public class TestExpressionBinding {
   @Test
   public void testMultipleReferences() {
     Expression expr = or(and(equal("x", 7), lessThan("y", 100)), greaterThan("z", -100));
-    TestHelpers.assertAllReferencesBound("Multiple references", Binder.bind(STRUCT, expr, true));
+    TestHelpers.assertAllReferencesBound("Multiple references", Binder.bind(STRUCT, expr));
   }
 
   @Test
   public void testAnd() {
     Expression expr = and(equal("x", 7), lessThan("y", 100));
-    Expression boundExpr = Binder.bind(STRUCT, expr, true);
+    Expression boundExpr = Binder.bind(STRUCT, expr);
     TestHelpers.assertAllReferencesBound("And", boundExpr);
 
     // make sure the result is an And
@@ -104,7 +104,7 @@ public class TestExpressionBinding {
   @Test
   public void testOr() {
     Expression expr = or(greaterThan("z", -100), lessThan("y", 100));
-    Expression boundExpr = Binder.bind(STRUCT, expr, true);
+    Expression boundExpr = Binder.bind(STRUCT, expr);
     TestHelpers.assertAllReferencesBound("Or", boundExpr);
 
     // make sure the result is an Or
@@ -120,7 +120,7 @@ public class TestExpressionBinding {
   @Test
   public void testNot() {
     Expression expr = not(equal("x", 7));
-    Expression boundExpr = Binder.bind(STRUCT, expr, true);
+    Expression boundExpr = Binder.bind(STRUCT, expr);
     TestHelpers.assertAllReferencesBound("Not", boundExpr);
 
     // make sure the result is a Not
@@ -135,14 +135,14 @@ public class TestExpressionBinding {
   public void testAlwaysTrue() {
     Assert.assertEquals("Should not change alwaysTrue",
         alwaysTrue(),
-        Binder.bind(STRUCT, alwaysTrue(), true));
+        Binder.bind(STRUCT, alwaysTrue()));
   }
 
   @Test
   public void testAlwaysFalse() {
     Assert.assertEquals("Should not change alwaysFalse",
         alwaysFalse(),
-        Binder.bind(STRUCT, alwaysFalse(), true));
+        Binder.bind(STRUCT, alwaysFalse()));
   }
 
   @Test
@@ -153,14 +153,12 @@ public class TestExpressionBinding {
     // the second predicate is always true once it is bound because z is an integer and the literal
     // is less than any 32-bit integer value
     Assert.assertEquals("Should simplify or expression to alwaysTrue",
-        alwaysTrue(),
-        Binder.bind(STRUCT, or(lessThan("y", 100), greaterThan("z", -9999999999L)), true));
+        alwaysTrue(), Binder.bind(STRUCT, or(lessThan("y", 100), greaterThan("z", -9999999999L))));
     // similarly, the second predicate is always false
     Assert.assertEquals("Should simplify and expression to predicate",
-        alwaysFalse(),
-        Binder.bind(STRUCT, and(lessThan("y", 100), lessThan("z", -9999999999L)), true));
+        alwaysFalse(), Binder.bind(STRUCT, and(lessThan("y", 100), lessThan("z", -9999999999L))));
 
-    Expression bound = Binder.bind(STRUCT, not(not(lessThan("y", 100))), true);
+    Expression bound = Binder.bind(STRUCT, not(not(lessThan("y", 100))));
     BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
     Assert.assertEquals("Should have the correct bound field", 1, pred.ref().fieldId());
   }

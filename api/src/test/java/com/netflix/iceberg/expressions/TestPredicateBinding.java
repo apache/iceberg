@@ -56,7 +56,7 @@ public class TestPredicateBinding {
 
     UnboundPredicate<Integer> unbound = new UnboundPredicate<>(LT, ref("y"), 6);
 
-    Expression expr = unbound.bind(struct, true);
+    Expression expr = unbound.bind(struct);
     BoundPredicate<Integer> bound = assertAndUnwrap(expr);
 
     Assert.assertEquals("Should reference correct field ID", 11, bound.ref().fieldId());
@@ -73,7 +73,7 @@ public class TestPredicateBinding {
 
     UnboundPredicate<Integer> unbound = new UnboundPredicate<>(LT, ref("missing"), 6);
     try {
-      unbound.bind(struct, true);
+      unbound.bind(struct);
       Assert.fail("Binding a missing field should fail");
     } catch (ValidationException e) {
       Assert.assertTrue("Validation should complain about missing field",
@@ -89,7 +89,7 @@ public class TestPredicateBinding {
     for (Expression.Operation op : COMPARISONS) {
       UnboundPredicate<Integer> unbound = new UnboundPredicate<>(op, ref("x"), 5);
 
-      Expression expr = unbound.bind(struct, true);
+      Expression expr = unbound.bind(struct);
       BoundPredicate<Integer> bound = assertAndUnwrap(expr);
 
       Assert.assertEquals("Should not alter literal value",
@@ -107,7 +107,7 @@ public class TestPredicateBinding {
     for (Expression.Operation op : COMPARISONS) {
       UnboundPredicate<String> unbound = new UnboundPredicate<>(op, ref("d"), "12.40");
 
-      Expression expr = unbound.bind(struct, true);
+      Expression expr = unbound.bind(struct);
       BoundPredicate<BigDecimal> bound = assertAndUnwrap(expr);
       Assert.assertEquals("Should convert literal value to decimal",
           new BigDecimal("12.40"), bound.literal().value());
@@ -124,7 +124,7 @@ public class TestPredicateBinding {
       UnboundPredicate<String> unbound = new UnboundPredicate<>(op, ref("f"), "12.40");
 
       try {
-        unbound.bind(struct, true);
+        unbound.bind(struct);
         Assert.fail("Should not convert string to float");
       } catch (ValidationException e) {
         Assert.assertEquals("Should ",
@@ -142,42 +142,42 @@ public class TestPredicateBinding {
     UnboundPredicate<Long> lt = new UnboundPredicate<>(
         LT, ref("i"), (long) Integer.MAX_VALUE + 1L);
     Assert.assertEquals("Less than above max should be alwaysTrue",
-        Expressions.alwaysTrue(), lt.bind(struct, true));
+        Expressions.alwaysTrue(), lt.bind(struct));
 
     UnboundPredicate<Long> lteq = new UnboundPredicate<>(
         LT_EQ, ref("i"), (long) Integer.MAX_VALUE + 1L);
     Assert.assertEquals("Less than or equal above max should be alwaysTrue",
-        Expressions.alwaysTrue(), lteq.bind(struct, true));
+        Expressions.alwaysTrue(), lteq.bind(struct));
 
     UnboundPredicate<Long> gt = new UnboundPredicate<>(
         GT, ref("i"), (long) Integer.MIN_VALUE - 1L);
     Assert.assertEquals("Greater than below min should be alwaysTrue",
-        Expressions.alwaysTrue(), gt.bind(struct, true));
+        Expressions.alwaysTrue(), gt.bind(struct));
 
     UnboundPredicate<Long> gteq = new UnboundPredicate<>(
         GT_EQ, ref("i"), (long) Integer.MIN_VALUE - 1L);
     Assert.assertEquals("Greater than or equal below min should be alwaysTrue",
-        Expressions.alwaysTrue(), gteq.bind(struct, true));
+        Expressions.alwaysTrue(), gteq.bind(struct));
 
     UnboundPredicate<Long> gtMax = new UnboundPredicate<>(
         GT, ref("i"), (long) Integer.MAX_VALUE + 1L);
     Assert.assertEquals("Greater than above max should be alwaysFalse",
-        Expressions.alwaysFalse(), gtMax.bind(struct, true));
+        Expressions.alwaysFalse(), gtMax.bind(struct));
 
     UnboundPredicate<Long> gteqMax = new UnboundPredicate<>(
         GT_EQ, ref("i"), (long) Integer.MAX_VALUE + 1L);
     Assert.assertEquals("Greater than or equal above max should be alwaysFalse",
-        Expressions.alwaysFalse(), gteqMax.bind(struct, true));
+        Expressions.alwaysFalse(), gteqMax.bind(struct));
 
     UnboundPredicate<Long> ltMin = new UnboundPredicate<>(
         LT, ref("i"), (long) Integer.MIN_VALUE - 1L);
     Assert.assertEquals("Less than below min should be alwaysFalse",
-        Expressions.alwaysFalse(), ltMin.bind(struct, true));
+        Expressions.alwaysFalse(), ltMin.bind(struct));
 
     UnboundPredicate<Long> lteqMin = new UnboundPredicate<>(
         LT_EQ, ref("i"), (long) Integer.MIN_VALUE - 1L);
     Assert.assertEquals("Less than or equal below min should be alwaysFalse",
-        Expressions.alwaysFalse(), lteqMin.bind(struct, true));
+        Expressions.alwaysFalse(), lteqMin.bind(struct));
 
     Expression ltExpr = new UnboundPredicate<>(LT, ref("i"), (long) Integer.MAX_VALUE).bind(struct, true);
     BoundPredicate<Integer> ltMax = assertAndUnwrap(ltExpr);
@@ -185,18 +185,18 @@ public class TestPredicateBinding {
         (Integer) Integer.MAX_VALUE, ltMax.literal().value());
 
     Expression lteqExpr = new UnboundPredicate<>(LT_EQ, ref("i"), (long) Integer.MAX_VALUE)
-        .bind(struct, true);
+        .bind(struct);
     BoundPredicate<Integer> lteqMax = assertAndUnwrap(lteqExpr);
     Assert.assertEquals("Should translate bound to Integer",
         (Integer) Integer.MAX_VALUE, lteqMax.literal().value());
 
-    Expression gtExpr = new UnboundPredicate<>(GT, ref("i"), (long) Integer.MIN_VALUE).bind(struct, true);
+    Expression gtExpr = new UnboundPredicate<>(GT, ref("i"), (long) Integer.MIN_VALUE).bind(struct);
     BoundPredicate<Integer> gtMin = assertAndUnwrap(gtExpr);
     Assert.assertEquals("Should translate bound to Integer",
         (Integer) Integer.MIN_VALUE, gtMin.literal().value());
 
     Expression gteqExpr = new UnboundPredicate<>(GT_EQ, ref("i"), (long) Integer.MIN_VALUE)
-        .bind(struct, true);
+        .bind(struct);
     BoundPredicate<Integer> gteqMin = assertAndUnwrap(gteqExpr);
     Assert.assertEquals("Should translate bound to Integer",
         (Integer) Integer.MIN_VALUE, gteqMin.literal().value());
@@ -210,61 +210,61 @@ public class TestPredicateBinding {
     UnboundPredicate<Double> lt = new UnboundPredicate<>(
         LT, ref("f"), (double) Float.MAX_VALUE * 2);
     Assert.assertEquals("Less than above max should be alwaysTrue",
-        Expressions.alwaysTrue(), lt.bind(struct, true));
+        Expressions.alwaysTrue(), lt.bind(struct));
 
     UnboundPredicate<Double> lteq = new UnboundPredicate<>(
         LT_EQ, ref("f"), (double) Float.MAX_VALUE * 2);
     Assert.assertEquals("Less than or equal above max should be alwaysTrue",
-        Expressions.alwaysTrue(), lteq.bind(struct, true));
+        Expressions.alwaysTrue(), lteq.bind(struct));
 
     UnboundPredicate<Double> gt = new UnboundPredicate<>(
         GT, ref("f"), (double) Float.MAX_VALUE * -2);
     Assert.assertEquals("Greater than below min should be alwaysTrue",
-        Expressions.alwaysTrue(), gt.bind(struct, true));
+        Expressions.alwaysTrue(), gt.bind(struct));
 
     UnboundPredicate<Double> gteq = new UnboundPredicate<>(
         GT_EQ, ref("f"), (double) Float.MAX_VALUE * -2);
     Assert.assertEquals("Greater than or equal below min should be alwaysTrue",
-        Expressions.alwaysTrue(), gteq.bind(struct, true));
+        Expressions.alwaysTrue(), gteq.bind(struct));
 
     UnboundPredicate<Double> gtMax = new UnboundPredicate<>(
         GT, ref("f"), (double) Float.MAX_VALUE * 2);
     Assert.assertEquals("Greater than above max should be alwaysFalse",
-        Expressions.alwaysFalse(), gtMax.bind(struct, true));
+        Expressions.alwaysFalse(), gtMax.bind(struct));
 
     UnboundPredicate<Double> gteqMax = new UnboundPredicate<>(
         GT_EQ, ref("f"), (double) Float.MAX_VALUE * 2);
     Assert.assertEquals("Greater than or equal above max should be alwaysFalse",
-        Expressions.alwaysFalse(), gteqMax.bind(struct, true));
+        Expressions.alwaysFalse(), gteqMax.bind(struct));
 
     UnboundPredicate<Double> ltMin = new UnboundPredicate<>(
         LT, ref("f"), (double) Float.MAX_VALUE * -2);
     Assert.assertEquals("Less than below min should be alwaysFalse",
-        Expressions.alwaysFalse(), ltMin.bind(struct, true));
+        Expressions.alwaysFalse(), ltMin.bind(struct));
 
     UnboundPredicate<Double> lteqMin = new UnboundPredicate<>(
         LT_EQ, ref("f"), (double) Float.MAX_VALUE * -2);
     Assert.assertEquals("Less than or equal below min should be alwaysFalse",
-        Expressions.alwaysFalse(), lteqMin.bind(struct, true));
+        Expressions.alwaysFalse(), lteqMin.bind(struct));
 
-    Expression ltExpr = new UnboundPredicate<>(LT, ref("f"), (double) Float.MAX_VALUE).bind(struct, true);
+    Expression ltExpr = new UnboundPredicate<>(LT, ref("f"), (double) Float.MAX_VALUE).bind(struct);
     BoundPredicate<Float> ltMax = assertAndUnwrap(ltExpr);
     Assert.assertEquals("Should translate bound to Float",
         (Float) Float.MAX_VALUE, ltMax.literal().value());
 
     Expression lteqExpr = new UnboundPredicate<>(LT_EQ, ref("f"), (double) Float.MAX_VALUE)
-        .bind(struct, true);
+        .bind(struct);
     BoundPredicate<Float> lteqMax = assertAndUnwrap(lteqExpr);
     Assert.assertEquals("Should translate bound to Float",
         (Float) Float.MAX_VALUE, lteqMax.literal().value());
 
-    Expression gtExpr = new UnboundPredicate<>(GT, ref("f"), (double) -Float.MAX_VALUE).bind(struct, true);
+    Expression gtExpr = new UnboundPredicate<>(GT, ref("f"), (double) -Float.MAX_VALUE).bind(struct);
     BoundPredicate<Float> gtMin = assertAndUnwrap(gtExpr);
     Assert.assertEquals("Should translate bound to Float",
         Float.valueOf(-Float.MAX_VALUE), gtMin.literal().value());
 
     Expression gteqExpr = new UnboundPredicate<>(GT_EQ, ref("f"), (double) -Float.MAX_VALUE)
-        .bind(struct, true);
+        .bind(struct);
     BoundPredicate<Float> gteqMin = assertAndUnwrap(gteqExpr);
     Assert.assertEquals("Should translate bound to Float",
         Float.valueOf(-Float.MAX_VALUE), gteqMin.literal().value());
@@ -276,7 +276,7 @@ public class TestPredicateBinding {
     StructType optional = StructType.of(optional(19, "s", Types.StringType.get()));
 
     UnboundPredicate<?> unbound = new UnboundPredicate<>(IS_NULL, ref("s"));
-    Expression expr = unbound.bind(optional, true);
+    Expression expr = unbound.bind(optional);
     BoundPredicate<?> bound = assertAndUnwrap(expr);
     Assert.assertEquals("Should use the same operation", IS_NULL, bound.op());
     Assert.assertEquals("Should use the correct field", 19, bound.ref().fieldId());
@@ -284,7 +284,7 @@ public class TestPredicateBinding {
 
     StructType required = StructType.of(required(20, "s", Types.StringType.get()));
     Assert.assertEquals("IsNull inclusive a required field should be alwaysFalse",
-        Expressions.alwaysFalse(), unbound.bind(required, true));
+        Expressions.alwaysFalse(), unbound.bind(required));
   }
 
   @Test
@@ -292,7 +292,7 @@ public class TestPredicateBinding {
     StructType optional = StructType.of(optional(21, "s", Types.StringType.get()));
 
     UnboundPredicate<?> unbound = new UnboundPredicate<>(NOT_NULL, ref("s"));
-    Expression expr = unbound.bind(optional, true);
+    Expression expr = unbound.bind(optional);
     BoundPredicate<?> bound = assertAndUnwrap(expr);
     Assert.assertEquals("Should use the same operation", NOT_NULL, bound.op());
     Assert.assertEquals("Should use the correct field", 21, bound.ref().fieldId());
@@ -300,6 +300,6 @@ public class TestPredicateBinding {
 
     StructType required = StructType.of(required(22, "s", Types.StringType.get()));
     Assert.assertEquals("NotNull inclusive a required field should be alwaysTrue",
-        Expressions.alwaysTrue(), unbound.bind(required, true));
+        Expressions.alwaysTrue(), unbound.bind(required));
   }
 }
