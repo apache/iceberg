@@ -19,6 +19,7 @@
 
 package com.netflix.iceberg;
 
+import com.netflix.iceberg.encryption.EncryptionManager;
 import com.netflix.iceberg.io.FileIO;
 import java.util.Map;
 
@@ -184,5 +185,14 @@ public interface Table {
    * @return a {@link FileIO} to read and write table data and metadata files
    */
   FileIO io();
+
+  /**
+   * @return an {@link com.netflix.iceberg.encryption.EncryptionManager} to encrypt and decrypt
+   * data files.
+   */
+  default EncryptionManager encryption() {
+    // TODO coming soon
+    throw new UnsupportedOperationException("Encryption is a work in progress.");
+  }
 
 }

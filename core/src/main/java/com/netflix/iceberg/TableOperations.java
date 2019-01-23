@@ -19,6 +19,7 @@
 
 package com.netflix.iceberg;
 
+import com.netflix.iceberg.encryption.EncryptionManager;
 import com.netflix.iceberg.io.FileIO;
 import java.util.UUID;
 
@@ -59,6 +60,15 @@ public interface TableOperations {
    * @return a {@link FileIO} to read and write table data and metadata files
    */
   FileIO io();
+
+  /**
+   * @return a {@link com.netflix.iceberg.encryption.EncryptionManager} to encrypt and decrypt
+   * data files.
+   */
+  default EncryptionManager encryption() {
+    // TODO coming soon
+    throw new UnsupportedOperationException("Encryption is a work in progress.");
+  }
 
   /**
    * Given the name of a metadata file, obtain the full path of that file using an appropriate base
