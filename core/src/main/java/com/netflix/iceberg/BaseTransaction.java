@@ -283,11 +283,6 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
-    public FileIO io(TableMetadata tableMetadata) {
-      return ops.io(tableMetadata);
-    }
-
-    @Override
     public long newSnapshotId() {
       return ops.newSnapshotId();
     }

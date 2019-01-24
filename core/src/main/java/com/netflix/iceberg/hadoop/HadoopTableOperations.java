@@ -104,7 +104,7 @@ public class HadoopTableOperations implements TableOperations {
       return;
     }
 
-    FileIO newMetadataIO = io(metadata);
+    FileIO newMetadataIO = io();
     OutputFile newTempMetadataFile = newMetadataIO.newMetadataOutputFile(
         UUID.randomUUID().toString() + getFileExtension(conf));
     TableMetadataParser.write(metadata, newTempMetadataFile);
@@ -144,11 +144,6 @@ public class HadoopTableOperations implements TableOperations {
 
   private String metadataFileName(int metadataVersion) {
     return "v" + metadataVersion + getFileExtension(conf);
-  }
-
-  @Override
-  public FileIO io(TableMetadata tableMetadata) {
-    return new HadoopFileIO(conf, tableMetadata);
   }
 
   @Override

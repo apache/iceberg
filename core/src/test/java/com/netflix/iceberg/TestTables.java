@@ -185,13 +185,6 @@ public class TestTables {
     }
 
     @Override
-    public FileIO io(TableMetadata tableMetadata) {
-      return new LocalFileIO(
-          new File(tableMetadata.location(), "metadata"),
-          new File(tableMetadata.location(), "data"));
-    }
-
-    @Override
     public long newSnapshotId() {
       long nextSnapshotId = lastSnapshotId + 1;
       this.lastSnapshotId = nextSnapshotId;

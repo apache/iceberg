@@ -48,11 +48,6 @@ class LocalTableOperations implements TableOperations {
   }
 
   @Override
-  public FileIO io(TableMetadata tableMetadata) {
-    return io();
-  }
-
-  @Override
   public FileIO io() {
     if (io == null) {
       try {

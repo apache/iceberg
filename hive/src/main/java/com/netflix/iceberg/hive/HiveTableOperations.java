@@ -164,7 +164,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     } finally {
       if (threw) {
         // if anything went wrong, clean up the uncommitted metadata file
-        io().deleteFile(newMetadataLocation);
+        metadataAwareFileIO(base).deleteFile(newMetadataLocation);
       }
       unlock(lockId);
     }

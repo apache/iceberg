@@ -86,10 +86,6 @@ public class HadoopFileIO implements FileIO {
     }
   }
 
-  private String defaultDataDir() {
-    return String.format("%s/%s", tableLocation, DATA_DIR_NAME);
-  }
-
   public HadoopFileIO(Configuration hadoopConf, String location) {
     this.tableLocation = location;
     this.hadoopConf = new SerializableConfiguration(hadoopConf);
@@ -97,6 +93,19 @@ public class HadoopFileIO implements FileIO {
     this.useObjectStorage = TableProperties.OBJECT_STORE_ENABLED_DEFAULT;
     this.objectStorePath = null;
     this.newDataFileDir = defaultDataDir();
+  }
+
+  public HadoopFileIO(Configuration hadoopConf) {
+    this.tableLocation = null;
+    this.hadoopConf = new SerializableConfiguration(hadoopConf);
+    this.newMetadataFileDir = null;
+    this.useObjectStorage = TableProperties.OBJECT_STORE_ENABLED_DEFAULT;
+    this.objectStorePath = null;
+    this.newDataFileDir = null;
+  }
+
+  private String defaultDataDir() {
+    return String.format("%s/%s", tableLocation, DATA_DIR_NAME);
   }
 
   private String defaultMetadataDir() {
@@ -126,12 +135,18 @@ public class HadoopFileIO implements FileIO {
 
   @Override
   public OutputFile newMetadataOutputFile(String fileName) {
+    Preconditions.checkNotNull(
+        newMetadataFileDir,
+        "This file IO is not configured to write metadata to a specified location.");
     return newOutputFile(String.format("%s/%s", newMetadataFileDir, fileName));
   }
 
   @Override
   public OutputFile newDataOutputFile(
       PartitionSpec partitionSpec, StructLike filePartition, String fileName) {
+    Preconditions.checkNotNull(
+        newDataFileDir,
+        "This file IO is not configured to write data to a specified location.");
     String location;
     if (useObjectStorage) {
       // try to get db and table portions of the path for context in the object store
@@ -158,6 +173,9 @@ public class HadoopFileIO implements FileIO {
 
   @Override
   public OutputFile newDataOutputFile(String fileName) {
+    Preconditions.checkNotNull(
+        newDataFileDir,
+        "This file IO is not configured to write data to a specified location.");
     return newOutputFile(String.format("%s/%s", newDataFileDir, fileName));
   }
 

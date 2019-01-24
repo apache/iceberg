@@ -56,15 +56,6 @@ public interface TableOperations {
   void commit(TableMetadata base, TableMetadata metadata);
 
   /**
-   * Get a {@link FileIO} instance to read and write table data and metadata files.
-   *
-   * @param tableMetadata Metadata that the returned {@link FileIO} will be managing. This might be
-   * metadata that is to be committed by this FileIO object, in which case it would differ from what
-   * would otherwise be returned by e.g. {{@link #current()}}.
-   */
-  FileIO io(TableMetadata tableMetadata);
-
-  /**
    * Get a {@link FileIO} to read and write table data and metadata files.
    * <p>
    * THe FileIO should be backed by the most up to date table metadata if it exists. It is up to

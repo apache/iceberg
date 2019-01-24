@@ -31,7 +31,6 @@ import org.slf4j.LoggerFactory;
 
 import static com.netflix.iceberg.TableMetadataParser.getFileExtension;
 import static com.netflix.iceberg.TableMetadataParser.read;
-import static com.netflix.iceberg.hadoop.HadoopInputFile.fromLocation;
 
 public abstract class BaseMetastoreTableOperations implements TableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(BaseMetastoreTableOperations.class);
@@ -74,8 +73,8 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   protected String writeNewMetadata(TableMetadata metadata, int version) {
     // This would be false if the subclass overrides io() and returns a different kind.
-    OutputFile newMetadataOutputFile = io(metadata).newMetadataOutputFile(
-        newTableMetadataFileName(version));
+    OutputFile newMetadataOutputFile = metadataAwareFileIO(metadata)
+        .newMetadataOutputFile(newTableMetadataFileName(version));
 
     // write the new metadata
     TableMetadataParser.write(metadata, newMetadataOutputFile);
@@ -95,7 +94,9 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
           .retry(numRetries).exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */ )
           .suppressFailureWhenFinished()
           .run(metadataLocation -> {
-            this.currentMetadata = read(this, fromLocation(metadataLocation, conf));
+            this.currentMetadata = read(
+                this,
+                io().newInputFile(metadataLocation));
             this.currentMetadataLocation = metadataLocation;
             this.version = parseVersion(metadataLocation);
           });
@@ -105,12 +106,15 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   @Override
   public FileIO io() {
-    return new HadoopFileIO(conf, currentMetadata);
+    return metadataAwareFileIO(currentMetadata);
   }
 
-  @Override
-  public FileIO io(TableMetadata tableMetadata) {
-    return new HadoopFileIO(conf, tableMetadata);
+  protected FileIO metadataAwareFileIO(TableMetadata tableMetadata) {
+    if (tableMetadata == null) {
+      return new HadoopFileIO(conf);
+    } else {
+      return new HadoopFileIO(conf, tableMetadata);
+    }
   }
 
   private String newTableMetadataFileName(int newVersion) {
