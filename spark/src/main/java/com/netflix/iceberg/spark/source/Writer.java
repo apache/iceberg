@@ -37,15 +37,11 @@ import com.netflix.iceberg.TableProperties;
 import com.netflix.iceberg.avro.Avro;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.FileAppender;
-import com.netflix.iceberg.io.InputFile;
+import com.netflix.iceberg.io.LocationProvider;
 import com.netflix.iceberg.io.OutputFile;
 import com.netflix.iceberg.parquet.Parquet;
 import com.netflix.iceberg.spark.data.SparkAvroWriter;
-import com.netflix.iceberg.transforms.Transform;
-import com.netflix.iceberg.transforms.Transforms;
-import com.netflix.iceberg.types.Types.StringType;
 import com.netflix.iceberg.util.Tasks;
-import org.apache.hadoop.fs.Path;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.execution.datasources.parquet.ParquetWriteSupport;
 import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
@@ -73,15 +69,10 @@ import static com.netflix.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static com.netflix.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
-import static com.netflix.iceberg.TableProperties.OBJECT_STORE_ENABLED;
-import static com.netflix.iceberg.TableProperties.OBJECT_STORE_ENABLED_DEFAULT;
-import static com.netflix.iceberg.TableProperties.OBJECT_STORE_PATH;
 import static com.netflix.iceberg.spark.SparkSchemaUtil.convert;
 
 // TODO: parameterize DataSourceWriter with subclass of WriterCommitMessage
 class Writer implements DataSourceWriter {
-  private static final Transform<String, Integer> HASH_FUNC = Transforms
-      .bucket(StringType.get(), Integer.MAX_VALUE);
   private static final Logger LOG = LoggerFactory.getLogger(Writer.class);
 
   private final Table table;
@@ -96,7 +87,8 @@ class Writer implements DataSourceWriter {
 
   @Override
   public DataWriterFactory<InternalRow> createWriterFactory() {
-    return new WriterFactory(table.spec(), format, dataLocation(), table.properties(), fileIo);
+    return new WriterFactory(
+        table.spec(), format, table.locationProvider(), table.properties(), fileIo);
   }
 
   @Override
@@ -149,13 +141,6 @@ class Writer implements DataSourceWriter {
     return defaultValue;
   }
 
-  private String dataLocation() {
-    return stripTrailingSlash(
-        table.properties().getOrDefault(
-            TableProperties.WRITE_NEW_DATA_LOCATION,
-            String.format("%s/data", table.location())));
-  }
-
   @Override
   public String toString() {
     return String.format("IcebergWrite(table=%s, type=%s, format=%s)",
@@ -186,16 +171,16 @@ class Writer implements DataSourceWriter {
   private static class WriterFactory implements DataWriterFactory<InternalRow> {
     private final PartitionSpec spec;
     private final FileFormat format;
-    private final String dataLocation;
+    private final LocationProvider locations;
     private final Map<String, String> properties;
     private final String uuid = UUID.randomUUID().toString();
     private final FileIO fileIo;
 
-    WriterFactory(PartitionSpec spec, FileFormat format, String dataLocation,
+    WriterFactory(PartitionSpec spec, FileFormat format, LocationProvider locations,
                   Map<String, String> properties, FileIO fileIo) {
       this.spec = spec;
       this.format = format;
-      this.dataLocation = dataLocation;
+      this.locations = locations;
       this.properties = properties;
       this.fileIo = fileIo;
     }
@@ -205,58 +190,13 @@ class Writer implements DataSourceWriter {
       String filename = format.addExtension(String.format("%05d-%d-%s", partitionId, taskId, uuid));
       AppenderFactory<InternalRow> factory = new SparkAppenderFactory();
       if (spec.fields().isEmpty()) {
-        return new UnpartitionedWriter(dataLocation, filename, format, factory, fileIo);
+        return new UnpartitionedWriter(
+            fileIo.newOutputFile(locations.newDataLocation(filename)), format, factory, fileIo);
       } else {
-        Function<PartitionKey, String> outputPathFunc = key ->
-            String.format("%s/%s/%s", dataLocation, key.toPath(), filename);
-
-        boolean useObjectStorage = (
-            Boolean.parseBoolean(properties.get(OBJECT_STORE_ENABLED)) ||
-            OBJECT_STORE_ENABLED_DEFAULT
-        );
-
-        if (useObjectStorage) {
-          // try to get db and table portions of the path for context in the object store
-          String context = pathContext(new Path(dataLocation));
-          String objectStore = stripTrailingSlash(properties.get(OBJECT_STORE_PATH));
-          Preconditions.checkNotNull(objectStore,
-              "Cannot use object storage, missing location: " + OBJECT_STORE_PATH);
-
-          outputPathFunc = key -> {
-            String partitionAndFilename = String.format("%s/%s", key.toPath(), filename);
-            int hash = HASH_FUNC.apply(partitionAndFilename);
-            return String.format(
-                "%s/%08x/%s/%s/%s",
-                objectStore,
-                hash,
-                context,
-                key.toPath(),
-                filename);
-          };
-        }
-
-        return new PartitionedWriter(spec, format, factory, outputPathFunc, fileIo);
+        Function<PartitionKey, OutputFile> newOutputFileForKey =
+            key -> fileIo.newOutputFile(locations.newDataLocation(spec, key, filename));
+        return new PartitionedWriter(spec, format, factory, newOutputFileForKey, fileIo);
       }
-    }
-
-    private static String pathContext(Path dataPath) {
-      Path parent = dataPath.getParent();
-      String resolvedContext;
-      if (parent != null) {
-        // remove the data folder
-        if (dataPath.getName().equals("data")) {
-          resolvedContext = pathContext(parent);
-        } else {
-          resolvedContext = String.format("%s/%s", parent.getName(), dataPath.getName());
-        }
-      } else {
-        resolvedContext = dataPath.getName();
-      }
-
-      Preconditions.checkState(
-          !resolvedContext.endsWith("/"),
-          "Path context must not end with a slash.");
-      return resolvedContext;
     }
 
     private class SparkAppenderFactory implements AppenderFactory<InternalRow> {
@@ -300,19 +240,18 @@ class Writer implements DataSourceWriter {
 
   private static class UnpartitionedWriter implements DataWriter<InternalRow>, Closeable {
     private final FileIO fileIo;
-    private final String file;
+    private final OutputFile file;
     private FileAppender<InternalRow> appender = null;
     private Metrics metrics = null;
 
     UnpartitionedWriter(
-        String dataPath,
-        String filename,
+        OutputFile file,
         FileFormat format,
         AppenderFactory<InternalRow> factory,
         FileIO fileIo) {
-      this.file = String.format("%s/%s", dataPath, filename);
+      this.file = file;
       this.fileIo = fileIo;
-      this.appender = factory.newAppender(fileIo.newOutputFile(file), format);
+      this.appender = factory.newAppender(file, format);
     }
 
     @Override
@@ -331,8 +270,7 @@ class Writer implements DataSourceWriter {
         return new TaskCommit();
       }
 
-      InputFile inFile = fileIo.newInputFile(file);
-      DataFile dataFile = DataFiles.fromInputFile(inFile, null, metrics);
+      DataFile dataFile = DataFiles.fromInputFile(file.toInputFile(), null, metrics);
 
       return new TaskCommit(dataFile);
     }
@@ -361,24 +299,24 @@ class Writer implements DataSourceWriter {
     private final PartitionSpec spec;
     private final FileFormat format;
     private final AppenderFactory<InternalRow> factory;
-    private final Function<PartitionKey, String> outputPathFunc;
+    private final Function<PartitionKey, OutputFile> newOutputFileForKey;
     private final PartitionKey key;
     private final FileIO fileIo;
 
     private PartitionKey currentKey = null;
     private FileAppender<InternalRow> currentAppender = null;
-    private String currentPath = null;
+    private OutputFile currentFile = null;
 
     PartitionedWriter(
         PartitionSpec spec,
         FileFormat format,
         AppenderFactory<InternalRow> factory,
-        Function<PartitionKey, String> outputPathFunc,
+        Function<PartitionKey, OutputFile> newOutputFileForKey,
         FileIO fileIo) {
       this.spec = spec;
       this.format = format;
       this.factory = factory;
-      this.outputPathFunc = outputPathFunc;
+      this.newOutputFileForKey = newOutputFileForKey;
       this.key = new PartitionKey(spec);
       this.fileIo = fileIo;
     }
@@ -398,9 +336,8 @@ class Writer implements DataSourceWriter {
         }
 
         this.currentKey = key.copy();
-        this.currentPath = outputPathFunc.apply(currentKey);
-        OutputFile file = fileIo.newOutputFile(currentPath.toString());
-        this.currentAppender = factory.newAppender(file, format);
+        this.currentFile = newOutputFileForKey.apply(currentKey);
+        this.currentAppender = factory.newAppender(currentFile, format);
       }
 
       currentAppender.add(row);
@@ -423,7 +360,7 @@ class Writer implements DataSourceWriter {
       if (currentAppender != null) {
         currentAppender.close();
         this.currentAppender = null;
-        fileIo.deleteFile(currentPath);
+        fileIo.deleteFile(currentFile);
       }
     }
 
@@ -434,9 +371,8 @@ class Writer implements DataSourceWriter {
         Metrics metrics = currentAppender.metrics();
         this.currentAppender = null;
 
-        InputFile inFile = fileIo.newInputFile(currentPath);
         DataFile dataFile = DataFiles.builder(spec)
-            .withInputFile(inFile)
+            .withInputFile(currentFile.toInputFile())
             .withPartition(currentKey)
             .withMetrics(metrics)
             .build();

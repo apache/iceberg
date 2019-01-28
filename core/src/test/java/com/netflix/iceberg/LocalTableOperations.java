@@ -23,6 +23,7 @@ import com.google.common.collect.Maps;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.FileIO;
 import java.util.Map;
+import com.netflix.iceberg.io.LocationProvider;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.IOException;
@@ -67,6 +68,11 @@ class LocalTableOperations implements TableOperations {
         throw new RuntimeIOException(e);
       }
     });
+  }
+
+  @Override
+  public LocationProvider locationProvider() {
+    throw new UnsupportedOperationException("Not implemented for tests");
   }
 
   @Override
