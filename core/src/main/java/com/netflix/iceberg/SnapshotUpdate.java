@@ -123,11 +123,6 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
 
         Tasks.range(manifestFiles.length)
             .stopOnFailure().throwFailureWhenFinished()
-            .retry(4).exponentialBackoff(
-                base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-                base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
-                base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-                2.0 /* exponential */ )
             .executeWith(getWorkerPool())
             .run(index ->
                 manifestFiles[index] = manifestsWithMetadata.getUnchecked(manifests.get(index)));
