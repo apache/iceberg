@@ -21,6 +21,7 @@ package com.netflix.iceberg;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -78,6 +79,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
   private final PartitionSpec spec;
   private final long manifestTargetSizeBytes;
   private final int minManifestsCountToMerge;
+  private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
 
   // update data
   private final AtomicInteger manifestCount = new AtomicInteger(0);
@@ -99,7 +101,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
   private final Map<ManifestFile, ManifestFile> filteredManifests = Maps.newConcurrentMap();
 
   // tracking where files were deleted to validate retries quickly
-  private final Map<ManifestFile, Set<CharSequenceWrapper>> filteredManifestToDeletedFiles =
+  private final Map<ManifestFile, Iterable<DataFile>> filteredManifestToDeletedFiles =
       Maps.newConcurrentMap();
 
   private boolean filterUpdated = false; // used to clear caches of filtered and merged manifests
@@ -124,7 +126,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
   }
 
   protected List<DataFile> addedFiles() {
-    return newFiles;
+    return ImmutableList.copyOf(newFiles);
   }
 
   protected void failAnyDelete() {
@@ -172,7 +174,14 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
   }
 
   @Override
+  protected Map<String, String> summary() {
+    return summaryBuilder.build();
+  }
+
+  @Override
   public List<ManifestFile> apply(TableMetadata base) {
+    summaryBuilder.clear();
+
     if (filterUpdated) {
       cleanUncommittedFilters(SnapshotUpdate.EMPTY_SET);
       this.filterUpdated = false;
@@ -188,6 +197,11 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
     // add the current spec as the first group. files are added to the beginning.
     try {
       if (newFiles.size() > 0) {
+        // add all of the new files to the summary builder
+        for (DataFile file : newFiles) {
+          summaryBuilder.addedFile(spec, file);
+        }
+
         ManifestFile newManifest = newFilesAsManifest();
         List<ManifestFile> manifestGroup = Lists.newArrayList();
         manifestGroup.add(newManifest);
@@ -212,9 +226,13 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
             }, IOException.class);
 
         for (ManifestFile manifest : filtered) {
-          Set<CharSequenceWrapper> manifestDeletes = filteredManifestToDeletedFiles.get(manifest);
+          PartitionSpec spec = ops.current().spec(manifest.partitionSpecId());
+          Iterable<DataFile> manifestDeletes = filteredManifestToDeletedFiles.get(manifest);
           if (manifestDeletes != null) {
-            deletedFiles.addAll(manifestDeletes);
+            for (DataFile file : manifestDeletes) {
+              summaryBuilder.deletedFile(spec, file);
+              deletedFiles.add(CharSequenceWrapper.wrap(file.path()));
+            }
           }
 
           List<ManifestFile> group = groups.get(manifest.partitionSpecId());
@@ -362,6 +380,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
 
       // when this point is reached, there is at least one file that will be deleted in the
       // manifest. produce a copy of the manifest with all deleted files removed.
+      List<DataFile> deletedFiles = Lists.newArrayList();
       Set<CharSequenceWrapper> deletedPaths = Sets.newHashSet();
       OutputFile filteredCopy = manifestPath(manifestCount.getAndIncrement());
       ManifestWriter writer = new ManifestWriter(reader.spec(), filteredCopy, snapshotId());
@@ -383,6 +402,11 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
               if (deletedPaths.contains(wrapper)) {
                 LOG.warn("Deleting a duplicate path from manifest {}: {}",
                     manifest.path(), wrapper.get());
+                summaryBuilder.incrementDuplicateDeletes();
+              } else {
+                // only add the file to deletes if it is a new delete
+                // this keeps the snapshot summary accurate for non-duplicate data
+                deletedFiles.add(entry.file().copy());
               }
               deletedPaths.add(wrapper);
 
@@ -400,7 +424,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
 
       // update caches
       filteredManifests.put(manifest, filtered);
-      filteredManifestToDeletedFiles.put(filtered, deletedPaths);
+      filteredManifestToDeletedFiles.put(filtered, deletedFiles);
 
       return filtered;
     }

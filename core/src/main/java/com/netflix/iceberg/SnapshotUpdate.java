@@ -120,6 +120,42 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
     return ImmutableMap.of();
   }
 
+  /**
+   * Returns the snapshot summary from the implementation and updates totals.
+   */
+  private Map<String, String> summary(TableMetadata base) {
+    Map<String, String> summary = summary();
+    if (summary == null) {
+      return ImmutableMap.of();
+    }
+
+    Map<String, String> previousSummary;
+    if (base.currentSnapshot() != null) {
+      if (base.currentSnapshot().summary() != null) {
+        previousSummary = base.currentSnapshot().summary();
+      } else {
+        // previous snapshot had no summary, use an empty summary
+        previousSummary = ImmutableMap.of();
+      }
+    } else {
+      // if there was no previous snapshot, default the summary to start totals at 0
+      previousSummary = ImmutableMap.of(
+          SnapshotSummary.TOTAL_RECORDS_PROP, "0",
+          SnapshotSummary.TOTAL_FILES_PROP, "0");
+    }
+
+    ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+
+    updateTotal(
+        builder, previousSummary, SnapshotSummary.TOTAL_RECORDS_PROP,
+        summary, SnapshotSummary.ADDED_RECORDS_PROP, SnapshotSummary.DELETED_RECORDS_PROP);
+    updateTotal(
+        builder, previousSummary, SnapshotSummary.TOTAL_FILES_PROP,
+        summary, SnapshotSummary.ADDED_FILES_PROP, SnapshotSummary.DELETED_FILES_PROP);
+
+    return builder.build();
+  }
+
   @Override
   public Snapshot apply() {
     this.base = ops.refresh();
@@ -157,12 +193,12 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
       }
 
       return new BaseSnapshot(ops,
-          snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(),
+          snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
           ops.io().newInputFile(manifestList.location()));
 
     } else {
       return new BaseSnapshot(ops,
-          snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(),
+          snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
           manifests);
     }
   }
@@ -290,6 +326,33 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read manifest: %s", manifest.path());
+    }
+  }
+
+  private static void updateTotal(ImmutableMap.Builder<String, String> summaryBuilder,
+                                  Map<String, String> previousSummary, String totalProperty,
+                                  Map<String, String> currentSummary,
+                                  String addedProperty, String deletedProperty) {
+    String totalStr = previousSummary.get(totalProperty);
+    if (totalStr != null) {
+      try {
+        long newTotal = Long.parseLong(totalStr);
+
+        String addedStr = currentSummary.get(addedProperty);
+        if (addedStr != null) {
+          newTotal += Long.parseLong(addedStr);
+        }
+
+        String deletedStr = currentSummary.get(deletedProperty);
+        if (deletedStr != null) {
+          newTotal -= Long.parseLong(deletedStr);
+        }
+
+        summaryBuilder.put(totalProperty, String.valueOf(newTotal));
+
+      } catch (NumberFormatException e) {
+        // ignore and do not add total
+      }
     }
   }
 }
