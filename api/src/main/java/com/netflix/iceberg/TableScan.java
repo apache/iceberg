@@ -67,6 +67,17 @@ public interface TableScan {
   TableScan project(Schema schema);
 
   /**
+   * Create a new {@link TableScan} from this that, if data columns where selected
+   * via {@link #select(java.util.Collection)}, controls whether the match to the schema will be done
+   * with case sensitivity.
+   *
+   * MUST be called before {@link #select(java.util.Collection)}!
+   *
+   * @return a new scan based on this with case sensitivity as stated
+   */
+  TableScan caseSensitive(boolean caseSensitive);
+
+  /**
    * Create a new {@link TableScan} from this that will read the given data columns. This produces
    * an expected schema that includes all fields that are either selected or used by this scan's
    * filter expression.
@@ -136,4 +147,10 @@ public interface TableScan {
    * @return this scan's filter expression
    */
   Expression filter();
+
+  /**
+   * Returns whether this scan should apply column name case sensitiveness as per {@link #caseSensitive(boolean)}.
+   * @return true if case sensitive, false otherwise.
+   */
+  boolean isCaseSensitive();
 }

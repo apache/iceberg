@@ -58,6 +58,7 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
   private final TableOperations ops;
   private final Schema projection;
   private final boolean reuseContainers;
+  private final boolean caseSensitive;
   private final CloseableIterable<CombinedScanTask> tasks;
 
   TableScanIterable(TableScan scan, boolean reuseContainers) {
@@ -66,6 +67,8 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
     this.ops = ((HasTableOperations) scan.table()).operations();
     this.projection = scan.schema();
     this.reuseContainers = reuseContainers;
+    this.caseSensitive = scan.isCaseSensitive();
+
 
     // start planning tasks in the background
     this.tasks = scan.planTasks();
@@ -73,7 +76,7 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
 
   @Override
   public Iterator<Record> iterator() {
-    ScanIterator iter = new ScanIterator(tasks);
+    ScanIterator iter = new ScanIterator(tasks, caseSensitive);
     addCloseable(iter);
     return iter;
   }
@@ -121,11 +124,13 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
 
   private class ScanIterator implements Iterator<Record>, Closeable {
     private final Iterator<FileScanTask> tasks;
+    private final boolean caseSensitive;
     private Closeable currentCloseable = null;
     private Iterator<Record> currentIterator = emptyIterator();
 
-    private ScanIterator(Iterable<CombinedScanTask> tasks) {
+    private ScanIterator(Iterable<CombinedScanTask> tasks, boolean caseSensitive) {
       this.tasks = Lists.newArrayList(concat(transform(tasks, CombinedScanTask::files))).iterator();
+      this.caseSensitive = caseSensitive;
     }
 
     @Override
@@ -148,7 +153,7 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
           this.currentCloseable = reader;
 
           if (task.residual() != null && task.residual() != Expressions.alwaysTrue()) {
-            Evaluator filter = new Evaluator(projection.asStruct(), task.residual());
+            Evaluator filter = new Evaluator(projection.asStruct(), task.residual(), caseSensitive);
             this.currentIterator = filter(reader, filter::eval).iterator();
           } else {
             this.currentIterator = reader.iterator();

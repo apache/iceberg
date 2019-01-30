@@ -20,6 +20,7 @@
 package com.netflix.iceberg.expressions;
 
 import com.netflix.iceberg.TestHelpers;
+import com.netflix.iceberg.exceptions.ValidationException;
 import com.netflix.iceberg.types.Types;
 import com.netflix.iceberg.types.Types.StructType;
 import org.apache.avro.util.Utf8;
@@ -143,6 +144,18 @@ public class TestEvaluatior {
     Evaluator evaluator = new Evaluator(STRUCT, not(equal("x", 7)));
     Assert.assertFalse("not(7 == 7) => false", evaluator.eval(TestHelpers.Row.of(7)));
     Assert.assertTrue("not(8 == 7) => false", evaluator.eval(TestHelpers.Row.of(8)));
+  }
+
+  @Test
+  public void testCaseInsensitiveNot() {
+    Evaluator evaluator = new Evaluator(STRUCT, not(equal("X", 7)), false);
+    Assert.assertFalse("not(7 == 7) => false", evaluator.eval(TestHelpers.Row.of(7)));
+    Assert.assertTrue("not(8 == 7) => false", evaluator.eval(TestHelpers.Row.of(8)));
+  }
+
+  @Test(expected = ValidationException.class)
+  public void testCaseSensitiveNot() {
+    Evaluator evaluator = new Evaluator(STRUCT, not(equal("X", 7)), true);
   }
 
   @Test

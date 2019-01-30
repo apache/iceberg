@@ -44,6 +44,7 @@ public class IcebergGenerics {
     private Expression where = Expressions.alwaysTrue();
     private List<String> columns = ImmutableList.of("*");
     private boolean reuseContainers = false;
+    private boolean caseSensitive = true;
 
     public ScanBuilder(Table table) {
       this.table = table;
@@ -59,13 +60,24 @@ public class IcebergGenerics {
       return this;
     }
 
+    public ScanBuilder caseInsensitive() {
+      this.caseSensitive = false;
+      return this;
+    }
+
     public ScanBuilder select(String... columns) {
       this.columns = ImmutableList.copyOf(columns);
       return this;
     }
 
     public Iterable<Record> build() {
-      return new TableScanIterable(table.newScan().filter(where).select(columns), reuseContainers);
+      return new TableScanIterable(
+        table.newScan()
+                .filter(where)
+                .caseSensitive(caseSensitive)
+                .select(columns),
+              reuseContainers
+      );
     }
   }
 }

@@ -39,6 +39,7 @@ import com.netflix.iceberg.expressions.ResidualEvaluator;
 import com.netflix.iceberg.io.CloseableIterable;
 import com.netflix.iceberg.types.TypeUtil;
 import com.netflix.iceberg.util.BinPacking;
+import com.netflix.iceberg.util.Pair;
 import com.netflix.iceberg.util.ParallelIterable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,17 +74,19 @@ class BaseTableScan implements TableScan {
   private final Long snapshotId;
   private final Schema schema;
   private final Expression rowFilter;
+  private final boolean caseSensitive;
 
   BaseTableScan(TableOperations ops, Table table) {
-    this(ops, table, null, table.schema(), Expressions.alwaysTrue());
+    this(ops, table, null, table.schema(), Expressions.alwaysTrue(), true);
   }
 
-  private BaseTableScan(TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter) {
+  private BaseTableScan(TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter, boolean caseSensitive) {
     this.ops = ops;
     this.table = table;
     this.snapshotId = snapshotId;
     this.schema = schema;
     this.rowFilter = rowFilter;
+    this.caseSensitive = caseSensitive;
   }
 
   @Override
@@ -97,7 +100,7 @@ class BaseTableScan implements TableScan {
         "Cannot override snapshot, already set to id=%s", snapshotId);
     Preconditions.checkArgument(ops.current().snapshot(snapshotId) != null,
         "Cannot find snapshot with ID %s", snapshotId);
-    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter);
+    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, caseSensitive);
   }
 
   @Override
@@ -121,7 +124,12 @@ class BaseTableScan implements TableScan {
   }
 
   public TableScan project(Schema schema) {
-    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter);
+    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, caseSensitive);
+  }
+
+  @Override
+  public TableScan caseSensitive(boolean caseSensitive) {
+    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, caseSensitive);
   }
 
   @Override
@@ -130,28 +138,53 @@ class BaseTableScan implements TableScan {
 
     // all of the filter columns are required
     requiredFieldIds.addAll(
-        Binder.boundReferences(table.schema().asStruct(), Collections.singletonList(rowFilter), true));
+        Binder.boundReferences(table.schema().asStruct(), Collections.singletonList(rowFilter), caseSensitive));
 
     // all of the projection columns are required
     requiredFieldIds.addAll(TypeUtil.getProjectedIds(table.schema().select(columns)));
 
     Schema projection = TypeUtil.select(table.schema(), requiredFieldIds);
 
-    return new BaseTableScan(ops, table, snapshotId, projection, rowFilter);
+    return new BaseTableScan(ops, table, snapshotId, projection, rowFilter, caseSensitive);
   }
 
   @Override
   public TableScan filter(Expression expr) {
-    return new BaseTableScan(ops, table, snapshotId, schema, Expressions.and(rowFilter, expr));
+    return new BaseTableScan(ops, table, snapshotId, schema, Expressions.and(rowFilter, expr), caseSensitive);
   }
 
-  private final LoadingCache<Integer, InclusiveManifestEvaluator> EVAL_CACHE = CacheBuilder
+  private final class InclusiveManifestEvaluatorCacheKey {
+    Integer specId;
+    Boolean caseSensitive;
+
+    InclusiveManifestEvaluatorCacheKey(Integer specId, Boolean caseSensitive) {
+      this.specId = specId;
+      this.caseSensitive = caseSensitive;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) return true;
+      if (o == null || getClass() != o.getClass()) return false;
+      InclusiveManifestEvaluatorCacheKey that = (InclusiveManifestEvaluatorCacheKey) o;
+      return specId.equals(that.specId) &&
+              caseSensitive.equals(that.caseSensitive);
+    }
+
+    @Override
+    public int hashCode() {
+      return java.util.Objects.hash(specId, caseSensitive);
+    }
+
+  }
+
+  private final LoadingCache<InclusiveManifestEvaluatorCacheKey, InclusiveManifestEvaluator> EVAL_CACHE = CacheBuilder
       .newBuilder()
-      .build(new CacheLoader<Integer, InclusiveManifestEvaluator>() {
+      .build(new CacheLoader<InclusiveManifestEvaluatorCacheKey, InclusiveManifestEvaluator>() {
         @Override
-        public InclusiveManifestEvaluator load(Integer specId) {
-          PartitionSpec spec = ops.current().spec(specId);
-          return new InclusiveManifestEvaluator(spec, rowFilter);
+        public InclusiveManifestEvaluator load(InclusiveManifestEvaluatorCacheKey imeKey) {
+          PartitionSpec spec = ops.current().spec(imeKey.specId);
+          return new InclusiveManifestEvaluator(spec, rowFilter, imeKey.caseSensitive);
         }
       });
 
@@ -169,18 +202,24 @@ class BaseTableScan implements TableScan {
       Listeners.notifyAll(
           new ScanEvent(table.toString(), snapshot.snapshotId(), rowFilter, schema));
 
-      Iterable<ManifestFile> matchingManifests = Iterables.filter(snapshot.manifests(),
-          manifest -> EVAL_CACHE.getUnchecked(manifest.partitionSpecId()).eval(manifest));
+      Iterable<ManifestFile> matchingManifests =
+              Iterables.filter(
+                      snapshot.manifests(),
+                      manifest ->
+                              EVAL_CACHE.getUnchecked(
+                                      new InclusiveManifestEvaluatorCacheKey(manifest.partitionSpecId(), caseSensitive)
+                              ).eval(manifest)
+              );
 
       ConcurrentLinkedQueue<Closeable> toClose = new ConcurrentLinkedQueue<>();
       Iterable<Iterable<FileScanTask>> readers = Iterables.transform(
           matchingManifests,
           manifest -> {
-            ManifestReader reader = ManifestReader.read(ops.io().newInputFile(manifest.path()));
+            ManifestReader reader = ManifestReader.read(ops.io().newInputFile(manifest.path()), caseSensitive);
             toClose.add(reader);
             String schemaString = SchemaParser.toJson(reader.spec().schema());
             String specString = PartitionSpecParser.toJson(reader.spec());
-            ResidualEvaluator residuals = new ResidualEvaluator(reader.spec(), rowFilter);
+            ResidualEvaluator residuals = new ResidualEvaluator(reader.spec(), rowFilter, caseSensitive);
             return Iterables.transform(
                 reader.filterRows(rowFilter).select(SNAPSHOT_COLUMNS),
                 file -> new BaseFileScanTask(file, schemaString, specString, residuals)
@@ -225,11 +264,15 @@ class BaseTableScan implements TableScan {
   }
 
   @Override
+  public boolean isCaseSensitive() { return caseSensitive; }
+
+  @Override
   public String toString() {
     return Objects.toStringHelper(this)
         .add("table", table)
         .add("projection", schema.asStruct())
         .add("filter", rowFilter)
+        .add("caseSensitive", caseSensitive)
         .toString();
   }
 

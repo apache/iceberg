@@ -20,6 +20,7 @@
 package com.netflix.iceberg.spark.source;
 
 import com.google.common.base.Preconditions;
+import com.netflix.iceberg.ConfigProperties;
 import com.netflix.iceberg.FileFormat;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.Table;
@@ -59,7 +60,13 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
   public DataSourceReader createReader(DataSourceOptions options) {
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
-    return new Reader(table);
+
+    // get caseSensitive from Conf or default
+    boolean caseSensitive = ConfigProperties.isCaseSensitive(conf);
+    // override case sensitivity from options, if found
+    caseSensitive = options.getBoolean(ConfigProperties.CASE_SENSITIVE, caseSensitive);
+
+    return new Reader(table, caseSensitive);
   }
 
   @Override
