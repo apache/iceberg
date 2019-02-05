@@ -24,6 +24,7 @@ import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.PartitionSpec;
 import com.netflix.iceberg.types.Type;
 import java.util.Locale;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -36,6 +37,7 @@ import java.util.regex.Pattern;
  * @see PartitionSpec#builderFor(Schema) The partition spec builder.
  */
 public class Transforms {
+
   private Transforms() {
   }
 
@@ -56,12 +58,27 @@ public class Transforms {
     if (transform.equalsIgnoreCase("identity")) {
       return Identity.get(type);
     } else if (type.typeId() == Type.TypeID.TIMESTAMP) {
-      return Timestamps.valueOf(transform.toUpperCase(Locale.ENGLISH));
+      return match(
+          () -> Timestamps.valueOf(transform.toUpperCase(Locale.ENGLISH)),
+          () -> new UnknownTransform<>(type, transform)
+      );
     } else if (type.typeId() == Type.TypeID.DATE) {
-      return Dates.valueOf(transform.toUpperCase(Locale.ENGLISH));
+      return match(
+          () -> Dates.valueOf(transform.toUpperCase(Locale.ENGLISH)),
+          () -> new UnknownTransform<>(type, transform)
+      );
     }
 
-    throw new IllegalArgumentException("Unknown transform: " + transform);
+    return new UnknownTransform<>(type, transform);
+  }
+
+  private static Transform<?,?> match(Supplier<Transform> transformSupplier,
+      Supplier<Transform> defaultSupplier) {
+    try {
+      return transformSupplier.get();
+    } catch(IllegalArgumentException e) {
+      return defaultSupplier.get();
+    }
   }
 
   /**

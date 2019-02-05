@@ -19,6 +19,7 @@
 
 package com.netflix.iceberg.transforms;
 
+
 import com.netflix.iceberg.PartitionSpec;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.TestHelpers;
@@ -79,5 +80,20 @@ public class TestTransformSerialization {
 
     Assert.assertEquals("Deserialization should produce equal partition spec",
         spec, TestHelpers.roundTripSerialize(spec));
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test(expected = IllegalArgumentException.class)
+  public void testApplyUnknownTransform() {
+    Schema schema = new Schema(
+        Types.NestedField.required(1, "i", Types.IntegerType.get()));
+
+    // a spec with an unknown transform
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .add(1, "unknown", "unknown")
+        .build();
+
+    Transform transform = spec.getFieldBySourceId(1).transform();
+    transform.apply("someValue");
   }
 }

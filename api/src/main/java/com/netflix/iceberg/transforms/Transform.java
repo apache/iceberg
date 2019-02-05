@@ -43,7 +43,7 @@ public interface Transform<S, T> extends Serializable {
   T apply(S value);
 
   /**
-   * Checks whether this function can be applied to the give {@link Type}.
+   * Checks whether this function can be applied to the given {@link Type}.
    *
    * @param type a type
    * @return true if this transform can be applied to the type, false otherwise

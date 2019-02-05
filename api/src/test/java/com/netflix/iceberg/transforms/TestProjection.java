@@ -24,6 +24,7 @@ import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.expressions.BoundPredicate;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Expressions;
+import com.netflix.iceberg.expressions.False;
 import com.netflix.iceberg.expressions.Or;
 import com.netflix.iceberg.expressions.Projections;
 import com.netflix.iceberg.expressions.UnboundPredicate;
@@ -164,5 +165,56 @@ public class TestProjection {
     UnboundPredicate<?> dateint3 = assertAndUnwrapUnbound(or2.right());
     Assert.assertEquals("Should be a dateint predicate", "dateint", dateint3.ref().name());
     Assert.assertEquals("Should be dateint=20180417", 20180417, dateint3.literal().value());
+  }
+
+  @Test
+  public void testUnknownTransformProjection() {
+    List<UnboundPredicate<?>> predicates = Lists.newArrayList(
+        Expressions.notNull("id"),
+        Expressions.isNull("id"),
+        Expressions.lessThan("id", 100),
+        Expressions.lessThanOrEqual("id", 101),
+        Expressions.greaterThan("id", 102),
+        Expressions.greaterThanOrEqual("id", 103),
+        Expressions.equal("id", 104),
+        Expressions.notEqual("id", 105)
+    );
+
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
+        .add(16, "id", "unknown")
+        .build();
+
+    for (UnboundPredicate<?> predicate : predicates) {
+      // get the projected predicate
+      Expression expr = Projections.inclusive(spec).project(predicate);
+      UnboundPredicate<?> projected = assertAndUnwrapUnbound(expr);
+
+      Assert.assertEquals("Field name should match partition field",
+          "id", projected.ref().name());
+      Assert.assertEquals("Operation should match always true", Expressions.alwaysTrue().op(), projected.op());
+    }
+  }
+
+  @Test
+  public void testUnknownTransformStrictProjection() {
+    List<UnboundPredicate<?>> predicates = Lists.newArrayList(
+        Expressions.notNull("id"),
+        Expressions.isNull("id"),
+        Expressions.lessThan("id", 100),
+        Expressions.lessThanOrEqual("id", 101),
+        Expressions.greaterThan("id", 102),
+        Expressions.greaterThanOrEqual("id", 103),
+        Expressions.equal("id", 104),
+        Expressions.notEqual("id", 105)
+    );
+
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
+        .add(16, "id", "unknown")
+        .build();
+
+    for (UnboundPredicate<?> predicate : predicates) {
+      Assert.assertEquals("Operation should match always false", Expressions.alwaysFalse(),
+          Projections.strict(spec).project(predicate));
+    }
   }
 }
