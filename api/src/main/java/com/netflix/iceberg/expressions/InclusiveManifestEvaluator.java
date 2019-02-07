@@ -53,12 +53,7 @@ public class InclusiveManifestEvaluator {
   }
 
   public InclusiveManifestEvaluator(PartitionSpec spec, Expression rowFilter) {
-    this.struct = spec.partitionType();
-    this.expr = Binder.bind(
-            struct,
-            rewriteNot(Projections.inclusive(spec, true).project(rowFilter)),
-            true
-    );
+    this(spec, rowFilter, true);
   }
 
   public InclusiveManifestEvaluator(PartitionSpec spec, Expression rowFilter, boolean caseSensitive) {
