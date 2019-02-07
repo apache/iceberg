@@ -19,146 +19,115 @@
 
 package com.netflix.iceberg;
 
-import com.netflix.iceberg.io.FileIO;
-import com.netflix.iceberg.io.LocationProvider;
+import com.google.common.collect.ImmutableMap;
 import java.util.Map;
 
-/**
- * Base {@link Table} implementation.
- * <p>
- * This can be extended by providing a {@link TableOperations} to the constructor.
- */
-public class BaseTable implements Table, HasTableOperations {
+public class MetadataTable implements Table {
   private final TableOperations ops;
-  private final String name;
+  private final Table table;
 
-  public BaseTable(TableOperations ops, String name) {
+  public MetadataTable(TableOperations ops, Table table) {
     this.ops = ops;
-    this.name = name;
-  }
-
-  @Override
-  public TableOperations operations() {
-    return ops;
+    this.table = table;
   }
 
   @Override
   public void refresh() {
-    ops.refresh();
+    table.refresh();
   }
 
   @Override
   public TableScan newScan() {
-    return new DataTableScan(ops, this);
+    return new MetadataTableScan(ops, table);
   }
 
   @Override
   public Table metadataAsTable() {
-    return new MetadataTable(ops, this);
+    throw new UnsupportedOperationException("Cannot scan metadata of a metadata table");
   }
 
   @Override
   public Schema schema() {
-    return ops.current().schema();
+    return ManifestEntry.getSchema(table.spec().partitionType());
   }
 
   @Override
   public PartitionSpec spec() {
-    return ops.current().spec();
+    return PartitionSpec.unpartitioned();
   }
 
   @Override
   public Map<String, String> properties() {
-    return ops.current().properties();
+    return ImmutableMap.of();
   }
 
   @Override
   public String location() {
-    return ops.current().location();
+    return table.currentSnapshot().manifestListLocation();
   }
 
   @Override
   public Snapshot currentSnapshot() {
-    return ops.current().currentSnapshot();
+    return table.currentSnapshot();
   }
 
   @Override
   public Iterable<Snapshot> snapshots() {
-    return ops.current().snapshots();
+    return table.snapshots();
   }
 
   @Override
   public UpdateSchema updateSchema() {
-    return new SchemaUpdate(ops);
+    throw new UnsupportedOperationException("Cannot update the schema of a metadata table");
   }
 
   @Override
   public UpdateProperties updateProperties() {
-    return new PropertiesUpdate(ops);
+    throw new UnsupportedOperationException("Cannot update the properties of a metadata table");
   }
 
   @Override
   public UpdateLocation updateLocation() {
-    return new SetLocation(ops);
+    throw new UnsupportedOperationException("Cannot update the location of a metadata table");
   }
 
   @Override
   public AppendFiles newAppend() {
-    return new MergeAppend(ops);
-  }
-
-  @Override
-  public AppendFiles newFastAppend() {
-    return new FastAppend(ops);
+    throw new UnsupportedOperationException("Cannot append to a metadata table");
   }
 
   @Override
   public RewriteFiles newRewrite() {
-    return new ReplaceFiles(ops);
+    throw new UnsupportedOperationException("Cannot rewrite in a metadata table");
   }
 
   @Override
   public OverwriteFiles newOverwrite() {
-    return new OverwriteData(ops);
+    throw new UnsupportedOperationException("Cannot overwrite in a metadata table");
   }
 
   @Override
   public ReplacePartitions newReplacePartitions() {
-    return new ReplacePartitionsOperation(ops);
+    throw new UnsupportedOperationException("Cannot replace partitions in a metadata table");
   }
 
   @Override
   public DeleteFiles newDelete() {
-    return new StreamingDelete(ops);
+    throw new UnsupportedOperationException("Cannot delete from a metadata table");
   }
 
   @Override
   public ExpireSnapshots expireSnapshots() {
-    return new RemoveSnapshots(ops);
+    throw new UnsupportedOperationException("Cannot expire snapshots from a metadata table");
   }
 
   @Override
   public Rollback rollback() {
-    return new RollbackToSnapshot(ops);
+    throw new UnsupportedOperationException("Cannot roll back a metadata table");
   }
 
   @Override
   public Transaction newTransaction() {
-    return BaseTransaction.newTransaction(ops);
-  }
-
-  @Override
-  public FileIO io() {
-    return operations().io();
-  }
-
-  @Override
-  public LocationProvider locationProvider() {
-    return operations().locationProvider();
-  }
-
-  @Override
-  public String toString() {
-    return name;
+    throw new UnsupportedOperationException("Cannot create transactions for a metadata table");
   }
 }

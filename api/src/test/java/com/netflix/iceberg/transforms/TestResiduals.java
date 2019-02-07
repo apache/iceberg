@@ -22,6 +22,7 @@ package com.netflix.iceberg.transforms;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.TestHelpers.Row;
 import com.netflix.iceberg.expressions.Expression;
+import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.expressions.ResidualEvaluator;
 import com.netflix.iceberg.expressions.UnboundPredicate;
 import com.netflix.iceberg.PartitionSpec;
@@ -29,6 +30,7 @@ import com.netflix.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static com.netflix.iceberg.PartitionSpec.unpartitioned;
 import static com.netflix.iceberg.TestHelpers.assertAndUnwrapUnbound;
 import static com.netflix.iceberg.expressions.Expression.Operation.GT;
 import static com.netflix.iceberg.expressions.Expression.Operation.LT;
@@ -52,7 +54,7 @@ public class TestResiduals {
         .identity("dateint")
         .build();
 
-    ResidualEvaluator resEval = new ResidualEvaluator(spec, or(or(
+    ResidualEvaluator resEval = ResidualEvaluator.of(spec, or(or(
         and(lessThan("dateint", 20170815), greaterThan("dateint", 20170801)),
         and(equal("dateint", 20170815), lessThan("hour", 12))),
         and(equal("dateint", 20170801), greaterThan("hour", 11)))
@@ -79,5 +81,23 @@ public class TestResiduals {
     // outside the date range
     residual = resEval.residualFor(Row.of(20170817));
     Assert.assertEquals("Residual should be alwaysFalse", alwaysFalse(), residual);
+  }
+
+  @Test
+  public void testUnpartitionedResiduals() {
+    Expression[] expressions = new Expression[] {
+        Expressions.alwaysTrue(),
+        Expressions.alwaysFalse(),
+        Expressions.lessThan("a", 5),
+        Expressions.greaterThanOrEqual("b", 16),
+        Expressions.notNull("c"),
+        Expressions.isNull("d")
+    };
+
+    for (Expression expr : expressions) {
+      ResidualEvaluator residualEvaluator = ResidualEvaluator.of(unpartitioned(), expr);
+      Assert.assertEquals("Should return expression",
+          expr, residualEvaluator.residualFor(Row.of()));
+    }
   }
 }

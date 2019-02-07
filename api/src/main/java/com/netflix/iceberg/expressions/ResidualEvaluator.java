@@ -47,6 +47,45 @@ import java.util.Comparator;
  * This class is thread-safe.
  */
 public class ResidualEvaluator implements Serializable {
+  private static class UnpartitionedResidualEvaluator extends ResidualEvaluator {
+    private final Expression expr;
+
+    public UnpartitionedResidualEvaluator(Expression expr) {
+      super(PartitionSpec.unpartitioned(), expr);
+      this.expr = expr;
+    }
+
+    @Override
+    public Expression residualFor(StructLike ignored) {
+      return expr;
+    }
+  }
+
+  /**
+   * Return a residual evaluator for an unpartitioned {@link PartitionSpec spec}.
+   *
+   * @param expr an expression
+   * @return a residual evaluator that always returns the expression
+   */
+  public static ResidualEvaluator unpartitioned(Expression expr) {
+    return new UnpartitionedResidualEvaluator(expr);
+  }
+
+  /**
+   * Return a residual evaluator for a {@link PartitionSpec spec} and {@link Expression expression}.
+   *
+   * @param spec a partition spec
+   * @param expr an expression
+   * @return a residual evaluator for the expression
+   */
+  public static ResidualEvaluator of(PartitionSpec spec, Expression expr) {
+    if (spec.fields().size() > 0) {
+      return new ResidualEvaluator(spec, expr);
+    } else {
+      return unpartitioned(expr);
+    }
+  }
+
   private final PartitionSpec spec;
   private final Expression expr;
   private transient ThreadLocal<ResidualVisitor> visitors = null;
@@ -58,7 +97,7 @@ public class ResidualEvaluator implements Serializable {
     return visitors.get();
   }
 
-  public ResidualEvaluator(PartitionSpec spec, Expression expr) {
+  private ResidualEvaluator(PartitionSpec spec, Expression expr) {
     this.spec = spec;
     this.expr = expr;
   }

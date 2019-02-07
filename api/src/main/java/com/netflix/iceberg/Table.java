@@ -43,6 +43,13 @@ public interface Table {
   TableScan newScan();
 
   /**
+   * Create a new {@link Table} of the file metadata for this table.
+   *
+   * @return a table of the metadata for this table
+   */
+  Table metadataAsTable();
+
+  /**
    * Return the {@link Schema schema} for this table.
    *
    * @return this table's schema

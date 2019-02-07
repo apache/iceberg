@@ -47,6 +47,8 @@ import static com.netflix.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 
 public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, DataSourceRegister {
 
+  private static final String FILES_SUFFIX = "$files";
+
   private SparkSession lazySpark = null;
   private Configuration lazyConf = null;
 
@@ -95,13 +97,20 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
   }
 
   protected Table findTable(DataSourceOptions options, Configuration conf) {
-    Optional<String> location = options.get("path");
-    Preconditions.checkArgument(location.isPresent(),
+    Optional<String> maybeLocation = options.get("path");
+    Preconditions.checkArgument(maybeLocation.isPresent(),
         "Cannot open table without a location: path is not set");
 
     HadoopTables tables = new HadoopTables(conf);
 
-    return tables.load(location.get());
+    String location = maybeLocation.get();
+    if (location.endsWith(FILES_SUFFIX)) {
+      return tables
+          .load(location.substring(0, location.length() - FILES_SUFFIX.length()))
+          .metadataAsTable();
+    } else {
+      return tables.load(location);
+    }
   }
 
   private SparkSession lazySparkSession() {
