@@ -20,6 +20,7 @@
 package com.netflix.iceberg;
 
 import com.netflix.iceberg.io.FileIO;
+import com.netflix.iceberg.io.LocationProvider;
 import java.util.Map;
 
 /**
@@ -184,5 +185,10 @@ public interface Table {
    * @return a {@link FileIO} to read and write table data and metadata files
    */
   FileIO io();
+
+  /**
+   * @return a {@link LocationProvider} to provide locations for new data files
+   */
+  LocationProvider locationProvider();
 
 }

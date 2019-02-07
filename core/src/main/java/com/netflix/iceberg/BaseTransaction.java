@@ -24,6 +24,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.CommitFailedException;
 import com.netflix.iceberg.io.FileIO;
+import com.netflix.iceberg.io.LocationProvider;
 import com.netflix.iceberg.util.Tasks;
 import java.util.List;
 import java.util.Map;
@@ -288,6 +289,11 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
+    public LocationProvider locationProvider() {
+      return ops.locationProvider();
+    }
+
+    @Override
     public long newSnapshotId() {
       return ops.newSnapshotId();
     }
@@ -391,6 +397,11 @@ class BaseTransaction implements Transaction {
     @Override
     public FileIO io() {
       return transactionOps.io();
+    }
+
+    @Override
+    public LocationProvider locationProvider() {
+      return transactionOps.locationProvider();
     }
   }
 }
