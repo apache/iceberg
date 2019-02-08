@@ -21,6 +21,7 @@ package com.netflix.iceberg;
 
 import com.netflix.iceberg.encryption.EncryptionManager;
 import com.netflix.iceberg.io.FileIO;
+import com.netflix.iceberg.io.LocationProvider;
 import java.util.UUID;
 
 /**
@@ -78,6 +79,13 @@ public interface TableOperations {
    * by e.g. {@link FileIO#newOutputFile(String)}.
    */
   String metadataFileLocation(String fileName);
+
+  /**
+   * Returns a {@link LocationProvider} that supplies locations for new new data files.
+   *
+   * @return a location provider configured for the current table state
+   */
+  LocationProvider locationProvider();
 
   /**
    * Create a new ID for a Snapshot

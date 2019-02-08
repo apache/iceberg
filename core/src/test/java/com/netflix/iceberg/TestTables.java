@@ -19,6 +19,7 @@
 
 package com.netflix.iceberg;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.netflix.iceberg.exceptions.AlreadyExistsException;
@@ -26,6 +27,7 @@ import com.netflix.iceberg.exceptions.CommitFailedException;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.io.InputFile;
+import com.netflix.iceberg.io.LocationProvider;
 import com.netflix.iceberg.io.OutputFile;
 import java.io.File;
 import java.util.Map;
@@ -177,6 +179,13 @@ public class TestTables {
     @Override
     public FileIO io() {
       return new LocalFileIO();
+    }
+
+    @Override
+    public LocationProvider locationProvider() {
+      Preconditions.checkNotNull(current,
+          "Current metadata should not be null when locatinProvider is called");
+      return LocationProviders.locationsFor(current.location(), current.properties());
     }
 
     @Override

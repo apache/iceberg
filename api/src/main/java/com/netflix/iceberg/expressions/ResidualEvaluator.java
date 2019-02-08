@@ -170,7 +170,7 @@ public class ResidualEvaluator implements Serializable {
           .projectStrict(part.name(), pred);
 
       if (strictProjection != null) {
-        Expression bound = strictProjection.bind(spec.partitionType());
+        Expression bound = strictProjection.bind(spec.partitionType(), true);
         if (bound instanceof BoundPredicate) {
           // the predicate methods will evaluate and return alwaysTrue or alwaysFalse
           return super.predicate((BoundPredicate<?>) bound);
@@ -184,7 +184,7 @@ public class ResidualEvaluator implements Serializable {
 
     @Override
     public <T> Expression predicate(UnboundPredicate<T> pred) {
-      Expression bound = pred.bind(spec.schema().asStruct());
+      Expression bound = pred.bind(spec.schema().asStruct(), true);
 
       if (bound instanceof BoundPredicate) {
         Expression boundResidual = predicate((BoundPredicate<?>) bound);

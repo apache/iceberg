@@ -21,6 +21,7 @@ package com.netflix.iceberg.spark.source;
 
 import com.google.common.collect.Maps;
 import com.netflix.iceberg.BaseTable;
+import com.netflix.iceberg.LocationProviders;
 import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.Files;
 import com.netflix.iceberg.PartitionSpec;
@@ -32,7 +33,9 @@ import com.netflix.iceberg.exceptions.AlreadyExistsException;
 import com.netflix.iceberg.exceptions.CommitFailedException;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.InputFile;
+import com.netflix.iceberg.io.LocationProvider;
 import com.netflix.iceberg.io.OutputFile;
+import parquet.Preconditions;
 import java.io.File;
 import java.util.Map;
 
@@ -158,6 +161,13 @@ class TestTables {
     @Override
     public FileIO io() {
       return new LocalFileIO();
+    }
+
+    @Override
+    public LocationProvider locationProvider() {
+      Preconditions.checkNotNull(current,
+          "Current metadata should not be null when locatinProvider is called");
+      return LocationProviders.locationsFor(current.location(), current.properties());
     }
 
     @Override

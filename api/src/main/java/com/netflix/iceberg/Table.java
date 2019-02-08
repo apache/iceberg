@@ -21,6 +21,7 @@ package com.netflix.iceberg;
 
 import com.netflix.iceberg.encryption.EncryptionManager;
 import com.netflix.iceberg.io.FileIO;
+import com.netflix.iceberg.io.LocationProvider;
 import java.util.Map;
 
 /**
@@ -195,4 +196,8 @@ public interface Table {
     throw new UnsupportedOperationException("Encryption is a work in progress.");
   }
 
+  /**
+   * @return a {@link LocationProvider} to provide locations for new data files
+   */
+  LocationProvider locationProvider();
 }

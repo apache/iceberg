@@ -135,7 +135,7 @@ public class Projections {
 
     @Override
     public <T> Expression predicate(UnboundPredicate<T> pred) {
-      Expression bound = pred.bind(spec.schema().asStruct());
+      Expression bound = pred.bind(spec.schema().asStruct(), true);
 
       if (bound instanceof BoundPredicate) {
         return predicate((BoundPredicate<?>) bound);
