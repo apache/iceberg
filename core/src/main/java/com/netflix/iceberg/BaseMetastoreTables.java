@@ -29,7 +29,7 @@ import java.util.Map;
 import static com.netflix.iceberg.TableMetadata.newTableMetadata;
 
 public abstract class BaseMetastoreTables implements Tables {
-  private static final String FILES_SUFFIX = "$files";
+  private static final String ENTRIES_SUFFIX = "$entries";
 
   private final Configuration conf;
 
@@ -43,8 +43,8 @@ public abstract class BaseMetastoreTables implements Tables {
   public Table load(String database, String table) {
     String tableName = table;
     boolean metadataTable = false;
-    if (table.endsWith(FILES_SUFFIX)) {
-      tableName = table.substring(0, table.length() - FILES_SUFFIX.length());
+    if (table.endsWith(ENTRIES_SUFFIX)) {
+      tableName = table.substring(0, table.length() - ENTRIES_SUFFIX.length());
       metadataTable = true;
     }
 
