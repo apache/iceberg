@@ -371,7 +371,7 @@ public class TestHelpers {
     }
 
     @Override
-    public EncryptionKeyMetadata keyMetadata() {
+    public ByteBuffer keyMetadata() {
       return null;
     }
 

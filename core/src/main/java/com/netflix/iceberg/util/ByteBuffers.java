@@ -24,7 +24,7 @@ import java.util.Arrays;
 
 public class ByteBuffers {
 
-  public static byte[] copy(ByteBuffer buffer) {
+  public static byte[] toByteArray(ByteBuffer buffer) {
     if (buffer.hasArray()) {
       byte[] array = buffer.array();
       if (buffer.arrayOffset() == 0 && buffer.position() == 0
@@ -42,6 +42,15 @@ public class ByteBuffers {
     }
   }
 
+  public static ByteBuffer copy(ByteBuffer buffer) {
+    int size = buffer.remaining();
+    byte[] copyArray = new byte[size];
+    ByteBuffer readerBuffer = buffer.asReadOnlyBuffer();
+    for (int i = 0; i < size && readerBuffer.hasRemaining(); i++) {
+      copyArray[i] = readerBuffer.get();
+    }
+    return ByteBuffer.wrap(copyArray);
+  }
 
   private ByteBuffers() {}
 }

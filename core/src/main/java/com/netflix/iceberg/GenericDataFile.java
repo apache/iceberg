@@ -22,8 +22,6 @@ package com.netflix.iceberg;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 import com.netflix.iceberg.avro.AvroSchemaUtil;
-import com.netflix.iceberg.encryption.EncryptionKeyMetadata;
-import com.netflix.iceberg.encryption.EncryptionKeyMetadatas;
 import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Types;
 import com.netflix.iceberg.util.ByteBuffers;
@@ -62,7 +60,7 @@ class GenericDataFile
   private Map<Integer, Long> nullValueCounts = null;
   private Map<Integer, ByteBuffer> lowerBounds = null;
   private Map<Integer, ByteBuffer> upperBounds = null;
-  private EncryptionKeyMetadata keyMetadata = null;
+  private ByteBuffer keyMetadata = null;
 
   // cached schema
   private transient org.apache.avro.Schema avroSchema = null;
@@ -171,7 +169,7 @@ class GenericDataFile
 
   GenericDataFile(String filePath, FileFormat format, PartitionData partition,
                   long fileSizeInBytes, long blockSizeInBytes, Metrics metrics,
-                  EncryptionKeyMetadata keyMetadata) {
+                  ByteBuffer keyMetadata) {
     this(filePath, format, partition, fileSizeInBytes, blockSizeInBytes, metrics);
     this.keyMetadata = keyMetadata;
   }
@@ -198,7 +196,7 @@ class GenericDataFile
     this.lowerBounds = toCopy.lowerBounds;
     this.upperBounds = toCopy.upperBounds;
     this.fromProjectionPos = toCopy.fromProjectionPos;
-    this.keyMetadata = toCopy.keyMetadata == null ? null : toCopy.keyMetadata.copy();
+    this.keyMetadata = toCopy.keyMetadata == null ? null : ByteBuffers.copy(toCopy.keyMetadata);
   }
 
   /**
@@ -273,7 +271,7 @@ class GenericDataFile
   }
 
   @Override
-  public EncryptionKeyMetadata keyMetadata() {
+  public ByteBuffer keyMetadata() {
     return keyMetadata;
   }
 
@@ -332,11 +330,10 @@ class GenericDataFile
         this.lowerBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) v);
         return;
       case 12:
-        this.upperBounds= SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) v);
+        this.upperBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) v);
         return;
       case 13:
-        this.keyMetadata = v == null ? null
-            : EncryptionKeyMetadatas.of(ByteBuffers.copy((ByteBuffer) v));
+        this.keyMetadata = (ByteBuffer) v;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -377,7 +374,7 @@ class GenericDataFile
       case 12:
         return upperBounds;
       case 13:
-        return keyMetadata == null ? null : keyMetadata.keyMetadata();
+        return keyMetadata;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -424,7 +421,7 @@ class GenericDataFile
         .add("null_value_counts", nullValueCounts)
         .add("lower_bounds", lowerBounds)
         .add("upper_bounds", upperBounds)
-        .add("key_metadata", "<redacted>")
+        .add("key_metadata", keyMetadata == null ? "null" : "<redacted>")
         .toString();
   }
 

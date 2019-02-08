@@ -133,7 +133,7 @@ public interface DataFile {
    * @return metadata about how this file is encrypted, or null if the file is stored in plain
    *         text.
    */
-  EncryptionKeyMetadata keyMetadata();
+  ByteBuffer keyMetadata();
 
   /**
    * Copies this {@link DataFile data file}. Manifest readers can reuse data file instances; use

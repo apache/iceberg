@@ -21,10 +21,10 @@ package com.netflix.iceberg;
 
 import com.google.common.base.Preconditions;
 import com.netflix.iceberg.encryption.EncryptionKeyMetadata;
-import com.netflix.iceberg.encryption.EncryptionKeyMetadatas;
 import com.netflix.iceberg.hadoop.HadoopInputFile;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.types.Conversions;
+import com.netflix.iceberg.util.ByteBuffers;
 import org.apache.hadoop.fs.FileStatus;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -187,7 +187,7 @@ public class DataFiles {
     private Map<Integer, Long> nullValueCounts = null;
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
-    private EncryptionKeyMetadata keyMetadata = null;
+    private ByteBuffer keyMetadata = null;
 
     public Builder() {
       this.spec = null;
@@ -231,7 +231,8 @@ public class DataFiles {
       this.nullValueCounts = toCopy.nullValueCounts();
       this.lowerBounds = toCopy.lowerBounds();
       this.upperBounds = toCopy.upperBounds();
-      this.keyMetadata = toCopy.keyMetadata() == null ? null : toCopy.keyMetadata().copy();
+      this.keyMetadata = toCopy.keyMetadata() == null ? null
+          : ByteBuffers.copy(toCopy.keyMetadata());
       return this;
     }
 
@@ -305,17 +306,17 @@ public class DataFiles {
       return this;
     }
 
-    public Builder withEncryptionKeyMetadata(EncryptionKeyMetadata keyMetadata) {
+    public Builder withEncryptionKeyMetadata(ByteBuffer keyMetadata) {
       this.keyMetadata = keyMetadata;
       return this;
     }
 
-    public Builder withEncryptionKeyMetadata(ByteBuffer keyMetadata) {
-      return withEncryptionKeyMetadata(EncryptionKeyMetadatas.of(keyMetadata));
+    public Builder withEncryptionKeyMetadata(EncryptionKeyMetadata keyMetadata) {
+      return withEncryptionKeyMetadata(keyMetadata.keyMetadata());
     }
 
     public Builder withEncryptionKeyMetadata(byte[] keyMetadata) {
-      return withEncryptionKeyMetadata(EncryptionKeyMetadatas.of(keyMetadata));
+      return withEncryptionKeyMetadata(ByteBuffer.wrap(keyMetadata));
     }
 
     public DataFile build() {

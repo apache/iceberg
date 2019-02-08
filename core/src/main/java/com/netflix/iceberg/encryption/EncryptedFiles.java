@@ -19,25 +19,40 @@
 
 package com.netflix.iceberg.encryption;
 
+import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 
 import java.nio.ByteBuffer;
 
-public class EncryptedOutputFiles {
+public class EncryptedFiles {
 
-  public static EncryptedOutputFile of(
+  public static EncryptedInputFile encryptedInput(
+      InputFile encryptedInputFile, EncryptionKeyMetadata keyMetadata) {
+    return new BaseEncryptedInputFile(encryptedInputFile, keyMetadata);
+  }
+
+  public static EncryptedInputFile encryptedInput(
+      InputFile encryptedInputFile, ByteBuffer keyMetadata) {
+    return encryptedInput(encryptedInputFile, new BaseEncryptionKeyMetadata(keyMetadata));
+  }
+
+  public static EncryptedInputFile encryptedInput(InputFile encryptedInputFile, byte[] keyMetadata) {
+    return encryptedInput(encryptedInputFile, ByteBuffer.wrap(keyMetadata));
+  }
+
+  public static EncryptedOutputFile encryptedOutput(
       OutputFile encryptingOutputFile, EncryptionKeyMetadata keyMetadata) {
     return new BaseEncryptedOutputFile(encryptingOutputFile, keyMetadata);
   }
 
-  public static EncryptedOutputFile of(
+  public static EncryptedOutputFile encryptedOutput(
       OutputFile encryptingOutputFile, ByteBuffer keyMetadata) {
-    return of(encryptingOutputFile, new BaseEncryptionKeyMetadata(keyMetadata));
+    return encryptedOutput(encryptingOutputFile, new BaseEncryptionKeyMetadata(keyMetadata));
   }
 
-  public static EncryptedOutputFile of(OutputFile encryptedOutputFile, byte[] keyMetadata) {
-    return of(encryptedOutputFile, ByteBuffer.wrap(keyMetadata));
+  public static EncryptedOutputFile encryptedOutput(OutputFile encryptedOutputFile, byte[] keyMetadata) {
+    return encryptedOutput(encryptedOutputFile, ByteBuffer.wrap(keyMetadata));
   }
 
-  private EncryptedOutputFiles() {}
+  private EncryptedFiles() {}
 }

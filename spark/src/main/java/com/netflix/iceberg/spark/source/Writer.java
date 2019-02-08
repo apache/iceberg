@@ -33,7 +33,6 @@ import com.netflix.iceberg.Metrics;
 import com.netflix.iceberg.PartitionSpec;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.Table;
-import com.netflix.iceberg.TableProperties;
 import com.netflix.iceberg.avro.Avro;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.FileAppender;
@@ -381,13 +380,5 @@ class Writer implements DataSourceWriter {
         completedFiles.add(dataFile);
       }
     }
-  }
-
-  private static String stripTrailingSlash(String path) {
-    String result = path;
-    while (result.endsWith("/")) {
-      result = result.substring(0, path.length() - 1);
-    }
-    return result;
   }
 }
