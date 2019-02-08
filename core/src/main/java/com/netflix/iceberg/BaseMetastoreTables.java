@@ -29,6 +29,8 @@ import java.util.Map;
 import static com.netflix.iceberg.TableMetadata.newTableMetadata;
 
 public abstract class BaseMetastoreTables implements Tables {
+  private static final String FILES_SUFFIX = "$files";
+
   private final Configuration conf;
 
   public BaseMetastoreTables(Configuration conf) {
@@ -39,12 +41,24 @@ public abstract class BaseMetastoreTables implements Tables {
                                                               String database, String table);
 
   public Table load(String database, String table) {
-    TableOperations ops = newTableOps(conf, database, table);
+    String tableName = table;
+    boolean metadataTable = false;
+    if (table.endsWith(FILES_SUFFIX)) {
+      tableName = table.substring(0, table.length() - FILES_SUFFIX.length());
+      metadataTable = true;
+    }
+
+    TableOperations ops = newTableOps(conf, database, tableName);
     if (ops.current() == null) {
       throw new NoSuchTableException("Table does not exist: " + database + "." + table);
     }
 
-    return new BaseTable(ops, database + "." + table);
+    Table baseTable = new BaseTable(ops, database + "." + table);
+    if (metadataTable) {
+      return baseTable.metadataAsTable();
+    } else {
+      return baseTable;
+    }
   }
 
   public Table create(Schema schema, String database, String table) {

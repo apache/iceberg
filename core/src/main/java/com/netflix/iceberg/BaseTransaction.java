@@ -310,6 +310,11 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
+    public Table metadataAsTable() {
+      throw new UnsupportedOperationException("Transaction tables do not support metadata scans");
+    }
+
+    @Override
     public Schema schema() {
       return current.schema();
     }
