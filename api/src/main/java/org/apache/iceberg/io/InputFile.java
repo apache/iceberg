@@ -48,4 +48,11 @@ public interface InputFile {
    * @return the input file location
    */
   String location();
+
+  /**
+   * Checks whether the file exists.
+   *
+   * @return true if the file exists, false otherwise
+   */
+  boolean exists();
 }

@@ -142,6 +142,15 @@ public class HadoopInputFile implements InputFile {
   }
 
   @Override
+  public boolean exists() {
+    try {
+      return fs.exists(path);
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to check existence for file: %s", path);
+    }
+  }
+
+  @Override
   public String toString() {
     return path.toString();
   }
