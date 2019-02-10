@@ -66,13 +66,7 @@ import static com.netflix.iceberg.types.Types.NestedField.required;
 import static java.nio.file.Files.createTempDirectory;
 import static java.nio.file.attribute.PosixFilePermissions.asFileAttribute;
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
-import static org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars.AUTO_CREATE_ALL;
-import static org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars.COMPACTOR_INITIATOR_ON;
-import static org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars.COMPACTOR_WORKER_THREADS;
 import static org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars.CONNECT_URL_KEY;
-import static org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars.HIVE_SUPPORT_CONCURRENCY;
-import static org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars.HIVE_TXN_MANAGER;
-import static org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars.SCHEMA_VERIFICATION;
 import static org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars.THRIFT_URIS;
 import static org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars.WAREHOUSE;
 
@@ -135,18 +129,10 @@ class HiveTableBaseTest {
 
   private HiveConf hiveConf(Configuration conf, int port) {
     final HiveConf hiveConf = new HiveConf(conf, this.getClass());
-    // Setting AUTO_CREATE_ALL in hadoop config somehow still reverts to false.
-    hiveConf.set(SCHEMA_VERIFICATION.getVarname(), "false");
     hiveConf.set(THRIFT_URIS.getVarname(), "thrift://localhost:" + port);
     hiveConf.set(WAREHOUSE.getVarname(), "file:" + hiveLocalDir.getAbsolutePath());
     hiveConf.set(WAREHOUSE.getHiveName(), "file:" + hiveLocalDir.getAbsolutePath());
     hiveConf.set(CONNECT_URL_KEY.getVarname(), "jdbc:derby:" + getDerbyPath() + ";create=true");
-    hiveConf.set(AUTO_CREATE_ALL.getVarname(), "true");
-    hiveConf.set(HIVE_TXN_MANAGER.getVarname(), "org.apache.hadoop.hive.ql.lockmgr.DummyTxnManager");
-    hiveConf.set(COMPACTOR_INITIATOR_ON.getVarname(), "true");
-    hiveConf.set(COMPACTOR_WORKER_THREADS.getVarname(), "1");
-    hiveConf.set(HIVE_SUPPORT_CONCURRENCY.getVarname(), "true");
-
     return hiveConf;
   }
 
@@ -206,7 +192,7 @@ class HiveTableBaseTest {
   }
 
   String getTableLocation(String tableName) {
-    return new Path("file", null, Paths.get(getTableBasePath(tableName), "empty").toString()).toString();
+    return new Path("file", null, Paths.get(getTableBasePath(tableName)).toString()).toString();
   }
 
   String metadataLocation(String tableName) {

@@ -19,6 +19,8 @@
 
 package com.netflix.iceberg;
 
+import com.netflix.iceberg.io.FileIO;
+import com.netflix.iceberg.io.LocationProvider;
 import java.util.Map;
 
 /**
@@ -97,6 +99,13 @@ public interface Table {
   UpdateProperties updateProperties();
 
   /**
+   * Create a new {@link UpdateLocation} to update table location and commit the changes.
+   *
+   * @return a new {@link UpdateLocation}
+   */
+  UpdateLocation updateLocation();
+
+  /**
    * Create a new {@link AppendFiles append API} to add files to this table and commit.
    *
    * @return a new {@link AppendFiles}
@@ -171,4 +180,15 @@ public interface Table {
    * @return a new {@link Transaction}
    */
   Transaction newTransaction();
+
+  /**
+   * @return a {@link FileIO} to read and write table data and metadata files
+   */
+  FileIO io();
+
+  /**
+   * @return a {@link LocationProvider} to provide locations for new data files
+   */
+  LocationProvider locationProvider();
+
 }

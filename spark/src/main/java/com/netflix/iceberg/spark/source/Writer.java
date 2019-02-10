@@ -28,6 +28,7 @@ import com.netflix.iceberg.AppendFiles;
 import com.netflix.iceberg.DataFile;
 import com.netflix.iceberg.DataFiles;
 import com.netflix.iceberg.FileFormat;
+import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.Metrics;
 import com.netflix.iceberg.PartitionSpec;
 import com.netflix.iceberg.Schema;
@@ -35,27 +36,18 @@ import com.netflix.iceberg.Table;
 import com.netflix.iceberg.TableProperties;
 import com.netflix.iceberg.avro.Avro;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.hadoop.HadoopInputFile;
-import com.netflix.iceberg.hadoop.HadoopOutputFile;
 import com.netflix.iceberg.io.FileAppender;
-import com.netflix.iceberg.io.InputFile;
+import com.netflix.iceberg.io.LocationProvider;
 import com.netflix.iceberg.io.OutputFile;
 import com.netflix.iceberg.parquet.Parquet;
 import com.netflix.iceberg.spark.data.SparkAvroWriter;
-import com.netflix.iceberg.transforms.Transform;
-import com.netflix.iceberg.transforms.Transforms;
-import com.netflix.iceberg.types.Types.StringType;
 import com.netflix.iceberg.util.Tasks;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.execution.datasources.parquet.ParquetWriteSupport;
 import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
 import org.apache.spark.sql.sources.v2.writer.DataWriter;
 import org.apache.spark.sql.sources.v2.writer.DataWriterFactory;
 import org.apache.spark.sql.sources.v2.writer.WriterCommitMessage;
-import org.apache.spark.util.SerializableConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.io.Closeable;
@@ -77,30 +69,26 @@ import static com.netflix.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static com.netflix.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
-import static com.netflix.iceberg.TableProperties.OBJECT_STORE_ENABLED;
-import static com.netflix.iceberg.TableProperties.OBJECT_STORE_ENABLED_DEFAULT;
-import static com.netflix.iceberg.TableProperties.OBJECT_STORE_PATH;
 import static com.netflix.iceberg.spark.SparkSchemaUtil.convert;
 
 // TODO: parameterize DataSourceWriter with subclass of WriterCommitMessage
 class Writer implements DataSourceWriter {
-  private static final Transform<String, Integer> HASH_FUNC = Transforms
-      .bucket(StringType.get(), Integer.MAX_VALUE);
   private static final Logger LOG = LoggerFactory.getLogger(Writer.class);
 
   private final Table table;
-  private final Configuration conf;
   private final FileFormat format;
+  private final FileIO fileIo;
 
-  Writer(Table table, Configuration conf, FileFormat format) {
+  Writer(Table table, FileFormat format) {
     this.table = table;
-    this.conf = conf;
     this.format = format;
+    this.fileIo = table.io();
   }
 
   @Override
   public DataWriterFactory<InternalRow> createWriterFactory() {
-    return new WriterFactory(table.spec(), format, dataLocation(), table.properties(), conf);
+    return new WriterFactory(
+        table.spec(), format, table.locationProvider(), table.properties(), fileIo);
   }
 
   @Override
@@ -122,13 +110,6 @@ class Writer implements DataSourceWriter {
 
   @Override
   public void abort(WriterCommitMessage[] messages) {
-    FileSystem fs;
-    try {
-      fs = new Path(table.location()).getFileSystem(conf);
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    }
-
     Tasks.foreach(files(messages))
         .retry(propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
         .exponentialBackoff(
@@ -138,11 +119,7 @@ class Writer implements DataSourceWriter {
             2.0 /* exponential */ )
         .throwFailureWhenFinished()
         .run(file -> {
-          try {
-            fs.delete(new Path(file.path().toString()), false /* not recursive */ );
-          } catch (IOException e) {
-            throw new RuntimeIOException(e);
-          }
+          fileIo.deleteFile(file.path().toString());
         });
   }
 
@@ -162,12 +139,6 @@ class Writer implements DataSourceWriter {
       return Integer.parseInt(properties.get(property));
     }
     return defaultValue;
-  }
-
-  private String dataLocation() {
-    return table.properties().getOrDefault(
-        TableProperties.WRITE_NEW_DATA_LOCATION,
-        new Path(new Path(table.location()), "data").toString());
   }
 
   @Override
@@ -200,20 +171,18 @@ class Writer implements DataSourceWriter {
   private static class WriterFactory implements DataWriterFactory<InternalRow> {
     private final PartitionSpec spec;
     private final FileFormat format;
-    private final String dataLocation;
+    private final LocationProvider locations;
     private final Map<String, String> properties;
-    private final SerializableConfiguration conf;
     private final String uuid = UUID.randomUUID().toString();
+    private final FileIO fileIo;
 
-    private transient Path dataPath = null;
-
-    WriterFactory(PartitionSpec spec, FileFormat format, String dataLocation,
-                  Map<String, String> properties, Configuration conf) {
+    WriterFactory(PartitionSpec spec, FileFormat format, LocationProvider locations,
+                  Map<String, String> properties, FileIO fileIo) {
       this.spec = spec;
       this.format = format;
-      this.dataLocation = dataLocation;
+      this.locations = locations;
       this.properties = properties;
-      this.conf = new SerializableConfiguration(conf);
+      this.fileIo = fileIo;
     }
 
     @Override
@@ -221,57 +190,13 @@ class Writer implements DataSourceWriter {
       String filename = format.addExtension(String.format("%05d-%d-%s", partitionId, taskId, uuid));
       AppenderFactory<InternalRow> factory = new SparkAppenderFactory();
       if (spec.fields().isEmpty()) {
-        return new UnpartitionedWriter(lazyDataPath(), filename, format, conf.value(), factory);
-
+        return new UnpartitionedWriter(
+            fileIo.newOutputFile(locations.newDataLocation(filename)), format, factory, fileIo);
       } else {
-        Path baseDataPath = lazyDataPath(); // avoid calling this in the output path function
-        Function<PartitionKey, Path> outputPathFunc = key ->
-            new Path(new Path(baseDataPath, key.toPath()), filename);
-
-        boolean useObjectStorage = (
-            Boolean.parseBoolean(properties.get(OBJECT_STORE_ENABLED)) ||
-            OBJECT_STORE_ENABLED_DEFAULT
-        );
-
-        if (useObjectStorage) {
-          // try to get db and table portions of the path for context in the object store
-          String context = pathContext(baseDataPath);
-          String objectStore = properties.get(OBJECT_STORE_PATH);
-          Preconditions.checkNotNull(objectStore,
-              "Cannot use object storage, missing location: " + OBJECT_STORE_PATH);
-          Path objectStorePath = new Path(objectStore);
-
-          outputPathFunc = key -> {
-            String partitionAndFilename = key.toPath() + "/" + filename;
-            int hash = HASH_FUNC.apply(partitionAndFilename);
-            return new Path(objectStorePath,
-                String.format("%08x/%s/%s", hash, context, partitionAndFilename));
-          };
-        }
-
-        return new PartitionedWriter(spec, format, conf.value(), factory, outputPathFunc);
+        Function<PartitionKey, OutputFile> newOutputFileForKey =
+            key -> fileIo.newOutputFile(locations.newDataLocation(spec, key, filename));
+        return new PartitionedWriter(spec, format, factory, newOutputFileForKey, fileIo);
       }
-    }
-
-    private static String pathContext(Path dataPath) {
-      Path parent = dataPath.getParent();
-      if (parent != null) {
-        // remove the data folder
-        if (dataPath.getName().equals("data")) {
-          return pathContext(parent);
-        }
-
-        return parent.getName() + "/" + dataPath.getName();
-      }
-
-      return dataPath.getName();
-    }
-
-    private Path lazyDataPath() {
-      if (dataPath == null) {
-        this.dataPath = new Path(dataLocation);
-      }
-      return dataPath;
     }
 
     private class SparkAppenderFactory implements AppenderFactory<InternalRow> {
@@ -314,16 +239,19 @@ class Writer implements DataSourceWriter {
   }
 
   private static class UnpartitionedWriter implements DataWriter<InternalRow>, Closeable {
-    private final Path file;
-    private final Configuration conf;
+    private final FileIO fileIo;
+    private final OutputFile file;
     private FileAppender<InternalRow> appender = null;
     private Metrics metrics = null;
 
-    UnpartitionedWriter(Path dataPath, String filename, FileFormat format,
-                        Configuration conf, AppenderFactory<InternalRow> factory) {
-      this.file = new Path(dataPath, filename);
-      this.appender = factory.newAppender(HadoopOutputFile.fromPath(file, conf), format);
-      this.conf = conf;
+    UnpartitionedWriter(
+        OutputFile file,
+        FileFormat format,
+        AppenderFactory<InternalRow> factory,
+        FileIO fileIo) {
+      this.file = file;
+      this.fileIo = fileIo;
+      this.appender = factory.newAppender(file, format);
     }
 
     @Override
@@ -338,13 +266,11 @@ class Writer implements DataSourceWriter {
       close();
 
       if (metrics.recordCount() == 0L) {
-        FileSystem fs = file.getFileSystem(conf);
-        fs.delete(file, false);
+        fileIo.deleteFile(file);
         return new TaskCommit();
       }
 
-      InputFile inFile = HadoopInputFile.fromPath(file, conf);
-      DataFile dataFile = DataFiles.fromInputFile(inFile, null, metrics);
+      DataFile dataFile = DataFiles.fromInputFile(file.toInputFile(), null, metrics);
 
       return new TaskCommit(dataFile);
     }
@@ -354,9 +280,7 @@ class Writer implements DataSourceWriter {
       Preconditions.checkArgument(appender != null, "Abort called on a closed writer: %s", this);
 
       close();
-
-      FileSystem fs = file.getFileSystem(conf);
-      fs.delete(file, false);
+      fileIo.deleteFile(file);
     }
 
     @Override
@@ -374,24 +298,27 @@ class Writer implements DataSourceWriter {
     private final List<DataFile> completedFiles = Lists.newArrayList();
     private final PartitionSpec spec;
     private final FileFormat format;
-    private final Configuration conf;
     private final AppenderFactory<InternalRow> factory;
-    private final Function<PartitionKey, Path> outputPathFunc;
+    private final Function<PartitionKey, OutputFile> newOutputFileForKey;
     private final PartitionKey key;
+    private final FileIO fileIo;
 
     private PartitionKey currentKey = null;
     private FileAppender<InternalRow> currentAppender = null;
-    private Path currentPath = null;
+    private OutputFile currentFile = null;
 
-    PartitionedWriter(PartitionSpec spec, FileFormat format, Configuration conf,
-                      AppenderFactory<InternalRow> factory,
-                      Function<PartitionKey, Path> outputPathFunc) {
+    PartitionedWriter(
+        PartitionSpec spec,
+        FileFormat format,
+        AppenderFactory<InternalRow> factory,
+        Function<PartitionKey, OutputFile> newOutputFileForKey,
+        FileIO fileIo) {
       this.spec = spec;
       this.format = format;
-      this.conf = conf;
       this.factory = factory;
-      this.outputPathFunc = outputPathFunc;
+      this.newOutputFileForKey = newOutputFileForKey;
       this.key = new PartitionKey(spec);
+      this.fileIo = fileIo;
     }
 
     @Override
@@ -409,9 +336,8 @@ class Writer implements DataSourceWriter {
         }
 
         this.currentKey = key.copy();
-        this.currentPath = outputPathFunc.apply(currentKey);
-        OutputFile file = HadoopOutputFile.fromPath(currentPath, conf);
-        this.currentAppender = factory.newAppender(file, format);
+        this.currentFile = newOutputFileForKey.apply(currentKey);
+        this.currentAppender = factory.newAppender(currentFile, format);
       }
 
       currentAppender.add(row);
@@ -425,18 +351,16 @@ class Writer implements DataSourceWriter {
 
     @Override
     public void abort() throws IOException {
-      FileSystem fs = currentPath.getFileSystem(conf);
-
       // clean up files created by this writer
       Tasks.foreach(completedFiles)
           .throwFailureWhenFinished()
           .noRetry()
-          .run(file -> fs.delete(new Path(file.path().toString())), IOException.class);
+          .run(file -> fileIo.deleteFile(file.path().toString()));
 
       if (currentAppender != null) {
         currentAppender.close();
         this.currentAppender = null;
-        fs.delete(currentPath);
+        fileIo.deleteFile(currentFile);
       }
     }
 
@@ -447,9 +371,8 @@ class Writer implements DataSourceWriter {
         Metrics metrics = currentAppender.metrics();
         this.currentAppender = null;
 
-        InputFile inFile = HadoopInputFile.fromPath(currentPath, conf);
         DataFile dataFile = DataFiles.builder(spec)
-            .withInputFile(inFile)
+            .withInputFile(currentFile.toInputFile())
             .withPartition(currentKey)
             .withMetrics(metrics)
             .build();
@@ -458,5 +381,13 @@ class Writer implements DataSourceWriter {
         completedFiles.add(dataFile);
       }
     }
+  }
+
+  private static String stripTrailingSlash(String path) {
+    String result = path;
+    while (result.endsWith("/")) {
+      result = result.substring(0, path.length() - 1);
+    }
+    return result;
   }
 }

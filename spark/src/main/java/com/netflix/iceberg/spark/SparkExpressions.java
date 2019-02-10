@@ -336,7 +336,7 @@ public class SparkExpressions {
 
   public static Expression convert(com.netflix.iceberg.expressions.Expression filter,
                                    Schema schema) {
-    return visit(Binder.bind(schema.asStruct(), filter), new ExpressionToSpark(schema));
+    return visit(Binder.bind(schema.asStruct(), filter, true), new ExpressionToSpark(schema));
   }
 
   private static class ExpressionToSpark extends ExpressionVisitors.

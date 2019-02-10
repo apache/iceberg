@@ -44,7 +44,7 @@ public class Evaluator implements Serializable {
   }
 
   public Evaluator(Types.StructType struct, Expression unbound) {
-    this.expr = Binder.bind(struct, unbound);
+    this.expr = Binder.bind(struct, unbound, true);
   }
 
   public boolean eval(StructLike data) {

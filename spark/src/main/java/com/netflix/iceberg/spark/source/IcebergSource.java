@@ -59,8 +59,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
   public DataSourceReader createReader(DataSourceOptions options) {
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
-
-    return new Reader(table, conf);
+    return new Reader(table);
   }
 
   @Override
@@ -92,7 +91,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
           .toUpperCase(Locale.ENGLISH));
     }
 
-    return Optional.of(new Writer(table, conf, format));
+    return Optional.of(new Writer(table, format));
   }
 
   protected Table findTable(DataSourceOptions options, Configuration conf) {

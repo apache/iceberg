@@ -20,26 +20,14 @@
 package com.netflix.iceberg;
 
 /**
- * Configuration properties that are controlled by Java system properties.
+ * API for setting a table's base location.
  */
-public class SystemProperties {
+public interface UpdateLocation extends PendingUpdate<String> {
   /**
-   * Sets the size of the worker pool. The worker pool limits the number of tasks concurrently
-   * processing manifests in the base table implementation across all concurrent planning or commit
-   * operations.
+   * Set the table's location.
+   *
+   * @param location a String location
+   * @return this for method chaining
    */
-  public static final String WORKER_THREAD_POOL_SIZE_PROP = "iceberg.worker.num-threads";
-
-  /**
-   * Whether to use the shared worker pool when planning table scans.
-   */
-  public static final String SCAN_THREAD_POOL_ENABLED = "iceberg.scan.plan-in-worker-pool";
-
-  static boolean getBoolean(String systemProperty, boolean defaultValue) {
-    String value = System.getProperty(systemProperty);
-    if (value != null) {
-      return Boolean.parseBoolean(value);
-    }
-    return defaultValue;
-  }
+  UpdateLocation setLocation(String location);
 }

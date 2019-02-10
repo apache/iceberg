@@ -22,6 +22,7 @@ package com.netflix.iceberg.spark.source;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.CombinedScanTask;
 import com.netflix.iceberg.DataFile;
+import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.FileScanTask;
 import com.netflix.iceberg.PartitionField;
 import com.netflix.iceberg.PartitionSpec;
@@ -34,7 +35,6 @@ import com.netflix.iceberg.avro.Avro;
 import com.netflix.iceberg.common.DynMethods;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.hadoop.HadoopInputFile;
 import com.netflix.iceberg.io.CloseableIterable;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.parquet.Parquet;
@@ -44,7 +44,6 @@ import com.netflix.iceberg.spark.data.SparkAvroReader;
 import com.netflix.iceberg.spark.data.SparkParquetReaders;
 import com.netflix.iceberg.types.TypeUtil;
 import com.netflix.iceberg.types.Types;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Attribute;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
@@ -67,7 +66,6 @@ import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
-import org.apache.spark.util.SerializableConfiguration;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.Serializable;
@@ -89,7 +87,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
   private static final Filter[] NO_FILTERS = new Filter[0];
 
   private final Table table;
-  private final SerializableConfiguration conf;
+  private final FileIO fileIo;
   private StructType requestedSchema = null;
   private List<Expression> filterExpressions = null;
   private Filter[] pushedFilters = NO_FILTERS;
@@ -99,10 +97,10 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
   private StructType type = null; // cached because Spark accesses it multiple times
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
 
-  Reader(Table table, Configuration conf) {
+  Reader(Table table) {
     this.table = table;
-    this.conf = new SerializableConfiguration(conf);
     this.schema = table.schema();
+    this.fileIo = table.io();
   }
 
   private Schema lazySchema() {
@@ -135,7 +133,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
 
     List<InputPartition<InternalRow>> readTasks = Lists.newArrayList();
     for (CombinedScanTask task : tasks()) {
-      readTasks.add(new ReadTask(task, tableSchemaString, expectedSchemaString, conf));
+      readTasks.add(new ReadTask(task, tableSchemaString, expectedSchemaString, fileIo));
     }
 
     return readTasks;
@@ -228,22 +226,22 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     private final CombinedScanTask task;
     private final String tableSchemaString;
     private final String expectedSchemaString;
-    private final SerializableConfiguration conf;
+    private final FileIO fileIo;
 
     private transient Schema tableSchema = null;
     private transient Schema expectedSchema = null;
 
-    private ReadTask(CombinedScanTask task, String tableSchemaString, String expectedSchemaString,
-                     SerializableConfiguration conf) {
+    private ReadTask(
+        CombinedScanTask task, String tableSchemaString, String expectedSchemaString, FileIO fileIo) {
       this.task = task;
       this.tableSchemaString = tableSchemaString;
       this.expectedSchemaString = expectedSchemaString;
-      this.conf = conf;
+      this.fileIo = fileIo;
     }
 
     @Override
     public InputPartitionReader<InternalRow> createPartitionReader() {
-      return new TaskDataReader(task, lazyTableSchema(), lazyExpectedSchema(), conf.value());
+      return new TaskDataReader(task, lazyTableSchema(), lazyExpectedSchema(), fileIo);
     }
 
     private Schema lazyTableSchema() {
@@ -270,18 +268,18 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     private final Iterator<FileScanTask> tasks;
     private final Schema tableSchema;
     private final Schema expectedSchema;
-    private final Configuration conf;
+    private final FileIO fileIo;
 
     private Iterator<InternalRow> currentIterator = null;
     private Closeable currentCloseable = null;
     private InternalRow current = null;
 
-    public TaskDataReader(CombinedScanTask task, Schema tableSchema, Schema expectedSchema, Configuration conf) {
+    public TaskDataReader(CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo) {
+      this.fileIo = fileIo;
       this.tasks = task.files().iterator();
       this.tableSchema = tableSchema;
       this.expectedSchema = expectedSchema;
-      this.conf = conf;
-      // open last because the schemas and conf must be set
+      // open last because the schemas and fileIo must be set
       this.currentIterator = open(tasks.next());
     }
 
@@ -346,17 +344,17 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
 
         // create joined rows and project from the joined schema to the final schema
         iterSchema = TypeUtil.join(readSchema, partitionSchema);
-        iter = transform(open(task, readSchema, conf), joined::withLeft);
+        iter = transform(open(task, readSchema), joined::withLeft);
 
       } else if (hasExtraFilterColumns) {
         // add projection to the final schema
         iterSchema = requiredSchema;
-        iter = open(task, requiredSchema, conf);
+        iter = open(task, requiredSchema);
 
       } else {
         // return the base iterator
         iterSchema = finalSchema;
-        iter = open(task, finalSchema, conf);
+        iter = open(task, finalSchema);
       }
 
       // TODO: remove the projection by reporting the iterator's schema back to Spark
@@ -386,9 +384,8 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
           asScalaBufferConverter(attrs).asScala().toSeq());
     }
 
-    private Iterator<InternalRow> open(FileScanTask task, Schema readSchema,
-                                       Configuration conf) {
-      InputFile location = HadoopInputFile.fromLocation(task.file().path(), conf);
+    private Iterator<InternalRow> open(FileScanTask task, Schema readSchema) {
+      InputFile location = fileIo.newInputFile(task.file().path().toString());
       CloseableIterable<InternalRow> iter;
       switch (task.file().format()) {
         case PARQUET:

@@ -202,7 +202,7 @@ public class SparkSchemaUtil {
    * @throws IllegalArgumentException if the Spark type does not match the Schema
    */
   public static Schema prune(Schema schema, StructType requestedType, List<Expression> filters) {
-    Set<Integer> filterRefs = Binder.boundReferences(schema.asStruct(), filters);
+    Set<Integer> filterRefs = Binder.boundReferences(schema.asStruct(), filters, true);
     return new Schema(visit(schema, new PruneColumnsWithoutReordering(requestedType, filterRefs))
         .asNestedType()
         .asStructType()
@@ -225,7 +225,7 @@ public class SparkSchemaUtil {
    * @throws IllegalArgumentException if the Spark type does not match the Schema
    */
   public static Schema prune(Schema schema, StructType requestedType, Expression filter) {
-    Set<Integer> filterRefs = Binder.boundReferences(schema.asStruct(), Collections.singletonList(filter));
+    Set<Integer> filterRefs = Binder.boundReferences(schema.asStruct(), Collections.singletonList(filter), true);
     return new Schema(visit(schema, new PruneColumnsWithoutReordering(requestedType, filterRefs))
         .asNestedType()
         .asStructType()

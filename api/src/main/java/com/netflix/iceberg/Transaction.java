@@ -34,11 +34,25 @@ public interface Transaction {
   Table table();
 
   /**
+   * Create a new {@link UpdateSchema} to alter the columns of this table.
+   *
+   * @return a new {@link UpdateSchema}
+   */
+  UpdateSchema updateSchema();
+
+  /**
    * Create a new {@link UpdateProperties} to update table properties.
    *
    * @return a new {@link UpdateProperties}
    */
   UpdateProperties updateProperties();
+
+  /**
+   * Create a new {@link UpdateLocation} to update table location.
+   *
+   * @return a new {@link UpdateLocation}
+   */
+  UpdateLocation updateLocation();
 
   /**
    * Create a new {@link AppendFiles append API} to add files to this table.
