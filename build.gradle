@@ -21,7 +21,8 @@ buildscript {
   repositories {
     jcenter()
     gradlePluginPortal()
-    maven { url  "http://palantir.bintray.com/releases" }
+    maven { url "http://palantir.bintray.com/releases" }
+    maven { url "https://plugins.gradle.org/m2/" }
   }
   dependencies {
     classpath 'com.github.jengelman.gradle.plugins:shadow:5.0.0'
@@ -30,6 +31,7 @@ buildscript {
     classpath 'com.palantir.baseline:gradle-baseline-java:0.55.0'
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:3.14.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:2.1.0'
+    classpath 'me.champeau.gradle:jmh-gradle-plugin:0.4.8'
   }
 }
 
@@ -85,6 +87,8 @@ subprojects {
     scalaVersion = '2.11'
     sparkVersion = '2.4.0'
     caffeineVersion = "2.7.0"
+
+    jmhVersion = '1.21'
   }
 
   sourceCompatibility = '1.8'
@@ -157,6 +161,21 @@ configure(baselineProjects) {
         endWithNewline()
       }
     }
+  }
+}
+
+def jmhProjects = [ project("iceberg-spark") ]
+
+configure(jmhProjects) {
+  apply plugin: 'me.champeau.gradle.jmh'
+
+  jmh {
+    jmhVersion = jmhVersion
+    failOnError = true
+    forceGC = true
+    includeTests = true
+    humanOutputFile = file(jmhOutputPath)
+    include = [jmhIncludeRegex]
   }
 }
 
