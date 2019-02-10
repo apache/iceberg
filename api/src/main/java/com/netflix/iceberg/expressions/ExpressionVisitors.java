@@ -95,7 +95,7 @@ public class ExpressionVisitors {
     }
 
     public R startsWith(BoundReference<String> ref, Literal<String> lit) {
-      return null;
+      throw new UnsupportedOperationException("Unsupported operation.");
     }
 
     public <T> R predicate(BoundPredicate<T> pred) {
