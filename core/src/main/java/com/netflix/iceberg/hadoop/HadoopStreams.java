@@ -19,6 +19,7 @@
 
 package com.netflix.iceberg.hadoop;
 
+import com.google.common.base.Joiner;
 import com.netflix.iceberg.io.DelegatingInputStream;
 import com.netflix.iceberg.io.DelegatingOutputStream;
 import com.netflix.iceberg.io.PositionOutputStream;
@@ -28,11 +29,11 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 /**
  * Convenience methods to get Parquet abstractions for Hadoop data streams.
@@ -69,9 +70,13 @@ class HadoopStreams {
    */
   private static class HadoopSeekableInputStream extends SeekableInputStream implements DelegatingInputStream {
     private final FSDataInputStream stream;
+    private final StackTraceElement[] createStack;
+    private boolean closed;
 
     HadoopSeekableInputStream(FSDataInputStream stream) {
       this.stream = stream;
+      this.createStack = Thread.currentThread().getStackTrace();
+      this.closed = false;
     }
 
     @Override
@@ -82,6 +87,7 @@ class HadoopStreams {
     @Override
     public void close() throws IOException {
       stream.close();
+      this.closed = true;
     }
 
     @Override
@@ -107,6 +113,17 @@ class HadoopStreams {
     public int read(ByteBuffer buf) throws IOException {
       return stream.read(buf);
     }
+
+    @Override
+    protected void finalize() throws Throwable {
+      super.finalize();
+      if (!closed) {
+        close(); // releasing resources is more important than printing the warning
+        String trace = Joiner.on("\n\t").join(
+            Arrays.copyOfRange(createStack, 1, createStack.length));
+        LOG.warn("Unclosed input stream created by:\n\t" + trace);
+      }
+    }
   }
 
   /**
@@ -114,9 +131,13 @@ class HadoopStreams {
    */
   private static class HadoopPositionOutputStream extends PositionOutputStream implements DelegatingOutputStream {
     private final FSDataOutputStream stream;
+    private final StackTraceElement[] createStack;
+    private boolean closed;
 
     public HadoopPositionOutputStream(FSDataOutputStream stream) {
       this.stream = stream;
+      this.createStack = Thread.currentThread().getStackTrace();
+      this.closed = false;
     }
 
     @Override
@@ -152,6 +173,18 @@ class HadoopStreams {
     @Override
     public void close() throws IOException {
       stream.close();
+      this.closed = true;
+    }
+
+    @Override
+    protected void finalize() throws Throwable {
+      super.finalize();
+      if (!closed) {
+        close(); // releasing resources is more important than printing the warning
+        String trace = Joiner.on("\n\t").join(
+            Arrays.copyOfRange(createStack, 1, createStack.length));
+        LOG.warn("Unclosed output stream created by:\n\t" + trace);
+      }
     }
   }
 }
