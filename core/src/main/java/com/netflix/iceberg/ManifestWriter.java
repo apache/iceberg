@@ -36,7 +36,6 @@ import static com.netflix.iceberg.ManifestEntry.Status.DELETED;
 class ManifestWriter implements FileAppender<DataFile> {
   private static final Logger LOG = LoggerFactory.getLogger(ManifestWriter.class);
 
-  private final String location;
   private final OutputFile file;
   private final int specId;
   private final FileAppender<ManifestEntry> writer;
@@ -50,7 +49,6 @@ class ManifestWriter implements FileAppender<DataFile> {
   private int deletedFiles = 0;
 
   ManifestWriter(PartitionSpec spec, OutputFile file, long snapshotId) {
-    this.location = file.location();
     this.file = file;
     this.specId = spec.specId();
     this.writer = newAppender(FileFormat.AVRO, spec, file);
@@ -119,9 +117,14 @@ class ManifestWriter implements FileAppender<DataFile> {
     return writer.metrics();
   }
 
+  @Override
+  public long length() {
+    return writer.length();
+  }
+
   public ManifestFile toManifestFile() {
     Preconditions.checkState(closed, "Cannot build ManifestFile, writer is not closed");
-    return new GenericManifestFile(location, file.toInputFile().getLength(), specId, snapshotId,
+    return new GenericManifestFile(file.location(), writer.length(), specId, snapshotId,
         addedFiles, existingFiles, deletedFiles, stats.summaries());
   }
 

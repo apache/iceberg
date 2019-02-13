@@ -49,6 +49,11 @@ public class ParquetWriteAdapter<D> implements FileAppender<D> {
   }
 
   @Override
+  public long length() {
+    return writer.getDataSize();
+  }
+
+  @Override
   public void close() throws IOException {
     if (writer != null) {
       writer.close();

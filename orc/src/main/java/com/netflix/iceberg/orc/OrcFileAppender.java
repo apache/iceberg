@@ -98,6 +98,11 @@ public class OrcFileAppender implements FileAppender<VectorizedRowBatch> {
   }
 
   @Override
+  public long length() {
+    return writer.getRawDataSize();
+  }
+
+  @Override
   public void close() throws IOException {
     writer.close();
   }

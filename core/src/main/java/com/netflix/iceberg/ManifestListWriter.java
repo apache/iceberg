@@ -62,6 +62,11 @@ class ManifestListWriter implements FileAppender<ManifestFile> {
     writer.close();
   }
 
+  @Override
+  public long length() {
+    return writer.length();
+  }
+
   private static FileAppender<ManifestFile> newAppender(OutputFile file, Map<String, String> meta) {
     try {
       return Avro.write(file)

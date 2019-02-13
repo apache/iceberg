@@ -62,7 +62,7 @@ public class Files {
       }
 
       try {
-        return new PositionFileOutputStream(new RandomAccessFile(file, "rw"));
+        return new PositionFileOutputStream(file, new RandomAccessFile(file, "rw"));
       } catch (FileNotFoundException e) {
         throw new RuntimeIOException(e, "Failed to create file: %s", file);
       }
@@ -185,14 +185,20 @@ public class Files {
   }
 
   private static class PositionFileOutputStream extends PositionOutputStream {
+    private final File file;
     private final RandomAccessFile stream;
+    private boolean isClosed = false;
 
-    private PositionFileOutputStream(RandomAccessFile stream) {
+    private PositionFileOutputStream(File file, RandomAccessFile stream) {
+      this.file = file;
       this.stream = stream;
     }
 
     @Override
     public long getPos() throws IOException {
+      if (isClosed) {
+        return file.length();
+      }
       return stream.getFilePointer();
     }
 
@@ -209,6 +215,7 @@ public class Files {
     @Override
     public void close() throws IOException {
       stream.close();
+      this.isClosed = true;
     }
 
     @Override
