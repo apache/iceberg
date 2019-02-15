@@ -24,9 +24,6 @@ import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 
 import java.io.Serializable;
-import java.util.Iterator;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 /**
  * Module for encrypting and decrypting table data files.
