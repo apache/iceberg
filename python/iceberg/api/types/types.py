@@ -6,17 +6,14 @@
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-from __future__ import absolute_import
-
-import re
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
 from .type import (NestedType,
                    PrimitiveType,
@@ -232,7 +229,7 @@ class TimestampType(PrimitiveType):
     def __eq__(self, other):
         if id(self) == id(other):
             return True
-        elif other is None or self.__class__.__name__ != other.__class__.__name__:
+        elif other is None or not isinstance(other, TimestampType):
             return False
 
         return self.adjust_to_utc == other.adjust_to_utc
@@ -328,7 +325,7 @@ class FixedType(PrimitiveType):
     def __eq__(self, other):
         if id(self) == id(other):
             return True
-        elif other is None or self.__class__.__name__ != other.__class__.__name__:
+        elif other is None or not isinstance(other, FixedType):
             return False
 
         return self.length == other.length
@@ -396,7 +393,7 @@ class DecimalType(PrimitiveType):
     def __eq__(self, other):
         if id(self) == id(other):
             return True
-        elif other is None or self.__class__.__name__ != other.__class__.__name__:
+        elif other is None or not isinstance(other, DecimalType):
             return False
 
         return self.precision == other.precison and self.scale == other.scale
@@ -443,7 +440,7 @@ class NestedField():
     def __eq__(self, other):
         if id(self) == id(other):
             return True
-        elif other is None or self.__class__.__name__ != other.__class__.__name__:
+        elif other is None or not isinstance(other, NestedField):
             return False
 
         return self.is_optional == other.is_optional \
@@ -483,7 +480,7 @@ class StructType(NestedType):
     def __eq__(self, other):
         if id(self) == id(other):
             return True
-        elif other is None or self.__class__.__name__ != other.__class__.__name__:
+        elif other is None or not isinstance(other, StructType):
             return False
 
         return self._fields == other._fields
@@ -579,8 +576,6 @@ class ListType(NestedType):
         if self.element_field.id == id:
             return self.element_field
 
-        return None
-
     def fields(self):
         return self._lazyFieldsList()
 
@@ -597,13 +592,16 @@ class ListType(NestedType):
     def is_list_type(self):
         return True
 
+    def as_list_type(self):
+        return self
+
     def __str__(self):
         return "list<%s>" % self.element_field.type
 
     def __eq__(self, other):
         if id(self) == id(other):
             return True
-        elif other is None or self.__class__.__name__ != other.__class__.__name__:
+        elif other is None or not isinstance(other, ListType):
             return False
 
         return self.element_field == other.element_field
@@ -619,7 +617,7 @@ class ListType(NestedType):
 
     def _lazyFieldsList(self):
         if self._fields is None:
-            self._fields = tuple(self.element_field)
+            self._fields = [self.element_field]
 
         return self._fields
 
@@ -662,15 +660,12 @@ class MapType(NestedType):
             return self.key_field.type
         elif "value" == name:
             return self.value_field.type
-        return None
 
     def field(self, id):
         if self.key_field.id == id:
             return self.key_field
         elif self.value_field.id == id:
             return self.value_field
-
-        return None
 
     def fields(self):
         return self._lazyFieldList()
@@ -693,7 +688,7 @@ class MapType(NestedType):
     def __eq__(self, other):
         if id(self) == id(other):
             return True
-        elif other is None or self.__class__.__name__ != other.__class__.__name__:
+        elif other is None or not isinstance(other, MapType):
             return False
 
         return self.key_field == other.key_field and self.value_field == other.value_field
@@ -705,42 +700,7 @@ class MapType(NestedType):
         return hash(self.__key())
 
     def __key(self):
-        return StructType.__class__, self.key_field, self.value_field
+        return MapType.__class__, self.key_field, self.value_field
 
     def _lazyFieldList(self):
         return tuple(self.key_field, self.value_field)
-
-
-class Types(object):
-
-    TYPES = {str(BooleanType): BooleanType.get(),
-             str(IntegerType.get()): IntegerType.get(),
-             str(LongType.get()): LongType.get(),
-             str(FloatType.get()): FloatType.get(),
-             str(DoubleType.get()): DoubleType.get(),
-             str(DateType.get()): DateType.get(),
-             str(TimeType.get()): TimeType.get(),
-             str(TimestampType.with_timezone()): TimestampType.with_timezone(),
-             str(TimestampType.without_timezone()): TimestampType.without_timezone(),
-             str(StringType.get()): StringType.get(),
-             str(UUIDType.get()): UUIDType.get(),
-             str(BinaryType): BinaryType.get()}
-
-    FIXED = re.compile("fixed\\[(\\d+)\\]")
-    DECIMAL = re.compile("decimal\\((\\d+),\\s+(\\d+)\\)")
-
-    @staticmethod
-    def from_primitive_string(type_string):
-        lower_type_string = type_string.lower()
-        if lower_type_string in Types.TYPES.keys():
-            return Types.TYPES[lower_type_string]
-
-        matches = Types.FIXED.match(type_string)
-        if matches:
-            return FixedType.of_length(matches.group(1))
-
-        matches = Types.DECIMAL.match(type_string)
-        if matches:
-            return DecimalType.of(matches.group(1), matches.group(2))
-
-        raise RuntimeError("Cannot parse type string to primitive: %s", type_string)

@@ -6,13 +6,14 @@
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
 from decimal import Decimal
 import struct
@@ -63,7 +64,7 @@ class Conversions(object):
                               TypeID.TIMESTAMP: lambda type_var, value: struct.unpack('<q', value)[0],
                               TypeID.FLOAT: lambda type_var, value: struct.unpack('<f)', value)[0],
                               TypeID.DOUBLE: lambda type_var, value: struct.unpack('<d', value)[0],
-                              TypeID.STRING: lambda type_var, value: bytes(value),
+                              TypeID.STRING: lambda type_var, value: bytes(value).decode("utf-8"),
                               TypeID.UUID: lambda type_var, value:
                               uuid.UUID(int=struct.unpack('>QQ', value)[0] << 64 | struct.unpack('>QQ', value)[1]),
                               TypeID.FIXED: lambda type_var, value: value,

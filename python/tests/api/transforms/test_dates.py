@@ -1,25 +1,44 @@
-import unittest
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 
 from iceberg.api.expressions import Literal
 from iceberg.api.transforms import Transforms
 from iceberg.api.types import DateType
+import pytest
 
 
-class TestDates(unittest.TestCase):
+@pytest.mark.parametrize("transform_gran,expected", [
+    (Transforms.year, "2017"),
+    (Transforms.month, "2017-12"),
+    (Transforms.day, "2017-12-01")])
+def test_date_to_human_string(transform_gran, expected):
+    type_var = DateType.get()
+    date = Literal.of("2017-12-01").to(type_var)
 
-    def test_date_to_human_string(self):
-        type_var = DateType.get()
-        date = Literal.of("2017-12-01").to(type_var)
+    assert (transform_gran(DateType.get())
+            .to_human_string(transform_gran(DateType.get())
+                             .apply(date.value))) == expected
 
-        year = Transforms.year(type_var)
-        self.assertEqual("2017", year.to_human_string(year.apply(date.value)))
-        month = Transforms.month(type_var)
-        self.assertEqual("2017-12", month.to_human_string(month.apply(date.value)))
-        day = Transforms.day(type_var)
-        self.assertEqual("2017-12-01", day.to_human_string(day.apply(date.value)))
 
-    def test_null_human_string(self):
-        type_var = DateType.get()
-        self.assertEqual("null", Transforms.year(type_var).to_human_string(None))
-        self.assertEqual("null", Transforms.month(type_var).to_human_string(None))
-        self.assertEqual("null", Transforms.day(type_var).to_human_string(None))
+@pytest.mark.parametrize("transform_gran", [
+    Transforms.year,
+    Transforms.month,
+    Transforms.day])
+def test_null_human_string(transform_gran):
+    type_var = DateType.get()
+    assert transform_gran(type_var).to_human_string(None) == "null"

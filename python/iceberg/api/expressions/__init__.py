@@ -6,31 +6,74 @@
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-# flake8: noqa
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
 from __future__ import absolute_import
 
+__all__ = ["ABOVE_MAX",
+           "And",
+           "BELOW_MIN",
+           "BinaryLiteral",
+           "Binder",
+           "BooleanLiteral",
+           "BoundPredicate",
+           "BoundReference",
+           "Evaluator",
+           "Expression",
+           "ExpressionVisitors",
+           "Expressions",
+           "DateLiteral",
+           "DecimalLiteral",
+           "DoubleLiteral",
+           "FALSE",
+           "FalseExp",
+           "FixedLiteral",
+           "FloatLiteral",
+           "InclusiveMetricsEvaluator",
+           "IntegerLiteral",
+           "JAVA_MAX_FLOAT",
+           "JAVA_MAX_INT",
+           "JAVA_MIN_FLOAT",
+           "JAVA_MIN_INT",
+           "Literal",
+           "Literals",
+           "NamedReference",
+           "Not",
+           "Operation",
+           "Or",
+           "Predicate",
+           "Reference",
+           "StrictMetricsEvaluator",
+           "StringLiteral",
+           "TRUE",
+           "TrueExp",
+           "UUIDLiteral",
+           "UnboundPredicate"]
+
+from .evaluator import (Binder,
+                        Evaluator)
 from .expression import (And,
-                         FalseExp,
                          Expression,
+                         FALSE,
+                         FalseExp,
                          Not,
                          Operation,
                          Or,
-                         TrueExp,
-                         FALSE,
-                         TRUE)
+                         TRUE,
+                         TrueExp)
+from .expressions import Expressions, ExpressionVisitors
 from .inclusive_metrics_evaluator import InclusiveMetricsEvaluator
-from .reference import (Reference,
-                        BoundReference,
-                        NamedReference)
+from .java_variables import (JAVA_MAX_FLOAT,
+                             JAVA_MAX_INT,
+                             JAVA_MIN_FLOAT,
+                             JAVA_MIN_INT)
 from .literals import (ABOVE_MAX,
                        BELOW_MIN,
                        BinaryLiteral,
@@ -43,20 +86,12 @@ from .literals import (ABOVE_MAX,
                        IntegerLiteral,
                        Literal,
                        Literals,
-                       UUIDLiteral,
-                       StringLiteral)
-from .predicate import (Predicate,
-                        BoundPredicate,
+                       StringLiteral,
+                       UUIDLiteral)
+from .predicate import (BoundPredicate,
+                        Predicate,
                         UnboundPredicate)
-from .expressions import Expressions
-from .evaluator import (Evaluator,
-                        Binder)
-from .java_variables import (JAVA_MAX_FLOAT,
-                             JAVA_MAX_INT,
-                             JAVA_MIN_FLOAT,
-                             JAVA_MIN_INT)
+from .reference import (BoundReference,
+                        NamedReference,
+                        Reference)
 from .strict_metrics_evaluator import StrictMetricsEvaluator
-
-
-
-

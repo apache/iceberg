@@ -6,13 +6,16 @@
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+from iceberg.exceptions import ValidationException
 
 from .expression import (Expression,
                          FALSE,
@@ -21,7 +24,6 @@ from .expression import (Expression,
 from .literals import (Literal,
                        Literals)
 from .reference import BoundReference
-from ..exceptions.validation_exception import ValidationException
 
 
 class Predicate(Expression):
@@ -34,7 +36,7 @@ class Predicate(Expression):
     def __eq__(self, other):
         if id(self) == id(other):
             return True
-        elif other is None or self.__class__.__name__ != other.__class__.__name__:
+        elif other is None or not isinstance(other, Predicate):
             return False
 
         return self.op == other.op and self.ref == other.ref and self.lit == other.lit

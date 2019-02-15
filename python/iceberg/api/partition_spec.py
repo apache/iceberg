@@ -6,17 +6,18 @@
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
-import sys
+from urllib.parse import quote_plus
 
-from iceberg.api.exceptions import ValidationException
+from iceberg.exceptions import ValidationException
 
 from .partition_field import PartitionField
 from .schema import Schema
@@ -24,19 +25,10 @@ from .transforms import Transforms
 from .types import (NestedField,
                     StructType)
 
-if sys.version_info >= (3, 0):
-    from urllib.parse import quote_plus
-else:
-    from six.moves.urllib.parse import quote_plus
+"""
+TO-DO: Needs some work, please review
 
 """
-  Represents how to produce partition data for a table.
-  <p>
-  Partition data is produced by transforming columns in a table. Each column transform is
-  represented by a named {@link PartitionField}.
-"""
-
-""" TO-DO: Needs some work, please review """
 
 
 class PartitionSpec(object):
@@ -45,7 +37,7 @@ class PartitionSpec(object):
 
     @staticmethod
     def UNPARTITIONED_SPEC():
-        return PartitionSpec(Schema(), [])
+        return PartitionSpec(Schema(), 0, [])
 
     @staticmethod
     def unpartitioned():
@@ -61,7 +53,7 @@ class PartitionSpec(object):
         self.spec_id = spec_id
         self.__fields = list()
         for field in fields:
-            self.fields.append(field)
+            self.__fields.append(field)
 
     @property
     def fields(self):
@@ -85,7 +77,7 @@ class PartitionSpec(object):
         struct_fields = list()
         for i, field in enumerate(self.__fields):
             source_type = self.schema.find_type(field.source_id)
-            result_type = field.transform().getResultType(source_type)
+            result_type = field.transform.get_result_type(source_type)
             struct_fields.append(NestedField.optional(PartitionSpec.PARTITION_DATA_ID_START + i,
                                                       field.name,
                                                       result_type))
@@ -162,7 +154,7 @@ class PartitionSpec(object):
         if id(self) == id(other):
             return True
 
-        if other is None or self.__class__.__name__ != other.__class__.__name__:
+        if other is None or not isinstance(other, PartitionSpec):
             return False
 
         return self.__fields == other.__fields
@@ -177,11 +169,14 @@ class PartitionSpec(object):
         return PartitionSpec.__class__, self.fields
 
     def __str__(self):
+        return self.__repr__()
+
+    def __repr__(self):
         sb = ["["]
 
         for field in self.__fields:
             sb.append("\n {name}: {transform}({source_id})".format(name=field.name,
-                                                                   transform=field.transform(),
+                                                                   transform=str(field.transform),
                                                                    source_id=field.source_id))
 
         if len(self.__fields) > 0:
@@ -223,6 +218,7 @@ class PartitionSpecBuilder(object):
             raise RuntimeError("Cannot use partition names more than once: %s" % name)
 
         self.partition_names.add(name)
+        return self
 
     def find_source_column(self, source_name):
         source_column = self.schema.find_field(source_name)
@@ -246,6 +242,7 @@ class PartitionSpecBuilder(object):
         self.fields.append(PartitionField(source_column.field_id,
                                           source_name,
                                           Transforms.year(source_column.types)))
+        return self
 
     def month(self, source_name):
         name = "%s_month".format(source_name)
@@ -254,6 +251,7 @@ class PartitionSpecBuilder(object):
         self.fields.append(PartitionField(source_column.field_id,
                                           source_name,
                                           Transforms.month(source_column.types)))
+        return self
 
     def day(self, source_name):
         name = "%s_day".format(source_name)
@@ -262,6 +260,7 @@ class PartitionSpecBuilder(object):
         self.fields.append(PartitionField(source_column.field_id,
                                           source_name,
                                           Transforms.day(source_column.types)))
+        return self
 
     def hour(self, source_name):
         name = "%s_hour".format(source_name)
@@ -270,6 +269,7 @@ class PartitionSpecBuilder(object):
         self.fields.append(PartitionField(source_column.field_id,
                                           source_name,
                                           Transforms.hour(source_column.types)))
+        return self
 
     def bucket(self, source_name, num_buckets):
         name = "%s_bucket".format(source_name)
@@ -278,6 +278,7 @@ class PartitionSpecBuilder(object):
         self.fields.append(PartitionField(source_column.field_id,
                                           source_name,
                                           Transforms.bucket(source_column.types, num_buckets)))
+        return self
 
     def truncate(self, source_name, width):
         name = "%s_truncate".format(source_name)
@@ -286,6 +287,7 @@ class PartitionSpecBuilder(object):
         self.fields.append(PartitionField(source_column.field_id,
                                           source_name,
                                           Transforms.truncate(source_column.types, width)))
+        return self
 
     def add(self, source_id, name, transform):
         self.check_and_add_partition_name(name)

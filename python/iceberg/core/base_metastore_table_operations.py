@@ -6,26 +6,27 @@
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
 import logging
 import uuid
 
-from iceberg.core.hadoop import (HadoopInputFile,
-                                 HadoopOutputFile,
-                                 Util)
+from iceberg.core.hadoop import (get_fs,
+                                 HadoopInputFile,
+                                 HadoopOutputFile)
 from retrying import retry
 
 from .table_metadata_parser import TableMetadataParser
 from .table_operations import TableOperations
 
-LOGGER = logging.getLogger('com.netflix.kragle.franklin.table')
+_logger = logging.getLogger(__name__)
 
 
 class BaseMetastoreTableOperations(TableOperations):
@@ -69,9 +70,9 @@ class BaseMetastoreTableOperations(TableOperations):
         TableMetadataParser.write(metadata, new_metadata_location)
         return new_filename
 
-    def refresh_from_metadata_location(self, new_location):
+    def refresh_from_metadata_location(self, new_location, num_retries=20):
         if not self.current_metadata_location == new_location:
-            LOGGER.info("Refreshing table metadata from new version: %s" % new_location)
+            _logger.info("Refreshing table metadata from new version: %s" % new_location)
 
         self.retryable_refresh(new_location)
 
@@ -84,9 +85,10 @@ class BaseMetastoreTableOperations(TableOperations):
                                           self.conf)
 
     def delete_file(self, path):
-        Util.get_fs(path, self.conf).delete(path, False)
+        get_fs(path, self.conf).delete(path, False)
 
-    @retry(wait_incrementing_start=100, wait_exponential_multiplier=4, wait_exponential_max=5000, stop_max_delay=600000)
+    @retry(wait_incrementing_start=100, wait_exponential_multiplier=4,
+           wait_exponential_max=5000, stop_max_delay=600000, stop_max_attempt_number=2)
     def retryable_refresh(self, location):
         self.current_metadata = TableMetadataParser.read(self, HadoopInputFile.from_location(location, self.conf))
         self.current_metadata_location = location

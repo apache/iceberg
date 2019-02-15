@@ -6,15 +6,14 @@
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-from __future__ import absolute_import
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
 import math
 import struct
@@ -49,7 +48,7 @@ class Bucket(Transform):
     def get(type_var, n):
         bucket_type_func = Bucket.BUCKET_TYPE.get(type_var.type_id)
         if not bucket_type_func:
-                raise RuntimeError("Cannot bucket by type: %s" % type_var)
+            raise RuntimeError("Cannot bucket by type: %s" % type_var)
         return bucket_type_func(n)
 
     def __init__(self, n):
@@ -58,7 +57,7 @@ class Bucket(Transform):
     def __eq__(self, other):
         if id(self) == id(other):
             return True
-        if other is None or self.__class__.__name__ != other.__class__.__name__:
+        if other is None or not isinstance(other, Bucket):
             return False
 
         return self.n == other.n
@@ -79,19 +78,15 @@ class Bucket(Transform):
         return (self.hash(value) & JAVA_MAX_INT) % self.n
 
     def hash(self):
-        raise RuntimeError("interface implementation")
+        raise NotImplementedError()
 
     def project(self, name, predicate):
         if predicate.op == Operation.EQ:
             return Expressions.predicate(predicate.op, name, self.apply(predicate.lit.value))
-        else:
-            return None
 
     def project_strict(self, name, predicate):
         if predicate.op == Operation.NOT_EQ:
             return Expressions.predicate(predicate.op, name, self.apply(predicate.lit.value))
-        else:
-            return None
 
     def get_result_type(self, source_type):
         return IntegerType.get()
@@ -150,6 +145,7 @@ class BucketDecimal(Bucket):
         super(BucketDecimal, self).__init__(n)
 
     def hash(self, value):
+        # to-do: unwrap to_bytes func since python2 support is being removed
         unscaled_value = TransformUtil.unscale_decimal(value)
         number_of_bytes = int(math.ceil(unscaled_value.bit_length() / 8))
         return Bucket.MURMUR3.hash(to_bytes(unscaled_value, number_of_bytes, byteorder='big'))
@@ -172,13 +168,13 @@ class BucketString(Bucket):
 class BucketByteBuffer(Bucket):
     def __init__(self, n):
         # super(BucketByteBuffer, self).__init__(n)
-        raise RuntimeError("BucketByteBuffer Not yet implemented")
+        raise NotImplementedError()
 
 
 class BucketUUID(Bucket):
     def __init__(self, n):
         # super(BucketUUID, self).__init__(n)
-        raise RuntimeError("BucketUUID Not yet implemented")
+        raise NotImplementedError()
 
 
 def to_bytes(n, length, byteorder='big'):

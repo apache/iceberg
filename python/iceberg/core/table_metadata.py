@@ -6,20 +6,21 @@
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
 import time
 
 from iceberg.api import PartitionSpec
-from iceberg.api.exceptions import ValidationException
-from iceberg.api.types import TypeUtil
+from iceberg.api.types import assign_fresh_ids
 from iceberg.core.util import AtomicInteger
+from iceberg.exceptions import ValidationException
 
 
 class TableMetadata(object):
@@ -29,7 +30,7 @@ class TableMetadata(object):
     @staticmethod
     def new_table_metadata(ops, schema, spec, location):
         last_column_id = AtomicInteger(0)
-        fresh_schema = TypeUtil.assign_fresh_ids(schema, last_column_id.increment_and_get)
+        fresh_schema = assign_fresh_ids(schema, last_column_id.increment_and_get)
 
         spec_builder = PartitionSpec.builder_for(fresh_schema)
         for field in spec.fields:
@@ -41,7 +42,7 @@ class TableMetadata(object):
         fresh_spec = spec_builder.build()
         return TableMetadata(ops, None, location,
                              int(time.time() * 1000),
-                             last_column_id.get(), fresh_schema, TableMetadata.INITIAL_SPEC_ID, list(fresh_spec),
+                             last_column_id.get(), fresh_schema, TableMetadata.INITIAL_SPEC_ID, [fresh_spec],
                              dict(), -1, list(), list())
 
     def __init__(self, ops, file, location, last_updated_millis,
@@ -60,14 +61,13 @@ class TableMetadata(object):
         self.snapshots = snapshots
         self.snapshot_log = snapshot_log
 
-        self.snapshot_by_id = dict()
-        for version in self.snapshots:
-            self.snapshot_by_id[version.snapshot_id] = version
+        self.snapshot_by_id = {version.snapshot_id: version for version in self.snapshots}
+        self.specs_by_id = {spec.spec_id: spec for spec in self.specs}
 
         last = None
         for log_entry in snapshot_log:
             if last is not None:
-                if log_entry.timestamp_millis - last.timestamp_millis > 0:
+                if not (log_entry.timestamp_millis - last.timestamp_millis > 0):
                     raise RuntimeError("[BUG] Expected sorted snapshot log entries.")
             last = log_entry
 
@@ -76,13 +76,22 @@ class TableMetadata(object):
 
     @property
     def spec(self):
-        return self.specs[self.default_spec_id]
+        return self.specs_by_id[self.default_spec_id]
 
-    def property_as_int(self, property, default_value):
-        return int(self.properties.get(property, default_value))
+    def spec_id(self, spec_id):
+        if spec_id is None:
+            spec_id = self.default_spec_id
 
-    def property_as_long(self, property, default_value):
-        return int(self.properties.get(property, default_value))
+        return self.specs_by_id[spec_id]
+
+    def property_as_int(self, property_name, default_value):
+        return int(self.properties.get(property_name, default_value))
+
+    def current_snapshot(self):
+        return self.snapshot_by_id[self.current_snapshot_id]
+
+    def snapshot(self, snapshot_id):
+        return self.snapshot_by_id[snapshot_id]
 
     def update_metadata_location(self, new_location):
         return TableMetadata(self.ops, None, new_location,
@@ -171,7 +180,7 @@ class SnapshotLogEntry(object):
     def __eq__(self, other):
         if id(self) == id(other):
             return True
-        if other is None or self.__class__.__name__ != other.__class__.__name__:
+        if other is None or not isinstance(other, SnapshotLogEntry):
             return False
 
         return self.snapshot_id == other.snapshot_id and self.timestamp_millis == other.timestamp_millis

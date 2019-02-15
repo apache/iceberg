@@ -6,64 +6,71 @@
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
 
 class Table(object):
 
     def __init__(self):
-        raise RuntimeError("Interface implementation")
+        raise NotImplementedError()
 
     def refresh(self):
-        raise RuntimeError("Interface implementation")
+        raise NotImplementedError()
 
     def new_scan(self):
-        raise RuntimeError("Interface implementation")
+        raise NotImplementedError()
 
     def schema(self):
-        raise RuntimeError("Interface implementation")
+        raise NotImplementedError()
 
     def spec(self):
-        raise RuntimeError("Interface implementation")
+        raise NotImplementedError()
 
     def properties(self):
-        raise RuntimeError("Interface implementation")
+        raise NotImplementedError()
 
     def location(self):
-        raise RuntimeError("Interface implementation")
+        raise NotImplementedError()
 
     def snapshots(self):
-        raise RuntimeError("Interface implementation")
+        raise NotImplementedError()
 
     def update_schema(self):
-        raise RuntimeError("Interface implementation")
+        raise NotImplementedError()
 
     def update_properties(self):
-        raise RuntimeError("Interface implementation")
+        raise NotImplementedError()
 
     def new_append(self):
-        raise RuntimeError("Interface implementation")
+        raise NotImplementedError()
 
     def new_fast_append(self):
         return self.new_append()
 
     def new_rewrite(self):
-        raise RuntimeError("Interface implementation")
+        raise NotImplementedError()
+
+    def new_overwrite(self):
+        raise NotImplementedError()
+
+    def new_replace_partitions(self):
+        raise NotImplementedError()
 
     def new_delete(self):
-        raise RuntimeError("Interface implementation")
+        raise NotImplementedError()
 
     def expire_snapshots(self):
-        raise RuntimeError("Interface implementation")
+        raise NotImplementedError()
 
     def rollback(self):
-        raise RuntimeError("Interface implementation")
+        raise NotImplementedError()
 
     def new_transaction(self):
-        raise RuntimeError("Interface implementation")
+        raise NotImplementedError()

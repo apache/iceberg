@@ -6,13 +6,14 @@
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
 import datetime
 from decimal import (Decimal,
@@ -29,6 +30,7 @@ from .java_variables import (JAVA_MAX_FLOAT,
                              JAVA_MIN_FLOAT)
 from ..types.type import TypeID
 
+# to-do un-wind python 2 switches
 if sys.version_info >= (3, 0):
     unicode = str
     long = int
@@ -74,9 +76,6 @@ class Literals(object):
     def below_min():
         return BELOW_MIN
 
-    def __init__(self):
-        raise RuntimeError("Not Yet Implemented")
-
 
 class Literal(object):
     JAVA_MAX_INT = 2147483647
@@ -108,24 +107,21 @@ class Literal(object):
         elif isinstance(value, Decimal):
             return DecimalLiteral(value)
 
-    def __init__(self):
-        pass
-
     def to(self, type):
-        pass
-
-    def comparator(self):
-        pass
+        raise NotImplementedError()
 
 
 class BaseLiteral(Literal):
     def __init__(self, value):
         self.value = value
 
+    def to(self, type):
+        raise NotImplementedError()
+
     def __eq__(self, other):
         if id(self) == id(other):
             return True
-        elif other is None or self.__class__.__name__ != other.__class__.__name__:
+        elif other is None or not isinstance(other, BaseLiteral):
             return False
 
         return self.value == other.value
@@ -144,6 +140,9 @@ class ComparableLiteral(BaseLiteral):
 
     def __init__(self, value):
         super(ComparableLiteral, self).__init__(value)
+
+    def to(self, type):
+        raise NotImplementedError()
 
     def __eq__(self, other):
         return self.value == other.value
@@ -190,7 +189,7 @@ class ComparableLiteral(BaseLiteral):
 
 class AboveMax(Literal):
     def __init__(self):
-        pass
+        super(AboveMax, self).__init__()
 
     def value(self):
         raise RuntimeError("AboveMax has no value")
@@ -204,7 +203,7 @@ class AboveMax(Literal):
 
 class BelowMin(Literal):
     def __init__(self):
-        pass
+        super(BelowMin, self).__init__()
 
     def value(self):
         raise RuntimeError("BelowMin has no value")
@@ -224,8 +223,6 @@ class BooleanLiteral(ComparableLiteral):
     def to(self, type_var):
         if type_var.type_id == TypeID.BOOLEAN:
             return self
-
-        return None
 
 
 class IntegerLiteral(ComparableLiteral):
@@ -251,8 +248,6 @@ class IntegerLiteral(ComparableLiteral):
                 return DecimalLiteral(Decimal(self.value)
                                       .quantize(Decimal("." + "".join(["0" for i in range(1, type_var.scale)]) + "1"),
                                                 rounding=ROUND_HALF_UP))
-
-        return None
 
 
 class LongLiteral(ComparableLiteral):
@@ -285,7 +280,6 @@ class LongLiteral(ComparableLiteral):
                 return DecimalLiteral(Decimal(self.value)
                                       .quantize(Decimal("." + "".join(["0" for i in range(1, type_var.scale)]) + "1"),
                                                 rounding=ROUND_HALF_UP))
-        return None
 
 
 class FloatLiteral(ComparableLiteral):
@@ -307,8 +301,6 @@ class FloatLiteral(ComparableLiteral):
                 return DecimalLiteral(Decimal(self.value)
                                       .quantize(Decimal("." + "".join(["0" for i in range(1, type_var.scale)]) + "1"),
                                                 rounding=ROUND_HALF_UP))
-
-        return None
 
 
 class DoubleLiteral(ComparableLiteral):
@@ -336,8 +328,6 @@ class DoubleLiteral(ComparableLiteral):
                                       .quantize(Decimal("." + "".join(["0" for i in range(1, type_var.scale)]) + "1"),
                                                 rounding=ROUND_HALF_UP))
 
-        return None
-
 
 class DateLiteral(ComparableLiteral):
 
@@ -348,8 +338,6 @@ class DateLiteral(ComparableLiteral):
         if type_var.type_id == TypeID.DATE:
             return self
 
-        return None
-
 
 class TimeLiteral(ComparableLiteral):
 
@@ -359,8 +347,6 @@ class TimeLiteral(ComparableLiteral):
     def to(self, type_var):
         if type_var.type_id == TypeID.TIME:
             return self
-
-        return None
 
 
 class TimestampLiteral(ComparableLiteral):
@@ -374,8 +360,6 @@ class TimestampLiteral(ComparableLiteral):
         elif type_var.type_id == TypeID.DATE:
             return DateLiteral((datetime.datetime.fromtimestamp(self.value / 1000000) - Literals.EPOCH).days)
 
-        return None
-
 
 class DecimalLiteral(ComparableLiteral):
 
@@ -385,8 +369,6 @@ class DecimalLiteral(ComparableLiteral):
     def to(self, type_var):
         if type_var.type_id == TypeID.DECIMAL and type_var.scale == abs(self.value.as_tuple().exponent):
             return self
-
-        return None
 
 
 class StringLiteral(BaseLiteral):
@@ -426,13 +408,12 @@ class StringLiteral(BaseLiteral):
                     return DecimalLiteral(Decimal(str(self.value))
                                           .quantize(Decimal("." + "".join(["0" for i in range(1, type_var.scale)]) + "1"),
                                                     rounding=ROUND_HALF_UP))
-        return None
 
     def __eq__(self, other):
         if id(self) == id(other):
             return True
 
-        if other is None or self.__class__.__name__ != other.__class__.__name__:
+        if other is None or not isinstance(other, StringLiteral):
             return False
 
         return self.value == other.value
@@ -476,8 +457,6 @@ class UUIDLiteral(ComparableLiteral):
         if type_var.type_id == TypeID.UUID:
             return self
 
-        return None
-
 
 class FixedLiteral(BaseLiteral):
     def __init__(self, value):
@@ -489,7 +468,6 @@ class FixedLiteral(BaseLiteral):
                 return self
         elif type_var.type_id == TypeID.BINARY:
             return BinaryLiteral(self.value)
-        return None
 
     def write_replace(self):
         return FixedLiteralProxy(self.value)
@@ -536,8 +514,6 @@ class BinaryLiteral(BaseLiteral):
             return None
         elif type_var.type_id == TypeID.BINARY:
             return self
-
-        return None
 
     def write_replace(self):
         return BinaryLiteralProxy(self.value)

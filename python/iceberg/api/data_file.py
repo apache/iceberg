@@ -6,13 +6,14 @@
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
 from iceberg.api.types import (BinaryType,
                                IntegerType,
@@ -34,7 +35,7 @@ class DataFile(object):
                              NestedField.required(103, "record_count", LongType.get()),
                              NestedField.required(104, "file_size_in_bytes", LongType.get()),
                              NestedField.required(105, "block_size_in_bytes", LongType.get()),
-                             NestedField.optional(106, "file_ordinal", LongType.get()),
+                             NestedField.optional(106, "file_ordinal", IntegerType.get()),
                              NestedField.optional(107, "sort_columns", ListType.of_required(112, IntegerType.get())),
                              NestedField.optional(108, "column_sizes", MapType.of_required(117, 118,
                                                                                            IntegerType.get(),
@@ -55,43 +56,43 @@ class DataFile(object):
                              )
 
     def path(self):
-        raise RuntimeError("Interface Implementation")
+        raise NotImplementedError()
 
     def format(self):
-        raise RuntimeError("Interface Implementation")
+        raise NotImplementedError()
 
     def partition(self):
-        raise RuntimeError("Interface Implementation")
+        raise NotImplementedError()
 
     def record_count(self):
-        raise RuntimeError("Interface Implementation")
+        raise NotImplementedError()
 
     def file_size_in_bytes(self):
-        raise RuntimeError("Interface Implementation")
+        raise NotImplementedError()
 
     def block_size_in_bytes(self):
-        raise RuntimeError("Interface Implementation")
+        raise NotImplementedError()
 
     def file_ordinal(self):
-        raise RuntimeError("Interface Implementation")
+        raise NotImplementedError()
 
     def sort_columns(self):
-        raise RuntimeError("Interface Implementation")
+        raise NotImplementedError()
 
     def column_size(self):
-        raise RuntimeError("Interface Implementation")
+        raise NotImplementedError()
 
     def value_counts(self):
-        raise RuntimeError("Interface Implementation")
+        raise NotImplementedError()
 
     def null_value_counts(self):
-        raise RuntimeError("Interface Implementation")
+        raise NotImplementedError()
 
     def lower_bounds(self):
-        raise RuntimeError("Interface Implementation")
+        raise NotImplementedError()
 
     def upper_bounds(self):
-        raise RuntimeError("Interface Implementation")
+        raise NotImplementedError()
 
     def copy(self):
-        raise RuntimeError("Interface Implementation")
+        raise NotImplementedError()

@@ -6,19 +6,16 @@
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-from __future__ import absolute_import
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
 import math
-
-import iceberg.api.schema
 
 from .type import (Type,
                    TypeID)
@@ -27,133 +24,145 @@ from .types import (ListType,
                     NestedField,
                     StructType)
 
+MAX_PRECISION = list()
+REQUIRED_LENGTH = [-1 for item in range(40)]
 
-class TypeUtil(object):
+MAX_PRECISION.append(0)
+for i in range(1, 24):
+    MAX_PRECISION.append(int(math.floor(math.log10(math.pow(2, 8 * i - 1) - 1))))
 
-    MAX_PRECISION = list()
-    REQUIRED_LENGTH = [-1 for item in range(40)]
+for i in range(len(REQUIRED_LENGTH)):
+    for j in range(len(MAX_PRECISION)):
+        if i <= MAX_PRECISION[j]:
+            REQUIRED_LENGTH[i] = j
+            break
+    if REQUIRED_LENGTH[i] < 0:
+        raise RuntimeError("Could not find required length for precision %s" % i)
 
-    MAX_PRECISION.append(0)
-    for i in range(1, 24):
-        MAX_PRECISION.append(int(math.floor(math.log10(math.pow(2, 8 * i - 1) - 1))))
 
-    for i in range(len(REQUIRED_LENGTH)):
-        for j in range(len(MAX_PRECISION)):
-            if i <= MAX_PRECISION[j]:
-                REQUIRED_LENGTH[i] = j
-                break
-        if REQUIRED_LENGTH[i] < 0:
-            raise RuntimeError("Could not find required length for precision %s" % i)
+def select(schema, field_ids):
+    import iceberg.api.schema
+    if schema is None:
+        raise RuntimeError("Schema cannot be None")
+    if field_ids is None:
+        raise RuntimeError("Field ids cannot be None")
 
-    def __init__(self):
-        pass
-
-    @staticmethod
-    def select(schema, field_ids):
-        if schema is None:
-            raise RuntimeError("Schema cannot be None")
-        if field_ids is None:
-            raise RuntimeError("Field ids cannot be None")
-
-        result = TypeUtil.visit(schema, PruneColumns(field_ids))
-        if schema.as_struct() == result:
-            return schema
-        elif result is not None:
-            if schema.get_aliases() is not None:
-                return iceberg.api.schema.Schema(result.as_nested_type(), schema.get_aliases())
-            else:
-                return iceberg.api.schemaSchema(result.as_nested_type())
-
-        return iceberg.api.schemaSchema(list(), schema.get_aliases())
-
-    @staticmethod
-    def get_projected_ids(schema):
-        if isinstance(schema, iceberg.api.schemaSchema):
-            return TypeUtil.visit(schema, GetProjectedIds())
-        elif isinstance(schema, Type):
-            if schema.is_primitive_type():
-                return set()
-
-            return set(TypeUtil.visit(schema, GetProjectedIds))
-
+    result = visit(schema, PruneColumns(field_ids))
+    if schema.as_struct() == result:
+        return schema
+    elif result is not None:
+        if schema.get_aliases() is not None:
+            return iceberg.api.schema.Schema(result.as_nested_type(), schema.get_aliases())
         else:
-            raise RuntimeError("Argument %s must be Schema or a Type" % schema)
+            return iceberg.api.schema.Schema(result.as_nested_type())
 
-    @staticmethod
-    def select_not(schema, field_ids):
-        projected_ids = TypeUtil.get_projected_ids(schema)
-        projected_ids.difference(field_ids)
+    return iceberg.api.schema.Schema(list(), schema.get_aliases())
 
-        return TypeUtil.select(schema, projected_ids)
 
-    @staticmethod
-    def join(left, right):
-        return iceberg.api.schema.Schema(left + right)
+def get_projected_ids(schema):
+    import iceberg.api.schema
+    if isinstance(schema, iceberg.api.schema.Schema):
+        return visit(schema, GetProjectedIds())
+    elif isinstance(schema, Type):
+        if schema.is_primitive_type():
+            return set()
 
-    @staticmethod
-    def index_by_name(struct):
-        return TypeUtil.visit(struct, IndexByName())
+        return set(visit(schema, GetProjectedIds))
 
-    @staticmethod
-    def index_by_id(struct):
-        return TypeUtil.visit(struct, IndexById())
+    else:
+        raise RuntimeError("Argument %s must be Schema or a Type" % schema)
 
-    @staticmethod
-    def assign_fresh_ids(type_var, next_id):
-        if isinstance(type_var, Type):
-            return TypeUtil.visit(type_var, AssignFreshIds(next_id))
-        elif isinstance(type_var, iceberg.api.schema.Schema):
-            schema = type_var
-            return iceberg.api.schema.Schema(list(TypeUtil
-                                             .visit(schema.as_struct(), AssignFreshIds(next_id))
-                                             .as_nested_type().fields))
 
-    @staticmethod
-    def visit(arg, visitor):
-        if isinstance(visitor, CustomOrderSchemaVisitor):
-            return TypeUtil.visit_customer_order(arg, visitor)
-        elif isinstance(arg, iceberg.api.schema.Schema):
-            return visitor.schema(arg, TypeUtil.visit(arg.as_struct(), visitor))
-        elif isinstance(arg, Type):
-            type_var = arg
-            if type_var.type_id == TypeID.STRUCT:
-                struct = type_var.as_nested_type().as_struct_type()
-                results = list()
-                for field in struct.fields:
-                    visitor.field_ids.append(field.field_id)
-                    visitor.field_names.append(field.name)
-                    result = None
-                    try:
-                        result = TypeUtil.visit(field.type, visitor)
-                    except RuntimeError:
-                        pass
-                    finally:
-                        visitor.field_ids.pop()
-                        visitor.field_names.pop()
-                    results.append(visitor.field(field, result))
-                return visitor.struct(struct, results)
-            else:
-                return visitor.primitive(arg.as_primitive_type())
+def select_not(schema, field_ids):
+    projected_ids = get_projected_ids(schema)
+    projected_ids.difference(field_ids)
+
+    return select(schema, projected_ids)
+
+
+def join(left, right):
+    import iceberg.api.schema
+    return iceberg.api.schema.Schema(left + right)
+
+
+def index_by_name(struct):
+    return visit(struct, IndexByName())
+
+
+def index_by_id(struct):
+    return visit(struct, IndexById())
+
+
+def assign_fresh_ids(type_var, next_id):
+    from ..schema import Schema
+    if isinstance(type_var, Type):
+        return visit(type_var, AssignFreshIds(next_id))
+    elif isinstance(type_var, Schema):
+        schema = type_var
+        return Schema(list(visit(schema.as_struct(), AssignFreshIds(next_id))
+                           .as_nested_type().fields))
+
+
+def visit(arg, visitor): # noqa: ignore=C901
+    from ..schema import Schema
+    if isinstance(visitor, CustomOrderSchemaVisitor):
+        return visit_custom_order(arg, visitor)
+    elif isinstance(arg, Schema):
+        return visitor.schema(arg, visit(arg.as_struct(), visitor))
+    elif isinstance(arg, Type):
+        type_var = arg
+        if type_var.type_id == TypeID.STRUCT:
+            struct = type_var.as_nested_type().as_struct_type()
+            results = list()
+            for field in struct.fields:
+                visitor.field_ids.append(field.field_id)
+                visitor.field_names.append(field.name)
+                result = None
+                try:
+                    result = visit(field.type, visitor)
+                except RuntimeError:
+                    pass
+                finally:
+                    visitor.field_ids.pop()
+                    visitor.field_names.pop()
+                results.append(visitor.field(field, result))
+            return visitor.struct(struct, results)
+        elif type_var.type_id == TypeID.LIST:
+            list_var = type_var.as_nested_type().as_list_type()
+            visitor.field_ids.append(list_var.element_id)
+            try:
+                element_result = visit(list_var.element_type, visitor)
+            except RuntimeError:
+                pass
+            finally:
+                visitor.field_ids.pop()
+
+            return visitor.list(list_var, element_result)
+        elif type_var.type_id == TypeID.MAP:
+            raise NotImplementedError()
         else:
-            raise RuntimeError("Invalid type for arg: %s" % arg)
+            return visitor.primitive(arg.as_primitive_type())
+    else:
+        raise RuntimeError("Invalid type for arg: %s" % arg)
 
-    @staticmethod
-    def visit_customer_order(arg, visitor):
-        if isinstance(arg, iceberg.api.schema.Schema):
-            schema = arg
-            return visitor.schema(arg, VisitFuture(schema.as_struct(), visitor))
-        elif isinstance(arg, Type):
-            type_var = arg
-            if type_var.type_id == TypeID.STRUCT:
-                struct = type_var.as_nested_type().as_struct_type()
-                results = list()
-                fields = struct.fields
-                for field in fields:
-                    results.append(VisitFieldFuture(field, visitor))
-                struct = visitor.struct(struct, [x.get() for x in results])
-                return struct
 
-            return visitor.primitive(type_var.as_primitive_type())
+def visit_custom_order(arg, visitor):
+    from ..schema import Schema
+    if isinstance(arg, Schema):
+        schema = arg
+        return visitor.schema(arg, VisitFuture(schema.as_struct(), visitor))
+    elif isinstance(arg, Type):
+        type_var = arg
+        if type_var.type_id == TypeID.STRUCT:
+            struct = type_var.as_nested_type().as_struct_type()
+            results = list()
+            fields = struct.fields
+            for field in fields:
+                results.append(VisitFieldFuture(field, visitor))
+            struct = visitor.struct(struct, [x.get() for x in results])
+            return struct
+
+        return visitor.primitive(type_var.as_primitive_type())
 
 
 class SchemaVisitor(object):
@@ -163,45 +172,45 @@ class SchemaVisitor(object):
         self.field_ids = list()
 
     def schema(self, schema, struct_result):
-        return None
+        return NotImplementedError()
 
     def struct(self, struct, field_results):
-        return None
+        return NotImplementedError()
 
     def field(self, field, field_result):
-        return None
+        return NotImplementedError()
 
     def list(self, list_var, element_result):
-        return None
+        return NotImplementedError()
 
     def map(self, map_var, key_result, value_result):
-        return None
+        return NotImplementedError()
 
     def primitive(self, primitive_var):
-        return None
+        return NotImplementedError()
 
 
 class CustomOrderSchemaVisitor(object):
     def __init__(self):
-        pass
+        super(CustomOrderSchemaVisitor, self).__init__()
 
     def schema(self, schema, struct_result):
-        return None
+        return NotImplementedError()
 
     def struct(self, struct, field_results):
-        return None
+        return NotImplementedError()
 
     def field(self, field, field_result):
-        return None
+        return NotImplementedError()
 
     def list(self, list_var, element_result):
-        return None
+        return NotImplementedError()
 
     def map(self, map_var, key_result, value_result):
-        return None
+        return NotImplementedError()
 
     def primitive(self, primitive_var):
-        return None
+        return NotImplementedError()
 
 
 class VisitFuture(object):
@@ -211,7 +220,7 @@ class VisitFuture(object):
         self.visitor = visitor
 
     def get(self):
-        return TypeUtil.visit(self.type, self.visitor)
+        return visit(self.type, self.visitor)
 
 
 class VisitFieldFuture(object):
@@ -229,7 +238,7 @@ def decimal_required_bytes(precision):
     if precision < 0 or precision > 40:
         raise RuntimeError("Unsupported decimal precision: %s" % precision)
 
-    return TypeUtil.REQUIRED_LENGTH[precision]
+    return REQUIRED_LENGTH[precision]
 
 
 class GetProjectedIds(SchemaVisitor):
@@ -301,14 +310,11 @@ class PruneColumns(SchemaVisitor):
             else:
                 return StructType.of(selected_fields)
 
-        return None
-
     def field(self, field, field_result):
         if field.field_id in self.selected:
             return field.type
         elif field_result is not None:
             return field_result
-        return None
 
 
 class IndexByName(SchemaVisitor):
@@ -327,19 +333,14 @@ class IndexByName(SchemaVisitor):
 
     def field(self, field, field_result):
         self.add_field(field.name, field.field_id)
-        return None
 
     def list(self, list_var, element_result):
-        for field in list_var.fields:
+        for field in list_var.fields():
             self.add_field(field.name, field.field_id)
-
-        return None
 
     def map(self, map_var, key_result, value_result):
-        for field in map_var.fields:
+        for field in map_var.fields():
             self.add_field(field.name, field.field_id)
-
-        return None
 
     def add_field(self, name, field_id):
         full_name = name
@@ -365,7 +366,7 @@ class IndexById(SchemaVisitor):
         self.index[field.field_id] = field
 
     def list(self, list_var, element_result):
-        for field in list_var.fields:
+        for field in list_var.fields():
             self.index[field.field_id] = field
 
     def map(self, map_var, key_result, value_result):
@@ -375,10 +376,10 @@ class IndexById(SchemaVisitor):
 
 class NextID(object):
     def __init__(self):
-        raise RuntimeError("Interface implementation")
+        raise NotImplementedError()
 
     def get(self):
-        raise RuntimeError("Interface implementation")
+        raise NotImplementedError()
 
 
 class AssignFreshIds(CustomOrderSchemaVisitor):
@@ -436,11 +437,11 @@ class CheckCompatibility(CustomOrderSchemaVisitor):
 
     @staticmethod
     def write_compatibility_errors(read_schema, write_schema):
-        TypeUtil.visit(read_schema, CheckCompatibility(write_schema, True))
+        visit(read_schema, CheckCompatibility(write_schema, True))
 
     @staticmethod
     def read_compatibility_errors(read_schema, write_schema):
-        TypeUtil.visit(write_schema, CheckCompatibility(read_schema, False))
+        visit(write_schema, CheckCompatibility(read_schema, False))
 
     NO_ERRORS = []
 
@@ -518,10 +519,10 @@ class CheckCompatibility(CustomOrderSchemaVisitor):
             self.current_type = struct
 
     def list(self, list_var, element_result):
-        raise RuntimeError("Not Yet implemented")
+        raise NotImplementedError()
 
     def map(self, map_var, key_result, value_result):
-        raise RuntimeError("Not Yet implemented")
+        raise NotImplementedError()
 
-    def primative(self, primitive_var):
-        raise RuntimeError("Not Yet implemented")
+    def primitive(self, primitive_var):
+        raise NotImplementedError()

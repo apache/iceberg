@@ -6,26 +6,31 @@
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
 from enum import Enum
 
-# from fastavro import schema
 from iceberg.api import (DataFile,
+                         Metrics,
                          Schema)
 from iceberg.api.types import (IntegerType,
                                LongType,
                                NestedField)
-from iceberg.core.avro import AvroSchemaUtil
+from iceberg.core.avro import IcebergToAvro
+
+from .generic_data_file import GenericDataFile
+from .partition_data import PartitionData
 
 
 class ManifestEntry():
+    AVRO_NAME = "manifest_entry"
 
     def __init__(self, schema=None, partition_type=None, to_copy=None):
         self.schema = schema
@@ -34,7 +39,7 @@ class ManifestEntry():
         self.status = Status.EXISTING
 
         if self.schema is None and partition_type is not None:
-            self.schema = AvroSchemaUtil.convert(ManifestEntry.get_schema(partition_type))
+            self.schema = IcebergToAvro.type_to_schema(ManifestEntry.get_schema(partition_type))
 
         elif self.schema is None and partition_type is None and to_copy is not None:
             self.schema = to_copy.schema
@@ -74,15 +79,39 @@ class ManifestEntry():
         elif i == 1:
             self.snapshot_id = v
         elif i == 2:
+            if isinstance(v, dict):
+                metrics = Metrics(row_count=v.get("record_count"),
+                                  column_sizes=v.get("column_sizes"),
+                                  value_counts=v.get("value_counts"),
+                                  null_value_counts=v.get("null_value_counts"),
+                                  lower_bounds=v.get("lower_bounds"),
+                                  upper_bounds=v.get("upper_bounds"))
+
+                data_file_schema = self.schema.as_struct().field(name="data_file")
+                part_data = PartitionData.from_json(data_file_schema
+                                                    .type
+                                                    .field(name="partition").type, v.get("partition"))
+
+                v = GenericDataFile(v.get("file_path"),
+                                    v.get("file_format"),
+                                    v.get("file_size_in_bytes"),
+                                    v.get("block_size_in_byte"),
+                                    row_count=v.get("record_count"),
+                                    partition=part_data,
+                                    metrics=metrics
+                                    )
             self.file = v
 
-    def get(self, i, v):
+    def get(self, i):
         if i == 0:
             return self.status.value
         elif i == 1:
             return self.snapshot_id
         elif i == 2:
             return self.file
+
+    def __str__(self):
+        return "ManifestEntry(status=%s, snapshot_id=%s, file=%s" % (self.status, self.snapshot_id, self.file)
 
     @staticmethod
     def project_schema(part_type, columns):

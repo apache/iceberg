@@ -6,13 +6,14 @@
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
 from .expression import (And,
                          FALSE,
@@ -144,28 +145,25 @@ class ExpressionVisitors(object):
         else:
             raise RuntimeError("Unknown operation: {}".format(expr.op()))
 
-    def __init__(self):
-        pass
-
     class ExpressionVisitor(object):
 
         def always_true(self):
-            return None
+            return NotImplementedError()
 
         def always_false(self):
-            return None
+            return NotImplementedError()
 
         def not_(self, result):
-            return None
+            return NotImplementedError()
 
         def and_(self, left_result, right_result):
-            return None
+            return NotImplementedError()
 
         def or_(self, left_result, right_result):
-            return None
+            return NotImplementedError()
 
         def predicate(self, pred):
-            return None
+            return NotImplementedError()
 
     class BoundExpressionVisitor(ExpressionVisitor):
 
@@ -173,19 +171,19 @@ class ExpressionVisitors(object):
             super(ExpressionVisitors.BoundExpressionVisitor, self).__init__()
 
         def is_null(self, ref):
-            return None
+            return NotImplementedError()
 
         def not_null(self, ref):
-            return None
+            return NotImplementedError()
 
         def lt(self, ref, lit):
-            return None
+            return NotImplementedError()
 
         def lt_eq(self, ref, lit):
-            return None
+            return NotImplementedError()
 
         def gt(self, ref, lit):
-            return None
+            return NotImplementedError()
 
         def gt_eq(self, ref, lit):
             return None

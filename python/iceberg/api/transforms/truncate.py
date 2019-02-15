@@ -6,16 +6,16 @@
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
 from decimal import Decimal
-
 
 from .projection_util import ProjectionUtil
 from .transform import Transform
@@ -39,10 +39,22 @@ class Truncate(Transform):
             return TruncateString(width)
 
     def __init__(self):
-        raise RuntimeError("Interface Implementation")
+        raise NotImplementedError()
 
     def apply(self, value):
-        raise RuntimeError("Interface Implementation")
+        raise NotImplementedError()
+
+    def can_transform(self, type_var):
+        raise NotImplementedError()
+
+    def get_result_type(self, source_type):
+        return type(source_type)
+
+    def project(self, name, predicate):
+        raise NotImplementedError()
+
+    def project_strict(self, name, predicate):
+        raise NotImplementedError()
 
 
 class TruncateInteger(Truncate):
@@ -81,14 +93,12 @@ class TruncateInteger(Truncate):
                 return Expressions.predicate(Operation.LT_EQ, name, in_image)
             else:
                 return Expressions.predicate(Operation.LT, name, in_image)
-        else:
-            return None
 
     def __eq__(self, other):
         if id(self) == id(other):
             return True
 
-        if other is None or self.__class__.__name__ != other.__class__.__name__:
+        if other is None or not isinstance(other, TruncateInteger):
             return False
 
         return self.W == other.W
@@ -121,13 +131,13 @@ class TruncateLong(Truncate):
         return ProjectionUtil.truncate_long(name, predicate, self)
 
     def project_strict(self, name, predicate):
-            return None
+        return None
 
     def __eq__(self, other):
         if id(self) == id(other):
             return True
 
-        if other is None or self.__class__.__name__ != other.__class__.__name__:
+        if other is None or not isinstance(other, TruncateLong):
             return False
 
         return self.W == other.W
@@ -168,7 +178,7 @@ class TruncateDecimal(Truncate):
         if id(self) == id(other):
             return True
 
-        if other is None or self.__class__.__name__ != other.__class__.__name__:
+        if other is None or not isinstance(other, TruncateDecimal):
             return False
 
         return self.unscaled_width == other.unscaled_width
@@ -206,7 +216,7 @@ class TruncateString(Truncate):
         if id(self) == id(other):
             return True
 
-        if other is None or self.__class__.__name__ != other.__class__.__name__:
+        if other is None or not isinstance(other, TruncateString):
             return False
 
         return self.L == other.L
@@ -219,13 +229,3 @@ class TruncateString(Truncate):
 
     def __str__(self):
         return "truncate[%s]" % self.L
-
-
-# class TruncateByteBuffer(Truncate):
-#
-#     def __init__(self, length):
-#         self.L = length
-#
-#     def apply(self, value):
-#         ret = bytes(value)
-#         ret = ret[]

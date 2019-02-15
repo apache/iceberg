@@ -6,13 +6,14 @@
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
 import json
 
@@ -28,14 +29,13 @@ class PartitionSpecParser(object):
     NAME = "name"
 
     @staticmethod
-    def to_json(spec, indent=None, dumps=True):
-        part_spec = {PartitionSpecParser.SPEC_ID: spec.spec_id,
-                     PartitionSpecParser.FIELDS: PartitionSpecParser.to_json_fields(spec)}
+    def to_json(spec, indent=None):
+        return json.dumps(PartitionSpecParser.to_dict(spec), indent=indent)
 
-        if not dumps:
-            return part_spec
-
-        return json.dumps(part_spec, indent=indent)
+    @staticmethod
+    def to_dict(spec):
+        return {PartitionSpecParser.SPEC_ID: spec.spec_id,
+                PartitionSpecParser.FIELDS: PartitionSpecParser.to_json_fields(spec)}
 
     @staticmethod
     def to_json_fields(spec):
@@ -66,5 +66,24 @@ class PartitionSpecParser(object):
             builder.add(element.get(PartitionSpecParser.SOURCE_ID),
                         element.get(PartitionSpecParser.NAME),
                         element.get(PartitionSpecParser.TRANSFORM))
+
+        return builder.build()
+
+    @staticmethod
+    def from_json_fields(schema, spec_id, json_obj):
+        builder = PartitionSpec.builder_for(schema).with_spec_id(spec_id)
+
+        if isinstance(json_obj, str):
+            json_obj = json.loads(json_obj)
+
+        if not isinstance(json_obj, list):
+            raise RuntimeError("Cannot parse partition spec fields, not an array: %s" % json_obj)
+
+        for item in json_obj:
+            if not isinstance(item, dict):
+                raise RuntimeError("Cannot parse partition field, not an object: %s" % json_obj)
+            builder.add(item.get(PartitionSpecParser.SOURCE_ID),
+                        item.get(PartitionSpecParser.NAME),
+                        item.get(PartitionSpecParser.TRANSFORM))
 
         return builder.build()

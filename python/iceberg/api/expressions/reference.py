@@ -6,21 +6,20 @@
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
-from ..exceptions import ValidationException
+from iceberg.exceptions import ValidationException
 
 
 class Reference(object):
-
-    def __init__(self):
-        pass
+    pass
 
 
 class BoundReference(Reference):
@@ -33,7 +32,7 @@ class BoundReference(Reference):
     def __eq__(self, other):
         if id(self) == id(other):
             return True
-        elif other is None or self.__class__.__name__ != other.__class__.__name__:
+        elif other is None or not isinstance(other, BoundReference):
             return False
 
         return self.field_id == other.field_id and self.pos == other.pos and self._type == other._type
@@ -70,7 +69,7 @@ class NamedReference(Reference):
     def __eq__(self, other):
         if id(self) == id(other):
             return True
-        elif other is None or self.__class__.__name__ != other.__class__.__name__:
+        elif other is None or not isinstance(other, NamedReference):
             return False
 
         return self.name == other.name
