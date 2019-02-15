@@ -421,7 +421,7 @@ class GenericDataFile
         .add("null_value_counts", nullValueCounts)
         .add("lower_bounds", lowerBounds)
         .add("upper_bounds", upperBounds)
-        .add("key_metadata", keyMetadata == null ? "null" : "<redacted>")
+        .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .toString();
   }
 

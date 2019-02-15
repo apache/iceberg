@@ -19,11 +19,14 @@
 
 package com.netflix.iceberg.encryption;
 
+import com.google.common.collect.Iterables;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 
 import java.io.Serializable;
 import java.util.Iterator;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * Module for encrypting and decrypting table data files.
@@ -49,18 +52,8 @@ public interface EncryptionManager extends Serializable {
    * Implementations can override this for a variety of optimizations. For example, an
    * implementation can perform lookahead on the input iterator and fetch encryption keys in batch.
    */
-  default Iterator<InputFile> decrypt(Iterator<EncryptedInputFile> encrypted) {
-    return new Iterator<InputFile>() {
-      @Override
-      public boolean hasNext() {
-        return encrypted.hasNext();
-      }
-
-      @Override
-      public InputFile next() {
-        return decrypt(encrypted.next());
-      }
-    };
+  default Iterable<InputFile> decrypt(Iterable<EncryptedInputFile> encrypted) {
+    return Iterables.transform(encrypted, this::decrypt);
   }
 
   /**
@@ -79,18 +72,7 @@ public interface EncryptionManager extends Serializable {
    * Implementations can override this for a variety of optimizations. For example, an
    * implementation can perform lookahead on the input iterator and fetch encryption keys in batch.
    */
-  default Iterator<EncryptedOutputFile> encrypt(Iterator<OutputFile> rawOutput) {
-    return new Iterator<EncryptedOutputFile>() {
-
-      @Override
-      public boolean hasNext() {
-        return rawOutput.hasNext();
-      }
-
-      @Override
-      public EncryptedOutputFile next() {
-        return encrypt(rawOutput.next());
-      }
-    };
+  default Iterable<EncryptedOutputFile> encrypt(Iterable<OutputFile> rawOutput) {
+    return Iterables.transform(rawOutput, this::encrypt);
   }
 }
