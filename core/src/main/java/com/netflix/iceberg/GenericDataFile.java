@@ -20,6 +20,7 @@
 package com.netflix.iceberg;
 
 import com.google.common.base.Objects;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.netflix.iceberg.avro.AvroSchemaUtil;
 import com.netflix.iceberg.types.Type;
@@ -179,13 +180,13 @@ class GenericDataFile
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
     this.blockSizeInBytes = toCopy.blockSizeInBytes;
     this.fileOrdinal = toCopy.fileOrdinal;
-    this.sortColumns = toCopy.sortColumns;
+    this.sortColumns = copy(toCopy.sortColumns);
     // TODO: support lazy conversion to/from map
-    this.columnSizes = toCopy.columnSizes;
-    this.valueCounts = toCopy.valueCounts;
-    this.nullValueCounts = toCopy.nullValueCounts;
-    this.lowerBounds = toCopy.lowerBounds;
-    this.upperBounds = toCopy.upperBounds;
+    this.columnSizes = copy(toCopy.columnSizes);
+    this.valueCounts = copy(toCopy.valueCounts);
+    this.nullValueCounts = copy(toCopy.nullValueCounts);
+    this.lowerBounds = SerializableByteBufferMap.wrap(copy(toCopy.lowerBounds));
+    this.upperBounds = SerializableByteBufferMap.wrap(copy(toCopy.upperBounds));
     this.fromProjectionPos = toCopy.fromProjectionPos;
   }
 
@@ -405,4 +406,17 @@ class GenericDataFile
         .toString();
   }
 
+  private static <K, V> Map<K, V> copy(Map<K, V> map) {
+    if (map != null) {
+      return ImmutableMap.copyOf(map);
+    }
+    return null;
+  }
+
+  private static <E> List<E> copy(List<E> list) {
+    if (list != null) {
+      return ImmutableList.copyOf(list);
+    }
+    return null;
+  }
 }
