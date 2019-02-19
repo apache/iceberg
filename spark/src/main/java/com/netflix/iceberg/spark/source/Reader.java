@@ -22,6 +22,9 @@ package com.netflix.iceberg.spark.source;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.CombinedScanTask;
 import com.netflix.iceberg.DataFile;
+import com.netflix.iceberg.encryption.EncryptedFiles;
+import com.netflix.iceberg.encryption.EncryptedInputFile;
+import com.netflix.iceberg.encryption.EncryptionManager;
 import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.FileScanTask;
 import com.netflix.iceberg.PartitionField;
@@ -74,6 +77,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static com.google.common.collect.Iterators.transform;
 import static com.netflix.iceberg.spark.SparkSchemaUtil.convert;
@@ -88,6 +92,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
 
   private final Table table;
   private final FileIO fileIo;
+  private final EncryptionManager encryptionManager;
   private StructType requestedSchema = null;
   private List<Expression> filterExpressions = null;
   private Filter[] pushedFilters = NO_FILTERS;
@@ -101,6 +106,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     this.table = table;
     this.schema = table.schema();
     this.fileIo = table.io();
+    this.encryptionManager = table.encryption();
   }
 
   private Schema lazySchema() {
@@ -133,7 +139,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
 
     List<InputPartition<InternalRow>> readTasks = Lists.newArrayList();
     for (CombinedScanTask task : tasks()) {
-      readTasks.add(new ReadTask(task, tableSchemaString, expectedSchemaString, fileIo));
+      readTasks.add(new ReadTask(task, tableSchemaString, expectedSchemaString, fileIo, encryptionManager));
     }
 
     return readTasks;
@@ -227,21 +233,24 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     private final String tableSchemaString;
     private final String expectedSchemaString;
     private final FileIO fileIo;
+    private final EncryptionManager encryptionManager;
 
     private transient Schema tableSchema = null;
     private transient Schema expectedSchema = null;
 
     private ReadTask(
-        CombinedScanTask task, String tableSchemaString, String expectedSchemaString, FileIO fileIo) {
+        CombinedScanTask task, String tableSchemaString, String expectedSchemaString, FileIO fileIo,
+        EncryptionManager encryptionManager) {
       this.task = task;
       this.tableSchemaString = tableSchemaString;
       this.expectedSchemaString = expectedSchemaString;
       this.fileIo = fileIo;
+      this.encryptionManager = encryptionManager;
     }
 
     @Override
     public InputPartitionReader<InternalRow> createPartitionReader() {
-      return new TaskDataReader(task, lazyTableSchema(), lazyExpectedSchema(), fileIo);
+      return new TaskDataReader(task, lazyTableSchema(), lazyExpectedSchema(), fileIo, encryptionManager);
     }
 
     private Schema lazyTableSchema() {
@@ -269,18 +278,29 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     private final Schema tableSchema;
     private final Schema expectedSchema;
     private final FileIO fileIo;
+    private final EncryptionManager encryptionManager;
 
     private Iterator<InternalRow> currentIterator = null;
     private Closeable currentCloseable = null;
     private InternalRow current = null;
+    private Iterator<InputFile> inputFiles = null;
 
-    public TaskDataReader(CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo) {
+    public TaskDataReader(CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
+                          EncryptionManager encryptionManager) {
       this.fileIo = fileIo;
       this.tasks = task.files().iterator();
       this.tableSchema = tableSchema;
       this.expectedSchema = expectedSchema;
       // open last because the schemas and fileIo must be set
-      this.currentIterator = open(tasks.next());
+      Iterable<EncryptedInputFile> inputFileIterator = task.files().stream()
+          .map(fileScanTask ->
+              EncryptedFiles.encryptedInput(
+                  this.fileIo.newInputFile(fileScanTask.file().path().toString()),
+                  fileScanTask.file().keyMetadata()))
+          .collect(Collectors.toList());
+      this.inputFiles = encryptionManager.decrypt(inputFileIterator).iterator();
+      this.encryptionManager = encryptionManager;
+      this.currentIterator = open(inputFiles.next(), tasks.next());
     }
 
     @Override
@@ -292,7 +312,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
 
         } else if (tasks.hasNext()) {
           this.currentCloseable.close();
-          this.currentIterator = open(tasks.next());
+          this.currentIterator = open(inputFiles.next(), tasks.next());
 
         } else {
           return false;
@@ -316,7 +336,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       }
     }
 
-    private Iterator<InternalRow> open(FileScanTask task) {
+    private Iterator<InternalRow> open(InputFile location, FileScanTask task) {
       DataFile file = task.file();
 
       // schema or rows returned by readers
@@ -344,17 +364,17 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
 
         // create joined rows and project from the joined schema to the final schema
         iterSchema = TypeUtil.join(readSchema, partitionSchema);
-        iter = transform(open(task, readSchema), joined::withLeft);
+        iter = transform(open(location, task, readSchema), joined::withLeft);
 
       } else if (hasExtraFilterColumns) {
         // add projection to the final schema
         iterSchema = requiredSchema;
-        iter = open(task, requiredSchema);
+        iter = open(location, task, requiredSchema);
 
       } else {
         // return the base iterator
         iterSchema = finalSchema;
-        iter = open(task, finalSchema);
+        iter = open(location, task, finalSchema);
       }
 
       // TODO: remove the projection by reporting the iterator's schema back to Spark
@@ -384,8 +404,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
           asScalaBufferConverter(attrs).asScala().toSeq());
     }
 
-    private Iterator<InternalRow> open(FileScanTask task, Schema readSchema) {
-      InputFile location = fileIo.newInputFile(task.file().path().toString());
+    private Iterator<InternalRow> open(InputFile location, FileScanTask task, Schema readSchema) {
       CloseableIterable<InternalRow> iter;
       switch (task.file().format()) {
         case PARQUET:
