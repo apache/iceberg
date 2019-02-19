@@ -22,6 +22,8 @@ package com.netflix.iceberg;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import com.netflix.iceberg.encryption.EncryptionManager;
+import com.netflix.iceberg.encryption.PlaintextEncryptionManager;
 import com.netflix.iceberg.exceptions.AlreadyExistsException;
 import com.netflix.iceberg.exceptions.CommitFailedException;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
@@ -179,6 +181,11 @@ public class TestTables {
     @Override
     public FileIO io() {
       return new LocalFileIO();
+    }
+
+    @Override
+    public EncryptionManager encryption() {
+      return new PlaintextEncryptionManager();
     }
 
     @Override

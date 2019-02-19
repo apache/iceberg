@@ -66,10 +66,7 @@ public interface TableOperations {
    * @return a {@link com.netflix.iceberg.encryption.EncryptionManager} to encrypt and decrypt
    * data files.
    */
-  default EncryptionManager encryption() {
-    // TODO coming soon
-    throw new UnsupportedOperationException("Encryption is a work in progress.");
-  }
+  EncryptionManager encryption();
 
   /**
    * Given the name of a metadata file, obtain the full path of that file using an appropriate base

@@ -28,6 +28,9 @@ import com.netflix.iceberg.AppendFiles;
 import com.netflix.iceberg.DataFile;
 import com.netflix.iceberg.DataFiles;
 import com.netflix.iceberg.FileFormat;
+import com.netflix.iceberg.encryption.EncryptedOutputFile;
+import com.netflix.iceberg.encryption.EncryptionKeyMetadata;
+import com.netflix.iceberg.encryption.EncryptionManager;
 import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.Metrics;
 import com.netflix.iceberg.PartitionSpec;
@@ -77,17 +80,19 @@ class Writer implements DataSourceWriter {
   private final Table table;
   private final FileFormat format;
   private final FileIO fileIo;
+  private final EncryptionManager encryptionManager;
 
   Writer(Table table, FileFormat format) {
     this.table = table;
     this.format = format;
     this.fileIo = table.io();
+    this.encryptionManager = table.encryption();
   }
 
   @Override
   public DataWriterFactory<InternalRow> createWriterFactory() {
     return new WriterFactory(
-        table.spec(), format, table.locationProvider(), table.properties(), fileIo);
+        table.spec(), format, table.locationProvider(), table.properties(), fileIo, encryptionManager);
   }
 
   @Override
@@ -174,14 +179,16 @@ class Writer implements DataSourceWriter {
     private final Map<String, String> properties;
     private final String uuid = UUID.randomUUID().toString();
     private final FileIO fileIo;
+    private final EncryptionManager encryptionManager;
 
     WriterFactory(PartitionSpec spec, FileFormat format, LocationProvider locations,
-                  Map<String, String> properties, FileIO fileIo) {
+                  Map<String, String> properties, FileIO fileIo, EncryptionManager encryptionManager) {
       this.spec = spec;
       this.format = format;
       this.locations = locations;
       this.properties = properties;
       this.fileIo = fileIo;
+      this.encryptionManager = encryptionManager;
     }
 
     @Override
@@ -190,10 +197,13 @@ class Writer implements DataSourceWriter {
       AppenderFactory<InternalRow> factory = new SparkAppenderFactory();
       if (spec.fields().isEmpty()) {
         return new UnpartitionedWriter(
-            fileIo.newOutputFile(locations.newDataLocation(filename)), format, factory, fileIo);
+            fileIo.newOutputFile(locations.newDataLocation(filename)), format, factory, fileIo, encryptionManager);
       } else {
-        Function<PartitionKey, OutputFile> newOutputFileForKey =
-            key -> fileIo.newOutputFile(locations.newDataLocation(spec, key, filename));
+        Function<PartitionKey, EncryptedOutputFile> newOutputFileForKey =
+            key -> {
+              OutputFile rawOutputFile = fileIo.newOutputFile(locations.newDataLocation(spec, key, filename));
+              return encryptionManager.encrypt(rawOutputFile);
+            };
         return new PartitionedWriter(spec, format, factory, newOutputFileForKey, fileIo);
       }
     }
@@ -242,15 +252,19 @@ class Writer implements DataSourceWriter {
     private final OutputFile file;
     private FileAppender<InternalRow> appender = null;
     private Metrics metrics = null;
+    private final EncryptionKeyMetadata keyMetadata;
 
     UnpartitionedWriter(
         OutputFile file,
         FileFormat format,
         AppenderFactory<InternalRow> factory,
-        FileIO fileIo) {
-      this.file = file;
+        FileIO fileIo,
+        EncryptionManager encryptionManager) {
       this.fileIo = fileIo;
-      this.appender = factory.newAppender(file, format);
+      EncryptedOutputFile encryptedOutput = encryptionManager.encrypt(file);
+      this.file = encryptedOutput.encryptingOutputFile();
+      this.keyMetadata = encryptedOutput.keyMetadata();
+      this.appender = factory.newAppender(this.file, format);
     }
 
     @Override
@@ -269,7 +283,7 @@ class Writer implements DataSourceWriter {
         return new TaskCommit();
       }
 
-      DataFile dataFile = DataFiles.fromInputFile(file.toInputFile(), null, metrics);
+      DataFile dataFile = DataFiles.fromInputFile(file.toInputFile(), null, metrics, keyMetadata);
 
       return new TaskCommit(dataFile);
     }
@@ -298,19 +312,19 @@ class Writer implements DataSourceWriter {
     private final PartitionSpec spec;
     private final FileFormat format;
     private final AppenderFactory<InternalRow> factory;
-    private final Function<PartitionKey, OutputFile> newOutputFileForKey;
+    private final Function<PartitionKey, EncryptedOutputFile> newOutputFileForKey;
     private final PartitionKey key;
     private final FileIO fileIo;
 
     private PartitionKey currentKey = null;
     private FileAppender<InternalRow> currentAppender = null;
-    private OutputFile currentFile = null;
+    private EncryptedOutputFile currentFile = null;
 
     PartitionedWriter(
         PartitionSpec spec,
         FileFormat format,
         AppenderFactory<InternalRow> factory,
-        Function<PartitionKey, OutputFile> newOutputFileForKey,
+        Function<PartitionKey, EncryptedOutputFile> newOutputFileForKey,
         FileIO fileIo) {
       this.spec = spec;
       this.format = format;
@@ -336,7 +350,7 @@ class Writer implements DataSourceWriter {
 
         this.currentKey = key.copy();
         this.currentFile = newOutputFileForKey.apply(currentKey);
-        this.currentAppender = factory.newAppender(currentFile, format);
+        this.currentAppender = factory.newAppender(currentFile.encryptingOutputFile(), format);
       }
 
       currentAppender.add(row);
@@ -359,7 +373,7 @@ class Writer implements DataSourceWriter {
       if (currentAppender != null) {
         currentAppender.close();
         this.currentAppender = null;
-        fileIo.deleteFile(currentFile);
+        fileIo.deleteFile(currentFile.encryptingOutputFile());
       }
     }
 
@@ -371,7 +385,8 @@ class Writer implements DataSourceWriter {
         this.currentAppender = null;
 
         DataFile dataFile = DataFiles.builder(spec)
-            .withInputFile(currentFile.toInputFile())
+            .withInputFile(currentFile.encryptingOutputFile().toInputFile())
+            .withEncryptionKeyMetadata(currentFile.keyMetadata())
             .withPartition(currentKey)
             .withMetrics(metrics)
             .build();

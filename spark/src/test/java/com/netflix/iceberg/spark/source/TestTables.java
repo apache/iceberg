@@ -22,6 +22,8 @@ package com.netflix.iceberg.spark.source;
 import com.google.common.collect.Maps;
 import com.netflix.iceberg.BaseTable;
 import com.netflix.iceberg.LocationProviders;
+import com.netflix.iceberg.encryption.EncryptionManager;
+import com.netflix.iceberg.encryption.PlaintextEncryptionManager;
 import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.Files;
 import com.netflix.iceberg.PartitionSpec;
@@ -161,6 +163,11 @@ class TestTables {
     @Override
     public FileIO io() {
       return new LocalFileIO();
+    }
+
+    @Override
+    public EncryptionManager encryption() {
+      return new PlaintextEncryptionManager();
     }
 
     @Override

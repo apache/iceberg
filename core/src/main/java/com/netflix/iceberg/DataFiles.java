@@ -136,11 +136,31 @@ public class DataFiles {
         location, format, partition, file.getLength(), DEFAULT_BLOCK_SIZE, metrics);
   }
 
+  public static DataFile fromInputFile(InputFile file, PartitionData partition, Metrics metrics,
+                                       EncryptionKeyMetadata keyMetadata) {
+    if (file instanceof HadoopInputFile) {
+      return fromStat(((HadoopInputFile) file).getStat(), partition, metrics, keyMetadata);
+    }
+
+    String location = file.location();
+    FileFormat format = FileFormat.fromFileName(location);
+    return new GenericDataFile(
+        location, format, partition, file.getLength(), DEFAULT_BLOCK_SIZE, metrics, keyMetadata.keyMetadata());
+  }
+
   public static DataFile fromStat(FileStatus stat, PartitionData partition, Metrics metrics) {
     String location = stat.getPath().toString();
     FileFormat format = FileFormat.fromFileName(location);
     return new GenericDataFile(
         location, format, partition, stat.getLen(), stat.getBlockSize(), metrics);
+  }
+
+  public static DataFile fromStat(FileStatus stat, PartitionData partition, Metrics metrics,
+                                  EncryptionKeyMetadata keyMetadata) {
+    String location = stat.getPath().toString();
+    FileFormat format = FileFormat.fromFileName(location);
+    return new GenericDataFile(
+        location, format, partition, stat.getLen(), stat.getBlockSize(), metrics, keyMetadata.keyMetadata());
   }
 
   public static DataFile fromParquetInputFile(InputFile file,

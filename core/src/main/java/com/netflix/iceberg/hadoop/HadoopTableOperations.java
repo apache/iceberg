@@ -21,6 +21,8 @@ package com.netflix.iceberg.hadoop;
 
 import com.google.common.base.Preconditions;
 import com.netflix.iceberg.LocationProviders;
+import com.netflix.iceberg.encryption.EncryptionManager;
+import com.netflix.iceberg.encryption.PlaintextEncryptionManager;
 import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.TableMetadata;
 import com.netflix.iceberg.TableMetadataParser;
@@ -158,6 +160,11 @@ public class HadoopTableOperations implements TableOperations {
       defaultFileIo = new HadoopFileIO(conf);
     }
     return defaultFileIo;
+  }
+
+  @Override
+  public EncryptionManager encryption() {
+    return new PlaintextEncryptionManager();
   }
 
   @Override
