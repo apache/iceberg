@@ -19,6 +19,7 @@
 
 package com.netflix.iceberg.spark.source;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.CombinedScanTask;
 import com.netflix.iceberg.DataFile;
@@ -78,9 +79,11 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static com.google.common.collect.Iterators.transform;
 import static com.netflix.iceberg.spark.SparkSchemaUtil.convert;
@@ -292,7 +295,8 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     private final Schema expectedSchema;
     private final FileIO fileIo;
 
-    private final Iterator<DecryptedFileScanTask> tasks;
+    private final Iterator<FileScanTask> tasks;
+    private final Map<String, InputFile> inputFiles;
 
     private Iterator<InternalRow> currentIterator = null;
     private Closeable currentCloseable = null;
@@ -301,6 +305,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     public TaskDataReader(CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
                           EncryptionManager encryptionManager) {
       this.fileIo = fileIo;
+      this.tasks = task.files().iterator();
       this.tableSchema = tableSchema;
       this.expectedSchema = expectedSchema;
       // open last because the schemas and fileIo must be set
@@ -310,26 +315,12 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
                   this.fileIo.newInputFile(fileScanTask.file().path().toString()),
                   fileScanTask.file().keyMetadata()))
           .collect(Collectors.toList());
-      Iterator<InputFile> inputFiles = encryptionManager.decrypt(inputFileIterator).iterator();
-      Iterator<FileScanTask> fileScanTasks = task.files().iterator();
-      this.tasks = new Iterator<DecryptedFileScanTask>() {
-        @Override
-        public boolean hasNext() {
-          if (inputFiles.hasNext() && fileScanTasks.hasNext()) {
-            return true;
-          }
-          if (inputFiles.hasNext() || fileScanTasks.hasNext()) {
-            LOG.warn("Input files and file scan tasks iterators are not the same length.");
-            return false;
-          }
-          return false;
-        }
+      Iterable<InputFile> inputFiles = encryptionManager.decrypt(inputFileIterator);
+      this.inputFiles = StreamSupport.stream(inputFiles.spliterator(), false)
+          .collect(Collectors.toMap(
+              inputFile -> inputFile.location(),
+              inputFile -> inputFile));
 
-        @Override
-        public DecryptedFileScanTask next() {
-          return new DecryptedFileScanTask(fileScanTasks.next(), inputFiles.next());
-        }
-      };
       this.currentIterator = open(tasks.next());
     }
 
@@ -366,16 +357,16 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       }
     }
 
-    private Iterator<InternalRow> open(DecryptedFileScanTask task) {
-      DataFile file = task.fileScanTask.file();
+    private Iterator<InternalRow> open(FileScanTask task) {
+      DataFile file = task.file();
 
       // schema or rows returned by readers
       Schema finalSchema = expectedSchema;
-      PartitionSpec spec = task.fileScanTask.spec();
+      PartitionSpec spec = task.spec();
       Set<Integer> idColumns = spec.identitySourceIds();
 
       // schema needed for the projection and filtering
-      Schema requiredSchema = prune(tableSchema, convert(finalSchema), task.fileScanTask.residual());
+      Schema requiredSchema = prune(tableSchema, convert(finalSchema), task.residual());
       boolean hasJoinedPartitionColumns = !idColumns.isEmpty();
       boolean hasExtraFilterColumns = requiredSchema.columns().size() != finalSchema.columns().size();
 
@@ -434,20 +425,22 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
           asScalaBufferConverter(attrs).asScala().toSeq());
     }
 
-    private Iterator<InternalRow> open(DecryptedFileScanTask task, Schema readSchema) {
+    private Iterator<InternalRow> open(FileScanTask task, Schema readSchema) {
       CloseableIterable<InternalRow> iter;
-      switch (task.fileScanTask.file().format()) {
+      InputFile location = inputFiles.get(task.file().path().toString());
+      Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
+      switch (task.file().format()) {
         case PARQUET:
-          iter = newParquetIterable(task, readSchema);
+          iter = newParquetIterable(location, task, readSchema);
           break;
 
         case AVRO:
-          iter = newAvroIterable(task, readSchema);
+          iter = newAvroIterable(location, task, readSchema);
           break;
 
         default:
           throw new UnsupportedOperationException(
-              "Cannot read unknown format: " + task.fileScanTask.file().format());
+              "Cannot read unknown format: " + task.file().format());
       }
 
       this.currentCloseable = iter;
@@ -455,23 +448,25 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       return iter.iterator();
     }
 
-    private CloseableIterable<InternalRow> newAvroIterable(DecryptedFileScanTask task,
-                                                      Schema readSchema) {
-      return Avro.read(task.inputFile)
+    private CloseableIterable<InternalRow> newAvroIterable(InputFile inputFile,
+                                                           FileScanTask task,
+                                                          Schema readSchema) {
+      return Avro.read(inputFile)
           .reuseContainers()
           .project(readSchema)
-          .split(task.fileScanTask.start(), task.fileScanTask.length())
+          .split(task.start(), task.length())
           .createReaderFunc(SparkAvroReader::new)
           .build();
     }
 
-    private CloseableIterable<InternalRow> newParquetIterable(DecryptedFileScanTask task,
-                                                            Schema readSchema) {
-      return Parquet.read(task.inputFile)
+    private CloseableIterable<InternalRow> newParquetIterable(InputFile location,
+                                                              FileScanTask task,
+                                                              Schema readSchema) {
+      return Parquet.read(location)
           .project(readSchema)
-          .split(task.fileScanTask.start(), task.fileScanTask.length())
+          .split(task.start(), task.length())
           .createReaderFunc(fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema))
-          .filter(task.fileScanTask.residual())
+          .filter(task.residual())
           .build();
     }
   }
