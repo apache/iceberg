@@ -21,12 +21,19 @@ package com.netflix.iceberg.encryption;
 
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 
 public class PlaintextEncryptionManager implements EncryptionManager {
+  private static final Logger LOG = LoggerFactory.getLogger(PlaintextEncryptionManager.class);
+
   @Override
   public InputFile decrypt(EncryptedInputFile encrypted) {
+    if (encrypted.keyMetadata().keyMetadata() == null) {
+      LOG.warn("File encryption key metadata is present, but currently using PlaintextEncryptionManager.");
+    }
     return encrypted.encryptedInputFile();
   }
 
