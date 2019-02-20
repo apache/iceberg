@@ -278,7 +278,6 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     private final Schema tableSchema;
     private final Schema expectedSchema;
     private final FileIO fileIo;
-    private final EncryptionManager encryptionManager;
 
     private Iterator<InternalRow> currentIterator = null;
     private Closeable currentCloseable = null;
@@ -299,7 +298,6 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
                   fileScanTask.file().keyMetadata()))
           .collect(Collectors.toList());
       this.inputFiles = encryptionManager.decrypt(inputFileIterator).iterator();
-      this.encryptionManager = encryptionManager;
       this.currentIterator = open(inputFiles.next(), tasks.next());
     }
 
