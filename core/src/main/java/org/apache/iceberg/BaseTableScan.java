@@ -44,6 +44,7 @@ import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.InclusiveManifestEvaluator;
+import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.types.TypeUtil;
@@ -156,6 +157,16 @@ class BaseTableScan implements TableScan {
         }
       });
 
+  private final LoadingCache<Integer, Expression> PARTITION_EXPR_CACHE = CacheBuilder
+      .newBuilder()
+      .build(new CacheLoader<Integer, Expression>() {
+        @Override
+        public Expression load(Integer specId) {
+          PartitionSpec spec = ops.current().spec(specId);
+          return Projections.inclusive(spec).project(rowFilter);
+        }
+      });
+
   @Override
   public CloseableIterable<FileScanTask> planFiles() {
     Snapshot snapshot = snapshotId != null ?
@@ -180,12 +191,15 @@ class BaseTableScan implements TableScan {
             ManifestReader reader = ManifestReader
                 .read(ops.io().newInputFile(manifest.path()))
                 .caseSensitive(caseSensitive);
+            PartitionSpec spec = ops.current().spec(manifest.partitionSpecId());
             toClose.add(reader);
-            String schemaString = SchemaParser.toJson(reader.spec().schema());
-            String specString = PartitionSpecParser.toJson(reader.spec());
-            ResidualEvaluator residuals = new ResidualEvaluator(reader.spec(), rowFilter, caseSensitive);
+            String schemaString = SchemaParser.toJson(spec.schema());
+            String specString = PartitionSpecParser.toJson(spec);
+            ResidualEvaluator residuals = new ResidualEvaluator(spec, rowFilter, caseSensitive);
             return Iterables.transform(
-                reader.filterRows(rowFilter).select(SNAPSHOT_COLUMNS),
+                reader
+                    .filterPartitions(PARTITION_EXPR_CACHE.getUnchecked(manifest.partitionSpecId()))
+                    .select(SNAPSHOT_COLUMNS),
                 file -> new BaseFileScanTask(file, schemaString, specString, residuals)
             );
           });

@@ -34,6 +34,7 @@ import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.InclusiveManifestEvaluator;
+import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.types.Types;
 
@@ -54,6 +55,16 @@ class ManifestGroup {
         public InclusiveManifestEvaluator load(Integer specId) {
           PartitionSpec spec = ops.current().spec(specId);
           return new InclusiveManifestEvaluator(spec, dataFilter);
+        }
+      });
+
+  private final LoadingCache<Integer, Expression> PARTITION_EXPR_CACHE = CacheBuilder
+      .newBuilder()
+      .build(new CacheLoader<Integer, Expression>() {
+        @Override
+        public Expression load(Integer specId) {
+          PartitionSpec spec = ops.current().spec(specId);
+          return Projections.inclusive(spec).project(dataFilter);
         }
       });
 
@@ -123,7 +134,9 @@ class ManifestGroup {
         matchingManifests,
         manifest -> {
           ManifestReader reader = ManifestReader.read(ops.io().newInputFile(manifest.path()));
-          FilteredManifest filtered = reader.filterRows(dataFilter).select(columns);
+          FilteredManifest filtered = reader
+              .filterPartitions(PARTITION_EXPR_CACHE.getUnchecked(manifest.partitionSpecId()))
+              .select(columns);
           toClose.add(reader);
           return Iterables.filter(
               ignoreDeleted ? filtered.liveEntries() : filtered.allEntries(),
