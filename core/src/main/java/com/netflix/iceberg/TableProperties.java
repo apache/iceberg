@@ -62,6 +62,9 @@ public class TableProperties {
   public static final String SPLIT_LOOKBACK = "read.split.planning-lookback";
   public static final int SPLIT_LOOKBACK_DEFAULT = 10;
 
+  public static final String SPLIT_MIN_FILE_WEIGHT = "read.split.min-file-weight";
+  public static final long SPLIT_MIN_FILE_WEIGHT_DEFAULT = 4 * 1024 * 1024; // 4MB
+
   public static final String OBJECT_STORE_ENABLED = "write.object-storage.enabled";
   public static final boolean OBJECT_STORE_ENABLED_DEFAULT = false;
 
