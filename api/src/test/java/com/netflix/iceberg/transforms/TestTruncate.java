@@ -19,11 +19,20 @@
 
 package com.netflix.iceberg.transforms;
 
+import com.netflix.iceberg.TestHelpers;
+import com.netflix.iceberg.expressions.Evaluator;
+import com.netflix.iceberg.expressions.Expression;
+import com.netflix.iceberg.expressions.Binder;
+import com.netflix.iceberg.expressions.BoundPredicate;
+import com.netflix.iceberg.expressions.UnboundPredicate;
 import com.netflix.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+
+import static com.netflix.iceberg.expressions.Expressions.startsWith;
+import static com.netflix.iceberg.types.Types.NestedField.required;
 
 public class TestTruncate {
   @Test
@@ -74,6 +83,20 @@ public class TestTruncate {
         "abcde", trunc.apply("abcdefg"));
     Assert.assertEquals("Should not pad strings shorter than length",
         "abc", trunc.apply("abc"));
+  }
+
+  @Test
+  public void testTruncateStringStartsWith() {
+    Types.StructType struct = Types.StructType.of(required(0, "s", Types.StringType.get()));
+    Truncate<String> trunc = Truncate.get(Types.StringType.get(), 2);
+    Expression expr = startsWith("s", "abcde");
+    BoundPredicate<String> boundExpr = (BoundPredicate<String>) Binder.bind(struct,  expr, false);
+
+    UnboundPredicate<String> projected = trunc.project("s", boundExpr);
+    Evaluator evaluator = new Evaluator(struct, projected);
+
+    Assert.assertTrue("startsWith(abcde, truncate(abcde,2))  => true",
+            evaluator.eval(TestHelpers.Row.of(("abcde"))));
   }
 
   @Test
