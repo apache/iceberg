@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableMap;
 import com.netflix.iceberg.avro.AvroSchemaUtil;
 import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Types;
+import com.netflix.iceberg.util.ByteBuffers;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
 import java.io.Serializable;
@@ -59,6 +60,7 @@ class GenericDataFile
   private Map<Integer, Long> nullValueCounts = null;
   private Map<Integer, ByteBuffer> lowerBounds = null;
   private Map<Integer, ByteBuffer> upperBounds = null;
+  private ByteBuffer keyMetadata = null;
 
   // cached schema
   private transient org.apache.avro.Schema avroSchema = null;
@@ -165,6 +167,13 @@ class GenericDataFile
     this.fromProjectionPos = null;
   }
 
+  GenericDataFile(String filePath, FileFormat format, PartitionData partition,
+                  long fileSizeInBytes, long blockSizeInBytes, Metrics metrics,
+                  ByteBuffer keyMetadata) {
+    this(filePath, format, partition, fileSizeInBytes, blockSizeInBytes, metrics);
+    this.keyMetadata = keyMetadata;
+  }
+
   /**
    * Copy constructor.
    *
@@ -187,6 +196,7 @@ class GenericDataFile
     this.lowerBounds = toCopy.lowerBounds;
     this.upperBounds = toCopy.upperBounds;
     this.fromProjectionPos = toCopy.fromProjectionPos;
+    this.keyMetadata = toCopy.keyMetadata == null ? null : ByteBuffers.copy(toCopy.keyMetadata);
   }
 
   /**
@@ -261,6 +271,11 @@ class GenericDataFile
   }
 
   @Override
+  public ByteBuffer keyMetadata() {
+    return keyMetadata;
+  }
+
+  @Override
   public org.apache.avro.Schema getSchema() {
     if (avroSchema == null) {
       this.avroSchema = getAvroSchema(partitionType);
@@ -315,8 +330,10 @@ class GenericDataFile
         this.lowerBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) v);
         return;
       case 12:
-        this.upperBounds= SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) v);
+        this.upperBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) v);
         return;
+      case 13:
+        this.keyMetadata = (ByteBuffer) v;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -356,6 +373,8 @@ class GenericDataFile
         return lowerBounds;
       case 12:
         return upperBounds;
+      case 13:
+        return keyMetadata;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -370,7 +389,7 @@ class GenericDataFile
 
   @Override
   public int size() {
-    return 13;
+    return 14;
   }
 
   @Override
@@ -402,6 +421,7 @@ class GenericDataFile
         .add("null_value_counts", nullValueCounts)
         .add("lower_bounds", lowerBounds)
         .add("upper_bounds", upperBounds)
+        .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .toString();
   }
 

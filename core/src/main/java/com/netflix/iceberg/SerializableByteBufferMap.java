@@ -20,10 +20,11 @@
 package com.netflix.iceberg;
 
 import com.google.common.collect.Maps;
+import com.netflix.iceberg.util.ByteBuffers;
+
 import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -85,28 +86,11 @@ class SerializableByteBufferMap implements Map<Integer, ByteBuffer>, Serializabl
     int i = 0;
     for (Map.Entry<Integer, ByteBuffer> entry : entries) {
       keys[i] = entry.getKey();
-      values[i] = copy(entry.getValue());
+      values[i] = ByteBuffers.toByteArray(entry.getValue());
       i += 1;
     }
 
     return new MapSerializationProxy(keys, values);
-  }
-
-  private byte[] copy(ByteBuffer buffer) {
-    if (buffer.hasArray()) {
-      byte[] array = buffer.array();
-      if (buffer.arrayOffset() == 0 && buffer.position() == 0 && array.length == buffer.remaining()) {
-        return array;
-      } else {
-        int start = buffer.arrayOffset() + buffer.position();
-        int end = start + buffer.remaining();
-        return Arrays.copyOfRange(array, start, end);
-      }
-    } else {
-      byte[] bytes = new byte[buffer.remaining()];
-      buffer.get(bytes);
-      return bytes;
-    }
   }
 
   @Override

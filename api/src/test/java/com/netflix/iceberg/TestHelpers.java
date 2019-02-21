@@ -19,6 +19,7 @@
 
 package com.netflix.iceberg;
 
+import com.netflix.iceberg.encryption.EncryptionKeyMetadata;
 import com.netflix.iceberg.expressions.BoundPredicate;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.ExpressionVisitors;
@@ -367,6 +368,11 @@ public class TestHelpers {
     @Override
     public Map<Integer, ByteBuffer> upperBounds() {
       return upperBounds;
+    }
+
+    @Override
+    public ByteBuffer keyMetadata() {
+      return null;
     }
 
     @Override

@@ -86,7 +86,7 @@ public class Binder {
    * @throws IllegalStateException if any references are already bound
    */
   static Expression bind(StructType struct,
-                                   Expression expr) {
+                         Expression expr) {
     return Binder.bind(struct, expr, true);
   }
 
