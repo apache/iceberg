@@ -19,6 +19,7 @@
 
 package com.netflix.iceberg.spark.source;
 
+import com.google.common.base.Functions;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.CombinedScanTask;
@@ -309,17 +310,16 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       this.tableSchema = tableSchema;
       this.expectedSchema = expectedSchema;
       // open last because the schemas and fileIo must be set
-      Iterable<EncryptedInputFile> inputFileIterator = task.files().stream()
+      Iterable<InputFile> inputFiles = encryptionManager.decrypt(() -> task.files().stream()
           .map(fileScanTask ->
               EncryptedFiles.encryptedInput(
                   this.fileIo.newInputFile(fileScanTask.file().path().toString()),
                   fileScanTask.file().keyMetadata()))
-          .collect(Collectors.toList());
-      Iterable<InputFile> inputFiles = encryptionManager.decrypt(inputFileIterator);
+          .iterator());
       this.inputFiles = StreamSupport.stream(inputFiles.spliterator(), false)
           .collect(Collectors.toMap(
               inputFile -> inputFile.location(),
-              inputFile -> inputFile));
+              Function.identity()));
 
       this.currentIterator = open(tasks.next());
     }
@@ -449,8 +449,8 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     }
 
     private CloseableIterable<InternalRow> newAvroIterable(InputFile inputFile,
-                                                           FileScanTask task,
-                                                          Schema readSchema) {
+                                                         FileScanTask task,
+                                                         Schema readSchema) {
       return Avro.read(inputFile)
           .reuseContainers()
           .project(readSchema)
@@ -460,8 +460,8 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     }
 
     private CloseableIterable<InternalRow> newParquetIterable(InputFile location,
-                                                              FileScanTask task,
-                                                              Schema readSchema) {
+                                                            FileScanTask task,
+                                                            Schema readSchema) {
       return Parquet.read(location)
           .project(readSchema)
           .split(task.start(), task.length())
