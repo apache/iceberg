@@ -277,16 +277,6 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
   }
 
   private static class TaskDataReader implements InputPartitionReader<InternalRow> {
-    private final class DecryptedFileScanTask {
-      final FileScanTask fileScanTask;
-      final InputFile inputFile;
-
-      public DecryptedFileScanTask(FileScanTask fileScanTask, InputFile inputFile) {
-        this.fileScanTask = fileScanTask;
-        this.inputFile = inputFile;
-      }
-    }
-
     // for some reason, the apply method can't be called from Java without reflection
     private static final DynMethods.UnboundMethod APPLY_PROJECTION = DynMethods.builder("apply")
         .impl(UnsafeProjection.class, InternalRow.class)
