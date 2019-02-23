@@ -157,10 +157,10 @@ public class ParquetMetricsRowGroupFilter {
       Preconditions.checkNotNull(struct.field(id),
           "Cannot filter by nested column: %s", schema.findField(id));
 
-      // When filtering nested types notNull() is implicit filter passed even
-      //   though complex filters aren't pushed down in Parquet. Leave all
-      //    nested column type filters to be evaluated post scan.
-      if(schema.findType(id) instanceof Type.NestedType) {
+      // When filtering nested types notNull() is implicit filter passed even though complex
+      // filters aren't pushed down in Parquet. Leave all nested column type filters to be
+      // evaluated post scan.
+      if (schema.findType(id) instanceof Type.NestedType) {
         return ROWS_MIGHT_MATCH;
       }
 
@@ -296,6 +296,13 @@ public class ParquetMetricsRowGroupFilter {
       Integer id = ref.fieldId();
       Types.NestedField field = struct.field(id);
       Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
+
+      // When filtering nested types notNull() is implicit filter passed even though complex
+      // filters aren't pushed down in Parquet. Leave all nested column type filters to be
+      // evaluated post scan.
+      if (schema.findType(id) instanceof Type.NestedType) {
+        return ROWS_MIGHT_MATCH;
+      }
 
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
