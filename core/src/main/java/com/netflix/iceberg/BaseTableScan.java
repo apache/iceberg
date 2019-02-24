@@ -24,6 +24,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
@@ -41,6 +42,7 @@ import com.netflix.iceberg.util.BinPacking;
 import com.netflix.iceberg.util.ParallelIterable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import java.io.Closeable;
 import java.text.SimpleDateFormat;
 import java.util.Collection;
@@ -48,6 +50,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
+import java.util.Iterator;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static com.netflix.iceberg.util.ThreadPools.getWorkerPool;
@@ -208,8 +211,8 @@ class BaseTableScan implements TableScan {
         TableProperties.SPLIT_LOOKBACK, TableProperties.SPLIT_LOOKBACK_DEFAULT);
 
     return CloseableIterable.transform(
-        CloseableIterable.wrap(planFiles(), files ->
-            new BinPacking.PackingIterable<>(files, splitSize, lookback, FileScanTask::length)),
+        CloseableIterable.wrap(planSplits(splitSize), splits ->
+            new BinPacking.PackingIterable<>(splits, splitSize, lookback, FileScanTask::length)),
         BaseCombinedScanTask::new);
   }
 
@@ -230,5 +233,70 @@ class BaseTableScan implements TableScan {
         .add("projection", schema.asStruct())
         .add("filter", rowFilter)
         .toString();
+  }
+
+  private CloseableIterable<FileScanTask> planSplits(long splitSize) {
+    final CloseableIterable<FileScanTask> fileScanTasks = planFiles();
+    final Iterable<FileScanTask> splitTasks = FluentIterable
+        .from(fileScanTasks)
+        .transformAndConcat(input -> getSplits(input, splitSize));
+    // Capture manifests which can be closed after scan planning
+    final CloseableIterable<FileScanTask> closeableSplitTasks = CloseableIterable
+        .combine(splitTasks, ImmutableList.of(fileScanTasks));
+    return closeableSplitTasks;
+  }
+
+  private static Iterable<FileScanTask> getSplits(FileScanTask fileScanTask, long splitSize) {
+    return () -> new Iterator<FileScanTask>() {
+      long offset = 0;
+      long remainingLen = fileScanTask.length();
+
+      @Override
+      public boolean hasNext() {
+        return remainingLen > 0;
+      }
+
+      @Override
+      public FileScanTask next() {
+        long len = Math.min(splitSize, remainingLen);
+        final FileScanTask splitTask = splitTask(offset, len, fileScanTask);
+        offset += len;
+        remainingLen -= len;
+        return splitTask;
+      }
+    };
+  }
+
+  /**
+   * Creates a split from a given {@link FileScanTask}.
+   * The split is a {@link FileScanTask} which starts from `offset` and has length `len`.
+   */
+  private static FileScanTask splitTask(long offset, long len, FileScanTask fileScanTask) {
+    return new FileScanTask() {
+      @Override
+      public DataFile file() {
+        return fileScanTask.file();
+      }
+
+      @Override
+      public PartitionSpec spec() {
+        return fileScanTask.spec();
+      }
+
+      @Override
+      public long start() {
+        return offset;
+      }
+
+      @Override
+      public long length() {
+        return len;
+      }
+
+      @Override
+      public Expression residual() {
+        return fileScanTask.residual();
+      }
+    };
   }
 }
