@@ -27,6 +27,7 @@ import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.io.FileAppender;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
+import com.netflix.iceberg.types.Types;
 import com.netflix.iceberg.types.Types.FloatType;
 import com.netflix.iceberg.types.Types.IntegerType;
 import com.netflix.iceberg.types.Types.LongType;
@@ -42,6 +43,8 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import static com.netflix.iceberg.avro.AvroSchemaUtil.convert;
@@ -67,7 +70,11 @@ public class TestMetricsRowGroupFilter {
       optional(4, "all_nulls", LongType.get()),
       optional(5, "some_nulls", StringType.get()),
       optional(6, "no_nulls", StringType.get()),
-      optional(7, "not_in_file", FloatType.get())
+      optional(7, "not_in_file", FloatType.get()),
+      optional(8, "map_not_null",
+              Types.MapType.ofRequired(9, 10, StringType.get(), IntegerType.get())),
+      optional(9, "struct_not_null",
+              Types.StructType.of(Types.NestedField.required(10, "struct_subfield", StringType.get())))
   );
 
   private static final Schema FILE_SCHEMA = new Schema(
@@ -138,6 +145,14 @@ public class TestMetricsRowGroupFilter {
     shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notNull("no_nulls"))
         .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
     Assert.assertTrue("Should read: non-null column contains a non-null value", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notNull("map_not_null"))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: map type is not skipped", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notNull("struct_not_null"))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: struct type is not skipped", shouldRead);
   }
 
   @Test
@@ -153,6 +168,14 @@ public class TestMetricsRowGroupFilter {
     shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, isNull("no_nulls"))
         .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
     Assert.assertFalse("Should skip: non-null column contains no null values", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, isNull("map_not_null"))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: map type is not skipped", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, isNull("struct_not_null"))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: struct type is not skipped", shouldRead);
   }
 
   @Test
