@@ -25,14 +25,20 @@ import com.netflix.iceberg.types.Comparators;
  * Enum of supported file formats.
  */
 public enum FileFormat {
-  ORC("orc"),
-  PARQUET("parquet"),
-  AVRO("avro");
+  ORC("orc", true),
+  PARQUET("parquet", true),
+  AVRO("avro", true);
 
   private final String ext;
+  private final boolean splittable;
 
-  FileFormat(String ext) {
+  FileFormat(String ext, boolean splittable) {
     this.ext = "." + ext;
+    this.splittable = splittable;
+  }
+
+  public boolean isSplittable() {
+    return splittable;
   }
 
   /**

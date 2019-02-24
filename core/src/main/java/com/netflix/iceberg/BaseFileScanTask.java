@@ -20,8 +20,11 @@
 package com.netflix.iceberg;
 
 import com.google.common.base.Objects;
+import com.google.common.collect.Lists;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.ResidualEvaluator;
+
+import java.util.Iterator;
 
 class BaseFileScanTask implements FileScanTask {
   private final DataFile file;
@@ -37,6 +40,7 @@ class BaseFileScanTask implements FileScanTask {
     this.specString = specString;
     this.residuals = residuals;
   }
+
 
   @Override
   public DataFile file() {
@@ -67,11 +71,90 @@ class BaseFileScanTask implements FileScanTask {
   }
 
   @Override
+  public Iterable<FileScanTask> split(long splitSize) {
+    if (file.format().isSplittable()) {
+      return () -> new SplitScanTaskIterator(splitSize, this);
+    } else {
+      return Lists.newArrayList(this);
+    }
+  }
+
+  @Override
   public String toString() {
     return Objects.toStringHelper(this)
         .add("file", file.path())
         .add("partition_data", file.partition())
         .add("residual", residual())
         .toString();
+  }
+
+  private static final class SplitScanTaskIterator implements Iterator<FileScanTask> {
+    private long offset;
+    private long remainingLen;
+    private long splitSize;
+    private final FileScanTask fileScanTask;
+
+    private SplitScanTaskIterator(long splitSize, FileScanTask fileScanTask) {
+      this.offset = 0;
+      this.remainingLen = fileScanTask.length();
+      this.splitSize = splitSize;
+      this.fileScanTask = fileScanTask;
+    }
+
+    @Override
+    public boolean hasNext() {
+      return remainingLen > 0;
+    }
+
+    @Override
+    public FileScanTask next() {
+      long len = Math.min(splitSize, remainingLen);
+      final FileScanTask splitTask = new SplitScanTask(offset, len, fileScanTask);
+      offset += len;
+      remainingLen -= len;
+      return splitTask;
+    }
+  }
+
+  private static final class SplitScanTask implements FileScanTask {
+    private final long len;
+    private final long offset;
+    private final FileScanTask fileScanTask;
+
+    SplitScanTask(long offset, long len, FileScanTask fileScanTask) {
+      this.offset = offset;
+      this.len = len;
+      this.fileScanTask = fileScanTask;
+    }
+
+    @Override
+    public DataFile file() {
+      return fileScanTask.file();
+    }
+
+    @Override
+    public PartitionSpec spec() {
+      return fileScanTask.spec();
+    }
+
+    @Override
+    public long start() {
+      return offset;
+    }
+
+    @Override
+    public long length() {
+      return len;
+    }
+
+    @Override
+    public Expression residual() {
+      return fileScanTask.residual();
+    }
+
+    @Override
+    public Iterable<FileScanTask> split(long splitSize) {
+      throw new UnsupportedOperationException("Cannot split a task which is already splitted");
+    }
   }
 }

@@ -64,6 +64,9 @@ public interface FileScanTask extends ScanTask {
    */
   Expression residual();
 
+
+  Iterable<FileScanTask> split(long splitSize);
+
   @Override
   default boolean isFileScanTask() {
     return true;
