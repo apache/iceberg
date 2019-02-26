@@ -20,6 +20,8 @@
 package com.netflix.iceberg;
 
 import com.google.common.collect.ImmutableMap;
+import com.netflix.iceberg.io.FileIO;
+import com.netflix.iceberg.io.LocationProvider;
 import java.util.Map;
 
 public class MetadataTable implements Table {
@@ -129,5 +131,15 @@ public class MetadataTable implements Table {
   @Override
   public Transaction newTransaction() {
     throw new UnsupportedOperationException("Cannot create transactions for a metadata table");
+  }
+
+  @Override
+  public FileIO io() {
+    return table.io();
+  }
+
+  @Override
+  public LocationProvider locationProvider() {
+    return table.locationProvider();
   }
 }
