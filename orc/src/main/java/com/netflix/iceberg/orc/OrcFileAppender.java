@@ -34,7 +34,7 @@ import java.util.Map;
 /**
  * Create a file appender for ORC.
  */
-public class OrcFileAppender implements FileAppender<VectorizedRowBatch> {
+class OrcFileAppender implements FileAppender<VectorizedRowBatch> {
   private final Writer writer;
   private final TypeDescription orcSchema;
   private final ColumnIdMap columnIds = new ColumnIdMap();

@@ -20,6 +20,7 @@ import com.google.common.base.Preconditions;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.hadoop.HadoopInputFile;
 import com.netflix.iceberg.hadoop.HadoopOutputFile;
+import com.netflix.iceberg.io.FileAppender;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
 import org.apache.hadoop.conf.Configuration;
@@ -30,11 +31,8 @@ import org.apache.orc.TypeDescription;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 
 public class ORC {
   private ORC() {
@@ -74,7 +72,7 @@ public class ORC {
       return this;
     }
 
-    public OrcFileAppender build() {
+    public FileAppender build() {
       OrcFile.WriterOptions options =
           OrcFile.writerOptions(conf);
       return new OrcFileAppender(schema, file, options, metadata);
