@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import com.netflix.iceberg.AssertHelpers;
 import com.netflix.iceberg.FileScanTask;
 import com.netflix.iceberg.PartitionSpec;
+import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.Table;
 import com.netflix.iceberg.TableMetadata;
 import com.netflix.iceberg.UpdateSchema;
@@ -32,6 +33,9 @@ import org.junit.Assert;
 import org.junit.Test;
 import java.io.File;
 import java.util.List;
+
+import static com.netflix.iceberg.types.Types.NestedField.optional;
+import static com.netflix.iceberg.types.Types.NestedField.required;
 
 public class TestHadoopCommits extends HadoopTableTestBase {
 
@@ -241,5 +245,51 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     TableMetadata metadata = readMetadataVersion(5);
     Assert.assertEquals("Current snapshot should contain 1 merged manifest",
         1, metadata.currentSnapshot().manifests().size());
+  }
+
+  @Test
+  public void testSchemaUpdateComplexType() throws Exception {
+    Assert.assertTrue("Should create v1 metadata",
+            version(1).exists() && version(1).isFile());
+    Assert.assertFalse("Should not create v2 or newer versions",
+            version(2).exists());
+
+    Types.StructType complexColumn = Types.StructType.of(
+            required(0, "w", Types.IntegerType.get()),
+            required(1, "x", Types.StringType.get()),
+            required(2, "y", Types.BooleanType.get()),
+            optional(3, "z", Types.MapType.ofOptional(
+                    0, 1, Types.IntegerType.get(), Types.StringType.get()
+            ))
+    );
+    Schema updatedSchema = new Schema(
+            required(1, "id", Types.IntegerType.get(), "unique ID"),
+            required(2, "data", Types.StringType.get()),
+            optional(3, "complex", Types.StructType.of(
+                    required(4, "w", Types.IntegerType.get()),
+                    required(5, "x", Types.StringType.get()),
+                    required(6, "y", Types.BooleanType.get()),
+                    optional(7, "z", Types.MapType.ofOptional(
+                            8, 9, Types.IntegerType.get(), Types.StringType.get()
+                    ))
+            ))
+    );
+
+    table.updateSchema()
+            .addColumn("complex", complexColumn)
+            .commit();
+
+    Assert.assertTrue("Should create v2 for the update",
+            version(2).exists() && version(2).isFile());
+    Assert.assertEquals("Should write the current version to the hint file",
+            2, readVersionHint());
+    Assert.assertEquals("Table schema should match schema with reassigned ids",
+            updatedSchema.asStruct(), table.schema().asStruct());
+
+    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles());
+    Assert.assertEquals("Should not create any scan tasks", 0, tasks.size());
+
+    List<File> manifests = listManifestFiles();
+    Assert.assertEquals("Should contain 0 Avro manifest files", 0, manifests.size());
   }
 }
