@@ -146,6 +146,9 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
 
     ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
 
+    // copy all summary properties from the implementation
+    builder.putAll(summary);
+
     updateTotal(
         builder, previousSummary, SnapshotSummary.TOTAL_RECORDS_PROP,
         summary, SnapshotSummary.ADDED_RECORDS_PROP, SnapshotSummary.DELETED_RECORDS_PROP);
