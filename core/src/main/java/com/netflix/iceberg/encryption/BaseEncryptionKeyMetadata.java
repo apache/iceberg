@@ -24,6 +24,14 @@ import com.netflix.iceberg.util.ByteBuffers;
 import java.nio.ByteBuffer;
 
 class BaseEncryptionKeyMetadata implements EncryptionKeyMetadata {
+
+  public static EncryptionKeyMetadata fromKeyMetadata(ByteBuffer keyMetadata) {
+    if (keyMetadata == null) {
+      return EncryptionKeyMetadata.EMPTY;
+    }
+    return new BaseEncryptionKeyMetadata(keyMetadata);
+  }
+
   private final ByteBuffer keyMetadata;
 
   BaseEncryptionKeyMetadata(ByteBuffer keyMetadata) {

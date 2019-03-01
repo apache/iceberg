@@ -29,6 +29,18 @@ import java.nio.ByteBuffer;
  */
 public interface EncryptionKeyMetadata {
 
+  EncryptionKeyMetadata EMPTY = new EncryptionKeyMetadata() {
+    @Override
+    public ByteBuffer buffer() {
+      return null;
+    }
+
+    @Override
+    public EncryptionKeyMetadata copy() {
+      return this;
+    }
+  };
+
   /**
    * Opaque blob representing metadata about a file's encryption key.
    */
