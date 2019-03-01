@@ -299,7 +299,6 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       this.tasks = task.files().iterator();
       this.tableSchema = tableSchema;
       this.expectedSchema = expectedSchema;
-      // open last because the schemas and fileIo must be set
       Iterable<InputFile> inputFiles = encryptionManager.decrypt(() -> task.files().stream()
           .map(fileScanTask ->
               EncryptedFiles.encryptedInput(
@@ -310,7 +309,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
           .collect(Collectors.toMap(
               inputFile -> inputFile.location(),
               Function.identity()));
-
+      // open last because the schemas and fileIo must be set
       this.currentIterator = open(tasks.next());
     }
 

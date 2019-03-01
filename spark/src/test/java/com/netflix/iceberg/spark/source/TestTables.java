@@ -166,11 +166,6 @@ class TestTables {
     }
 
     @Override
-    public EncryptionManager encryption() {
-      return new PlaintextEncryptionManager();
-    }
-
-    @Override
     public LocationProvider locationProvider() {
       Preconditions.checkNotNull(current,
           "Current metadata should not be null when locatinProvider is called");

@@ -20,15 +20,13 @@
 package com.netflix.iceberg;
 
 import com.google.common.collect.Maps;
-import com.netflix.iceberg.encryption.EncryptionManager;
-import com.netflix.iceberg.encryption.PlaintextEncryptionManager;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.FileIO;
-import java.util.Map;
 import com.netflix.iceberg.io.LocationProvider;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.IOException;
+import java.util.Map;
 
 class LocalTableOperations implements TableOperations {
   private final TemporaryFolder temp;
@@ -59,11 +57,6 @@ class LocalTableOperations implements TableOperations {
   @Override
   public FileIO io() {
     return io;
-  }
-
-  @Override
-  public EncryptionManager encryption() {
-    return new PlaintextEncryptionManager();
   }
 
   @Override

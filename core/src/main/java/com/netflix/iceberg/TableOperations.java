@@ -20,6 +20,7 @@
 package com.netflix.iceberg;
 
 import com.netflix.iceberg.encryption.EncryptionManager;
+import com.netflix.iceberg.encryption.PlaintextEncryptionManager;
 import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.io.LocationProvider;
 import java.util.UUID;
@@ -66,7 +67,9 @@ public interface TableOperations {
    * @return a {@link com.netflix.iceberg.encryption.EncryptionManager} to encrypt and decrypt
    * data files.
    */
-  EncryptionManager encryption();
+  default EncryptionManager encryption() {
+    return new PlaintextEncryptionManager();
+  }
 
   /**
    * Given the name of a metadata file, obtain the full path of that file using an appropriate base
