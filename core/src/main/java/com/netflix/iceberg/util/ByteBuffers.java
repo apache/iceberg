@@ -43,6 +43,9 @@ public class ByteBuffers {
   }
 
   public static ByteBuffer copy(ByteBuffer buffer) {
+    if (buffer == null) {
+      return null;
+    }
     int size = buffer.remaining();
     byte[] copyArray = new byte[size];
     ByteBuffer readerBuffer = buffer.asReadOnlyBuffer();
