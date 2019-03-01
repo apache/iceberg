@@ -32,7 +32,7 @@ public interface EncryptionKeyMetadata {
   /**
    * Opaque blob representing metadata about a file's encryption key.
    */
-  ByteBuffer keyMetadata();
+  ByteBuffer buffer();
 
   EncryptionKeyMetadata copy();
 }

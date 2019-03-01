@@ -145,7 +145,7 @@ public class DataFiles {
     String location = file.location();
     FileFormat format = FileFormat.fromFileName(location);
     return new GenericDataFile(
-        location, format, partition, file.getLength(), DEFAULT_BLOCK_SIZE, metrics, keyMetadata.keyMetadata());
+        location, format, partition, file.getLength(), DEFAULT_BLOCK_SIZE, metrics, keyMetadata.buffer());
   }
 
   public static DataFile fromStat(FileStatus stat, PartitionData partition, Metrics metrics) {
@@ -160,7 +160,7 @@ public class DataFiles {
     String location = stat.getPath().toString();
     FileFormat format = FileFormat.fromFileName(location);
     return new GenericDataFile(
-        location, format, partition, stat.getLen(), stat.getBlockSize(), metrics, keyMetadata.keyMetadata());
+        location, format, partition, stat.getLen(), stat.getBlockSize(), metrics, keyMetadata.buffer());
   }
 
   public static DataFile fromParquetInputFile(InputFile file,
@@ -332,7 +332,7 @@ public class DataFiles {
     }
 
     public Builder withEncryptionKeyMetadata(EncryptionKeyMetadata keyMetadata) {
-      return withEncryptionKeyMetadata(keyMetadata.keyMetadata());
+      return withEncryptionKeyMetadata(keyMetadata.buffer());
     }
 
     public Builder withEncryptionKeyMetadata(byte[] keyMetadata) {

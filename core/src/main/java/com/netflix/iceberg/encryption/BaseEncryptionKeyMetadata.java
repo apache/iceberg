@@ -31,7 +31,7 @@ class BaseEncryptionKeyMetadata implements EncryptionKeyMetadata {
   }
 
   @Override
-  public ByteBuffer keyMetadata() {
+  public ByteBuffer buffer() {
     return keyMetadata;
   }
 
