@@ -83,8 +83,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static com.google.common.collect.Iterators.transform;
 import static com.netflix.iceberg.spark.SparkSchemaUtil.convert;

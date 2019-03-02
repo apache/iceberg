@@ -20,11 +20,15 @@
 package com.netflix.iceberg.hadoop;
 
 import com.google.common.base.Preconditions;
-import com.netflix.iceberg.*;
+import com.netflix.iceberg.LocationProviders;
+import com.netflix.iceberg.io.FileIO;
+import com.netflix.iceberg.TableMetadata;
+import com.netflix.iceberg.TableMetadataParser;
+import com.netflix.iceberg.TableOperations;
+import com.netflix.iceberg.TableProperties;
 import com.netflix.iceberg.exceptions.CommitFailedException;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.exceptions.ValidationException;
-import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.io.LocationProvider;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -32,7 +36,6 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
