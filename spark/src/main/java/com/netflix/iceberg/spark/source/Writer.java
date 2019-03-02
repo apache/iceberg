@@ -385,8 +385,7 @@ class Writer implements DataSourceWriter {
         this.currentAppender = null;
 
         DataFile dataFile = DataFiles.builder(spec)
-            .withInputFile(currentFile.encryptingOutputFile().toInputFile())
-            .withEncryptionKeyMetadata(currentFile.keyMetadata())
+            .withEncryptedOutputFile(currentFile)
             .withPartition(currentKey)
             .withMetrics(metrics)
             .build();

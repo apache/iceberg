@@ -20,6 +20,7 @@
 package com.netflix.iceberg;
 
 import com.google.common.base.Preconditions;
+import com.netflix.iceberg.encryption.EncryptedOutputFile;
 import com.netflix.iceberg.encryption.EncryptionKeyMetadata;
 import com.netflix.iceberg.hadoop.HadoopInputFile;
 import com.netflix.iceberg.io.InputFile;
@@ -270,6 +271,12 @@ public class DataFiles {
 
       this.filePath = file.location();
       this.fileSizeInBytes = file.getLength();
+      return this;
+    }
+
+    public Builder withEncryptedOutputFile(EncryptedOutputFile encryptedFile) {
+      withInputFile(encryptedFile.encryptingOutputFile().toInputFile());
+      withEncryptionKeyMetadata(encryptedFile.keyMetadata());
       return this;
     }
 
