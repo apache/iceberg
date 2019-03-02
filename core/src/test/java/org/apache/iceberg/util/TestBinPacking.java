@@ -162,6 +162,15 @@ public class TestBinPacking {
     // 6. [5, 1]
     Assert.assertEquals("1 bin look-back: should merge ones with fives",
         l(l(5, 1), l(5, 1), l(5, 1)), pack(l(5, 1, 5, 1, 5, 1), 8, 1));
+
+    Assert.assertEquals("1 bin look-back: should merge until targetWeight and order them by weight descending",
+        l(l(32, 32, 32, 32), l(64, 64), l(128)),
+        pack(l(32, 32, 32, 32, 64, 64, 128), 128, 1));
+
+    Assert.assertEquals(
+        "1 bin look-back: should order by weight descending and not order by number of items (at same weight)",
+        l(l(128), l(64, 64), l(32, 32, 32, 32)),
+        pack(l(128, 64, 64, 32, 32, 32, 32), 128, 1));
   }
 
   private List<List<Integer>> pack(List<Integer> items, long targetWeight) {

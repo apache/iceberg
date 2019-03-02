@@ -23,6 +23,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -107,6 +109,8 @@ public class BinPacking {
           bins.addLast(bin);
 
           if (bins.size() > lookback) {
+            // sort by bin weight, descending
+            bins.sort(Comparator.comparing(Bin::getWeight).reversed());
             return ImmutableList.copyOf(bins.removeFirst().items());
           }
         }
@@ -143,6 +147,10 @@ public class BinPacking {
       public void add(T item, long weight) {
         this.binWeight += weight;
         items.add(item);
+      }
+
+      public long getWeight() {
+        return binWeight;
       }
     }
   }
