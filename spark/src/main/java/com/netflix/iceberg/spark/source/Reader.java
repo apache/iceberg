@@ -19,13 +19,13 @@
 
 package com.netflix.iceberg.spark.source;
 
-import com.google.common.base.Functions;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.CombinedScanTask;
 import com.netflix.iceberg.DataFile;
 import com.netflix.iceberg.encryption.EncryptedFiles;
-import com.netflix.iceberg.encryption.EncryptedInputFile;
 import com.netflix.iceberg.encryption.EncryptionManager;
 import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.FileScanTask;
@@ -282,11 +282,10 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
         .impl(UnsafeProjection.class, InternalRow.class)
         .build();
 
+    private final Iterator<FileScanTask> tasks;
     private final Schema tableSchema;
     private final Schema expectedSchema;
     private final FileIO fileIo;
-
-    private final Iterator<FileScanTask> tasks;
     private final Map<String, InputFile> inputFiles;
 
     private Iterator<InternalRow> currentIterator = null;
@@ -299,16 +298,14 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       this.tasks = task.files().iterator();
       this.tableSchema = tableSchema;
       this.expectedSchema = expectedSchema;
-      Iterable<InputFile> inputFiles = encryptionManager.decrypt(() -> task.files().stream()
-          .map(fileScanTask ->
+      Iterable<InputFile> decryptedFiles = encryptionManager.decrypt(Iterables.transform(task.files(),
+          fileScanTask ->
               EncryptedFiles.encryptedInput(
                   this.fileIo.newInputFile(fileScanTask.file().path().toString()),
-                  fileScanTask.file().keyMetadata()))
-          .iterator());
-      this.inputFiles = StreamSupport.stream(inputFiles.spliterator(), false)
-          .collect(Collectors.toMap(
-              inputFile -> inputFile.location(),
-              Function.identity()));
+                  fileScanTask.file().keyMetadata())));
+      ImmutableMap.Builder<String, InputFile> inputFileBuilder = ImmutableMap.builder();
+      decryptedFiles.forEach(decrypted -> inputFileBuilder.put(decrypted.location(), decrypted));
+      this.inputFiles = inputFileBuilder.build();
       // open last because the schemas and fileIo must be set
       this.currentIterator = open(tasks.next());
     }
@@ -415,9 +412,9 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     }
 
     private Iterator<InternalRow> open(FileScanTask task, Schema readSchema) {
-      CloseableIterable<InternalRow> iter;
       InputFile location = inputFiles.get(task.file().path().toString());
       Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
+      CloseableIterable<InternalRow> iter;
       switch (task.file().format()) {
         case PARQUET:
           iter = newParquetIterable(location, task, readSchema);
@@ -437,10 +434,10 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       return iter.iterator();
     }
 
-    private CloseableIterable<InternalRow> newAvroIterable(InputFile inputFile,
-                                                         FileScanTask task,
-                                                         Schema readSchema) {
-      return Avro.read(inputFile)
+    private CloseableIterable<InternalRow> newAvroIterable(InputFile location,
+                                                      FileScanTask task,
+                                                      Schema readSchema) {
+      return Avro.read(location)
           .reuseContainers()
           .project(readSchema)
           .split(task.start(), task.length())
