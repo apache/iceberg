@@ -28,7 +28,7 @@ public class EncryptionKeyMetadatas {
   }
 
   public static EncryptionKeyMetadata of(byte[] keyMetadata) {
-    return of(ByteBuffer.wrap(keyMetadata));
+    return BaseEncryptionKeyMetadata.fromByteArray(keyMetadata);
   }
 
   private EncryptionKeyMetadatas() {}

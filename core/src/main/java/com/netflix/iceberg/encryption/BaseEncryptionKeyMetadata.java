@@ -32,9 +32,16 @@ class BaseEncryptionKeyMetadata implements EncryptionKeyMetadata {
     return new BaseEncryptionKeyMetadata(keyMetadata);
   }
 
+  public static EncryptionKeyMetadata fromByteArray(byte[] keyMetadata) {
+    if (keyMetadata == null) {
+      return EncryptionKeyMetadata.empty();
+    }
+    return fromKeyMetadata(ByteBuffer.wrap(keyMetadata));
+  }
+
   private final ByteBuffer keyMetadata;
 
-  BaseEncryptionKeyMetadata(ByteBuffer keyMetadata) {
+  private BaseEncryptionKeyMetadata(ByteBuffer keyMetadata) {
     this.keyMetadata = keyMetadata;
   }
 

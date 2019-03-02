@@ -37,7 +37,7 @@ public class EncryptedFiles {
   }
 
   public static EncryptedInputFile encryptedInput(InputFile encryptedInputFile, byte[] keyMetadata) {
-    return encryptedInput(encryptedInputFile, ByteBuffer.wrap(keyMetadata));
+    return encryptedInput(encryptedInputFile, BaseEncryptionKeyMetadata.fromByteArray(keyMetadata));
   }
 
   public static EncryptedOutputFile encryptedOutput(
@@ -51,7 +51,7 @@ public class EncryptedFiles {
   }
 
   public static EncryptedOutputFile encryptedOutput(OutputFile encryptedOutputFile, byte[] keyMetadata) {
-    return encryptedOutput(encryptedOutputFile, ByteBuffer.wrap(keyMetadata));
+    return encryptedOutput(encryptedOutputFile, BaseEncryptionKeyMetadata.fromByteArray(keyMetadata));
   }
 
   private EncryptedFiles() {}
