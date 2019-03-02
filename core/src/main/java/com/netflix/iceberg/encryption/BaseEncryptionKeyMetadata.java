@@ -27,7 +27,7 @@ class BaseEncryptionKeyMetadata implements EncryptionKeyMetadata {
 
   public static EncryptionKeyMetadata fromKeyMetadata(ByteBuffer keyMetadata) {
     if (keyMetadata == null) {
-      return EncryptionKeyMetadata.EMPTY;
+      return EncryptionKeyMetadata.empty();
     }
     return new BaseEncryptionKeyMetadata(keyMetadata);
   }

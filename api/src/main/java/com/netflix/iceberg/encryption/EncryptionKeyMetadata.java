@@ -41,6 +41,10 @@ public interface EncryptionKeyMetadata {
     }
   };
 
+  static EncryptionKeyMetadata empty() {
+    return EMPTY;
+  }
+
   /**
    * Opaque blob representing metadata about a file's encryption key.
    */
