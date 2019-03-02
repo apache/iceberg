@@ -257,7 +257,7 @@ class Writer implements DataSourceWriter {
         EncryptionManager encryptionManager) {
       this.fileIo = fileIo;
       this.file = encryptionManager.encrypt(outputFile);
-      this.appender = factory.newAppender(this.file.encryptingOutputFile(), format);
+      this.appender = factory.newAppender(file.encryptingOutputFile(), format);
     }
 
     @Override
@@ -276,10 +276,7 @@ class Writer implements DataSourceWriter {
         return new TaskCommit();
       }
 
-      DataFile dataFile = DataFiles.fromInputFile(file.encryptingOutputFile().toInputFile(),
-          null,
-          metrics,
-          file.keyMetadata());
+      DataFile dataFile = DataFiles.fromEncryptedOutputFile(file, null, metrics);
 
       return new TaskCommit(dataFile);
     }
