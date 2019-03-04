@@ -73,7 +73,7 @@ public class Transforms {
   }
 
   private static Transform<?,?> match(Supplier<Transform> transformSupplier,
-      Supplier<Transform> defaultSupplier) {
+                                      Supplier<Transform> defaultSupplier) {
     try {
       return transformSupplier.get();
     } catch(IllegalArgumentException e) {
