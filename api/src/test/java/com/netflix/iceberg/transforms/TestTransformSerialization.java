@@ -19,10 +19,13 @@
 
 package com.netflix.iceberg.transforms;
 
+import static com.netflix.iceberg.expressions.Expressions.lessThan;
 
 import com.netflix.iceberg.PartitionSpec;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.TestHelpers;
+import com.netflix.iceberg.exceptions.ValidationException;
+import com.netflix.iceberg.expressions.StrictMetricsEvaluator;
 import com.netflix.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
@@ -83,7 +86,7 @@ public class TestTransformSerialization {
   }
 
   @SuppressWarnings("unchecked")
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void testApplyUnknownTransform() {
     Schema schema = new Schema(
         Types.NestedField.required(1, "i", Types.IntegerType.get()));
@@ -94,6 +97,9 @@ public class TestTransformSerialization {
         .build();
 
     Transform transform = spec.getFieldBySourceId(1).transform();
-    transform.apply("someValue");
+
+    TestHelpers.assertThrows("Should complain about missing column in expression",
+        IllegalArgumentException.class, "Unknown transform: unknown for type: INTEGER",
+        () -> transform.apply("someValue"));
   }
 }
