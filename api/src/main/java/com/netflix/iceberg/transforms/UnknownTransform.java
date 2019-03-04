@@ -54,7 +54,7 @@ class UnknownTransform<S, T> implements Transform<S, T> {
   @Override
   public UnboundPredicate<T> project(String name, BoundPredicate<S> predicate) {
     // Assuming all partition values may contain matching data
-    return Expressions.alwaysTrue(name);
+    return Expressions.alwaysTrueUnboundPredicate();
   }
 
   @Override

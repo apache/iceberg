@@ -117,8 +117,8 @@ public class Expressions {
     return new UnboundPredicate<>(op, ref(name));
   }
 
-  public static <T> UnboundPredicate<T> alwaysTrue(String name) {
-    return new UnboundPredicate<>(Expressions.alwaysTrue().op(), ref(name));
+  public static <T> UnboundPredicate<T> alwaysTrueUnboundPredicate() {
+    return new UnboundPredicate<>(Operation.TRUE, null);
   }
 
   public static True alwaysTrue() {
