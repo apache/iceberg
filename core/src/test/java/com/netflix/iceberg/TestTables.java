@@ -29,7 +29,6 @@ import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.LocationProvider;
 import com.netflix.iceberg.io.OutputFile;
-
 import java.io.File;
 import java.util.Map;
 
