@@ -84,9 +84,13 @@ public class TestAvroSplitScan {
   }
 
   private int addRecordsToFile(File file) throws IOException {
+    // With these number of records and the given schema
+    // we can effectively write a file of size ~ 64 MB
     int nRecords = 1600000;
     try (FileAppender<Record> writer = Avro.write(Files.localOutput(file))
         .schema(schema)
+        // Enabling compression will reduce file sizes drastically unless
+        // I use random data to generate the records
         .set(TableProperties.AVRO_COMPRESSION, "uncompressed")
         .build()) {
       for (int i = 0; i < nRecords; i++) {

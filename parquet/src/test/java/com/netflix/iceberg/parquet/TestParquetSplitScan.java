@@ -85,9 +85,13 @@ public class TestParquetSplitScan {
   }
 
   private int addRecordsToFile(File file) throws IOException {
+    // With these number of records and the given schema
+    // we can effectively write a file of size ~ 64 MB
     int nRecords = 1600000;
     try (FileAppender<Record> writer = Parquet.write(Files.localOutput(file))
         .schema(schema)
+        // Enabling compression will reduce file sizes drastically unless
+        // I use random data to generate the records
         .set(TableProperties.PARQUET_COMPRESSION, "uncompressed")
         .set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, String.valueOf(SPLIT_SIZE))
         .build()) {
