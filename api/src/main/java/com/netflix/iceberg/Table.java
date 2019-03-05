@@ -191,10 +191,7 @@ public interface Table {
    * @return an {@link com.netflix.iceberg.encryption.EncryptionManager} to encrypt and decrypt
    * data files.
    */
-  default EncryptionManager encryption() {
-    // TODO coming soon
-    throw new UnsupportedOperationException("Encryption is a work in progress.");
-  }
+  EncryptionManager encryption();
 
   /**
    * @return a {@link LocationProvider} to provide locations for new data files

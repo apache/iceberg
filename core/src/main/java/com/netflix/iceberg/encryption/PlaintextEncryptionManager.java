@@ -19,40 +19,26 @@
 
 package com.netflix.iceberg.encryption;
 
-import com.netflix.iceberg.util.ByteBuffers;
+import com.netflix.iceberg.io.InputFile;
+import com.netflix.iceberg.io.OutputFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 
-class BaseEncryptionKeyMetadata implements EncryptionKeyMetadata {
+public class PlaintextEncryptionManager implements EncryptionManager {
+  private static final Logger LOG = LoggerFactory.getLogger(PlaintextEncryptionManager.class);
 
-  public static EncryptionKeyMetadata fromKeyMetadata(ByteBuffer keyMetadata) {
-    if (keyMetadata == null) {
-      return EncryptionKeyMetadata.empty();
+  @Override
+  public InputFile decrypt(EncryptedInputFile encrypted) {
+    if (encrypted.keyMetadata().buffer() != null) {
+      LOG.warn("File encryption key metadata is present, but currently using PlaintextEncryptionManager.");
     }
-    return new BaseEncryptionKeyMetadata(keyMetadata);
-  }
-
-  public static EncryptionKeyMetadata fromByteArray(byte[] keyMetadata) {
-    if (keyMetadata == null) {
-      return EncryptionKeyMetadata.empty();
-    }
-    return fromKeyMetadata(ByteBuffer.wrap(keyMetadata));
-  }
-
-  private final ByteBuffer keyMetadata;
-
-  private BaseEncryptionKeyMetadata(ByteBuffer keyMetadata) {
-    this.keyMetadata = keyMetadata;
+    return encrypted.encryptedInputFile();
   }
 
   @Override
-  public ByteBuffer buffer() {
-    return keyMetadata;
-  }
-
-  @Override
-  public EncryptionKeyMetadata copy() {
-    return new BaseEncryptionKeyMetadata(
-        ByteBuffers.copy(keyMetadata));
+  public EncryptedOutputFile encrypt(OutputFile rawOutput) {
+    return EncryptedFiles.encryptedOutput(rawOutput, (ByteBuffer) null);
   }
 }

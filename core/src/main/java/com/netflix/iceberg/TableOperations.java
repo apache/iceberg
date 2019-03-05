@@ -20,6 +20,7 @@
 package com.netflix.iceberg;
 
 import com.netflix.iceberg.encryption.EncryptionManager;
+import com.netflix.iceberg.encryption.PlaintextEncryptionManager;
 import com.netflix.iceberg.io.FileIO;
 import com.netflix.iceberg.io.LocationProvider;
 import java.util.UUID;
@@ -67,8 +68,7 @@ public interface TableOperations {
    * data files.
    */
   default EncryptionManager encryption() {
-    // TODO coming soon
-    throw new UnsupportedOperationException("Encryption is a work in progress.");
+    return new PlaintextEncryptionManager();
   }
 
   /**

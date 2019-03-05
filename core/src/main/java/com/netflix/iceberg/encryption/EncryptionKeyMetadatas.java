@@ -24,11 +24,11 @@ import java.nio.ByteBuffer;
 public class EncryptionKeyMetadatas {
 
   public static EncryptionKeyMetadata of(ByteBuffer keyMetadata) {
-    return new BaseEncryptionKeyMetadata(keyMetadata);
+    return BaseEncryptionKeyMetadata.fromKeyMetadata(keyMetadata);
   }
 
   public static EncryptionKeyMetadata of(byte[] keyMetadata) {
-    return of(ByteBuffer.wrap(keyMetadata));
+    return BaseEncryptionKeyMetadata.fromByteArray(keyMetadata);
   }
 
   private EncryptionKeyMetadatas() {}
