@@ -60,7 +60,7 @@ public class TestParquetSplitScan {
       nTasks += 1;
     }
 
-    Assert.assertEquals("Total number of records read should match " + nRecords, nRecords, noOfRecords);
+    Assert.assertEquals("Total number of records read should match " + noOfRecords, nRecords, noOfRecords);
     Assert.assertEquals("There should be 4 tasks created since file size is ~ 64 mb and split size ~ 16", 4, nTasks);
   }
 
