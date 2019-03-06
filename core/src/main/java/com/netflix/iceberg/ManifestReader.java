@@ -20,7 +20,6 @@
 package com.netflix.iceberg;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.avro.Avro;
@@ -65,19 +64,7 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
     return new ManifestReader(file);
   }
 
-  /**
-   * Returns a new {@link ManifestReader} for an in-memory list of {@link ManifestEntry}.
-   *
-   * @param spec a partition spec for the entries
-   * @param entries an in-memory list of entries for this manifest
-   * @return a manifest reader
-   */
-  public static ManifestReader inMemory(PartitionSpec spec, Iterable<ManifestEntry> entries) {
-    return new ManifestReader(spec, entries);
-  }
-
   private final InputFile file;
-  private final Iterable<ManifestEntry> entries;
   private final Map<String, String> metadata;
   private final PartitionSpec spec;
   private final Schema schema;
@@ -105,15 +92,6 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
       specId = Integer.parseInt(specProperty);
     }
     this.spec = PartitionSpecParser.fromJsonFields(schema, specId, metadata.get("partition-spec"));
-    this.entries = null;
-  }
-
-  private ManifestReader(PartitionSpec spec, Iterable<ManifestEntry> entries) {
-    this.file = null;
-    this.metadata = ImmutableMap.of();
-    this.spec = spec;
-    this.schema = spec.schema();
-    this.entries = entries;
   }
 
   public InputFile file() {
@@ -187,11 +165,6 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
   }
 
   CloseableIterable<ManifestEntry> entries(Collection<String> columns) {
-    if (entries != null) {
-      // if this reader is an in-memory list or if the entries have been cached, return the list.
-      return CloseableIterable.withNoopClose(entries);
-    }
-
     FileFormat format = FileFormat.fromFileName(file.location());
     Preconditions.checkArgument(format != null, "Unable to determine format of manifest: " + file);
 
