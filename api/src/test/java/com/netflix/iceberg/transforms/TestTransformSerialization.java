@@ -19,13 +19,9 @@
 
 package com.netflix.iceberg.transforms;
 
-import static com.netflix.iceberg.expressions.Expressions.lessThan;
-
 import com.netflix.iceberg.PartitionSpec;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.TestHelpers;
-import com.netflix.iceberg.exceptions.ValidationException;
-import com.netflix.iceberg.expressions.StrictMetricsEvaluator;
 import com.netflix.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
@@ -91,15 +87,11 @@ public class TestTransformSerialization {
     Schema schema = new Schema(
         Types.NestedField.required(1, "i", Types.IntegerType.get()));
 
-    // a spec with an unknown transform
-    PartitionSpec spec = PartitionSpec.builderFor(schema)
-        .add(1, "unknown", "unknown")
-        .build();
-
-    Transform transform = spec.getFieldBySourceId(1).transform();
-
+    // test a partition spec with an unknown transform
     TestHelpers.assertThrows("Should complain about missing column in expression",
-        IllegalArgumentException.class, "Unknown transform: unknown for type: INTEGER",
-        () -> transform.apply("someValue"));
+        IllegalArgumentException.class, "Transform not supported: unknown:int:unknown",
+        () -> PartitionSpec.builderFor(schema)
+                    .add(1, "unknown", "unknown")
+                    .build());
   }
 }

@@ -25,7 +25,9 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.ValidationException;
+import com.netflix.iceberg.transforms.Transform;
 import com.netflix.iceberg.transforms.Transforms;
+import com.netflix.iceberg.transforms.UnknownTransform;
 import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Types;
 import java.io.Serializable;
@@ -391,7 +393,7 @@ public class PartitionSpec implements Serializable {
       Types.NestedField column = schema.findField(sourceId);
       Preconditions.checkNotNull(column, "Cannot find source column: %d", sourceId);
       fields.add(new PartitionField(
-          sourceId, name, Transforms.fromString(column.type(), transform)));
+          sourceId, name, checkForUnknownTransform(Transforms.fromString(column.type(), transform))));
       return this;
     }
 
@@ -402,7 +404,7 @@ public class PartitionSpec implements Serializable {
     }
   }
 
-  public static void checkCompatibility(PartitionSpec spec, Schema schema) {
+  static void checkCompatibility(PartitionSpec spec, Schema schema) {
     for (PartitionField field : spec.fields) {
       Type sourceType = schema.findType(field.sourceId());
       ValidationException.check(sourceType.isPrimitiveType(),
@@ -413,4 +415,12 @@ public class PartitionSpec implements Serializable {
           sourceType, field.transform());
     }
   }
+
+  static Transform<?, ?> checkForUnknownTransform(Transform<?, ?> transform) {
+    if(transform.getClass().isAssignableFrom(UnknownTransform.class))
+      throw new IllegalArgumentException("Transform not supported: " + transform);
+    else
+      return transform;
+  }
+
 }

@@ -24,7 +24,9 @@ import com.netflix.iceberg.expressions.Expressions;
 import com.netflix.iceberg.expressions.UnboundPredicate;
 import com.netflix.iceberg.types.Type;
 
-class UnknownTransform<S, T> implements Transform<S, T> {
+import java.util.Objects;
+
+public class UnknownTransform<S, T> implements Transform<S, T> {
 
   private final Type type;
   private final String transform;
@@ -42,7 +44,8 @@ class UnknownTransform<S, T> implements Transform<S, T> {
 
   @Override
   public boolean canTransform(Type type) {
-    // Assuming the transform function can be applied for this type
+    // Assuming the transform function can be applied for this type because unknown transform is only used when parsing
+    // a transform in an existing table (a previous Iceberg version has already validated this)
     return true;
   }
 
@@ -61,5 +64,25 @@ class UnknownTransform<S, T> implements Transform<S, T> {
   public UnboundPredicate<T> projectStrict(String name, BoundPredicate<S> predicate) {
     // Can not provide guarantees of matching a predicate
     return null;
+  }
+
+
+  @Override
+  public String toString() {
+    return String.format("unknown:%s:%s", type.toString(), transform);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    UnknownTransform<?, ?> that = (UnknownTransform<?, ?>) o;
+    return type.equals(that.type) &&
+            transform.equals(that.transform);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(type, transform);
   }
 }
