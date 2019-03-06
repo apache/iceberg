@@ -488,7 +488,12 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     @Override
     public InternalRow apply(StructLike tuple) {
       for (int i = 0; i < types.length; i += 1) {
-        reusedRow.update(i, convert(tuple.get(positions[i], javaTypes[i]), types[i]));
+        Object value = tuple.get(positions[i], javaTypes[i]);
+        if (value != null) {
+          reusedRow.update(i, convert(value, types[i]));
+        } else {
+          reusedRow.setNullAt(i);
+        }
       }
 
       return reusedRow;
