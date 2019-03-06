@@ -29,6 +29,7 @@ import com.netflix.iceberg.io.InputFile;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 class BaseSnapshot implements Snapshot {
   private final TableOperations ops;
@@ -36,6 +37,8 @@ class BaseSnapshot implements Snapshot {
   private final Long parentId;
   private final long timestampMillis;
   private final InputFile manifestList;
+  private final String operation;
+  private final Map<String, String> summary;
 
   // lazily initialized
   private List<ManifestFile> manifests = null;
@@ -48,7 +51,7 @@ class BaseSnapshot implements Snapshot {
   BaseSnapshot(TableOperations ops,
                long snapshotId,
                String... manifestFiles) {
-    this(ops, snapshotId, null, System.currentTimeMillis(),
+    this(ops, snapshotId, null, System.currentTimeMillis(), null, null,
         Lists.transform(Arrays.asList(manifestFiles),
             path -> new GenericManifestFile(ops.io().newInputFile(path), 0)));
   }
@@ -57,11 +60,15 @@ class BaseSnapshot implements Snapshot {
                long snapshotId,
                Long parentId,
                long timestampMillis,
+               String operation,
+               Map<String, String> summary,
                InputFile manifestList) {
     this.ops = ops;
     this.snapshotId = snapshotId;
     this.parentId = parentId;
     this.timestampMillis = timestampMillis;
+    this.operation = operation;
+    this.summary = summary;
     this.manifestList = manifestList;
   }
 
@@ -69,8 +76,10 @@ class BaseSnapshot implements Snapshot {
                long snapshotId,
                Long parentId,
                long timestampMillis,
+               String operation,
+               Map<String, String> summary,
                List<ManifestFile> manifests) {
-    this(ops, snapshotId, parentId, timestampMillis, (InputFile) null);
+    this(ops, snapshotId, parentId, timestampMillis, operation, summary, (InputFile) null);
     this.manifests = manifests;
   }
 
@@ -87,6 +96,16 @@ class BaseSnapshot implements Snapshot {
   @Override
   public long timestampMillis() {
     return timestampMillis;
+  }
+
+  @Override
+  public String operation() {
+    return operation;
+  }
+
+  @Override
+  public Map<String, String> summary() {
+    return summary;
   }
 
   @Override
@@ -164,6 +183,8 @@ class BaseSnapshot implements Snapshot {
     return Objects.toStringHelper(this)
         .add("id", snapshotId)
         .add("timestamp_ms", timestampMillis)
+        .add("operation", operation)
+        .add("summary", summary)
         .add("manifests", manifests())
         .toString();
   }

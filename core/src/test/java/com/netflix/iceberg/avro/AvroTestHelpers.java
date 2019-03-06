@@ -21,19 +21,11 @@ package com.netflix.iceberg.avro;
 
 import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Types;
-import com.netflix.iceberg.util.CharSequenceWrapper;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.junit.Assert;
-
-import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Date;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 

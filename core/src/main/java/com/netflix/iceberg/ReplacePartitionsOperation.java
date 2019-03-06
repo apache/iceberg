@@ -29,6 +29,11 @@ public class ReplacePartitionsOperation extends MergingSnapshotUpdate implements
   }
 
   @Override
+  protected String operation() {
+    return DataOperations.OVERWRITE;
+  }
+
+  @Override
   public ReplacePartitions addFile(DataFile file) {
     dropPartition(file.partition());
     add(file);

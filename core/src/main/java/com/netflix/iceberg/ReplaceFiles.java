@@ -31,6 +31,11 @@ class ReplaceFiles extends MergingSnapshotUpdate implements RewriteFiles {
   }
 
   @Override
+  protected String operation() {
+    return DataOperations.REPLACE;
+  }
+
+  @Override
   public RewriteFiles rewriteFiles(Set<DataFile> filesToDelete, Set<DataFile> filesToAdd) {
     Preconditions.checkArgument(filesToDelete != null && !filesToDelete.isEmpty(),
         "Files to delete cannot be null or empty");

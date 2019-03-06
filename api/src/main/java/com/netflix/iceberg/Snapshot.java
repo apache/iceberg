@@ -20,6 +20,7 @@
 package com.netflix.iceberg;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * A snapshot of the data in a table at a point in time.
@@ -61,6 +62,21 @@ public interface Snapshot {
    * @return a list of fully-qualified manifest locations
    */
   List<ManifestFile> manifests();
+
+  /**
+   * Return the name of the {@link DataOperations data operation} that produced this snapshot.
+   *
+   * @return the operation that produced this snapshot, or null if the operation is unknown
+   * @see DataOperations
+   */
+  String operation();
+
+  /**
+   * Return a string map of summary data for the operation that produced this snapshot.
+   *
+   * @return a string map of summary data.
+   */
+  Map<String, String> summary();
 
   /**
    * Return all files added to the table in this snapshot.
