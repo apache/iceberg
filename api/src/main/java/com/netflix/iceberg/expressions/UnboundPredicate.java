@@ -20,6 +20,7 @@
 package com.netflix.iceberg.expressions;
 
 import com.netflix.iceberg.exceptions.ValidationException;
+import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Types;
 
 import static com.netflix.iceberg.expressions.Expression.Operation.IS_NULL;
@@ -67,11 +68,13 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
    */
   public Expression bind(Types.StructType struct, boolean caseSensitive) {
     Types.NestedField field;
-    if (caseSensitive) {
-      field = struct.field(ref().name());
-    } else {
-      field = struct.caseInsensitiveField(ref().name());
-    }
+    String expressionFieldPath = ref().name();
+
+    boolean isStructFieldExp = expressionFieldPath.indexOf('.') > -1 &&
+      struct.field(expressionFieldPath.split("\\.")[0]).type() instanceof Types.StructType;
+
+    field = isStructFieldExp ? findStructField(struct, expressionFieldPath, caseSensitive) :
+              caseSensitive ? struct.field(ref().name()) : struct.caseInsensitiveField(ref().name());
 
     ValidationException.check(field != null,
         "Cannot find field '%s' in struct: %s", ref().name(), struct);
@@ -131,5 +134,32 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
       }
     }
     return new BoundPredicate<>(op(), new BoundReference<>(struct, field.fieldId()), lit);
+  }
+
+  private Types.NestedField findStructField(Types.StructType struct, String expressionFieldPath,
+                                            boolean caseSensitive) {
+
+    String[] structFields = expressionFieldPath.split("\\.");
+    String lastFieldInPath = structFields[structFields.length - 1];
+
+    Types.StructType subField = struct;
+    int i=0;
+
+    Type nextFieldType = caseSensitive ? subField.field(structFields[i]).type() :
+      subField.caseInsensitiveField(structFields[i]).type();
+
+    while(nextFieldType instanceof Types.StructType && i < structFields.length) {
+
+      subField = caseSensitive ? subField.field(structFields[i]).type().asStructType() :
+        subField.caseInsensitiveField(structFields[i]).type().asStructType();
+
+      i++;
+
+      nextFieldType = caseSensitive ? subField.field(structFields[i]).type() :
+        subField.caseInsensitiveField(structFields[i]).type();
+    }
+
+    return subField.field(lastFieldInPath);
+
   }
 }

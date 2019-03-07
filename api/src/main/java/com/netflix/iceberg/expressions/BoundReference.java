@@ -20,7 +20,6 @@
 package com.netflix.iceberg.expressions;
 
 import com.netflix.iceberg.StructLike;
-import com.netflix.iceberg.exceptions.ValidationException;
 import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Types;
 import java.util.List;
@@ -32,19 +31,41 @@ public class BoundReference<T> implements Reference {
 
   BoundReference(Types.StructType struct, int fieldId) {
     this.fieldId = fieldId;
-    this.pos = find(fieldId, struct);
-    this.type = struct.fields().get(pos).type();
+    this.pos = findTopFieldPos(fieldId, struct);
+    this.type = (pos > -1) ? struct.fields().get(pos).type() : findStructFieldType(fieldId, struct);
   }
 
-  private int find(int fieldId, Types.StructType struct) {
+  private int findTopFieldPos(int fieldId, Types.StructType struct) {
     List<Types.NestedField> fields = struct.fields();
     for (int i = 0; i < fields.size(); i += 1) {
       if (fields.get(i).fieldId() == fieldId) {
         return i;
       }
     }
-    throw new ValidationException(
-        "Cannot find top-level field id %d in struct: %s", fieldId, struct);
+
+    return -1;
+  }
+
+  private Type findStructFieldType(int fieldId, Types.StructType struct) {
+    List<Types.NestedField> fields = struct.fields();
+    for (int i = 0; i < fields.size(); i += 1) {
+
+      if (fields.get(i).fieldId() == fieldId) {
+        return fields.get(i).type();
+      } else {
+
+        // look under struct by calling this method recursively
+        if (fields.get(i).type() instanceof Types.StructType) {
+          Types.StructType subStruct = fields.get(i).type().asStructType();
+
+          Type ret = findStructFieldType(fieldId, subStruct);
+          if (ret != null) {
+            return ret;
+          }
+        }
+      }
+    }
+    return null;
   }
 
   public Type type() {
