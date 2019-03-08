@@ -86,20 +86,18 @@ public class TestResiduals {
   @Test
   public void testCaseInsensitiveIdentityTransformResiduals() {
     Schema schema = new Schema(
-            Types.NestedField.optional(50, "dateint", Types.IntegerType.get()),
-            Types.NestedField.optional(51, "hour", Types.IntegerType.get())
-    );
+        Types.NestedField.optional(50, "dateint", Types.IntegerType.get()),
+        Types.NestedField.optional(51, "hour", Types.IntegerType.get()));
 
     PartitionSpec spec = PartitionSpec.builderFor(schema)
-            .identity("dateint")
-            .build();
+        .identity("dateint")
+        .build();
 
     ResidualEvaluator resEval = new ResidualEvaluator(spec, or(or(
-            and(lessThan("DATEINT", 20170815), greaterThan("dateint", 20170801)),
-            and(equal("dateint", 20170815), lessThan("HOUR", 12))),
-            and(equal("DateInt", 20170801), greaterThan("hOUr", 11))),
-            false
-    );
+        and(lessThan("DATEINT", 20170815), greaterThan("dateint", 20170801)),
+        and(equal("dateint", 20170815), lessThan("HOUR", 12))),
+        and(equal("DateInt", 20170801), greaterThan("hOUr", 11))),
+        false);
 
     // equal to the upper date bound
     Expression residual = resEval.residualFor(Row.of(20170815));
@@ -127,17 +125,15 @@ public class TestResiduals {
   @Test(expected = ValidationException.class)
   public void testCaseSensitiveIdentityTransformResiduals() {
     Schema schema = new Schema(
-            Types.NestedField.optional(50, "dateint", Types.IntegerType.get()),
-            Types.NestedField.optional(51, "hour", Types.IntegerType.get())
+        Types.NestedField.optional(50, "dateint", Types.IntegerType.get()),
+        Types.NestedField.optional(51, "hour", Types.IntegerType.get())
     );
 
     PartitionSpec spec = PartitionSpec.builderFor(schema)
-            .identity("dateint")
-            .build();
+        .identity("dateint")
+        .build();
 
-    ResidualEvaluator resEval = new ResidualEvaluator(spec, lessThan("DATEINT", 20170815),
-            true
-    );
+    ResidualEvaluator resEval = new ResidualEvaluator(spec, lessThan("DATEINT", 20170815), true);
 
     resEval.residualFor(Row.of(20170815));
   }

@@ -21,19 +21,8 @@ package com.netflix.iceberg;
 import org.apache.hadoop.conf.Configuration;
 
 public class ConfigProperties {
-
-  // properties are in alphanumeric order
-
-  public static final String CASE_SENSITIVE = "iceberg.case.sensitive";
-  public static final boolean CASE_SENSITIVE_DEFAULT = true;
-
   public static final String COMPRESS_METADATA = "iceberg.compress.metadata";
   public static final boolean COMPRESS_METADATA_DEFAULT = false;
-
-
-  public static final boolean isCaseSensitive(Configuration configuration) {
-    return configuration.getBoolean(CASE_SENSITIVE, CASE_SENSITIVE_DEFAULT);
-  }
 
   public static final boolean shouldCompress(Configuration configuration) {
     return configuration.getBoolean(COMPRESS_METADATA, COMPRESS_METADATA_DEFAULT);

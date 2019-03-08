@@ -120,13 +120,13 @@ public class TestFilterFiles {
     upperBounds.put(1, Conversions.toByteBuffer(Types.IntegerType.get(), 2));
 
     Metrics metrics = new Metrics(2L, Maps.newHashMap(), Maps.newHashMap(),
-            Maps.newHashMap(), lowerBounds, upperBounds);
+      Maps.newHashMap(), lowerBounds, upperBounds);
 
     DataFile file = DataFiles.builder(table.spec())
-            .withPath("/path/to/file.parquet")
-            .withFileSizeInBytes(0)
-            .withMetrics(metrics)
-            .build();
+      .withPath("/path/to/file.parquet")
+      .withFileSizeInBytes(0)
+      .withMetrics(metrics)
+      .build();
 
     table.newAppend().appendFile(file).commit();
 

@@ -39,7 +39,6 @@ import com.netflix.iceberg.expressions.ResidualEvaluator;
 import com.netflix.iceberg.io.CloseableIterable;
 import com.netflix.iceberg.types.TypeUtil;
 import com.netflix.iceberg.util.BinPacking;
-import com.netflix.iceberg.util.Pair;
 import com.netflix.iceberg.util.ParallelIterable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,18 +74,21 @@ class BaseTableScan implements TableScan {
   private final Schema schema;
   private final Expression rowFilter;
   private final boolean caseSensitive;
+  private final Collection<String> selectedColumns;
 
   BaseTableScan(TableOperations ops, Table table) {
-    this(ops, table, null, table.schema(), Expressions.alwaysTrue(), true);
+    this(ops, table, null, table.schema(), Expressions.alwaysTrue(), true, null);
   }
 
-  private BaseTableScan(TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter, boolean caseSensitive) {
+  private BaseTableScan(TableOperations ops, Table table, Long snapshotId, Schema schema,
+                        Expression rowFilter, boolean caseSensitive, Collection<String> selectedColumns) {
     this.ops = ops;
     this.table = table;
     this.snapshotId = snapshotId;
     this.schema = schema;
     this.rowFilter = rowFilter;
     this.caseSensitive = caseSensitive;
+    this.selectedColumns = selectedColumns;
   }
 
   @Override
@@ -100,7 +102,7 @@ class BaseTableScan implements TableScan {
         "Cannot override snapshot, already set to id=%s", snapshotId);
     Preconditions.checkArgument(ops.current().snapshot(snapshotId) != null,
         "Cannot find snapshot with ID %s", snapshotId);
-    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, caseSensitive);
+    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, caseSensitive, selectedColumns);
   }
 
   @Override
@@ -124,67 +126,32 @@ class BaseTableScan implements TableScan {
   }
 
   public TableScan project(Schema schema) {
-    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, caseSensitive);
+    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, caseSensitive, selectedColumns);
   }
 
   @Override
   public TableScan caseSensitive(boolean caseSensitive) {
-    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, caseSensitive);
+    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, caseSensitive, selectedColumns);
   }
 
   @Override
   public TableScan select(Collection<String> columns) {
-    Set<Integer> requiredFieldIds = Sets.newHashSet();
-
-    // all of the filter columns are required
-    requiredFieldIds.addAll(
-        Binder.boundReferences(table.schema().asStruct(), Collections.singletonList(rowFilter), caseSensitive));
-
-    // all of the projection columns are required
-    requiredFieldIds.addAll(TypeUtil.getProjectedIds(table.schema().select(columns)));
-
-    Schema projection = TypeUtil.select(table.schema(), requiredFieldIds);
-
-    return new BaseTableScan(ops, table, snapshotId, projection, rowFilter, caseSensitive);
+    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, caseSensitive, columns);
   }
 
   @Override
   public TableScan filter(Expression expr) {
-    return new BaseTableScan(ops, table, snapshotId, schema, Expressions.and(rowFilter, expr), caseSensitive);
+    return new BaseTableScan(ops, table, snapshotId, schema, Expressions.and(rowFilter, expr),
+                             caseSensitive, selectedColumns);
   }
 
-  private final class InclusiveManifestEvaluatorCacheKey {
-    Integer specId;
-    Boolean caseSensitive;
-
-    InclusiveManifestEvaluatorCacheKey(Integer specId, Boolean caseSensitive) {
-      this.specId = specId;
-      this.caseSensitive = caseSensitive;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-      if (this == o) return true;
-      if (o == null || getClass() != o.getClass()) return false;
-      InclusiveManifestEvaluatorCacheKey that = (InclusiveManifestEvaluatorCacheKey) o;
-      return specId.equals(that.specId) &&
-              caseSensitive.equals(that.caseSensitive);
-    }
-
-    @Override
-    public int hashCode() {
-      return java.util.Objects.hash(specId, caseSensitive);
-    }
-
-  }
-
-  private final LoadingCache<InclusiveManifestEvaluatorCacheKey, InclusiveManifestEvaluator> EVAL_CACHE = CacheBuilder
+  private final LoadingCache<Integer, InclusiveManifestEvaluator> EVAL_CACHE = CacheBuilder
       .newBuilder()
-      .build(new CacheLoader<InclusiveManifestEvaluatorCacheKey, InclusiveManifestEvaluator>() {
+      .build(new CacheLoader<Integer, InclusiveManifestEvaluator>() {
         @Override
-        public InclusiveManifestEvaluator load(InclusiveManifestEvaluatorCacheKey imeKey) {
-          PartitionSpec spec = ops.current().spec(imeKey.specId);
-          return new InclusiveManifestEvaluator(spec, rowFilter, imeKey.caseSensitive);
+        public InclusiveManifestEvaluator load(Integer specId) {
+          PartitionSpec spec = ops.current().spec(specId);
+          return new InclusiveManifestEvaluator(spec, rowFilter, caseSensitive);
         }
       });
 
@@ -200,22 +167,18 @@ class BaseTableScan implements TableScan {
           rowFilter);
 
       Listeners.notifyAll(
-          new ScanEvent(table.toString(), snapshot.snapshotId(), rowFilter, schema));
+          new ScanEvent(table.toString(), snapshot.snapshotId(), rowFilter, schema()));
 
-      Iterable<ManifestFile> matchingManifests =
-              Iterables.filter(
-                      snapshot.manifests(),
-                      manifest ->
-                              EVAL_CACHE.getUnchecked(
-                                      new InclusiveManifestEvaluatorCacheKey(manifest.partitionSpecId(), caseSensitive)
-                              ).eval(manifest)
-              );
+      Iterable<ManifestFile> matchingManifests = Iterables.filter(snapshot.manifests(),
+          manifest -> EVAL_CACHE.getUnchecked(manifest.partitionSpecId()).eval(manifest));
 
       ConcurrentLinkedQueue<Closeable> toClose = new ConcurrentLinkedQueue<>();
       Iterable<Iterable<FileScanTask>> readers = Iterables.transform(
           matchingManifests,
           manifest -> {
-            ManifestReader reader = ManifestReader.read(ops.io().newInputFile(manifest.path()), caseSensitive);
+            ManifestReader reader = ManifestReader
+              .read(ops.io().newInputFile(manifest.path()))
+              .caseSensitive(caseSensitive);
             toClose.add(reader);
             String schemaString = SchemaParser.toJson(reader.spec().schema());
             String specString = PartitionSpecParser.toJson(reader.spec());
@@ -255,7 +218,7 @@ class BaseTableScan implements TableScan {
 
   @Override
   public Schema schema() {
-    return schema;
+    return lazyColumnProjection();
   }
 
   @Override
@@ -264,13 +227,15 @@ class BaseTableScan implements TableScan {
   }
 
   @Override
-  public boolean isCaseSensitive() { return caseSensitive; }
+  public boolean isCaseSensitive() {
+    return caseSensitive;
+  }
 
   @Override
   public String toString() {
     return Objects.toStringHelper(this)
         .add("table", table)
-        .add("projection", schema.asStruct())
+        .add("projection", schema().asStruct())
         .add("filter", rowFilter)
         .add("caseSensitive", caseSensitive)
         .toString();
@@ -283,5 +248,30 @@ class BaseTableScan implements TableScan {
         .transformAndConcat(input -> input.split(splitSize));
     // Capture manifests which can be closed after scan planning
     return CloseableIterable.combine(splitTasks, ImmutableList.of(fileScanTasks));
+  }
+
+  /**
+   * To be able to make refinements {@link #select(Collection)} and {@link #caseSensitive(boolean)} in any order,
+   * we resolve the schema to be projected lazily here.
+   *
+   * @return the Schema to project
+   */
+  private Schema lazyColumnProjection() {
+    if (selectedColumns != null ) {
+      Set<Integer> requiredFieldIds = Sets.newHashSet();
+
+      // all of the filter columns are required
+      requiredFieldIds.addAll(
+          Binder.boundReferences(table.schema().asStruct(), Collections.singletonList(rowFilter), caseSensitive));
+
+      // all of the projection columns are required
+      requiredFieldIds.addAll(TypeUtil.getProjectedIds(table.schema().select(selectedColumns)));
+
+      Schema projection = TypeUtil.select(table.schema(), requiredFieldIds);
+
+      return projection;
+    }
+
+    return schema;
   }
 }

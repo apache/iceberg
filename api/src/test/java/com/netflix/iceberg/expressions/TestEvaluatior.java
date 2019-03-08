@@ -153,9 +153,14 @@ public class TestEvaluatior {
     Assert.assertTrue("not(8 == 7) => false", evaluator.eval(TestHelpers.Row.of(8)));
   }
 
-  @Test(expected = ValidationException.class)
+  @Test
   public void testCaseSensitiveNot() {
-    Evaluator evaluator = new Evaluator(STRUCT, not(equal("X", 7)), true);
+    TestHelpers.assertThrows(
+      "X != x when case sensitivity is on",
+      ValidationException.class,
+      "Cannot find field 'X' in struct",
+      () -> { new Evaluator(STRUCT, not(equal("X", 7)), true); }
+      );
   }
 
   @Test

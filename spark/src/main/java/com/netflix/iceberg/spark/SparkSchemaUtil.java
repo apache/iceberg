@@ -226,7 +226,7 @@ public class SparkSchemaUtil {
    */
   public static Schema prune(Schema schema, StructType requestedType, Expression filter, boolean caseSensitive) {
     Set<Integer> filterRefs =
-            Binder.boundReferences(schema.asStruct(), Collections.singletonList(filter), caseSensitive);
+        Binder.boundReferences(schema.asStruct(), Collections.singletonList(filter), caseSensitive);
 
     return new Schema(visit(schema, new PruneColumnsWithoutReordering(requestedType, filterRefs))
         .asNestedType()

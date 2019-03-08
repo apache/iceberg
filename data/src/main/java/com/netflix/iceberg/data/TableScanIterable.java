@@ -69,7 +69,6 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
     this.reuseContainers = reuseContainers;
     this.caseSensitive = scan.isCaseSensitive();
 
-
     // start planning tasks in the background
     this.tasks = scan.planTasks();
   }

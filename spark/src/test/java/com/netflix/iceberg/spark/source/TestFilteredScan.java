@@ -22,7 +22,12 @@ package com.netflix.iceberg.spark.source;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.*;
+import com.netflix.iceberg.DataFile;
+import com.netflix.iceberg.DataFiles;
+import com.netflix.iceberg.FileFormat;
+import com.netflix.iceberg.PartitionSpec;
+import com.netflix.iceberg.Schema;
+import com.netflix.iceberg.Table;
 import com.netflix.iceberg.avro.Avro;
 import com.netflix.iceberg.avro.AvroSchemaUtil;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
@@ -216,23 +221,31 @@ public class TestFilteredScan {
   @Test
   public void testUnpartitionedCaseInsensitiveIDFilters() {
     DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
-            "path", unpartitioned.toString(),
-            ConfigProperties.CASE_SENSITIVE, "false") // set case sensitiveness via DataSource option
+        "path", unpartitioned.toString())
     );
 
-    IcebergSource source = new IcebergSource();
+    // set spark.sql.caseSensitive to false
+    String caseSensitivityBeforeTest = TestFilteredScan.spark.conf().get("spark.sql.caseSensitive");
+    TestFilteredScan.spark.conf().set("spark.sql.caseSensitive", "false");
 
-    for (int i = 0; i < 10; i += 1) {
-      DataSourceReader reader = source.createReader(options);
+    try {
+      IcebergSource source = new IcebergSource();
 
-      pushFilters(reader, EqualTo.apply("ID", i)); // note lower(ID) == lower(id), so there must be a match
+      for (int i = 0; i < 10; i += 1) {
+        DataSourceReader reader = source.createReader(options);
 
-      List<InputPartition<InternalRow>> tasks = reader.planInputPartitions();
-      Assert.assertEquals("Should only create one task for a small file", 1, tasks.size());
+        pushFilters(reader, EqualTo.apply("ID", i)); // note lower(ID) == lower(id), so there must be a match
 
-      // validate row filtering
-      assertEqualsSafe(SCHEMA.asStruct(), expected(i),
-              read(unpartitioned.toString(), "id = " + i));
+        List<InputPartition<InternalRow>> tasks = reader.planInputPartitions();
+        Assert.assertEquals("Should only create one task for a small file", 1, tasks.size());
+
+        // validate row filtering
+        assertEqualsSafe(SCHEMA.asStruct(), expected(i),
+            read(unpartitioned.toString(), "id = " + i));
+      }
+    } finally {
+      // return global conf to previous state
+      TestFilteredScan.spark.conf().set("spark.sql.caseSensitive", caseSensitivityBeforeTest);
     }
   }
 

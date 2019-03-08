@@ -71,8 +71,6 @@ public interface TableScan {
    * via {@link #select(java.util.Collection)}, controls whether the match to the schema will be done
    * with case sensitivity.
    *
-   * MUST be called before {@link #select(java.util.Collection)}!
-   *
    * @return a new scan based on this with case sensitivity as stated
    */
   TableScan caseSensitive(boolean caseSensitive);
@@ -94,8 +92,8 @@ public interface TableScan {
    * an expected schema that includes all fields that are either selected or used by this scan's
    * filter expression.
    *
-   * @param columns column names from the manifest file schema
-   * @return a new scan based on this with the given manifest columns
+   * @param columns column names from the table's schema
+   * @return a new scan based on this with the given projection columns
    */
   TableScan select(Collection<String> columns);
 

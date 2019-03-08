@@ -317,8 +317,10 @@ public class TestInclusiveManifestEvaluator {
     Assert.assertTrue("Should read: id above upper bound", shouldRead);
   }
 
-  @Test(expected = ValidationException.class)
+  @Test
   public void testCaseSensitiveIntegerNotEqRewritten() {
-    boolean shouldRead = new InclusiveManifestEvaluator(SPEC, not(equal("ID", 5)), true).eval(FILE);
+    TestHelpers.assertThrows("Should complain about missing column in expression",
+        ValidationException.class, "Cannot find field 'ID'",
+        () -> new InclusiveManifestEvaluator(SPEC, not(equal("ID", 5)), true).eval(FILE));
   }
 }

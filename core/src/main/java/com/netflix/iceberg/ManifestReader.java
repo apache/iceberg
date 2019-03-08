@@ -107,6 +107,27 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
     this.spec = PartitionSpecParser.fromJsonFields(schema, specId, metadata.get("partition-spec"));
   }
 
+  private ManifestReader(InputFile file, Map<String, String> metadata,
+                         PartitionSpec spec, Schema schema, boolean caseSensitive) {
+    this.file = file;
+    this.metadata = metadata;
+    this.spec = spec;
+    this.schema = schema;
+    this.caseSensitive = caseSensitive;
+  }
+
+  /**
+   * Returns a new {@link ManifestReader} that, if filtered via {@link #select(java.util.Collection)},
+   * {@link #filterPartitions(Expression)} or {@link #filterRows(Expression)}, will apply the specified
+   * case sensitivity for column name matching.
+   *
+   * @param caseSensitive whether column name matching should have case sensitivity
+   * @return a manifest reader with case sensitivity as stated
+   */
+  public ManifestReader caseSensitive(boolean caseSensitive) {
+    return new ManifestReader(file, metadata, spec, schema, caseSensitive);
+  }
+
   public InputFile file() {
     return file;
   }
@@ -137,11 +158,10 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
   @Override
   public FilteredManifest filterRows(Expression expr) {
     return new FilteredManifest(this,
-            Projections.inclusive(spec, caseSensitive).project(expr),
-            expr,
-            ALL_COLUMNS,
-            caseSensitive
-    );
+      Projections.inclusive(spec, caseSensitive).project(expr),
+      expr,
+      ALL_COLUMNS,
+      caseSensitive);
   }
 
   public List<ManifestEntry> addedFiles() {

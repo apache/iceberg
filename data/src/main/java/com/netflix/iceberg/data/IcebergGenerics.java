@@ -72,11 +72,12 @@ public class IcebergGenerics {
 
     public Iterable<Record> build() {
       return new TableScanIterable(
-        table.newScan()
-                .filter(where)
-                .caseSensitive(caseSensitive)
-                .select(columns),
-              reuseContainers
+        table
+          .newScan()
+          .filter(where)
+          .caseSensitive(caseSensitive)
+          .select(columns),
+        reuseContainers
       );
     }
   }
