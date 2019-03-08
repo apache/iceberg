@@ -166,7 +166,7 @@ public class TestBinPacking {
     Assert.assertEquals("2 bin look-back: should merge all ones with five when expensiveTaskFirst is enabled",
         l(l(5, 1, 1, 1), l(5, 5)), pack(l(5, 1, 5, 1, 5, 1), 10, 2, true));
 
-    Assert.assertEquals("2 bin look-back: should merge until targetWeight by weight with expensiveTaskFirst is enabled",
+    Assert.assertEquals("2 bin look-back: should merge until targetWeight when expensiveTaskFirst is enabled",
         l(l(36, 36, 36), l(128), l(36, 65), l(65)),
         pack(l(36, 36, 36, 36, 65, 65, 128), 128, 2, true));
 
