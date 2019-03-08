@@ -21,14 +21,12 @@ package com.netflix.iceberg.parquet;
 
 import com.netflix.iceberg.expressions.Literal;
 import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.Types;
 import org.apache.commons.io.Charsets;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.PrimitiveType;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.UUID;
 import java.util.function.Function;
 
@@ -36,39 +34,37 @@ class ParquetConversions {
   private ParquetConversions() {
   }
 
-  static <T> Literal<T> fromParquetPrimitive(Type type, Object value) {
-    if (value instanceof Boolean) {
-      return Literal.of((Boolean) value).to(type);
-    } else if (value instanceof Integer) {
-      return Literal.of((Integer) value).to(type);
-    } else if (value instanceof Long) {
-      return Literal.of((Long) value).to(type);
-    } else if (value instanceof Float) {
-      return Literal.of((Float) value).to(type);
-    } else if (value instanceof Double) {
-      return Literal.of((Double) value).to(type);
-    } else if (value instanceof Binary) {
-      switch (type.typeId()) {
-        case STRING:
-          return Literal.of(Charsets.UTF_8.decode(((Binary) value).toByteBuffer())).to(type);
-        case UUID:
-          ByteBuffer buffer = ((Binary) value).toByteBuffer().order(ByteOrder.BIG_ENDIAN);
-          long mostSigBits = buffer.getLong();
-          long leastSigBits = buffer.getLong();
-          return Literal.of(new UUID(mostSigBits, leastSigBits)).to(type);
-        case FIXED:
-        case BINARY:
-          return Literal.of(((Binary) value).toByteBuffer()).to(type);
-        case DECIMAL:
-          Types.DecimalType decimal = (Types.DecimalType) type;
-          return Literal.of(
-              new BigDecimal(new BigInteger(((Binary) value).getBytes()), decimal.scale())
-          ).to(type);
-        default:
-          throw new IllegalArgumentException("Unsupported primitive type: " + type);
-      }
-    } else {
-      throw new IllegalArgumentException("Unsupported primitive value: " + value);
+  @SuppressWarnings("unchecked")
+  static <T> Literal<T> fromParquetPrimitive(Type type, PrimitiveType parquetType, Object value) {
+    switch (type.typeId()) {
+      case BOOLEAN:
+        return (Literal<T>) Literal.of((Boolean) value);
+      case INTEGER:
+      case DATE:
+        return (Literal<T>) Literal.of((Integer) value);
+      case LONG:
+      case TIME:
+      case TIMESTAMP:
+        return (Literal<T>) Literal.of((Long) value);
+      case FLOAT:
+        return (Literal<T>) Literal.of((Float) value);
+      case DOUBLE:
+        return (Literal<T>) Literal.of((Double) value);
+      case STRING:
+        Function<Object, Object> stringConversion = converterFromParquet(parquetType);
+        return (Literal<T>) Literal.of((CharSequence) stringConversion.apply(value));
+      case UUID:
+        Function<Object, Object> uuidConversion = converterFromParquet(parquetType);
+        return (Literal<T>) Literal.of((UUID) uuidConversion.apply(value));
+      case FIXED:
+      case BINARY:
+        Function<Object, Object> binaryConversion = converterFromParquet(parquetType);
+        return (Literal<T>) Literal.of((ByteBuffer) binaryConversion.apply(value));
+      case DECIMAL:
+        Function<Object, Object> decimalConversion = converterFromParquet(parquetType);
+        return (Literal<T>) Literal.of((BigDecimal) decimalConversion.apply(value));
+      default:
+        throw new IllegalArgumentException("Unsupported primitive type: " + type);
     }
   }
 
