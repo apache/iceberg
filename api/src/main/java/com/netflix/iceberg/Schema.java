@@ -28,7 +28,12 @@ import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.TypeUtil;
 import com.netflix.iceberg.types.Types;
 import java.io.Serializable;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
