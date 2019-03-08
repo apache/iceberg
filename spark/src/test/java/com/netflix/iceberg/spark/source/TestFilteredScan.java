@@ -429,9 +429,7 @@ public class TestFilteredScan {
     Table byId = TABLES.create(SCHEMA, spec, location.toString());
 
     // do not combine splits because the tests expect a split per partition
-    //TODO: this is commented out since the current patch will create
-    // too many small scan tasks
-    // byId.updateProperties().set("read.split.target-size", "1").commit();
+    byId.updateProperties().set("read.split.target-size", "2048").commit();
 
     // copy the unpartitioned table into the partitioned table to produce the partitioned data
     Dataset<Row> allRows = spark.read()

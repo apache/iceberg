@@ -20,10 +20,9 @@
 package com.netflix.iceberg;
 
 import com.google.common.base.Objects;
-import com.google.common.collect.Lists;
+import com.google.common.collect.ImmutableList;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.ResidualEvaluator;
-
 import java.util.Iterator;
 
 class BaseFileScanTask implements FileScanTask {
@@ -40,7 +39,6 @@ class BaseFileScanTask implements FileScanTask {
     this.specString = specString;
     this.residuals = residuals;
   }
-
 
   @Override
   public DataFile file() {
@@ -75,7 +73,7 @@ class BaseFileScanTask implements FileScanTask {
     if (file.format().isSplittable()) {
       return () -> new SplitScanTaskIterator(splitSize, this);
     } else {
-      return Lists.newArrayList(this);
+      return ImmutableList.of(this);
     }
   }
 
@@ -88,13 +86,16 @@ class BaseFileScanTask implements FileScanTask {
         .toString();
   }
 
-  private static final class SplitScanTaskIterator implements Iterator<FileScanTask> {
+  /**
+   * Visible for Testing
+   */
+  static final class SplitScanTaskIterator implements Iterator<FileScanTask> {
     private long offset;
     private long remainingLen;
     private long splitSize;
     private final FileScanTask fileScanTask;
 
-    private SplitScanTaskIterator(long splitSize, FileScanTask fileScanTask) {
+    SplitScanTaskIterator(long splitSize, FileScanTask fileScanTask) {
       this.offset = 0;
       this.remainingLen = fileScanTask.length();
       this.splitSize = splitSize;
@@ -154,7 +155,7 @@ class BaseFileScanTask implements FileScanTask {
 
     @Override
     public Iterable<FileScanTask> split(long splitSize) {
-      throw new UnsupportedOperationException("Cannot split a task which is already splitted");
+      throw new UnsupportedOperationException("Cannot split a task which is already split");
     }
   }
 }
