@@ -62,26 +62,29 @@ public class TestBaseTableScan {
 
     assertEquals("A tableScan.select() should prune the schema",
       expectedSchema.asStruct(),
-      scan.schema().asStruct()
-    );
+      scan.schema().asStruct());
   }
 
-  @Ignore
   @Test
   public void testTableScanHonorsSelectWithoutCaseSensitivity() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Table table = TestTables.create(tableDir, "test", schema, spec);
 
-    TableScan scan = table.newScan().caseSensitive(false).select("ID");
+    TableScan scan1 = table.newScan().caseSensitive(false).select("ID");
+    // order of refinements shouldn't matter
+    TableScan scan2 = table.newScan().select("ID").caseSensitive(false);
 
     Schema expectedSchema = new Schema(
       required(1, "id", Types.IntegerType.get())
     );
 
-    assertEquals("A tableScan.select() should prune the schema",
+    assertEquals("A tableScan.select() should prune the schema without case sensitivity",
       expectedSchema.asStruct(),
-      scan.schema().asStruct()
-    );
+      scan1.schema().asStruct());
+
+    assertEquals("A tableScan.select() should prune the schema regardless of scan refinement order",
+      expectedSchema.asStruct(),
+      scan2.schema().asStruct());
   }
 
 }

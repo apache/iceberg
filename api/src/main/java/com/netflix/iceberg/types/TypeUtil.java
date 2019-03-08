@@ -79,6 +79,10 @@ public class TypeUtil {
     return visit(struct, new IndexByName());
   }
 
+  public static Map<String, Integer> indexByLowerCaseName(Types.StructType struct) {
+    return visit(struct, new IndexByLowerCaseName());
+  }
+
   public static Map<Integer, Types.NestedField> indexById(Types.StructType struct) {
     return visit(struct, new IndexById());
   }
