@@ -73,8 +73,9 @@ public class TestSplitScan {
         4, Lists.newArrayList(table.newScan().planTasks()).size());
     List<Record> records = Lists.newArrayList(IcebergGenerics.read(table).build());
     Assert.assertEquals(expectedRecords.size(), records.size());
-    for (int i = 0; i < expectedRecords.size(); i++)
+    for (int i = 0; i < expectedRecords.size(); i++) {
       Assert.assertEquals(expectedRecords.get(i), records.get(i));
+    }
   }
 
   private void setupTable() throws IOException {
