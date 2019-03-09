@@ -23,29 +23,26 @@ import com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
 import java.util.List;
-
 import static com.netflix.iceberg.BaseFileScanTask.SplitScanTaskIterator;
 
 public class TestSplitScanTaskIterator {
   @Test
   public void testSplits() {
-    verify(15L, 100L,
-        Lists.newArrayList(0L, 15L, 15L, 15L, 30L, 15L, 45L, 15L, 60L, 15L, 75L, 15L, 90L, 10L));
-    verify(10L, 10L,
-        Lists.newArrayList(0L, 10L));
-    verify(20L, 10L,
-        Lists.newArrayList(0L, 10L));
+    verify(15L, 100L, l(l(0L, 15L), l(15L, 15L), l(30L, 15L), l(45L, 15L), l(60L, 15L), l(75L, 15L), l(90L, 10L)));
+    verify(10L, 10L, l(l(0L, 10L)));
+    verify(20L, 10L, l(l(0L, 10L)));
   }
 
-  private static void verify(long splitSize, long fileLen, List<Long> offsetLenPairs) {
+  private static void verify(long splitSize, long fileLen, List<List<Long>> offsetLenPairs) {
     List<FileScanTask> tasks = Lists.newArrayList(new SplitScanTaskIterator(splitSize, new MockFileScanTask(fileLen)));
     int i = 0;
     for (FileScanTask task : tasks) {
-      long offset = offsetLenPairs.get(i);
-      long length = offsetLenPairs.get(i + 1);
+      List<Long> split = offsetLenPairs.get(i);
+      long offset = split.get(0);
+      long length = split.get(1);
       Assert.assertEquals(offset, task.start());
       Assert.assertEquals(length, task.length());
-      i += 2;
+      i += 1;
     }
   }
 
@@ -61,5 +58,9 @@ public class TestSplitScanTaskIterator {
     public long length() {
       return length;
     }
+  }
+
+  private <T> List<T> l(T... items) {
+    return Lists.newArrayList(items);
   }
 }
