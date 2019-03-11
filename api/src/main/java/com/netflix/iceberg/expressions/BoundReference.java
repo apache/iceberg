@@ -20,6 +20,7 @@
 package com.netflix.iceberg.expressions;
 
 import com.netflix.iceberg.StructLike;
+import com.netflix.iceberg.exceptions.ValidationException;
 import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Types;
 import java.util.List;
@@ -65,7 +66,7 @@ public class BoundReference<T> implements Reference {
         }
       }
     }
-    return null;
+    throw new ValidationException("Cannot find nested field id %d in struct: %s", fieldId, struct);
   }
 
   public Type type() {

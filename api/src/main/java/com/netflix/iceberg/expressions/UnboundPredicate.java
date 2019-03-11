@@ -70,11 +70,10 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
     Types.NestedField field;
     String expressionFieldPath = ref().name();
 
-    boolean isStructFieldExp = expressionFieldPath.indexOf('.') > -1 &&
-      struct.field(expressionFieldPath.split("\\.")[0]).type() instanceof Types.StructType;
+    boolean isNestedFieldExp = expressionFieldPath.indexOf('.') > -1;
 
-    field = isStructFieldExp ? findStructField(struct, expressionFieldPath, caseSensitive) :
-              caseSensitive ? struct.field(ref().name()) : struct.caseInsensitiveField(ref().name());
+    field = isNestedFieldExp ? findNestedField(struct, expressionFieldPath, caseSensitive) :
+      caseSensitive ? struct.field(ref().name()) : struct.caseInsensitiveField(ref().name());
 
     ValidationException.check(field != null,
         "Cannot find field '%s' in struct: %s", ref().name(), struct);
@@ -136,27 +135,32 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
     return new BoundPredicate<>(op(), new BoundReference<>(struct, field.fieldId()), lit);
   }
 
-  private Types.NestedField findStructField(Types.StructType struct, String expressionFieldPath,
-                                            boolean caseSensitive) {
+  private Types.NestedField findNestedField(Types.StructType struct, String expressionFieldPath,
+    boolean caseSensitive) {
 
-    String[] structFields = expressionFieldPath.split("\\.");
-    String lastFieldInPath = structFields[structFields.length - 1];
+    String[] nestedFields = expressionFieldPath.split("\\.");
+    String lastFieldInPath = nestedFields[nestedFields.length - 1];
 
     Types.StructType subField = struct;
     int i=0;
 
-    Type nextFieldType = caseSensitive ? subField.field(structFields[i]).type() :
-      subField.caseInsensitiveField(structFields[i]).type();
+    Type nextFieldType = caseSensitive ? subField.field(nestedFields[i]).type() :
+      subField.caseInsensitiveField(nestedFields[i]).type();
 
-    while(nextFieldType instanceof Types.StructType && i < structFields.length) {
+    if (!(nextFieldType instanceof Types.StructType)) {
+      // we don't handle non-struct nested fields yet
+      return null;
+    }
 
-      subField = caseSensitive ? subField.field(structFields[i]).type().asStructType() :
-        subField.caseInsensitiveField(structFields[i]).type().asStructType();
+    while(nextFieldType instanceof Types.StructType && i < nestedFields.length) {
+
+      subField = caseSensitive ? subField.field(nestedFields[i]).type().asStructType() :
+        subField.caseInsensitiveField(nestedFields[i]).type().asStructType();
 
       i++;
 
-      nextFieldType = caseSensitive ? subField.field(structFields[i]).type() :
-        subField.caseInsensitiveField(structFields[i]).type();
+      nextFieldType = caseSensitive ? subField.field(nestedFields[i]).type() :
+        subField.caseInsensitiveField(nestedFields[i]).type();
     }
 
     return subField.field(lastFieldInPath);
