@@ -80,11 +80,11 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
       reader = new AvroRangeIterator<>(reader, start, end);
     }
 
+    addCloseable(reader);
+
     if (reuseContainers) {
       return new AvroReuseIterator<>(reader);
     }
-
-    addCloseable(reader);
 
     return reader;
   }
