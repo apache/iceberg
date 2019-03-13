@@ -60,13 +60,12 @@ public class BoundReference<T> implements Reference {
           Types.StructType subStruct = fields.get(i).type().asStructType();
 
           Type ret = findStructFieldType(fieldId, subStruct);
-          if (ret != null) {
-            return ret;
-          }
+
+          return ret;
         }
       }
     }
-    throw new ValidationException("Cannot find nested field id %d in struct: %s", fieldId, struct);
+    throw new ValidationException("Cannot find field id %d in struct: %s", fieldId, struct);
   }
 
   public Type type() {

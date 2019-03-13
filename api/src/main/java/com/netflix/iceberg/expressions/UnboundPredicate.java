@@ -73,7 +73,7 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
     boolean isNestedFieldExp = expressionFieldPath.indexOf('.') > -1;
 
     field = isNestedFieldExp ? findNestedField(struct, expressionFieldPath, caseSensitive) :
-      caseSensitive ? struct.field(ref().name()) : struct.caseInsensitiveField(ref().name());
+      caseSensitive ? struct.field(expressionFieldPath) : struct.caseInsensitiveField(ref().name());
 
     ValidationException.check(field != null,
         "Cannot find field '%s' in struct: %s", ref().name(), struct);
