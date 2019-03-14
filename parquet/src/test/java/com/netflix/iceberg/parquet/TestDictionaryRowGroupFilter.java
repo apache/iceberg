@@ -19,6 +19,7 @@
 
 package com.netflix.iceberg.parquet;
 
+import com.google.common.collect.Lists;
 import com.netflix.iceberg.Files;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.TestHelpers;
@@ -27,10 +28,12 @@ import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.io.FileAppender;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.io.OutputFile;
+import com.netflix.iceberg.types.Types;
 import com.netflix.iceberg.types.Types.FloatType;
 import com.netflix.iceberg.types.Types.IntegerType;
 import com.netflix.iceberg.types.Types.LongType;
 import com.netflix.iceberg.types.Types.StringType;
+import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.parquet.column.page.DictionaryPageReadStore;
@@ -42,6 +45,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.UUID;
 
 import static com.netflix.iceberg.avro.AvroSchemaUtil.convert;
@@ -68,7 +72,10 @@ public class TestDictionaryRowGroupFilter {
       optional(5, "some_nulls", StringType.get()),
       optional(6, "no_nulls", StringType.get()),
       optional(7, "non_dict", StringType.get()),
-      optional(8, "not_in_file", FloatType.get())
+      optional(8, "struct_not_null",
+              Types.StructType.of(Types.NestedField.required(9, "int_field", IntegerType.get()))),
+      optional(10, "not_in_file", FloatType.get())
+
   );
 
   private static final Schema FILE_SCHEMA = new Schema(
@@ -78,7 +85,9 @@ public class TestDictionaryRowGroupFilter {
       optional(4, "_all_nulls", LongType.get()),
       optional(5, "_some_nulls", StringType.get()),
       optional(6, "_no_nulls", StringType.get()),
-      optional(7, "_non_dict", StringType.get())
+      optional(7, "_non_dict", StringType.get()),
+      optional(8, "_struct_not_null",
+        Types.StructType.of(Types.NestedField.required(9, "_int_field", IntegerType.get())))
   );
 
   private static final String TOO_LONG_FOR_STATS;
@@ -101,6 +110,12 @@ public class TestDictionaryRowGroupFilter {
       Assert.assertTrue(PARQUET_FILE.delete());
     }
 
+    // build struct field schema
+    org.apache.avro.Schema structSchema =
+            org.apache.avro.Schema.createRecord("_struct_not_null",null, null, false);
+    structSchema.setFields(Lists.newArrayList(new org.apache.avro.Schema.Field("_int_field",
+            org.apache.avro.Schema.create( org.apache.avro.Schema.Type.INT), null, null)));
+
     OutputFile outFile = Files.localOutput(PARQUET_FILE);
     try (FileAppender<Record> appender = Parquet.write(outFile)
         .schema(FILE_SCHEMA)
@@ -117,6 +132,10 @@ public class TestDictionaryRowGroupFilter {
           builder.set("_some_nulls", (i % 10 == 0) ? null : "some"); // includes some null values
           builder.set("_no_nulls", ""); // optional, but always non-null
           builder.set("_non_dict", UUID.randomUUID().toString()); // not dictionary-encoded
+          final GenericData.Record struct_not_null = new GenericData.Record(structSchema);
+          struct_not_null.put("_int_field", 30 + i);
+          builder.set("_struct_not_null", struct_not_null ); // struct with int
+
           appender.add(builder.build());
         }
       }
@@ -147,6 +166,10 @@ public class TestDictionaryRowGroupFilter {
     shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notNull("no_nulls"))
         .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
     Assert.assertTrue("Should read: dictionary filter doesn't help", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notNull("struct_not_null"))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: dictionary filter doesn't help", shouldRead);
   }
 
   @Test
@@ -161,6 +184,10 @@ public class TestDictionaryRowGroupFilter {
 
     shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, isNull("no_nulls"))
         .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: dictionary filter doesn't help", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, isNull("struct_not_null"))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
     Assert.assertTrue("Should read: dictionary filter doesn't help", shouldRead);
   }
 
@@ -437,4 +464,143 @@ public class TestDictionaryRowGroupFilter {
     Assert.assertFalse("Should skip: all values are 'some'", shouldRead);
   }
 
+  @Test
+  public void testStructFieldLt() {
+    boolean shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, lessThan("struct_not_null.int_field", 5))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertFalse("Should not read: id range below lower bound (5 < 30)", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, lessThan("struct_not_null.int_field", 30))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertFalse("Should not read: id range below lower bound (30 is not < 30)", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, lessThan("struct_not_null.int_field", 31))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: one possible id", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, lessThan("struct_not_null.int_field", 79))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: may possible ids", shouldRead);
+  }
+
+  @Test
+  public void testStructFieldLtEq() {
+    boolean shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, lessThanOrEqual("struct_not_null.int_field", 5))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertFalse("Should not read: id range below lower bound (5 < 30)", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, lessThanOrEqual("struct_not_null.int_field", 29))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertFalse("Should not read: id range below lower bound (29 < 30)", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, lessThanOrEqual("struct_not_null.int_field", 30))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: one possible id", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, lessThanOrEqual("struct_not_null.int_field", 79))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: many possible ids", shouldRead);
+
+  }
+
+  @Test
+  public void testStructFieldGt() {
+    boolean shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, greaterThan("struct_not_null.int_field", 85))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertFalse("Should not read: id range above upper bound (85 < 79)", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, greaterThan("struct_not_null.int_field", 79))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertFalse("Should not read: id range above upper bound (79 is not > 79)", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, greaterThan("struct_not_null.int_field", 78))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: one possible id", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, greaterThan("struct_not_null.int_field", 75))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: may possible ids", shouldRead);
+  }
+
+  @Test
+  public void testStructFieldGtEq() {
+    boolean shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, greaterThanOrEqual("struct_not_null.int_field", 85))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertFalse("Should not read: id range above upper bound (85 < 79)", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, greaterThanOrEqual("struct_not_null.int_field", 80))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertFalse("Should not read: id range above upper bound (80 > 79)", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, greaterThanOrEqual("struct_not_null.int_field", 79))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: one possible id", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, greaterThanOrEqual("struct_not_null.int_field", 75))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: may possible ids", shouldRead);
+  }
+
+
+  @Test
+  public void testStructFieldEq() {
+    boolean shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", 5))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", 29))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", 30))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", 75))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", 79))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", 80))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertFalse("Should not read: id above upper bound", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", 85))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertFalse("Should not read: id above upper bound", shouldRead);
+  }
+
+  @Test
+  public void testStructFieldNotEq() {
+    boolean shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", 5))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", 29))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", 30))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", 75))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", 79))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("id", 80))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", 85))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+  }
 }
