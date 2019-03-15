@@ -19,7 +19,6 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -84,9 +83,11 @@ public class TestSplitScan {
         .set(TableProperties.SPLIT_SIZE, String.valueOf(SPLIT_SIZE))
         .commit();
 
-    File file = temp.newFile();
-    Assert.assertTrue(file.delete());
-    expectedRecords = writeFile(file, format);
+    // With these number of records and the given SCHEMA
+    // we can effectively write a file of approximate size 64 MB
+    int numRecords = 2500000;
+    expectedRecords = RandomGenericData.generate(SCHEMA, numRecords, 0L);
+    File file = writeToFile(expectedRecords, format);
 
     DataFile dataFile = DataFiles.builder(PartitionSpec.unpartitioned())
         .withRecordCount(expectedRecords.size())
@@ -98,11 +99,10 @@ public class TestSplitScan {
     table.newAppend().appendFile(dataFile).commit();
   }
 
-  private List<Record> writeFile(File file, FileFormat format) throws IOException {
-    // With these number of records and the given SCHEMA
-    // we can effectively write a file of approximate size 64 MB
-    int numRecords = 2500000;
-    List<Record> records = RandomGenericData.generate(SCHEMA, numRecords, 0L);
+  private File writeToFile(List<Record> records, FileFormat format) throws IOException {
+    File file = temp.newFile();
+    Assert.assertTrue(file.delete());
+
     switch (format) {
       case AVRO:
         try (FileAppender<Record> appender = Avro.write(Files.localOutput(file))
@@ -126,6 +126,6 @@ public class TestSplitScan {
       default:
         throw new UnsupportedOperationException("Cannot write format: " + format);
     }
-    return records;
+    return file;
   }
 }
