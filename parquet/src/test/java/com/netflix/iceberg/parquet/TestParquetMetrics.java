@@ -26,6 +26,23 @@ import com.netflix.iceberg.Metrics;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.avro.AvroSchemaUtil;
 import com.netflix.iceberg.io.FileAppender;
+import com.netflix.iceberg.types.Type;
+import com.netflix.iceberg.types.Types.BinaryType;
+import com.netflix.iceberg.types.Types.BooleanType;
+import com.netflix.iceberg.types.Types.DateType;
+import com.netflix.iceberg.types.Types.DecimalType;
+import com.netflix.iceberg.types.Types.DoubleType;
+import com.netflix.iceberg.types.Types.FixedType;
+import com.netflix.iceberg.types.Types.FloatType;
+import com.netflix.iceberg.types.Types.IntegerType;
+import com.netflix.iceberg.types.Types.ListType;
+import com.netflix.iceberg.types.Types.LongType;
+import com.netflix.iceberg.types.Types.MapType;
+import com.netflix.iceberg.types.Types.StringType;
+import com.netflix.iceberg.types.Types.StructType;
+import com.netflix.iceberg.types.Types.TimeType;
+import com.netflix.iceberg.types.Types.TimestampType;
+import com.netflix.iceberg.types.Types.UUIDType;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericFixed;
@@ -45,7 +62,6 @@ import java.util.UUID;
 import static com.netflix.iceberg.Files.localInput;
 import static com.netflix.iceberg.Files.localOutput;
 import static com.netflix.iceberg.types.Conversions.fromByteBuffer;
-import static com.netflix.iceberg.types.Types.*;
 import static com.netflix.iceberg.types.Types.NestedField.optional;
 import static com.netflix.iceberg.types.Types.NestedField.required;
 
@@ -55,25 +71,25 @@ public class TestParquetMetrics {
   public TemporaryFolder temp = new TemporaryFolder();
   private final UUID uuid = UUID.randomUUID();
   private final GenericFixed fixed = new GenericData.Fixed(
-    org.apache.avro.Schema.createFixed("fixedCol", null, null, 4),
-    "abcd".getBytes(Charsets.UTF_8));
+      org.apache.avro.Schema.createFixed("fixedCol", null, null, 4),
+      "abcd".getBytes(Charsets.UTF_8));
 
   @Test
   public void testMetricsForTopLevelFields() throws IOException {
     Schema schema = new Schema(
-      optional(1, "booleanCol", BooleanType.get()),
-      required(2, "intCol", IntegerType.get()),
-      optional(3, "longCol", LongType.get()),
-      required(4, "floatCol", FloatType.get()),
-      optional(5, "doubleCol", DoubleType.get()),
-      optional(6, "decimalCol", DecimalType.of(10, 2)),
-      required(7, "stringCol", StringType.get()),
-      optional(8, "dateCol", DateType.get()),
-      required(9, "timeCol", TimeType.get()),
-      required(10, "timestampCol", TimestampType.withoutZone()),
-      optional(11, "uuidCol", UUIDType.get()),
-      required(12, "fixedCol", FixedType.ofLength(4)),
-      required(13, "binaryCol", BinaryType.get())
+        optional(1, "booleanCol", BooleanType.get()),
+        required(2, "intCol", IntegerType.get()),
+        optional(3, "longCol", LongType.get()),
+        required(4, "floatCol", FloatType.get()),
+        optional(5, "doubleCol", DoubleType.get()),
+        optional(6, "decimalCol", DecimalType.of(10, 2)),
+        required(7, "stringCol", StringType.get()),
+        optional(8, "dateCol", DateType.get()),
+        required(9, "timeCol", TimeType.get()),
+        required(10, "timestampCol", TimestampType.withoutZone()),
+        optional(11, "uuidCol", UUIDType.get()),
+        required(12, "fixedCol", FixedType.ofLength(4)),
+        required(13, "binaryCol", BinaryType.get())
     );
 
     Record firstRecord = new Record(AvroSchemaUtil.convert(schema.asStruct()));
@@ -109,33 +125,71 @@ public class TestParquetMetrics {
 
     Metrics metrics = ParquetMetrics.fromInputFile(localInput(parquetFile));
     Assert.assertEquals(2L, (long) metrics.recordCount());
-    checkFieldMetrics(1, schema, metrics, 2L, 0L, false, true);
-    checkFieldMetrics(2, schema, metrics, 2L, 0L, Integer.MIN_VALUE, 3);
-    checkFieldMetrics(3, schema, metrics, 2L, 1L, 5L, 5L);
-    checkFieldMetrics(4, schema, metrics, 2L, 0L, 1.0F, 2.0F);
-    checkFieldMetrics(5, schema, metrics, 2L, 1L, 2.0D, 2.0D);
-    checkFieldMetrics(6, schema, metrics, 2L, 1L, new BigDecimal("3.50"), new BigDecimal("3.50"));
-    checkFieldMetrics(7, schema, metrics, 2L, 0L, CharBuffer.wrap("AAA"), CharBuffer.wrap("ZZZ"));
-    checkFieldMetrics(8, schema, metrics, 2L, 1L, 1500, 1500);
-    checkFieldMetrics(9, schema, metrics, 2L, 0L, 2000L, 3000L);
-    checkFieldMetrics(10, schema, metrics, 2L, 0L, 0L, 1000L);
+    assertCounts(1, 2L, 0L, metrics);
+    assertBounds(1, BooleanType.get(), false, true, metrics);
+    assertCounts(2, 2L, 0L, metrics);
+    assertBounds(2, IntegerType.get(), Integer.MIN_VALUE, 3, metrics);
+    assertCounts(3, 2L, 1L, metrics);
+    assertBounds(3, LongType.get(), 5L, 5L, metrics);
+    assertCounts(4, 2L, 0L, metrics);
+    assertBounds(4, FloatType.get(), 1.0F, 2.0F, metrics);
+    assertCounts(5, 2L, 1L, metrics);
+    assertBounds(5, DoubleType.get(), 2.0D, 2.0D, metrics);
+    assertCounts(6, 2L, 1L, metrics);
+    assertBounds(6, DecimalType.of(10, 2), new BigDecimal("3.50"), new BigDecimal("3.50"), metrics);
+    assertCounts(7, 2L, 0L, metrics);
+    assertBounds(7, StringType.get(), CharBuffer.wrap("AAA"), CharBuffer.wrap("ZZZ"), metrics);
+    assertCounts(8, 2L, 1L, metrics);
+    assertBounds(8, DateType.get(), 1500, 1500, metrics);
+    assertCounts(9, 2L, 0L, metrics);
+    assertBounds(9, TimeType.get(), 2000L, 3000L, metrics);
+    assertCounts(10, 2L, 0L, metrics);
+    assertBounds(10, TimestampType.withoutZone(), 0L, 1000L, metrics);
     // TODO: enable once issue#126 is resolved
-    // checkFieldMetrics(11, schema, metrics, 2L, 1L, uuid, uuid);
-    checkFieldMetrics(12, schema, metrics, 2L,
-      0L, ByteBuffer.wrap(fixed.bytes()), ByteBuffer.wrap(fixed.bytes()));
-    checkFieldMetrics(13, schema, metrics,
-      2L, 0L, ByteBuffer.wrap("S".getBytes()), ByteBuffer.wrap("W".getBytes()));
+    // assertCounts(11, 2L, 1L, metrics);
+    // assertBounds(11, UUIDType.get(), uuid, uuid, metrics);
+    assertCounts(12, 2L, 0L, metrics);
+    assertBounds(12, FixedType.ofLength(4),
+        ByteBuffer.wrap(fixed.bytes()), ByteBuffer.wrap(fixed.bytes()), metrics);
+    assertCounts(13, 2L, 0L, metrics);
+    assertBounds(13, FixedType.ofLength(4),
+        ByteBuffer.wrap("S".getBytes()), ByteBuffer.wrap("W".getBytes()), metrics);
+  }
+
+  @Test
+  public void testMetricsForDecimals() throws IOException {
+    Schema schema = new Schema(
+        required(1, "decimalAsInt32", DecimalType.of(4, 2)),
+        required(2, "decimalAsInt64", DecimalType.of(14, 2)),
+        required(3, "decimalAsFixed", DecimalType.of(22, 2))
+    );
+
+    Record record = new Record(AvroSchemaUtil.convert(schema.asStruct()));
+    record.put("decimalAsInt32", new BigDecimal("2.55"));
+    record.put("decimalAsInt64", new BigDecimal("4.75"));
+    record.put("decimalAsFixed", new BigDecimal("5.80"));
+
+    File parquetFile = writeRecords(schema, record);
+
+    Metrics metrics = ParquetMetrics.fromInputFile(localInput(parquetFile));
+    Assert.assertEquals(1L, (long) metrics.recordCount());
+    assertCounts(1, 1L, 0L, metrics);
+    assertBounds(1, DecimalType.of(4, 2), new BigDecimal("2.55"), new BigDecimal("2.55"), metrics);
+    assertCounts(2, 1L, 0L, metrics);
+    assertBounds(2, DecimalType.of(14, 2), new BigDecimal("4.75"), new BigDecimal("4.75"), metrics);
+    assertCounts(3, 1L, 0L, metrics);
+    assertBounds(3, DecimalType.of(22, 2), new BigDecimal("5.80"), new BigDecimal("5.80"), metrics);
   }
 
   @Test
   public void testMetricsForListAndMapElements() throws IOException {
     StructType structType = StructType.of(
-      required(1, "leafIntCol", IntegerType.get()),
-      optional(2, "leafStringCol", StringType.get())
+        required(1, "leafIntCol", IntegerType.get()),
+        optional(2, "leafStringCol", StringType.get())
     );
     Schema schema = new Schema(
-      optional(3, "intListCol", ListType.ofRequired(4, IntegerType.get())),
-      optional(5, "mapCol", MapType.ofRequired(6, 7, StringType.get(), structType))
+        optional(3, "intListCol", ListType.ofRequired(4, IntegerType.get())),
+        optional(5, "mapCol", MapType.ofRequired(6, 7, StringType.get(), structType))
     );
 
     Record record = new Record(AvroSchemaUtil.convert(schema.asStruct()));
@@ -151,16 +205,20 @@ public class TestParquetMetrics {
 
     Metrics metrics = ParquetMetrics.fromInputFile(localInput(parquetFile));
     Assert.assertEquals(1L, (long) metrics.recordCount());
-    checkFieldMetrics(1, schema, metrics, 1, 0, null, null);
-    checkFieldMetrics(2, schema, metrics, 1, 0, null, null);
-    checkFieldMetrics(4, schema, metrics, 3, 0, null, null);
-    checkFieldMetrics(6, schema, metrics, 1, 0, null, null);
+    assertCounts(1, 1, 0, metrics);
+    assertBounds(1, IntegerType.get(), null, null, metrics);
+    assertCounts(2, 1, 0, metrics);
+    assertBounds(2, StringType.get(), null, null, metrics);
+    assertCounts(4, 3, 0, metrics);
+    assertBounds(4, IntegerType.get(), null, null, metrics);
+    assertCounts(6, 1, 0, metrics);
+    assertBounds(6, StringType.get(), null, null, metrics);
   }
 
   @Test
   public void testMetricsForNullColumns() throws IOException {
     Schema schema = new Schema(
-      optional(1, "intCol", IntegerType.get())
+        optional(1, "intCol", IntegerType.get())
     );
     Record firstRecord = new Record(AvroSchemaUtil.convert(schema.asStruct()));
     firstRecord.put("intCol", null);
@@ -171,33 +229,27 @@ public class TestParquetMetrics {
 
     Metrics metrics = ParquetMetrics.fromInputFile(localInput(parquetFile));
     Assert.assertEquals(2L, (long) metrics.recordCount());
-    checkFieldMetrics(1, schema, metrics, 2, 2, null, null);
+    assertCounts(1, 2, 2, metrics);
+    assertBounds(1, IntegerType.get(), null, null, metrics);
   }
 
-  private <T> void checkFieldMetrics(int fieldId, Schema schema, Metrics metrics,
-                                     long expectedValueCount, long expectedNullValueCount,
-                                     T expectedLowerBound, T expectedUpperBound) {
-    NestedField field = schema.findField(fieldId);
-
+  private void assertCounts(int fieldId, long valueCount, long nullValueCount, Metrics metrics) {
     Map<Integer, Long> valueCounts = metrics.valueCounts();
     Map<Integer, Long> nullValueCounts = metrics.nullValueCounts();
+    Assert.assertEquals(valueCount, (long) valueCounts.get(fieldId));
+    Assert.assertEquals(nullValueCount, (long) nullValueCounts.get(fieldId));
+  }
+
+  private <T> void assertBounds(int fieldId, Type type, T lowerBound, T upperBound, Metrics metrics) {
     Map<Integer, ByteBuffer> lowerBounds = metrics.lowerBounds();
     Map<Integer, ByteBuffer> upperBounds = metrics.upperBounds();
 
-    Assert.assertEquals(expectedValueCount, (long) valueCounts.get(field.fieldId()));
-    Assert.assertEquals(expectedNullValueCount, (long) nullValueCounts.get(field.fieldId()));
-
-    checkBound(field, expectedLowerBound, lowerBounds);
-    checkBound(field, expectedUpperBound, upperBounds);
-  }
-
-  private <T> void checkBound(NestedField field, T expectedBound, Map<Integer, ByteBuffer> bounds) {
-    ByteBuffer actualBound = bounds.get(field.fieldId());
-    if (expectedBound == null) {
-      Assert.assertNull(actualBound);
-    } else {
-      Assert.assertEquals(expectedBound, fromByteBuffer(field.type(), actualBound));
-    }
+    Assert.assertEquals(
+        lowerBound,
+        lowerBounds.containsKey(fieldId) ? fromByteBuffer(type, lowerBounds.get(fieldId)) : null);
+    Assert.assertEquals(
+        upperBound,
+        upperBounds.containsKey(fieldId) ? fromByteBuffer(type, upperBounds.get(fieldId)) : null);
   }
 
   private File writeRecords(Schema schema, Record... records) throws IOException {
