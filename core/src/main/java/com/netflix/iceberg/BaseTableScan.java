@@ -24,6 +24,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
@@ -208,8 +209,8 @@ class BaseTableScan implements TableScan {
         TableProperties.SPLIT_LOOKBACK, TableProperties.SPLIT_LOOKBACK_DEFAULT);
 
     return CloseableIterable.transform(
-        CloseableIterable.wrap(planFiles(), files ->
-            new BinPacking.PackingIterable<>(files, splitSize, lookback, FileScanTask::length)),
+        CloseableIterable.wrap(splitFiles(splitSize), splits ->
+            new BinPacking.PackingIterable<>(splits, splitSize, lookback, FileScanTask::length)),
         BaseCombinedScanTask::new);
   }
 
@@ -230,5 +231,14 @@ class BaseTableScan implements TableScan {
         .add("projection", schema.asStruct())
         .add("filter", rowFilter)
         .toString();
+  }
+
+  private CloseableIterable<FileScanTask> splitFiles(long splitSize) {
+    CloseableIterable<FileScanTask> fileScanTasks = planFiles();
+    Iterable<FileScanTask> splitTasks = FluentIterable
+        .from(fileScanTasks)
+        .transformAndConcat(input -> input.split(splitSize));
+    // Capture manifests which can be closed after scan planning
+    return CloseableIterable.combine(splitTasks, ImmutableList.of(fileScanTasks));
   }
 }

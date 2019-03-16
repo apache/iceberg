@@ -428,8 +428,9 @@ public class TestFilteredScan {
     File location = new File(parent, desc);
     Table byId = TABLES.create(SCHEMA, spec, location.toString());
 
-    // do not combine splits because the tests expect a split per partition
-    byId.updateProperties().set("read.split.target-size", "1").commit();
+    // Do not combine or split files because the tests expect a split per partition.
+    // A target split size of 2048 helps us achieve that.
+    byId.updateProperties().set("read.split.target-size", "2048").commit();
 
     // copy the unpartitioned table into the partitioned table to produce the partitioned data
     Dataset<Row> allRows = spark.read()

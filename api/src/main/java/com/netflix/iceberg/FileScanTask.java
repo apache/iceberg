@@ -64,6 +64,13 @@ public interface FileScanTask extends ScanTask {
    */
   Expression residual();
 
+  /**
+   * Splits this scan task into component {@link FileScanTask scan tasks}, each of {@code splitSize} size
+   * @param splitSize The size of a component scan task
+   * @return an Iterable of {@link FileScanTask scan tasks}
+   */
+  Iterable<FileScanTask> split(long splitSize);
+
   @Override
   default boolean isFileScanTask() {
     return true;
