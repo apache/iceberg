@@ -216,18 +216,34 @@ public class Schema implements Serializable {
    * @return a projection schema from this schema, by name
    */
   public Schema select(Collection<String> names) {
-    return select(names, true);
+    return internalSelect(names, true);
   }
 
   /**
-   * Creates a projection schema for a subset of columns, selected by name, and with the specified case sensitivity.
+   * Creates a projection schema for a subset of columns, selected by case insensitive name
    * <p>
    * Names that identify nested fields will select part or all of the field's top-level column.
    *
    * @param names a List of String names for selected columns
    * @return a projection schema from this schema, by name
    */
-  public Schema select(Collection<String> names, boolean caseSensitive) {
+  public Schema caseInsensitiveSelect(String... names) {
+    return caseInsensitiveSelect(Arrays.asList(names));
+  }
+
+  /**
+   * Creates a projection schema for a subset of columns, selected by case insensitive name
+   * <p>
+   * Names that identify nested fields will select part or all of the field's top-level column.
+   *
+   * @param names a List of String names for selected columns
+   * @return a projection schema from this schema, by name
+   */
+  public Schema caseInsensitiveSelect(Collection<String> names) {
+    return internalSelect(names, false);
+  }
+
+  private Schema internalSelect(Collection<String> names, boolean caseSensitive) {
     if (names.contains(ALL_COLUMNS)) {
       return this;
     }

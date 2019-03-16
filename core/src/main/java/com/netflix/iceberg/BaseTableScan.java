@@ -265,10 +265,15 @@ class BaseTableScan implements TableScan {
           Binder.boundReferences(table.schema().asStruct(), Collections.singletonList(rowFilter), caseSensitive));
 
       // all of the projection columns are required
-      requiredFieldIds.addAll(TypeUtil.getProjectedIds(table.schema().select(selectedColumns, caseSensitive)));
+      Set<Integer> selectedIds;
+      if (caseSensitive) {
+        selectedIds = TypeUtil.getProjectedIds(table.schema().select(selectedColumns));
+      } else {
+        selectedIds = TypeUtil.getProjectedIds(table.schema().caseInsensitiveSelect(selectedColumns));
+      }
+      requiredFieldIds.addAll(selectedIds);
 
       Schema projection = TypeUtil.select(table.schema(), requiredFieldIds);
-
       return projection;
     }
 
