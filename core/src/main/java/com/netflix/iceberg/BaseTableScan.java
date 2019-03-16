@@ -208,10 +208,10 @@ class BaseTableScan implements TableScan {
         TableProperties.SPLIT_SIZE, TableProperties.SPLIT_SIZE_DEFAULT);
     int lookback = ops.current().propertyAsInt(
         TableProperties.SPLIT_LOOKBACK, TableProperties.SPLIT_LOOKBACK_DEFAULT);
-    long minFileWeight = ops.current().propertyAsLong(
-      TableProperties.SPLIT_MIN_FILE_WEIGHT, TableProperties.SPLIT_MIN_FILE_WEIGHT_DEFAULT);
+    long openFileCost = ops.current().propertyAsLong(
+      TableProperties.SPLIT_OPEN_FILE_COST, TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
 
-    Function<FileScanTask, Long> weightFunc = file -> Math.max(file.length(), minFileWeight);
+    Function<FileScanTask, Long> weightFunc = file -> Math.max(file.length(), openFileCost);
 
     return CloseableIterable.transform(
         CloseableIterable.wrap(splitFiles(splitSize), splits ->

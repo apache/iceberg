@@ -17,33 +17,22 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark.source;
+package com.netflix.iceberg;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.AppendFiles;
-import com.netflix.iceberg.DataFile;
-import com.netflix.iceberg.DataFiles;
-import com.netflix.iceberg.PartitionSpec;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.Table;
-import com.netflix.iceberg.TableProperties;
 import com.netflix.iceberg.hadoop.HadoopTables;
 import com.netflix.iceberg.types.Types;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SparkSession;
-import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.UUID;
 
 import static com.netflix.iceberg.types.Types.NestedField.optional;
 
@@ -52,72 +41,64 @@ public class TestSplitPlanning {
   private static final Configuration CONF = new Configuration();
   private static final HadoopTables TABLES = new HadoopTables(CONF);
   private static final Schema SCHEMA = new Schema(
-    optional(1, "id", Types.IntegerType.get()),
-    optional(2, "data", Types.StringType.get())
+      optional(1, "id", Types.IntegerType.get()),
+      optional(2, "data", Types.StringType.get())
   );
-
-  private static SparkSession spark = null;
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
   private Table table = null;
-  private String tableLocation = null;
-
-  @BeforeClass
-  public static void startSpark() {
-    TestSplitPlanning.spark = SparkSession.builder().master("local").getOrCreate();
-  }
-
-  @AfterClass
-  public static void stopSpark() {
-    SparkSession spark = TestSplitPlanning.spark;
-    TestSplitPlanning.spark = null;
-    spark.stop();
-  }
 
   @Before
   public void setupTable() throws IOException {
     File tableDir = temp.newFolder();
-    this.tableLocation = tableDir.toURI().toString();
-    this.table = TABLES.create(SCHEMA, tableLocation);
+    String tableLocation = tableDir.toURI().toString();
+    table = TABLES.create(SCHEMA, tableLocation);
+    table.updateProperties()
+        .set(TableProperties.SPLIT_SIZE, String.valueOf(128 * 1024 * 1024))
+        .set(TableProperties.SPLIT_OPEN_FILE_COST, String.valueOf(4 * 1024 * 1024))
+        .set(TableProperties.SPLIT_LOOKBACK, String.valueOf(Integer.MAX_VALUE))
+        .commit();
   }
 
   @Test
   public void testBasicSplitPlanning() {
     List<DataFile> files128MB = newFiles(4, 128 * 1024 * 1024);
     appendFiles(files128MB);
-    Dataset<Row> df1 = spark.read().format("iceberg").load(tableLocation);
-    Assert.assertEquals(4, df1.toJavaRDD().getNumPartitions());
-
+    // we expect 4 bins since split size is 128MB and we have 4 files 128MB each
+    Assert.assertEquals(4, Iterables.size(table.newScan().planTasks()));
     List<DataFile> files32MB = newFiles(16, 32 * 1024 * 1024);
     appendFiles(files32MB);
-    Dataset<Row> df2 = spark.read().format("iceberg").load(tableLocation);
-    Assert.assertEquals(8, df2.toJavaRDD().getNumPartitions());
+    // we expect 8 bins after we add 16 files 32MB each as they will form additional 4 bins
+    Assert.assertEquals(8, Iterables.size(table.newScan().planTasks()));
   }
 
   @Test
   public void testSplitPlanningWithSmallFiles() {
-    table.updateProperties().set(TableProperties.SPLIT_LOOKBACK, "30").commit();
     List<DataFile> files60MB = newFiles(50, 60 * 1024 * 1024);
     List<DataFile> files5KB = newFiles(370, 5 * 1024);
     Iterable<DataFile> files = Iterables.concat(files60MB, files5KB);
     appendFiles(files);
-    Dataset<Row> df = spark.read().format("iceberg").load(tableLocation);
-    Assert.assertEquals(35, df.toJavaRDD().getNumPartitions());
+    // 50 files of size 60MB will form 25 bins as split size is 128MB
+    // each of those bins will have 8MB left and all 370 files of size 5KB would end up
+    // in one of them without "read.split.open-file-cost"
+    // as "read.split.open-file-cost" is 4MB, each of the original 25 bins will get at most 2 files
+    // so 50 of 370 files will be packed into the existing 25 bins and the remaining 320 files
+    // will form additional 10 bins, resulting in 35 bins in total
+    Assert.assertEquals(35, Iterables.size(table.newScan().planTasks()));
   }
 
   @Test
   public void testSplitPlanningWithNoMinWeight() {
     table.updateProperties()
-      .set(TableProperties.SPLIT_LOOKBACK, "30")
-      .set(TableProperties.SPLIT_MIN_FILE_WEIGHT, "0")
-      .commit();
+        .set(TableProperties.SPLIT_OPEN_FILE_COST, "0")
+        .commit();
     List<DataFile> files60MB = newFiles(2, 60 * 1024 * 1024);
     List<DataFile> files5KB = newFiles(100, 5 * 1024);
     Iterable<DataFile> files = Iterables.concat(files60MB, files5KB);
     appendFiles(files);
-    Dataset<Row> df = spark.read().format("iceberg").load(tableLocation);
-    Assert.assertEquals(1, df.toJavaRDD().getNumPartitions());
+    // all small files will be packed into one bin as "read.split.open-file-cost" is set to 0
+    Assert.assertEquals(1, Iterables.size(table.newScan().planTasks()));
   }
 
   private void appendFiles(Iterable<DataFile> files) {
@@ -135,10 +116,11 @@ public class TestSplitPlanning {
   }
 
   private DataFile newFile(long sizeInBytes) {
+    String fileName = UUID.randomUUID().toString();
     return DataFiles.builder(PartitionSpec.unpartitioned())
-      .withPath("/path/to/data-a.parquet")
-      .withFileSizeInBytes(sizeInBytes)
-      .withRecordCount(2)
-      .build();
+        .withPath(FileFormat.PARQUET.addExtension(fileName))
+        .withFileSizeInBytes(sizeInBytes)
+        .withRecordCount(2)
+        .build();
   }
 }
