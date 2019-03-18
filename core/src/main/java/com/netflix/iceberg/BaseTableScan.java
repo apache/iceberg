@@ -50,6 +50,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.function.Function;
 
 import static com.netflix.iceberg.util.ThreadPools.getWorkerPool;
 
@@ -207,10 +208,14 @@ class BaseTableScan implements TableScan {
         TableProperties.SPLIT_SIZE, TableProperties.SPLIT_SIZE_DEFAULT);
     int lookback = ops.current().propertyAsInt(
         TableProperties.SPLIT_LOOKBACK, TableProperties.SPLIT_LOOKBACK_DEFAULT);
+    long openFileCost = ops.current().propertyAsLong(
+      TableProperties.SPLIT_OPEN_FILE_COST, TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+
+    Function<FileScanTask, Long> weightFunc = file -> Math.max(file.length(), openFileCost);
 
     return CloseableIterable.transform(
         CloseableIterable.wrap(splitFiles(splitSize), splits ->
-            new BinPacking.PackingIterable<>(splits, splitSize, lookback, FileScanTask::length)),
+            new BinPacking.PackingIterable<>(splits, splitSize, lookback, weightFunc)),
         BaseCombinedScanTask::new);
   }
 
