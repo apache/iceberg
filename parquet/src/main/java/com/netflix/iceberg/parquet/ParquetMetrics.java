@@ -86,9 +86,9 @@ public class ParquetMetrics implements Serializable {
           Types.NestedField field = fileSchema.asStruct().field(fieldId);
           if (field != null && stats.hasNonNullValue()) {
             updateMin(lowerBounds, fieldId,
-                fromParquetPrimitive(field.type(), stats.genericGetMin()));
+                fromParquetPrimitive(field.type(), column.getPrimitiveType(), stats.genericGetMin()));
             updateMax(upperBounds, fieldId,
-                fromParquetPrimitive(field.type(), stats.genericGetMax()));
+                fromParquetPrimitive(field.type(), column.getPrimitiveType(), stats.genericGetMax()));
           }
         }
       }
