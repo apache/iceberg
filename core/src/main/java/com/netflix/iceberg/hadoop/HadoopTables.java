@@ -28,9 +28,13 @@ import com.netflix.iceberg.TableOperations;
 import com.netflix.iceberg.Tables;
 import com.netflix.iceberg.exceptions.AlreadyExistsException;
 import com.netflix.iceberg.exceptions.NoSuchTableException;
+import com.netflix.iceberg.exceptions.RuntimeIOException;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+
+import java.io.IOException;
 import java.util.Map;
 
 import static com.netflix.iceberg.TableMetadata.newTableMetadata;
@@ -64,6 +68,28 @@ public class HadoopTables implements Tables, Configurable {
     }
 
     return new BaseTable(ops, location);
+  }
+
+  @Override
+  public void drop(String location) {
+    final Path path = new Path(location);
+    final FileSystem fs = Util.getFS(path, conf);
+    try {
+      fs.delete(path, true);
+    } catch (IOException e) {
+      throw new RuntimeIOException(e);
+    }
+  }
+
+  @Override
+  public void rename(String location, String newLoaction) {
+    final Path path = new Path(location);
+    final FileSystem fs = Util.getFS(path, conf);
+    try {
+      fs.rename(path, new Path(path, newLoaction));
+    } catch (IOException e) {
+      throw new RuntimeIOException(e);
+    }
   }
 
   /**

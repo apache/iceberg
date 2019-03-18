@@ -23,7 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import java.util.Map;
 
 /**
- * Generic interface for creating and loading a table implementation.
+ * Generic interface for creating, loading, dropping and renaming a table implementation.
  *
  * The 'tableIdentifier' field should be interpreted by the underlying
  * implementation (e.g. database.table_name)
@@ -43,4 +43,13 @@ public interface Tables {
                String tableIdentifier);
 
   Table load(String tableIdentifier);
+
+  /**
+   * Drop a table from iceberg catalog, the underlying implementation
+   * may or may not drop the corresponding metadata and data.
+   * @param tableIdentifier
+   */
+  void drop(String tableIdentifier);
+
+  void rename(String oldTableIdentifier, String newTableIdentifier);
 }

@@ -28,10 +28,14 @@ import com.netflix.iceberg.Table;
 import com.netflix.iceberg.TableMetadata;
 import com.netflix.iceberg.UpdateSchema;
 import com.netflix.iceberg.exceptions.CommitFailedException;
+import com.netflix.iceberg.exceptions.NoSuchTableException;
 import com.netflix.iceberg.types.Types;
+import org.apache.hadoop.fs.Path;
 import org.junit.Assert;
 import org.junit.Test;
 import java.io.File;
+import java.rmi.NoSuchObjectException;
+import java.util.HashMap;
 import java.util.List;
 
 import static com.netflix.iceberg.types.Types.NestedField.optional;
@@ -292,5 +296,34 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     TableMetadata metadata = readMetadataVersion(5);
     Assert.assertEquals("Current snapshot should contain 1 merged manifest",
         1, metadata.currentSnapshot().manifests().size());
+  }
+
+  @Test(expected = NoSuchTableException.class)
+  public void testDropTable()  {
+    final Table table = TABLES.load(tableLocation);
+    final File tableDirectory = new File(new Path(tableLocation).toUri());
+    Assert.assertNotNull(table);
+    Assert.assertTrue(tableDirectory.exists());
+
+    TABLES.drop(tableLocation);
+    Assert.assertFalse(tableDirectory.exists());
+    TABLES.load(tableLocation);
+  }
+
+  @Test(expected = NoSuchTableException.class)
+  public void testRenameTable() {
+    Table table = TABLES.load(tableLocation);
+    final File tableDirectory = new File(new Path(tableLocation).toUri());
+    Assert.assertNotNull(table);
+    Assert.assertTrue(tableDirectory.exists());
+
+    final Path parent = new Path(tableLocation).getParent();
+    final String newTableLocation = new Path(parent, "newTableLocation").toString();
+    TABLES.rename(tableLocation, newTableLocation);
+    table = TABLES.load(newTableLocation);
+    Assert.assertNotNull(table);
+    Assert.assertFalse(tableDirectory.exists());
+
+    TABLES.load(tableLocation);
   }
 }

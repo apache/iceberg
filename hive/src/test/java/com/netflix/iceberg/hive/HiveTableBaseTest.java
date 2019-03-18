@@ -110,7 +110,7 @@ class HiveTableBaseTest {
 
     this.metastoreClient = new HiveMetaStoreClient(this.hiveConf);
     createIfNotExistsCatalog("hive");
-    this.metastoreClient.createDatabase(new Database(DB_NAME, "description", getDBPath(), new HashMap<>()));
+    this.metastoreClient.createDatabase(new Database(DB_NAME, "description", getDBPath(DB_NAME), new HashMap<>()));
     new HiveTables(this.hiveConf).create(schema, partitionSpec, DB_NAME, TABLE_NAME);
   }
 
@@ -183,12 +183,12 @@ class HiveTableBaseTest {
     }
   }
 
-  private String getDBPath() {
-   return Paths.get(hiveLocalDir.getAbsolutePath(), DB_NAME + ".db").toAbsolutePath().toString();
+  protected String getDBPath(String dbName) {
+   return Paths.get(hiveLocalDir.getAbsolutePath(), dbName + ".db").toAbsolutePath().toString();
   }
 
   String getTableBasePath(String tableName) {
-    return Paths.get(getDBPath(), tableName).toAbsolutePath().toString();
+    return Paths.get(getDBPath(DB_NAME), tableName).toAbsolutePath().toString();
   }
 
   String getTableLocation(String tableName) {

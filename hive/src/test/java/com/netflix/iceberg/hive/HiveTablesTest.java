@@ -22,11 +22,15 @@ import com.netflix.iceberg.FileFormat;
 import com.netflix.iceberg.exceptions.CommitFailedException;
 import com.netflix.iceberg.types.Types;
 import com.netflix.iceberg.util.Tasks;
+import org.apache.hadoop.hive.metastore.api.Database;
+import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.thrift.TException;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -133,5 +137,32 @@ public class HiveTablesTest extends HiveTableBaseTest {
 
     icebergTable.refresh();
     Assert.assertEquals(20, icebergTable.currentSnapshot().manifests().size());
+  }
+
+  @Test(expected = NoSuchObjectException.class)
+  public void testDropTable() throws TException {
+    HiveTables hiveTables = new HiveTables(hiveConf);
+    final Table table = metastoreClient.getTable(DB_NAME, TABLE_NAME);
+    Assert.assertNotNull(table);
+
+    hiveTables.drop(DB_NAME + "." + TABLE_NAME);
+    metastoreClient.getTable(DB_NAME, TABLE_NAME);
+  }
+
+  @Test(expected = NoSuchObjectException.class)
+  public void testRenameTable() throws TException {
+    HiveTables hiveTables = new HiveTables(hiveConf);
+    Table table = metastoreClient.getTable(DB_NAME, TABLE_NAME);
+    Assert.assertNotNull(table);
+
+    String newTableName = "newTableName";
+    String newDbName = "newDbName";
+    metastoreClient.createDatabase(new Database(newDbName, "description", getDBPath(newDbName), new HashMap<>()));
+
+    hiveTables.rename(DB_NAME + "." + TABLE_NAME,   newDbName + "." + newTableName);
+    table = metastoreClient.getTable(newDbName, newTableName);
+    Assert.assertNotNull(table);
+
+    metastoreClient.getTable(DB_NAME , TABLE_NAME);
   }
 }
