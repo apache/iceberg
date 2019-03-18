@@ -23,6 +23,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.parquet.ParquetTypeVisitor;
+import com.netflix.iceberg.parquet.ParquetValueReaders;
 import com.netflix.iceberg.parquet.ParquetValueReaders.ReusableEntry;
 import com.netflix.iceberg.parquet.ParquetValueWriter;
 import com.netflix.iceberg.parquet.ParquetValueWriters;
@@ -352,35 +353,44 @@ public class SparkParquetWriters {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     protected Iterator<E> elements(ArrayData list) {
-      return new Iterator<E>() {
-        private final int size = list.numElements();
-        private int index = 0;
+      return new ElementIterator<>(list);
+    }
 
-        @Override
-        public boolean hasNext() {
-          return index != size;
+    private class ElementIterator<E> implements Iterator<E> {
+      private final int size;
+      private final ArrayData list;
+      private int index;
+
+      private ElementIterator(ArrayData list) {
+        this.list = list;
+        size = list.numElements();
+        index = 0;
+      }
+
+      @Override
+      public boolean hasNext() {
+        return index != size;
+      }
+
+      @Override
+      @SuppressWarnings("unchecked")
+      public E next() {
+        if (index >= size) {
+          throw new NoSuchElementException();
         }
 
-        @Override
-        public E next() {
-          if (index >= size) {
-            throw new NoSuchElementException();
-          }
-
-          E element;
-          if (list.isNullAt(index)) {
-            element = null;
-          } else {
-            element = (E) list.get(index, elementType);
-          }
-
-          index += 1;
-
-          return element;
+        E element;
+        if (list.isNullAt(index)) {
+          element = null;
+        } else {
+          element = (E) list.get(index, elementType);
         }
-      };
+
+        index += 1;
+
+        return element;
+      }
     }
   }
 
@@ -398,36 +408,48 @@ public class SparkParquetWriters {
 
     @Override
     protected Iterator<Map.Entry<K, V>> pairs(MapData map) {
-      return new Iterator<Map.Entry<K, V>>() {
-        private final int size = map.numElements();
-        private final ArrayData keys = map.keyArray();
-        private final ArrayData values = map.valueArray();
-        private final ReusableEntry<K, V> entry = new ReusableEntry<>();
-        private int index = 0;
+      return new EntryIterator<>(map);
+    }
 
-        @Override
-        public boolean hasNext() {
-          return index != size;
+    private class EntryIterator<K, V> implements Iterator<Map.Entry<K, V>> {
+      private final int size;
+      private final ArrayData keys;
+      private final ArrayData values;
+      private final ReusableEntry<K, V> entry;
+      private final MapData map;
+      private int index;
+
+      private EntryIterator(MapData map) {
+        this.map = map;
+        size = map.numElements();
+        keys = map.keyArray();
+        values = map.valueArray();
+        entry = new ReusableEntry<>();
+        index = 0;
+      }
+
+      @Override
+      public boolean hasNext() {
+        return index != size;
+      }
+
+      @Override
+      @SuppressWarnings("unchecked")
+      public Map.Entry<K, V> next() {
+        if (index >= size) {
+          throw new NoSuchElementException();
         }
 
-        @Override
-        @SuppressWarnings("unchecked")
-        public Map.Entry<K, V> next() {
-          if (index >= size) {
-            throw new NoSuchElementException();
-          }
-
-          if (values.isNullAt(index)) {
-            entry.set((K) keys.get(index, keyType), null);
-          } else {
-            entry.set((K) keys.get(index, keyType), (V) values.get(index, valueType));
-          }
-
-          index += 1;
-
-          return entry;
+        if (values.isNullAt(index)) {
+          entry.set((K) keys.get(index, keyType), null);
+        } else {
+          entry.set((K) keys.get(index, keyType), (V) values.get(index, valueType));
         }
-      };
+
+        index += 1;
+
+        return entry;
+      }
     }
   }
 
