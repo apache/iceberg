@@ -26,9 +26,9 @@ import java.util.List;
 import java.util.Map;
 
 public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
-  protected static final Joiner DOT = Joiner.on(".");
+  private static final Joiner DOT = Joiner.on(".");
 
-  protected final Map<String, Integer> nameToId = Maps.newHashMap();
+  private final Map<String, Integer> nameToId = Maps.newHashMap();
 
   @Override
   public Map<String, Integer> schema(Schema schema, Map<String, Integer> structResult) {
@@ -62,7 +62,7 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
     return null;
   }
 
-  protected void addField(String name, int fieldId) {
+  private void addField(String name, int fieldId) {
     String fullName = name;
     if (!fieldNames.isEmpty()) {
       fullName = DOT.join(DOT.join(fieldNames.descendingIterator()), name);
