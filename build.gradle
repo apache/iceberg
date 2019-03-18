@@ -264,6 +264,7 @@ project(':iceberg-spark') {
     compile project(':iceberg-api')
     compile project(':iceberg-common')
     compile project(':iceberg-core')
+    compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
 
     compileOnly "org.apache.avro:avro:$avroVersion"
@@ -367,11 +368,13 @@ project(':iceberg-presto-runtime') {
     dependencies {
         shadow project(':iceberg-api')
         shadow project(':iceberg-core')
+        shadow project(':iceberg-orc')
         shadow project(':iceberg-parquet')
         shadow project(':iceberg-hive')
 
         shadow "org.apache.parquet:parquet-avro:$parquetVersion"
         shadow "org.apache.avro:avro:$avroVersion"
+        shadow "org.apache.orc:orc-core:$orcVersion:nohive"
         shadow ("org.apache.hive:hive-metastore:$hiveVersion") {
             exclude group: 'org.apache.hadoop', module: 'hadoop-common'
 //            exclude group: 'org.apache.orc', module: 'orc-core'
