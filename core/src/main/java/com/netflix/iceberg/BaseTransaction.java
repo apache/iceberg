@@ -22,7 +22,10 @@ package com.netflix.iceberg;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import com.netflix.iceberg.encryption.EncryptionManager;
 import com.netflix.iceberg.exceptions.CommitFailedException;
+import com.netflix.iceberg.io.FileIO;
+import com.netflix.iceberg.io.LocationProvider;
 import com.netflix.iceberg.util.Tasks;
 import java.util.List;
 import java.util.Map;
@@ -99,11 +102,27 @@ class BaseTransaction implements Transaction {
   }
 
   @Override
+  public UpdateSchema updateSchema() {
+    checkLastOperationCommitted("UpdateSchema");
+    UpdateSchema schemaChange = new SchemaUpdate(transactionOps);
+    updates.add(schemaChange);
+    return schemaChange;
+  }
+
+  @Override
   public UpdateProperties updateProperties() {
     checkLastOperationCommitted("UpdateProperties");
     UpdateProperties props = new PropertiesUpdate(transactionOps);
     updates.add(props);
     return props;
+  }
+
+  @Override
+  public UpdateLocation updateLocation() {
+    checkLastOperationCommitted("UpdateLocation");
+    UpdateLocation setLocation = new SetLocation(transactionOps);
+    updates.add(setLocation);
+    return setLocation;
   }
 
   @Override
@@ -266,8 +285,18 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
+    public EncryptionManager encryption() {
+      return ops.encryption();
+    }
+
+    @Override
     public String metadataFileLocation(String fileName) {
       return ops.metadataFileLocation(fileName);
+    }
+
+    @Override
+    public LocationProvider locationProvider() {
+      return ops.locationProvider();
     }
 
     @Override
@@ -318,12 +347,17 @@ class BaseTransaction implements Transaction {
 
     @Override
     public UpdateSchema updateSchema() {
-      throw new UnsupportedOperationException("Transaction tables do not support schema updates");
+      return BaseTransaction.this.updateSchema();
     }
 
     @Override
     public UpdateProperties updateProperties() {
       return BaseTransaction.this.updateProperties();
+    }
+
+    @Override
+    public UpdateLocation updateLocation() {
+      return BaseTransaction.this.updateLocation();
     }
 
     @Override
@@ -364,6 +398,21 @@ class BaseTransaction implements Transaction {
     @Override
     public Transaction newTransaction() {
       throw new UnsupportedOperationException("Cannot create a transaction within a transaction");
+    }
+
+    @Override
+    public FileIO io() {
+      return transactionOps.io();
+    }
+
+    @Override
+    public EncryptionManager encryption() {
+      return transactionOps.encryption();
+    }
+
+    @Override
+    public LocationProvider locationProvider() {
+      return transactionOps.locationProvider();
     }
   }
 }

@@ -373,4 +373,23 @@ public class TestReadabilityChecks {
     List<String> errors = CheckCompatibility.readCompatibilityErrors(read, write);
     Assert.assertEquals("Should produce no error messages", 0, errors.size());
   }
+
+  @Test
+  public void testCaseInsensitiveSchemaProjection() {
+    Schema schema = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get()),
+        Types.NestedField.optional(5, "locations", Types.MapType.ofOptional(6, 7,
+            Types.StringType.get(),
+            Types.StructType.of(
+                Types.NestedField.required(1, "lat", Types.FloatType.get()),
+                Types.NestedField.required(2, "long", Types.FloatType.get())
+            )
+        ))
+    );
+
+    Assert.assertNotNull(schema.caseInsensitiveSelect("ID").findField(0));
+    Assert.assertNotNull(schema.caseInsensitiveSelect("loCATIONs").findField(5));
+    Assert.assertNotNull(schema.caseInsensitiveSelect("LoCaTiOnS.LaT").findField(1));
+    Assert.assertNotNull(schema.caseInsensitiveSelect("locations.LONG").findField(2));
+  }
 }

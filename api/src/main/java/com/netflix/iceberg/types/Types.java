@@ -55,7 +55,7 @@ public class Types {
   private static final Pattern DECIMAL = Pattern.compile("decimal\\((\\d+),\\s+(\\d+)\\)");
 
   public static PrimitiveType fromPrimitiveString(String typeString) {
-    String lowerTypeString = typeString.toLowerCase(Locale.ENGLISH);
+    String lowerTypeString = typeString.toLowerCase(Locale.ROOT);
     if (TYPES.containsKey(lowerTypeString)) {
       return TYPES.get(lowerTypeString);
     }
@@ -411,25 +411,35 @@ public class Types {
 
   public static class NestedField implements Serializable {
     public static NestedField optional(int id, String name, Type type) {
-      return new NestedField(true, id, name, type);
+      return new NestedField(true, id, name, type, null);
+    }
+
+    public static NestedField optional(int id, String name, Type type, String doc) {
+      return new NestedField(true, id, name, type, doc);
     }
 
     public static NestedField required(int id, String name, Type type) {
-      return new NestedField(false, id, name, type);
+      return new NestedField(false, id, name, type, null);
+    }
+
+    public static NestedField required(int id, String name, Type type, String doc) {
+      return new NestedField(false, id, name, type, doc);
     }
 
     private final boolean isOptional;
     private final int id;
     private final String name;
     private final Type type;
+    private final String doc;
 
-    private NestedField(boolean isOptional, int id, String name, Type type) {
+    private NestedField(boolean isOptional, int id, String name, Type type, String doc) {
       Preconditions.checkNotNull(name, "Name cannot be null");
       Preconditions.checkNotNull(type, "Type cannot be null");
       this.isOptional = isOptional;
       this.id = id;
       this.name = name;
       this.type = type;
+      this.doc = doc;
     }
 
     public boolean isOptional() {
@@ -452,10 +462,15 @@ public class Types {
       return type;
     }
 
+    public String doc() {
+      return doc;
+    }
+
     @Override
     public String toString() {
       return String.format("%d: %s: %s %s",
-          id, name, isOptional ? "optional" : "required", type);
+          id, name, isOptional ? "optional" : "required", type) +
+          (doc != null ? " (" + doc + ")" : "");
     }
 
     @Override
@@ -472,6 +487,8 @@ public class Types {
       } else if (id != that.id) {
         return false;
       } else if (!name.equals(that.name)) {
+        return false;
+      } else if (!Objects.equals(doc, that.doc)) {
         return false;
       }
       return type.equals(that.type);
@@ -499,6 +516,7 @@ public class Types {
     // lazy values
     private transient List<NestedField> fieldList = null;
     private transient Map<String, NestedField> fieldsByName = null;
+    private transient Map<String, NestedField> fieldsByLowerCaseName = null;
     private transient Map<Integer, NestedField> fieldsById = null;
 
     private StructType(List<NestedField> fields) {
@@ -516,6 +534,10 @@ public class Types {
 
     public NestedField field(String name) {
       return lazyFieldsByName().get(name);
+    }
+
+    public NestedField caseInsensitiveField(String name) {
+        return lazyFieldsByLowerCaseName().get(name.toLowerCase(Locale.ROOT));
     }
 
     @Override
@@ -583,6 +605,13 @@ public class Types {
       return fieldsByName;
     }
 
+    private Map<String, NestedField> lazyFieldsByLowerCaseName() {
+        if (fieldsByLowerCaseName == null) {
+          indexFields();
+        }
+        return fieldsByLowerCaseName;
+    }
+
     private Map<Integer, NestedField> lazyFieldsById() {
       if (fieldsById == null) {
         indexFields();
@@ -592,12 +621,15 @@ public class Types {
 
     private void indexFields() {
       ImmutableMap.Builder<String, NestedField> byNameBuilder = ImmutableMap.builder();
+      ImmutableMap.Builder<String, NestedField> byLowerCaseNameBuilder = ImmutableMap.builder();
       ImmutableMap.Builder<Integer, NestedField> byIdBuilder = ImmutableMap.builder();
       for (NestedField field : fields) {
         byNameBuilder.put(field.name(), field);
+        byLowerCaseNameBuilder.put(field.name().toLowerCase(Locale.ROOT), field);
         byIdBuilder.put(field.fieldId(), field);
       }
       this.fieldsByName = byNameBuilder.build();
+      this.fieldsByLowerCaseName = byLowerCaseNameBuilder.build();
       this.fieldsById = byIdBuilder.build();
     }
   }

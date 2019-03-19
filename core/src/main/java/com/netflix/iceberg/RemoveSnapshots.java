@@ -127,6 +127,7 @@ class RemoveSnapshots implements ExpireSnapshots {
     // 1. Get a list of the snapshots that were removed
     // 2. Delete any data files that were deleted by those snapshots and are not in the table
     // 3. Delete any manifests that are no longer used by current snapshots
+    // 4. Delete the manifest lists
 
     // Reads and deletes are done using Tasks.foreach(...).suppressFailureWhenFinished to complete
     // as much of the delete work as possible and avoid orphaned data or manifest files.
@@ -139,18 +140,24 @@ class RemoveSnapshots implements ExpireSnapshots {
       currentManifests.addAll(snapshot.manifests());
     }
 
+    Set<String> manifestListsToDelete = Sets.newHashSet();
     Set<ManifestFile> allManifests = Sets.newHashSet(currentManifests);
     Set<String> manifestsToDelete = Sets.newHashSet();
     for (Snapshot snapshot : base.snapshots()) {
       long snapshotId = snapshot.snapshotId();
       if (!currentIds.contains(snapshotId)) {
-        // the snapshot was removed, find any manifests that are no longer needed
-        LOG.info("Removing snapshot: {}", snapshot);
+        // the snapshot was expired
+        LOG.info("Expired snapshot: {}", snapshot);
+        // find any manifests that are no longer needed
         for (ManifestFile manifest : snapshot.manifests()) {
           if (!currentManifests.contains(manifest)) {
             manifestsToDelete.add(manifest.path());
             allManifests.add(manifest);
           }
+        }
+        // add the manifest list to the delete set, if present
+        if (snapshot.manifestListLocation() != null) {
+          manifestListsToDelete.add(snapshot.manifestListLocation());
         }
       }
     }
@@ -191,6 +198,11 @@ class RemoveSnapshots implements ExpireSnapshots {
     Tasks.foreach(manifestsToDelete)
         .noRetry().suppressFailureWhenFinished()
         .onFailure((manifest, exc) -> LOG.warn("Delete failed for manifest: " + manifest, exc))
+        .run(deleteFunc::accept);
+
+    Tasks.foreach(manifestListsToDelete)
+        .noRetry().suppressFailureWhenFinished()
+        .onFailure((list, exc) -> LOG.warn("Delete failed for manifest list: " + list, exc))
         .run(deleteFunc::accept);
   }
 }

@@ -32,6 +32,11 @@ class MergeAppend extends MergingSnapshotUpdate implements AppendFiles {
   }
 
   @Override
+  protected String operation() {
+    return DataOperations.APPEND;
+  }
+
+  @Override
   public MergeAppend appendFile(DataFile file) {
     add(file);
     return this;

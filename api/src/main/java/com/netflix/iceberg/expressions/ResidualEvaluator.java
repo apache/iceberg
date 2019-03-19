@@ -49,6 +49,7 @@ import java.util.Comparator;
 public class ResidualEvaluator implements Serializable {
   private final PartitionSpec spec;
   private final Expression expr;
+  private final boolean caseSensitive;
   private transient ThreadLocal<ResidualVisitor> visitors = null;
 
   private ResidualVisitor visitor() {
@@ -58,9 +59,10 @@ public class ResidualEvaluator implements Serializable {
     return visitors.get();
   }
 
-  public ResidualEvaluator(PartitionSpec spec, Expression expr) {
+  public ResidualEvaluator(PartitionSpec spec, Expression expr, boolean caseSensitive) {
     this.spec = spec;
     this.expr = expr;
+    this.caseSensitive = caseSensitive;
   }
 
   /**
@@ -170,7 +172,7 @@ public class ResidualEvaluator implements Serializable {
           .projectStrict(part.name(), pred);
 
       if (strictProjection != null) {
-        Expression bound = strictProjection.bind(spec.partitionType());
+        Expression bound = strictProjection.bind(spec.partitionType(), caseSensitive);
         if (bound instanceof BoundPredicate) {
           // the predicate methods will evaluate and return alwaysTrue or alwaysFalse
           return super.predicate((BoundPredicate<?>) bound);
@@ -184,7 +186,7 @@ public class ResidualEvaluator implements Serializable {
 
     @Override
     public <T> Expression predicate(UnboundPredicate<T> pred) {
-      Expression bound = pred.bind(spec.schema().asStruct());
+      Expression bound = pred.bind(spec.schema().asStruct(), caseSensitive);
 
       if (bound instanceof BoundPredicate) {
         Expression boundResidual = predicate((BoundPredicate<?>) bound);

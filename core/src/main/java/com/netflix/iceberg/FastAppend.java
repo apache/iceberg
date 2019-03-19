@@ -25,6 +25,7 @@ import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.OutputFile;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -34,6 +35,7 @@ import java.util.Set;
  */
 class FastAppend extends SnapshotUpdate implements AppendFiles {
   private final PartitionSpec spec;
+  private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
   private final List<DataFile> newFiles = Lists.newArrayList();
   private ManifestFile newManifest = null;
   private boolean hasNewFiles = false;
@@ -44,9 +46,20 @@ class FastAppend extends SnapshotUpdate implements AppendFiles {
   }
 
   @Override
+  protected String operation() {
+    return DataOperations.APPEND;
+  }
+
+  @Override
+  protected Map<String, String> summary() {
+    return summaryBuilder.build();
+  }
+
+  @Override
   public FastAppend appendFile(DataFile file) {
     this.hasNewFiles = true;
     newFiles.add(file);
+    summaryBuilder.addedFile(spec, file);
     return this;
   }
 

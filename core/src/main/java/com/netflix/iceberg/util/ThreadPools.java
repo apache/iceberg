@@ -27,41 +27,20 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
 public class ThreadPools {
-  public static final String PLANNER_THREAD_POOL_SIZE_PROP =
-      SystemProperties.PLANNER_THREAD_POOL_SIZE_PROP;
   public static final String WORKER_THREAD_POOL_SIZE_PROP =
       SystemProperties.WORKER_THREAD_POOL_SIZE_PROP;
 
-  private static ExecutorService PLANNER_POOL = MoreExecutors.getExitingExecutorService(
-      (ThreadPoolExecutor) Executors.newFixedThreadPool(
-          getPoolSize(PLANNER_THREAD_POOL_SIZE_PROP, 4),
-          new ThreadFactoryBuilder()
-              .setDaemon(true)
-              .setNameFormat("iceberg-planner-pool-%d")
-              .build()));
+  public static final int WORKER_THREAD_POOL_SIZE = getPoolSize(
+      WORKER_THREAD_POOL_SIZE_PROP,
+      Runtime.getRuntime().availableProcessors());
 
   private static ExecutorService WORKER_POOL = MoreExecutors.getExitingExecutorService(
       (ThreadPoolExecutor) Executors.newFixedThreadPool(
-          getPoolSize(WORKER_THREAD_POOL_SIZE_PROP, Runtime.getRuntime().availableProcessors()),
+          WORKER_THREAD_POOL_SIZE,
           new ThreadFactoryBuilder()
               .setDaemon(true)
               .setNameFormat("iceberg-worker-pool-%d")
               .build()));
-
-  /**
-   * Return an {@link ExecutorService} that uses the "planner" thread-pool.
-   * <p>
-   * The size of the planner pool limits the number of concurrent planning operations in the base
-   * table implementation.
-   * <p>
-   * The size of this thread-pool is controlled by the Java system property
-   * {@code iceberg.planner.num-threads}.
-   *
-   * @return an {@link ExecutorService} that uses the planner pool
-   */
-  public static ExecutorService getPlannerPool() {
-    return PLANNER_POOL;
-  }
 
   /**
    * Return an {@link ExecutorService} that uses the "worker" thread-pool.

@@ -59,7 +59,12 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
     for (int i = 0; i < fields.size(); i += 1) {
       Types.NestedField field = fields.get(i);
       DataType type = fieldResults.get(i);
-      sparkFields.add(StructField.apply(field.name(), type, field.isOptional(), Metadata.empty()));
+      StructField sparkField = StructField.apply(
+          field.name(), type, field.isOptional(), Metadata.empty());
+      if (field.doc() != null) {
+        sparkField = sparkField.withComment(field.doc());
+      }
+      sparkFields.add(sparkField);
     }
 
     return StructType$.MODULE$.apply(sparkFields);

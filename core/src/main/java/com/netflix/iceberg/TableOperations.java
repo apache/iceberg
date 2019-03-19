@@ -19,7 +19,11 @@
 
 package com.netflix.iceberg;
 
-import com.netflix.iceberg.io.OutputFile;
+import com.netflix.iceberg.encryption.EncryptionManager;
+import com.netflix.iceberg.encryption.PlaintextEncryptionManager;
+import com.netflix.iceberg.io.FileIO;
+import com.netflix.iceberg.io.LocationProvider;
+import java.util.UUID;
 
 /**
  * SPI interface to abstract table metadata access and updates.
@@ -55,9 +59,17 @@ public interface TableOperations {
   void commit(TableMetadata base, TableMetadata metadata);
 
   /**
-   * @return a {@link com.netflix.iceberg.FileIO} to read and write table data and metadata files
+   * @return a {@link FileIO} to read and write table data and metadata files
    */
   FileIO io();
+
+  /**
+   * @return a {@link com.netflix.iceberg.encryption.EncryptionManager} to encrypt and decrypt
+   * data files.
+   */
+  default EncryptionManager encryption() {
+    return new PlaintextEncryptionManager();
+  }
 
   /**
    * Given the name of a metadata file, obtain the full path of that file using an appropriate base
@@ -69,10 +81,22 @@ public interface TableOperations {
   String metadataFileLocation(String fileName);
 
   /**
+   * Returns a {@link LocationProvider} that supplies locations for new new data files.
+   *
+   * @return a location provider configured for the current table state
+   */
+  LocationProvider locationProvider();
+
+  /**
    * Create a new ID for a Snapshot
    *
    * @return a long snapshot ID
    */
-  long newSnapshotId();
+  default long newSnapshotId() {
+    UUID uuid = UUID.randomUUID();
+    long mostSignificantBits = uuid.getMostSignificantBits();
+    long leastSignificantBits = uuid.getLeastSignificantBits();
+    return Math.abs(mostSignificantBits ^ leastSignificantBits);
+  }
 
 }

@@ -179,7 +179,7 @@ public class TestPredicateBinding {
     Assert.assertEquals("Less than or equal below min should be alwaysFalse",
         Expressions.alwaysFalse(), lteqMin.bind(struct));
 
-    Expression ltExpr = new UnboundPredicate<>(LT, ref("i"), (long) Integer.MAX_VALUE).bind(struct);
+    Expression ltExpr = new UnboundPredicate<>(LT, ref("i"), (long) Integer.MAX_VALUE).bind(struct, true);
     BoundPredicate<Integer> ltMax = assertAndUnwrap(ltExpr);
     Assert.assertEquals("Should translate bound to Integer",
         (Integer) Integer.MAX_VALUE, ltMax.literal().value());

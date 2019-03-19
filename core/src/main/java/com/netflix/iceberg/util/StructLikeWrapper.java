@@ -20,6 +20,7 @@
 package com.netflix.iceberg.util;
 
 import com.netflix.iceberg.StructLike;
+import java.util.Objects;
 
 /**
  * Wrapper to adapt StructLike for use in maps and sets by implementing equals and hashCode.
@@ -68,7 +69,7 @@ public class StructLikeWrapper {
     }
 
     for (int i = 0; i < len; i += 1) {
-      if (!struct.get(i, Object.class).equals(that.struct.get(i, Object.class))) {
+      if (!Objects.equals(struct.get(i, Object.class), that.struct.get(i, Object.class))) {
         return false;
       }
     }
@@ -82,7 +83,7 @@ public class StructLikeWrapper {
     int len = struct.size();
     result = 41 * result + len;
     for (int i = 0; i < len; i += 1) {
-      result = 41 * result + struct.get(i, Object.class).hashCode();
+      result = 41 * result + Objects.hashCode(struct.get(i, Object.class));
     }
     return result;
   }

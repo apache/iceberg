@@ -19,6 +19,9 @@
 
 package com.netflix.iceberg;
 
+import com.netflix.iceberg.encryption.EncryptionManager;
+import com.netflix.iceberg.io.FileIO;
+import com.netflix.iceberg.io.LocationProvider;
 import java.util.Map;
 
 /**
@@ -69,7 +72,7 @@ public interface Table {
   String location();
 
   /**
-   * Get the current {@link Snapshot snapshot} for this table.
+   * Get the current {@link Snapshot snapshot} for this table, or null if there are no snapshots.
    *
    * @return the current table Snapshot.
    */
@@ -95,6 +98,13 @@ public interface Table {
    * @return a new {@link UpdateProperties}
    */
   UpdateProperties updateProperties();
+
+  /**
+   * Create a new {@link UpdateLocation} to update table location and commit the changes.
+   *
+   * @return a new {@link UpdateLocation}
+   */
+  UpdateLocation updateLocation();
 
   /**
    * Create a new {@link AppendFiles append API} to add files to this table and commit.
@@ -171,4 +181,20 @@ public interface Table {
    * @return a new {@link Transaction}
    */
   Transaction newTransaction();
+
+  /**
+   * @return a {@link FileIO} to read and write table data and metadata files
+   */
+  FileIO io();
+
+  /**
+   * @return an {@link com.netflix.iceberg.encryption.EncryptionManager} to encrypt and decrypt
+   * data files.
+   */
+  EncryptionManager encryption();
+
+  /**
+   * @return a {@link LocationProvider} to provide locations for new data files
+   */
+  LocationProvider locationProvider();
 }

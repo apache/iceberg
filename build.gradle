@@ -138,18 +138,24 @@ project(':iceberg-data') {
 }
 
 project(':iceberg-hive') {
-    dependencies {
-      compile project(':iceberg-core')
+  dependencies {
+    compile project(':iceberg-core')
 
-      compileOnly "org.apache.hive:hive-standalone-metastore:$hiveVersion"
+    compileOnly "org.apache.avro:avro:$avroVersion"
 
-      testCompile "org.apache.hive:hive-exec:3.1.0"
-
-      compileOnly('org.apache.hadoop:hadoop-client:2.7.3') {
-        exclude group: 'org.apache.avro', module: 'avro'
-        exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-      }
+    compileOnly("org.apache.hive:hive-standalone-metastore:$hiveVersion") {
+      exclude group: 'org.apache.avro', module: 'avro'
     }
+
+    testCompile("org.apache.hive:hive-exec:$hiveVersion") {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
+
+    compileOnly("org.apache.hadoop:hadoop-client:$hadoopVersion") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+    }
+  }
 }
 
 project(':iceberg-orc') {

@@ -68,7 +68,7 @@ public class ParquetDictionaryRowGroupFilter {
   public ParquetDictionaryRowGroupFilter(Schema schema, Expression unbound) {
     this.schema = schema;
     this.struct = schema.asStruct();
-    this.expr = Binder.bind(struct, rewriteNot(unbound));
+    this.expr = Binder.bind(struct, rewriteNot(unbound), true);
   }
 
   /**
@@ -325,7 +325,7 @@ public class ParquetDictionaryRowGroupFilter {
       Set<T> dictSet = Sets.newTreeSet(comparator);;
 
       for (int i=0; i<=dict.getMaxId(); i++) {
-        switch (col.getType()) {
+        switch (col.getPrimitiveType().getPrimitiveTypeName()) {
           case BINARY: dictSet.add((T) conversion.apply(dict.decodeToBinary(i)));
             break;
           case INT32: dictSet.add((T) conversion.apply(dict.decodeToInt(i)));
@@ -338,7 +338,7 @@ public class ParquetDictionaryRowGroupFilter {
             break;
           default:
             throw new IllegalArgumentException(
-                "Cannot decode dictionary of type: " + col.getType());
+                "Cannot decode dictionary of type: " + col.getPrimitiveType().getPrimitiveTypeName());
         }
       }
 

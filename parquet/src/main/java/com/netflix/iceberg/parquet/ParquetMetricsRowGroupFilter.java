@@ -28,6 +28,7 @@ import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.ExpressionVisitors;
 import com.netflix.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import com.netflix.iceberg.expressions.Literal;
+import com.netflix.iceberg.types.Type;
 import com.netflix.iceberg.types.Types;
 import com.netflix.iceberg.types.Types.StructType;
 import org.apache.parquet.column.statistics.Statistics;
@@ -57,7 +58,7 @@ public class ParquetMetricsRowGroupFilter {
   public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound) {
     this.schema = schema;
     this.struct = schema.asStruct();
-    this.expr = Binder.bind(struct, rewriteNot(unbound));
+    this.expr = Binder.bind(struct, rewriteNot(unbound), true);
   }
 
   /**
@@ -155,6 +156,13 @@ public class ParquetMetricsRowGroupFilter {
       Integer id = ref.fieldId();
       Preconditions.checkNotNull(struct.field(id),
           "Cannot filter by nested column: %s", schema.findField(id));
+
+      // When filtering nested types notNull() is implicit filter passed even though complex
+      // filters aren't pushed down in Parquet. Leave all nested column type filters to be
+      // evaluated post scan.
+      if (schema.findType(id) instanceof Type.NestedType) {
+        return ROWS_MIGHT_MATCH;
+      }
 
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
@@ -288,6 +296,13 @@ public class ParquetMetricsRowGroupFilter {
       Integer id = ref.fieldId();
       Types.NestedField field = struct.field(id);
       Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
+
+      // When filtering nested types notNull() is implicit filter passed even though complex
+      // filters aren't pushed down in Parquet. Leave all nested column type filters to be
+      // evaluated post scan.
+      if (schema.findType(id) instanceof Type.NestedType) {
+        return ROWS_MIGHT_MATCH;
+      }
 
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {

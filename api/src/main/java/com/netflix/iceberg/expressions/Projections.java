@@ -54,7 +54,8 @@ public class Projections {
   }
 
   /**
-   * Creates an inclusive {@code ProjectionEvaluator} for the {@link PartitionSpec spec}.
+   * Creates an inclusive {@code ProjectionEvaluator} for the {@link PartitionSpec spec}, defaulting
+   * to case sensitive mode.
    * <p>
    * An evaluator is used to project expressions for a table's data rows into expressions on the
    * table's partition values. The evaluator returned by this function is inclusive and will build
@@ -69,11 +70,32 @@ public class Projections {
    * @see Transform#project(String, BoundPredicate) Inclusive transform used for each predicate
    */
   public static ProjectionEvaluator inclusive(PartitionSpec spec) {
-    return new InclusiveProjection(spec);
+    return new InclusiveProjection(spec, true);
   }
 
   /**
-   * Creates a strict {@code ProjectionEvaluator} for the {@link PartitionSpec spec}.
+   * Creates an inclusive {@code ProjectionEvaluator} for the {@link PartitionSpec spec}.
+   * <p>
+   * An evaluator is used to project expressions for a table's data rows into expressions on the
+   * table's partition values. The evaluator returned by this function is inclusive and will build
+   * expressions with the following guarantee: if the original expression matches a row, then the
+   * projected expression will match that row's partition.
+   * <p>
+   * Each predicate in the expression is projected using
+   * {@link Transform#project(String, BoundPredicate)}.
+   *
+   * @param spec a partition spec
+   * @param caseSensitive whether the Projection should consider case sensitivity on column names or not.
+   * @return an inclusive projection evaluator for the partition spec
+   * @see Transform#project(String, BoundPredicate) Inclusive transform used for each predicate
+   */
+  public static ProjectionEvaluator inclusive(PartitionSpec spec, boolean caseSensitive) {
+    return new InclusiveProjection(spec, caseSensitive);
+  }
+
+  /**
+   * Creates a strict {@code ProjectionEvaluator} for the {@link PartitionSpec spec}, defaulting
+   * to case sensitive mode.
    * <p>
    * An evaluator is used to project expressions for a table's data rows into expressions on the
    * table's partition values. The evaluator returned by this function is strict and will build
@@ -88,14 +110,36 @@ public class Projections {
    * @see Transform#projectStrict(String, BoundPredicate) Strict transform used for each predicate
    */
   public static ProjectionEvaluator strict(PartitionSpec spec) {
-    return new StrictProjection(spec);
+    return new StrictProjection(spec, true);
+  }
+
+  /**
+   * Creates a strict {@code ProjectionEvaluator} for the {@link PartitionSpec spec}.
+   * <p>
+   * An evaluator is used to project expressions for a table's data rows into expressions on the
+   * table's partition values. The evaluator returned by this function is strict and will build
+   * expressions with the following guarantee: if the projected expression matches a partition,
+   * then the original expression will match all rows in that partition.
+   * <p>
+   * Each predicate in the expression is projected using
+   * {@link Transform#projectStrict(String, BoundPredicate)}.
+   *
+   * @param spec a partition spec
+   * @param caseSensitive whether the Projection should consider case sensitivity on column names or not.
+   * @return a strict projection evaluator for the partition spec
+   * @see Transform#projectStrict(String, BoundPredicate) Strict transform used for each predicate
+   */
+  public static ProjectionEvaluator strict(PartitionSpec spec, boolean caseSensitive) {
+    return new StrictProjection(spec, caseSensitive);
   }
 
   private static class BaseProjectionEvaluator extends ProjectionEvaluator {
     final PartitionSpec spec;
+    final boolean caseSensitive;
 
-    private BaseProjectionEvaluator(PartitionSpec spec) {
+    private BaseProjectionEvaluator(PartitionSpec spec, boolean caseSensitive) {
       this.spec = spec;
+      this.caseSensitive = caseSensitive;
     }
 
     @Override
@@ -135,7 +179,7 @@ public class Projections {
 
     @Override
     public <T> Expression predicate(UnboundPredicate<T> pred) {
-      Expression bound = pred.bind(spec.schema().asStruct());
+      Expression bound = pred.bind(spec.schema().asStruct(), caseSensitive);
 
       if (bound instanceof BoundPredicate) {
         return predicate((BoundPredicate<?>) bound);
@@ -146,8 +190,8 @@ public class Projections {
   }
 
   private static class InclusiveProjection extends BaseProjectionEvaluator {
-    private InclusiveProjection(PartitionSpec spec) {
-      super(spec);
+    private InclusiveProjection(PartitionSpec spec, boolean caseSensitive) {
+      super(spec, caseSensitive);
     }
 
     @Override
@@ -171,8 +215,8 @@ public class Projections {
   }
 
   private static class StrictProjection extends BaseProjectionEvaluator {
-    private StrictProjection(PartitionSpec spec) {
-      super(spec);
+    private StrictProjection(PartitionSpec spec, boolean caseSensitive) {
+      super(spec, caseSensitive);
     }
 
     @Override

@@ -30,6 +30,7 @@ import com.google.common.collect.Sets;
 import com.netflix.iceberg.exceptions.ValidationException;
 import com.netflix.iceberg.io.InputFile;
 import com.netflix.iceberg.types.TypeUtil;
+import com.netflix.iceberg.util.PropertyUtil;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -222,27 +223,15 @@ public class TableMetadata {
   }
 
   public boolean propertyAsBoolean(String property, boolean defaultValue) {
-    String value = properties.get(property);
-    if (value != null) {
-      return Boolean.parseBoolean(properties.get(property));
-    }
-    return defaultValue;
+    return PropertyUtil.propertyAsBoolean(properties, property, defaultValue);
   }
 
   public int propertyAsInt(String property, int defaultValue) {
-    String value = properties.get(property);
-    if (value != null) {
-      return Integer.parseInt(properties.get(property));
-    }
-    return defaultValue;
+    return PropertyUtil.propertyAsInt(properties, property, defaultValue);
   }
 
   public long propertyAsLong(String property, long defaultValue) {
-    String value = properties.get(property);
-    if (value != null) {
-      return Long.parseLong(properties.get(property));
-    }
-    return defaultValue;
+    return PropertyUtil.propertyAsLong(properties, property, defaultValue);
   }
 
   public Snapshot snapshot(long snapshotId) {
@@ -426,6 +415,12 @@ public class TableMetadata {
         System.currentTimeMillis(), lastColumnId.get(), freshSchema,
         specId, builder.build(), ImmutableMap.copyOf(newProperties),
         -1, snapshots, ImmutableList.of());
+  }
+
+  public TableMetadata updateLocation(String newLocation) {
+    return new TableMetadata(ops, null, newLocation,
+        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
+        currentSnapshotId, snapshots, snapshotLog);
   }
 
   private static PartitionSpec freshSpec(int specId, Schema schema, PartitionSpec partitionSpec) {

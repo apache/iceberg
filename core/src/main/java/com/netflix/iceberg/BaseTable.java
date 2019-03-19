@@ -19,6 +19,9 @@
 
 package com.netflix.iceberg;
 
+import com.netflix.iceberg.encryption.EncryptionManager;
+import com.netflix.iceberg.io.FileIO;
+import com.netflix.iceberg.io.LocationProvider;
 import java.util.Map;
 
 /**
@@ -91,6 +94,11 @@ public class BaseTable implements Table, HasTableOperations {
   }
 
   @Override
+  public UpdateLocation updateLocation() {
+    return new SetLocation(ops);
+  }
+
+  @Override
   public AppendFiles newAppend() {
     return new MergeAppend(ops);
   }
@@ -133,6 +141,21 @@ public class BaseTable implements Table, HasTableOperations {
   @Override
   public Transaction newTransaction() {
     return BaseTransaction.newTransaction(ops);
+  }
+
+  @Override
+  public FileIO io() {
+    return operations().io();
+  }
+
+  @Override
+  public EncryptionManager encryption() {
+    return operations().encryption();
+  }
+
+  @Override
+  public LocationProvider locationProvider() {
+    return operations().locationProvider();
   }
 
   @Override

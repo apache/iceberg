@@ -17,10 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
-
-import com.netflix.iceberg.io.InputFile;
-import com.netflix.iceberg.io.OutputFile;
+package com.netflix.iceberg.io;
 
 import java.io.Serializable;
 
@@ -47,4 +44,18 @@ public interface FileIO extends Serializable {
    * Delete the file at the given path.
    */
   void deleteFile(String path);
+
+  /**
+   * Convenience method to {@link #deleteFile(String) delete} an {@link InputFile}.
+   */
+  default void deleteFile(InputFile file) {
+    deleteFile(file.location());
+  }
+
+  /**
+   * Convenience method to {@link #deleteFile(String) delete} an {@link OutputFile}.
+   */
+  default void deleteFile(OutputFile file) {
+    deleteFile(file.location());
+  }
 }

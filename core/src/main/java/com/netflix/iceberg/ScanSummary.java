@@ -149,6 +149,10 @@ public class ScanSummary {
      * @return a map from partition key to metrics for that partition.
      */
     public Map<String, PartitionMetrics> build() {
+      if (table.currentSnapshot() == null) {
+        return ImmutableMap.of(); // no snapshots, so there are no partitions
+      }
+
       TopN<String, PartitionMetrics> topN = new TopN<>(
           limit, throwIfLimited, Comparators.charSequences());
 
@@ -165,22 +169,43 @@ public class ScanSummary {
         long minTimestamp = range.first();
         long maxTimestamp = range.second();
 
+        Snapshot oldestSnapshot = table.currentSnapshot();
         for (Map.Entry<Long, Long> entry : snapshotTimestamps.entrySet()) {
           long snapshotId = entry.getKey();
           long timestamp = entry.getValue();
+
+          if (timestamp < oldestSnapshot.timestampMillis()) {
+            oldestSnapshot = ops.current().snapshot(snapshotId);
+          }
+
           if (timestamp >= minTimestamp && timestamp <= maxTimestamp) {
             snapshotsInTimeRange.add(snapshotId);
           }
         }
 
-        // when filtering by dateCreated or lastUpdated timestamp, this matches the set of files
-        // that were added in the time range. files are added in new snapshots, so to get the new
-        // files, this only needs to scan new manifests in the set of snapshots that match the
-        // filter. ManifestFile.snapshotId() returns the snapshot when the manifest was added, so
-        // the only manifests that need to be scanned are those with snapshotId() in the timestamp
-        // range, or those that don't have a snapshot ID.
-        manifests = Iterables.filter(manifests, manifest ->
-            manifest.snapshotId() == null || snapshotsInTimeRange.contains(manifest.snapshotId()));
+        // if oldest known snapshot is in the range, then there may be an expired snapshot that has
+        // been removed that matched the range. because the timestamp of that snapshot is unknown,
+        // it can't be included in the results and the results are not reliable.
+        if (snapshotsInTimeRange.contains(oldestSnapshot.snapshotId()) &&
+            minTimestamp < oldestSnapshot.timestampMillis()) {
+          throw new IllegalArgumentException(
+              "Cannot satisfy time filters: time range may include expired snapshots");
+        }
+
+        // filter down to the the set of manifest files that were added after the start of the
+        // time range. manifests after the end of the time range must be included because
+        // compaction may create a manifest after the time range that includes files added in the
+        // range.
+        manifests = Iterables.filter(manifests, manifest -> {
+          if (manifest.snapshotId() == null) {
+            return true; // can't tell when the manifest was written, so it may contain matches
+          }
+
+          Long timestamp = snapshotTimestamps.get(manifest.snapshotId());
+          // if the timestamp is null, then its snapshot has expired. the check for the oldest
+          // snapshot ensures that all expired snapshots are not in the time range.
+          return timestamp != null && timestamp >= minTimestamp;
+        });
       }
 
       try (CloseableIterable<ManifestEntry> entries = new ManifestGroup(ops, manifests)

@@ -44,8 +44,35 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
     return new UnboundPredicate<>(op().negate(), ref(), literal());
   }
 
-  public Expression bind(Types.StructType struct) {
-    Types.NestedField field = struct.field(ref().name());
+  /**
+   * Bind this UnboundPredicate, defaulting to case sensitive mode.
+   *
+   * Access modifier is package-private, to only allow use from existing tests.
+   *
+   * @param struct The {@link Types.StructType struct type} to resolve references by name.
+   * @return an {@link Expression}
+   * @throws ValidationException if literals do not match bound references, or if comparison on expression is invalid
+   */
+  Expression bind(Types.StructType struct) {
+    return bind(struct, true);
+  }
+
+  /**
+   * Bind this UnboundPredicate.
+   *
+   * @param struct The {@link Types.StructType struct type} to resolve references by name.
+   * @param caseSensitive A boolean flag to control whether the bind should enforce case sensitivity.
+   * @return an {@link Expression}
+   * @throws ValidationException if literals do not match bound references, or if comparison on expression is invalid
+   */
+  public Expression bind(Types.StructType struct, boolean caseSensitive) {
+    Types.NestedField field;
+    if (caseSensitive) {
+      field = struct.field(ref().name());
+    } else {
+      field = struct.caseInsensitiveField(ref().name());
+    }
+
     ValidationException.check(field != null,
         "Cannot find field '%s' in struct: %s", ref().name(), struct);
 

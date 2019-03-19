@@ -62,16 +62,24 @@ public class TableProperties {
   public static final String SPLIT_LOOKBACK = "read.split.planning-lookback";
   public static final int SPLIT_LOOKBACK_DEFAULT = 10;
 
+  public static final String SPLIT_OPEN_FILE_COST = "read.split.open-file-cost";
+  public static final long SPLIT_OPEN_FILE_COST_DEFAULT = 4 * 1024 * 1024; // 4MB
+
   public static final String OBJECT_STORE_ENABLED = "write.object-storage.enabled";
   public static final boolean OBJECT_STORE_ENABLED_DEFAULT = false;
 
   public static final String OBJECT_STORE_PATH = "write.object-storage.path";
 
-  // This only applies to files written after this property is set. Files previously written aren't relocated to
-  // reflect this parameter.
+  // This only applies to files written after this property is set. Files previously written aren't
+  // relocated to reflect this parameter.
   // If not set, defaults to a "data" folder underneath the root path of the table.
   public static final String WRITE_NEW_DATA_LOCATION = "write.folder-storage.path";
 
+  // This only applies to files written after this property is set. Files previously written aren't
+  // relocated to reflect this parameter.
+  // If not set, defaults to a "meatdata" folder underneath the root path of the table.
+  public static final String WRITE_METADATA_LOCATION = "write.metadata.path";
+
   public static final String MANIFEST_LISTS_ENABLED = "write.manifest-lists.enabled";
-  public static final boolean MANIFEST_LISTS_ENABLED_DEFAULT = false;
+  public static final boolean MANIFEST_LISTS_ENABLED_DEFAULT = true;
 }
