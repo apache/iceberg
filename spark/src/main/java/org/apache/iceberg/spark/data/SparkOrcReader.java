@@ -64,7 +64,6 @@ import java.util.List;
 public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
   private final static int INITIAL_SIZE = 128 * 1024;
   private final OrcIterator reader;
-  private final TypeDescription orcSchema;
   private final UnsafeRowWriter writer;
   private int nextRow = 0;
   private VectorizedRowBatch current = null;
@@ -74,7 +73,7 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
                         FileScanTask task,
                         Schema readSchema) {
     ColumnIdMap columnIds = new ColumnIdMap();
-    orcSchema = TypeConversion.toOrc(readSchema, columnIds);
+    TypeDescription orcSchema = TypeConversion.toOrc(readSchema, columnIds);
     reader = ORC.read(location)
         .split(task.start(), task.length())
         .schema(readSchema)
@@ -98,9 +97,9 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
       current = reader.next();
       nextRow = 0;
     }
-    // Reset the holder to start the buffer over again.
-    // BufferHolder.reset does the wrong thing...
+
     writer.reset();
+    writer.zeroOutNullBytes();
     for(int c=0; c < current.cols.length; ++c) {
       converter[c].convert(writer, c, current.cols[c], nextRow);
     }
@@ -219,7 +218,8 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
         throw new IllegalArgumentException("Unhandled type " + schema);
     }
   }
-  static int getArrayElementSize(TypeDescription type) {
+
+  private static int getArrayElementSize(TypeDescription type) {
     switch (type.getCategory()) {
       case BOOLEAN:
       case BYTE:
@@ -618,7 +618,7 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
 
     int writeStruct(StructColumnVector vector, int row) {
       int start = childWriter.cursor();
-      childWriter.reset();
+      childWriter.resetRowWriter();
       for(int c=0; c < children.length; ++c) {
         children[c].convert(childWriter, c, vector.fields[c], row);
       }
@@ -669,7 +669,7 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
       int length = (int) v.lengths[row];
       int start = childWriter.cursor();
       childWriter.initialize(length);
-      for(int c=0; c < length; ++c) {
+      for(int c = 0; c < length; ++c) {
         children.convert(childWriter, c, v.child, offset + c);
       }
       return start;

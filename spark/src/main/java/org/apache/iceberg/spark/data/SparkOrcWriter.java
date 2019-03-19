@@ -34,12 +34,9 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
 import org.apache.spark.sql.catalyst.util.ArrayData;
-import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 import org.apache.spark.sql.catalyst.util.MapData;
-import org.apache.spark.unsafe.types.UTF8String;
 
 import java.io.IOException;
-import java.sql.Timestamp;
 import java.util.List;
 
 /**
