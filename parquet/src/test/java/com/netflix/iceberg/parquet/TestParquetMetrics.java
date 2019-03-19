@@ -152,7 +152,7 @@ public class TestParquetMetrics {
     assertBounds(12, FixedType.ofLength(4),
         ByteBuffer.wrap(fixed.bytes()), ByteBuffer.wrap(fixed.bytes()), metrics);
     assertCounts(13, 2L, 0L, metrics);
-    assertBounds(13, FixedType.ofLength(4),
+    assertBounds(13, BinaryType.get(),
         ByteBuffer.wrap("S".getBytes()), ByteBuffer.wrap("W".getBytes()), metrics);
   }
 
@@ -179,6 +179,46 @@ public class TestParquetMetrics {
     assertBounds(2, DecimalType.of(14, 2), new BigDecimal("4.75"), new BigDecimal("4.75"), metrics);
     assertCounts(3, 1L, 0L, metrics);
     assertBounds(3, DecimalType.of(22, 2), new BigDecimal("5.80"), new BigDecimal("5.80"), metrics);
+  }
+
+  @Test
+  public void testMetricsForNestedStructFields() throws IOException {
+    StructType leafStructType = StructType.of(
+        optional(5, "leafLongCol", LongType.get()),
+        optional(6, "leafBinaryCol", BinaryType.get())
+    );
+    StructType nestedStructType = StructType.of(
+        required(3, "longCol", LongType.get()),
+        required(4, "leafStructCol", leafStructType)
+    );
+    Schema schema = new Schema(
+        required(1, "intCol", IntegerType.get()),
+        required(2, "nestedStructCol", nestedStructType)
+    );
+
+    Record leafStruct = new Record(AvroSchemaUtil.convert(leafStructType));
+    leafStruct.put("leafLongCol", 20L);
+    leafStruct.put("leafBinaryCol", "A".getBytes());
+    Record nestedStruct = new Record(AvroSchemaUtil.convert(nestedStructType));
+    nestedStruct.put("longCol", 100L);
+    nestedStruct.put("leafStructCol", leafStruct);
+    Record record = new Record(AvroSchemaUtil.convert(schema.asStruct()));
+    record.put("intCol", Integer.MAX_VALUE);
+    record.put("nestedStructCol", nestedStruct);
+
+    File parquetFile = writeRecords(schema, record);
+
+    Metrics metrics = ParquetMetrics.fromInputFile(localInput(parquetFile));
+    Assert.assertEquals(1L, (long) metrics.recordCount());
+    assertCounts(1, 1L, 0L, metrics);
+    assertBounds(1, IntegerType.get(), Integer.MAX_VALUE, Integer.MAX_VALUE, metrics);
+    assertCounts(3, 1L, 0L, metrics);
+    assertBounds(3, LongType.get(), 100L, 100L, metrics);
+    assertCounts(5, 1L, 0L, metrics);
+    assertBounds(5, LongType.get(), 20L, 20L, metrics);
+    assertCounts(6, 1L, 0L, metrics);
+    assertBounds(6, BinaryType.get(),
+        ByteBuffer.wrap("A".getBytes()), ByteBuffer.wrap("A".getBytes()), metrics);
   }
 
   @Test
