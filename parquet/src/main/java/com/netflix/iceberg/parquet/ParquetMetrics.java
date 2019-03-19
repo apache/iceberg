@@ -113,7 +113,9 @@ public class ParquetMetrics implements Serializable {
     Type currentType = schema.asStruct();
 
     while (pathIterator.hasNext()) {
-      if (currentType == null || !currentType.isStructType()) return false;
+      if (currentType == null || !currentType.isStructType()) {
+        return false;
+      }
       String fieldName = pathIterator.next();
       currentType = currentType.asStructType().fieldType(fieldName);
     }
