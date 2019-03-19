@@ -44,6 +44,7 @@ public class InclusiveMetricsEvaluator {
   private final Schema schema;
   private final StructType struct;
   private final Expression expr;
+  private final boolean caseSensitive;
   private transient ThreadLocal<MetricsEvalVisitor> visitors = null;
 
   private MetricsEvalVisitor visitor() {
@@ -53,10 +54,15 @@ public class InclusiveMetricsEvaluator {
     return visitors.get();
   }
 
-  public InclusiveMetricsEvaluator(Schema schema, Expression unbound) {
+  InclusiveMetricsEvaluator(Schema schema, Expression unbound) {
+    this(schema, unbound, true);
+  }
+
+  public InclusiveMetricsEvaluator(Schema schema, Expression unbound, boolean caseSensitive) {
     this.schema = schema;
     this.struct = schema.asStruct();
-    this.expr = Binder.bind(struct, rewriteNot(unbound), true);
+    this.caseSensitive = caseSensitive;
+    this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
   }
 
   /**

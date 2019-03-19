@@ -24,9 +24,11 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.netflix.iceberg.Schema;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -77,6 +79,13 @@ public class TypeUtil {
 
   public static Map<String, Integer> indexByName(Types.StructType struct) {
     return visit(struct, new IndexByName());
+  }
+
+  public static Map<String, Integer> indexByLowerCaseName(Types.StructType struct) {
+    Map<String, Integer> indexByLowerCaseName = Maps.newHashMap();
+    indexByName(struct).forEach( (name, integer) ->
+      indexByLowerCaseName.put(name.toLowerCase(Locale.ROOT), integer));
+    return indexByLowerCaseName;
   }
 
   public static Map<Integer, Types.NestedField> indexById(Types.StructType struct) {

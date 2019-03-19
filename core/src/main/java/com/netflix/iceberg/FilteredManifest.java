@@ -36,23 +36,25 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
   private final Expression partFilter;
   private final Expression rowFilter;
   private final Collection<String> columns;
+  private final boolean caseSensitive;
 
   // lazy state
   private Evaluator lazyEvaluator = null;
   private InclusiveMetricsEvaluator lazyMetricsEvaluator = null;
 
   FilteredManifest(ManifestReader reader, Expression partFilter, Expression rowFilter,
-                   Collection<String> columns) {
+                   Collection<String> columns, boolean caseSensitive) {
     Preconditions.checkNotNull(reader, "ManifestReader cannot be null");
     this.reader = reader;
     this.partFilter = partFilter;
     this.rowFilter = rowFilter;
     this.columns = columns;
+    this.caseSensitive = caseSensitive;
   }
 
   @Override
   public FilteredManifest select(Collection<String> columns) {
-    return new FilteredManifest(reader, partFilter, rowFilter, columns);
+    return new FilteredManifest(reader, partFilter, rowFilter, columns, caseSensitive);
   }
 
   @Override
@@ -60,16 +62,18 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
     return new FilteredManifest(reader,
         Expressions.and(partFilter, expr),
         rowFilter,
-        columns);
+        columns,
+        caseSensitive);
   }
 
   @Override
   public FilteredManifest filterRows(Expression expr) {
-    Expression projected = Projections.inclusive(reader.spec()).project(expr);
+    Expression projected = Projections.inclusive(reader.spec(), caseSensitive).project(expr);
     return new FilteredManifest(reader,
         Expressions.and(partFilter, projected),
         Expressions.and(rowFilter, expr),
-        columns);
+        columns,
+        caseSensitive);
   }
 
   Iterable<ManifestEntry> allEntries() {
@@ -128,9 +132,9 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
   private Evaluator evaluator() {
     if (lazyEvaluator == null) {
       if (partFilter != null) {
-        this.lazyEvaluator = new Evaluator(reader.spec().partitionType(), partFilter);
+        this.lazyEvaluator = new Evaluator(reader.spec().partitionType(), partFilter, caseSensitive);
       } else {
-        this.lazyEvaluator = new Evaluator(reader.spec().partitionType(), Expressions.alwaysTrue());
+        this.lazyEvaluator = new Evaluator(reader.spec().partitionType(), Expressions.alwaysTrue(), caseSensitive);
       }
     }
     return lazyEvaluator;
@@ -140,10 +144,10 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
     if (lazyMetricsEvaluator == null) {
       if (rowFilter != null) {
         this.lazyMetricsEvaluator = new InclusiveMetricsEvaluator(
-            reader.spec().schema(), rowFilter);
+            reader.spec().schema(), rowFilter, caseSensitive);
       } else {
         this.lazyMetricsEvaluator = new InclusiveMetricsEvaluator(
-            reader.spec().schema(), Expressions.alwaysTrue());
+            reader.spec().schema(), Expressions.alwaysTrue(), caseSensitive);
       }
     }
     return lazyMetricsEvaluator;

@@ -31,6 +31,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -46,6 +47,7 @@ public class Schema implements Serializable {
   private transient BiMap<String, Integer> aliasToId = null;
   private transient Map<Integer, Types.NestedField> idToField = null;
   private transient BiMap<String, Integer> nameToId = null;
+  private transient BiMap<String, Integer> lowerCaseNameToId = null;
 
   public Schema(List<Types.NestedField> columns, Map<String, Integer> aliases) {
     this.struct = Types.StructType.of(columns);
@@ -68,6 +70,13 @@ public class Schema implements Serializable {
       this.nameToId = ImmutableBiMap.copyOf(TypeUtil.indexByName(struct));
     }
     return nameToId;
+  }
+
+  private BiMap<String, Integer> lazyLowerCaseNameToId() {
+    if (lowerCaseNameToId == null) {
+      this.lowerCaseNameToId = ImmutableBiMap.copyOf(TypeUtil.indexByLowerCaseName(struct));
+    }
+    return lowerCaseNameToId;
   }
 
   public Schema(Types.NestedField... columns) {
@@ -207,13 +216,47 @@ public class Schema implements Serializable {
    * @return a projection schema from this schema, by name
    */
   public Schema select(Collection<String> names) {
+    return internalSelect(names, true);
+  }
+
+  /**
+   * Creates a projection schema for a subset of columns, selected by case insensitive name
+   * <p>
+   * Names that identify nested fields will select part or all of the field's top-level column.
+   *
+   * @param names a List of String names for selected columns
+   * @return a projection schema from this schema, by name
+   */
+  public Schema caseInsensitiveSelect(String... names) {
+    return caseInsensitiveSelect(Arrays.asList(names));
+  }
+
+  /**
+   * Creates a projection schema for a subset of columns, selected by case insensitive name
+   * <p>
+   * Names that identify nested fields will select part or all of the field's top-level column.
+   *
+   * @param names a List of String names for selected columns
+   * @return a projection schema from this schema, by name
+   */
+  public Schema caseInsensitiveSelect(Collection<String> names) {
+    return internalSelect(names, false);
+  }
+
+  private Schema internalSelect(Collection<String> names, boolean caseSensitive) {
     if (names.contains(ALL_COLUMNS)) {
       return this;
     }
 
     Set<Integer> selected = Sets.newHashSet();
     for (String name : names) {
-      Integer id = lazyNameToId().get(name);
+      Integer id;
+      if (caseSensitive) {
+        id = lazyNameToId().get(name);
+      } else {
+        id = lazyLowerCaseNameToId().get(name.toLowerCase(Locale.ROOT));
+      }
+
       if (id != null) {
         selected.add(id);
       }

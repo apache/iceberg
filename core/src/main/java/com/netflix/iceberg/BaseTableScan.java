@@ -74,17 +74,22 @@ class BaseTableScan implements TableScan {
   private final Long snapshotId;
   private final Schema schema;
   private final Expression rowFilter;
+  private final boolean caseSensitive;
+  private final Collection<String> selectedColumns;
 
   BaseTableScan(TableOperations ops, Table table) {
-    this(ops, table, null, table.schema(), Expressions.alwaysTrue());
+    this(ops, table, null, table.schema(), Expressions.alwaysTrue(), true, null);
   }
 
-  private BaseTableScan(TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter) {
+  private BaseTableScan(TableOperations ops, Table table, Long snapshotId, Schema schema,
+                        Expression rowFilter, boolean caseSensitive, Collection<String> selectedColumns) {
     this.ops = ops;
     this.table = table;
     this.snapshotId = snapshotId;
     this.schema = schema;
     this.rowFilter = rowFilter;
+    this.caseSensitive = caseSensitive;
+    this.selectedColumns = selectedColumns;
   }
 
   @Override
@@ -98,7 +103,7 @@ class BaseTableScan implements TableScan {
         "Cannot override snapshot, already set to id=%s", snapshotId);
     Preconditions.checkArgument(ops.current().snapshot(snapshotId) != null,
         "Cannot find snapshot with ID %s", snapshotId);
-    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter);
+    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, caseSensitive, selectedColumns);
   }
 
   @Override
@@ -122,28 +127,23 @@ class BaseTableScan implements TableScan {
   }
 
   public TableScan project(Schema schema) {
-    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter);
+    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, caseSensitive, selectedColumns);
+  }
+
+  @Override
+  public TableScan caseSensitive(boolean caseSensitive) {
+    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, caseSensitive, selectedColumns);
   }
 
   @Override
   public TableScan select(Collection<String> columns) {
-    Set<Integer> requiredFieldIds = Sets.newHashSet();
-
-    // all of the filter columns are required
-    requiredFieldIds.addAll(
-        Binder.boundReferences(table.schema().asStruct(), Collections.singletonList(rowFilter), true));
-
-    // all of the projection columns are required
-    requiredFieldIds.addAll(TypeUtil.getProjectedIds(table.schema().select(columns)));
-
-    Schema projection = TypeUtil.select(table.schema(), requiredFieldIds);
-
-    return new BaseTableScan(ops, table, snapshotId, projection, rowFilter);
+    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, caseSensitive, columns);
   }
 
   @Override
   public TableScan filter(Expression expr) {
-    return new BaseTableScan(ops, table, snapshotId, schema, Expressions.and(rowFilter, expr));
+    return new BaseTableScan(ops, table, snapshotId, schema, Expressions.and(rowFilter, expr),
+                             caseSensitive, selectedColumns);
   }
 
   private final LoadingCache<Integer, InclusiveManifestEvaluator> EVAL_CACHE = CacheBuilder
@@ -152,7 +152,7 @@ class BaseTableScan implements TableScan {
         @Override
         public InclusiveManifestEvaluator load(Integer specId) {
           PartitionSpec spec = ops.current().spec(specId);
-          return new InclusiveManifestEvaluator(spec, rowFilter);
+          return new InclusiveManifestEvaluator(spec, rowFilter, caseSensitive);
         }
       });
 
@@ -168,7 +168,7 @@ class BaseTableScan implements TableScan {
           rowFilter);
 
       Listeners.notifyAll(
-          new ScanEvent(table.toString(), snapshot.snapshotId(), rowFilter, schema));
+          new ScanEvent(table.toString(), snapshot.snapshotId(), rowFilter, schema()));
 
       Iterable<ManifestFile> matchingManifests = Iterables.filter(snapshot.manifests(),
           manifest -> EVAL_CACHE.getUnchecked(manifest.partitionSpecId()).eval(manifest));
@@ -177,11 +177,13 @@ class BaseTableScan implements TableScan {
       Iterable<Iterable<FileScanTask>> readers = Iterables.transform(
           matchingManifests,
           manifest -> {
-            ManifestReader reader = ManifestReader.read(ops.io().newInputFile(manifest.path()));
+            ManifestReader reader = ManifestReader
+                .read(ops.io().newInputFile(manifest.path()))
+                .caseSensitive(caseSensitive);
             toClose.add(reader);
             String schemaString = SchemaParser.toJson(reader.spec().schema());
             String specString = PartitionSpecParser.toJson(reader.spec());
-            ResidualEvaluator residuals = new ResidualEvaluator(reader.spec(), rowFilter);
+            ResidualEvaluator residuals = new ResidualEvaluator(reader.spec(), rowFilter, caseSensitive);
             return Iterables.transform(
                 reader.filterRows(rowFilter).select(SNAPSHOT_COLUMNS),
                 file -> new BaseFileScanTask(file, schemaString, specString, residuals)
@@ -221,7 +223,7 @@ class BaseTableScan implements TableScan {
 
   @Override
   public Schema schema() {
-    return schema;
+    return lazyColumnProjection();
   }
 
   @Override
@@ -230,11 +232,17 @@ class BaseTableScan implements TableScan {
   }
 
   @Override
+  public boolean isCaseSensitive() {
+    return caseSensitive;
+  }
+
+  @Override
   public String toString() {
     return Objects.toStringHelper(this)
         .add("table", table)
-        .add("projection", schema.asStruct())
+        .add("projection", schema().asStruct())
         .add("filter", rowFilter)
+        .add("caseSensitive", caseSensitive)
         .toString();
   }
 
@@ -245,5 +253,34 @@ class BaseTableScan implements TableScan {
         .transformAndConcat(input -> input.split(splitSize));
     // Capture manifests which can be closed after scan planning
     return CloseableIterable.combine(splitTasks, ImmutableList.of(fileScanTasks));
+  }
+
+  /**
+   * To be able to make refinements {@link #select(Collection)} and {@link #caseSensitive(boolean)} in any order,
+   * we resolve the schema to be projected lazily here.
+   *
+   * @return the Schema to project
+   */
+  private Schema lazyColumnProjection() {
+    if (selectedColumns != null ) {
+      Set<Integer> requiredFieldIds = Sets.newHashSet();
+
+      // all of the filter columns are required
+      requiredFieldIds.addAll(
+          Binder.boundReferences(table.schema().asStruct(), Collections.singletonList(rowFilter), caseSensitive));
+
+      // all of the projection columns are required
+      Set<Integer> selectedIds;
+      if (caseSensitive) {
+        selectedIds = TypeUtil.getProjectedIds(table.schema().select(selectedColumns));
+      } else {
+        selectedIds = TypeUtil.getProjectedIds(table.schema().caseInsensitiveSelect(selectedColumns));
+      }
+      requiredFieldIds.addAll(selectedIds);
+
+      return TypeUtil.select(table.schema(), requiredFieldIds);
+    }
+
+    return schema;
   }
 }

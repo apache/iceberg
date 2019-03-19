@@ -21,6 +21,7 @@ package com.netflix.iceberg.transforms;
 
 import com.google.common.collect.Lists;
 import com.netflix.iceberg.Schema;
+import com.netflix.iceberg.exceptions.ValidationException;
 import com.netflix.iceberg.expressions.BoundPredicate;
 import com.netflix.iceberg.expressions.Expression;
 import com.netflix.iceberg.expressions.Expressions;
@@ -35,6 +36,7 @@ import java.util.List;
 
 import static com.netflix.iceberg.TestHelpers.assertAndUnwrap;
 import static com.netflix.iceberg.TestHelpers.assertAndUnwrapUnbound;
+import static com.netflix.iceberg.TestHelpers.assertThrows;
 import static com.netflix.iceberg.expressions.Expressions.and;
 import static com.netflix.iceberg.expressions.Expressions.equal;
 import static com.netflix.iceberg.expressions.Expressions.greaterThanOrEqual;
@@ -87,6 +89,56 @@ public class TestProjection {
   }
 
   @Test
+  public void testCaseInsensitiveIdentityProjection() {
+    List<UnboundPredicate<?>> predicates = Lists.newArrayList(
+        Expressions.notNull("ID"),
+        Expressions.isNull("ID"),
+        Expressions.lessThan("ID", 100),
+        Expressions.lessThanOrEqual("ID", 101),
+        Expressions.greaterThan("ID", 102),
+        Expressions.greaterThanOrEqual("ID", 103),
+        Expressions.equal("ID", 104),
+        Expressions.notEqual("ID", 105)
+    );
+
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
+        .identity("id")
+        .build();
+
+    for (UnboundPredicate<?> predicate : predicates) {
+      // get the projected predicate
+      Expression expr = Projections.inclusive(spec, false).project(predicate);
+      UnboundPredicate<?> projected = assertAndUnwrapUnbound(expr);
+
+      // check inclusive the bound predicate to ensure the types are correct
+      BoundPredicate<?> bound = assertAndUnwrap(predicate.bind(spec.schema().asStruct(), false));
+
+      Assert.assertEquals("Field name should match partition struct field",
+          "id", projected.ref().name());
+      Assert.assertEquals("Operation should match", bound.op(), projected.op());
+
+      if (bound.literal() != null) {
+        Assert.assertEquals("Literal should be equal",
+            bound.literal().value(), projected.literal().value());
+      } else {
+        Assert.assertNull("Literal should be null", projected.literal());
+      }
+    }
+  }
+
+  @Test
+  public void testCaseSensitiveIdentityProjection() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
+        .identity("id")
+        .build();
+
+    assertThrows("X != x when case sensitivity is on",
+        ValidationException.class,
+        "Cannot find field 'ID' in struct",
+        () -> { Projections.inclusive(spec, true).project(Expressions.notNull("ID")); });
+  }
+
+  @Test
   public void testStrictIdentityProjection() {
     List<UnboundPredicate<?>> predicates = Lists.newArrayList(
         Expressions.notNull("id"),
@@ -122,6 +174,57 @@ public class TestProjection {
         Assert.assertNull("Literal should be null", projected.literal());
       }
     }
+  }
+
+  @Test
+  public void testCaseInsensitiveStrictIdentityProjection() {
+    List<UnboundPredicate<?>> predicates = Lists.newArrayList(
+        Expressions.notNull("ID"),
+        Expressions.isNull("ID"),
+        Expressions.lessThan("ID", 100),
+        Expressions.lessThanOrEqual("ID", 101),
+        Expressions.greaterThan("ID", 102),
+        Expressions.greaterThanOrEqual("ID", 103),
+        Expressions.equal("ID", 104),
+        Expressions.notEqual("ID", 105)
+    );
+
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
+        .identity("id")
+        .build();
+
+    for (UnboundPredicate<?> predicate : predicates) {
+      // get the projected predicate
+      Expression expr = Projections.strict(spec, false).project(predicate);
+      UnboundPredicate<?> projected = assertAndUnwrapUnbound(expr);
+
+      // check inclusive the bound predicate to ensure the types are correct
+      BoundPredicate<?> bound = assertAndUnwrap(predicate.bind(spec.schema().asStruct(), false));
+
+      Assert.assertEquals("Field name should match partition struct field",
+          "id", projected.ref().name());
+      Assert.assertEquals("Operation should match", bound.op(), projected.op());
+
+      if (bound.literal() != null) {
+        Assert.assertEquals("Literal should be equal",
+            bound.literal().value(), projected.literal().value());
+      } else {
+        Assert.assertNull("Literal should be null", projected.literal());
+      }
+    }
+  }
+
+  @Test
+  public void testCaseSensitiveStrictIdentityProjection() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
+      .identity("id")
+      .build();
+
+    assertThrows(
+      "X != x when case sensitivity is on",
+      ValidationException.class,
+      "Cannot find field 'ID' in struct",
+      () -> { Projections.strict(spec, true).project(Expressions.notNull("ID")); });
   }
 
   @Test

@@ -312,4 +312,33 @@ public class TestInclusiveMetricsEvaluator {
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, not(equal("id", 85))).eval(FILE);
     Assert.assertTrue("Should read: id above upper bound", shouldRead);
   }
+
+  @Test
+  public void testCaseInsensitiveIntegerNotEqRewritten() {
+    boolean shouldRead = new InclusiveMetricsEvaluator(SCHEMA, not(equal("ID", 5)), false).eval(FILE);
+    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, not(equal("ID", 29)), false).eval(FILE);
+    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, not(equal("ID", 30)), false).eval(FILE);
+    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, not(equal("ID", 75)), false).eval(FILE);
+    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, not(equal("ID", 79)), false).eval(FILE);
+    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, not(equal("ID", 80)), false).eval(FILE);
+    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, not(equal("ID", 85)), false).eval(FILE);
+    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+  }
+
+  @Test(expected = ValidationException.class)
+  public void testCaseSensitiveIntegerNotEqRewritten() {
+    boolean shouldRead = new InclusiveMetricsEvaluator(SCHEMA, not(equal("ID", 5)), true).eval(FILE);
+  }
 }

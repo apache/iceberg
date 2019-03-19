@@ -224,8 +224,10 @@ public class SparkSchemaUtil {
    * @return a Schema corresponding to the Spark projection
    * @throws IllegalArgumentException if the Spark type does not match the Schema
    */
-  public static Schema prune(Schema schema, StructType requestedType, Expression filter) {
-    Set<Integer> filterRefs = Binder.boundReferences(schema.asStruct(), Collections.singletonList(filter), true);
+  public static Schema prune(Schema schema, StructType requestedType, Expression filter, boolean caseSensitive) {
+    Set<Integer> filterRefs =
+        Binder.boundReferences(schema.asStruct(), Collections.singletonList(filter), caseSensitive);
+
     return new Schema(visit(schema, new PruneColumnsWithoutReordering(requestedType, filterRefs))
         .asNestedType()
         .asStructType()

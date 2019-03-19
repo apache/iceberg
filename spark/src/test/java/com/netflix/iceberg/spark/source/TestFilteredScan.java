@@ -219,6 +219,37 @@ public class TestFilteredScan {
   }
 
   @Test
+  public void testUnpartitionedCaseInsensitiveIDFilters() {
+    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
+        "path", unpartitioned.toString())
+    );
+
+    // set spark.sql.caseSensitive to false
+    String caseSensitivityBeforeTest = TestFilteredScan.spark.conf().get("spark.sql.caseSensitive");
+    TestFilteredScan.spark.conf().set("spark.sql.caseSensitive", "false");
+
+    try {
+      IcebergSource source = new IcebergSource();
+
+      for (int i = 0; i < 10; i += 1) {
+        DataSourceReader reader = source.createReader(options);
+
+        pushFilters(reader, EqualTo.apply("ID", i)); // note lower(ID) == lower(id), so there must be a match
+
+        List<InputPartition<InternalRow>> tasks = reader.planInputPartitions();
+        Assert.assertEquals("Should only create one task for a small file", 1, tasks.size());
+
+        // validate row filtering
+        assertEqualsSafe(SCHEMA.asStruct(), expected(i),
+            read(unpartitioned.toString(), "id = " + i));
+      }
+    } finally {
+      // return global conf to previous state
+      TestFilteredScan.spark.conf().set("spark.sql.caseSensitive", caseSensitivityBeforeTest);
+    }
+  }
+
+  @Test
   public void testUnpartitionedTimestampFilter() {
     DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
         "path", unpartitioned.toString())

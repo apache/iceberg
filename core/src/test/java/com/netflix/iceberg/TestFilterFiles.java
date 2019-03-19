@@ -67,10 +67,24 @@ public class TestFilterFiles {
   }
 
   @Test
+  public void testCaseInsensitiveFilterFilesUnpartitionedTable() {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table = TestTables.create(tableDir, "test", schema, spec);
+    testCaseInsensitiveFilterFiles(table);
+  }
+
+  @Test
   public void testFilterFilesPartitionedTable() {
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("data", 16).build();
     Table table = TestTables.create(tableDir, "test", schema, spec);
     testFilterFiles(table);
+  }
+
+  @Test
+  public void testCaseInsensitiveFilterFilesPartitionedTable() {
+    PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("data", 16).build();
+    Table table = TestTables.create(tableDir, "test", schema, spec);
+    testCaseInsensitiveFilterFiles(table);
   }
 
   private void testFilterFiles(Table table) {
@@ -96,6 +110,32 @@ public class TestFilterFiles {
     assertEquals(0, Iterables.size(emptyScan.planFiles()));
 
     TableScan nonEmptyScan = table.newScan().filter(Expressions.equal("id", 1));
+    assertEquals(1, Iterables.size(nonEmptyScan.planFiles()));
+  }
+
+  private void testCaseInsensitiveFilterFiles(Table table) {
+    Map<Integer, ByteBuffer> lowerBounds = new HashMap<>();
+    Map<Integer, ByteBuffer> upperBounds = new HashMap<>();
+    lowerBounds.put(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1));
+    upperBounds.put(1, Conversions.toByteBuffer(Types.IntegerType.get(), 2));
+
+    Metrics metrics = new Metrics(2L, Maps.newHashMap(), Maps.newHashMap(),
+      Maps.newHashMap(), lowerBounds, upperBounds);
+
+    DataFile file = DataFiles.builder(table.spec())
+      .withPath("/path/to/file.parquet")
+      .withFileSizeInBytes(0)
+      .withMetrics(metrics)
+      .build();
+
+    table.newAppend().appendFile(file).commit();
+
+    table.refresh();
+
+    TableScan emptyScan = table.newScan().caseSensitive(false).filter(Expressions.equal("ID", 5));
+    assertEquals(0, Iterables.size(emptyScan.planFiles()));
+
+    TableScan nonEmptyScan = table.newScan().caseSensitive(false).filter(Expressions.equal("ID", 1));
     assertEquals(1, Iterables.size(nonEmptyScan.planFiles()));
   }
 }

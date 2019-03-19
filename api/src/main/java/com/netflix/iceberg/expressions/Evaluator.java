@@ -47,6 +47,10 @@ public class Evaluator implements Serializable {
     this.expr = Binder.bind(struct, unbound, true);
   }
 
+  public Evaluator(Types.StructType struct, Expression unbound, boolean caseSensitive) {
+    this.expr = Binder.bind(struct, unbound, caseSensitive);
+  }
+
   public boolean eval(StructLike data) {
     return visitor().eval(data);
   }
