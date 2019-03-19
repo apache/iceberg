@@ -19,10 +19,12 @@
 
 package com.netflix.iceberg.avro;
 
+import com.google.common.base.Preconditions;
 import com.netflix.iceberg.Metrics;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.FileAppender;
 import com.netflix.iceberg.io.OutputFile;
+import com.netflix.iceberg.io.PositionOutputStream;
 import org.apache.avro.Schema;
 import org.apache.avro.file.CodecFactory;
 import org.apache.avro.file.DataFileWriter;
@@ -32,13 +34,15 @@ import java.util.Map;
 import java.util.function.Function;
 
 class AvroFileAppender<D> implements FileAppender<D> {
+  private PositionOutputStream stream = null;
   private DataFileWriter<D> writer = null;
   private long numRecords = 0L;
 
   AvroFileAppender(Schema schema, OutputFile file,
                    Function<Schema, DatumWriter<?>> createWriterFunc,
                    CodecFactory codec, Map<String, String> metadata) throws IOException {
-    this.writer = newAvroWriter(schema, file, createWriterFunc, codec, metadata);
+    this.stream = file.create();
+    this.writer = newAvroWriter(schema, stream, createWriterFunc, codec, metadata);
   }
 
   @Override
@@ -57,6 +61,20 @@ class AvroFileAppender<D> implements FileAppender<D> {
   }
 
   @Override
+  public long length() {
+    Preconditions.checkState(writer == null,
+        "Cannot return length while appending to an open file.");
+    if (stream != null) {
+      try {
+        return stream.getPos();
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to get stream length");
+      }
+    }
+    throw new RuntimeIOException("Failed to get stream length: no open stream");
+  }
+
+  @Override
   public void close() throws IOException {
     if (writer != null) {
       writer.close();
@@ -66,7 +84,7 @@ class AvroFileAppender<D> implements FileAppender<D> {
 
   @SuppressWarnings("unchecked")
   private static <D> DataFileWriter<D> newAvroWriter(
-      Schema schema, OutputFile file, Function<Schema, DatumWriter<?>> createWriterFunc,
+      Schema schema, PositionOutputStream stream, Function<Schema, DatumWriter<?>> createWriterFunc,
       CodecFactory codec, Map<String, String> metadata) throws IOException {
     DataFileWriter<D> writer = new DataFileWriter<>(
         (DatumWriter<D>) createWriterFunc.apply(schema));
@@ -78,6 +96,6 @@ class AvroFileAppender<D> implements FileAppender<D> {
     }
 
     // TODO: support overwrite
-    return writer.create(schema, file.create());
+    return writer.create(schema, stream);
   }
 }
