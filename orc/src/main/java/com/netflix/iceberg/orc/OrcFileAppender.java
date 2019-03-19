@@ -15,6 +15,7 @@
  */
 package com.netflix.iceberg.orc;
 
+import com.google.common.base.Preconditions;
 import com.netflix.iceberg.Metrics;
 import com.netflix.iceberg.Schema;
 import com.netflix.iceberg.io.FileAppender;
@@ -39,6 +40,7 @@ public class OrcFileAppender implements FileAppender<VectorizedRowBatch> {
   private final TypeDescription orcSchema;
   private final ColumnIdMap columnIds = new ColumnIdMap();
   private final Path path;
+  private boolean isClosed = false;
 
   public static final String COLUMN_NUMBERS_ATTRIBUTE = "iceberg.column.ids";
 
@@ -99,12 +101,17 @@ public class OrcFileAppender implements FileAppender<VectorizedRowBatch> {
 
   @Override
   public long length() {
+    Preconditions.checkState(isClosed,
+        "Cannot return length while appending to an open file.");
     return writer.getRawDataSize();
   }
 
   @Override
   public void close() throws IOException {
-    writer.close();
+    if (!isClosed) {
+      this.isClosed = true;
+      writer.close();
+    }
   }
 
   public TypeDescription getSchema() {

@@ -19,6 +19,7 @@
 
 package com.netflix.iceberg.avro;
 
+import com.google.common.base.Preconditions;
 import com.netflix.iceberg.Metrics;
 import com.netflix.iceberg.exceptions.RuntimeIOException;
 import com.netflix.iceberg.io.FileAppender;
@@ -61,6 +62,8 @@ class AvroFileAppender<D> implements FileAppender<D> {
 
   @Override
   public long length() {
+    Preconditions.checkState(writer == null,
+        "Cannot return length while appending to an open file.");
     if (stream != null) {
       try {
         return stream.getPos();
