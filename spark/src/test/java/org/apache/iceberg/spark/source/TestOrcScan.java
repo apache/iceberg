@@ -14,25 +14,25 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.spark.source;
+package org.apache.iceberg.spark.source;
 
-import com.netflix.iceberg.DataFile;
-import com.netflix.iceberg.DataFiles;
-import com.netflix.iceberg.FileFormat;
-import com.netflix.iceberg.Metrics;
-import com.netflix.iceberg.PartitionSpec;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.Table;
-import com.netflix.iceberg.hadoop.HadoopTables;
-import com.netflix.iceberg.io.FileAppender;
-import com.netflix.iceberg.orc.ORC;
-import com.netflix.iceberg.orc.OrcFileAppender;
-import com.netflix.iceberg.spark.data.AvroDataTest;
-import com.netflix.iceberg.spark.data.RandomData;
-import com.netflix.iceberg.spark.data.SparkOrcWriter;
-import com.netflix.iceberg.spark.data.TestHelpers;
-import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Metrics;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.orc.ORC;
+import org.apache.iceberg.orc.OrcFileAppender;
+import org.apache.iceberg.spark.data.AvroDataTest;
+import org.apache.iceberg.spark.data.RandomData;
+import org.apache.iceberg.spark.data.SparkOrcWriter;
+import org.apache.iceberg.spark.data.TestHelpers;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.serde2.io.TimestampWritable;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
@@ -58,7 +58,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 
-import static com.netflix.iceberg.Files.localOutput;
+import static org.apache.iceberg.Files.localOutput;
 
 public class TestOrcScan extends AvroDataTest {
   private static final Configuration CONF = new Configuration();

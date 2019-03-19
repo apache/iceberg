@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.spark.data;
+package org.apache.iceberg.spark.data;
 
-import com.netflix.iceberg.Metrics;
-import com.netflix.iceberg.io.FileAppender;
-import com.netflix.iceberg.orc.OrcFileAppender;
+import org.apache.iceberg.Metrics;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.orc.OrcFileAppender;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.common.type.HiveDecimal;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;

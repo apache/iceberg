@@ -59,6 +59,7 @@ import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Attribute;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
@@ -433,6 +434,10 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
           iter = newAvroIterable(location, task, readSchema);
           break;
 
+        case ORC:
+          iter = newOrcIterable(location, task, readSchema);
+          break;
+
         default:
           throw new UnsupportedOperationException(
               "Cannot read unknown format: " + task.file().format());
@@ -444,8 +449,8 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     }
 
     private CloseableIterable<InternalRow> newAvroIterable(InputFile location,
-                                                      FileScanTask task,
-                                                      Schema readSchema) {
+                                                           FileScanTask task,
+                                                           Schema readSchema) {
       return Avro.read(location)
           .reuseContainers()
           .project(readSchema)
@@ -455,8 +460,8 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     }
 
     private CloseableIterable<InternalRow> newParquetIterable(InputFile location,
-                                                            FileScanTask task,
-                                                            Schema readSchema) {
+                                                              FileScanTask task,
+                                                              Schema readSchema) {
       return Parquet.read(location)
           .project(readSchema)
           .split(task.start(), task.length())
@@ -464,6 +469,23 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
           .filter(task.residual())
           .caseSensitive(caseSensitive)
           .build();
+    }
+
+    private CloseableIterable<InternalRow> newOrcIterable(InputFile location,
+                                                          FileScanTask task,
+                                                          Schema readSchema) {
+      final SparkOrcReader orcReader = new SparkOrcReader(location, task, readSchema);
+      return new CloseableIterable<InternalRow>() {
+        @Override
+        public void close() throws IOException {
+          orcReader.close();
+        }
+
+        @Override
+        public Iterator<InternalRow> iterator() {
+          return orcReader;
+        }
+      };
     }
   }
 

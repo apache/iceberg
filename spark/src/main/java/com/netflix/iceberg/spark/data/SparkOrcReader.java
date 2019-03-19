@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.spark.data;
+package org.apache.iceberg.spark.data;
 
-import com.netflix.iceberg.FileScanTask;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.io.InputFile;
-import com.netflix.iceberg.orc.ColumnIdMap;
-import com.netflix.iceberg.orc.ORC;
-import com.netflix.iceberg.orc.OrcIterator;
-import com.netflix.iceberg.orc.TypeConversion;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.orc.ColumnIdMap;
+import org.apache.iceberg.orc.ORC;
+import org.apache.iceberg.orc.OrcIterator;
+import org.apache.iceberg.orc.TypeConversion;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.common.type.FastHiveDecimal;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
@@ -40,14 +40,13 @@ import org.apache.orc.storage.serde2.io.HiveDecimalWritable;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
 import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
-import org.apache.spark.sql.catalyst.expressions.codegen.BufferHolder;
 import org.apache.spark.sql.catalyst.expressions.codegen.UnsafeArrayWriter;
 import org.apache.spark.sql.catalyst.expressions.codegen.UnsafeRowWriter;
+import org.apache.spark.sql.catalyst.expressions.codegen.UnsafeWriter;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.Platform;
-import org.apache.spark.unsafe.array.ByteArrayMethods;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -66,8 +65,6 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
   private final static int INITIAL_SIZE = 128 * 1024;
   private final OrcIterator reader;
   private final TypeDescription orcSchema;
-  private final UnsafeRow row;
-  private final BufferHolder holder;
   private final UnsafeRowWriter writer;
   private int nextRow = 0;
   private VectorizedRowBatch current = null;
@@ -83,12 +80,10 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
         .schema(readSchema)
         .build();
     int numFields = readSchema.columns().size();
-    row = new UnsafeRow(numFields);
-    holder = new BufferHolder(row, INITIAL_SIZE);
-    writer = new UnsafeRowWriter(holder, numFields);
+    writer = new UnsafeRowWriter(numFields, INITIAL_SIZE);
     converter = new Converter[numFields];
-    for(int c=0; c < numFields; ++c) {
-      converter[c] = buildConverter(holder, orcSchema.getChildren().get(c));
+    for(int c = 0; c < numFields; ++c) {
+      converter[c] = buildConverter(writer, orcSchema.getChildren().get(c));
     }
   }
 
@@ -105,13 +100,12 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
     }
     // Reset the holder to start the buffer over again.
     // BufferHolder.reset does the wrong thing...
-    holder.cursor = Platform.BYTE_ARRAY_OFFSET;
     writer.reset();
     for(int c=0; c < current.cols.length; ++c) {
       converter[c].convert(writer, c, current.cols[c], nextRow);
     }
     nextRow++;
-    return row;
+    return writer.getRow();
   }
 
   @Override
@@ -250,8 +244,7 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
    */
   interface Converter {
     void convert(UnsafeRowWriter writer, int column, ColumnVector vector, int row);
-    void convert(UnsafeArrayWriter writer, int element, ColumnVector vector,
-                 int row);
+    void convert(UnsafeArrayWriter writer, int element, ColumnVector vector, int row);
   }
 
   private static class BooleanConverter implements Converter {
@@ -484,48 +477,10 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
     }
   }
 
-  /**
-   * UnsafeArrayWriter doesn't have a binary form that lets the user pass an
-   * offset and length, so I've added one here. It is the minor tweak of the
-   * UnsafeArrayWriter.write(int, byte[]) method.
-   * @param holder the BufferHolder where the bytes are being written
-   * @param writer the UnsafeArrayWriter
-   * @param ordinal the element that we are writing into
-   * @param input the input bytes
-   * @param offset the first byte from input
-   * @param length the number of bytes to write
-   */
-  static void write(BufferHolder holder, UnsafeArrayWriter writer, int ordinal,
-                    byte[] input, int offset, int length) {
-    final int roundedSize = ByteArrayMethods.roundNumberOfBytesToNearestWord(length);
-
-    // grow the global buffer before writing data.
-    holder.grow(roundedSize);
-
-    if ((length & 0x07) > 0) {
-      Platform.putLong(holder.buffer, holder.cursor + ((length >> 3) << 3), 0L);
-    }
-
-    // Write the bytes to the variable length portion.
-    Platform.copyMemory(input, Platform.BYTE_ARRAY_OFFSET + offset,
-        holder.buffer, holder.cursor, length);
-
-    writer.setOffsetAndSize(ordinal, holder.cursor, length);
-
-    // move the cursor forward.
-    holder.cursor += roundedSize;
-  }
-
   private static class BinaryConverter implements Converter {
-    private final BufferHolder holder;
-
-    BinaryConverter(BufferHolder holder) {
-      this.holder = holder;
-    }
 
     @Override
-    public void convert(UnsafeRowWriter writer, int column, ColumnVector vector,
-                        int row) {
+    public void convert(UnsafeRowWriter writer, int column, ColumnVector vector, int row) {
       if (vector.isRepeating) {
         row = 0;
       }
@@ -538,17 +493,15 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
     }
 
     @Override
-    public void convert(UnsafeArrayWriter writer, int element,
-                        ColumnVector vector, int row) {
+    public void convert(UnsafeArrayWriter writer, int element, ColumnVector vector, int row) {
       if (vector.isRepeating) {
         row = 0;
       }
       if (!vector.noNulls && vector.isNull[row]) {
         writer.setNull(element);
       } else {
-        BytesColumnVector v = (BytesColumnVector) vector;
-        write(holder, writer, element, v.vector[row], v.start[row],
-            v.length[row]);
+        final BytesColumnVector v = (BytesColumnVector) vector;
+        writer.write(element, v.vector[row], v.start[row], v.length[row]);
       }
     }
   }
@@ -652,21 +605,19 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
   }
 
   private static class StructConverter implements Converter {
-    private final BufferHolder holder;
     private final Converter[] children;
     private final UnsafeRowWriter childWriter;
 
-    StructConverter(BufferHolder holder, TypeDescription schema) {
-      this.holder = holder;
+    StructConverter(final UnsafeWriter parentWriter, final TypeDescription schema) {
       children = new Converter[schema.getChildren().size()];
       for(int c=0; c < children.length; ++c) {
-        children[c] = buildConverter(holder, schema.getChildren().get(c));
+        children[c] = buildConverter(parentWriter, schema.getChildren().get(c));
       }
-      childWriter = new UnsafeRowWriter(holder, children.length);
+      childWriter = new UnsafeRowWriter(parentWriter, children.length);
     }
 
     int writeStruct(StructColumnVector vector, int row) {
-      int start = holder.cursor;
+      int start = childWriter.cursor();
       childWriter.reset();
       for(int c=0; c < children.length; ++c) {
         children[c].convert(childWriter, c, vector.fields[c], row);
@@ -683,7 +634,7 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
         writer.setNullAt(column);
       } else {
         int start = writeStruct((StructColumnVector) vector, row);
-        writer.setOffsetAndSize(column, start, holder.cursor - start);
+        writer.setOffsetAndSizeFromPreviousCursor(column, start);
       }
     }
 
@@ -697,35 +648,32 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
         writer.setNull(element);
       } else {
         int start = writeStruct((StructColumnVector) vector, row);
-        writer.setOffsetAndSize(element, start, holder.cursor - start);
+        writer.setOffsetAndSizeFromPreviousCursor(element, start);
       }
     }
   }
 
   private static class ListConverter implements Converter {
-    private final BufferHolder holder;
     private final Converter children;
     private final UnsafeArrayWriter childWriter;
-    private final int elementSize;
 
-    ListConverter(BufferHolder holder, TypeDescription schema) {
-      this.holder = holder;
+    ListConverter(final UnsafeWriter parentWriter, TypeDescription schema) {
       TypeDescription child = schema.getChildren().get(0);
-      children = buildConverter(holder, child);
-      childWriter = new UnsafeArrayWriter();
-      elementSize = getArrayElementSize(child);
+      children = buildConverter(parentWriter, child);
+      childWriter = new UnsafeArrayWriter(parentWriter, getArrayElementSize(child));
+
     }
 
     int writeList(ListColumnVector v, int row) {
       int offset = (int) v.offsets[row];
       int length = (int) v.lengths[row];
-      int start = holder.cursor;
-      childWriter.initialize(holder, length, elementSize);
+      int start = childWriter.cursor();
+      childWriter.initialize(length);
       for(int c=0; c < length; ++c) {
         children.convert(childWriter, c, v.child, offset + c);
       }
       return start;
-     }
+    }
 
     @Override
     public void convert(UnsafeRowWriter writer, int column, ColumnVector vector,
@@ -737,7 +685,7 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
         writer.setNullAt(column);
       } else {
         int start = writeList((ListColumnVector) vector, row);
-        writer.setOffsetAndSize(column, start, holder.cursor - start);
+        writer.setOffsetAndSizeFromPreviousCursor(column, start);
       }
     }
 
@@ -751,56 +699,62 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
         writer.setNull(element);
       } else {
         int start = writeList((ListColumnVector) vector, row);
-        writer.setOffsetAndSize(element, start, holder.cursor - start);
+        writer.setOffsetAndSizeFromPreviousCursor(element, start);
       }
     }
   }
 
   private static class MapConverter implements Converter {
-    private final BufferHolder holder;
     private final Converter keyConvert;
     private final Converter valueConvert;
-    private final UnsafeArrayWriter childWriter;
+
+    private final UnsafeArrayWriter keyWriter;
+    private final UnsafeArrayWriter valueWriter;
+
     private final int keySize;
     private final int valueSize;
 
-    MapConverter(BufferHolder holder, TypeDescription schema) {
-      this.holder = holder;
-      TypeDescription keyType = schema.getChildren().get(0);
-      TypeDescription valueType = schema.getChildren().get(1);
-      keyConvert = buildConverter(holder, keyType);
+    private final int KEY_SIZE_BYTES = 8;
+
+    MapConverter(final UnsafeWriter parentWriter, TypeDescription schema) {
+      final TypeDescription keyType = schema.getChildren().get(0);
+      final TypeDescription valueType = schema.getChildren().get(1);
+      keyConvert = buildConverter(parentWriter, keyType);
       keySize = getArrayElementSize(keyType);
-      valueConvert = buildConverter(holder, valueType);
+      keyWriter = new UnsafeArrayWriter(parentWriter, keySize);
+      valueConvert = buildConverter(parentWriter, valueType);
       valueSize = getArrayElementSize(valueType);
-      childWriter = new UnsafeArrayWriter();
+      valueWriter = new UnsafeArrayWriter(parentWriter, valueSize);
     }
 
     int writeMap(MapColumnVector v, int row) {
-      int offset = (int) v.offsets[row];
-      int length = (int) v.lengths[row];
-      int start = holder.cursor;
+      final int offset = (int) v.offsets[row];
+      final int length = (int) v.lengths[row];
+      final int start = keyWriter.cursor();
+
       // save room for the key size
-      final int KEY_SIZE_BYTES = 8;
-      holder.grow(KEY_SIZE_BYTES);
-      holder.cursor += KEY_SIZE_BYTES;
+      keyWriter.grow(KEY_SIZE_BYTES);
+      keyWriter.increaseCursor(KEY_SIZE_BYTES);
+
       // serialize the keys
-      childWriter.initialize(holder, length, keySize);
-      for(int c=0; c < length; ++c) {
-        keyConvert.convert(childWriter, c, v.keys, offset + c);
+      keyWriter.initialize(length);
+      for(int c = 0; c < length; ++c) {
+        keyConvert.convert(keyWriter, c, v.keys, offset + c);
       }
       // store the serialized size of the keys
-      Platform.putLong(holder.buffer, start, holder.cursor - start - KEY_SIZE_BYTES);
+      Platform.putLong(keyWriter.getBuffer(), start,
+                keyWriter.cursor() - start - KEY_SIZE_BYTES);
+
       // serialize the values
-      childWriter.initialize(holder, length, valueSize);
-      for(int c=0; c < length; ++c) {
-        valueConvert.convert(childWriter, c, v.values, offset + c);
+      valueWriter.initialize(length);
+      for(int c = 0; c < length; ++c) {
+        valueConvert.convert(valueWriter, c, v.values, offset + c);
       }
       return start;
     }
 
     @Override
-    public void convert(UnsafeRowWriter writer, int column, ColumnVector vector,
-                        int row) {
+    public void convert(UnsafeRowWriter writer, int column, ColumnVector vector, int row) {
       if (vector.isRepeating) {
         row = 0;
       }
@@ -808,13 +762,12 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
         writer.setNullAt(column);
       } else {
         int start = writeMap((MapColumnVector) vector, row);
-        writer.setOffsetAndSize(column, start, holder.cursor - start);
+        writer.setOffsetAndSizeFromPreviousCursor(column, start);
       }
     }
 
     @Override
-    public void convert(UnsafeArrayWriter writer, int element,
-                        ColumnVector vector, int row) {
+    public void convert(UnsafeArrayWriter writer, int element, ColumnVector vector, int row) {
       if (vector.isRepeating) {
         row = 0;
       }
@@ -822,12 +775,12 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
         writer.setNull(element);
       } else {
         int start = writeMap((MapColumnVector) vector, row);
-        writer.setOffsetAndSize(element, start, holder.cursor - start);
+        writer.setOffsetAndSizeFromPreviousCursor(element, start);
       }
     }
   }
 
-  static Converter buildConverter(BufferHolder holder, TypeDescription schema) {
+  static Converter buildConverter(final UnsafeWriter writer, final TypeDescription schema) {
     switch (schema.getCategory()) {
       case BOOLEAN:
         return new BooleanConverter();
@@ -856,13 +809,13 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
       case STRING:
       case CHAR:
       case VARCHAR:
-        return new BinaryConverter(holder);
+        return new BinaryConverter();
       case STRUCT:
-        return new StructConverter(holder, schema);
+        return new StructConverter(writer, schema);
       case LIST:
-        return new ListConverter(holder, schema);
+        return new ListConverter(writer, schema);
       case MAP:
-        return new MapConverter(holder, schema);
+        return new MapConverter(writer, schema);
       default:
         throw new IllegalArgumentException("Unhandled type " + schema);
     }
