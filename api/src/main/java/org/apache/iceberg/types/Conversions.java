@@ -31,6 +31,7 @@ import java.nio.charset.CharsetEncoder;
 import java.util.Arrays;
 import java.util.UUID;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.types.Types.UUIDType;
 
 public class Conversions {
   private static final String HIVE_NULL = "__HIVE_DEFAULT_PARTITION__";
@@ -98,7 +99,7 @@ public class Conversions {
         }
       case UUID:
         UUID uuid = (UUID) value;
-        return ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
+        return ByteBuffer.allocate(16).order(ByteOrder.BIG_ENDIAN)
             .putLong(0, uuid.getMostSignificantBits())
             .putLong(1, uuid.getLeastSignificantBits());
       case FIXED:
@@ -117,7 +118,8 @@ public class Conversions {
   }
 
   private static Object internalFromByteBuffer(Type type, ByteBuffer buffer) {
-    ByteBuffer tmp = buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN);
+    ByteOrder byteOrder = type == UUIDType.get() ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN;
+    ByteBuffer tmp = buffer.duplicate().order(byteOrder);
     switch (type.typeId()) {
       case BOOLEAN:
         return (tmp.get() != 0x00);
