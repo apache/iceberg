@@ -42,9 +42,9 @@ import com.netflix.iceberg.io.LocationProvider;
 import com.netflix.iceberg.io.OutputFile;
 import com.netflix.iceberg.parquet.Parquet;
 import com.netflix.iceberg.spark.data.SparkAvroWriter;
+import com.netflix.iceberg.spark.data.SparkParquetWriters;
 import com.netflix.iceberg.util.Tasks;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.execution.datasources.parquet.ParquetWriteSupport;
 import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
 import org.apache.spark.sql.sources.v2.writer.DataWriter;
 import org.apache.spark.sql.sources.v2.writer.DataWriterFactory;
@@ -71,7 +71,6 @@ import static com.netflix.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static com.netflix.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
-import static com.netflix.iceberg.spark.SparkSchemaUtil.convert;
 
 // TODO: parameterize DataSourceWriter with subclass of WriterCommitMessage
 class Writer implements DataSourceWriter {
@@ -214,14 +213,8 @@ class Writer implements DataSourceWriter {
         try {
           switch (format) {
             case PARQUET:
-              String jsonSchema = convert(schema).json();
               return Parquet.write(file)
-                  .writeSupport(new ParquetWriteSupport())
-                  .set("org.apache.spark.sql.parquet.row.attributes", jsonSchema)
-                  .set("spark.sql.parquet.writeLegacyFormat", "false")
-                  .set("spark.sql.parquet.binaryAsString", "false")
-                  .set("spark.sql.parquet.int96AsTimestamp", "false")
-                  .set("spark.sql.parquet.outputTimestampType", "TIMESTAMP_MICROS")
+                  .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(schema, msgType))
                   .setAll(properties)
                   .schema(schema)
                   .build();

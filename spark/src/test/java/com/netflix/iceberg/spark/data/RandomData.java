@@ -59,19 +59,22 @@ public class RandomData {
     return records;
   }
 
-  public static Iterator<InternalRow> generateSpark(Schema schema, int rows, long seed) {
-    return new Iterator<InternalRow>() {
-      private int rowsLeft = rows;
-      private final SparkRandomDataGenerator generator = new SparkRandomDataGenerator(seed);
+  public static Iterable<InternalRow> generateSpark(Schema schema, int numRecords, long seed) {
+    return () -> new Iterator<InternalRow>() {
+      private SparkRandomDataGenerator generator = new SparkRandomDataGenerator(seed);
+      private int count = 0;
 
       @Override
       public boolean hasNext() {
-        return rowsLeft > 0;
+        return count < numRecords;
       }
 
       @Override
       public InternalRow next() {
-        rowsLeft -= 1;
+        if (count >= numRecords) {
+          throw new NoSuchElementException();
+        }
+        count += 1;
         return (InternalRow) TypeUtil.visit(schema, generator);
       }
     };
