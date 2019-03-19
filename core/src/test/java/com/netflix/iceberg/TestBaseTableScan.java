@@ -20,7 +20,10 @@
 package com.netflix.iceberg;
 
 import com.netflix.iceberg.types.Types;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.File;

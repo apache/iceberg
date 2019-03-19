@@ -177,8 +177,8 @@ class BaseTableScan implements TableScan {
           matchingManifests,
           manifest -> {
             ManifestReader reader = ManifestReader
-              .read(ops.io().newInputFile(manifest.path()))
-              .caseSensitive(caseSensitive);
+                .read(ops.io().newInputFile(manifest.path()))
+                .caseSensitive(caseSensitive);
             toClose.add(reader);
             String schemaString = SchemaParser.toJson(reader.spec().schema());
             String specString = PartitionSpecParser.toJson(reader.spec());
@@ -273,8 +273,7 @@ class BaseTableScan implements TableScan {
       }
       requiredFieldIds.addAll(selectedIds);
 
-      Schema projection = TypeUtil.select(table.schema(), requiredFieldIds);
-      return projection;
+      return TypeUtil.select(table.schema(), requiredFieldIds);
     }
 
     return schema;

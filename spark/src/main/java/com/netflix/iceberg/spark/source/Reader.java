@@ -212,9 +212,9 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
   private List<CombinedScanTask> tasks() {
     if (tasks == null) {
       TableScan scan = table
-              .newScan()
-              .caseSensitive(caseSensitive)
-              .project(lazySchema());
+          .newScan()
+          .caseSensitive(caseSensitive)
+          .project(lazySchema());
 
       if (filterExpressions != null) {
         for (Expression filter : filterExpressions) {
