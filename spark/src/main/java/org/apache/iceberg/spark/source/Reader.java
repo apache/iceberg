@@ -461,6 +461,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
           .split(task.start(), task.length())
           .createReaderFunc(fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema))
           .filter(task.residual())
+          .caseSensitive(caseSensitive)
           .build();
     }
   }

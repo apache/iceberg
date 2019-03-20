@@ -470,4 +470,10 @@ public class TestDictionaryRowGroupFilter {
     Assert.assertFalse("Should skip: contains only ''", shouldRead);
   }
 
+  @Test
+  public void testCaseInsensitive() {
+    boolean shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("no_Nulls", ""), false)
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertFalse("Should skip: contains only ''", shouldRead);
+  }
 }

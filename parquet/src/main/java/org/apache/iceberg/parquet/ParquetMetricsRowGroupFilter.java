@@ -56,9 +56,13 @@ public class ParquetMetricsRowGroupFilter {
   }
 
   public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound) {
+    this(schema, unbound, true);
+  }
+
+  public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound, boolean caseSensitive) {
     this.schema = schema;
     this.struct = schema.asStruct();
-    this.expr = Binder.bind(struct, rewriteNot(unbound), true);
+    this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
   }
 
   /**
