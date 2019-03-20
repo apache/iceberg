@@ -24,6 +24,7 @@ import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,11 +34,13 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.schema.MessageType;
 
@@ -71,7 +74,8 @@ public class ParquetMetrics implements Serializable {
     for (BlockMetaData block : blocks) {
       rowCount += block.getRowCount();
       for (ColumnChunkMetaData column : block.getColumns()) {
-        int fieldId = fileSchema.aliasToId(column.getPath().toDotString());
+        ColumnPath path = column.getPath();
+        int fieldId = fileSchema.aliasToId(path.toDotString());
         increment(columnSizes, fieldId, column.getTotalSize());
         increment(valueCounts, fieldId, column.getValueCount());
 
@@ -81,10 +85,8 @@ public class ParquetMetrics implements Serializable {
         } else if (!stats.isEmpty()) {
           increment(nullValueCounts, fieldId, stats.getNumNulls());
 
-          // only add min/max stats for top-level fields
-          // TODO: allow struct nesting, but not maps or arrays
-          Types.NestedField field = fileSchema.asStruct().field(fieldId);
-          if (field != null && stats.hasNonNullValue()) {
+          Types.NestedField field = fileSchema.findField(fieldId);
+          if (field != null && stats.hasNonNullValue() && shouldStoreBounds(path, fileSchema)) {
             updateMin(lowerBounds, fieldId,
                 fromParquetPrimitive(field.type(), column.getPrimitiveType(), stats.genericGetMin()));
             updateMax(upperBounds, fieldId,
@@ -103,6 +105,22 @@ public class ParquetMetrics implements Serializable {
 
     return new Metrics(rowCount, columnSizes, valueCounts, nullValueCounts,
         toBufferMap(fileSchema, lowerBounds), toBufferMap(fileSchema, upperBounds));
+  }
+
+  // we allow struct nesting, but not maps or arrays
+  private static boolean shouldStoreBounds(ColumnPath columnPath, Schema schema) {
+    Iterator<String> pathIterator = columnPath.iterator();
+    Type currentType = schema.asStruct();
+
+    while (pathIterator.hasNext()) {
+      if (currentType == null || !currentType.isStructType()) {
+        return false;
+      }
+      String fieldName = pathIterator.next();
+      currentType = currentType.asStructType().fieldType(fieldName);
+    }
+
+    return currentType != null && currentType.isPrimitiveType();
   }
 
   private static void increment(Map<Integer, Long> columns, int fieldId, long amount) {
