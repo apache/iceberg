@@ -33,4 +33,4 @@
 # limitations under the License.
 #
 
-com.netflix.iceberg.spark.source.IcebergSource
+org.apache.iceberg.spark.source.IcebergSource
