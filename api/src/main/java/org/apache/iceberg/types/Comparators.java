@@ -24,6 +24,9 @@ import java.nio.ByteBuffer;
 import java.util.Comparator;
 
 public class Comparators {
+
+  private Comparators() {}
+
   private static final ImmutableMap<Type.PrimitiveType, Comparator<?>> COMPARATORS = ImmutableMap
       .<Type.PrimitiveType, Comparator<?>>builder()
       .put(Types.BooleanType.get(), Comparator.naturalOrder())
@@ -130,7 +133,7 @@ public class Comparators {
     private final Comparator<T> first;
     private final Comparator<? super T> second;
 
-    public NullSafeChainedComparator(Comparator<T> first, Comparator<? super T> second) {
+    NullSafeChainedComparator(Comparator<T> first, Comparator<? super T> second) {
       this.first = first;
       this.second = second;
     }

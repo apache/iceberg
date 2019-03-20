@@ -142,10 +142,10 @@ public class PartitionSpec implements Serializable {
 
   public String partitionToPath(StructLike data) {
     StringBuilder sb = new StringBuilder();
-    Class<?>[] javaClasses = javaClasses();
-    for (int i = 0; i < javaClasses.length; i += 1) {
+    Class<?>[] initializedClasses = javaClasses();
+    for (int i = 0; i < initializedClasses.length; i += 1) {
       PartitionField field = fields[i];
-      String valueString = field.transform().toHumanString(get(data, i, javaClasses[i]));
+      String valueString = field.transform().toHumanString(get(data, i, initializedClasses[i]));
 
       if (i > 0) {
         sb.append("/");
@@ -242,8 +242,7 @@ public class PartitionSpec implements Serializable {
    */
   public Set<Integer> identitySourceIds() {
     Set<Integer> sourceIds = Sets.newHashSet();
-    List<PartitionField> fields = this.fields();
-    for (PartitionField field : fields) {
+    for (PartitionField field : fields()) {
       if ("identity".equals(field.transform().toString())) {
         sourceIds.add(field.sourceId());
       }
@@ -313,8 +312,8 @@ public class PartitionSpec implements Serializable {
       partitionNames.add(name);
     }
 
-    public Builder withSpecId(int specId) {
-      this.specId = specId;
+    public Builder withSpecId(int newSpecId) {
+      this.specId = newSpecId;
       return this;
     }
 

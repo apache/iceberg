@@ -42,7 +42,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestPredicateBinding {
-  private static List<Expression.Operation> COMPARISONS = Arrays.asList(
+  private static final List<Expression.Operation> COMPARISONS = Arrays.asList(
       LT, LT_EQ, GT, GT_EQ, EQ, NOT_EQ);
 
   @Test

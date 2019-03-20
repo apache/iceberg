@@ -82,15 +82,11 @@ public class TestExpressionSerialization {
       case NOT:
         return equals(((Not) left).child(), ((Not) right).child());
       case AND:
-        return (
-            equals(((And) left).left(), ((And) right).left()) &&
-            equals(((And) left).right(), ((And) right).right())
-        );
+        return equals(((And) left).left(), ((And) right).left()) &&
+            equals(((And) left).right(), ((And) right).right());
       case OR:
-        return (
-            equals(((Or) left).left(), ((Or) right).left()) &&
-            equals(((Or) left).right(), ((Or) right).right())
-        );
+        return equals(((Or) left).left(), ((Or) right).left()) &&
+            equals(((Or) left).right(), ((Or) right).right());
       default:
         return false;
     }
@@ -123,8 +119,7 @@ public class TestExpressionSerialization {
       NamedReference lref = (NamedReference) left;
       NamedReference rref = (NamedReference) right;
 
-      return lref.name.equals(rref.name);
-
+      return lref.name().equals(rref.name());
     } else if (left instanceof BoundReference) {
       if (!(right instanceof BoundReference)) {
         return false;
@@ -133,10 +128,8 @@ public class TestExpressionSerialization {
       BoundReference lref = (BoundReference) left;
       BoundReference rref = (BoundReference) right;
 
-      return (
-          lref.fieldId() == rref.fieldId() &&
-          lref.type().equals(rref.type())
-      );
+      return lref.fieldId() == rref.fieldId() &&
+          lref.type().equals(rref.type());
     }
 
     return false;

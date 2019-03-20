@@ -65,15 +65,15 @@ enum Dates implements Transform<Integer, Integer> {
   }
 
   @Override
-  public UnboundPredicate<Integer> project(String name, BoundPredicate<Integer> pred) {
+  public UnboundPredicate<Integer> project(String fieldName, BoundPredicate<Integer> pred) {
     if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
-      return Expressions.predicate(pred.op(), name);
+      return Expressions.predicate(pred.op(), fieldName);
     }
-    return ProjectionUtil.truncateInteger(name, pred, this);
+    return ProjectionUtil.truncateInteger(fieldName, pred, this);
   }
 
   @Override
-  public UnboundPredicate<Integer> projectStrict(String name, BoundPredicate<Integer> predicate) {
+  public UnboundPredicate<Integer> projectStrict(String fieldName, BoundPredicate<Integer> predicate) {
     return null;
   }
 

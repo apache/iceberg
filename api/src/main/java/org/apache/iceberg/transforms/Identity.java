@@ -45,8 +45,8 @@ class Identity<T> implements Transform<T, T> {
   }
 
   @Override
-  public boolean canTransform(Type type) {
-    return type.isPrimitiveType();
+  public boolean canTransform(Type canTransformType) {
+    return canTransformType.isPrimitiveType();
   }
 
   @Override

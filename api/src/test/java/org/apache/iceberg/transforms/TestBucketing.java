@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.transforms;
 
-import com.google.common.base.Charsets;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 import java.lang.reflect.Constructor;
@@ -27,6 +26,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.Random;
 import java.util.UUID;
 import org.apache.avro.util.Utf8;
@@ -73,10 +73,10 @@ public class TestBucketing {
         -142385009, new Bucket.BucketDouble(100).hash(1.0D));
     Assert.assertEquals("Spec example: hash(decimal2(14.20)) = -500754589",
         -500754589,
-        Bucket.<BigDecimal>get(Types.DecimalType.of(9,2), 100).hash(new BigDecimal("14.20")));
+        Bucket.<BigDecimal>get(Types.DecimalType.of(9, 2), 100).hash(new BigDecimal("14.20")));
     Assert.assertEquals("Spec example: hash(decimal2(14.20)) = -500754589",
         -500754589,
-        Bucket.<BigDecimal>get(Types.DecimalType.of(9,2), 100).hash(new BigDecimal("14.20")));
+        Bucket.<BigDecimal>get(Types.DecimalType.of(9, 2), 100).hash(new BigDecimal("14.20")));
 
     Literal<Integer> date = Literal.of("2017-11-16").to(Types.DateType.get());
     Assert.assertEquals("Spec example: hash(2017-11-16) = -653330422",
@@ -148,10 +148,10 @@ public class TestBucketing {
     Bucket<Integer> bucketInts = Bucket.get(Types.IntegerType.get(), 100);
     Bucket<Long> bucketLongs = Bucket.get(Types.LongType.get(), 100);
 
-    int r = testRandom.nextInt();
+    int randomInt = testRandom.nextInt();
 
     Assert.assertEquals("Integer and Long bucket results should match",
-        bucketInts.apply(r), bucketLongs.apply((long) r));
+        bucketInts.apply(randomInt), bucketLongs.apply((long) randomInt));
   }
 
   @Test
@@ -185,10 +185,10 @@ public class TestBucketing {
     Bucket<Float> bucketFloats = new Bucket.BucketFloat(100);
     Bucket<Double> bucketDoubles = new Bucket.BucketDouble(100);
 
-    float r = testRandom.nextFloat();
+    float randomFloat = testRandom.nextFloat();
 
     Assert.assertEquals("Float and Double bucket results should match",
-        bucketFloats.apply(r), bucketDoubles.apply((double) r));
+        bucketFloats.apply(randomFloat), bucketDoubles.apply((double) randomFloat));
   }
 
   @Test
@@ -206,7 +206,7 @@ public class TestBucketing {
   @Test
   public void testString() {
     String string = "string to test murmur3 hash";
-    byte[] asBytes = string.getBytes(Charsets.UTF_8);
+    byte[] asBytes = string.getBytes(StandardCharsets.UTF_8);
 
     Bucket<CharSequence> bucketFunc = Bucket.get(Types.StringType.get(), 100);
 
@@ -217,7 +217,7 @@ public class TestBucketing {
   @Test
   public void testUtf8() {
     Utf8 utf8 = new Utf8("string to test murmur3 hash");
-    byte[] asBytes = utf8.toString().getBytes(Charsets.UTF_8);
+    byte[] asBytes = utf8.toString().getBytes(StandardCharsets.UTF_8);
 
     Bucket<CharSequence> bucketFunc = Bucket.get(Types.StringType.get(), 100);
 
