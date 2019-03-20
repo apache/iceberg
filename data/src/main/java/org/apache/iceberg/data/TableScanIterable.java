@@ -20,6 +20,7 @@
 package org.apache.iceberg.data;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import java.io.Closeable;
 import java.io.IOException;
@@ -118,8 +119,9 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
     private Closeable currentCloseable = null;
     private Iterator<Record> currentIterator = emptyIterator();
 
-    private ScanIterator(Iterable<CombinedScanTask> tasks, boolean caseSensitive) {
-      this.tasks = Lists.newArrayList(concat(transform(tasks, CombinedScanTask::files))).iterator();
+    private ScanIterator(CloseableIterable<CombinedScanTask> tasks, boolean caseSensitive) {
+      this.tasks = Lists.newArrayList(Iterables.concat(
+          CloseableIterable.transform(tasks, CombinedScanTask::files))).iterator();
       this.caseSensitive = caseSensitive;
     }
 
