@@ -19,9 +19,9 @@
 
 package org.apache.iceberg;
 
+import java.util.List;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
-import java.util.List;
 
 public class ReplacePartitionsOperation extends MergingSnapshotUpdate implements ReplacePartitions {
   ReplacePartitionsOperation(TableOperations ops) {

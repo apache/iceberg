@@ -19,9 +19,9 @@
 
 package org.apache.iceberg.io;
 
-import org.apache.iceberg.Metrics;
 import java.io.Closeable;
 import java.util.Iterator;
+import org.apache.iceberg.Metrics;
 
 public interface FileAppender<D> extends Closeable {
   void add(D datum);

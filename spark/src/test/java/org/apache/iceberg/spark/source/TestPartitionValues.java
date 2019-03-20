@@ -20,6 +20,8 @@
 package org.apache.iceberg.spark.source;
 
 import com.google.common.collect.Lists;
+import java.io.File;
+import java.util.List;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -38,11 +40,8 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-import java.io.File;
-import java.util.List;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
 public class TestPartitionValues {

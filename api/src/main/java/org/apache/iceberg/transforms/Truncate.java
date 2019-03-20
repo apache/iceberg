@@ -20,13 +20,13 @@
 package org.apache.iceberg.transforms;
 
 import com.google.common.base.Objects;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.nio.ByteBuffer;
 
 import static org.apache.iceberg.expressions.Expression.Operation.IS_NULL;
 import static org.apache.iceberg.expressions.Expression.Operation.LT;

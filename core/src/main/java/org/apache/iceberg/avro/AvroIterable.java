@@ -20,19 +20,19 @@
 package org.apache.iceberg.avro;
 
 import com.google.common.collect.Maps;
-import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.io.CloseableGroup;
-import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.InputFile;
-import org.apache.avro.Schema;
-import org.apache.avro.file.DataFileReader;
-import org.apache.avro.file.FileReader;
-import org.apache.avro.io.DatumReader;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import org.apache.avro.Schema;
+import org.apache.avro.file.DataFileReader;
+import org.apache.avro.file.FileReader;
+import org.apache.avro.io.DatumReader;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.CloseableGroup;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.InputFile;
 
 public class AvroIterable<D> extends CloseableGroup implements CloseableIterable<D> {
   private final InputFile file;

@@ -25,7 +25,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.apache.iceberg.Schema;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -33,6 +32,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import org.apache.iceberg.Schema;
 
 public class TypeUtil {
   public static Schema select(Schema schema, Set<Integer> fieldIds) {

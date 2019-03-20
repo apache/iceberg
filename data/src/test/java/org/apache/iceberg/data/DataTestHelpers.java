@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.data;
 
+import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
-import java.util.List;
-import java.util.Map;
 
 public class DataTestHelpers {
   public static void assertEquals(Types.StructType struct, Record expected, Record actual) {

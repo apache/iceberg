@@ -20,18 +20,17 @@
 package org.apache.iceberg.spark.data;
 
 import com.google.common.collect.Lists;
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
+import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.avro.generic.GenericData.Record;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.Assert;
-
-import java.io.File;
-import java.io.IOException;
-import java.util.List;
 
 import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 

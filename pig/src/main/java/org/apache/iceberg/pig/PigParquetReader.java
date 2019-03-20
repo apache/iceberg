@@ -22,6 +22,14 @@ package org.apache.iceberg.pig;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
@@ -53,19 +61,10 @@ import org.apache.pig.data.DataByteArray;
 import org.apache.pig.data.Tuple;
 import org.apache.pig.data.TupleFactory;
 
-import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-
+import static java.lang.String.format;
 import static org.apache.iceberg.parquet.ParquetSchemaUtil.convert;
 import static org.apache.iceberg.parquet.ParquetSchemaUtil.hasIds;
 import static org.apache.iceberg.parquet.ParquetValueReaders.option;
-import static java.lang.String.format;
 
 public class PigParquetReader {
   private final ParquetValueReader reader;

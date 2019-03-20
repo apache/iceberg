@@ -19,14 +19,13 @@
 
 package org.apache.iceberg;
 
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Maps;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
-
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Maps;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;

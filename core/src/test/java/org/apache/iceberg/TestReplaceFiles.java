@@ -19,14 +19,13 @@
 
 package org.apache.iceberg;
 
+import java.io.File;
+import java.util.Collections;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.internal.util.collections.Sets;
-
-import java.io.File;
-import java.util.Collections;
 
 import static org.apache.iceberg.ManifestEntry.Status.ADDED;
 import static org.apache.iceberg.ManifestEntry.Status.DELETED;

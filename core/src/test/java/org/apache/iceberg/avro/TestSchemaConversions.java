@@ -20,14 +20,14 @@
 package org.apache.iceberg.avro;
 
 import com.google.common.collect.Lists;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
+import java.util.List;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
-import java.util.List;
 
 import static org.apache.iceberg.avro.AvroTestHelpers.addElementId;
 import static org.apache.iceberg.avro.AvroTestHelpers.addKeyId;

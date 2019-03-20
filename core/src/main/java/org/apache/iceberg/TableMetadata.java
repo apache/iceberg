@@ -27,15 +27,15 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.util.PropertyUtil;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.PropertyUtil;
 
 /**
  * Metadata for a table.

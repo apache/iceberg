@@ -20,9 +20,10 @@
 package org.apache.iceberg;
 
 import com.google.common.collect.Lists;
+import java.util.List;
 import org.junit.Assert;
 import org.junit.Test;
-import java.util.List;
+
 import static org.apache.iceberg.BaseFileScanTask.SplitScanTaskIterator;
 
 public class TestSplitScanTaskIterator {

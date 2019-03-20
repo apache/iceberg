@@ -16,14 +16,13 @@
 
 package org.apache.iceberg.orc;
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.Iterator;
 import org.apache.hadoop.fs.Path;
 import org.apache.orc.RecordReader;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
-
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.Iterator;
 
 /**
  * An adaptor so that the ORC RecordReader can be used as an Iterator.

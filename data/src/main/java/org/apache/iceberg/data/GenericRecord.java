@@ -25,13 +25,13 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.collect.Maps;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
 
 public class GenericRecord implements Record, StructLike {
   private static final LoadingCache<StructType, Map<String, Integer>> NAME_MAP_CACHE =

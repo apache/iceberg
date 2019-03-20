@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.parquet;
 
-import org.apache.parquet.column.ColumnWriteStore;
 import java.util.List;
+import org.apache.parquet.column.ColumnWriteStore;
 
 public interface ParquetValueWriter<T> {
   void write(int repetitionLevel, T value);

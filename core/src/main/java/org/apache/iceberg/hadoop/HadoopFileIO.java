@@ -1,14 +1,13 @@
 package org.apache.iceberg.hadoop;
 
-import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
+import java.io.IOException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-
-import java.io.IOException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
 
 public class HadoopFileIO implements FileIO {
 

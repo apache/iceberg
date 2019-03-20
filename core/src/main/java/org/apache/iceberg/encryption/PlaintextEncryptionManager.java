@@ -19,12 +19,11 @@
 
 package org.apache.iceberg.encryption;
 
+import java.nio.ByteBuffer;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.nio.ByteBuffer;
 
 public class PlaintextEncryptionManager implements EncryptionManager {
   private static final Logger LOG = LoggerFactory.getLogger(PlaintextEncryptionManager.class);

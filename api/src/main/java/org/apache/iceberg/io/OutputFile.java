@@ -19,9 +19,9 @@
 
 package org.apache.iceberg.io;
 
+import java.io.IOException;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
-import java.io.IOException;
 
 /**
  * An interface used to create output files using {@link PositionOutputStream} instances.

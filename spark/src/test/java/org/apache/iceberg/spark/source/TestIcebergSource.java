@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.spark.source;
 
-import org.apache.iceberg.Table;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.Table;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
 
 public class TestIcebergSource extends IcebergSource {

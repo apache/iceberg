@@ -20,13 +20,13 @@
 package org.apache.iceberg;
 
 import com.google.common.collect.Lists;
-import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.io.OutputFile;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.OutputFile;
 
 /**
  * {@link AppendFiles Append} implementation that adds a new manifest file for the write.

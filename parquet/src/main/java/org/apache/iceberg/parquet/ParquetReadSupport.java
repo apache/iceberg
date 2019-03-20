@@ -21,18 +21,16 @@ package org.apache.iceberg.parquet;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
+import java.util.Map;
+import java.util.Set;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.parquet.avro.AvroReadSupport;
 import org.apache.parquet.hadoop.api.InitContext;
 import org.apache.parquet.hadoop.api.ReadSupport;
 import org.apache.parquet.io.api.RecordMaterializer;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.Type;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import static org.apache.iceberg.parquet.ParquetSchemaUtil.hasIds;
 import static org.apache.iceberg.parquet.ParquetSchemaUtil.pruneColumns;

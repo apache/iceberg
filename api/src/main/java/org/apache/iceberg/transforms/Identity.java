@@ -20,12 +20,12 @@
 package org.apache.iceberg.transforms;
 
 import com.google.common.base.Objects;
+import java.nio.ByteBuffer;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import java.nio.ByteBuffer;
 
 class Identity<T> implements Transform<T, T> {
   @SuppressWarnings("unchecked")

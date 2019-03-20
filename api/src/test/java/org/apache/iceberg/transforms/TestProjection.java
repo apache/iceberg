@@ -20,6 +20,8 @@
 package org.apache.iceberg.transforms;
 
 import com.google.common.collect.Lists;
+import java.util.List;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.BoundPredicate;
@@ -28,11 +30,9 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Or;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.UnboundPredicate;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
-import java.util.List;
 
 import static org.apache.iceberg.TestHelpers.assertAndUnwrap;
 import static org.apache.iceberg.TestHelpers.assertAndUnwrapUnbound;

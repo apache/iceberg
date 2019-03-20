@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark;
 
 import com.google.common.collect.Lists;
+import java.util.List;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.types.ArrayType;
@@ -41,7 +42,6 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.TimestampType;
 import org.apache.spark.sql.types.VarcharType;
-import java.util.List;
 
 class SparkTypeToType extends SparkTypeVisitor<Type> {
   private final StructType root;

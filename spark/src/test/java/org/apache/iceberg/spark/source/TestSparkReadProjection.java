@@ -21,6 +21,15 @@ package org.apache.iceberg.spark.source;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import java.io.File;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+import org.apache.avro.generic.GenericData.Fixed;
+import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -34,8 +43,6 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.avro.generic.GenericData.Fixed;
-import org.apache.avro.generic.GenericData.Record;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
@@ -44,19 +51,12 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-import java.io.File;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.UUID;
 
+import static org.apache.avro.Schema.Type.NULL;
+import static org.apache.avro.Schema.Type.UNION;
 import static org.apache.iceberg.Files.localOutput;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.apache.avro.Schema.Type.NULL;
-import static org.apache.avro.Schema.Type.UNION;
 
 @RunWith(Parameterized.class)
 public class TestSparkReadProjection extends TestReadProjection {

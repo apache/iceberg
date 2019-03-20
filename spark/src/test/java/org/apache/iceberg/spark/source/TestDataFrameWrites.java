@@ -20,6 +20,12 @@
 package org.apache.iceberg.spark.source;
 
 import com.google.common.collect.Lists;
+import java.io.File;
+import java.io.IOException;
+import java.net.URI;
+import java.util.List;
+import org.apache.avro.generic.GenericData.Record;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -32,9 +38,6 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.spark.data.AvroDataTest;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.SparkAvroReader;
-import org.apache.iceberg.types.Types;
-import org.apache.avro.generic.GenericData.Record;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.DataFrameWriter;
@@ -48,10 +51,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-import java.io.File;
-import java.io.IOException;
-import java.net.URI;
-import java.util.List;
 
 import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
 import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsSafe;

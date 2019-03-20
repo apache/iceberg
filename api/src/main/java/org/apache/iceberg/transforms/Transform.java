@@ -19,10 +19,10 @@
 
 package org.apache.iceberg.transforms;
 
+import java.io.Serializable;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
-import java.io.Serializable;
 
 /**
  * A transform function used for partitioning.

@@ -19,13 +19,13 @@
 
 package org.apache.iceberg;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.types.TypeUtil;
 import org.junit.Assert;
 import org.junit.Test;
-import java.io.File;
-import java.io.IOException;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.apache.iceberg.PartitionSpec.unpartitioned;
 

@@ -19,10 +19,9 @@
 
 package org.apache.iceberg;
 
-import org.apache.iceberg.types.Types;
-
 import java.nio.ByteBuffer;
 import java.util.List;
+import org.apache.iceberg.types.Types;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;

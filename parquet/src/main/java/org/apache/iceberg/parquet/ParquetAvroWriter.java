@@ -20,10 +20,12 @@
 package org.apache.iceberg.parquet;
 
 import com.google.common.collect.Lists;
-import org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter;
-import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
+import java.util.Iterator;
+import java.util.List;
 import org.apache.avro.generic.GenericData.Fixed;
 import org.apache.avro.generic.IndexedRecord;
+import org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter;
+import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.DecimalMetadata;
@@ -31,8 +33,6 @@ import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
-import java.util.Iterator;
-import java.util.List;
 
 import static org.apache.iceberg.parquet.ParquetValueWriters.collections;
 import static org.apache.iceberg.parquet.ParquetValueWriters.maps;

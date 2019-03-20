@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.parquet;
 
+import java.nio.ByteBuffer;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundReference;
@@ -34,8 +35,6 @@ import org.apache.parquet.filter2.predicate.FilterApi;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.filter2.predicate.Operators;
 import org.apache.parquet.io.api.Binary;
-
-import java.nio.ByteBuffer;
 
 import static org.apache.iceberg.expressions.ExpressionVisitors.visit;
 

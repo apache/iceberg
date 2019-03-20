@@ -31,7 +31,6 @@ import org.apache.iceberg.types.Types.IntegerType;
 import org.junit.Assert;
 import org.junit.Test;
 
-
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;

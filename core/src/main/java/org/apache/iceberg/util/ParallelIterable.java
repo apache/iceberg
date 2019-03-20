@@ -21,13 +21,13 @@ package org.apache.iceberg.util;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
-import org.apache.iceberg.io.CloseableGroup;
 import java.io.Closeable;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import org.apache.iceberg.io.CloseableGroup;
 
 public class ParallelIterable<T> extends CloseableGroup implements Iterable<T> {
   private final Iterable<Iterable<T>> iterables;

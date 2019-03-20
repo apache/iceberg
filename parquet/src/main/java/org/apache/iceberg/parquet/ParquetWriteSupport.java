@@ -20,11 +20,11 @@
 package org.apache.iceberg.parquet;
 
 import com.google.common.collect.ImmutableMap;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.io.api.RecordConsumer;
 import org.apache.parquet.schema.MessageType;
-import java.util.Map;
 
 class ParquetWriteSupport<T> extends WriteSupport<T> {
   private final MessageType type;

@@ -20,6 +20,7 @@
 package org.apache.iceberg.expressions;
 
 import com.google.common.collect.ImmutableList;
+import java.nio.ByteBuffer;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -28,8 +29,6 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.nio.ByteBuffer;
 
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;

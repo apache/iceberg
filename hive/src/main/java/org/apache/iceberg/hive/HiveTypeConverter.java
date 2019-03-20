@@ -15,10 +15,9 @@
  */
 package org.apache.iceberg.hive;
 
+import java.util.stream.Collectors;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-
-import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 

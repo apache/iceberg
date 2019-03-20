@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.expressions;
 
+import java.io.Serializable;
+import java.util.Comparator;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.types.Types;
-import java.io.Serializable;
-import java.util.Comparator;
 
 /**
  * Evaluates an {@link Expression} for data described by a {@link Types.StructType}.

@@ -20,18 +20,18 @@
 package org.apache.iceberg.avro;
 
 import com.google.common.base.Preconditions;
+import java.io.IOException;
+import java.util.Map;
+import java.util.function.Function;
+import org.apache.avro.Schema;
+import org.apache.avro.file.CodecFactory;
+import org.apache.avro.file.DataFileWriter;
+import org.apache.avro.io.DatumWriter;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
-import org.apache.avro.Schema;
-import org.apache.avro.file.CodecFactory;
-import org.apache.avro.file.DataFileWriter;
-import org.apache.avro.io.DatumWriter;
-import java.io.IOException;
-import java.util.Map;
-import java.util.function.Function;
 
 class AvroFileAppender<D> implements FileAppender<D> {
   private PositionOutputStream stream = null;

@@ -20,13 +20,13 @@
 package org.apache.iceberg.spark;
 
 import com.google.common.collect.Lists;
+import java.util.List;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.UserDefinedType;
-import java.util.List;
 
 class SparkTypeVisitor<T> {
   static <T> T visit(DataType type, SparkTypeVisitor<T> visitor) {

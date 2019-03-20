@@ -20,14 +20,14 @@
 package org.apache.iceberg;
 
 import com.google.common.collect.Lists;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
 import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
 
 class PartitionSummary {
   private final PartitionFieldStats<?>[] fields;

@@ -22,16 +22,16 @@ package org.apache.iceberg;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.ByteBuffers;
-import org.apache.avro.generic.IndexedRecord;
-import org.apache.avro.specific.SpecificData;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
+import org.apache.avro.generic.IndexedRecord;
+import org.apache.avro.specific.SpecificData;
+import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 
 class GenericDataFile
     implements DataFile, IndexedRecord, StructLike, SpecificData.SchemaConstructable, Serializable {

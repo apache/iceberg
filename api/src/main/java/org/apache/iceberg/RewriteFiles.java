@@ -19,8 +19,8 @@
 
 package org.apache.iceberg;
 
-import org.apache.iceberg.exceptions.ValidationException;
 import java.util.Set;
+import org.apache.iceberg.exceptions.ValidationException;
 
 /**
  * API for replacing files in a table.

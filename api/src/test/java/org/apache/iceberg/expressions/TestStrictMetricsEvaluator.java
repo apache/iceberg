@@ -26,11 +26,9 @@ import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.TestHelpers.TestDataFile;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.StringType;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.apache.iceberg.expressions.Expressions.and;

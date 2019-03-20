@@ -19,6 +19,10 @@
 
 package org.apache.iceberg.hadoop;
 
+import java.util.Map;
+import org.apache.hadoop.conf.Configurable;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -28,10 +32,6 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Tables;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.hadoop.conf.Configurable;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
-import java.util.Map;
 
 import static org.apache.iceberg.TableMetadata.newTableMetadata;
 

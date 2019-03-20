@@ -19,12 +19,12 @@
 
 package org.apache.iceberg.expressions;
 
+import java.math.BigDecimal;
+import java.util.UUID;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
-import java.math.BigDecimal;
-import java.util.UUID;
 
 public class TestLiteralSerialization {
   @Test

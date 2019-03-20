@@ -20,7 +20,6 @@
 package org.apache.iceberg.types;
 
 import com.google.common.base.Charsets;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -31,6 +30,7 @@ import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CharsetEncoder;
 import java.util.Arrays;
 import java.util.UUID;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 
 public class Conversions {
   private static final String HIVE_NULL = "__HIVE_DEFAULT_PARTITION__";

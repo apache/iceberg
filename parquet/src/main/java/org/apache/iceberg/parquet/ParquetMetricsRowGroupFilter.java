@@ -21,6 +21,8 @@ package org.apache.iceberg.parquet;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
+import java.util.Map;
+import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundReference;
@@ -36,8 +38,6 @@ import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
-import java.util.Map;
-import java.util.function.Function;
 
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 import static org.apache.iceberg.parquet.ParquetConversions.converterFromParquet;

@@ -19,9 +19,9 @@
 
 package org.apache.iceberg.types;
 
-import org.apache.iceberg.Schema;
 import java.util.List;
 import java.util.function.Predicate;
+import org.apache.iceberg.Schema;
 
 class FindTypeVisitor extends TypeUtil.SchemaVisitor<Type> {
   private final Predicate<Type> predicate;

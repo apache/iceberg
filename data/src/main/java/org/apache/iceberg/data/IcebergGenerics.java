@@ -20,10 +20,10 @@
 package org.apache.iceberg.data;
 
 import com.google.common.collect.ImmutableList;
+import java.util.List;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import java.util.List;
 
 public class IcebergGenerics {
   private IcebergGenerics() {

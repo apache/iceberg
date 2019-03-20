@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.parquet;
 
-import org.apache.parquet.io.api.Binary;
 import java.util.Iterator;
+import org.apache.parquet.io.api.Binary;
 
 interface TripleIterator<T> extends Iterator<T> {
   /**

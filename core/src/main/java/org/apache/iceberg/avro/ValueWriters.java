@@ -20,11 +20,6 @@
 package org.apache.iceberg.avro;
 
 import com.google.common.base.Preconditions;
-import org.apache.iceberg.types.TypeUtil;
-import org.apache.avro.generic.GenericData;
-import org.apache.avro.generic.IndexedRecord;
-import org.apache.avro.io.Encoder;
-import org.apache.avro.util.Utf8;
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
@@ -35,6 +30,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.IndexedRecord;
+import org.apache.avro.io.Encoder;
+import org.apache.avro.util.Utf8;
+import org.apache.iceberg.types.TypeUtil;
 
 public class ValueWriters {
   private ValueWriters() {

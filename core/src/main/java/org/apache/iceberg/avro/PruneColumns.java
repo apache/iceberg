@@ -22,10 +22,10 @@ package org.apache.iceberg.avro;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import org.apache.avro.Schema;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.avro.Schema;
 
 import static org.apache.iceberg.avro.AvroSchemaUtil.getElementId;
 import static org.apache.iceberg.avro.AvroSchemaUtil.getFieldId;

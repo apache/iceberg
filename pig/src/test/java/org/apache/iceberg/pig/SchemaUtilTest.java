@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.pig;
 
+import java.io.IOException;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types.BinaryType;
 import org.apache.iceberg.types.Types.BooleanType;
@@ -35,11 +36,9 @@ import org.apache.pig.ResourceSchema;
 import org.apache.pig.impl.logicalLayer.FrontendException;
 import org.junit.Test;
 
-import java.io.IOException;
-
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 public class SchemaUtilTest {
 

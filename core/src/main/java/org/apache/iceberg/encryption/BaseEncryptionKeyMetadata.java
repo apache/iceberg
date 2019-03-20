@@ -19,9 +19,8 @@
 
 package org.apache.iceberg.encryption;
 
-import org.apache.iceberg.util.ByteBuffers;
-
 import java.nio.ByteBuffer;
+import org.apache.iceberg.util.ByteBuffers;
 
 class BaseEncryptionKeyMetadata implements EncryptionKeyMetadata {
 

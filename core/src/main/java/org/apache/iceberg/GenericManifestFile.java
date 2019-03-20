@@ -20,14 +20,14 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Objects;
-import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.types.Types;
+import java.io.Serializable;
+import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData.SchemaConstructable;
-import java.io.Serializable;
-import java.util.List;
+import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.types.Types;
 
 import static com.google.common.collect.ImmutableList.copyOf;
 import static com.google.common.collect.Iterables.transform;

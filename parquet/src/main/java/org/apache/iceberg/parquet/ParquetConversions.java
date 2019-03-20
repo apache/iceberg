@@ -19,16 +19,16 @@
 
 package org.apache.iceberg.parquet;
 
-import org.apache.iceberg.expressions.Literal;
-import org.apache.iceberg.types.Type;
-import org.apache.commons.io.Charsets;
-import org.apache.parquet.io.api.Binary;
-import org.apache.parquet.schema.PrimitiveType;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.function.Function;
+import org.apache.commons.io.Charsets;
+import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.types.Type;
+import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.PrimitiveType;
 
 class ParquetConversions {
   private ParquetConversions() {

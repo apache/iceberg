@@ -24,11 +24,11 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.collect.Lists;
+import java.io.Serializable;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.reflect.ReflectData;
 import org.apache.avro.specific.SpecificData;
-import java.io.Serializable;
 
 public class Pair<X, Y> implements IndexedRecord, SpecificData.SchemaConstructable, Serializable {
   public static <X, Y> Pair<X, Y> of(X x, Y y) {

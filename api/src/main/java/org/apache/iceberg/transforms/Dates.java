@@ -19,15 +19,15 @@
 
 package org.apache.iceberg.transforms;
 
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 
 import static org.apache.iceberg.expressions.Expression.Operation.IS_NULL;
 import static org.apache.iceberg.expressions.Expression.Operation.NOT_NULL;

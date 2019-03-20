@@ -20,14 +20,14 @@
 package org.apache.iceberg.data.parquet;
 
 import com.google.common.collect.Iterables;
+import java.io.File;
+import java.io.IOException;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.TestReadProjection;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
-import java.io.File;
-import java.io.IOException;
 
 public class TestGenericReadProjection extends TestReadProjection {
   protected Record writeAndRead(String desc, Schema writeSchema, Schema readSchema, Record record)

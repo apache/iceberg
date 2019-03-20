@@ -21,12 +21,12 @@ package org.apache.iceberg.avro;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
+import java.util.List;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
-import java.util.List;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 
 class SchemaToType extends AvroSchemaVisitor<Type> {
   private final Schema root;

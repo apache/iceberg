@@ -20,6 +20,9 @@
 package org.apache.iceberg.data.parquet;
 
 import com.google.common.collect.Lists;
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DataTest;
@@ -30,9 +33,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.junit.Assert;
-import java.io.File;
-import java.io.IOException;
-import java.util.List;
 
 public class TestGenericData extends DataTest {
   protected void writeAndValidate(Schema schema) throws IOException {

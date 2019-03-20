@@ -21,8 +21,6 @@ package org.apache.iceberg.encryption;
 
 import org.apache.iceberg.io.InputFile;
 
-import java.nio.ByteBuffer;
-
 /**
  * Thin wrapper around an {@link InputFile} instance that is encrypted.
  * <p>

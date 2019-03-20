@@ -21,18 +21,18 @@ package org.apache.iceberg;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
+import java.util.UUID;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.types.Types;
-import org.apache.hadoop.conf.Configuration;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import java.io.File;
-import java.io.IOException;
-import java.util.List;
-import java.util.UUID;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 

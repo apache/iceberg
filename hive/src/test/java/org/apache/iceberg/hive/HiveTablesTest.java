@@ -16,17 +16,6 @@
 package org.apache.iceberg.hive;
 
 import com.google.common.util.concurrent.MoreExecutors;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.Tasks;
-import org.apache.hadoop.hive.metastore.api.Table;
-import org.apache.thrift.TException;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -35,6 +24,16 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Tasks;
+import org.apache.thrift.TException;
+import org.junit.Assert;
+import org.junit.Test;
 
 import static org.apache.iceberg.BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE;
 import static org.apache.iceberg.BaseMetastoreTableOperations.METADATA_LOCATION_PROP;

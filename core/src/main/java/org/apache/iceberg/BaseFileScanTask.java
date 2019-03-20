@@ -21,9 +21,9 @@ package org.apache.iceberg;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
+import java.util.Iterator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
-import java.util.Iterator;
 
 class BaseFileScanTask implements FileScanTask {
   private final DataFile file;

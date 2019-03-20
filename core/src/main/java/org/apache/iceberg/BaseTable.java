@@ -19,10 +19,10 @@
 
 package org.apache.iceberg;
 
+import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
-import java.util.Map;
 
 /**
  * Base {@link Table} implementation.

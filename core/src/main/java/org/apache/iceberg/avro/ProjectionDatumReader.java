@@ -19,13 +19,13 @@
 
 package org.apache.iceberg.avro;
 
-import org.apache.avro.Schema;
-import org.apache.avro.io.DatumReader;
-import org.apache.avro.io.Decoder;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import org.apache.avro.Schema;
+import org.apache.avro.io.DatumReader;
+import org.apache.avro.io.Decoder;
 
 import static org.apache.iceberg.types.TypeUtil.getProjectedIds;
 

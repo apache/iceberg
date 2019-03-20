@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.transforms;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.UnboundPredicate;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 
 import static org.apache.iceberg.expressions.Expressions.predicate;
 

@@ -20,13 +20,8 @@
 package org.apache.iceberg.avro;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Maps;
-import org.apache.avro.Conversion;
 import org.apache.avro.LogicalType;
 import org.apache.avro.Schema;
-
-import java.util.Collection;
-import java.util.Map;
 
 import static org.apache.avro.Schema.Type.ARRAY;
 

@@ -21,13 +21,13 @@ package org.apache.iceberg.spark.hacks;
 
 import com.google.common.base.Splitter;
 import com.google.common.collect.Lists;
+import java.util.List;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.catalog.CatalogTablePartition;
 import org.apache.spark.sql.hive.HiveUtils$;
 import org.apache.spark.sql.hive.client.HiveClient;
 import scala.Option;
 import scala.collection.Seq;
-import java.util.List;
 
 public class Hive {
   public static Seq<CatalogTablePartition> partitions(SparkSession spark, String name) {

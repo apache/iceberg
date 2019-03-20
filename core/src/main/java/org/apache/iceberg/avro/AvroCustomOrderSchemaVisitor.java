@@ -22,10 +22,10 @@ package org.apache.iceberg.avro;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import org.apache.avro.Schema;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Supplier;
+import org.apache.avro.Schema;
 
 abstract class AvroCustomOrderSchemaVisitor<T, F> {
   public static <T, F> T visit(Schema schema, AvroCustomOrderSchemaVisitor<T, F> visitor) {

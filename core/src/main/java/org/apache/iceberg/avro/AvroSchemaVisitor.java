@@ -21,9 +21,9 @@ package org.apache.iceberg.avro;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-import org.apache.avro.Schema;
 import java.util.LinkedList;
 import java.util.List;
+import org.apache.avro.Schema;
 
 public abstract class AvroSchemaVisitor<T> {
   public static <T> T visit(Schema schema, AvroSchemaVisitor<T> visitor) {

@@ -19,13 +19,13 @@
 
 package org.apache.iceberg.avro;
 
+import java.io.IOException;
+import java.io.InputStream;
+import org.apache.avro.file.SeekableInput;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.DelegatingInputStream;
 import org.apache.iceberg.io.SeekableInputStream;
-import org.apache.avro.file.SeekableInput;
-import java.io.IOException;
-import java.io.InputStream;
 
 class AvroIO {
   private AvroIO() {

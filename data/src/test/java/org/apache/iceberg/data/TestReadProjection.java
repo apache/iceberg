@@ -23,6 +23,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
@@ -30,9 +33,6 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
 
 public abstract class TestReadProjection {
   protected abstract Record writeAndRead(String desc,

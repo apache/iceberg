@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.expressions;
 
+import org.apache.avro.util.Utf8;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
-import org.apache.avro.util.Utf8;
 import org.junit.Assert;
 import org.junit.Test;
 

@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.types;
 
-import org.apache.iceberg.expressions.Literal;
+import java.util.Comparator;
 import org.apache.avro.util.Utf8;
+import org.apache.iceberg.expressions.Literal;
 import org.junit.Assert;
 import org.junit.Test;
-import java.util.Comparator;
 
 /**
  * Tests the comparator returned by CharSequence literals.

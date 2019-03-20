@@ -19,10 +19,10 @@
 
 package org.apache.iceberg.types;
 
+import java.util.Comparator;
 import org.apache.iceberg.expressions.Literal;
 import org.junit.Assert;
 import org.junit.Test;
-import java.util.Comparator;
 
 /**
  * This tests the Comparator returned by ComparableLiteral, which is used for most types.

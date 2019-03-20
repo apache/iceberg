@@ -19,27 +19,27 @@
 
 package org.apache.iceberg.parquet;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.DelegatingInputStream;
 import org.apache.iceberg.io.DelegatingOutputStream;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataInputStream;
-import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.parquet.hadoop.util.HadoopStreams;
+import org.apache.parquet.io.DelegatingPositionOutputStream;
+import org.apache.parquet.io.DelegatingSeekableInputStream;
 import org.apache.parquet.io.InputFile;
 import org.apache.parquet.io.OutputFile;
-import org.apache.parquet.io.DelegatingSeekableInputStream;
-import org.apache.parquet.io.DelegatingPositionOutputStream;
 import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.io.SeekableInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 
-import static org.apache.parquet.hadoop.util.HadoopOutputFile.fromPath;
 import static org.apache.parquet.hadoop.util.HadoopInputFile.fromStatus;
+import static org.apache.parquet.hadoop.util.HadoopOutputFile.fromPath;
 
 /**
  * Methods in this class translate from the IO API to Parquet's IO API.

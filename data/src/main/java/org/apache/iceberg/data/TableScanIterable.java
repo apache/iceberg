@@ -20,8 +20,11 @@
 package org.apache.iceberg.data;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.HasTableOperations;
@@ -31,28 +34,16 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.types.TypeUtil;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.Set;
-
-import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.filter;
-import static com.google.common.collect.Iterables.transform;
-import static org.apache.iceberg.data.parquet.GenericParquetReaders.buildReader;
 import static java.util.Collections.emptyIterator;
+import static org.apache.iceberg.data.parquet.GenericParquetReaders.buildReader;
 
 class TableScanIterable extends CloseableGroup implements CloseableIterable<Record> {
   private final TableOperations ops;

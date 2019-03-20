@@ -19,9 +19,9 @@
 
 package org.apache.iceberg.expressions;
 
-import org.apache.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
 import org.apache.iceberg.transforms.Transform;
 
 /**

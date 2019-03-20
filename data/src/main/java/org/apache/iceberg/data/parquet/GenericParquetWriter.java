@@ -20,6 +20,15 @@
 package org.apache.iceberg.data.parquet;
 
 import com.google.common.collect.Lists;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
+import java.util.Iterator;
+import java.util.List;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.parquet.ParquetTypeVisitor;
 import org.apache.iceberg.parquet.ParquetValueWriter;
@@ -32,15 +41,6 @@ import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
-import java.util.Iterator;
-import java.util.List;
 
 import static org.apache.iceberg.parquet.ParquetValueWriters.byteBuffers;
 import static org.apache.iceberg.parquet.ParquetValueWriters.collections;

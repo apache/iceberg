@@ -19,6 +19,10 @@
 
 package org.apache.iceberg.spark.data;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.Iterator;
+import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expressions;
@@ -29,16 +33,12 @@ import org.apache.iceberg.parquet.ParquetAvroWriter;
 import org.apache.iceberg.parquet.ParquetReader;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.avro.generic.GenericData.Record;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.schema.MessageType;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import java.io.File;
-import java.io.IOException;
-import java.util.Iterator;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;

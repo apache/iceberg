@@ -20,10 +20,11 @@
 package org.apache.iceberg.spark.source;
 
 import com.google.common.collect.Maps;
+import java.io.File;
+import java.util.Map;
 import org.apache.iceberg.BaseTable;
-import org.apache.iceberg.LocationProviders;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -32,12 +33,11 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
 import parquet.Preconditions;
-import java.io.File;
-import java.util.Map;
 
 // TODO: Use the copy of this from core.
 class TestTables {

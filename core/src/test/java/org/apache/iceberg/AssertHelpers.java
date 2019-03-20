@@ -17,8 +17,8 @@
 
 package org.apache.iceberg;
 
-import org.junit.Assert;
 import java.util.concurrent.Callable;
+import org.junit.Assert;
 
 public class AssertHelpers {
   /**

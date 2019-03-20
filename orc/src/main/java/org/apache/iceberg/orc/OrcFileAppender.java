@@ -16,21 +16,20 @@
 package org.apache.iceberg.orc;
 
 import com.google.common.base.Preconditions;
-import org.apache.iceberg.Metrics;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.io.OutputFile;
-import org.apache.hadoop.fs.Path;
-import org.apache.orc.ColumnStatistics;
-import org.apache.orc.TypeDescription;
-import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
-import org.apache.orc.OrcFile;
-import org.apache.orc.Writer;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
+import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.Metrics;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.orc.ColumnStatistics;
+import org.apache.orc.OrcFile;
+import org.apache.orc.TypeDescription;
+import org.apache.orc.Writer;
+import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
 /**
  * Create a file appender for ORC.

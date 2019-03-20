@@ -19,15 +19,16 @@
 
 package org.apache.iceberg.expressions;
 
+import java.math.BigDecimal;
+import java.util.Arrays;
+import java.util.List;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.junit.Assert;
 import org.junit.Test;
-import java.math.BigDecimal;
-import java.util.Arrays;
-import java.util.List;
 
+import static org.apache.iceberg.TestHelpers.assertAndUnwrap;
 import static org.apache.iceberg.expressions.Expression.Operation.EQ;
 import static org.apache.iceberg.expressions.Expression.Operation.GT;
 import static org.apache.iceberg.expressions.Expression.Operation.GT_EQ;
@@ -37,7 +38,6 @@ import static org.apache.iceberg.expressions.Expression.Operation.LT_EQ;
 import static org.apache.iceberg.expressions.Expression.Operation.NOT_EQ;
 import static org.apache.iceberg.expressions.Expression.Operation.NOT_NULL;
 import static org.apache.iceberg.expressions.Expressions.ref;
-import static org.apache.iceberg.TestHelpers.assertAndUnwrap;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 

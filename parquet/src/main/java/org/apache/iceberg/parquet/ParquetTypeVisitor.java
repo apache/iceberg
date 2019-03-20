@@ -21,13 +21,13 @@ package org.apache.iceberg.parquet;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
+import java.util.LinkedList;
+import java.util.List;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.OriginalType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
-import java.util.LinkedList;
-import java.util.List;
 
 import static org.apache.parquet.schema.Type.Repetition.REPEATED;
 

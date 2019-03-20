@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.expressions;
 
+import java.util.List;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import java.util.List;
 
 public class BoundReference<T> implements Reference {
   private final int fieldId;

@@ -20,14 +20,13 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Objects;
+import java.util.Collection;
+import org.apache.avro.generic.IndexedRecord;
+import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.StructType;
-import org.apache.avro.generic.IndexedRecord;
-import org.apache.avro.specific.SpecificData;
-
-import java.util.Collection;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 

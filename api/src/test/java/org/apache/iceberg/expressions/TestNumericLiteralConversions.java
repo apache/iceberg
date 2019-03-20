@@ -19,10 +19,10 @@
 
 package org.apache.iceberg.expressions;
 
+import java.math.BigDecimal;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
-import java.math.BigDecimal;
 
 public class TestNumericLiteralConversions {
   @Test

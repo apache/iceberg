@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.io;
 
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import java.io.IOException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 
 /**
  * An interface used to read input files using {@link SeekableInputStream} instances.

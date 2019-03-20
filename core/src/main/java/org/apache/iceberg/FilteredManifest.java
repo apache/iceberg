@@ -22,14 +22,14 @@ package org.apache.iceberg;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
+import java.util.Collection;
+import java.util.Iterator;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.Projections;
-import java.util.Collection;
-import java.util.Iterator;
 
 public class FilteredManifest implements Filterable<FilteredManifest> {
   private final ManifestReader reader;

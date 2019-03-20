@@ -20,8 +20,8 @@
 package org.apache.iceberg;
 
 import com.google.common.collect.Lists;
-import org.apache.iceberg.expressions.Expression;
 import java.util.Collection;
+import org.apache.iceberg.expressions.Expression;
 
 /**
  * Methods to filter files in a snapshot or manifest when reading.

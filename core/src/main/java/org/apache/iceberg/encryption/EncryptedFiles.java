@@ -19,10 +19,9 @@
 
 package org.apache.iceberg.encryption;
 
+import java.nio.ByteBuffer;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-
-import java.nio.ByteBuffer;
 
 public class EncryptedFiles {
 

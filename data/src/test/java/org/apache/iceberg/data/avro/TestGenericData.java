@@ -20,6 +20,9 @@
 package org.apache.iceberg.data.avro;
 
 import com.google.common.collect.Lists;
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
@@ -30,9 +33,6 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.FileAppender;
 import org.junit.Assert;
-import java.io.File;
-import java.io.IOException;
-import java.util.List;
 
 public class TestGenericData extends DataTest {
   protected void writeAndValidate(Schema schema) throws IOException {

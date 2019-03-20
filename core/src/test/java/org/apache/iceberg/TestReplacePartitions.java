@@ -19,12 +19,12 @@
 
 package org.apache.iceberg;
 
+import java.io.File;
+import java.io.IOException;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.junit.Assert;
 import org.junit.Test;
-import java.io.File;
-import java.io.IOException;
 
 public class TestReplacePartitions extends TableTestBase {
 

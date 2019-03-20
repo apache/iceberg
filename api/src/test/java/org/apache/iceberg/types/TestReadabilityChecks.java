@@ -19,10 +19,10 @@
 
 package org.apache.iceberg.types;
 
+import java.util.List;
 import org.apache.iceberg.Schema;
 import org.junit.Assert;
 import org.junit.Test;
-import java.util.List;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;

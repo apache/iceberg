@@ -19,11 +19,11 @@
 
 package org.apache.iceberg;
 
+import java.util.UUID;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
-import java.util.UUID;
 
 /**
  * SPI interface to abstract table metadata access and updates.

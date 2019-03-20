@@ -19,19 +19,19 @@
 
 package org.apache.iceberg.expressions;
 
-import org.apache.iceberg.types.Types;
+import java.math.BigDecimal;
+import java.time.DateTimeException;
+import java.util.UUID;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.data.TimeConversions;
+import org.apache.iceberg.types.Types;
 import org.joda.time.DateTimeZone;
 import org.joda.time.LocalDate;
 import org.joda.time.LocalDateTime;
 import org.joda.time.LocalTime;
 import org.junit.Assert;
 import org.junit.Test;
-import java.math.BigDecimal;
-import java.time.DateTimeException;
-import java.util.UUID;
 
 
 public class TestStringLiteralConversions {

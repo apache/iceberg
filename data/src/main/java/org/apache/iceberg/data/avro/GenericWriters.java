@@ -19,10 +19,6 @@
 
 package org.apache.iceberg.data.avro;
 
-import org.apache.iceberg.avro.ValueWriter;
-import org.apache.iceberg.avro.ValueWriters;
-import org.apache.iceberg.data.Record;
-import org.apache.avro.io.Encoder;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -32,6 +28,10 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import org.apache.avro.io.Encoder;
+import org.apache.iceberg.avro.ValueWriter;
+import org.apache.iceberg.avro.ValueWriters;
+import org.apache.iceberg.data.Record;
 
 class GenericWriters {
   private GenericWriters() {

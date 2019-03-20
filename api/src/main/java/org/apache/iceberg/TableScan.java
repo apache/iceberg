@@ -20,9 +20,9 @@
 package org.apache.iceberg;
 
 import com.google.common.collect.Lists;
+import java.util.Collection;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
-import java.util.Collection;
 
 /**
  * API for configuring a table scan.

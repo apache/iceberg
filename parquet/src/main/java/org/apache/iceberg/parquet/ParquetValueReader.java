@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.parquet;
 
-import org.apache.parquet.column.page.PageReadStore;
 import java.util.List;
+import org.apache.parquet.column.page.PageReadStore;
 
 public interface ParquetValueReader<T> {
   T read(T reuse);

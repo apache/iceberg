@@ -20,13 +20,13 @@
 package org.apache.iceberg.parquet;
 
 import com.google.common.collect.Sets;
+import java.util.Set;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types.MessageTypeBuilder;
-import java.util.Set;
 
 public class ParquetSchemaUtil {
   public static MessageType convert(Schema schema, String name) {

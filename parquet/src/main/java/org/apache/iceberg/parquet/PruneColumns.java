@@ -21,13 +21,13 @@ package org.apache.iceberg.parquet;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
+import java.util.List;
+import java.util.Set;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
-import java.util.List;
-import java.util.Set;
 
 class PruneColumns extends ParquetTypeVisitor<Type> {
   private final Set<Integer> selectedIds;

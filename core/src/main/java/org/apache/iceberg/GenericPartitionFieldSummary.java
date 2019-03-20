@@ -20,15 +20,15 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Objects;
-import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
-import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.types.Types;
-import org.apache.avro.Schema;
-import org.apache.avro.generic.IndexedRecord;
-import org.apache.avro.specific.SpecificData.SchemaConstructable;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.List;
+import org.apache.avro.Schema;
+import org.apache.avro.generic.IndexedRecord;
+import org.apache.avro.specific.SpecificData.SchemaConstructable;
+import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
+import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.types.Types;
 
 public class GenericPartitionFieldSummary
     implements PartitionFieldSummary, StructLike, IndexedRecord, SchemaConstructable, Serializable {

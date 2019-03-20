@@ -19,12 +19,12 @@
 
 package org.apache.iceberg.spark.data;
 
+import java.util.TimeZone;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 import org.junit.Assert;
 import org.junit.Test;
-import java.util.TimeZone;
 
 public class TestSparkDateTimes {
   @Test

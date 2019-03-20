@@ -19,12 +19,12 @@
 
 package org.apache.iceberg.expressions;
 
-import org.apache.iceberg.StructLike;
-import org.apache.iceberg.PartitionField;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.transforms.Transform;
 import java.io.Serializable;
 import java.util.Comparator;
+import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.transforms.Transform;
 
 /**
  * Finds the residuals for an {@link Expression} the partitions in the given {@link PartitionSpec}.

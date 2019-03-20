@@ -20,6 +20,8 @@
 package org.apache.iceberg.hadoop;
 
 import com.google.common.collect.Lists;
+import java.io.File;
+import java.util.List;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
@@ -31,8 +33,6 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
-import java.io.File;
-import java.util.List;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;

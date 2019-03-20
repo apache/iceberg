@@ -16,13 +16,12 @@
 
 package org.apache.iceberg.orc;
 
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public class TypeConversion {
 

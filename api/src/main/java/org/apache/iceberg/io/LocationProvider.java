@@ -19,9 +19,9 @@
 
 package org.apache.iceberg.io;
 
+import java.io.Serializable;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
-import java.io.Serializable;
 
 /**
  * Interface for providing data file locations to write tasks.

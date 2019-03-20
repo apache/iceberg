@@ -19,11 +19,6 @@
 
 package org.apache.iceberg;
 
-import org.apache.iceberg.expressions.BoundPredicate;
-import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.ExpressionVisitors;
-import org.apache.iceberg.expressions.UnboundPredicate;
-import org.junit.Assert;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -33,6 +28,11 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionVisitors;
+import org.apache.iceberg.expressions.UnboundPredicate;
+import org.junit.Assert;
 
 public class TestHelpers {
   public static <T> T assertAndUnwrap(Expression expr, Class<T> expected) {

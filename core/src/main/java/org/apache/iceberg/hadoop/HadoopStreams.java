@@ -20,20 +20,19 @@
 package org.apache.iceberg.hadoop;
 
 import com.google.common.base.Joiner;
-import org.apache.iceberg.io.DelegatingInputStream;
-import org.apache.iceberg.io.DelegatingOutputStream;
-import org.apache.iceberg.io.PositionOutputStream;
-import org.apache.iceberg.io.SeekableInputStream;
-import org.apache.hadoop.fs.FSDataInputStream;
-import org.apache.hadoop.fs.FSDataOutputStream;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.iceberg.io.DelegatingInputStream;
+import org.apache.iceberg.io.DelegatingOutputStream;
+import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.io.SeekableInputStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Convenience methods to get Parquet abstractions for Hadoop data streams.

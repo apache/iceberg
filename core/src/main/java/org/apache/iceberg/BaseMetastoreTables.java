@@ -21,10 +21,10 @@ package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import java.util.Map;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.hadoop.conf.Configuration;
-import java.util.Map;
 
 import static org.apache.iceberg.TableMetadata.newTableMetadata;
 

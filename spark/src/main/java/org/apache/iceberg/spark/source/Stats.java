@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.spark.source;
 
-import org.apache.spark.sql.sources.v2.reader.Statistics;
 import java.util.OptionalLong;
+import org.apache.spark.sql.sources.v2.reader.Statistics;
 
 class Stats implements Statistics {
   private final OptionalLong sizeInBytes;

@@ -20,18 +20,6 @@
 package org.apache.iceberg.spark.data;
 
 import com.google.common.collect.Lists;
-import org.apache.iceberg.avro.ValueReader;
-import org.apache.avro.Schema;
-import org.apache.avro.io.Decoder;
-import org.apache.avro.io.ResolvingDecoder;
-import org.apache.avro.util.Utf8;
-import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
-import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
-import org.apache.spark.sql.catalyst.util.ArrayData;
-import org.apache.spark.sql.catalyst.util.GenericArrayData;
-import org.apache.spark.sql.types.Decimal;
-import org.apache.spark.unsafe.types.UTF8String;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -39,6 +27,18 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
 import java.util.UUID;
+import org.apache.avro.Schema;
+import org.apache.avro.io.Decoder;
+import org.apache.avro.io.ResolvingDecoder;
+import org.apache.avro.util.Utf8;
+import org.apache.iceberg.avro.ValueReader;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
+import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
+import org.apache.spark.sql.catalyst.util.ArrayData;
+import org.apache.spark.sql.catalyst.util.GenericArrayData;
+import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkValueReaders {
   static ValueReader<UTF8String> strings() {

@@ -19,12 +19,12 @@
 
 package org.apache.iceberg;
 
+import java.util.List;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
-import java.util.List;
 
 public class OverwriteData extends MergingSnapshotUpdate implements OverwriteFiles {
   private boolean validateAddedFiles = false;

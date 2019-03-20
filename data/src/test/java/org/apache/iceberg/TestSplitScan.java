@@ -1,6 +1,11 @@
 package org.apache.iceberg;
 
 import com.google.common.collect.Lists;
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.RandomGenericData;
@@ -11,7 +16,6 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.types.Types;
-import org.apache.hadoop.conf.Configuration;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -19,10 +23,6 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-import java.io.File;
-import java.io.IOException;
-import java.util.List;
-import java.util.Locale;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 

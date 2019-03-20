@@ -19,6 +19,12 @@
 
 package org.apache.iceberg.spark.source;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
+import java.util.UUID;
+import org.apache.avro.generic.GenericData;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -33,8 +39,6 @@ import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.avro.generic.GenericData;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
@@ -44,10 +48,6 @@ import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
-import java.io.File;
-import java.io.IOException;
-import java.util.List;
-import java.util.UUID;
 
 import static org.apache.iceberg.Files.localInput;
 import static org.apache.iceberg.Files.localOutput;

@@ -20,10 +20,10 @@
 package org.apache.iceberg.types;
 
 import com.google.common.collect.Lists;
-import org.apache.iceberg.Schema;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Supplier;
+import org.apache.iceberg.Schema;
 
 class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   private final TypeUtil.NextID nextId;

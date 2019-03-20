@@ -24,10 +24,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.transforms.Transforms;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
@@ -36,6 +32,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 
 /**
  * Represents how to produce partition data for a table.

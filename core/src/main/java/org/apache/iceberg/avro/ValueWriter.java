@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.avro;
 
-import org.apache.avro.io.Encoder;
 import java.io.IOException;
+import org.apache.avro.io.Encoder;
 
 public interface ValueWriter<D> {
   void write(D datum, Encoder encoder) throws IOException;

@@ -19,15 +19,15 @@
 
 package org.apache.iceberg.expressions;
 
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class TestMiscLiteralConversions {
   @Test

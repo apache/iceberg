@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.parquet;
 
+import java.io.IOException;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.page.DataPage;
@@ -26,8 +27,6 @@ import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.io.ParquetDecodingException;
 import org.apache.parquet.io.api.Binary;
-
-import java.io.IOException;
 
 public abstract class ColumnIterator<T> implements TripleIterator<T> {
   @SuppressWarnings("unchecked")

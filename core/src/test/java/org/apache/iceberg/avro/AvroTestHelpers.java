@@ -19,15 +19,15 @@
 
 package org.apache.iceberg.avro;
 
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
-import org.apache.avro.JsonProperties;
-import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericData.Record;
-import org.junit.Assert;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import org.apache.avro.JsonProperties;
+import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericData.Record;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.junit.Assert;
 
 import static org.apache.iceberg.avro.AvroSchemaUtil.toOption;
 

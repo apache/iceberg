@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.transforms;
 
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
-import java.math.BigDecimal;
-import java.nio.ByteBuffer;
 
 public class TestTruncate {
   @Test

@@ -19,19 +19,19 @@
 package org.apache.iceberg.data.avro;
 
 import com.google.common.primitives.Bytes;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.avro.AvroSchemaUtil;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.security.NoSuchAlgorithmException;
 import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.SchemaNormalization;
 import org.apache.avro.io.BinaryEncoder;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.EncoderFactory;
 import org.apache.avro.message.MessageEncoder;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.nio.ByteBuffer;
-import java.security.NoSuchAlgorithmException;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 
 public class IcebergEncoder<D> implements MessageEncoder<D> {
 

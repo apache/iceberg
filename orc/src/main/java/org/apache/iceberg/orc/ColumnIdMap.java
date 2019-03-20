@@ -16,14 +16,13 @@
 
 package org.apache.iceberg.orc;
 
-import org.apache.orc.TypeDescription;
-
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
+import org.apache.orc.TypeDescription;
 
 /**
  * The mapping from ORC's TypeDescription to the Iceberg column ids.

@@ -19,14 +19,14 @@
 
 package org.apache.iceberg.expressions;
 
+import java.nio.ByteBuffer;
+import java.util.List;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
-import java.nio.ByteBuffer;
-import java.util.List;
 
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 

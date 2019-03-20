@@ -20,6 +20,10 @@
 package org.apache.iceberg.spark.source;
 
 import com.google.common.collect.Maps;
+import java.lang.reflect.Array;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -32,10 +36,6 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
-import java.lang.reflect.Array;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
 
 import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
 

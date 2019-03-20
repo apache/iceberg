@@ -19,13 +19,13 @@
 
 package org.apache.iceberg.transforms;
 
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.expressions.UnboundPredicate;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;

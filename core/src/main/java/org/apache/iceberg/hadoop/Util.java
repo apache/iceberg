@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.hadoop;
 
-import org.apache.iceberg.exceptions.RuntimeIOException;
+import java.io.IOException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import java.io.IOException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 
 class Util {
   private Util() {

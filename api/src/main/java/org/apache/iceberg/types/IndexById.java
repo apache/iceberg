@@ -20,9 +20,9 @@
 package org.apache.iceberg.types;
 
 import com.google.common.collect.Maps;
-import org.apache.iceberg.Schema;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.Schema;
 
 class IndexById extends TypeUtil.SchemaVisitor<Map<Integer, Types.NestedField>> {
   private final Map<Integer, Types.NestedField> index = Maps.newHashMap();

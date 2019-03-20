@@ -21,12 +21,6 @@ package org.apache.iceberg.parquet;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import org.apache.iceberg.types.TypeUtil;
-import org.apache.avro.util.Utf8;
-import org.apache.parquet.column.ColumnDescriptor;
-import org.apache.parquet.column.ColumnWriteStore;
-import org.apache.parquet.io.api.Binary;
-import org.apache.parquet.schema.Type;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -34,6 +28,12 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import org.apache.avro.util.Utf8;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.ColumnWriteStore;
+import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.Type;
 
 public class ParquetValueWriters {
   private ParquetValueWriters() {

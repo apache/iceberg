@@ -25,16 +25,16 @@ import com.google.common.base.Objects;
 import com.google.common.collect.Sets;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
-import org.apache.iceberg.expressions.BoundPredicate;
-import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.expressions.UnboundPredicate;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Set;
 import java.util.UUID;
+import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 
 import static org.apache.iceberg.types.Type.TypeID;
 

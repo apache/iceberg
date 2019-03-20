@@ -23,15 +23,15 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.io.Files;
+import java.io.File;
+import java.util.Iterator;
+import java.util.List;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
-import java.io.File;
-import java.util.Iterator;
-import java.util.List;
 
 import static org.apache.iceberg.Files.localInput;
 import static org.apache.iceberg.types.Types.NestedField.required;

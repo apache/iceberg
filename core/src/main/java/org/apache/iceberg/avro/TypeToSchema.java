@@ -21,16 +21,16 @@ package org.apache.iceberg.avro;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import java.util.List;
+import java.util.Map;
+import org.apache.avro.LogicalTypes;
+import org.apache.avro.Schema;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.avro.LogicalTypes;
-import org.apache.avro.Schema;
-import java.util.List;
-import java.util.Map;
 
-import static org.apache.iceberg.avro.AvroSchemaUtil.toOption;
 import static org.apache.avro.JsonProperties.NULL_VALUE;
+import static org.apache.iceberg.avro.AvroSchemaUtil.toOption;
 
 class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   private static final Schema BOOLEAN_SCHEMA = Schema.create(Schema.Type.BOOLEAN);

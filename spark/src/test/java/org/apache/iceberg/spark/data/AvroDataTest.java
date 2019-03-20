@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark.data;
 
+import java.io.IOException;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.ListType;
@@ -28,8 +29,6 @@ import org.apache.iceberg.types.Types.StructType;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import java.io.IOException;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;

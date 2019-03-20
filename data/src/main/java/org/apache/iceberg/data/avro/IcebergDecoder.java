@@ -21,8 +21,11 @@ package org.apache.iceberg.data.avro;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.MapMaker;
-import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.avro.ProjectionDatumReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.Map;
 import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaNormalization;
@@ -33,11 +36,8 @@ import org.apache.avro.message.BadHeaderException;
 import org.apache.avro.message.MessageDecoder;
 import org.apache.avro.message.MissingSchemaException;
 import org.apache.avro.message.SchemaStore;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.Map;
+import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.avro.ProjectionDatumReader;
 
 public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
   private static final ThreadLocal<byte[]> HEADER_BUFFER =

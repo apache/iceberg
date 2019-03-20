@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.types;
 
+import java.nio.ByteBuffer;
+import java.util.Comparator;
 import org.apache.iceberg.expressions.Literal;
 import org.junit.Assert;
 import org.junit.Test;
-import java.nio.ByteBuffer;
-import java.util.Comparator;
 
 /**
  * Tests the comparator returned by binary and fixed literals.

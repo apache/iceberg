@@ -21,12 +21,12 @@ package org.apache.iceberg.spark;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
+import java.util.List;
+import java.util.function.Supplier;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import java.util.List;
-import java.util.function.Supplier;
 
 /**
  * This is used to fix primitive types to match a table schema. Some types, like binary and fixed,

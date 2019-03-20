@@ -21,15 +21,15 @@ package org.apache.iceberg;
 
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
-import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
+import java.io.Serializable;
+import java.util.Arrays;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
 import org.apache.avro.util.Utf8;
-import java.io.Serializable;
-import java.util.Arrays;
+import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 
 class PartitionData
     implements IndexedRecord, StructLike, SpecificData.SchemaConstructable, Serializable {

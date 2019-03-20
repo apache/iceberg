@@ -22,13 +22,6 @@ package org.apache.iceberg.transforms;
 import com.google.common.base.Charsets;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
-import org.apache.iceberg.expressions.Literal;
-import org.apache.iceberg.types.Types;
-import org.apache.avro.util.Utf8;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigDecimal;
@@ -36,6 +29,13 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Random;
 import java.util.UUID;
+import org.apache.avro.util.Utf8;
+import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.types.Types;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class TestBucketing {
   private static final HashFunction MURMUR3 = Hashing.murmur3_32();

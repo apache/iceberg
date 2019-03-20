@@ -20,13 +20,13 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
+import java.io.IOException;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import java.io.IOException;
 
 import static org.apache.iceberg.ManifestEntry.Status.DELETED;
 

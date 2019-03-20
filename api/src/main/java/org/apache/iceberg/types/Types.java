@@ -23,8 +23,6 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.types.Type.NestedType;
-import org.apache.iceberg.types.Type.PrimitiveType;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
@@ -33,6 +31,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.apache.iceberg.types.Type.NestedType;
+import org.apache.iceberg.types.Type.PrimitiveType;
 
 public class Types {
   private static final ImmutableMap<String, PrimitiveType> TYPES = ImmutableMap

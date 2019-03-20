@@ -20,6 +20,7 @@
 package org.apache.iceberg.parquet;
 
 import com.google.common.base.Preconditions;
+import java.io.IOException;
 import org.apache.parquet.CorruptDeltaByteArrays;
 import org.apache.parquet.bytes.ByteBufferInputStream;
 import org.apache.parquet.bytes.BytesInput;
@@ -37,8 +38,6 @@ import org.apache.parquet.io.ParquetDecodingException;
 import org.apache.parquet.io.api.Binary;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
 
 import static java.lang.String.format;
 import static org.apache.parquet.column.ValuesType.DEFINITION_LEVEL;

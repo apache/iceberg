@@ -20,6 +20,8 @@
 package org.apache.iceberg.pig;
 
 import com.google.common.collect.Lists;
+import java.io.IOException;
+import java.util.List;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -27,9 +29,6 @@ import org.apache.pig.ResourceSchema;
 import org.apache.pig.ResourceSchema.ResourceFieldSchema;
 import org.apache.pig.data.DataType;
 import org.apache.pig.impl.logicalLayer.FrontendException;
-
-import java.io.IOException;
-import java.util.List;
 
 import static java.lang.String.format;
 import static org.apache.iceberg.types.Types.ListType;

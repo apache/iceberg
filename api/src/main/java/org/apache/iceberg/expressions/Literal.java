@@ -19,12 +19,12 @@
 
 package org.apache.iceberg.expressions;
 
-import org.apache.iceberg.types.Type;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.UUID;
+import org.apache.iceberg.types.Type;
 
 /**
  * Represents a literal fixed value in an expression predicate

@@ -19,9 +19,9 @@
 
 package org.apache.iceberg.data;
 
+import java.util.Map;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Types.StructType;
-import java.util.Map;
 
 public interface Record extends StructLike {
   StructType struct();

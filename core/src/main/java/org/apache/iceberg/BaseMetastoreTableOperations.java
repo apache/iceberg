@@ -20,21 +20,19 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Objects;
+import java.io.IOException;
+import java.util.UUID;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.util.UUID;
 
 import static org.apache.iceberg.TableMetadataParser.getFileExtension;
 import static org.apache.iceberg.TableMetadataParser.read;

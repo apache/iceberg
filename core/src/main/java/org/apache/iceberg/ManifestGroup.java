@@ -26,16 +26,16 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import java.io.Closeable;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.InclusiveManifestEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.types.Types;
-import java.io.Closeable;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
 
 class ManifestGroup {
   private static final Types.StructType EMPTY_STRUCT = Types.StructType.of();

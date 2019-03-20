@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.avro;
 
-import org.apache.avro.io.Decoder;
 import java.io.IOException;
+import org.apache.avro.io.Decoder;
 
 public interface ValueReader<T> {
   T read(Decoder decoder, Object reuse) throws IOException;

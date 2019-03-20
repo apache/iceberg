@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.util;
 
-import org.apache.iceberg.StructLike;
 import java.util.Objects;
+import org.apache.iceberg.StructLike;
 
 /**
  * Wrapper to adapt StructLike for use in maps and sets by implementing equals and hashCode.

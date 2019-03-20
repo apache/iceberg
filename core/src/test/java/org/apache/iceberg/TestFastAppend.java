@@ -21,12 +21,12 @@ package org.apache.iceberg;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import org.apache.iceberg.exceptions.CommitFailedException;
-import org.junit.Assert;
-import org.junit.Test;
 import java.io.File;
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class TestFastAppend extends TableTestBase {
 

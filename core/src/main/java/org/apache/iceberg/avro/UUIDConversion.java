@@ -19,15 +19,15 @@
 
 package org.apache.iceberg.avro;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.UUID;
 import org.apache.avro.Conversion;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericFixed;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.UUID;
 
 public class UUIDConversion extends Conversion<UUID> {
   @Override

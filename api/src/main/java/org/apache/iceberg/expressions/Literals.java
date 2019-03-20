@@ -20,9 +20,6 @@
 package org.apache.iceberg.expressions;
 
 import com.google.common.base.Preconditions;
-import org.apache.iceberg.types.Comparators;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 import java.io.ObjectStreamException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -37,6 +34,9 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.UUID;
+import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 
 class Literals {
   private Literals() {

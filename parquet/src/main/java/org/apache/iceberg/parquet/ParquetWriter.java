@@ -20,6 +20,11 @@
 package org.apache.iceberg.parquet;
 
 import com.google.common.collect.ImmutableMap;
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.Map;
+import java.util.function.Function;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.common.DynConstructors;
@@ -27,7 +32,6 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.parquet.bytes.ByteBufferAllocator;
 import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.column.ParquetProperties;
@@ -36,14 +40,10 @@ import org.apache.parquet.hadoop.CodecFactory;
 import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.Map;
-import java.util.function.Function;
 
-import static org.apache.iceberg.parquet.ParquetSchemaUtil.convert;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
+import static org.apache.iceberg.parquet.ParquetSchemaUtil.convert;
 import static org.apache.parquet.column.ParquetProperties.WriterVersion.PARQUET_1_0;
 
 class ParquetWriter<T> implements FileAppender<T>, Closeable {

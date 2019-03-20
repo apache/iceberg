@@ -20,12 +20,10 @@
 package org.apache.iceberg.data.avro;
 
 import com.google.common.collect.MapMaker;
-import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.avro.AvroSchemaVisitor;
-import org.apache.iceberg.avro.LogicalMap;
-import org.apache.iceberg.avro.ValueReader;
-import org.apache.iceberg.avro.ValueReaders;
-import org.apache.iceberg.exceptions.RuntimeIOException;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
@@ -33,10 +31,12 @@ import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
 import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.ResolvingDecoder;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.avro.AvroSchemaVisitor;
+import org.apache.iceberg.avro.LogicalMap;
+import org.apache.iceberg.avro.ValueReader;
+import org.apache.iceberg.avro.ValueReaders;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 
 public class DataReader<T> implements DatumReader<T> {
 

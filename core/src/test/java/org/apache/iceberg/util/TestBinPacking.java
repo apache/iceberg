@@ -20,10 +20,10 @@
 package org.apache.iceberg.util;
 
 import com.google.common.collect.Lists;
+import java.util.List;
 import org.apache.iceberg.util.BinPacking.ListPacker;
 import org.junit.Assert;
 import org.junit.Test;
-import java.util.List;
 
 public class TestBinPacking {
   @Test

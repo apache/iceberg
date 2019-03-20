@@ -20,16 +20,6 @@
 package org.apache.iceberg.spark.data;
 
 import com.google.common.base.Preconditions;
-import org.apache.iceberg.avro.ValueWriter;
-import org.apache.iceberg.types.TypeUtil;
-import org.apache.avro.io.Encoder;
-import org.apache.avro.util.Utf8;
-import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.util.ArrayData;
-import org.apache.spark.sql.catalyst.util.MapData;
-import org.apache.spark.sql.types.DataType;
-import org.apache.spark.sql.types.Decimal;
-import org.apache.spark.unsafe.types.UTF8String;
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
@@ -37,6 +27,16 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
 import java.util.UUID;
+import org.apache.avro.io.Encoder;
+import org.apache.avro.util.Utf8;
+import org.apache.iceberg.avro.ValueWriter;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.util.ArrayData;
+import org.apache.spark.sql.catalyst.util.MapData;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkValueWriters {
   static ValueWriter<UTF8String> strings() {

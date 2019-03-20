@@ -20,14 +20,13 @@
 package org.apache.iceberg.avro;
 
 import com.google.common.base.Preconditions;
+import java.io.IOException;
+import java.util.List;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.Encoder;
-
-import java.io.IOException;
-import java.util.List;
 
 import static org.apache.iceberg.avro.AvroSchemaVisitor.visit;
 

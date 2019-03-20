@@ -20,11 +20,11 @@
 package org.apache.iceberg.parquet;
 
 import com.google.common.base.Preconditions;
+import java.io.IOException;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.parquet.hadoop.ParquetWriter;
-import java.io.IOException;
 
 public class ParquetWriteAdapter<D> implements FileAppender<D> {
   private ParquetWriter<D> writer = null;

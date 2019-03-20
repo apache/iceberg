@@ -19,7 +19,9 @@
 
 package org.apache.iceberg;
 
-import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.types.Types.BinaryType;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.ListType;
@@ -27,9 +29,6 @@ import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
-import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.Map;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;

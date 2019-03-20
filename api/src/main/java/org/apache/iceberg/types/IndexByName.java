@@ -21,9 +21,9 @@ package org.apache.iceberg.types;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Maps;
-import org.apache.iceberg.Schema;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.Schema;
 
 public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
   private static final Joiner DOT = Joiner.on(".");

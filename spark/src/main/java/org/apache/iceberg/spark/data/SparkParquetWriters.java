@@ -21,9 +21,13 @@ package org.apache.iceberg.spark.data;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
+import java.math.BigDecimal;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetTypeVisitor;
-import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.parquet.ParquetValueReaders.ReusableEntry;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
@@ -44,12 +48,6 @@ import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
 
 import static org.apache.iceberg.parquet.ParquetValueWriters.option;
 import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
