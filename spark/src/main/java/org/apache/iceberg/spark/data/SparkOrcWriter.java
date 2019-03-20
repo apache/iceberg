@@ -421,6 +421,11 @@ public class SparkOrcWriter implements FileAppender<InternalRow> {
   }
 
   @Override
+  public long length() {
+    return writer.length();
+  }
+
+  @Override
   public void close() throws IOException {
     if (batch.size > 0) {
       writer.add(batch);

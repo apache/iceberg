@@ -115,8 +115,8 @@ public class TestOrcScan extends AvroDataTest {
 
     List<Row> rows = df.collectAsList();
     Assert.assertEquals("Wrong number of rows", ROW_COUNT, rows.size());
-    Iterator<InternalRow> expected = RandomData.generateSpark(tableSchema,
-        ROW_COUNT, SEED);
+    Iterator<InternalRow> expected = RandomData.generateSpark(tableSchema, ROW_COUNT, SEED)
+        .iterator();
     for(int i = 0; i < ROW_COUNT; ++i) {
       final InternalRow expectedRow = expected.next();  // useful for debug
       TestHelpers.assertEquals("row " + i, schema.asStruct(), expectedRow,
