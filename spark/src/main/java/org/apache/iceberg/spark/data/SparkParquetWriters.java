@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark.data;
+package org.apache.iceberg.spark.data;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.parquet.ParquetTypeVisitor;
-import com.netflix.iceberg.parquet.ParquetValueReaders;
-import com.netflix.iceberg.parquet.ParquetValueReaders.ReusableEntry;
-import com.netflix.iceberg.parquet.ParquetValueWriter;
-import com.netflix.iceberg.parquet.ParquetValueWriters;
-import com.netflix.iceberg.parquet.ParquetValueWriters.PrimitiveWriter;
-import com.netflix.iceberg.parquet.ParquetValueWriters.RepeatedKeyValueWriter;
-import com.netflix.iceberg.parquet.ParquetValueWriters.RepeatedWriter;
-import com.netflix.iceberg.types.TypeUtil;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.parquet.ParquetTypeVisitor;
+import org.apache.iceberg.parquet.ParquetValueReaders;
+import org.apache.iceberg.parquet.ParquetValueReaders.ReusableEntry;
+import org.apache.iceberg.parquet.ParquetValueWriter;
+import org.apache.iceberg.parquet.ParquetValueWriters;
+import org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter;
+import org.apache.iceberg.parquet.ParquetValueWriters.RepeatedKeyValueWriter;
+import org.apache.iceberg.parquet.ParquetValueWriters.RepeatedWriter;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.DecimalMetadata;
@@ -51,8 +51,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
-import static com.netflix.iceberg.parquet.ParquetValueWriters.option;
-import static com.netflix.iceberg.spark.SparkSchemaUtil.convert;
+import static org.apache.iceberg.parquet.ParquetValueWriters.option;
+import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
 
 public class SparkParquetWriters {
   private SparkParquetWriters() {

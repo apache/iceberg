@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.expressions.Literal;
-import com.netflix.iceberg.io.CloseableIterable;
-import com.netflix.iceberg.types.Types;
-import com.netflix.iceberg.util.CharSequenceWrapper;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.CharSequenceWrapper;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;

@@ -17,22 +17,22 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import com.netflix.iceberg.exceptions.AlreadyExistsException;
-import com.netflix.iceberg.exceptions.CommitFailedException;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.io.FileIO;
-import com.netflix.iceberg.io.InputFile;
-import com.netflix.iceberg.io.LocationProvider;
-import com.netflix.iceberg.io.OutputFile;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.io.OutputFile;
 import java.io.File;
 import java.util.Map;
 
-import static com.netflix.iceberg.TableMetadata.newTableMetadata;
+import static org.apache.iceberg.TableMetadata.newTableMetadata;
 
 public class TestTables {
   static TestTable create(File temp, String name, Schema schema, PartitionSpec spec) {

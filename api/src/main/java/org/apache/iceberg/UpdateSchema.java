@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
-import com.netflix.iceberg.exceptions.CommitFailedException;
-import com.netflix.iceberg.types.Type;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.types.Type;
 
 /**
  * API for schema evolution.

@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package com.netflix.iceberg.encryption;
+package org.apache.iceberg.encryption;
 
-import com.netflix.iceberg.io.InputFile;
-import com.netflix.iceberg.io.OutputFile;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
 
 import java.nio.ByteBuffer;
 

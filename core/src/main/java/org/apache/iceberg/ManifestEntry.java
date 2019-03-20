@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.base.Objects;
-import com.netflix.iceberg.avro.AvroSchemaUtil;
-import com.netflix.iceberg.types.Types.IntegerType;
-import com.netflix.iceberg.types.Types.LongType;
-import com.netflix.iceberg.types.Types.StructType;
+import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.types.Types.IntegerType;
+import org.apache.iceberg.types.Types.LongType;
+import org.apache.iceberg.types.Types.StructType;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
 
 import java.util.Collection;
 
-import static com.netflix.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable{
   enum Status {

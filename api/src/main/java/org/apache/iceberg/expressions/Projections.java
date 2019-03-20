@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package com.netflix.iceberg.expressions;
+package org.apache.iceberg.expressions;
 
-import com.netflix.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
-import com.netflix.iceberg.PartitionField;
-import com.netflix.iceberg.PartitionSpec;
-import com.netflix.iceberg.transforms.Transform;
+import org.apache.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
+import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.transforms.Transform;
 
 /**
  * Utils to project expressions on rows to expressions on partitions.

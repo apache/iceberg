@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.spark.source;
+package org.apache.iceberg.spark.source;
 
 import com.google.common.base.Objects;
 

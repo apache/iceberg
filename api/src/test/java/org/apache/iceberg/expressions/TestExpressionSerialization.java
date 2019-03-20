@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package com.netflix.iceberg.expressions;
+package org.apache.iceberg.expressions;
 
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.TestHelpers;
-import com.netflix.iceberg.expressions.Expression.Operation;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.expressions.Expression.Operation;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 

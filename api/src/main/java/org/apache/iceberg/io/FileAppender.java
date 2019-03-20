@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package com.netflix.iceberg.io;
+package org.apache.iceberg.io;
 
-import com.netflix.iceberg.Metrics;
+import org.apache.iceberg.Metrics;
 import java.io.Closeable;
 import java.util.Iterator;
 

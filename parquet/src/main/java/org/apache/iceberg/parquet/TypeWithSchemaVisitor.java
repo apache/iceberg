@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.types.Types;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.OriginalType;
@@ -40,14 +40,14 @@ import static org.apache.parquet.schema.Type.Repetition.REPEATED;
 public class TypeWithSchemaVisitor<T> {
   protected LinkedList<String> fieldNames = Lists.newLinkedList();
 
-  public static <T> T visit(com.netflix.iceberg.types.Type iType, Type type, TypeWithSchemaVisitor<T> visitor) {
+  public static <T> T visit(org.apache.iceberg.types.Type iType, Type type, TypeWithSchemaVisitor<T> visitor) {
     if (type instanceof MessageType) {
       Types.StructType struct = iType != null ? iType.asStructType() : null;
       return visitor.message(struct, (MessageType) type,
           visitFields(struct, type.asGroupType(), visitor));
 
     } else if (type.isPrimitive()) {
-      com.netflix.iceberg.types.Type.PrimitiveType iPrimitive = iType != null ?
+      org.apache.iceberg.types.Type.PrimitiveType iPrimitive = iType != null ?
           iType.asPrimitiveType() : null;
       return visitor.primitive(iPrimitive, type.asPrimitiveType());
 
@@ -187,7 +187,7 @@ public class TypeWithSchemaVisitor<T> {
     return null;
   }
 
-  public T primitive(com.netflix.iceberg.types.Type.PrimitiveType iPrimitive,
+  public T primitive(org.apache.iceberg.types.Type.PrimitiveType iPrimitive,
                      PrimitiveType primitive) {
     return null;
   }

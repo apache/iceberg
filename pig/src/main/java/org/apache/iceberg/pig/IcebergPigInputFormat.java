@@ -17,25 +17,25 @@
  * under the License.
  */
 
-package com.netflix.iceberg.pig;
+package org.apache.iceberg.pig;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.netflix.iceberg.CombinedScanTask;
-import com.netflix.iceberg.DataFile;
-import com.netflix.iceberg.FileScanTask;
-import com.netflix.iceberg.PartitionSpec;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.Table;
-import com.netflix.iceberg.TableScan;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.hadoop.HadoopInputFile;
-import com.netflix.iceberg.io.CloseableIterable;
-import com.netflix.iceberg.io.InputFile;
-import com.netflix.iceberg.parquet.Parquet;
-import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.TypeUtil;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableScan;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.hadoop.HadoopInputFile;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.InputFormat;
@@ -57,7 +57,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static com.netflix.iceberg.pig.SchemaUtil.project;
+import static org.apache.iceberg.pig.SchemaUtil.project;
 
 public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergPigInputFormat.class);

@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.collect.ImmutableMap;
-import com.netflix.iceberg.avro.Avro;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.io.FileAppender;
-import com.netflix.iceberg.io.OutputFile;
+import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.OutputFile;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;

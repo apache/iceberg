@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package com.netflix.iceberg.transforms;
+package org.apache.iceberg.transforms;
 
-import com.netflix.iceberg.PartitionSpec;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.TestHelpers;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 

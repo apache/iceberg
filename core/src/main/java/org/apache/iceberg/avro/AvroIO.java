@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package com.netflix.iceberg.avro;
+package org.apache.iceberg.avro;
 
-import com.netflix.iceberg.common.DynClasses;
-import com.netflix.iceberg.common.DynConstructors;
-import com.netflix.iceberg.io.DelegatingInputStream;
-import com.netflix.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.common.DynClasses;
+import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.io.DelegatingInputStream;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.avro.file.SeekableInput;
 import java.io.IOException;
 import java.io.InputStream;

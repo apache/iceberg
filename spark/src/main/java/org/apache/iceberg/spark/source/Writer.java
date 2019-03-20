@@ -17,33 +17,33 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark.source;
+package org.apache.iceberg.spark.source;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import com.netflix.iceberg.AppendFiles;
-import com.netflix.iceberg.DataFile;
-import com.netflix.iceberg.DataFiles;
-import com.netflix.iceberg.FileFormat;
-import com.netflix.iceberg.encryption.EncryptedOutputFile;
-import com.netflix.iceberg.encryption.EncryptionManager;
-import com.netflix.iceberg.io.FileIO;
-import com.netflix.iceberg.Metrics;
-import com.netflix.iceberg.PartitionSpec;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.Table;
-import com.netflix.iceberg.avro.Avro;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.io.FileAppender;
-import com.netflix.iceberg.io.LocationProvider;
-import com.netflix.iceberg.io.OutputFile;
-import com.netflix.iceberg.parquet.Parquet;
-import com.netflix.iceberg.spark.data.SparkAvroWriter;
-import com.netflix.iceberg.spark.data.SparkParquetWriters;
-import com.netflix.iceberg.util.Tasks;
+import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.Metrics;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.spark.data.SparkAvroWriter;
+import org.apache.iceberg.spark.data.SparkParquetWriters;
+import org.apache.iceberg.util.Tasks;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
 import org.apache.spark.sql.sources.v2.writer.DataWriter;
@@ -63,14 +63,14 @@ import java.util.function.Function;
 
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.transform;
-import static com.netflix.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
-import static com.netflix.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
-import static com.netflix.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
-import static com.netflix.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
-import static com.netflix.iceberg.TableProperties.COMMIT_NUM_RETRIES;
-import static com.netflix.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
-import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
-import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 // TODO: parameterize DataSourceWriter with subclass of WriterCommitMessage
 class Writer implements DataSourceWriter {

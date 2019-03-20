@@ -18,7 +18,7 @@
  *  from the iBATIS Apache project. Only removed dependency on Resource class
  *  and a constructor.
  */
-package com.netflix.iceberg.hive;
+package org.apache.iceberg.hive;
 
 import java.io.IOException;
 import java.io.LineNumberReader;

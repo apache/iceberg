@@ -17,32 +17,32 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.netflix.iceberg.FileFormat;
-import com.netflix.iceberg.Metrics;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.avro.AvroSchemaUtil;
-import com.netflix.iceberg.io.FileAppender;
-import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.Types.BinaryType;
-import com.netflix.iceberg.types.Types.BooleanType;
-import com.netflix.iceberg.types.Types.DateType;
-import com.netflix.iceberg.types.Types.DecimalType;
-import com.netflix.iceberg.types.Types.DoubleType;
-import com.netflix.iceberg.types.Types.FixedType;
-import com.netflix.iceberg.types.Types.FloatType;
-import com.netflix.iceberg.types.Types.IntegerType;
-import com.netflix.iceberg.types.Types.ListType;
-import com.netflix.iceberg.types.Types.LongType;
-import com.netflix.iceberg.types.Types.MapType;
-import com.netflix.iceberg.types.Types.StringType;
-import com.netflix.iceberg.types.Types.StructType;
-import com.netflix.iceberg.types.Types.TimeType;
-import com.netflix.iceberg.types.Types.TimestampType;
-import com.netflix.iceberg.types.Types.UUIDType;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Metrics;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types.BinaryType;
+import org.apache.iceberg.types.Types.BooleanType;
+import org.apache.iceberg.types.Types.DateType;
+import org.apache.iceberg.types.Types.DecimalType;
+import org.apache.iceberg.types.Types.DoubleType;
+import org.apache.iceberg.types.Types.FixedType;
+import org.apache.iceberg.types.Types.FloatType;
+import org.apache.iceberg.types.Types.IntegerType;
+import org.apache.iceberg.types.Types.ListType;
+import org.apache.iceberg.types.Types.LongType;
+import org.apache.iceberg.types.Types.MapType;
+import org.apache.iceberg.types.Types.StringType;
+import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.types.Types.TimeType;
+import org.apache.iceberg.types.Types.TimestampType;
+import org.apache.iceberg.types.Types.UUIDType;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericFixed;
@@ -59,11 +59,11 @@ import java.nio.CharBuffer;
 import java.util.Map;
 import java.util.UUID;
 
-import static com.netflix.iceberg.Files.localInput;
-import static com.netflix.iceberg.Files.localOutput;
-import static com.netflix.iceberg.types.Conversions.fromByteBuffer;
-import static com.netflix.iceberg.types.Types.NestedField.optional;
-import static com.netflix.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.Files.localInput;
+import static org.apache.iceberg.Files.localOutput;
+import static org.apache.iceberg.types.Conversions.fromByteBuffer;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestParquetMetrics {
 

@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package com.netflix.iceberg.hadoop;
+package org.apache.iceberg.hadoop;
 
-import com.netflix.iceberg.exceptions.AlreadyExistsException;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.io.InputFile;
-import com.netflix.iceberg.io.OutputFile;
-import com.netflix.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.FileSystem;

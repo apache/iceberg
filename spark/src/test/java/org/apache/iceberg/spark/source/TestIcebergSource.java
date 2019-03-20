@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark.source;
+package org.apache.iceberg.spark.source;
 
-import com.netflix.iceberg.Table;
+import org.apache.iceberg.Table;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
 

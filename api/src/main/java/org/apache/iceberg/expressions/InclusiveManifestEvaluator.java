@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package com.netflix.iceberg.expressions;
+package org.apache.iceberg.expressions;
 
-import com.netflix.iceberg.ManifestFile;
-import com.netflix.iceberg.ManifestFile.PartitionFieldSummary;
-import com.netflix.iceberg.PartitionSpec;
-import com.netflix.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
-import com.netflix.iceberg.types.Conversions;
-import com.netflix.iceberg.types.Types.StructType;
+import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types.StructType;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import static com.netflix.iceberg.expressions.Expressions.rewriteNot;
+import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
 /**
  * Evaluates an {@link Expression} on a {@link ManifestFile} to test whether the file contains

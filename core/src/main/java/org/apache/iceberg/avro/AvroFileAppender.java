@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package com.netflix.iceberg.avro;
+package org.apache.iceberg.avro;
 
 import com.google.common.base.Preconditions;
-import com.netflix.iceberg.Metrics;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.io.FileAppender;
-import com.netflix.iceberg.io.OutputFile;
-import com.netflix.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.Metrics;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.avro.Schema;
 import org.apache.avro.file.CodecFactory;
 import org.apache.avro.file.DataFileWriter;

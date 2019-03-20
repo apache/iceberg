@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.TableMetadata.SnapshotLogEntry;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.types.Types;
-import com.netflix.iceberg.util.JsonUtil;
+import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.JsonUtil;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -39,16 +39,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-import static com.netflix.iceberg.Files.localInput;
-import static com.netflix.iceberg.TableMetadataParser.CURRENT_SNAPSHOT_ID;
-import static com.netflix.iceberg.TableMetadataParser.FORMAT_VERSION;
-import static com.netflix.iceberg.TableMetadataParser.LAST_COLUMN_ID;
-import static com.netflix.iceberg.TableMetadataParser.LAST_UPDATED_MILLIS;
-import static com.netflix.iceberg.TableMetadataParser.LOCATION;
-import static com.netflix.iceberg.TableMetadataParser.PARTITION_SPEC;
-import static com.netflix.iceberg.TableMetadataParser.PROPERTIES;
-import static com.netflix.iceberg.TableMetadataParser.SCHEMA;
-import static com.netflix.iceberg.TableMetadataParser.SNAPSHOTS;
+import static org.apache.iceberg.Files.localInput;
+import static org.apache.iceberg.TableMetadataParser.CURRENT_SNAPSHOT_ID;
+import static org.apache.iceberg.TableMetadataParser.FORMAT_VERSION;
+import static org.apache.iceberg.TableMetadataParser.LAST_COLUMN_ID;
+import static org.apache.iceberg.TableMetadataParser.LAST_UPDATED_MILLIS;
+import static org.apache.iceberg.TableMetadataParser.LOCATION;
+import static org.apache.iceberg.TableMetadataParser.PARTITION_SPEC;
+import static org.apache.iceberg.TableMetadataParser.PROPERTIES;
+import static org.apache.iceberg.TableMetadataParser.SCHEMA;
+import static org.apache.iceberg.TableMetadataParser.SNAPSHOTS;
 
 public class TestTableMetadataJson {
   @Rule

@@ -17,31 +17,31 @@
  * under the License.
  */
 
-package com.netflix.iceberg.data;
+package org.apache.iceberg.data;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import com.netflix.iceberg.AppendFiles;
-import com.netflix.iceberg.DataFiles;
-import com.netflix.iceberg.FileFormat;
-import com.netflix.iceberg.Metrics;
-import com.netflix.iceberg.PartitionSpec;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.Table;
-import com.netflix.iceberg.TableProperties;
-import com.netflix.iceberg.Tables;
-import com.netflix.iceberg.avro.Avro;
-import com.netflix.iceberg.data.avro.DataWriter;
-import com.netflix.iceberg.data.parquet.GenericParquetWriter;
-import com.netflix.iceberg.expressions.Expressions;
-import com.netflix.iceberg.hadoop.HadoopInputFile;
-import com.netflix.iceberg.hadoop.HadoopTables;
-import com.netflix.iceberg.io.FileAppender;
-import com.netflix.iceberg.io.InputFile;
-import com.netflix.iceberg.parquet.Parquet;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Metrics;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.Tables;
+import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.avro.DataWriter;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.hadoop.HadoopInputFile;
+import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.types.Types;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.junit.Assert;
@@ -63,12 +63,12 @@ import java.util.Set;
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.filter;
 import static com.google.common.collect.Iterables.transform;
-import static com.netflix.iceberg.DataFiles.fromInputFile;
-import static com.netflix.iceberg.expressions.Expressions.lessThan;
-import static com.netflix.iceberg.expressions.Expressions.lessThanOrEqual;
-import static com.netflix.iceberg.hadoop.HadoopOutputFile.fromPath;
-import static com.netflix.iceberg.types.Types.NestedField.optional;
-import static com.netflix.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.DataFiles.fromInputFile;
+import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
+import static org.apache.iceberg.hadoop.HadoopOutputFile.fromPath;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
 public class TestLocalScan {

@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package com.netflix.iceberg.expressions;
+package org.apache.iceberg.expressions;
 
 import com.google.common.base.Preconditions;
-import com.netflix.iceberg.DataFile;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
-import com.netflix.iceberg.types.Conversions;
-import com.netflix.iceberg.types.Types;
-import com.netflix.iceberg.types.Types.StructType;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.StructType;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
-import static com.netflix.iceberg.expressions.Expressions.rewriteNot;
+import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
 /**
  * Evaluates an {@link Expression} on a {@link DataFile} to test whether rows in the file may match.

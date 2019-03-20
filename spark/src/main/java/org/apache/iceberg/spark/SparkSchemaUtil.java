@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark;
+package org.apache.iceberg.spark;
 
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.PartitionSpec;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.expressions.Binder;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.TypeUtil;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.Binder;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalog.Column;
@@ -39,8 +39,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import static com.netflix.iceberg.spark.SparkTypeVisitor.visit;
-import static com.netflix.iceberg.types.TypeUtil.visit;
+import static org.apache.iceberg.spark.SparkTypeVisitor.visit;
+import static org.apache.iceberg.types.TypeUtil.visit;
 
 /**
  * Helper methods for working with Spark/Hive metadata.

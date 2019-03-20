@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package com.netflix.iceberg.types;
+package org.apache.iceberg.types;
 
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.TestHelpers;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.TestHelpers;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static com.netflix.iceberg.types.Types.NestedField.optional;
-import static com.netflix.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestSerializableTypes {
   @Test

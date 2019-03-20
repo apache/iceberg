@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.events;
+package org.apache.iceberg.events;
 
 import org.junit.Assert;
 import org.junit.Test;

@@ -17,29 +17,29 @@
  * under the License.
  */
 
-package com.netflix.iceberg.pig;
+package org.apache.iceberg.pig;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.parquet.ParquetValueReader;
-import com.netflix.iceberg.parquet.ParquetValueReaders;
-import com.netflix.iceberg.parquet.ParquetValueReaders.BinaryAsDecimalReader;
-import com.netflix.iceberg.parquet.ParquetValueReaders.FloatAsDoubleReader;
-import com.netflix.iceberg.parquet.ParquetValueReaders.IntAsLongReader;
-import com.netflix.iceberg.parquet.ParquetValueReaders.IntegerAsDecimalReader;
-import com.netflix.iceberg.parquet.ParquetValueReaders.LongAsDecimalReader;
-import com.netflix.iceberg.parquet.ParquetValueReaders.PrimitiveReader;
-import com.netflix.iceberg.parquet.ParquetValueReaders.RepeatedKeyValueReader;
-import com.netflix.iceberg.parquet.ParquetValueReaders.RepeatedReader;
-import com.netflix.iceberg.parquet.ParquetValueReaders.ReusableEntry;
-import com.netflix.iceberg.parquet.ParquetValueReaders.StringReader;
-import com.netflix.iceberg.parquet.ParquetValueReaders.StructReader;
-import com.netflix.iceberg.parquet.ParquetValueReaders.UnboxedReader;
-import com.netflix.iceberg.parquet.TypeWithSchemaVisitor;
-import com.netflix.iceberg.types.Type.TypeID;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.parquet.ParquetValueReader;
+import org.apache.iceberg.parquet.ParquetValueReaders;
+import org.apache.iceberg.parquet.ParquetValueReaders.BinaryAsDecimalReader;
+import org.apache.iceberg.parquet.ParquetValueReaders.FloatAsDoubleReader;
+import org.apache.iceberg.parquet.ParquetValueReaders.IntAsLongReader;
+import org.apache.iceberg.parquet.ParquetValueReaders.IntegerAsDecimalReader;
+import org.apache.iceberg.parquet.ParquetValueReaders.LongAsDecimalReader;
+import org.apache.iceberg.parquet.ParquetValueReaders.PrimitiveReader;
+import org.apache.iceberg.parquet.ParquetValueReaders.RepeatedKeyValueReader;
+import org.apache.iceberg.parquet.ParquetValueReaders.RepeatedReader;
+import org.apache.iceberg.parquet.ParquetValueReaders.ReusableEntry;
+import org.apache.iceberg.parquet.ParquetValueReaders.StringReader;
+import org.apache.iceberg.parquet.ParquetValueReaders.StructReader;
+import org.apache.iceberg.parquet.ParquetValueReaders.UnboxedReader;
+import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
+import org.apache.iceberg.types.Type.TypeID;
+import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.GroupType;
@@ -62,9 +62,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.netflix.iceberg.parquet.ParquetSchemaUtil.convert;
-import static com.netflix.iceberg.parquet.ParquetSchemaUtil.hasIds;
-import static com.netflix.iceberg.parquet.ParquetValueReaders.option;
+import static org.apache.iceberg.parquet.ParquetSchemaUtil.convert;
+import static org.apache.iceberg.parquet.ParquetSchemaUtil.hasIds;
+import static org.apache.iceberg.parquet.ParquetValueReaders.option;
 import static java.lang.String.format;
 
 public class PigParquetReader {
@@ -197,7 +197,7 @@ public class PigParquetReader {
     }
 
     @Override
-    public ParquetValueReader<?> primitive(com.netflix.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
+    public ParquetValueReader<?> primitive(org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
 
       if (primitive.getOriginalType() != null) {

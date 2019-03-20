@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package com.netflix.iceberg.expressions;
+package org.apache.iceberg.expressions;
 
-import com.netflix.iceberg.TestHelpers;
+import org.apache.iceberg.TestHelpers;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static com.netflix.iceberg.expressions.Expressions.alwaysFalse;
-import static com.netflix.iceberg.expressions.Expressions.alwaysTrue;
-import static com.netflix.iceberg.expressions.Expressions.and;
-import static com.netflix.iceberg.expressions.Expressions.equal;
-import static com.netflix.iceberg.expressions.Expressions.lessThan;
-import static com.netflix.iceberg.expressions.Expressions.not;
-import static com.netflix.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.alwaysFalse;
+import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
+import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.or;
 
 public class TestExpressionHelpers {
   private final UnboundPredicate<?> pred = lessThan("x", 7);

@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package com.netflix.iceberg.types;
+package org.apache.iceberg.types;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.netflix.iceberg.types.Type.NestedType;
-import com.netflix.iceberg.types.Type.PrimitiveType;
+import org.apache.iceberg.types.Type.NestedType;
+import org.apache.iceberg.types.Type.PrimitiveType;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;

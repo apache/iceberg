@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import org.apache.hadoop.conf.Configuration;
 

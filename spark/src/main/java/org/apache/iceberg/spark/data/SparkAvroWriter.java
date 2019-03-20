@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark.data;
+package org.apache.iceberg.spark.data;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.avro.AvroSchemaUtil;
-import com.netflix.iceberg.avro.AvroSchemaVisitor;
-import com.netflix.iceberg.avro.ValueWriter;
-import com.netflix.iceberg.avro.ValueWriters;
-import com.netflix.iceberg.types.Type;
+import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.avro.AvroSchemaVisitor;
+import org.apache.iceberg.avro.ValueWriter;
+import org.apache.iceberg.avro.ValueWriters;
+import org.apache.iceberg.types.Type;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
@@ -36,15 +36,15 @@ import org.apache.spark.sql.types.DataType;
 import java.io.IOException;
 import java.util.List;
 
-import static com.netflix.iceberg.avro.AvroSchemaUtil.getFieldId;
-import static com.netflix.iceberg.avro.AvroSchemaVisitor.visit;
-import static com.netflix.iceberg.spark.SparkSchemaUtil.convert;
+import static org.apache.iceberg.avro.AvroSchemaUtil.getFieldId;
+import static org.apache.iceberg.avro.AvroSchemaVisitor.visit;
+import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
 
 public class SparkAvroWriter implements DatumWriter<InternalRow> {
-  private final com.netflix.iceberg.Schema schema;
+  private final org.apache.iceberg.Schema schema;
   private ValueWriter<InternalRow> writer = null;
 
-  public SparkAvroWriter(com.netflix.iceberg.Schema schema) {
+  public SparkAvroWriter(org.apache.iceberg.Schema schema) {
     this.schema = schema;
   }
 
@@ -60,9 +60,9 @@ public class SparkAvroWriter implements DatumWriter<InternalRow> {
   }
 
   private static class WriteBuilder extends AvroSchemaVisitor<ValueWriter<?>> {
-    private final com.netflix.iceberg.Schema schema;
+    private final org.apache.iceberg.Schema schema;
 
-    private WriteBuilder(com.netflix.iceberg.Schema schema) {
+    private WriteBuilder(org.apache.iceberg.Schema schema) {
       this.schema = schema;
     }
 

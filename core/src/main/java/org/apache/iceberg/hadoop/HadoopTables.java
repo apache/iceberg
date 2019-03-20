@@ -17,23 +17,23 @@
  * under the License.
  */
 
-package com.netflix.iceberg.hadoop;
+package org.apache.iceberg.hadoop;
 
-import com.netflix.iceberg.BaseTable;
-import com.netflix.iceberg.PartitionSpec;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.Table;
-import com.netflix.iceberg.TableMetadata;
-import com.netflix.iceberg.TableOperations;
-import com.netflix.iceberg.Tables;
-import com.netflix.iceberg.exceptions.AlreadyExistsException;
-import com.netflix.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.Tables;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import java.util.Map;
 
-import static com.netflix.iceberg.TableMetadata.newTableMetadata;
+import static org.apache.iceberg.TableMetadata.newTableMetadata;
 
 /**
  * Implementation of Iceberg tables that uses the Hadoop FileSystem

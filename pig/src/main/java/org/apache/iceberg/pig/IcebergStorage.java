@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package com.netflix.iceberg.pig;
+package org.apache.iceberg.pig;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.Table;
-import com.netflix.iceberg.expressions.Expressions;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.types.Types;
 import org.apache.hadoop.fs.Path;
 import org.apache.pig.impl.util.ObjectSerializer;
 import org.apache.pig.impl.util.UDFContext;
@@ -32,9 +32,9 @@ import org.mortbay.log.Log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.netflix.iceberg.Tables;
-import com.netflix.iceberg.hadoop.HadoopTables;
-import com.netflix.iceberg.pig.IcebergPigInputFormat.IcebergRecordReader;
+import org.apache.iceberg.Tables;
+import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.pig.IcebergPigInputFormat.IcebergRecordReader;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.Job;
@@ -63,19 +63,19 @@ import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 import static java.util.Arrays.asList;
-import static com.netflix.iceberg.expressions.Expressions.and;
-import static com.netflix.iceberg.expressions.Expressions.equal;
-import static com.netflix.iceberg.expressions.Expressions.greaterThan;
-import static com.netflix.iceberg.expressions.Expressions.greaterThanOrEqual;
-import static com.netflix.iceberg.expressions.Expressions.isNull;
-import static com.netflix.iceberg.expressions.Expressions.lessThan;
-import static com.netflix.iceberg.expressions.Expressions.lessThanOrEqual;
-import static com.netflix.iceberg.expressions.Expressions.not;
-import static com.netflix.iceberg.expressions.Expressions.notEqual;
-import static com.netflix.iceberg.expressions.Expressions.or;
-import static com.netflix.iceberg.pig.IcebergPigInputFormat.ICEBERG_FILTER_EXPRESSION;
-import static com.netflix.iceberg.pig.IcebergPigInputFormat.ICEBERG_PROJECTED_FIELDS;
-import static com.netflix.iceberg.pig.IcebergPigInputFormat.ICEBERG_SCHEMA;
+import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.greaterThan;
+import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.isNull;
+import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notEqual;
+import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.pig.IcebergPigInputFormat.ICEBERG_FILTER_EXPRESSION;
+import static org.apache.iceberg.pig.IcebergPigInputFormat.ICEBERG_PROJECTED_FIELDS;
+import static org.apache.iceberg.pig.IcebergPigInputFormat.ICEBERG_SCHEMA;
 import static org.apache.pig.Expression.OpType.OP_AND;
 import static org.apache.pig.Expression.OpType.OP_BETWEEN;
 import static org.apache.pig.Expression.OpType.OP_EQ;
@@ -199,14 +199,14 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
     LOG.info(format("[%s]: setPushdownPredicate()", signature));
     LOG.info(format("[%s]: Pig predicate expression: %s", signature, predicate));
 
-    com.netflix.iceberg.expressions.Expression icebergExpression = convert(predicate);
+    org.apache.iceberg.expressions.Expression icebergExpression = convert(predicate);
 
     LOG.info(format("[%s]: Iceberg predicate expression: %s", signature, icebergExpression));
 
     storeInUDFContext(ICEBERG_FILTER_EXPRESSION, icebergExpression);
   }
 
-  private com.netflix.iceberg.expressions.Expression convert(Expression e) throws IOException {
+  private org.apache.iceberg.expressions.Expression convert(Expression e) throws IOException {
     OpType op = e.getOpType();
 
     if (e instanceof BinaryExpression) {
@@ -250,7 +250,7 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
     throw new FrontendException("Failed to pushdown expression " + e);
   }
 
-  private com.netflix.iceberg.expressions.Expression convert(OpType op, Column col, Const constant) {
+  private org.apache.iceberg.expressions.Expression convert(OpType op, Column col, Const constant) {
     String name = col.getName();
     Object value = constant.getValue();
 

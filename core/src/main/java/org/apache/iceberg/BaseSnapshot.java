@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.avro.Avro;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.io.CloseableIterable;
-import com.netflix.iceberg.io.InputFile;
+import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.InputFile;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;

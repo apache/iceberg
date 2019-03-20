@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.events;
+package org.apache.iceberg.events;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;

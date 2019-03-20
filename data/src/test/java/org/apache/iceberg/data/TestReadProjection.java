@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package com.netflix.iceberg.data;
+package org.apache.iceberg.data;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.types.Comparators;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;

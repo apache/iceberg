@@ -13,14 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.netflix.iceberg.hive;
+package org.apache.iceberg.hive;
 
 import com.google.common.base.Splitter;
-import com.netflix.iceberg.BaseMetastoreTableOperations;
-import com.netflix.iceberg.BaseMetastoreTables;
-import com.netflix.iceberg.PartitionSpec;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.Table;
+import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.BaseMetastoreTables;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore;
 import org.apache.hadoop.hive.metastore.conf.MetastoreConf;

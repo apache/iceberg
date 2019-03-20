@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.avro.Avro;
-import com.netflix.iceberg.avro.AvroIterable;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.expressions.Projections;
-import com.netflix.iceberg.io.CloseableGroup;
-import com.netflix.iceberg.io.CloseableIterable;
-import com.netflix.iceberg.io.InputFile;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.avro.AvroIterable;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Projections;
+import org.apache.iceberg.io.CloseableGroup;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.io.IOException;
@@ -39,8 +39,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static com.netflix.iceberg.ManifestEntry.Status.DELETED;
-import static com.netflix.iceberg.expressions.Expressions.alwaysTrue;
+import static org.apache.iceberg.ManifestEntry.Status.DELETED;
+import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 
 /**
  * Reader for manifest files.

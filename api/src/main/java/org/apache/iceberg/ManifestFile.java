@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.types.Types;
 
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import static com.netflix.iceberg.types.Types.NestedField.optional;
-import static com.netflix.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 /**
  * Represents a manifest file that can be scanned to find data files in a table.

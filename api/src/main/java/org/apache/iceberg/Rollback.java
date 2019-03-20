@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
-import com.netflix.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitFailedException;
 
 /**
  * API for rolling table data back to the state at an older table {@link Snapshot snapshot}.

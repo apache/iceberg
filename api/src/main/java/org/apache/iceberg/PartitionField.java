@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.base.Objects;
-import com.netflix.iceberg.transforms.Transform;
+import org.apache.iceberg.transforms.Transform;
 import java.io.Serializable;
 
 /**

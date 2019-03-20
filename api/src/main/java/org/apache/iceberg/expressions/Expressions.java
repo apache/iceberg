@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package com.netflix.iceberg.expressions;
+package org.apache.iceberg.expressions;
 
 import com.google.common.base.Preconditions;
-import com.netflix.iceberg.expressions.Expression.Operation;
+import org.apache.iceberg.expressions.Expression.Operation;
 
 /**
  * Factory methods for creating {@link Expression expressions}.

@@ -13,15 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.netflix.iceberg.hive;
+package org.apache.iceberg.hive;
 
 import com.google.common.util.concurrent.MoreExecutors;
-import com.netflix.iceberg.DataFile;
-import com.netflix.iceberg.DataFiles;
-import com.netflix.iceberg.FileFormat;
-import com.netflix.iceberg.exceptions.CommitFailedException;
-import com.netflix.iceberg.types.Types;
-import com.netflix.iceberg.util.Tasks;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Tasks;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.thrift.TException;
 import org.junit.Assert;
@@ -36,9 +36,9 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static com.netflix.iceberg.BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE;
-import static com.netflix.iceberg.BaseMetastoreTableOperations.METADATA_LOCATION_PROP;
-import static com.netflix.iceberg.BaseMetastoreTableOperations.TABLE_TYPE_PROP;
+import static org.apache.iceberg.BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE;
+import static org.apache.iceberg.BaseMetastoreTableOperations.METADATA_LOCATION_PROP;
+import static org.apache.iceberg.BaseMetastoreTableOperations.TABLE_TYPE_PROP;
 
 public class HiveTablesTest extends HiveTableBaseTest {
   @Test
@@ -62,14 +62,14 @@ public class HiveTablesTest extends HiveTableBaseTest {
     Assert.assertEquals(1, metadataVersionFiles(TABLE_NAME).size());
     Assert.assertEquals(0, manifestFiles(TABLE_NAME).size());
 
-    final com.netflix.iceberg.Table icebergTable = new HiveTables(hiveConf).load(DB_NAME, TABLE_NAME);
+    final org.apache.iceberg.Table icebergTable = new HiveTables(hiveConf).load(DB_NAME, TABLE_NAME);
     // Iceberg schema should match the loaded table
     Assert.assertEquals(schema.asStruct(), icebergTable.schema().asStruct());
   }
 
   @Test
   public void testExistingTableUpdate() throws TException {
-    com.netflix.iceberg.Table icebergTable = new HiveTables(hiveConf).load(DB_NAME, TABLE_NAME);
+    org.apache.iceberg.Table icebergTable = new HiveTables(hiveConf).load(DB_NAME, TABLE_NAME);
     // add a column
     icebergTable.updateSchema().addColumn("data", Types.LongType.get()).commit();
 
@@ -88,7 +88,7 @@ public class HiveTablesTest extends HiveTableBaseTest {
 
   @Test(expected = CommitFailedException.class)
   public void testFailure() throws TException {
-    com.netflix.iceberg.Table icebergTable = new HiveTables(hiveConf).load(DB_NAME, TABLE_NAME);
+    org.apache.iceberg.Table icebergTable = new HiveTables(hiveConf).load(DB_NAME, TABLE_NAME);
     final Table table = metastoreClient.getTable(DB_NAME, TABLE_NAME);
     final String dummyLocation = "dummylocation";
     table.getParameters().put(METADATA_LOCATION_PROP, dummyLocation);
@@ -101,8 +101,8 @@ public class HiveTablesTest extends HiveTableBaseTest {
   @Test
   public void testConcurrentFastAppends() {
     HiveTables hiveTables = new HiveTables(hiveConf);
-    com.netflix.iceberg.Table icebergTable = hiveTables.load(DB_NAME, TABLE_NAME);
-    com.netflix.iceberg.Table anotherIcebergTable = hiveTables.load(DB_NAME, TABLE_NAME);
+    org.apache.iceberg.Table icebergTable = hiveTables.load(DB_NAME, TABLE_NAME);
+    org.apache.iceberg.Table anotherIcebergTable = hiveTables.load(DB_NAME, TABLE_NAME);
 
     String fileName = UUID.randomUUID().toString();
     DataFile file = DataFiles.builder(icebergTable.spec())

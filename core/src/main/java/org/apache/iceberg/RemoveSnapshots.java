@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import com.netflix.iceberg.exceptions.CommitFailedException;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.util.Tasks;
-import com.netflix.iceberg.util.ThreadPools;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import io.netty.util.internal.ConcurrentSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,14 +35,14 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static com.netflix.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
-import static com.netflix.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
-import static com.netflix.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
-import static com.netflix.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
-import static com.netflix.iceberg.TableProperties.COMMIT_NUM_RETRIES;
-import static com.netflix.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
-import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
-import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 class RemoveSnapshots implements ExpireSnapshots {
   private static final Logger LOG = LoggerFactory.getLogger(RemoveSnapshots.class);

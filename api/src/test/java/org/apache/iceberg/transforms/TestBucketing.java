@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package com.netflix.iceberg.transforms;
+package org.apache.iceberg.transforms;
 
 import com.google.common.base.Charsets;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
-import com.netflix.iceberg.expressions.Literal;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.types.Types;
 import org.apache.avro.util.Utf8;
 import org.junit.Assert;
 import org.junit.Before;

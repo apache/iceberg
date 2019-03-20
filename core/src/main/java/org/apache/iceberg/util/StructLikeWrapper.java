@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package com.netflix.iceberg.util;
+package org.apache.iceberg.util;
 
-import com.netflix.iceberg.StructLike;
+import org.apache.iceberg.StructLike;
 import java.util.Objects;
 
 /**

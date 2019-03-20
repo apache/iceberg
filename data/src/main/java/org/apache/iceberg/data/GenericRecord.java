@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.data;
+package org.apache.iceberg.data;
 
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
@@ -25,10 +25,10 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.collect.Maps;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.StructLike;
-import com.netflix.iceberg.types.Types;
-import com.netflix.iceberg.types.Types.StructType;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.StructType;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;

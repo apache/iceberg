@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package com.netflix.iceberg.expressions;
+package org.apache.iceberg.expressions;
 
-import com.netflix.iceberg.StructLike;
-import com.netflix.iceberg.exceptions.ValidationException;
-import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import java.util.List;
 
 public class BoundReference<T> implements Reference {

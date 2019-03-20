@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import java.util.List;
 import java.util.function.Consumer;

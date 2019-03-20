@@ -13,13 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.netflix.iceberg.orc;
+package org.apache.iceberg.orc;
 
 import com.google.common.base.Preconditions;
-import com.netflix.iceberg.Metrics;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.io.FileAppender;
-import com.netflix.iceberg.io.OutputFile;
+import org.apache.iceberg.Metrics;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.hadoop.fs.Path;
 import org.apache.orc.ColumnStatistics;
 import org.apache.orc.TypeDescription;

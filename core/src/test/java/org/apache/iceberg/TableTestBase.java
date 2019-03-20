@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.io.Files;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.types.Types;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -33,8 +33,8 @@ import java.io.File;
 import java.util.Iterator;
 import java.util.List;
 
-import static com.netflix.iceberg.Files.localInput;
-import static com.netflix.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.Files.localInput;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TableTestBase {
   // Schema passed to create tables

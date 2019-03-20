@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package com.netflix.iceberg.avro;
+package org.apache.iceberg.avro;
 
 import com.google.common.base.Preconditions;
-import com.netflix.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.Encoder;

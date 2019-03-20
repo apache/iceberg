@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.netflix.iceberg.hive;
+package org.apache.iceberg.hive;
 
-import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 
 import java.util.stream.Collectors;
 

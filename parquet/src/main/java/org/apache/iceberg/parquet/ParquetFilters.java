@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.expressions.BoundPredicate;
-import com.netflix.iceberg.expressions.BoundReference;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.expressions.Expression.Operation;
-import com.netflix.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
-import com.netflix.iceberg.expressions.Expressions;
-import com.netflix.iceberg.expressions.Literal;
-import com.netflix.iceberg.expressions.UnboundPredicate;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.BoundReference;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expression.Operation;
+import org.apache.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.types.Types;
 import org.apache.parquet.filter2.compat.FilterCompat;
 import org.apache.parquet.filter2.predicate.FilterApi;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
@@ -37,7 +37,7 @@ import org.apache.parquet.io.api.Binary;
 
 import java.nio.ByteBuffer;
 
-import static com.netflix.iceberg.expressions.ExpressionVisitors.visit;
+import static org.apache.iceberg.expressions.ExpressionVisitors.visit;
 
 class ParquetFilters {
 

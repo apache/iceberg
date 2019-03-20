@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
 import com.google.common.collect.Sets;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.types.TypeUtil;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types.MessageTypeBuilder;

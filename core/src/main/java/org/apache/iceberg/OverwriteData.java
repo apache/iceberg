@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
-import com.netflix.iceberg.exceptions.ValidationException;
-import com.netflix.iceberg.expressions.Evaluator;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.expressions.Projections;
-import com.netflix.iceberg.expressions.StrictMetricsEvaluator;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Evaluator;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Projections;
+import org.apache.iceberg.expressions.StrictMetricsEvaluator;
 import java.util.List;
 
 public class OverwriteData extends MergingSnapshotUpdate implements OverwriteFiles {

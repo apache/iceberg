@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.io;
+package org.apache.iceberg.io;
 
 import java.io.IOException;
 import java.io.InputStream;

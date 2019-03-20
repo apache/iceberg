@@ -1,16 +1,16 @@
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.avro.Avro;
-import com.netflix.iceberg.data.IcebergGenerics;
-import com.netflix.iceberg.data.RandomGenericData;
-import com.netflix.iceberg.data.Record;
-import com.netflix.iceberg.data.avro.DataWriter;
-import com.netflix.iceberg.data.parquet.GenericParquetWriter;
-import com.netflix.iceberg.hadoop.HadoopTables;
-import com.netflix.iceberg.io.FileAppender;
-import com.netflix.iceberg.parquet.Parquet;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.IcebergGenerics;
+import org.apache.iceberg.data.RandomGenericData;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.avro.DataWriter;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.types.Types;
 import org.apache.hadoop.conf.Configuration;
 import org.junit.Assert;
 import org.junit.Before;
@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
-import static com.netflix.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
 public class TestSplitScan {

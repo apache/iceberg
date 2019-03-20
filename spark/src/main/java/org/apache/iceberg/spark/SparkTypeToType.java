@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark;
+package org.apache.iceberg.spark;
 
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.BooleanType;

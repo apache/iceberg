@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package com.netflix.iceberg.hadoop;
+package org.apache.iceberg.hadoop;
 
-import com.netflix.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;

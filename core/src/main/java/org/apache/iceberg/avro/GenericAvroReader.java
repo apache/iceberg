@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package com.netflix.iceberg.avro;
+package org.apache.iceberg.avro;
 
 import com.google.common.collect.MapMaker;
-import com.netflix.iceberg.common.DynClasses;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.common.DynClasses;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;

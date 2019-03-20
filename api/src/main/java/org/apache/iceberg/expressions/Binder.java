@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package com.netflix.iceberg.expressions;
+package org.apache.iceberg.expressions;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-import com.netflix.iceberg.exceptions.ValidationException;
-import com.netflix.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
-import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.Types.StructType;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types.StructType;
 import java.util.List;
 import java.util.Set;
 

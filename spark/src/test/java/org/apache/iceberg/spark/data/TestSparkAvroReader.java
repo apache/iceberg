@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark.data;
+package org.apache.iceberg.spark.data;
 
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.Files;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.avro.Avro;
-import com.netflix.iceberg.avro.AvroIterable;
-import com.netflix.iceberg.io.FileAppender;
+import org.apache.iceberg.Files;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.avro.AvroIterable;
+import org.apache.iceberg.io.FileAppender;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.Assert;
@@ -33,7 +33,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 
-import static com.netflix.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
+import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 
 public class TestSparkAvroReader extends AvroDataTest {
   protected void writeAndValidate(Schema schema) throws IOException {

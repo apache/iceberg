@@ -17,21 +17,21 @@
  * under the License.
  */
 
-package com.netflix.iceberg.transforms;
+package org.apache.iceberg.transforms;
 
 import com.google.common.base.Objects;
-import com.netflix.iceberg.expressions.BoundPredicate;
-import com.netflix.iceberg.expressions.Expressions;
-import com.netflix.iceberg.expressions.UnboundPredicate;
-import com.netflix.iceberg.types.Type;
+import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.types.Type;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 
-import static com.netflix.iceberg.expressions.Expression.Operation.IS_NULL;
-import static com.netflix.iceberg.expressions.Expression.Operation.LT;
-import static com.netflix.iceberg.expressions.Expression.Operation.LT_EQ;
-import static com.netflix.iceberg.expressions.Expression.Operation.NOT_NULL;
+import static org.apache.iceberg.expressions.Expression.Operation.IS_NULL;
+import static org.apache.iceberg.expressions.Expression.Operation.LT;
+import static org.apache.iceberg.expressions.Expression.Operation.LT_EQ;
+import static org.apache.iceberg.expressions.Expression.Operation.NOT_NULL;
 
 abstract class Truncate<T> implements Transform<T, T> {
   @SuppressWarnings("unchecked")

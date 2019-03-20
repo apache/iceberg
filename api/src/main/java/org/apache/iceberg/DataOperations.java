@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 /**
  * Data operations that produce snapshots.

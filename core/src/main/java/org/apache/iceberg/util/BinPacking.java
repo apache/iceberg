@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.util;
+package org.apache.iceberg.util;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;

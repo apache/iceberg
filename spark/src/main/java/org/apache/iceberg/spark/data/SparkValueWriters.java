@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark.data;
+package org.apache.iceberg.spark.data;
 
 import com.google.common.base.Preconditions;
-import com.netflix.iceberg.avro.ValueWriter;
-import com.netflix.iceberg.types.TypeUtil;
+import org.apache.iceberg.avro.ValueWriter;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.avro.io.Encoder;
 import org.apache.avro.util.Utf8;
 import org.apache.spark.sql.catalyst.InternalRow;

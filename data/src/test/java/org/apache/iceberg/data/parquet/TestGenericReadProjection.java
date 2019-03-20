@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package com.netflix.iceberg.data.parquet;
+package org.apache.iceberg.data.parquet;
 
 import com.google.common.collect.Iterables;
-import com.netflix.iceberg.Files;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.data.Record;
-import com.netflix.iceberg.data.TestReadProjection;
-import com.netflix.iceberg.io.FileAppender;
-import com.netflix.iceberg.parquet.Parquet;
+import org.apache.iceberg.Files;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.TestReadProjection;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.parquet.Parquet;
 import java.io.File;
 import java.io.IOException;
 

@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.base.Objects;
-import com.netflix.iceberg.avro.AvroSchemaUtil;
-import com.netflix.iceberg.io.InputFile;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.types.Types;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData.SchemaConstructable;

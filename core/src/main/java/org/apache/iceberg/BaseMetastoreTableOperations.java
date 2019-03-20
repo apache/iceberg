@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.base.Objects;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.hadoop.HadoopFileIO;
-import com.netflix.iceberg.io.FileIO;
-import com.netflix.iceberg.io.LocationProvider;
-import com.netflix.iceberg.io.OutputFile;
-import com.netflix.iceberg.util.PropertyUtil;
-import com.netflix.iceberg.util.Tasks;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.Tasks;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -36,9 +36,9 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.util.UUID;
 
-import static com.netflix.iceberg.TableMetadataParser.getFileExtension;
-import static com.netflix.iceberg.TableMetadataParser.read;
-import static com.netflix.iceberg.hadoop.HadoopInputFile.fromLocation;
+import static org.apache.iceberg.TableMetadataParser.getFileExtension;
+import static org.apache.iceberg.TableMetadataParser.read;
+import static org.apache.iceberg.hadoop.HadoopInputFile.fromLocation;
 
 
 public abstract class BaseMetastoreTableOperations implements TableOperations {

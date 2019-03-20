@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.expressions;
+package org.apache.iceberg.expressions;
 
 class RewriteNot extends ExpressionVisitors.ExpressionVisitor<Expression> {
   private static final RewriteNot INSTANCE = new RewriteNot();

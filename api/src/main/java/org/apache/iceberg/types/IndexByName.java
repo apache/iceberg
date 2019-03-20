@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package com.netflix.iceberg.types;
+package org.apache.iceberg.types;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Maps;
-import com.netflix.iceberg.Schema;
+import org.apache.iceberg.Schema;
 import java.util.List;
 import java.util.Map;
 

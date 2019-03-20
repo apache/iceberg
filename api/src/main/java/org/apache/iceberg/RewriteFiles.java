@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
-import com.netflix.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.exceptions.ValidationException;
 import java.util.Set;
 
 /**

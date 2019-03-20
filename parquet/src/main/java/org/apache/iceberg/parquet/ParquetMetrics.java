@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.netflix.iceberg.Metrics;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.expressions.Literal;
-import com.netflix.iceberg.io.InputFile;
-import com.netflix.iceberg.types.Conversions;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.Metrics;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
@@ -41,7 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static com.netflix.iceberg.parquet.ParquetConversions.fromParquetPrimitive;
+import static org.apache.iceberg.parquet.ParquetConversions.fromParquetPrimitive;
 
 public class ParquetMetrics implements Serializable {
   private ParquetMetrics() {

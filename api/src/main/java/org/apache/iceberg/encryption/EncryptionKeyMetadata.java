@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.encryption;
+package org.apache.iceberg.encryption;
 
 import java.nio.ByteBuffer;
 

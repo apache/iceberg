@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package com.netflix.iceberg.transforms;
+package org.apache.iceberg.transforms;
 
-import com.netflix.iceberg.expressions.BoundPredicate;
-import com.netflix.iceberg.expressions.Expressions;
-import com.netflix.iceberg.expressions.UnboundPredicate;
-import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 
-import static com.netflix.iceberg.expressions.Expression.Operation.IS_NULL;
-import static com.netflix.iceberg.expressions.Expression.Operation.NOT_NULL;
+import static org.apache.iceberg.expressions.Expression.Operation.IS_NULL;
+import static org.apache.iceberg.expressions.Expression.Operation.NOT_NULL;
 
 enum Dates implements Transform<Integer, Integer> {
   YEAR(ChronoUnit.YEARS, "year"),

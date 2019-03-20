@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
-import com.netflix.iceberg.exceptions.CommitFailedException;
-import com.netflix.iceberg.expressions.Expression;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.expressions.Expression;
 
 /**
  * {@link DeleteFiles Delete} implementation that avoids loading full manifests in memory.

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 public class TableProperties {
   public static final String COMMIT_NUM_RETRIES = "commit.retry.num-retries";

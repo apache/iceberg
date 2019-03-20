@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -29,7 +29,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 
-import static com.netflix.iceberg.Files.localInput;
+import static org.apache.iceberg.Files.localInput;
 
 public class TestSnapshotJson {
   @Rule

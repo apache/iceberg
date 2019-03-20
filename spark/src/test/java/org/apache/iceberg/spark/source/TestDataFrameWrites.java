@@ -17,22 +17,22 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark.source;
+package org.apache.iceberg.spark.source;
 
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.Files;
-import com.netflix.iceberg.PartitionSpec;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.Table;
-import com.netflix.iceberg.TableProperties;
-import com.netflix.iceberg.avro.Avro;
-import com.netflix.iceberg.avro.AvroIterable;
-import com.netflix.iceberg.hadoop.HadoopTables;
-import com.netflix.iceberg.io.FileAppender;
-import com.netflix.iceberg.spark.data.AvroDataTest;
-import com.netflix.iceberg.spark.data.RandomData;
-import com.netflix.iceberg.spark.data.SparkAvroReader;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.Files;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.avro.AvroIterable;
+import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.spark.data.AvroDataTest;
+import org.apache.iceberg.spark.data.RandomData;
+import org.apache.iceberg.spark.data.SparkAvroReader;
+import org.apache.iceberg.types.Types;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.spark.api.java.JavaRDD;
@@ -53,9 +53,9 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.List;
 
-import static com.netflix.iceberg.spark.SparkSchemaUtil.convert;
-import static com.netflix.iceberg.spark.data.TestHelpers.assertEqualsSafe;
-import static com.netflix.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
+import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
+import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsSafe;
+import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 
 @RunWith(Parameterized.class)
 public class TestDataFrameWrites extends AvroDataTest {

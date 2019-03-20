@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
 import org.apache.parquet.column.page.PageReadStore;
 import java.util.List;

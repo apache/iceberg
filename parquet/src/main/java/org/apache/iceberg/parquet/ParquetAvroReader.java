@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
 public class ParquetAvroReader {
 }

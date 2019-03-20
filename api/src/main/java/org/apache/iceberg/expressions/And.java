@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.expressions;
+package org.apache.iceberg.expressions;
 
 public class And implements Expression {
   private final Expression left;

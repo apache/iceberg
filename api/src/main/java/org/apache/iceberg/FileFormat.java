@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
-import com.netflix.iceberg.types.Comparators;
+import org.apache.iceberg.types.Comparators;
 
 /**
  * Enum of supported file formats.

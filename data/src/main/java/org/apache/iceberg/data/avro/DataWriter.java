@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package com.netflix.iceberg.data.avro;
+package org.apache.iceberg.data.avro;
 
 import com.google.common.base.Preconditions;
-import com.netflix.iceberg.avro.AvroSchemaUtil;
-import com.netflix.iceberg.avro.AvroSchemaVisitor;
-import com.netflix.iceberg.avro.LogicalMap;
-import com.netflix.iceberg.avro.ValueWriter;
-import com.netflix.iceberg.avro.ValueWriters;
+import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.avro.AvroSchemaVisitor;
+import org.apache.iceberg.avro.LogicalMap;
+import org.apache.iceberg.avro.ValueWriter;
+import org.apache.iceberg.avro.ValueWriters;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
@@ -33,7 +33,7 @@ import org.apache.avro.io.Encoder;
 import java.io.IOException;
 import java.util.List;
 
-import static com.netflix.iceberg.avro.AvroSchemaVisitor.visit;
+import static org.apache.iceberg.avro.AvroSchemaVisitor.visit;
 
 public class DataWriter<T> implements DatumWriter<T> {
   private ValueWriter<T> writer = null;

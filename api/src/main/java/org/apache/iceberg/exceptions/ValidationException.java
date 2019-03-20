@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package com.netflix.iceberg.exceptions;
+package org.apache.iceberg.exceptions;
 
-import com.netflix.iceberg.PartitionSpec;
-import com.netflix.iceberg.Schema;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 
 /**
  * Exception raised when validation checks fail.

@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
-import com.netflix.iceberg.exceptions.CommitFailedException;
-import com.netflix.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.internal.util.collections.Sets;
@@ -28,9 +28,9 @@ import org.mockito.internal.util.collections.Sets;
 import java.io.File;
 import java.util.Collections;
 
-import static com.netflix.iceberg.ManifestEntry.Status.ADDED;
-import static com.netflix.iceberg.ManifestEntry.Status.DELETED;
-import static com.netflix.iceberg.ManifestEntry.Status.EXISTING;
+import static org.apache.iceberg.ManifestEntry.Status.ADDED;
+import static org.apache.iceberg.ManifestEntry.Status.DELETED;
+import static org.apache.iceberg.ManifestEntry.Status.EXISTING;
 
 public class TestReplaceFiles extends TableTestBase {
 

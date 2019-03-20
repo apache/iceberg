@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import org.junit.Assert;
 import java.util.concurrent.Callable;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark;
+package org.apache.iceberg.spark;
 
 import com.google.common.collect.Lists;
 import org.apache.spark.sql.types.ArrayType;

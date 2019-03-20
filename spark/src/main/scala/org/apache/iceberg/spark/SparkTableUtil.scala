@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark
+package org.apache.iceberg.spark
 
 import java.nio.ByteBuffer
 import java.util
@@ -25,7 +25,7 @@ import java.util
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 
-import com.netflix.iceberg.parquet.ParquetMetrics
+import org.apache.iceberg.parquet.ParquetMetrics
 import org.apache.parquet.hadoop.ParquetFileReader
 import scala.collection.JavaConverters._
 
@@ -36,11 +36,11 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.catalog.CatalogTablePartition
 
 import com.google.common.collect.Maps
-import com.netflix.iceberg.DataFile
-import com.netflix.iceberg.DataFiles
-import com.netflix.iceberg.Metrics
-import com.netflix.iceberg.PartitionSpec
-import com.netflix.iceberg.spark.hacks.Hive
+import org.apache.iceberg.DataFile
+import org.apache.iceberg.DataFiles
+import org.apache.iceberg.Metrics
+import org.apache.iceberg.PartitionSpec
+import org.apache.iceberg.spark.hacks.Hive
 
 object SparkTableUtil {
   /**
@@ -106,10 +106,10 @@ object SparkTableUtil {
     ) {
 
     /**
-     * Convert this to a [[DataFile]] that can be added to a [[com.netflix.iceberg.Table]].
+     * Convert this to a [[DataFile]] that can be added to a [[org.apache.iceberg.Table]].
      *
      * @param spec a [[PartitionSpec]] that will be used to parse the partition key
-     * @return a [[DataFile]] that can be passed to [[com.netflix.iceberg.AppendFiles]]
+     * @return a [[DataFile]] that can be passed to [[org.apache.iceberg.AppendFiles]]
      */
     def toDataFile(spec: PartitionSpec): DataFile = {
       // values are strings, so pass a path to let the builder coerce to the right types

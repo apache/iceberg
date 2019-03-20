@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import java.io.File;
 import java.io.IOException;
@@ -27,16 +27,16 @@ import java.util.Map;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
-import com.netflix.iceberg.expressions.Expressions;
-import com.netflix.iceberg.types.Conversions;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static com.netflix.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.junit.Assert.assertEquals;
 
 public class TestFilterFiles {

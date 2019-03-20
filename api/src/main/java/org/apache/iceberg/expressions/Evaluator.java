@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package com.netflix.iceberg.expressions;
+package org.apache.iceberg.expressions;
 
-import com.netflix.iceberg.StructLike;
-import com.netflix.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.types.Types;
 import java.io.Serializable;
 import java.util.Comparator;
 

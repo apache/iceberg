@@ -17,13 +17,12 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
-import com.netflix.iceberg.encryption.EncryptionKeyMetadata;
-import com.netflix.iceberg.expressions.BoundPredicate;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.expressions.ExpressionVisitors;
-import com.netflix.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionVisitors;
+import org.apache.iceberg.expressions.UnboundPredicate;
 import org.junit.Assert;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

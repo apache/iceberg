@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package com.netflix.iceberg.pig;
+package org.apache.iceberg.pig;
 
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.pig.ResourceSchema;
 import org.apache.pig.ResourceSchema.ResourceFieldSchema;
 import org.apache.pig.data.DataType;
@@ -32,10 +32,10 @@ import java.io.IOException;
 import java.util.List;
 
 import static java.lang.String.format;
-import static com.netflix.iceberg.types.Types.ListType;
-import static com.netflix.iceberg.types.Types.MapType;
-import static com.netflix.iceberg.types.Types.NestedField;
-import static com.netflix.iceberg.types.Types.StructType;
+import static org.apache.iceberg.types.Types.ListType;
+import static org.apache.iceberg.types.Types.MapType;
+import static org.apache.iceberg.types.Types.NestedField;
+import static org.apache.iceberg.types.Types.StructType;
 
 public class SchemaUtil {
 

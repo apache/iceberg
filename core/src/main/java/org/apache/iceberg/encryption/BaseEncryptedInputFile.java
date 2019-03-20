@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package com.netflix.iceberg.encryption;
+package org.apache.iceberg.encryption;
 
-import com.netflix.iceberg.io.InputFile;
+import org.apache.iceberg.io.InputFile;
 
 class BaseEncryptedInputFile implements EncryptedInputFile {
 

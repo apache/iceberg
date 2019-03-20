@@ -17,25 +17,25 @@
  * under the License.
  */
 
-package com.netflix.iceberg.hadoop;
+package org.apache.iceberg.hadoop;
 
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.AssertHelpers;
-import com.netflix.iceberg.FileScanTask;
-import com.netflix.iceberg.PartitionSpec;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.Table;
-import com.netflix.iceberg.TableMetadata;
-import com.netflix.iceberg.UpdateSchema;
-import com.netflix.iceberg.exceptions.CommitFailedException;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.UpdateSchema;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 import java.io.File;
 import java.util.List;
 
-import static com.netflix.iceberg.types.Types.NestedField.optional;
-import static com.netflix.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 
 public class TestHadoopCommits extends HadoopTableTestBase {

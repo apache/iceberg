@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 /**
  * Not recommended: API for overwriting files in a table by partition.

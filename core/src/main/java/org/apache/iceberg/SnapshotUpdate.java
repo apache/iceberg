@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -25,11 +25,11 @@ import com.google.common.cache.LoadingCache;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import com.netflix.iceberg.exceptions.CommitFailedException;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.io.OutputFile;
-import com.netflix.iceberg.util.Exceptions;
-import com.netflix.iceberg.util.Tasks;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.util.Exceptions;
+import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.io.IOException;
@@ -41,17 +41,17 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static com.netflix.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
-import static com.netflix.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
-import static com.netflix.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
-import static com.netflix.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
-import static com.netflix.iceberg.TableProperties.COMMIT_NUM_RETRIES;
-import static com.netflix.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
-import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
-import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
-import static com.netflix.iceberg.TableProperties.MANIFEST_LISTS_ENABLED;
-import static com.netflix.iceberg.TableProperties.MANIFEST_LISTS_ENABLED_DEFAULT;
-import static com.netflix.iceberg.util.ThreadPools.getWorkerPool;
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.MANIFEST_LISTS_ENABLED;
+import static org.apache.iceberg.TableProperties.MANIFEST_LISTS_ENABLED_DEFAULT;
+import static org.apache.iceberg.util.ThreadPools.getWorkerPool;
 
 abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotUpdate.class);

@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
 import com.google.common.base.Preconditions;
-import com.netflix.iceberg.Metrics;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.io.FileAppender;
+import org.apache.iceberg.Metrics;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.FileAppender;
 import org.apache.parquet.hadoop.ParquetWriter;
 import java.io.IOException;
 

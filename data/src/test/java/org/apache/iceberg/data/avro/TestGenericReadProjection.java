@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package com.netflix.iceberg.data.avro;
+package org.apache.iceberg.data.avro;
 
 import com.google.common.collect.Iterables;
-import com.netflix.iceberg.Files;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.avro.Avro;
-import com.netflix.iceberg.data.Record;
-import com.netflix.iceberg.data.TestReadProjection;
-import com.netflix.iceberg.io.FileAppender;
+import org.apache.iceberg.Files;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.TestReadProjection;
+import org.apache.iceberg.io.FileAppender;
 import java.io.File;
 import java.io.IOException;
 

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.util;
+package org.apache.iceberg.util;
 
 import com.google.common.base.Objects;
 import com.google.common.cache.CacheBuilder;

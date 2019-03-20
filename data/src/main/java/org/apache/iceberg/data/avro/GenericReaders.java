@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package com.netflix.iceberg.data.avro;
+package org.apache.iceberg.data.avro;
 
-import com.netflix.iceberg.avro.ValueReader;
-import com.netflix.iceberg.avro.ValueReaders;
-import com.netflix.iceberg.data.GenericRecord;
-import com.netflix.iceberg.data.Record;
-import com.netflix.iceberg.types.Types.StructType;
+import org.apache.iceberg.avro.ValueReader;
+import org.apache.iceberg.avro.ValueReaders;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.types.Types.StructType;
 import org.apache.avro.io.Decoder;
 import java.io.IOException;
 import java.time.Instant;

@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package com.netflix.iceberg.hadoop;
+package org.apache.iceberg.hadoop;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.Lists;
 import com.google.common.io.Files;
-import com.netflix.iceberg.DataFile;
-import com.netflix.iceberg.DataFiles;
-import com.netflix.iceberg.PartitionSpec;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.Table;
-import com.netflix.iceberg.TableMetadata;
-import com.netflix.iceberg.TableMetadataParser;
-import com.netflix.iceberg.TestTables;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
+import org.apache.iceberg.TestTables;
+import org.apache.iceberg.types.Types;
 import org.apache.hadoop.conf.Configuration;
 import org.junit.Before;
 import org.junit.Rule;
@@ -39,10 +39,10 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 
-import static com.netflix.iceberg.Files.localInput;
-import static com.netflix.iceberg.TableMetadataParser.getFileExtension;
-import static com.netflix.iceberg.types.Types.NestedField.optional;
-import static com.netflix.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.Files.localInput;
+import static org.apache.iceberg.TableMetadataParser.getFileExtension;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class HadoopTableTestBase {
   // Schema passed to create tables

@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package com.netflix.iceberg.data.avro;
+package org.apache.iceberg.data.avro;
 
 import com.google.common.primitives.Bytes;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.SchemaNormalization;
 import org.apache.avro.io.BinaryEncoder;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.hadoop;
+package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;

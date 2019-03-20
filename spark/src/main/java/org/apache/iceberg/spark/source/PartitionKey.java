@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark.source;
+package org.apache.iceberg.spark.source;
 
 import com.google.common.collect.Maps;
-import com.netflix.iceberg.PartitionField;
-import com.netflix.iceberg.PartitionSpec;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.StructLike;
-import com.netflix.iceberg.transforms.Transform;
-import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.TypeUtil;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
@@ -37,7 +37,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static com.netflix.iceberg.spark.SparkSchemaUtil.convert;
+import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
 
 class PartitionKey implements StructLike {
 

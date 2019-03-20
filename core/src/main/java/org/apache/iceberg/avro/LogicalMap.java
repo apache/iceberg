@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.avro;
+package org.apache.iceberg.avro;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;

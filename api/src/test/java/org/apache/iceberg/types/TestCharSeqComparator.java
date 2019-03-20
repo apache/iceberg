@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package com.netflix.iceberg.types;
+package org.apache.iceberg.types;
 
-import com.netflix.iceberg.expressions.Literal;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.avro.util.Utf8;
 import org.junit.Assert;
 import org.junit.Test;

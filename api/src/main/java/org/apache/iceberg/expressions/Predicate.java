@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.expressions;
+package org.apache.iceberg.expressions;
 
 public abstract class Predicate<T, R extends Reference> implements Expression {
   private final Operation op;

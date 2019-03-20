@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
-import com.netflix.iceberg.encryption.EncryptedInputFile;
-import com.netflix.iceberg.encryption.EncryptedOutputFile;
-import com.netflix.iceberg.encryption.EncryptionKeyMetadata;
-import com.netflix.iceberg.hadoop.HadoopInputFile;
-import com.netflix.iceberg.io.InputFile;
-import com.netflix.iceberg.types.Conversions;
-import com.netflix.iceberg.util.ByteBuffers;
+import org.apache.iceberg.encryption.EncryptedInputFile;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.hadoop.HadoopInputFile;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.hadoop.fs.FileStatus;
 import java.nio.ByteBuffer;
 import java.util.List;

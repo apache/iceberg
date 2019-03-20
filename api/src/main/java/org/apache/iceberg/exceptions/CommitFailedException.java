@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.exceptions;
+package org.apache.iceberg.exceptions;
 
 /**
  * Exception raised when a commit fails because of out of date metadata.

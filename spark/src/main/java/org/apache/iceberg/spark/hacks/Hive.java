@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark.hacks;
+package org.apache.iceberg.spark.hacks;
 
 import com.google.common.base.Splitter;
 import com.google.common.collect.Lists;

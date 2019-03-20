@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package com.netflix.iceberg.expressions;
+package org.apache.iceberg.expressions;
 
-import com.netflix.iceberg.TestHelpers;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 import java.math.BigDecimal;

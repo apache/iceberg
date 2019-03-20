@@ -17,21 +17,21 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
-import com.netflix.iceberg.Files;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.TestHelpers;
-import com.netflix.iceberg.exceptions.ValidationException;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.io.FileAppender;
-import com.netflix.iceberg.io.InputFile;
-import com.netflix.iceberg.io.OutputFile;
-import com.netflix.iceberg.types.Types;
-import com.netflix.iceberg.types.Types.FloatType;
-import com.netflix.iceberg.types.Types.IntegerType;
-import com.netflix.iceberg.types.Types.LongType;
-import com.netflix.iceberg.types.Types.StringType;
+import org.apache.iceberg.Files;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.FloatType;
+import org.apache.iceberg.types.Types.IntegerType;
+import org.apache.iceberg.types.Types.LongType;
+import org.apache.iceberg.types.Types.StringType;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -47,20 +47,20 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-import static com.netflix.iceberg.avro.AvroSchemaUtil.convert;
-import static com.netflix.iceberg.expressions.Expressions.and;
-import static com.netflix.iceberg.expressions.Expressions.equal;
-import static com.netflix.iceberg.expressions.Expressions.greaterThan;
-import static com.netflix.iceberg.expressions.Expressions.greaterThanOrEqual;
-import static com.netflix.iceberg.expressions.Expressions.isNull;
-import static com.netflix.iceberg.expressions.Expressions.lessThan;
-import static com.netflix.iceberg.expressions.Expressions.lessThanOrEqual;
-import static com.netflix.iceberg.expressions.Expressions.not;
-import static com.netflix.iceberg.expressions.Expressions.notEqual;
-import static com.netflix.iceberg.expressions.Expressions.notNull;
-import static com.netflix.iceberg.expressions.Expressions.or;
-import static com.netflix.iceberg.types.Types.NestedField.optional;
-import static com.netflix.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.avro.AvroSchemaUtil.convert;
+import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.greaterThan;
+import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.isNull;
+import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notEqual;
+import static org.apache.iceberg.expressions.Expressions.notNull;
+import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestMetricsRowGroupFilter {
   private static final Schema SCHEMA = new Schema(

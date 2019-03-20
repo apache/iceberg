@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package com.netflix.iceberg.io;
+package org.apache.iceberg.io;
 
-import com.netflix.iceberg.exceptions.AlreadyExistsException;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import java.io.IOException;
 
 /**

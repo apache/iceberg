@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
-import com.netflix.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.exceptions.ValidationException;
 
 class RollbackToSnapshot implements Rollback {
   private final TableOperations ops;

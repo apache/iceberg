@@ -17,22 +17,22 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.SchemaParser;
-import com.netflix.iceberg.Table;
-import com.netflix.iceberg.avro.AvroSchemaUtil;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.hadoop.HadoopInputFile;
-import com.netflix.iceberg.hadoop.HadoopOutputFile;
-import com.netflix.iceberg.io.CloseableIterable;
-import com.netflix.iceberg.io.FileAppender;
-import com.netflix.iceberg.io.InputFile;
-import com.netflix.iceberg.io.OutputFile;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.hadoop.HadoopInputFile;
+import org.apache.iceberg.hadoop.HadoopOutputFile;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.parquet.HadoopReadOptions;
 import org.apache.parquet.ParquetReadOptions;
@@ -51,14 +51,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
-import static com.netflix.iceberg.TableProperties.PARQUET_COMPRESSION;
-import static com.netflix.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT;
-import static com.netflix.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES;
-import static com.netflix.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES_DEFAULT;
-import static com.netflix.iceberg.TableProperties.PARQUET_PAGE_SIZE_BYTES;
-import static com.netflix.iceberg.TableProperties.PARQUET_PAGE_SIZE_BYTES_DEFAULT;
-import static com.netflix.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
-import static com.netflix.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
+import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_PAGE_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.PARQUET_PAGE_SIZE_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
 
 public class Parquet {
   private Parquet() {
@@ -185,7 +185,7 @@ public class Parquet {
 
         long rowGroupSize = Long.parseLong(config.getOrDefault(
             PARQUET_ROW_GROUP_SIZE_BYTES, PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT));
-        return new com.netflix.iceberg.parquet.ParquetWriter<>(
+        return new org.apache.iceberg.parquet.ParquetWriter<>(
             conf, file, schema, rowGroupSize, metadata, createWriterFunc, codec());
       } else {
         return new ParquetWriteAdapter<>(new ParquetWriteBuilder<D>(ParquetIO.file(file))
@@ -338,7 +338,7 @@ public class Parquet {
 
         ParquetReadOptions options = optionsBuilder.build();
 
-        return new com.netflix.iceberg.parquet.ParquetReader<>(
+        return new org.apache.iceberg.parquet.ParquetReader<>(
             file, schema, options, readerFunc, filter, reuseContainers);
       }
 

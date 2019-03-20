@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.types;
+package org.apache.iceberg.types;
 
 import com.google.common.collect.ImmutableMap;
 import java.nio.ByteBuffer;

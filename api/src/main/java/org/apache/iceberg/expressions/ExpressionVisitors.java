@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.expressions;
+package org.apache.iceberg.expressions;
 
 /**
  * Utils for traversing {@link Expression expressions}.

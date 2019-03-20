@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package com.netflix.iceberg.expressions;
+package org.apache.iceberg.expressions;
 
-import com.netflix.iceberg.exceptions.ValidationException;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.types.Types;
 
-import static com.netflix.iceberg.expressions.Expression.Operation.IS_NULL;
-import static com.netflix.iceberg.expressions.Expression.Operation.NOT_NULL;
+import static org.apache.iceberg.expressions.Expression.Operation.IS_NULL;
+import static org.apache.iceberg.expressions.Expression.Operation.NOT_NULL;
 
 public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
 

@@ -17,35 +17,35 @@
  * under the License.
  */
 
-package com.netflix.iceberg.expressions;
+package org.apache.iceberg.expressions;
 
 import com.google.common.collect.ImmutableMap;
-import com.netflix.iceberg.DataFile;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.TestHelpers;
-import com.netflix.iceberg.TestHelpers.Row;
-import com.netflix.iceberg.TestHelpers.TestDataFile;
-import com.netflix.iceberg.exceptions.ValidationException;
-import com.netflix.iceberg.types.Types;
-import com.netflix.iceberg.types.Types.IntegerType;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.TestHelpers.Row;
+import org.apache.iceberg.TestHelpers.TestDataFile;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.IntegerType;
 import org.junit.Assert;
 import org.junit.Test;
 
 
-import static com.netflix.iceberg.expressions.Expressions.and;
-import static com.netflix.iceberg.expressions.Expressions.equal;
-import static com.netflix.iceberg.expressions.Expressions.greaterThan;
-import static com.netflix.iceberg.expressions.Expressions.greaterThanOrEqual;
-import static com.netflix.iceberg.expressions.Expressions.isNull;
-import static com.netflix.iceberg.expressions.Expressions.lessThan;
-import static com.netflix.iceberg.expressions.Expressions.lessThanOrEqual;
-import static com.netflix.iceberg.expressions.Expressions.not;
-import static com.netflix.iceberg.expressions.Expressions.notEqual;
-import static com.netflix.iceberg.expressions.Expressions.notNull;
-import static com.netflix.iceberg.expressions.Expressions.or;
-import static com.netflix.iceberg.types.Conversions.toByteBuffer;
-import static com.netflix.iceberg.types.Types.NestedField.optional;
-import static com.netflix.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.greaterThan;
+import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.isNull;
+import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notEqual;
+import static org.apache.iceberg.expressions.Expressions.notNull;
+import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.types.Conversions.toByteBuffer;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestInclusiveMetricsEvaluator {
   private static final Schema SCHEMA = new Schema(

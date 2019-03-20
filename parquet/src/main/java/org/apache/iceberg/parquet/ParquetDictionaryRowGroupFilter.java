@@ -17,21 +17,21 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
 import avro.shaded.com.google.common.collect.Sets;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.expressions.Binder;
-import com.netflix.iceberg.expressions.BoundReference;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.expressions.ExpressionVisitors;
-import com.netflix.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
-import com.netflix.iceberg.expressions.Literal;
-import com.netflix.iceberg.types.Types;
-import com.netflix.iceberg.types.Types.StructType;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.expressions.Binder;
+import org.apache.iceberg.expressions.BoundReference;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionVisitors;
+import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.Encoding;
@@ -49,8 +49,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import static com.netflix.iceberg.expressions.Expressions.rewriteNot;
-import static com.netflix.iceberg.parquet.ParquetConversions.converterFromParquet;
+import static org.apache.iceberg.expressions.Expressions.rewriteNot;
+import static org.apache.iceberg.parquet.ParquetConversions.converterFromParquet;
 
 public class ParquetDictionaryRowGroupFilter {
   private final Schema schema;

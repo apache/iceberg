@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.parquet.ParquetValueWriters.PrimitiveWriter;
-import com.netflix.iceberg.parquet.ParquetValueWriters.StructWriter;
+import org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter;
+import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
 import org.apache.avro.generic.GenericData.Fixed;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.parquet.column.ColumnDescriptor;
@@ -34,9 +34,9 @@ import org.apache.parquet.schema.Type;
 import java.util.Iterator;
 import java.util.List;
 
-import static com.netflix.iceberg.parquet.ParquetValueWriters.collections;
-import static com.netflix.iceberg.parquet.ParquetValueWriters.maps;
-import static com.netflix.iceberg.parquet.ParquetValueWriters.option;
+import static org.apache.iceberg.parquet.ParquetValueWriters.collections;
+import static org.apache.iceberg.parquet.ParquetValueWriters.maps;
+import static org.apache.iceberg.parquet.ParquetValueWriters.option;
 
 public class ParquetAvroWriter {
   private ParquetAvroWriter() {

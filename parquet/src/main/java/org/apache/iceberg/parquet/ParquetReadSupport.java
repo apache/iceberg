@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.parquet.avro.AvroReadSupport;
 import org.apache.parquet.hadoop.api.InitContext;
@@ -34,9 +34,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static com.netflix.iceberg.parquet.ParquetSchemaUtil.hasIds;
-import static com.netflix.iceberg.parquet.ParquetSchemaUtil.pruneColumns;
-import static com.netflix.iceberg.parquet.ParquetSchemaUtil.pruneColumnsFallback;
+import static org.apache.iceberg.parquet.ParquetSchemaUtil.hasIds;
+import static org.apache.iceberg.parquet.ParquetSchemaUtil.pruneColumns;
+import static org.apache.iceberg.parquet.ParquetSchemaUtil.pruneColumnsFallback;
 
 /**
  * Parquet {@link ReadSupport} that handles column projection based on {@link Schema} column IDs.

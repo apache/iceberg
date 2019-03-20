@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import com.netflix.iceberg.ManifestEntry.Status;
-import com.netflix.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.junit.Assert;
 import org.junit.Test;
 import java.io.File;

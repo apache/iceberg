@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package com.netflix.iceberg.util;
+package org.apache.iceberg.util;
 
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.netflix.iceberg.SystemProperties;
+import org.apache.iceberg.SystemProperties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;

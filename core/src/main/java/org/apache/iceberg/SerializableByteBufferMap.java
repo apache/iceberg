@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.collect.Maps;
-import com.netflix.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.ByteBuffers;
 
 import java.io.ObjectStreamException;
 import java.io.Serializable;

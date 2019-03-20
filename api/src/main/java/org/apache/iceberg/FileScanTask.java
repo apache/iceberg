@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
-import com.netflix.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expression;
 
 /**
  * A scan task over a range of a single file.

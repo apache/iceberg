@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.expressions.Expressions;
-import com.netflix.iceberg.io.CloseableGroup;
-import com.netflix.iceberg.io.CloseableIterable;
-import com.netflix.iceberg.io.InputFile;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.CloseableGroup;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.InputFile;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -37,10 +37,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.Function;
 
-import static com.netflix.iceberg.parquet.ParquetSchemaUtil.addFallbackIds;
-import static com.netflix.iceberg.parquet.ParquetSchemaUtil.hasIds;
-import static com.netflix.iceberg.parquet.ParquetSchemaUtil.pruneColumns;
-import static com.netflix.iceberg.parquet.ParquetSchemaUtil.pruneColumnsFallback;
+import static org.apache.iceberg.parquet.ParquetSchemaUtil.addFallbackIds;
+import static org.apache.iceberg.parquet.ParquetSchemaUtil.hasIds;
+import static org.apache.iceberg.parquet.ParquetSchemaUtil.pruneColumns;
+import static org.apache.iceberg.parquet.ParquetSchemaUtil.pruneColumnsFallback;
 
 public class ParquetReader<T> extends CloseableGroup implements CloseableIterable<T> {
   private final InputFile input;

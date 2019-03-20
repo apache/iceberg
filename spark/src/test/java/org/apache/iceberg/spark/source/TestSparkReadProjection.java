@@ -17,23 +17,23 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark.source;
+package org.apache.iceberg.spark.source;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.netflix.iceberg.DataFile;
-import com.netflix.iceberg.DataFiles;
-import com.netflix.iceberg.FileFormat;
-import com.netflix.iceberg.PartitionSpec;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.Table;
-import com.netflix.iceberg.avro.Avro;
-import com.netflix.iceberg.avro.AvroSchemaUtil;
-import com.netflix.iceberg.io.FileAppender;
-import com.netflix.iceberg.parquet.Parquet;
-import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.TypeUtil;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.avro.generic.GenericData.Fixed;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.spark.sql.Dataset;
@@ -52,9 +52,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
-import static com.netflix.iceberg.Files.localOutput;
-import static com.netflix.iceberg.types.Types.NestedField.optional;
-import static com.netflix.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.Files.localOutput;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.avro.Schema.Type.NULL;
 import static org.apache.avro.Schema.Type.UNION;
 
@@ -144,7 +144,7 @@ public class TestSparkReadProjection extends TestReadProjection {
           TestTables.readMetadata(desc).updateSchema(expectedSchema, 100));
 
       Dataset<Row> df = spark.read()
-          .format("com.netflix.iceberg.spark.source.TestIcebergSource")
+          .format("org.apache.iceberg.spark.source.TestIcebergSource")
           .option("iceberg.table.name", desc)
           .load();
 

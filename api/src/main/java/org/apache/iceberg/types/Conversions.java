@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package com.netflix.iceberg.types;
+package org.apache.iceberg.types;
 
 import com.google.common.base.Charsets;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;

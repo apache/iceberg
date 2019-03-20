@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark.data;
+package org.apache.iceberg.spark.data;
 
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.avro.ValueReader;
+import org.apache.iceberg.avro.ValueReader;
 import org.apache.avro.Schema;
 import org.apache.avro.io.Decoder;
 import org.apache.avro.io.ResolvingDecoder;

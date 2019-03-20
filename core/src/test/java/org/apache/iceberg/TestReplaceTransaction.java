@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
-import com.netflix.iceberg.exceptions.CommitFailedException;
-import com.netflix.iceberg.types.TypeUtil;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -29,8 +29,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.netflix.iceberg.PartitionSpec.unpartitioned;
-import static com.netflix.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.PartitionSpec.unpartitioned;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestReplaceTransaction extends TableTestBase {
   @Test

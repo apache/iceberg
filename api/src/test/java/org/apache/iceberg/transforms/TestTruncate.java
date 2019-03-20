@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package com.netflix.iceberg.transforms;
+package org.apache.iceberg.transforms;
 
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 import java.math.BigDecimal;

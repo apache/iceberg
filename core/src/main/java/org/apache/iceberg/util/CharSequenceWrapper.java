@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package com.netflix.iceberg.util;
+package org.apache.iceberg.util;
 
-import com.netflix.iceberg.types.Comparators;
+import org.apache.iceberg.types.Comparators;
 
 /**
  * Wrapper class to adapt CharSequence for use in maps and sets.

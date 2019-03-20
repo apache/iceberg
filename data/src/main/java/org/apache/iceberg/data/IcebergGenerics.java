@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package com.netflix.iceberg.data;
+package org.apache.iceberg.data;
 
 import com.google.common.collect.ImmutableList;
-import com.netflix.iceberg.Table;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.expressions.Expressions;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import java.util.List;
 
 public class IcebergGenerics {

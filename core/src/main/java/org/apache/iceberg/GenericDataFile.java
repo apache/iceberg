@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.netflix.iceberg.avro.AvroSchemaUtil;
-import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.Types;
-import com.netflix.iceberg.util.ByteBuffers;
+import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
 import java.io.Serializable;

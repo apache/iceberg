@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
-import com.netflix.iceberg.TestHelpers.Row;
-import com.netflix.iceberg.expressions.Literal;
-import com.netflix.iceberg.transforms.Transform;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.TestHelpers.Row;
+import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 

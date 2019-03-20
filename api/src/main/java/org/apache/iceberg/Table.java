@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
-import com.netflix.iceberg.encryption.EncryptionManager;
-import com.netflix.iceberg.io.FileIO;
-import com.netflix.iceberg.io.LocationProvider;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.LocationProvider;
 import java.util.Map;
 
 /**
@@ -188,7 +188,7 @@ public interface Table {
   FileIO io();
 
   /**
-   * @return an {@link com.netflix.iceberg.encryption.EncryptionManager} to encrypt and decrypt
+   * @return an {@link org.apache.iceberg.encryption.EncryptionManager} to encrypt and decrypt
    * data files.
    */
   EncryptionManager encryption();

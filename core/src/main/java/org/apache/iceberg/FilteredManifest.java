@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
-import com.netflix.iceberg.ManifestEntry.Status;
-import com.netflix.iceberg.expressions.Evaluator;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.expressions.Expressions;
-import com.netflix.iceberg.expressions.InclusiveMetricsEvaluator;
-import com.netflix.iceberg.expressions.Projections;
+import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.expressions.Evaluator;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
+import org.apache.iceberg.expressions.Projections;
 import java.util.Collection;
 import java.util.Iterator;
 

@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.orc;
+package org.apache.iceberg.orc;
 
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
 
 import java.util.ArrayList;

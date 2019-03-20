@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package com.netflix.iceberg.util;
+package org.apache.iceberg.util;
 
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.util.BinPacking.ListPacker;
+import org.apache.iceberg.util.BinPacking.ListPacker;
 import org.junit.Assert;
 import org.junit.Test;
 import java.util.List;

@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
-import com.netflix.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.ManifestEntry.Status;
 import org.junit.Assert;
 import org.junit.Test;
 

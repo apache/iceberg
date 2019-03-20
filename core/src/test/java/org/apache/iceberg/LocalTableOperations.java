@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.collect.Maps;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.io.FileIO;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.FileIO;
 import java.util.Map;
-import com.netflix.iceberg.io.LocationProvider;
+import org.apache.iceberg.io.LocationProvider;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.IOException;

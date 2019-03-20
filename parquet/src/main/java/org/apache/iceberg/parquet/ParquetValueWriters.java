@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import com.netflix.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.avro.util.Utf8;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnWriteStore;

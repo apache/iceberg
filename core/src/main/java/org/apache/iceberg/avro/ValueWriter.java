@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.avro;
+package org.apache.iceberg.avro;
 
 import org.apache.avro.io.Encoder;
 import java.io.IOException;

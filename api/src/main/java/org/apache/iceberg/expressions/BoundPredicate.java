@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.expressions;
+package org.apache.iceberg.expressions;
 
 public class BoundPredicate<T> extends Predicate<T, BoundReference<T>> {
   BoundPredicate(Operation op, BoundReference<T> ref, Literal<T> lit) {

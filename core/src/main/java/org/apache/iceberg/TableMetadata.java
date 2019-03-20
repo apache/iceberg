@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
@@ -27,10 +27,10 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.netflix.iceberg.exceptions.ValidationException;
-import com.netflix.iceberg.io.InputFile;
-import com.netflix.iceberg.types.TypeUtil;
-import com.netflix.iceberg.util.PropertyUtil;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;

@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package com.netflix.iceberg.transforms;
+package org.apache.iceberg.transforms;
 
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.PartitionField;
-import com.netflix.iceberg.PartitionSpec;
-import com.netflix.iceberg.Schema;
+import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import java.util.List;
 
 public interface PartitionSpecVisitor<T> {

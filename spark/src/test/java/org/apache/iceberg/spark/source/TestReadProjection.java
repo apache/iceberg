@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark.source;
+package org.apache.iceberg.spark.source;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.avro.AvroSchemaUtil;
-import com.netflix.iceberg.types.Comparators;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Types;
 import org.apache.avro.generic.GenericData.Record;
 import org.junit.Assert;
 import org.junit.Rule;

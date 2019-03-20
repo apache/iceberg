@@ -17,27 +17,27 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
-import com.netflix.iceberg.Files;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.expressions.Literal;
-import com.netflix.iceberg.io.FileAppender;
-import com.netflix.iceberg.io.InputFile;
-import com.netflix.iceberg.io.OutputFile;
-import com.netflix.iceberg.types.Types;
-import com.netflix.iceberg.types.Types.BinaryType;
-import com.netflix.iceberg.types.Types.BooleanType;
-import com.netflix.iceberg.types.Types.DateType;
-import com.netflix.iceberg.types.Types.DoubleType;
-import com.netflix.iceberg.types.Types.FixedType;
-import com.netflix.iceberg.types.Types.FloatType;
-import com.netflix.iceberg.types.Types.IntegerType;
-import com.netflix.iceberg.types.Types.LongType;
-import com.netflix.iceberg.types.Types.StringType;
-import com.netflix.iceberg.types.Types.TimeType;
-import com.netflix.iceberg.types.Types.TimestampType;
-import com.netflix.iceberg.types.Types.UUIDType;
+import org.apache.iceberg.Files;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.BinaryType;
+import org.apache.iceberg.types.Types.BooleanType;
+import org.apache.iceberg.types.Types.DateType;
+import org.apache.iceberg.types.Types.DoubleType;
+import org.apache.iceberg.types.Types.FixedType;
+import org.apache.iceberg.types.Types.FloatType;
+import org.apache.iceberg.types.Types.IntegerType;
+import org.apache.iceberg.types.Types.LongType;
+import org.apache.iceberg.types.Types.StringType;
+import org.apache.iceberg.types.Types.TimeType;
+import org.apache.iceberg.types.Types.TimestampType;
+import org.apache.iceberg.types.Types.UUIDType;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericFixed;
 import org.apache.avro.generic.GenericRecordBuilder;
@@ -57,9 +57,9 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
-import static com.netflix.iceberg.avro.AvroSchemaUtil.convert;
-import static com.netflix.iceberg.expressions.Expressions.equal;
-import static com.netflix.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.avro.AvroSchemaUtil.convert;
+import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 @RunWith(Parameterized.class)
 public class TestMetricsRowGroupFilterTypes {

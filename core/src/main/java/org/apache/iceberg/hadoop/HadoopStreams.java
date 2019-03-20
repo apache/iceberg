@@ -17,13 +17,13 @@
  *  under the License.
  */
 
-package com.netflix.iceberg.hadoop;
+package org.apache.iceberg.hadoop;
 
 import com.google.common.base.Joiner;
-import com.netflix.iceberg.io.DelegatingInputStream;
-import com.netflix.iceberg.io.DelegatingOutputStream;
-import com.netflix.iceberg.io.PositionOutputStream;
-import com.netflix.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.io.DelegatingInputStream;
+import org.apache.iceberg.io.DelegatingOutputStream;
+import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.slf4j.Logger;

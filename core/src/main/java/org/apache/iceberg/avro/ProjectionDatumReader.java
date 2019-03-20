@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.avro;
+package org.apache.iceberg.avro;
 
 import org.apache.avro.Schema;
 import org.apache.avro.io.DatumReader;
@@ -27,18 +27,18 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import static com.netflix.iceberg.types.TypeUtil.getProjectedIds;
+import static org.apache.iceberg.types.TypeUtil.getProjectedIds;
 
 public class ProjectionDatumReader<D> implements DatumReader<D> {
   private final Function<Schema, DatumReader<?>> getReader;
-  private final com.netflix.iceberg.Schema expectedSchema;
+  private final org.apache.iceberg.Schema expectedSchema;
   private final Map<String, String> renames;
   private Schema readSchema = null;
   private Schema fileSchema = null;
   private DatumReader<D> wrapped = null;
 
   public ProjectionDatumReader(Function<Schema, DatumReader<?>> getReader,
-                               com.netflix.iceberg.Schema expectedSchema,
+                               org.apache.iceberg.Schema expectedSchema,
                                Map<String, String> renames) {
     this.getReader = getReader;
     this.expectedSchema = expectedSchema;

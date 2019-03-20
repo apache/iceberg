@@ -17,29 +17,29 @@
  * under the License.
  */
 
-package com.netflix.iceberg.expressions;
+package org.apache.iceberg.expressions;
 
-import com.netflix.iceberg.exceptions.ValidationException;
-import com.netflix.iceberg.types.Types;
-import com.netflix.iceberg.types.Types.StructType;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.StructType;
 import org.junit.Assert;
 import org.junit.Test;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 
-import static com.netflix.iceberg.expressions.Expression.Operation.EQ;
-import static com.netflix.iceberg.expressions.Expression.Operation.GT;
-import static com.netflix.iceberg.expressions.Expression.Operation.GT_EQ;
-import static com.netflix.iceberg.expressions.Expression.Operation.IS_NULL;
-import static com.netflix.iceberg.expressions.Expression.Operation.LT;
-import static com.netflix.iceberg.expressions.Expression.Operation.LT_EQ;
-import static com.netflix.iceberg.expressions.Expression.Operation.NOT_EQ;
-import static com.netflix.iceberg.expressions.Expression.Operation.NOT_NULL;
-import static com.netflix.iceberg.expressions.Expressions.ref;
-import static com.netflix.iceberg.TestHelpers.assertAndUnwrap;
-import static com.netflix.iceberg.types.Types.NestedField.optional;
-import static com.netflix.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.expressions.Expression.Operation.EQ;
+import static org.apache.iceberg.expressions.Expression.Operation.GT;
+import static org.apache.iceberg.expressions.Expression.Operation.GT_EQ;
+import static org.apache.iceberg.expressions.Expression.Operation.IS_NULL;
+import static org.apache.iceberg.expressions.Expression.Operation.LT;
+import static org.apache.iceberg.expressions.Expression.Operation.LT_EQ;
+import static org.apache.iceberg.expressions.Expression.Operation.NOT_EQ;
+import static org.apache.iceberg.expressions.Expression.Operation.NOT_NULL;
+import static org.apache.iceberg.expressions.Expressions.ref;
+import static org.apache.iceberg.TestHelpers.assertAndUnwrap;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestPredicateBinding {
   private static List<Expression.Operation> COMPARISONS = Arrays.asList(

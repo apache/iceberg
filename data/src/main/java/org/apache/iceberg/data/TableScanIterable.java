@@ -17,28 +17,28 @@
  * under the License.
  */
 
-package com.netflix.iceberg.data;
+package org.apache.iceberg.data;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.CombinedScanTask;
-import com.netflix.iceberg.FileScanTask;
-import com.netflix.iceberg.HasTableOperations;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.TableOperations;
-import com.netflix.iceberg.TableScan;
-import com.netflix.iceberg.avro.Avro;
-import com.netflix.iceberg.data.avro.DataReader;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.expressions.Binder;
-import com.netflix.iceberg.expressions.Evaluator;
-import com.netflix.iceberg.expressions.Expressions;
-import com.netflix.iceberg.io.CloseableGroup;
-import com.netflix.iceberg.io.CloseableIterable;
-import com.netflix.iceberg.io.InputFile;
-import com.netflix.iceberg.parquet.Parquet;
-import com.netflix.iceberg.types.TypeUtil;
+import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableScan;
+import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.expressions.Binder;
+import org.apache.iceberg.expressions.Evaluator;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.CloseableGroup;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.types.TypeUtil;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -51,7 +51,7 @@ import java.util.Set;
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.filter;
 import static com.google.common.collect.Iterables.transform;
-import static com.netflix.iceberg.data.parquet.GenericParquetReaders.buildReader;
+import static org.apache.iceberg.data.parquet.GenericParquetReaders.buildReader;
 import static java.util.Collections.emptyIterator;
 
 class TableScanIterable extends CloseableGroup implements CloseableIterable<Record> {

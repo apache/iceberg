@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.io.CloseableGroup;
-import com.netflix.iceberg.io.CloseableIterable;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.CloseableGroup;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.parquet.hadoop.ParquetReader;
 import java.io.Closeable;
 import java.io.IOException;

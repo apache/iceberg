@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.avro;
+package org.apache.iceberg.avro;
 
 import com.google.common.base.Preconditions;
 import org.apache.avro.LogicalType;
@@ -29,7 +29,7 @@ import org.apache.avro.io.Encoder;
 import java.io.IOException;
 import java.util.List;
 
-import static com.netflix.iceberg.avro.AvroSchemaVisitor.visit;
+import static org.apache.iceberg.avro.AvroSchemaVisitor.visit;
 
 class GenericAvroWriter<T> implements DatumWriter<T> {
   private ValueWriter<T> writer = null;

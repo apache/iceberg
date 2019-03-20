@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package com.netflix.iceberg.avro;
+package org.apache.iceberg.avro;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.TypeUtil;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
@@ -47,12 +47,12 @@ public class AvroSchemaUtil {
 
   private static final Schema NULL = Schema.create(Schema.Type.NULL);
 
-  public static Schema convert(com.netflix.iceberg.Schema schema,
+  public static Schema convert(org.apache.iceberg.Schema schema,
                                String tableName) {
     return convert(schema, ImmutableMap.of(schema.asStruct(), tableName));
   }
 
-  public static Schema convert(com.netflix.iceberg.Schema schema,
+  public static Schema convert(org.apache.iceberg.Schema schema,
                                Map<Types.StructType, String> names) {
     return TypeUtil.visit(schema, new TypeToSchema(names));
   }
@@ -83,7 +83,7 @@ public class AvroSchemaUtil {
     return new PruneColumns(selectedIds).rootSchema(schema);
   }
 
-  public static Schema buildAvroProjection(Schema schema, com.netflix.iceberg.Schema expected,
+  public static Schema buildAvroProjection(Schema schema, org.apache.iceberg.Schema expected,
                                            Map<String, String> renames) {
     return AvroCustomOrderSchemaVisitor.visit(schema, new BuildAvroProjection(expected, renames));
   }

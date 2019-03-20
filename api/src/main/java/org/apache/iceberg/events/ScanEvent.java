@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package com.netflix.iceberg.events;
+package org.apache.iceberg.events;
 
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.expressions.Expression;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.Expression;
 
 /**
  * Event sent to listeners when a table scan is planned.

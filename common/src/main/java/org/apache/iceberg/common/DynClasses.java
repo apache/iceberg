@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.common;
+package org.apache.iceberg.common;
 
 import com.google.common.base.Joiner;
 import java.util.LinkedHashSet;

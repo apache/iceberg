@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.transforms;
+package org.apache.iceberg.transforms;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
@@ -25,18 +25,18 @@ import com.google.common.base.Objects;
 import com.google.common.collect.Sets;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
-import com.netflix.iceberg.expressions.BoundPredicate;
-import com.netflix.iceberg.expressions.Expressions;
-import com.netflix.iceberg.expressions.UnboundPredicate;
-import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Set;
 import java.util.UUID;
 
-import static com.netflix.iceberg.types.Type.TypeID;
+import static org.apache.iceberg.types.Type.TypeID;
 
 abstract class Bucket<T> implements Transform<T, Integer> {
   private static final HashFunction MURMUR3 = Hashing.murmur3_32();

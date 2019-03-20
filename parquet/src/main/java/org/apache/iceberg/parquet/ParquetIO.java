@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.hadoop.HadoopInputFile;
-import com.netflix.iceberg.hadoop.HadoopOutputFile;
-import com.netflix.iceberg.io.DelegatingInputStream;
-import com.netflix.iceberg.io.DelegatingOutputStream;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.hadoop.HadoopInputFile;
+import org.apache.iceberg.hadoop.HadoopOutputFile;
+import org.apache.iceberg.io.DelegatingInputStream;
+import org.apache.iceberg.io.DelegatingOutputStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -48,7 +48,7 @@ class ParquetIO {
   private ParquetIO() {
   }
 
-  static InputFile file(com.netflix.iceberg.io.InputFile file) {
+  static InputFile file(org.apache.iceberg.io.InputFile file) {
     // TODO: use reflection to avoid depending on classes from iceberg-hadoop
     // TODO: use reflection to avoid depending on classes from hadoop
     if (file instanceof HadoopInputFile) {
@@ -62,7 +62,7 @@ class ParquetIO {
     return new ParquetInputFile(file);
   }
 
-  static OutputFile file(com.netflix.iceberg.io.OutputFile file) {
+  static OutputFile file(org.apache.iceberg.io.OutputFile file) {
     if (file instanceof HadoopOutputFile) {
       HadoopOutputFile hfile = (HadoopOutputFile) file;
       try {
@@ -74,7 +74,7 @@ class ParquetIO {
     return new ParquetOutputFile(file);
   }
 
-  static OutputFile file(com.netflix.iceberg.io.OutputFile file, Configuration conf) {
+  static OutputFile file(org.apache.iceberg.io.OutputFile file, Configuration conf) {
     if (file instanceof HadoopOutputFile) {
       HadoopOutputFile hfile = (HadoopOutputFile) file;
       try {
@@ -86,7 +86,7 @@ class ParquetIO {
     return new ParquetOutputFile(file);
   }
 
-  static SeekableInputStream stream(com.netflix.iceberg.io.SeekableInputStream stream) {
+  static SeekableInputStream stream(org.apache.iceberg.io.SeekableInputStream stream) {
     if (stream instanceof DelegatingInputStream) {
       InputStream wrapped = ((DelegatingInputStream) stream).getDelegate();
       if (wrapped instanceof FSDataInputStream) {
@@ -96,7 +96,7 @@ class ParquetIO {
     return new ParquetInputStreamAdapter(stream);
   }
 
-  static PositionOutputStream stream(com.netflix.iceberg.io.PositionOutputStream stream) {
+  static PositionOutputStream stream(org.apache.iceberg.io.PositionOutputStream stream) {
     if (stream instanceof DelegatingOutputStream) {
       OutputStream wrapped = ((DelegatingOutputStream) stream).getDelegate();
       if (wrapped instanceof FSDataOutputStream) {
@@ -107,9 +107,9 @@ class ParquetIO {
   }
 
   private static class ParquetInputStreamAdapter extends DelegatingSeekableInputStream {
-    private final com.netflix.iceberg.io.SeekableInputStream delegate;
+    private final org.apache.iceberg.io.SeekableInputStream delegate;
 
-    private ParquetInputStreamAdapter(com.netflix.iceberg.io.SeekableInputStream delegate) {
+    private ParquetInputStreamAdapter(org.apache.iceberg.io.SeekableInputStream delegate) {
       super(delegate);
       this.delegate = delegate;
     }
@@ -126,9 +126,9 @@ class ParquetIO {
   }
 
   private static class ParquetOutputStreamAdapter extends DelegatingPositionOutputStream {
-    private final com.netflix.iceberg.io.PositionOutputStream delegate;
+    private final org.apache.iceberg.io.PositionOutputStream delegate;
 
-    private ParquetOutputStreamAdapter(com.netflix.iceberg.io.PositionOutputStream delegate) {
+    private ParquetOutputStreamAdapter(org.apache.iceberg.io.PositionOutputStream delegate) {
       super(delegate);
       this.delegate = delegate;
     }
@@ -140,9 +140,9 @@ class ParquetIO {
   }
 
   private static class ParquetOutputFile implements OutputFile {
-    private final com.netflix.iceberg.io.OutputFile file;
+    private final org.apache.iceberg.io.OutputFile file;
 
-    private ParquetOutputFile(com.netflix.iceberg.io.OutputFile file) {
+    private ParquetOutputFile(org.apache.iceberg.io.OutputFile file) {
       this.file = file;
     }
 
@@ -168,9 +168,9 @@ class ParquetIO {
   }
 
   private static class ParquetInputFile implements InputFile {
-    private final com.netflix.iceberg.io.InputFile file;
+    private final org.apache.iceberg.io.InputFile file;
 
-    private ParquetInputFile(com.netflix.iceberg.io.InputFile file) {
+    private ParquetInputFile(org.apache.iceberg.io.InputFile file) {
       this.file = file;
     }
 

@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package com.netflix.iceberg.data;
+package org.apache.iceberg.data;
 
-import com.netflix.iceberg.StructLike;
-import com.netflix.iceberg.types.Types.StructType;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.types.Types.StructType;
 import java.util.Map;
 
 public interface Record extends StructLike {

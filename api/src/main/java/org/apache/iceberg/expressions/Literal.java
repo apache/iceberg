@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package com.netflix.iceberg.expressions;
+package org.apache.iceberg.expressions;
 
-import com.netflix.iceberg.types.Type;
+import org.apache.iceberg.types.Type;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;

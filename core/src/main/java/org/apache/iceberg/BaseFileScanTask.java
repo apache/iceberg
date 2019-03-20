@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.expressions.ResidualEvaluator;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ResidualEvaluator;
 import java.util.Iterator;
 
 class BaseFileScanTask implements FileScanTask {

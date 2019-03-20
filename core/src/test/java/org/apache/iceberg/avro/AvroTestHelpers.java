@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package com.netflix.iceberg.avro;
+package org.apache.iceberg.avro;
 
-import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData.Record;
@@ -29,7 +29,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static com.netflix.iceberg.avro.AvroSchemaUtil.toOption;
+import static org.apache.iceberg.avro.AvroSchemaUtil.toOption;
 
 class AvroTestHelpers {
   static Schema.Field optionalField(int id, String name, Schema schema) {

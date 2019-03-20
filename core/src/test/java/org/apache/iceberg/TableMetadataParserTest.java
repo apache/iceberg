@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
-import com.netflix.iceberg.io.OutputFile;
-import com.netflix.iceberg.types.Types.BooleanType;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.types.Types.BooleanType;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
 import org.apache.hadoop.conf.Configuration;
 import org.junit.After;
@@ -33,11 +33,11 @@ import java.io.InputStream;
 import java.nio.file.Paths;
 
 import static avro.shaded.com.google.common.collect.Lists.newArrayList;
-import static com.netflix.iceberg.ConfigProperties.COMPRESS_METADATA;
-import static com.netflix.iceberg.PartitionSpec.unpartitioned;
-import static com.netflix.iceberg.TableMetadata.newTableMetadata;
-import static com.netflix.iceberg.TableMetadataParser.getFileExtension;
-import static com.netflix.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.ConfigProperties.COMPRESS_METADATA;
+import static org.apache.iceberg.PartitionSpec.unpartitioned;
+import static org.apache.iceberg.TableMetadata.newTableMetadata;
+import static org.apache.iceberg.TableMetadataParser.getFileExtension;
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TableMetadataParserTest {
 

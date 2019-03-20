@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
@@ -26,18 +26,18 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.expressions.And;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.expressions.Expression.Operation;
-import com.netflix.iceberg.expressions.Expressions;
-import com.netflix.iceberg.expressions.Literal;
-import com.netflix.iceberg.expressions.NamedReference;
-import com.netflix.iceberg.expressions.UnboundPredicate;
-import com.netflix.iceberg.io.CloseableIterable;
-import com.netflix.iceberg.types.Comparators;
-import com.netflix.iceberg.types.Types;
-import com.netflix.iceberg.util.Pair;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.expressions.And;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expression.Operation;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.expressions.NamedReference;
+import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.Date;

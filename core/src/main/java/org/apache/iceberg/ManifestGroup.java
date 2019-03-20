@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -26,12 +26,12 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import com.netflix.iceberg.expressions.Evaluator;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.expressions.Expressions;
-import com.netflix.iceberg.expressions.InclusiveManifestEvaluator;
-import com.netflix.iceberg.io.CloseableIterable;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.expressions.Evaluator;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.InclusiveManifestEvaluator;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.types.Types;
 import java.io.Closeable;
 import java.util.Arrays;
 import java.util.List;

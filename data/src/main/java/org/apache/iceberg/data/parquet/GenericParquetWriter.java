@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package com.netflix.iceberg.data.parquet;
+package org.apache.iceberg.data.parquet;
 
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.data.Record;
-import com.netflix.iceberg.parquet.ParquetTypeVisitor;
-import com.netflix.iceberg.parquet.ParquetValueWriter;
-import com.netflix.iceberg.parquet.ParquetValueWriters.PrimitiveWriter;
-import com.netflix.iceberg.parquet.ParquetValueWriters.StructWriter;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.parquet.ParquetTypeVisitor;
+import org.apache.iceberg.parquet.ParquetValueWriter;
+import org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter;
+import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.DecimalMetadata;
@@ -42,15 +42,15 @@ import java.time.temporal.ChronoUnit;
 import java.util.Iterator;
 import java.util.List;
 
-import static com.netflix.iceberg.parquet.ParquetValueWriters.byteBuffers;
-import static com.netflix.iceberg.parquet.ParquetValueWriters.collections;
-import static com.netflix.iceberg.parquet.ParquetValueWriters.decimalAsFixed;
-import static com.netflix.iceberg.parquet.ParquetValueWriters.decimalAsInteger;
-import static com.netflix.iceberg.parquet.ParquetValueWriters.decimalAsLong;
-import static com.netflix.iceberg.parquet.ParquetValueWriters.maps;
-import static com.netflix.iceberg.parquet.ParquetValueWriters.option;
-import static com.netflix.iceberg.parquet.ParquetValueWriters.strings;
-import static com.netflix.iceberg.parquet.ParquetValueWriters.unboxed;
+import static org.apache.iceberg.parquet.ParquetValueWriters.byteBuffers;
+import static org.apache.iceberg.parquet.ParquetValueWriters.collections;
+import static org.apache.iceberg.parquet.ParquetValueWriters.decimalAsFixed;
+import static org.apache.iceberg.parquet.ParquetValueWriters.decimalAsInteger;
+import static org.apache.iceberg.parquet.ParquetValueWriters.decimalAsLong;
+import static org.apache.iceberg.parquet.ParquetValueWriters.maps;
+import static org.apache.iceberg.parquet.ParquetValueWriters.option;
+import static org.apache.iceberg.parquet.ParquetValueWriters.strings;
+import static org.apache.iceberg.parquet.ParquetValueWriters.unboxed;
 
 public class GenericParquetWriter {
   private GenericParquetWriter() {

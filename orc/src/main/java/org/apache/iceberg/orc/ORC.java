@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.orc;
+package org.apache.iceberg.orc;
 
 import com.google.common.base.Preconditions;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.hadoop.HadoopInputFile;
-import com.netflix.iceberg.hadoop.HadoopOutputFile;
-import com.netflix.iceberg.io.InputFile;
-import com.netflix.iceberg.io.OutputFile;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.hadoop.HadoopInputFile;
+import org.apache.iceberg.hadoop.HadoopOutputFile;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.orc.OrcFile;
@@ -88,7 +88,7 @@ public class ORC {
   public static class ReadBuilder {
     private final InputFile file;
     private final Configuration conf;
-    private com.netflix.iceberg.Schema schema = null;
+    private org.apache.iceberg.Schema schema = null;
     private Long start = null;
     private Long length = null;
 
@@ -115,7 +115,7 @@ public class ORC {
       return this;
     }
 
-    public ReadBuilder schema(com.netflix.iceberg.Schema schema) {
+    public ReadBuilder schema(org.apache.iceberg.Schema schema) {
       this.schema = schema;
       return this;
     }

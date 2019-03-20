@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import com.netflix.iceberg.exceptions.AlreadyExistsException;
-import com.netflix.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.hadoop.conf.Configuration;
 import java.util.Map;
 
-import static com.netflix.iceberg.TableMetadata.newTableMetadata;
+import static org.apache.iceberg.TableMetadata.newTableMetadata;
 
 public abstract class BaseMetastoreTables implements Tables {
   private final Configuration conf;

@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package com.netflix.iceberg.data.avro;
+package org.apache.iceberg.data.avro;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.MapMaker;
-import com.netflix.iceberg.avro.AvroSchemaUtil;
-import com.netflix.iceberg.avro.ProjectionDatumReader;
+import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.avro.ProjectionDatumReader;
 import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaNormalization;
@@ -49,13 +49,13 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
         return ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN);
       });
 
-  private final com.netflix.iceberg.Schema readSchema;
+  private final org.apache.iceberg.Schema readSchema;
   private final SchemaStore resolver;
   private final Map<Long, RawDecoder<D>> decoders = new MapMaker().makeMap();
 
   /**
    * Creates a new decoder that constructs datum instances described by an
-   * {@link com.netflix.iceberg.Schema Iceberg schema}.
+   * {@link org.apache.iceberg.Schema Iceberg schema}.
    * <p>
    * The {@code readSchema} is as used the expected schema (read schema). Datum instances created
    * by this class will are described by the expected schema.
@@ -63,17 +63,17 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
    * The schema used to decode incoming buffers is determined by the schema fingerprint encoded in
    * the message header. This class can decode messages that were encoded using the
    * {@code readSchema} and other schemas that are added using
-   * {@link #addSchema(com.netflix.iceberg.Schema)}.
+   * {@link #addSchema(org.apache.iceberg.Schema)}.
    *
    * @param readSchema the schema used to construct datum instances
    */
-  public IcebergDecoder(com.netflix.iceberg.Schema readSchema) {
+  public IcebergDecoder(org.apache.iceberg.Schema readSchema) {
     this(readSchema, null);
   }
 
   /**
    * Creates a new decoder that constructs datum instances described by an
-   * {@link com.netflix.iceberg.Schema Iceberg schema}.
+   * {@link org.apache.iceberg.Schema Iceberg schema}.
    * <p>
    * The {@code readSchema} is as used the expected schema (read schema). Datum instances created
    * by this class will are described by the expected schema.
@@ -81,7 +81,7 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
    * The schema used to decode incoming buffers is determined by the schema fingerprint encoded in
    * the message header. This class can decode messages that were encoded using the
    * {@code readSchema} and other schemas that are added using
-   * {@link #addSchema(com.netflix.iceberg.Schema)}.
+   * {@link #addSchema(org.apache.iceberg.Schema)}.
    * <p>
    * Schemas may also be returned from an Avro {@link SchemaStore}. Avro Schemas from the store
    * must be compatible with Iceberg and should contain id properties and use only Iceberg types.
@@ -89,18 +89,18 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
    * @param readSchema the {@link Schema} used to construct datum instances
    * @param resolver a {@link SchemaStore} used to find schemas by fingerprint
    */
-  public IcebergDecoder(com.netflix.iceberg.Schema readSchema, SchemaStore resolver) {
+  public IcebergDecoder(org.apache.iceberg.Schema readSchema, SchemaStore resolver) {
     this.readSchema = readSchema;
     this.resolver = resolver;
     addSchema(this.readSchema);
   }
 
   /**
-   * Adds an {@link com.netflix.iceberg.Schema Iceberg schema} that can be used to decode buffers.
+   * Adds an {@link org.apache.iceberg.Schema Iceberg schema} that can be used to decode buffers.
    *
    * @param writeSchema a schema to use when decoding buffers
    */
-  public void addSchema(com.netflix.iceberg.Schema writeSchema) {
+  public void addSchema(org.apache.iceberg.Schema writeSchema) {
     addSchema(AvroSchemaUtil.convert(writeSchema, "table"));
   }
 
@@ -165,7 +165,7 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
      * @param readSchema the schema used to construct datum instances
      * @param writeSchema the schema used to decode buffers
      */
-    private RawDecoder(com.netflix.iceberg.Schema readSchema, org.apache.avro.Schema writeSchema) {
+    private RawDecoder(org.apache.iceberg.Schema readSchema, org.apache.avro.Schema writeSchema) {
       this.reader = new ProjectionDatumReader<>(DataReader::create, readSchema, ImmutableMap.of());
       this.reader.setSchema(writeSchema);
     }

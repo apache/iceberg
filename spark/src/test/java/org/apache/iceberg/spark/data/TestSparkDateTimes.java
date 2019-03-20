@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark.data;
+package org.apache.iceberg.spark.data;
 
-import com.netflix.iceberg.expressions.Literal;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 import org.junit.Assert;
 import org.junit.Test;

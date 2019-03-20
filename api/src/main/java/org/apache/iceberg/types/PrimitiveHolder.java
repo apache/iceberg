@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.types;
+package org.apache.iceberg.types;
 
 import java.io.ObjectStreamException;
 import java.io.Serializable;

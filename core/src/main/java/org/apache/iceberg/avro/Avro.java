@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package com.netflix.iceberg.avro;
+package org.apache.iceberg.avro;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
-import com.netflix.iceberg.SchemaParser;
-import com.netflix.iceberg.io.FileAppender;
-import com.netflix.iceberg.io.InputFile;
-import com.netflix.iceberg.io.OutputFile;
+import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.avro.Conversions;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
@@ -38,8 +38,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
-import static com.netflix.iceberg.TableProperties.AVRO_COMPRESSION;
-import static com.netflix.iceberg.TableProperties.AVRO_COMPRESSION_DEFAULT;
+import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
+import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_DEFAULT;
 
 public class Avro {
   private Avro() {
@@ -78,7 +78,7 @@ public class Avro {
 
   public static class WriteBuilder {
     private final OutputFile file;
-    private com.netflix.iceberg.Schema schema = null;
+    private org.apache.iceberg.Schema schema = null;
     private String name = "table";
     private Map<String, String> config = Maps.newHashMap();
     private Map<String, String> metadata = Maps.newLinkedHashMap();
@@ -88,7 +88,7 @@ public class Avro {
       this.file = file;
     }
 
-    public WriteBuilder schema(com.netflix.iceberg.Schema schema) {
+    public WriteBuilder schema(org.apache.iceberg.Schema schema) {
       this.schema = schema;
       return this;
     }
@@ -153,7 +153,7 @@ public class Avro {
     private final InputFile file;
     private final Map<String, String> renames = Maps.newLinkedHashMap();
     private boolean reuseContainers = false;
-    private com.netflix.iceberg.Schema schema = null;
+    private org.apache.iceberg.Schema schema = null;
     private Function<Schema, DatumReader<?>> createReaderFunc = schema -> {
       GenericAvroReader<?> reader = new GenericAvroReader<>(schema);
       reader.setClassLoader(defaultLoader);
@@ -185,7 +185,7 @@ public class Avro {
       return this;
     }
 
-    public ReadBuilder project(com.netflix.iceberg.Schema schema) {
+    public ReadBuilder project(org.apache.iceberg.Schema schema) {
       this.schema = schema;
       return this;
     }

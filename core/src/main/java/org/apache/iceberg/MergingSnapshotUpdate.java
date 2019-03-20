@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
@@ -26,19 +26,19 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.netflix.iceberg.ManifestEntry.Status;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.exceptions.ValidationException;
-import com.netflix.iceberg.expressions.Evaluator;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.expressions.Expressions;
-import com.netflix.iceberg.expressions.Projections;
-import com.netflix.iceberg.expressions.StrictMetricsEvaluator;
-import com.netflix.iceberg.io.OutputFile;
-import com.netflix.iceberg.util.BinPacking.ListPacker;
-import com.netflix.iceberg.util.CharSequenceWrapper;
-import com.netflix.iceberg.util.StructLikeWrapper;
-import com.netflix.iceberg.util.Tasks;
+import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Evaluator;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Projections;
+import org.apache.iceberg.expressions.StrictMetricsEvaluator;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.util.BinPacking.ListPacker;
+import org.apache.iceberg.util.CharSequenceWrapper;
+import org.apache.iceberg.util.StructLikeWrapper;
+import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.io.IOException;
@@ -51,11 +51,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.google.common.collect.Iterables.filter;
 import static com.google.common.collect.Iterables.transform;
-import static com.netflix.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
-import static com.netflix.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT_DEFAULT;
-import static com.netflix.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
-import static com.netflix.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
-import static com.netflix.iceberg.util.ThreadPools.getWorkerPool;
+import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
+import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT_DEFAULT;
+import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
+import static org.apache.iceberg.util.ThreadPools.getWorkerPool;
 
 abstract class MergingSnapshotUpdate extends SnapshotUpdate {
   private final Logger LOG = LoggerFactory.getLogger(getClass());

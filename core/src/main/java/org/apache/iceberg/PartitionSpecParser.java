@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.types.Types;
-import com.netflix.iceberg.util.JsonUtil;
-import com.netflix.iceberg.util.Pair;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.JsonUtil;
+import org.apache.iceberg.util.Pair;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.Iterator;

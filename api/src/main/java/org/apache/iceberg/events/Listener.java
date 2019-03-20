@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.events;
+package org.apache.iceberg.events;
 
 /**
  * A listener interface that can receive notifications.

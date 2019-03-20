@@ -13,14 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.netflix.iceberg.hive;
+package org.apache.iceberg.hive;
 
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.BaseMetastoreTableOperations;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.TableMetadata;
-import com.netflix.iceberg.exceptions.CommitFailedException;
-import com.netflix.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.api.CheckLockRequest;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;

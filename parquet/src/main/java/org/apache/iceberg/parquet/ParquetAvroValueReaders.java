@@ -17,23 +17,23 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.netflix.iceberg.avro.AvroSchemaUtil;
-import com.netflix.iceberg.parquet.ParquetValueReaders.BytesReader;
-import com.netflix.iceberg.parquet.ParquetValueReaders.FloatAsDoubleReader;
-import com.netflix.iceberg.parquet.ParquetValueReaders.IntAsLongReader;
-import com.netflix.iceberg.parquet.ParquetValueReaders.IntegerAsDecimalReader;
-import com.netflix.iceberg.parquet.ParquetValueReaders.ListReader;
-import com.netflix.iceberg.parquet.ParquetValueReaders.LongAsDecimalReader;
-import com.netflix.iceberg.parquet.ParquetValueReaders.MapReader;
-import com.netflix.iceberg.parquet.ParquetValueReaders.StructReader;
-import com.netflix.iceberg.parquet.ParquetValueReaders.UnboxedReader;
-import com.netflix.iceberg.types.Type.TypeID;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.parquet.ParquetValueReaders.BytesReader;
+import org.apache.iceberg.parquet.ParquetValueReaders.FloatAsDoubleReader;
+import org.apache.iceberg.parquet.ParquetValueReaders.IntAsLongReader;
+import org.apache.iceberg.parquet.ParquetValueReaders.IntegerAsDecimalReader;
+import org.apache.iceberg.parquet.ParquetValueReaders.ListReader;
+import org.apache.iceberg.parquet.ParquetValueReaders.LongAsDecimalReader;
+import org.apache.iceberg.parquet.ParquetValueReaders.MapReader;
+import org.apache.iceberg.parquet.ParquetValueReaders.StructReader;
+import org.apache.iceberg.parquet.ParquetValueReaders.UnboxedReader;
+import org.apache.iceberg.types.Type.TypeID;
+import org.apache.iceberg.types.Types;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData.Fixed;
 import org.apache.avro.generic.GenericData.Record;
@@ -53,14 +53,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import static com.netflix.iceberg.parquet.ParquetValueReaders.option;
+import static org.apache.iceberg.parquet.ParquetValueReaders.option;
 
 public class ParquetAvroValueReaders {
   private ParquetAvroValueReaders() {
   }
 
   @SuppressWarnings("unchecked")
-  public static ParquetValueReader<Record> buildReader(com.netflix.iceberg.Schema expectedSchema,
+  public static ParquetValueReader<Record> buildReader(org.apache.iceberg.Schema expectedSchema,
                                                        MessageType fileSchema) {
     return (ParquetValueReader<Record>)
         TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
@@ -68,11 +68,11 @@ public class ParquetAvroValueReaders {
   }
 
   private static class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
-    private final com.netflix.iceberg.Schema schema;
-    private final Map<com.netflix.iceberg.types.Type, Schema> avroSchemas;
+    private final org.apache.iceberg.Schema schema;
+    private final Map<org.apache.iceberg.types.Type, Schema> avroSchemas;
     private final MessageType type;
 
-    ReadBuilder(com.netflix.iceberg.Schema schema, MessageType type) {
+    ReadBuilder(org.apache.iceberg.Schema schema, MessageType type) {
       this.schema = schema;
       this.avroSchemas = AvroSchemaUtil.convertTypes(schema.asStruct(), type.getName());
       this.type = type;
@@ -156,7 +156,7 @@ public class ParquetAvroValueReaders {
     }
 
     @Override
-    public ParquetValueReader<?> primitive(com.netflix.iceberg.types.Type.PrimitiveType expected,
+    public ParquetValueReader<?> primitive(org.apache.iceberg.types.Type.PrimitiveType expected,
                                            PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
 

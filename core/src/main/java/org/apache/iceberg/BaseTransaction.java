@@ -17,28 +17,28 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import com.netflix.iceberg.encryption.EncryptionManager;
-import com.netflix.iceberg.exceptions.CommitFailedException;
-import com.netflix.iceberg.io.FileIO;
-import com.netflix.iceberg.io.LocationProvider;
-import com.netflix.iceberg.util.Tasks;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.util.Tasks;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static com.netflix.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
-import static com.netflix.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
-import static com.netflix.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
-import static com.netflix.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
-import static com.netflix.iceberg.TableProperties.COMMIT_NUM_RETRIES;
-import static com.netflix.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
-import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
-import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 class BaseTransaction implements Transaction {
   private enum TransactionType {

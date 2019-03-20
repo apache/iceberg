@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package com.netflix.iceberg.avro;
+package org.apache.iceberg.avro;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
@@ -32,15 +32,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static com.netflix.iceberg.avro.AvroSchemaUtil.convert;
-import static com.netflix.iceberg.avro.AvroSchemaUtil.copyField;
-import static com.netflix.iceberg.avro.AvroSchemaUtil.copyRecord;
-import static com.netflix.iceberg.avro.AvroSchemaUtil.fromOption;
-import static com.netflix.iceberg.avro.AvroSchemaUtil.fromOptions;
-import static com.netflix.iceberg.avro.AvroSchemaUtil.getFieldId;
-import static com.netflix.iceberg.avro.AvroSchemaUtil.isKeyValueSchema;
-import static com.netflix.iceberg.avro.AvroSchemaUtil.isOptionSchema;
-import static com.netflix.iceberg.avro.AvroSchemaUtil.toOption;
+import static org.apache.iceberg.avro.AvroSchemaUtil.convert;
+import static org.apache.iceberg.avro.AvroSchemaUtil.copyField;
+import static org.apache.iceberg.avro.AvroSchemaUtil.copyRecord;
+import static org.apache.iceberg.avro.AvroSchemaUtil.fromOption;
+import static org.apache.iceberg.avro.AvroSchemaUtil.fromOptions;
+import static org.apache.iceberg.avro.AvroSchemaUtil.getFieldId;
+import static org.apache.iceberg.avro.AvroSchemaUtil.isKeyValueSchema;
+import static org.apache.iceberg.avro.AvroSchemaUtil.isOptionSchema;
+import static org.apache.iceberg.avro.AvroSchemaUtil.toOption;
 
 /**
  * Renames and aliases fields in an Avro schema based on the current table schema.
@@ -54,7 +54,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
   private final Map<String, String> renames;
   private Type current = null;
 
-  BuildAvroProjection(com.netflix.iceberg.Schema expectedSchema, Map<String, String> renames) {
+  BuildAvroProjection(org.apache.iceberg.Schema expectedSchema, Map<String, String> renames) {
     this.renames = renames;
     this.current = expectedSchema.asStruct();
   }

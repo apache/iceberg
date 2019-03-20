@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.orc;
+package org.apache.iceberg.orc;
 
 import org.apache.orc.TypeDescription;
 

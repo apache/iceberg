@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.collect.ImmutableList;
-import com.netflix.iceberg.util.Pair;
+import org.apache.iceberg.util.Pair;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static com.netflix.iceberg.ScanSummary.timestampRange;
-import static com.netflix.iceberg.ScanSummary.toMillis;
-import static com.netflix.iceberg.expressions.Expressions.equal;
-import static com.netflix.iceberg.expressions.Expressions.greaterThan;
-import static com.netflix.iceberg.expressions.Expressions.greaterThanOrEqual;
-import static com.netflix.iceberg.expressions.Expressions.lessThan;
-import static com.netflix.iceberg.expressions.Expressions.lessThanOrEqual;
+import static org.apache.iceberg.ScanSummary.timestampRange;
+import static org.apache.iceberg.ScanSummary.toMillis;
+import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.greaterThan;
+import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 
 public class TestScanSummary {
   @Test

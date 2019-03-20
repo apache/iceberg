@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.collect.ImmutableMap;
-import com.netflix.iceberg.ManifestEntry.Status;
-import com.netflix.iceberg.exceptions.ValidationException;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -32,11 +32,11 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-import static com.netflix.iceberg.expressions.Expressions.and;
-import static com.netflix.iceberg.expressions.Expressions.equal;
-import static com.netflix.iceberg.expressions.Expressions.lessThan;
-import static com.netflix.iceberg.types.Types.NestedField.optional;
-import static com.netflix.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestOverwrite extends TableTestBase {
   private static final Schema DATE_SCHEMA = new Schema(

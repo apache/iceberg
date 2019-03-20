@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark.data;
+package org.apache.iceberg.spark.data;
 
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.orc.storage.serde2.io.DateWritable;
@@ -56,7 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import static com.netflix.iceberg.spark.SparkSchemaUtil.convert;
+import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
 import static scala.collection.JavaConverters.mapAsJavaMapConverter;
 import static scala.collection.JavaConverters.seqAsJavaListConverter;
 

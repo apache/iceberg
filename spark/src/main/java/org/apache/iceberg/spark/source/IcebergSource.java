@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark.source;
+package org.apache.iceberg.spark.source;
 
 import com.google.common.base.Preconditions;
-import com.netflix.iceberg.ConfigProperties;
-import com.netflix.iceberg.FileFormat;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.Table;
-import com.netflix.iceberg.hadoop.HadoopTables;
-import com.netflix.iceberg.spark.SparkSchemaUtil;
-import com.netflix.iceberg.types.CheckCompatibility;
+import org.apache.iceberg.ConfigProperties;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.types.CheckCompatibility;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
@@ -43,8 +43,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
-import static com.netflix.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
-import static com.netflix.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 
 public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, DataSourceRegister {
 

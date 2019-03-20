@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package com.netflix.iceberg.hadoop;
+package org.apache.iceberg.hadoop;
 
 import com.google.common.base.Preconditions;
-import com.netflix.iceberg.LocationProviders;
-import com.netflix.iceberg.io.FileIO;
-import com.netflix.iceberg.TableMetadata;
-import com.netflix.iceberg.TableMetadataParser;
-import com.netflix.iceberg.TableOperations;
-import com.netflix.iceberg.TableProperties;
-import com.netflix.iceberg.exceptions.CommitFailedException;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.exceptions.ValidationException;
-import com.netflix.iceberg.io.LocationProvider;
+import org.apache.iceberg.LocationProviders;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
+import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.LocationProvider;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
@@ -42,7 +42,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
-import static com.netflix.iceberg.TableMetadataParser.getFileExtension;
+import static org.apache.iceberg.TableMetadataParser.getFileExtension;
 
 /**
  * TableOperations implementation for file systems that support atomic rename.

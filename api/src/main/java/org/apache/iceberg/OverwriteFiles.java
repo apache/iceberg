@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
-import com.netflix.iceberg.exceptions.ValidationException;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.expressions.Projections;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Projections;
 
 /**
  * API for overwriting files in a table by filter expression.

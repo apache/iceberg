@@ -17,29 +17,29 @@
  * under the License.
  */
 
-package com.netflix.iceberg.transforms;
+package org.apache.iceberg.transforms;
 
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.TestHelpers.Row;
-import com.netflix.iceberg.exceptions.ValidationException;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.expressions.ResidualEvaluator;
-import com.netflix.iceberg.expressions.UnboundPredicate;
-import com.netflix.iceberg.PartitionSpec;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.TestHelpers.Row;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ResidualEvaluator;
+import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static com.netflix.iceberg.TestHelpers.assertAndUnwrapUnbound;
-import static com.netflix.iceberg.expressions.Expression.Operation.GT;
-import static com.netflix.iceberg.expressions.Expression.Operation.LT;
-import static com.netflix.iceberg.expressions.Expressions.alwaysFalse;
-import static com.netflix.iceberg.expressions.Expressions.alwaysTrue;
-import static com.netflix.iceberg.expressions.Expressions.and;
-import static com.netflix.iceberg.expressions.Expressions.equal;
-import static com.netflix.iceberg.expressions.Expressions.greaterThan;
-import static com.netflix.iceberg.expressions.Expressions.lessThan;
-import static com.netflix.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.TestHelpers.assertAndUnwrapUnbound;
+import static org.apache.iceberg.expressions.Expression.Operation.GT;
+import static org.apache.iceberg.expressions.Expression.Operation.LT;
+import static org.apache.iceberg.expressions.Expressions.alwaysFalse;
+import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
+import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.greaterThan;
+import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.expressions.Expressions.or;
 
 public class TestResiduals {
   @Test

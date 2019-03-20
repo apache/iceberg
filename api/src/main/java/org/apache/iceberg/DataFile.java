@@ -17,22 +17,22 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
-import com.netflix.iceberg.encryption.EncryptionKeyMetadata;
-import com.netflix.iceberg.types.Types.BinaryType;
-import com.netflix.iceberg.types.Types.IntegerType;
-import com.netflix.iceberg.types.Types.ListType;
-import com.netflix.iceberg.types.Types.LongType;
-import com.netflix.iceberg.types.Types.MapType;
-import com.netflix.iceberg.types.Types.StringType;
-import com.netflix.iceberg.types.Types.StructType;
+import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.types.Types.BinaryType;
+import org.apache.iceberg.types.Types.IntegerType;
+import org.apache.iceberg.types.Types.ListType;
+import org.apache.iceberg.types.Types.LongType;
+import org.apache.iceberg.types.Types.MapType;
+import org.apache.iceberg.types.Types.StringType;
+import org.apache.iceberg.types.Types.StructType;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 
-import static com.netflix.iceberg.types.Types.NestedField.optional;
-import static com.netflix.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 /**
  * Interface for files listed in a table manifest.

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
 import com.google.common.base.Preconditions;
 import org.apache.parquet.CorruptDeltaByteArrays;

@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
 import com.google.common.collect.ImmutableMap;
-import com.netflix.iceberg.Metrics;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.common.DynConstructors;
-import com.netflix.iceberg.common.DynMethods;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.io.FileAppender;
-import com.netflix.iceberg.io.OutputFile;
+import org.apache.iceberg.Metrics;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.parquet.bytes.ByteBufferAllocator;
 import org.apache.parquet.column.ColumnWriteStore;
@@ -41,7 +41,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.function.Function;
 
-import static com.netflix.iceberg.parquet.ParquetSchemaUtil.convert;
+import static org.apache.iceberg.parquet.ParquetSchemaUtil.convert;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static org.apache.parquet.column.ParquetProperties.WriterVersion.PARQUET_1_0;

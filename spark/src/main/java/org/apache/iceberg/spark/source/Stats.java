@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark.source;
+package org.apache.iceberg.spark.source;
 
 import org.apache.spark.sql.sources.v2.reader.Statistics;
 import java.util.OptionalLong;

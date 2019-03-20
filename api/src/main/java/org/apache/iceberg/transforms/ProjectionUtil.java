@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package com.netflix.iceberg.transforms;
+package org.apache.iceberg.transforms;
 
-import com.netflix.iceberg.expressions.BoundPredicate;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.UnboundPredicate;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 
-import static com.netflix.iceberg.expressions.Expressions.predicate;
+import static org.apache.iceberg.expressions.Expressions.predicate;
 
 class ProjectionUtil {
   static <T> UnboundPredicate<T> truncateInteger(

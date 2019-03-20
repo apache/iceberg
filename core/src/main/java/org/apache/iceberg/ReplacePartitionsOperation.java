@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
-import com.netflix.iceberg.exceptions.ValidationException;
-import com.netflix.iceberg.expressions.Expressions;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expressions;
 import java.util.List;
 
 public class ReplacePartitionsOperation extends MergingSnapshotUpdate implements ReplacePartitions {

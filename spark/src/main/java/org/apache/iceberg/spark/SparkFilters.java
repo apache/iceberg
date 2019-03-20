@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark;
+package org.apache.iceberg.spark;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.expressions.Binder;
-import com.netflix.iceberg.expressions.BoundReference;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.expressions.Expression.Operation;
-import com.netflix.iceberg.expressions.ExpressionVisitors;
-import com.netflix.iceberg.expressions.Literal;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.Binder;
+import org.apache.iceberg.expressions.BoundReference;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expression.Operation;
+import org.apache.iceberg.expressions.ExpressionVisitors;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.catalyst.expressions.And$;
 import org.apache.spark.sql.catalyst.expressions.Not$;
@@ -51,18 +51,18 @@ import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.Map;
 
-import static com.netflix.iceberg.expressions.ExpressionVisitors.visit;
-import static com.netflix.iceberg.expressions.Expressions.alwaysFalse;
-import static com.netflix.iceberg.expressions.Expressions.and;
-import static com.netflix.iceberg.expressions.Expressions.equal;
-import static com.netflix.iceberg.expressions.Expressions.greaterThan;
-import static com.netflix.iceberg.expressions.Expressions.greaterThanOrEqual;
-import static com.netflix.iceberg.expressions.Expressions.isNull;
-import static com.netflix.iceberg.expressions.Expressions.lessThan;
-import static com.netflix.iceberg.expressions.Expressions.lessThanOrEqual;
-import static com.netflix.iceberg.expressions.Expressions.not;
-import static com.netflix.iceberg.expressions.Expressions.notNull;
-import static com.netflix.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.ExpressionVisitors.visit;
+import static org.apache.iceberg.expressions.Expressions.alwaysFalse;
+import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.greaterThan;
+import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.isNull;
+import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notNull;
+import static org.apache.iceberg.expressions.Expressions.or;
 
 public class SparkFilters {
   private SparkFilters() {

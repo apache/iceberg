@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.types.Type.NestedType;
-import com.netflix.iceberg.types.Type.PrimitiveType;
-import com.netflix.iceberg.types.TypeUtil;
-import com.netflix.iceberg.types.Types.DecimalType;
-import com.netflix.iceberg.types.Types.FixedType;
-import com.netflix.iceberg.types.Types.ListType;
-import com.netflix.iceberg.types.Types.MapType;
-import com.netflix.iceberg.types.Types.NestedField;
-import com.netflix.iceberg.types.Types.StructType;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Type.NestedType;
+import org.apache.iceberg.types.Type.PrimitiveType;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types.DecimalType;
+import org.apache.iceberg.types.Types.FixedType;
+import org.apache.iceberg.types.Types.ListType;
+import org.apache.iceberg.types.Types.MapType;
+import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;

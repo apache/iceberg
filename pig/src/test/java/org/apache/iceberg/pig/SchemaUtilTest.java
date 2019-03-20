@@ -17,28 +17,28 @@
  * under the License.
  */
 
-package com.netflix.iceberg.pig;
+package org.apache.iceberg.pig;
 
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.types.Types.BinaryType;
-import com.netflix.iceberg.types.Types.BooleanType;
-import com.netflix.iceberg.types.Types.DecimalType;
-import com.netflix.iceberg.types.Types.DoubleType;
-import com.netflix.iceberg.types.Types.FloatType;
-import com.netflix.iceberg.types.Types.IntegerType;
-import com.netflix.iceberg.types.Types.ListType;
-import com.netflix.iceberg.types.Types.LongType;
-import com.netflix.iceberg.types.Types.MapType;
-import com.netflix.iceberg.types.Types.StringType;
-import com.netflix.iceberg.types.Types.StructType;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Types.BinaryType;
+import org.apache.iceberg.types.Types.BooleanType;
+import org.apache.iceberg.types.Types.DecimalType;
+import org.apache.iceberg.types.Types.DoubleType;
+import org.apache.iceberg.types.Types.FloatType;
+import org.apache.iceberg.types.Types.IntegerType;
+import org.apache.iceberg.types.Types.ListType;
+import org.apache.iceberg.types.Types.LongType;
+import org.apache.iceberg.types.Types.MapType;
+import org.apache.iceberg.types.Types.StringType;
+import org.apache.iceberg.types.Types.StructType;
 import org.apache.pig.ResourceSchema;
 import org.apache.pig.impl.logicalLayer.FrontendException;
 import org.junit.Test;
 
 import java.io.IOException;
 
-import static com.netflix.iceberg.types.Types.NestedField.optional;
-import static com.netflix.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.junit.Assert.*;
 
 public class SchemaUtilTest {

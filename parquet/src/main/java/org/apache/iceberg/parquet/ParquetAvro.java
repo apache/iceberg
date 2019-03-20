@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.avro.AvroSchemaVisitor;
-import com.netflix.iceberg.avro.UUIDConversion;
-import com.netflix.iceberg.types.TypeUtil;
+import org.apache.iceberg.avro.AvroSchemaVisitor;
+import org.apache.iceberg.avro.UUIDConversion;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.avro.Conversion;
 import org.apache.avro.Conversions;
 import org.apache.avro.LogicalType;

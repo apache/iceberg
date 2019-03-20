@@ -17,38 +17,38 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark.source;
+package org.apache.iceberg.spark.source;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.CombinedScanTask;
-import com.netflix.iceberg.DataFile;
-import com.netflix.iceberg.encryption.EncryptedFiles;
-import com.netflix.iceberg.encryption.EncryptionManager;
-import com.netflix.iceberg.io.FileIO;
-import com.netflix.iceberg.FileScanTask;
-import com.netflix.iceberg.PartitionField;
-import com.netflix.iceberg.PartitionSpec;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.SchemaParser;
-import com.netflix.iceberg.StructLike;
-import com.netflix.iceberg.Table;
-import com.netflix.iceberg.TableScan;
-import com.netflix.iceberg.avro.Avro;
-import com.netflix.iceberg.common.DynMethods;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.io.CloseableIterable;
-import com.netflix.iceberg.io.InputFile;
-import com.netflix.iceberg.parquet.Parquet;
-import com.netflix.iceberg.spark.SparkFilters;
-import com.netflix.iceberg.spark.SparkSchemaUtil;
-import com.netflix.iceberg.spark.data.SparkAvroReader;
-import com.netflix.iceberg.spark.data.SparkParquetReaders;
-import com.netflix.iceberg.types.TypeUtil;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.encryption.EncryptedFiles;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableScan;
+import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.spark.SparkFilters;
+import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.data.SparkAvroReader;
+import org.apache.iceberg.spark.data.SparkParquetReaders;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Attribute;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
@@ -84,8 +84,8 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static com.google.common.collect.Iterators.transform;
-import static com.netflix.iceberg.spark.SparkSchemaUtil.convert;
-import static com.netflix.iceberg.spark.SparkSchemaUtil.prune;
+import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
+import static org.apache.iceberg.spark.SparkSchemaUtil.prune;
 import static scala.collection.JavaConverters.asScalaBufferConverter;
 import static scala.collection.JavaConverters.seqAsJavaListConverter;
 

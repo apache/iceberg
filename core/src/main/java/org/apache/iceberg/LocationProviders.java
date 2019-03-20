@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
-import com.netflix.iceberg.io.LocationProvider;
-import com.netflix.iceberg.transforms.Transform;
-import com.netflix.iceberg.transforms.Transforms;
-import com.netflix.iceberg.types.Types;
-import com.netflix.iceberg.util.PropertyUtil;
+import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.hadoop.fs.Path;
 import java.util.Map;
 
-import static com.netflix.iceberg.TableProperties.OBJECT_STORE_PATH;
+import static org.apache.iceberg.TableProperties.OBJECT_STORE_PATH;
 
 public class LocationProviders {
 

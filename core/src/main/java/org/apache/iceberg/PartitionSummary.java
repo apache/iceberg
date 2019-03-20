@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.ManifestFile.PartitionFieldSummary;
-import com.netflix.iceberg.types.Comparators;
-import com.netflix.iceberg.types.Conversions;
-import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
+import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;

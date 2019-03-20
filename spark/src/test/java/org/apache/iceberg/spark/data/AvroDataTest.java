@@ -17,22 +17,22 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark.data;
+package org.apache.iceberg.spark.data;
 
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.types.Types;
-import com.netflix.iceberg.types.Types.ListType;
-import com.netflix.iceberg.types.Types.LongType;
-import com.netflix.iceberg.types.Types.MapType;
-import com.netflix.iceberg.types.Types.StructType;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.ListType;
+import org.apache.iceberg.types.Types.LongType;
+import org.apache.iceberg.types.Types.MapType;
+import org.apache.iceberg.types.Types.StructType;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.IOException;
 
-import static com.netflix.iceberg.types.Types.NestedField.optional;
-import static com.netflix.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public abstract class AvroDataTest {
 

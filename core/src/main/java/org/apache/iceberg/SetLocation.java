@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
-import com.netflix.iceberg.exceptions.CommitFailedException;
-import com.netflix.iceberg.util.Tasks;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.util.Tasks;
 
-import static com.netflix.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
-import static com.netflix.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
-import static com.netflix.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
-import static com.netflix.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
-import static com.netflix.iceberg.TableProperties.COMMIT_NUM_RETRIES;
-import static com.netflix.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
-import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
-import static com.netflix.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 public class SetLocation implements UpdateLocation {
   private final TableOperations ops;

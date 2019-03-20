@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expression;
 import java.util.Collection;
 
 /**

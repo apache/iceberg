@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
 import java.util.List;
-import static com.netflix.iceberg.BaseFileScanTask.SplitScanTaskIterator;
+import static org.apache.iceberg.BaseFileScanTask.SplitScanTaskIterator;
 
 public class TestSplitScanTaskIterator {
   @Test

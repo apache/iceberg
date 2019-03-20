@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package com.netflix.iceberg.avro;
+package org.apache.iceberg.avro;
 
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
@@ -29,14 +29,14 @@ import org.junit.Assert;
 import org.junit.Test;
 import java.util.List;
 
-import static com.netflix.iceberg.avro.AvroTestHelpers.addElementId;
-import static com.netflix.iceberg.avro.AvroTestHelpers.addKeyId;
-import static com.netflix.iceberg.avro.AvroTestHelpers.addValueId;
-import static com.netflix.iceberg.avro.AvroTestHelpers.optionalField;
-import static com.netflix.iceberg.avro.AvroTestHelpers.record;
-import static com.netflix.iceberg.avro.AvroTestHelpers.requiredField;
-import static com.netflix.iceberg.types.Types.NestedField.optional;
-import static com.netflix.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.avro.AvroTestHelpers.addElementId;
+import static org.apache.iceberg.avro.AvroTestHelpers.addKeyId;
+import static org.apache.iceberg.avro.AvroTestHelpers.addValueId;
+import static org.apache.iceberg.avro.AvroTestHelpers.optionalField;
+import static org.apache.iceberg.avro.AvroTestHelpers.record;
+import static org.apache.iceberg.avro.AvroTestHelpers.requiredField;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestSchemaConversions {
   @Test
@@ -227,7 +227,7 @@ public class TestSchemaConversions {
 
   @Test
   public void testComplexSchema() {
-    com.netflix.iceberg.Schema schema = new com.netflix.iceberg.Schema(
+    org.apache.iceberg.Schema schema = new org.apache.iceberg.Schema(
         required(1, "id", Types.IntegerType.get()),
         optional(2, "data", Types.StringType.get()),
         optional(

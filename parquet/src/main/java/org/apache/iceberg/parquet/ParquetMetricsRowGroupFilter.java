@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package com.netflix.iceberg.parquet;
+package org.apache.iceberg.parquet;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.expressions.Binder;
-import com.netflix.iceberg.expressions.BoundReference;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.expressions.ExpressionVisitors;
-import com.netflix.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
-import com.netflix.iceberg.expressions.Literal;
-import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.Types;
-import com.netflix.iceberg.types.Types.StructType;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.Binder;
+import org.apache.iceberg.expressions.BoundReference;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionVisitors;
+import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
@@ -39,8 +39,8 @@ import org.apache.parquet.schema.PrimitiveType;
 import java.util.Map;
 import java.util.function.Function;
 
-import static com.netflix.iceberg.expressions.Expressions.rewriteNot;
-import static com.netflix.iceberg.parquet.ParquetConversions.converterFromParquet;
+import static org.apache.iceberg.expressions.Expressions.rewriteNot;
+import static org.apache.iceberg.parquet.ParquetConversions.converterFromParquet;
 
 public class ParquetMetricsRowGroupFilter {
   private final Schema schema;

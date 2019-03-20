@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package com.netflix.iceberg.avro;
+package org.apache.iceberg.avro;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.netflix.iceberg.types.Type;
-import com.netflix.iceberg.types.TypeUtil;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import java.util.List;
 import java.util.Map;
 
-import static com.netflix.iceberg.avro.AvroSchemaUtil.toOption;
+import static org.apache.iceberg.avro.AvroSchemaUtil.toOption;
 import static org.apache.avro.JsonProperties.NULL_VALUE;
 
 class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
@@ -68,7 +68,7 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   }
 
   @Override
-  public Schema schema(com.netflix.iceberg.Schema schema, Schema structSchema) {
+  public Schema schema(org.apache.iceberg.Schema schema, Schema structSchema) {
     return structSchema;
   }
 

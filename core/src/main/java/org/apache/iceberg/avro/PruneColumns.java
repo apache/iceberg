@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg.avro;
+package org.apache.iceberg.avro;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -27,10 +27,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static com.netflix.iceberg.avro.AvroSchemaUtil.getElementId;
-import static com.netflix.iceberg.avro.AvroSchemaUtil.getFieldId;
-import static com.netflix.iceberg.avro.AvroSchemaUtil.getKeyId;
-import static com.netflix.iceberg.avro.AvroSchemaUtil.getValueId;
+import static org.apache.iceberg.avro.AvroSchemaUtil.getElementId;
+import static org.apache.iceberg.avro.AvroSchemaUtil.getFieldId;
+import static org.apache.iceberg.avro.AvroSchemaUtil.getKeyId;
+import static org.apache.iceberg.avro.AvroSchemaUtil.getValueId;
 
 class PruneColumns extends AvroSchemaVisitor<Schema> {
   private final Set<Integer> selectedIds;

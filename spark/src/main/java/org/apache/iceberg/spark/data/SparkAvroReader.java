@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark.data;
+package org.apache.iceberg.spark.data;
 
 import com.google.common.collect.MapMaker;
-import com.netflix.iceberg.avro.AvroSchemaVisitor;
-import com.netflix.iceberg.avro.ValueReader;
-import com.netflix.iceberg.avro.ValueReaders;
-import com.netflix.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.avro.AvroSchemaVisitor;
+import org.apache.iceberg.avro.ValueReader;
+import org.apache.iceberg.avro.ValueReaders;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;

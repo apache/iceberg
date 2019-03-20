@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package com.netflix.iceberg.spark.data;
+package org.apache.iceberg.spark.data;
 
-import com.netflix.iceberg.Files;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.io.CloseableIterable;
-import com.netflix.iceberg.io.FileAppender;
-import com.netflix.iceberg.parquet.Parquet;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.Files;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -34,8 +34,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
 
-import static com.netflix.iceberg.types.Types.NestedField.optional;
-import static com.netflix.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestSparkParquetWriter {
   @Rule

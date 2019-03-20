@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.netflix.iceberg;
+package org.apache.iceberg;
 
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
@@ -28,18 +28,18 @@ import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
-import com.netflix.iceberg.TableMetadata.SnapshotLogEntry;
-import com.netflix.iceberg.events.Listeners;
-import com.netflix.iceberg.events.ScanEvent;
-import com.netflix.iceberg.expressions.Binder;
-import com.netflix.iceberg.expressions.Expression;
-import com.netflix.iceberg.expressions.Expressions;
-import com.netflix.iceberg.expressions.InclusiveManifestEvaluator;
-import com.netflix.iceberg.expressions.ResidualEvaluator;
-import com.netflix.iceberg.io.CloseableIterable;
-import com.netflix.iceberg.types.TypeUtil;
-import com.netflix.iceberg.util.BinPacking;
-import com.netflix.iceberg.util.ParallelIterable;
+import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
+import org.apache.iceberg.events.Listeners;
+import org.apache.iceberg.events.ScanEvent;
+import org.apache.iceberg.expressions.Binder;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.InclusiveManifestEvaluator;
+import org.apache.iceberg.expressions.ResidualEvaluator;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.BinPacking;
+import org.apache.iceberg.util.ParallelIterable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.io.Closeable;
@@ -52,7 +52,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Function;
 
-import static com.netflix.iceberg.util.ThreadPools.getWorkerPool;
+import static org.apache.iceberg.util.ThreadPools.getWorkerPool;
 
 /**
  * Base class for {@link TableScan} implementations.

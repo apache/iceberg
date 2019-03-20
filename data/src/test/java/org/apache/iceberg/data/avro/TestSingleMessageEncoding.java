@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package com.netflix.iceberg.data.avro;
+package org.apache.iceberg.data.avro;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.avro.AvroSchemaUtil;
-import com.netflix.iceberg.data.GenericRecord;
-import com.netflix.iceberg.data.Record;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.types.Types;
 import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.message.BadHeaderException;
 import org.apache.avro.message.MessageDecoder;
@@ -41,8 +41,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
-import static com.netflix.iceberg.types.Types.NestedField.optional;
-import static com.netflix.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestSingleMessageEncoding {
   private static final Schema SCHEMA_V1 = new Schema(
