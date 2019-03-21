@@ -152,6 +152,11 @@ project(':iceberg-data') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
   }
+
+  test {
+    // Only for TestSplitScan as of Gradle 5.0+
+    maxHeapSize '1500m'
+  }
 }
 
 project(':iceberg-hive') {
