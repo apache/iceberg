@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.expressions;
 
+import java.util.Collection;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
@@ -205,13 +206,25 @@ public class Projections {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Expression predicate(BoundPredicate<T> pred) {
-      PartitionField part = spec().getFieldBySourceId(pred.ref().fieldId());
-      if (part == null) {
+      Collection<PartitionField> parts = spec().getFieldsBySourceId(pred.ref().fieldId());
+      if (parts == null) {
         // the predicate has no partition column
         return alwaysTrue();
       }
 
-      UnboundPredicate<?> result = ((Transform<T, ?>) part.transform()).project(part.name(), pred);
+      Expression result = Expressions.alwaysTrue();
+      for (PartitionField part : parts) {
+        // consider (d = 2019-01-01) with bucket(7, d) and bucket(5, d)
+        // projections: b1 = bucket(7, '2019-01-01') = 5, b2 = bucket(5, '2019-01-01') = 0
+        // any value where b1 != 5 or any value where b2 != 0 cannot be the '2019-01-01'
+        //
+        // similarly, if partitioning by date(ts) and date_hour(ts), the more restrictive
+        // projection should be used. ts = 2019-01-01T01:00:00 produces date=2019-01-01 and
+        // hour=2019-01-01-01. the value can will be in 2019-01-01-01 and not in 2019-01-01-02.
+        result = Expressions.and(
+            result,
+            ((Transform<T, ?>) part.transform()).project(part.name(), pred));
+      }
 
       if (result != null) {
         return result;
@@ -230,14 +243,23 @@ public class Projections {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Expression predicate(BoundPredicate<T> pred) {
-      PartitionField part = spec().getFieldBySourceId(pred.ref().fieldId());
-      if (part == null) {
+      Collection<PartitionField> parts = spec().getFieldsBySourceId(pred.ref().fieldId());
+      if (parts == null) {
         // the predicate has no partition column
         return alwaysFalse();
       }
 
-      UnboundPredicate<?> result = ((Transform<T, ?>) part.transform())
-          .projectStrict(part.name(), pred);
+      Expression result = Expressions.alwaysFalse();
+      for (PartitionField part : parts) {
+        // consider (ts > 2019-01-01T01:00:00) with date(ts) and hour(ts)
+        // projections: d >= 2019-01-02 and h >= 2019-01-01-02 (note the inclusive bounds).
+        // any timestamp where either projection predicate is true must match the original
+        // predicate. For example, ts = 2019-01-01T03:00:00 matches the hour projection but not
+        // the day, but does match the original predicate.
+        result = Expressions.or(
+            result,
+            ((Transform<T, ?>) part.transform()).projectStrict(part.name(), pred));
+      }
 
       if (result != null) {
         return result;
