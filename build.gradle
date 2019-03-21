@@ -152,6 +152,10 @@ project(':iceberg-data') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
   }
+  test {
+    // For testSplitScan test - requires more heap or else it hits an OutOfMemoryError
+    maxHeapSize '1500m'
+  }
 }
 
 project(':iceberg-hive') {
