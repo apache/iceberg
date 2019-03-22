@@ -36,7 +36,7 @@ if (JavaVersion.current() != JavaVersion.VERSION_1_8) {
 }
 
 allprojects {
-  group = "com.netflix.iceberg"
+  group = "org.apache.iceberg"
   apply plugin: 'idea'
   version = gitVersion()
 }
@@ -278,9 +278,9 @@ project(':iceberg-runtime') {
 
     // Relocate dependencies to avoid conflicts
     // relocate 'com.google.common', 'com.netflix.bdp.shaded.com.google.common'
-    relocate 'com.fasterxml', 'com.netflix.iceberg.shaded.com.fasterxml'
-    relocate 'org.apache.avro', 'com.netflix.iceberg.shaded.org.apache.avro'
-    relocate 'org.apache.parquet.avro', 'com.netflix.iceberg.shaded.org.apache.parquet.avro'
+    relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
+    relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
+    relocate 'org.apache.parquet.avro', 'org.apache.iceberg.shaded.org.apache.parquet.avro'
 
     archiveName = "iceberg-runtime-${version}.${extension}"
   }
@@ -344,10 +344,10 @@ project(':iceberg-presto-runtime') {
         configurations = [project.configurations.shadow]
         from(project.sourceSets.main.output)
 
-        relocate 'org.apache.avro', 'com.netflix.iceberg.shaded.org.apache.avro'
-        relocate 'org.apache.parquet.avro', 'com.netflix.iceberg.shaded.org.apache.parquet.avro'
-        relocate 'org.apache.hadoop.hive', 'com.netflix.iceberg.shaded.org.apache.hadoop.hive'
-        relocate 'org.apache.hive', 'com.netflix.iceberg.shaded.org.apache.hive'
+        relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
+        relocate 'org.apache.parquet.avro', 'org.apache.iceberg.shaded.org.apache.parquet.avro'
+        relocate 'org.apache.hadoop.hive', 'org.apache.iceberg.shaded.org.apache.hadoop.hive'
+        relocate 'org.apache.hive', 'org.apache.iceberg.shaded.org.apache.hive'
         archiveName = "iceberg-presto-runtime-${version}.${extension}"
     }
 }
