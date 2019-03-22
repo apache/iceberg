@@ -37,11 +37,6 @@ plugins {
   id 'com.palantir.git-version' version '0.9.1'
 }
 
-repositories {
-  maven { url  "http://palantir.bintray.com/releases" }
-}
-
-
 if (JavaVersion.current() != JavaVersion.VERSION_1_8) {
   throw new GradleException("This build must be run with Java 8")
 }
