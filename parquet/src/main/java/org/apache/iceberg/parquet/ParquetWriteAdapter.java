@@ -25,19 +25,19 @@ import org.apache.iceberg.Metrics;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.parquet.hadoop.ParquetWriter;
+import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 
 public class ParquetWriteAdapter<D> implements FileAppender<D> {
   private ParquetWriter<D> writer = null;
-  private long numRecords = 0L;
+  private ParquetMetadata footer = null;
 
-  public ParquetWriteAdapter(ParquetWriter<D> writer) throws IOException {
+  public ParquetWriteAdapter(ParquetWriter<D> writer) {
     this.writer = writer;
   }
 
   @Override
   public void add(D datum) {
     try {
-      numRecords += 1L;
       writer.write(datum);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to write record %s", datum);
@@ -46,7 +46,8 @@ public class ParquetWriteAdapter<D> implements FileAppender<D> {
 
   @Override
   public Metrics metrics() {
-    return new Metrics(numRecords, null, null, null);
+    Preconditions.checkState(footer != null, "Cannot produce metrics until closed");
+    return ParquetMetrics.fromMetadata(footer);
   }
 
   @Override
@@ -60,6 +61,7 @@ public class ParquetWriteAdapter<D> implements FileAppender<D> {
   public void close() throws IOException {
     if (writer != null) {
       writer.close();
+      this.footer = writer.getFooter();
       this.writer = null;
     }
   }
