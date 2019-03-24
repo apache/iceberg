@@ -115,7 +115,13 @@ public class BinPacking {
           bins.addLast(bin);
 
           if (bins.size() > lookback) {
-            return ImmutableList.copyOf((largestBinFirst ? getLargestBin() : bins.removeFirst()).items());
+            Bin binToRemove;
+            if (largestBinFirst) {
+              binToRemove = removeLargestBin(bins);
+            } else {
+              binToRemove = bins.removeFirst();
+            }
+            return ImmutableList.copyOf(binToRemove.items());
           }
         }
       }
@@ -127,7 +133,7 @@ public class BinPacking {
       return ImmutableList.copyOf(bins.removeFirst().items());
     }
 
-    private Bin getLargestBin() {
+    private Bin removeLargestBin(LinkedList<Bin> bins) {
       // Iterate through all bins looking for one with maximum weight, taking O(n) time.
       Bin maxBin = Collections.max(bins, Comparator.comparingLong(Bin::weight));
 
