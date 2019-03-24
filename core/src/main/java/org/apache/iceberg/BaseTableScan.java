@@ -147,7 +147,7 @@ class BaseTableScan implements TableScan {
                              caseSensitive, selectedColumns);
   }
 
-  private final LoadingCache<Integer, InclusiveManifestEvaluator> EVAL_CACHE = CacheBuilder
+  private final LoadingCache<Integer, InclusiveManifestEvaluator> evalCache = CacheBuilder
       .newBuilder()
       .build(new CacheLoader<Integer, InclusiveManifestEvaluator>() {
         @Override
@@ -157,7 +157,7 @@ class BaseTableScan implements TableScan {
         }
       });
 
-  private final LoadingCache<Integer, Expression> PARTITION_EXPR_CACHE = CacheBuilder
+  private final LoadingCache<Integer, Expression> partitionExprCache = CacheBuilder
       .newBuilder()
       .build(new CacheLoader<Integer, Expression>() {
         @Override
@@ -182,7 +182,7 @@ class BaseTableScan implements TableScan {
           new ScanEvent(table.toString(), snapshot.snapshotId(), rowFilter, schema()));
 
       Iterable<ManifestFile> matchingManifests = Iterables.filter(snapshot.manifests(),
-          manifest -> EVAL_CACHE.getUnchecked(manifest.partitionSpecId()).eval(manifest));
+          manifest -> evalCache.getUnchecked(manifest.partitionSpecId()).eval(manifest));
 
       ConcurrentLinkedQueue<Closeable> toClose = new ConcurrentLinkedQueue<>();
       Iterable<Iterable<FileScanTask>> readers = Iterables.transform(
@@ -198,7 +198,7 @@ class BaseTableScan implements TableScan {
             ResidualEvaluator residuals = new ResidualEvaluator(spec, rowFilter, caseSensitive);
             return Iterables.transform(
                 reader
-                    .filterPartitions(PARTITION_EXPR_CACHE.getUnchecked(manifest.partitionSpecId()))
+                    .filterPartitions(partitionExprCache.getUnchecked(manifest.partitionSpecId()))
                     .select(SNAPSHOT_COLUMNS),
                 file -> new BaseFileScanTask(file, schemaString, specString, residuals)
             );

@@ -48,7 +48,7 @@ class ManifestGroup {
   private final boolean ignoreDeleted;
   private final List<String> columns;
 
-  private final LoadingCache<Integer, InclusiveManifestEvaluator> EVAL_CACHE = CacheBuilder
+  private final LoadingCache<Integer, InclusiveManifestEvaluator> evalCache = CacheBuilder
       .newBuilder()
       .build(new CacheLoader<Integer, InclusiveManifestEvaluator>() {
         @Override
@@ -58,7 +58,7 @@ class ManifestGroup {
         }
       });
 
-  private final LoadingCache<Integer, Expression> PARTITION_EXPR_CACHE = CacheBuilder
+  private final LoadingCache<Integer, Expression> partitionExprCache = CacheBuilder
       .newBuilder()
       .build(new CacheLoader<Integer, Expression>() {
         @Override
@@ -120,7 +120,7 @@ class ManifestGroup {
     List<Closeable> toClose = Lists.newArrayList();
 
     Iterable<ManifestFile> matchingManifests = Iterables.filter(manifests,
-        manifest -> EVAL_CACHE.getUnchecked(manifest.partitionSpecId()).eval(manifest));
+        manifest -> evalCache.getUnchecked(manifest.partitionSpecId()).eval(manifest));
 
     if (ignoreDeleted) {
       // remove any manifests that don't have any existing or added files. if either the added or
@@ -135,7 +135,7 @@ class ManifestGroup {
         manifest -> {
           ManifestReader reader = ManifestReader.read(ops.io().newInputFile(manifest.path()));
           FilteredManifest filtered = reader
-              .filterPartitions(PARTITION_EXPR_CACHE.getUnchecked(manifest.partitionSpecId()))
+              .filterPartitions(partitionExprCache.getUnchecked(manifest.partitionSpecId()))
               .select(columns);
           toClose.add(reader);
           return Iterables.filter(
