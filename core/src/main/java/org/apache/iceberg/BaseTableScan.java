@@ -217,7 +217,7 @@ class BaseTableScan implements TableScan {
 
     return CloseableIterable.transform(
         CloseableIterable.wrap(splitFiles(splitSize), splits ->
-            new BinPacking.PackingIterable<>(splits, splitSize, lookback, weightFunc)),
+            new BinPacking.PackingIterable<>(splits, splitSize, lookback, weightFunc, true)),
         BaseCombinedScanTask::new);
   }
 

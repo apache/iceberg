@@ -162,6 +162,15 @@ public class TestBinPacking {
     // 6. [5, 1]
     Assert.assertEquals("1 bin look-back: should merge ones with fives",
         l(l(5, 1), l(5, 1), l(5, 1)), pack(l(5, 1, 5, 1, 5, 1), 8, 1));
+
+    Assert.assertEquals("2 bin look-back: should merge until targetWeight when largestBinFirst is enabled",
+        l(l(36, 36, 36), l(128), l(36, 65), l(65)),
+        pack(l(36, 36, 36, 36, 65, 65, 128), 128, 2, true));
+
+    Assert.assertEquals(
+        "1 bin look-back: should merge until targetWeight when largestBinFirst is enabled",
+        l(l(64, 64), l(128), l(32, 32, 32, 32)),
+        pack(l(64, 64, 128, 32, 32, 32, 32), 128, 1, true));
   }
 
   private List<List<Integer>> pack(List<Integer> items, long targetWeight) {
@@ -169,7 +178,11 @@ public class TestBinPacking {
   }
 
   private List<List<Integer>> pack(List<Integer> items, long targetWeight, int lookback) {
-    ListPacker<Integer> packer = new ListPacker<>(targetWeight, lookback);
+    return pack(items, targetWeight, lookback, false);
+  }
+
+  private List<List<Integer>> pack(List<Integer> items, long targetWeight, int lookback, boolean largestBinFirst) {
+    ListPacker<Integer> packer = new ListPacker<>(targetWeight, lookback, largestBinFirst);
     return packer.pack(items, Integer::longValue);
   }
 
@@ -178,7 +191,7 @@ public class TestBinPacking {
   }
 
   private List<List<Integer>> packEnd(List<Integer> items, long targetWeight, int lookback) {
-    ListPacker<Integer> packer = new ListPacker<>(targetWeight, lookback);
+    ListPacker<Integer> packer = new ListPacker<>(targetWeight, lookback, false);
     return packer.packEnd(items, Integer::longValue);
   }
 
