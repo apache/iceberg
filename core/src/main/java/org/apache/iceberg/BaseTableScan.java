@@ -187,8 +187,6 @@ class BaseTableScan implements TableScan {
             String specString = PartitionSpecParser.toJson(spec);
             ResidualEvaluator residuals = new ResidualEvaluator(spec, rowFilter, caseSensitive);
             return Iterables.transform(
-                // TODO: the reader needs to be passed the row filter to filter by stats, but the
-                // reader needs to use the current schema and partition spec.
                 reader.filterRows(rowFilter).select(SNAPSHOT_COLUMNS),
                 file -> new BaseFileScanTask(file, schemaString, specString, residuals)
             );
