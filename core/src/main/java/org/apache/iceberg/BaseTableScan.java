@@ -157,16 +157,6 @@ class BaseTableScan implements TableScan {
         }
       });
 
-  private final LoadingCache<Integer, Expression> partitionExprCache = CacheBuilder
-      .newBuilder()
-      .build(new CacheLoader<Integer, Expression>() {
-        @Override
-        public Expression load(Integer specId) {
-          PartitionSpec spec = ops.current().spec(specId);
-          return Projections.inclusive(spec).project(rowFilter);
-        }
-      });
-
   @Override
   public CloseableIterable<FileScanTask> planFiles() {
     Snapshot snapshot = snapshotId != null ?
