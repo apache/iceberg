@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.expressions;
 
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -67,16 +68,12 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
    * @throws ValidationException if literals do not match bound references, or if comparison on expression is invalid
    */
   public Expression bind(Types.StructType struct, boolean caseSensitive) {
-    Types.NestedField field;
-    String expressionFieldPath = ref().name();
 
-    boolean isNestedFieldExp = expressionFieldPath.indexOf('.') > -1;
-
-    field = isNestedFieldExp ? findNestedField(struct, expressionFieldPath, caseSensitive) :
-      caseSensitive ? struct.field(expressionFieldPath) : struct.caseInsensitiveField(ref().name());
+    Schema schema = new Schema(struct.fields());
+    Types.NestedField field = schema.findField(caseSensitive? ref().name(): ref().name().toLowerCase());
 
     ValidationException.check(field != null,
-        "Cannot find field '%s' in struct: %s", ref().name(), struct);
+        "Cannot find field '%s' in struct: %s", ref().name(), schema.asStruct());
 
     if (literal() == null) {
       switch (op()) {
@@ -84,12 +81,12 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
           if (field.isRequired()) {
             return Expressions.alwaysFalse();
           }
-          return new BoundPredicate<>(IS_NULL, new BoundReference<>(struct, field.fieldId()));
+          return new BoundPredicate<>(IS_NULL, new BoundReference<>(schema, field.fieldId()));
         case NOT_NULL:
           if (field.isRequired()) {
             return Expressions.alwaysTrue();
           }
-          return new BoundPredicate<>(NOT_NULL, new BoundReference<>(struct, field.fieldId()));
+          return new BoundPredicate<>(NOT_NULL, new BoundReference<>(schema, field.fieldId()));
         default:
           throw new ValidationException("Operation must be IS_NULL or NOT_NULL");
       }
@@ -132,38 +129,7 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
 //          break;
       }
     }
-    return new BoundPredicate<>(op(), new BoundReference<>(struct, field.fieldId()), lit);
+    return new BoundPredicate<>(op(), new BoundReference<>(schema, field.fieldId()), lit);
   }
 
-  private Types.NestedField findNestedField(Types.StructType struct, String expressionFieldPath,
-    boolean caseSensitive) {
-
-    String[] nestedFields = expressionFieldPath.split("\\.");
-    String lastFieldInPath = nestedFields[nestedFields.length - 1];
-
-    Types.StructType subField = struct;
-    int i=0;
-
-    Type nextFieldType = caseSensitive ? subField.field(nestedFields[i]).type() :
-      subField.caseInsensitiveField(nestedFields[i]).type();
-
-    if (!(nextFieldType instanceof Types.StructType)) {
-      // we don't handle non-struct nested fields yet
-      return null;
-    }
-
-    while(nextFieldType instanceof Types.StructType && i < nestedFields.length) {
-
-      subField = caseSensitive ? subField.field(nestedFields[i]).type().asStructType() :
-        subField.caseInsensitiveField(nestedFields[i]).type().asStructType();
-
-      i++;
-
-      nextFieldType = caseSensitive ? subField.field(nestedFields[i]).type() :
-        subField.caseInsensitiveField(nestedFields[i]).type();
-    }
-
-    return subField.field(lastFieldInPath);
-
-  }
 }
