@@ -136,9 +136,7 @@ public class TestProjection {
         "X != x when case sensitivity is on",
         ValidationException.class,
         "Cannot find field 'ID' in struct",
-        () -> {
-          Projections.inclusive(spec, true).project(Expressions.notNull("ID"));
-        });
+        () -> Projections.inclusive(spec, true).project(Expressions.notNull("ID")));
   }
 
   @Test
