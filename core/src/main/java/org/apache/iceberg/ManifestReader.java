@@ -27,6 +27,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -45,7 +46,7 @@ import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 /**
  * Reader for manifest files.
  * <p>
- * Readers are created using the builder from {@link #read(InputFile)}.
+ * Readers are created using the builder from {@link #read(InputFile, Function)}.
  */
 public class ManifestReader extends CloseableGroup implements Filterable<FilteredManifest> {
   private static final Logger LOG = LoggerFactory.getLogger(ManifestReader.class);
@@ -54,25 +55,20 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
   private static final List<String> CHANGE_COLUNNS = Lists.newArrayList(
       "file_path", "file_format", "partition", "record_count", "file_size_in_bytes");
 
-  /**
-   * Returns a new {@link ManifestReader} for an {@link InputFile}.
-   *
-   * @param file an InputFile
-   * @return a manifest reader
-   */
-  public static ManifestReader read(InputFile file) {
-    return new ManifestReader(file, true);
+  // Visible for testing
+  static ManifestReader read(InputFile file) {
+    return new ManifestReader(file, null);
   }
 
   /**
    * Returns a new {@link ManifestReader} for an {@link InputFile}.
    *
    * @param file an InputFile
-   * @param caseSensitive whether column name matching should have case sensitivity
+   * @param specLookup a function to look up the manifest's partition spec by ID
    * @return a manifest reader
    */
-  public static ManifestReader read(InputFile file, boolean caseSensitive) {
-    return new ManifestReader(file, caseSensitive);
+  public static ManifestReader read(InputFile file, Function<Integer, PartitionSpec> specLookup) {
+    return new ManifestReader(file, specLookup);
   }
 
   private final InputFile file;
@@ -85,9 +81,8 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
   private List<ManifestEntry> adds = null;
   private List<ManifestEntry> deletes = null;
 
-  private ManifestReader(InputFile file, boolean caseSensitive) {
+  private ManifestReader(InputFile file, Function<Integer, PartitionSpec> specLookup) {
     this.file = file;
-    this.caseSensitive = caseSensitive;
 
     try {
       try (AvroIterable<ManifestEntry> headerReader = Avro.read(file)
@@ -98,13 +93,22 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     }
-    this.schema = SchemaParser.fromJson(metadata.get("schema"));
+
     int specId = TableMetadata.INITIAL_SPEC_ID;
     String specProperty = metadata.get("partition-spec-id");
     if (specProperty != null) {
       specId = Integer.parseInt(specProperty);
     }
-    this.spec = PartitionSpecParser.fromJsonFields(schema, specId, metadata.get("partition-spec"));
+
+    if (specLookup != null) {
+      this.spec = specLookup.apply(specId);
+      this.schema = spec.schema();
+    } else {
+      this.schema = SchemaParser.fromJson(metadata.get("schema"));
+      this.spec = PartitionSpecParser.fromJsonFields(schema, specId, metadata.get("partition-spec"));
+    }
+
+    this.caseSensitive = true;
   }
 
   private ManifestReader(InputFile file, Map<String, String> metadata,

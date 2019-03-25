@@ -158,7 +158,9 @@ class BaseSnapshot implements Snapshot {
     // accumulate adds and deletes from all manifests.
     // because manifests can be reused in newer snapshots, filter the changes by snapshot id.
     for (String manifest : Iterables.transform(manifests(), ManifestFile::path)) {
-      try (ManifestReader reader = ManifestReader.read(ops.io().newInputFile(manifest))) {
+      try (ManifestReader reader = ManifestReader.read(
+          ops.io().newInputFile(manifest),
+          ops.current()::spec)) {
         for (ManifestEntry add : reader.addedFiles()) {
           if (add.snapshotId() == snapshotId) {
             adds.add(add.file().copy());

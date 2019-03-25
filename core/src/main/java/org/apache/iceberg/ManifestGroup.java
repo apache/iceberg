@@ -133,10 +133,10 @@ class ManifestGroup {
     Iterable<Iterable<ManifestEntry>> readers = Iterables.transform(
         matchingManifests,
         manifest -> {
-          ManifestReader reader = ManifestReader.read(ops.io().newInputFile(manifest.path()));
-          FilteredManifest filtered = reader
-              .filterPartitions(partitionExprCache.getUnchecked(manifest.partitionSpecId()))
-              .select(columns);
+          ManifestReader reader = ManifestReader.read(
+              ops.io().newInputFile(manifest.path()),
+              ops.current()::spec);
+          FilteredManifest filtered = reader.filterRows(dataFilter).select(columns);
           toClose.add(reader);
           return Iterables.filter(
               ignoreDeleted ? filtered.liveEntries() : filtered.allEntries(),

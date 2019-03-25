@@ -188,18 +188,18 @@ class BaseTableScan implements TableScan {
       Iterable<Iterable<FileScanTask>> readers = Iterables.transform(
           matchingManifests,
           manifest -> {
-            ManifestReader reader = ManifestReader
-                .read(ops.io().newInputFile(manifest.path()))
-                .caseSensitive(caseSensitive);
+              ManifestReader reader = ManifestReader
+                  .read(ops.io().newInputFile(manifest.path()), ops.current()::spec)
+                  .caseSensitive(caseSensitive);
             PartitionSpec spec = ops.current().spec(manifest.partitionSpecId());
             toClose.add(reader);
             String schemaString = SchemaParser.toJson(spec.schema());
             String specString = PartitionSpecParser.toJson(spec);
             ResidualEvaluator residuals = new ResidualEvaluator(spec, rowFilter, caseSensitive);
             return Iterables.transform(
-                reader
-                    .filterPartitions(partitionExprCache.getUnchecked(manifest.partitionSpecId()))
-                    .select(SNAPSHOT_COLUMNS),
+                // TODO: the reader needs to be passed the row filter to filter by stats, but the
+                // reader needs to use the current schema and partition spec.
+                reader.filterRows(rowFilter).select(SNAPSHOT_COLUMNS),
                 file -> new BaseFileScanTask(file, schemaString, specString, residuals)
             );
           });
