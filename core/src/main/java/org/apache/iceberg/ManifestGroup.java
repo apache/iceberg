@@ -58,16 +58,6 @@ class ManifestGroup {
         }
       });
 
-  private final LoadingCache<Integer, Expression> partitionExprCache = CacheBuilder
-      .newBuilder()
-      .build(new CacheLoader<Integer, Expression>() {
-        @Override
-        public Expression load(Integer specId) {
-          PartitionSpec spec = ops.current().spec(specId);
-          return Projections.inclusive(spec).project(dataFilter);
-        }
-      });
-
   ManifestGroup(TableOperations ops, Iterable<ManifestFile> manifests) {
     this(ops, Sets.newHashSet(manifests), Expressions.alwaysTrue(), Expressions.alwaysTrue(),
         false, ImmutableList.of("*"));
