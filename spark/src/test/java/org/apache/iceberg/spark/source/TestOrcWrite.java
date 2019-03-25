@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-package com.netflix.iceberg.spark.source;
+package org.apache.iceberg.spark.source;
 
 import com.google.common.collect.Lists;
-import com.netflix.iceberg.FileFormat;
-import com.netflix.iceberg.PartitionSpec;
-import com.netflix.iceberg.Schema;
-import com.netflix.iceberg.Table;
-import com.netflix.iceberg.hadoop.HadoopTables;
-import com.netflix.iceberg.types.Types;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.types.Types;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.orc.CompressionKind;
 import org.apache.orc.OrcConf;
@@ -41,7 +41,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 
-import static com.netflix.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TestOrcWrite {
   private static final Configuration CONF = new Configuration();
