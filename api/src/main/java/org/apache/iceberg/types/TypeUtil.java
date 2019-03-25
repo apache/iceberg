@@ -380,13 +380,13 @@ public class TypeUtil {
 
   static int decimalMaxPrecision(int numBytes) {
     Preconditions.checkArgument(numBytes >= 0 && numBytes < 24,
-        "Unsupported decimal length: %d", numBytes);
+        "Unsupported decimal length: %s", numBytes);
     return MAX_PRECISION[numBytes];
   }
 
   public static int decimalRequriedBytes(int precision) {
     Preconditions.checkArgument(precision >= 0 && precision < 40,
-        "Unsupported decimal precision: %d", precision);
+        "Unsupported decimal precision: %s", precision);
     return REQUIRED_LENGTH[precision];
   }
 

@@ -60,10 +60,10 @@ public class TestIdentity {
     Transform<Integer, Integer> identity = Transforms.identity(date);
 
     String dateString = "2017-12-01";
-    Literal<Integer> dateIntLit = Literal.of(dateString).to(date);
+    Literal<Integer> dateLit = Literal.of(dateString).to(date);
 
     Assert.assertEquals("Should produce identical date",
-        dateString, identity.toHumanString(dateIntLit.value()));
+        dateString, identity.toHumanString(dateLit.value()));
   }
 
   @Test
@@ -72,10 +72,10 @@ public class TestIdentity {
     Transform<Long, Long> identity = Transforms.identity(time);
 
     String timeString = "10:12:55.038194";
-    Literal<Long> timeLongLit = Literal.of(timeString).to(time);
+    Literal<Long> timeLit = Literal.of(timeString).to(time);
 
     Assert.assertEquals("Should produce identical time",
-        timeString, identity.toHumanString(timeLongLit.value()));
+        timeString, identity.toHumanString(timeLit.value()));
   }
 
   @Test
