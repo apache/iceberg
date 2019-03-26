@@ -23,13 +23,12 @@ import java.io.File;
 import java.io.IOException;
 import java.util.UUID;
 
-import com.google.common.collect.Lists;
-import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.FileAppender;
@@ -63,6 +62,9 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestMetricsRowGroupFilter {
+
+  private static final Types.StructType structFieldType =
+          Types.StructType.of(Types.NestedField.required(8, "int_field", IntegerType.get()));
   private static final Schema SCHEMA = new Schema(
       required(1, "id", IntegerType.get()),
       optional(2, "no_stats", StringType.get()),
@@ -70,13 +72,14 @@ public class TestMetricsRowGroupFilter {
       optional(4, "all_nulls", LongType.get()),
       optional(5, "some_nulls", StringType.get()),
       optional(6, "no_nulls", StringType.get()),
-      optional(7, "struct_not_null",
-              Types.StructType.of(Types.NestedField.required(8, "int_field", IntegerType.get()))),
+      optional(7, "struct_not_null", structFieldType),
       optional(9, "not_in_file", FloatType.get()),
       optional(10, "map_not_null",
               Types.MapType.ofRequired(11, 12, StringType.get(), IntegerType.get()))
   );
 
+  private static final Types.StructType _structFieldType =
+          Types.StructType.of(Types.NestedField.required(8, "_int_field", IntegerType.get()));
   private static final Schema FILE_SCHEMA = new Schema(
       required(1, "_id", IntegerType.get()),
       optional(2, "_no_stats", StringType.get()),
@@ -84,8 +87,7 @@ public class TestMetricsRowGroupFilter {
       optional(4, "_all_nulls", LongType.get()),
       optional(5, "_some_nulls", StringType.get()),
       optional(6, "_no_nulls", StringType.get()),
-      optional(7, "_struct_not_null",
-              Types.StructType.of(Types.NestedField.required(8, "_int_field", IntegerType.get())))
+      optional(7, "_struct_not_null", _structFieldType)
   );
 
   private static final String TOO_LONG_FOR_STATS;
@@ -108,10 +110,7 @@ public class TestMetricsRowGroupFilter {
     }
 
     // build struct field schema
-    org.apache.avro.Schema structSchema =
-            org.apache.avro.Schema.createRecord("_struct_not_null",null, null, false);
-    structSchema.setFields(Lists.newArrayList(new org.apache.avro.Schema.Field("_int_field",
-            org.apache.avro.Schema.create( org.apache.avro.Schema.Type.INT), null, null)));
+    org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(_structFieldType);
 
     OutputFile outFile = Files.localOutput(PARQUET_FILE);
     try (FileAppender<Record> appender = Parquet.write(outFile)
@@ -126,7 +125,8 @@ public class TestMetricsRowGroupFilter {
         builder.set("_all_nulls", null); // never non-null
         builder.set("_some_nulls", (i % 10 == 0) ? null : "some"); // includes some null values
         builder.set("_no_nulls", ""); // optional, but always non-null
-        final GenericData.Record struct_not_null = new GenericData.Record(structSchema);
+
+        Record struct_not_null = new Record(structSchema);
         struct_not_null.put("_int_field", 30 + i);
         builder.set("_struct_not_null", struct_not_null ); // struct with int
 
