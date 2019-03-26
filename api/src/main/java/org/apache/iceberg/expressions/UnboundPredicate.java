@@ -70,7 +70,9 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
   public Expression bind(Types.StructType struct, boolean caseSensitive) {
 
     Schema schema = new Schema(struct.fields());
-    Types.NestedField field = schema.findField(caseSensitive? ref().name(): ref().name().toLowerCase());
+    Types.NestedField field = caseSensitive ?
+            schema.findField(ref().name()) :
+            schema.caseInsensitiveFindField(ref().name());
 
     ValidationException.check(field != null,
         "Cannot find field '%s' in struct: %s", ref().name(), schema.asStruct());
