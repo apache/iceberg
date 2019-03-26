@@ -39,7 +39,7 @@ public class BoundReference<T> implements Reference {
   BoundReference(Schema schema, int fieldId) {
     this.fieldId = fieldId;
 
-    Map<Integer, Accessor<StructLike>> accessors = buildAccessors(schema);
+    Map<Integer, Accessor<StructLike>> accessors = lazyIdToAccessor(schema);
 
     this.accessor = accessors.get(fieldId);
 
@@ -185,9 +185,14 @@ public class BoundReference<T> implements Reference {
     }
   }
 
+  private transient Map<Integer, Accessor<StructLike>> idToAccessor = null;
 
-  private static Map<Integer, Accessor<StructLike>> buildAccessors(Schema schema) {
-    return TypeUtil.visit(schema, new BuildPositionAccessors());
+  private Map<Integer, Accessor<StructLike>> lazyIdToAccessor(Schema schema) {
+
+    if (idToAccessor == null) {
+      idToAccessor = TypeUtil.visit(schema, new BuildPositionAccessors());
+    }
+    return idToAccessor;
   }
 
   private static Accessor<StructLike> newAccessor(int p, Type type) {
