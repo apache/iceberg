@@ -83,6 +83,7 @@ class PartitionData
     return partitionType;
   }
 
+  @Override
   public Schema getSchema() {
     if (schema == null) {
       this.schema = new Schema.Parser().parse(stringSchema);

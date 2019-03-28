@@ -62,6 +62,7 @@ class SerializationProxies {
       super(buffer);
     }
 
+    @Override
     Object readResolve() throws ObjectStreamException {
       return new Literals.BinaryLiteral(ByteBuffer.wrap(bytes));
     }

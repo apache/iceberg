@@ -145,6 +145,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
       super(N);
     }
 
+    @Override
     public int hash(Integer value) {
       return MURMUR3.hashLong(value.longValue()).asInt();
     }
@@ -160,6 +161,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
       super(N);
     }
 
+    @Override
     public int hash(Long value) {
       return MURMUR3.hashLong(value).asInt();
     }
@@ -181,6 +183,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
       super(N);
     }
 
+    @Override
     public int hash(Float value) {
       return MURMUR3.hashLong(Double.doubleToRawLongBits((double) value)).asInt();
     }
@@ -198,6 +201,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
       super(N);
     }
 
+    @Override
     public int hash(Double value) {
       return MURMUR3.hashLong(Double.doubleToRawLongBits(value)).asInt();
     }
@@ -213,6 +217,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
       super(N);
     }
 
+    @Override
     public int hash(CharSequence value) {
       return MURMUR3.hashString(value, Charsets.UTF_8).asInt();
     }
@@ -231,6 +236,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
       super(N);
     }
 
+    @Override
     public int hash(byte[] value) {
       return MURMUR3.hashBytes(value).asInt();
     }
@@ -249,6 +255,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
       super(N);
     }
 
+    @Override
     public int hash(ByteBuffer value) {
       if (value.hasArray()) {
         return MURMUR3.hashBytes(value.array(),
@@ -284,6 +291,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
       super(N);
     }
 
+    @Override
     public int hash(UUID value) {
       ByteBuffer buffer = BUFFER.get();
       buffer.rewind();
@@ -303,6 +311,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
       super(N);
     }
 
+    @Override
     public int hash(BigDecimal value) {
       return MURMUR3.hashBytes(value.unscaledValue().toByteArray()).asInt();
     }

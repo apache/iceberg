@@ -65,6 +65,7 @@ public class DynFields {
       }
     }
 
+    @Override
     public String toString() {
       return Objects.toStringHelper(this)
           .add("class", field.getDeclaringClass().toString())
@@ -134,6 +135,7 @@ public class DynFields {
     public void set(Object target, Void value) {
     }
 
+    @Override
     public String toString() {
       return "Field(AlwaysNull)";
     }
