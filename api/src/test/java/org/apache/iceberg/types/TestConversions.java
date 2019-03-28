@@ -73,16 +73,16 @@ public class TestConversions {
     // 10000L is 0...0|00100111|00010000 in binary
     // 00010000 -> 16, 00100111 -> 39, ... , 00000000 -> 0
     assertConversion(10000L, TimeType.get(), new byte[]{16, 39, 0, 0, 0, 0, 0, 0});
-    // timestamps are stored as microseconds from 1970-01-01 00:00:00 in an 8-byte little-endian long
+    // timestamps are stored as microseconds from 1970-01-01 00:00:00.000000 in an 8-byte little-endian long
     // 400000L is 0...110|00011010|10000000 in binary
     // 10000000 -> -128, 00011010 -> 26, 00000110 -> 6, ... , 00000000 -> 0
     assertConversion(400000L, TimestampType.withoutZone(), new byte[]{-128, 26, 6, 0, 0, 0, 0, 0});
     assertConversion(400000L, TimestampType.withZone(), new byte[]{-128, 26, 6, 0, 0, 0, 0, 0});
-    // strings are stored UTF-8 bytes (without length)
+    // strings are stored as UTF-8 bytes (without length)
     // 'A' -> 65, 'B' -> 66, 'C' -> 67
     assertConversion(CharBuffer.wrap("ABC"), StringType.get(), new byte[]{65, 66, 67});
     // uuids are stored as 16-byte big-endian values
-    // f79c3e09-677c-4bbd-a479-3f349cb785e7 is encoded as: F7 9C 3E 09 67 7C 4B BD A4 79 3F 34 9C B7 85 E7
+    // f79c3e09-677c-4bbd-a479-3f349cb785e7 is encoded as F7 9C 3E 09 67 7C 4B BD A4 79 3F 34 9C B7 85 E7
     // 0xF7 -> 11110111 -> -9, 0x9C -> 10011100 -> -100, 0x3E -> 00111110 -> 62,
     // 0x09 -> 00001001 -> 9, 0x67 -> 01100111 -> 103, 0x7C -> 01111100 -> 124,
     // 0x4B -> 01001011 -> 75, 0xBD -> 10111101 -> -67, 0xA4 -> 10100100 -> -92,
