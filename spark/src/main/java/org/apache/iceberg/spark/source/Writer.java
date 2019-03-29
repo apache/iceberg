@@ -145,8 +145,7 @@ class Writer implements DataSourceWriter {
 
   @Override
   public String toString() {
-    return String.format("IcebergWrite(table=%s, type=%s, format=%s)",
-        table, table.schema().asStruct(), format);
+    return String.format("IcebergWrite(table=%s, format=%s)", table, format);
   }
 
 
