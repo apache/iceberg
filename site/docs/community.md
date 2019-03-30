@@ -36,13 +36,14 @@ Issues are tracked in GitHub:
 
 ### Contributing
 
-Iceberg uses Apache's GitHub integration. The code is available at https://github.com/apache/incubator-iceberg
+Iceberg uses Apache's GitHub integration. The code is available at [https://github.com/apache/incubator-iceberg].
 
 The Iceberg community prefers to receive contributions as [Github pull requests][github-pr-docs].
 
 * [View open pull requests][iceberg-prs]
 * [Learn about pull requests][github-pr-docs]
 
+[https://github.com/apache/incubator-iceberg]: https://github.com/apache/incubator-iceberg
 [iceberg-prs]: https://github.com/apache/incubator-iceberg/pulls
 [github-pr-docs]: https://help.github.com/articles/about-pull-requests/
 
@@ -51,13 +52,17 @@ The Iceberg community prefers to receive contributions as [Github pull requests]
 
 Iceberg has three mailing lists:
 
-* **Developers**: dev@iceberg.apache.org -- used for community discussions
+* **Developers**: [dev@iceberg.apache.org] -- used for community discussions
     - [Subscribe](mailto:dev-subscribe@iceberg.apache.org)
     - [Unsubscribe](mailto:dev-unsubscribe@iceberg.apache.org)
     - [Archive](https://lists.apache.org/list.html?dev@iceberg.apache.org)
-* **Commits**: commits@iceberg.apache.org -- distributes commit notifications
+* **Commits**: [commits@iceberg.apache.org] -- distributes commit notifications
     - [Subscribe](mailto:commits-subscribe@iceberg.apache.org)
     - [Unsubscribe](mailto:commits-unsubscribe@iceberg.apache.org)
     - [Archive](https://lists.apache.org/list.html?commits@iceberg.apache.org)
-* **Private**: private@iceberg.apache.org -- private PMC list for committer nominations
+* **Private**: [private@iceberg.apache.org] -- private PMC list for committer nominations
     - [Archive](https://lists.apache.org/list.html?private@iceberg.apache.org)
+
+[dev@iceberg.apache.org]: mailto:dev@iceberg.apache.org
+[commits@iceberg.apache.org]: mailto:commits@iceberg.apache.org
+[private@iceberg.apache.org]: mailto:private@iceberg.apache.org
