@@ -38,6 +38,7 @@ import org.junit.Assume;
 import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 
 public class TestSparkParquetReader extends AvroDataTest {
+  @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     Assume.assumeTrue("Parquet Avro cannot write non-string map keys", null == TypeUtil.find(schema,
         type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()));

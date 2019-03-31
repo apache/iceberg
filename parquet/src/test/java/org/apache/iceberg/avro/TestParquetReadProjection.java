@@ -29,6 +29,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 
 public class TestParquetReadProjection extends TestReadProjection {
+  @Override
   protected GenericData.Record writeAndRead(String desc,
                                             Schema writeSchema,
                                             Schema readSchema,

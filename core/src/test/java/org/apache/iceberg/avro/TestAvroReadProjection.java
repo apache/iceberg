@@ -28,6 +28,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
 
 public class TestAvroReadProjection extends TestReadProjection {
+  @Override
   protected GenericData.Record writeAndRead(String desc,
                                             Schema writeSchema,
                                             Schema readSchema,

@@ -35,6 +35,7 @@ import org.junit.Assert;
 import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 
 public class TestSparkAvroReader extends AvroDataTest {
+  @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expected = RandomData.generateList(schema, 100, 0L);
 
