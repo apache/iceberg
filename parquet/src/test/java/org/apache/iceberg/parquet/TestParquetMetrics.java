@@ -145,9 +145,8 @@ public class TestParquetMetrics {
     assertBounds(9, TimeType.get(), 2000L, 3000L, metrics);
     assertCounts(10, 2L, 0L, metrics);
     assertBounds(10, TimestampType.withoutZone(), 0L, 1000L, metrics);
-    // TODO: enable once issue#126 is resolved
-    // assertCounts(11, 2L, 1L, metrics);
-    // assertBounds(11, UUIDType.get(), uuid, uuid, metrics);
+    assertCounts(11, 2L, 1L, metrics);
+    assertBounds(11, UUIDType.get(), uuid, uuid, metrics);
     assertCounts(12, 2L, 0L, metrics);
     assertBounds(12, FixedType.ofLength(4),
         ByteBuffer.wrap(fixed.bytes()), ByteBuffer.wrap(fixed.bytes()), metrics);

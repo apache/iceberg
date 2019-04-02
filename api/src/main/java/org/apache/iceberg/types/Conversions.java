@@ -98,9 +98,9 @@ public class Conversions {
         }
       case UUID:
         UUID uuid = (UUID) value;
-        return ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
+        return ByteBuffer.allocate(16).order(ByteOrder.BIG_ENDIAN)
             .putLong(0, uuid.getMostSignificantBits())
-            .putLong(1, uuid.getLeastSignificantBits());
+            .putLong(8, uuid.getLeastSignificantBits());
       case FIXED:
       case BINARY:
         return (ByteBuffer) value;
@@ -117,7 +117,12 @@ public class Conversions {
   }
 
   private static Object internalFromByteBuffer(Type type, ByteBuffer buffer) {
-    ByteBuffer tmp = buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN);
+    ByteBuffer tmp = buffer.duplicate();
+    if (type == Types.UUIDType.get() || type instanceof Types.DecimalType) {
+      tmp.order(ByteOrder.BIG_ENDIAN);
+    } else {
+      tmp.order(ByteOrder.LITTLE_ENDIAN);
+    }
     switch (type.typeId()) {
       case BOOLEAN:
         return (tmp.get() != 0x00);
