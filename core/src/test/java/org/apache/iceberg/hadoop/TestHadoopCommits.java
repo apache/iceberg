@@ -21,24 +21,40 @@ package org.apache.iceberg.hadoop;
 
 import com.google.common.collect.Lists;
 import java.io.File;
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.Mockito;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
-
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TestHadoopCommits extends HadoopTableTestBase {
+  private static final Logger LOG = LoggerFactory.getLogger(TestHadoopCommits.class);
 
   @Test
   public void testCreateTable() throws Exception {
@@ -292,5 +308,60 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     TableMetadata metadata = readMetadataVersion(5);
     Assert.assertEquals("Current snapshot should contain 1 merged manifest",
         1, metadata.currentSnapshot().manifests().size());
+  }
+
+  @Test
+  public void testRenameFailures() throws Exception {
+    Assert.assertTrue("Should create v1 metadata",
+        version(1).exists() && version(1).isFile());
+    Assert.assertFalse("Should not create v2 or newer versions",
+        version(2).exists());
+    assertTrue(table instanceof BaseTable);
+    final BaseTable bt = (BaseTable) table;
+    // use v1 metafile as the test commit destination
+    final TableMetadata meta1 = bt.operations().current();
+
+    // create v2 metafile as base
+    table.updateSchema()
+        .addColumn("n", Types.IntegerType.get())
+        .commit();
+    Assert.assertTrue("Should create v2 for the update",
+        version(2).exists() && version(2).isFile());
+    Assert.assertEquals("Should write the current version to the hint file",
+        2, readVersionHint());
+
+    // mock / spy the classes for testing
+    final TableOperations tops = bt.operations();
+    assertTrue(tops instanceof HadoopTableOperations);
+    final HadoopTableOperations htops = (HadoopTableOperations) tops;
+    final HadoopTableOperations spyOps = Mockito.spy(htops);
+
+    // mock for rename returning false, verify tempMetadataFile is removed
+    final FileSystem mockFS = mock(FileSystem.class);
+    when(mockFS.exists(any())).thenReturn(false);
+    when(mockFS.rename(any(), any())).thenReturn(false);
+    doReturn(mockFS).when(spyOps).getFS(any(), any());
+
+    verifyTempMetaFileGone(meta1, spyOps);
+
+    // mock for rename throwing, verify tempMetadataFile is removed
+    when(mockFS.rename(any(), any())).thenThrow(new IOException("test injected"));
+    verifyTempMetaFileGone(meta1, spyOps);
+  }
+
+  /**
+   * Verifies that there is no temporary metadata.json file left on rename failures.
+   */
+  private void verifyTempMetaFileGone(TableMetadata meta1, HadoopTableOperations spyOps) {
+    try {
+      spyOps.commit(spyOps.current(), meta1);
+      fail("Commit should fail due to mock file system");
+    } catch (CommitFailedException expected) {
+      LOG.info("Caught expected exception", expected);
+    }
+
+    final String[] children = metadataDir.list((dir, name) -> name.endsWith(".metadata.json"));
+    LOG.info("metadataDir has children: {}", Arrays.toString(children));
+    assertEquals("only v1 and v2 metadata.json should exist.", 2, children.length);
   }
 }

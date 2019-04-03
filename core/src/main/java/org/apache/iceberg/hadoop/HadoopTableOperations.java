@@ -139,10 +139,12 @@ public class HadoopTableOperations implements TableOperations {
     try {
       // this rename operation is the atomic commit operation
       if (!fs.rename(tempMetadataFile, finalMetadataFile)) {
+        deleteFileNoThrow(tempMetadataFile);
         throw new CommitFailedException(
             "Failed to commit changes using rename: %s", finalMetadataFile);
       }
     } catch (IOException e) {
+      deleteFileNoThrow(tempMetadataFile);
       throw new CommitFailedException(e,
           "Failed to commit changes using rename: %s", finalMetadataFile);
     }
@@ -151,6 +153,19 @@ public class HadoopTableOperations implements TableOperations {
     writeVersionHint(nextVersion);
 
     this.shouldRefresh = true;
+  }
+
+  /**
+   * Deletes the file from the file system. Any RuntimeIOException will be swallowed and logged.
+   *
+   * @param tempMetadataFile the file to be deleted.
+   */
+  private void deleteFileNoThrow(final Path tempMetadataFile) {
+    try {
+      io().deleteFile(tempMetadataFile.toString());
+    } catch (RuntimeIOException e) {
+      LOG.warn("Failed to delete temporary metadata file {}", tempMetadataFile, e);
+    }
   }
 
   @Override
