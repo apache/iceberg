@@ -21,6 +21,7 @@ package org.apache.iceberg.types;
 
 import java.util.List;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Type.PrimitiveType;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -66,50 +67,42 @@ public class TestReadabilityChecks {
         }
       }
 
-      {
-        Schema structSchema = new Schema(required(1, "struct_field", Types.StructType.of(
-            required(2, "from", from))
-        ));
-
-        List<String> errors = CheckCompatibility.writeCompatibilityErrors(structSchema, fromSchema);
-        Assert.assertEquals("Should produce 1 error message", 1, errors.size());
-
-        Assert.assertTrue("Should complain that primitive to struct is not allowed",
-            errors.get(0).contains("cannot be read as a struct"));
-      }
-
-      {
-        Schema listSchema = new Schema(required(1, "list_field", Types.ListType.ofRequired(2, from)));
-
-        List<String> errors = CheckCompatibility.writeCompatibilityErrors(listSchema, fromSchema);
-        Assert.assertEquals("Should produce 1 error message", 1, errors.size());
-
-        Assert.assertTrue("Should complain that primitive to list is not allowed",
-            errors.get(0).contains("cannot be read as a list"));
-      }
-
-      {
-        Schema mapSchema = new Schema(required(1, "map_field",
-            Types.MapType.ofRequired(2, 3, Types.StringType.get(), from)));
-
-        List<String> errors = CheckCompatibility.writeCompatibilityErrors(mapSchema, fromSchema);
-        Assert.assertEquals("Should produce 1 error message", 1, errors.size());
-
-        Assert.assertTrue("Should complain that primitive to map is not allowed",
-            errors.get(0).contains("cannot be read as a map"));
-      }
-
-      {
-        Schema mapSchema = new Schema(required(1, "map_field",
-            Types.MapType.ofRequired(2, 3, from, Types.StringType.get())));
-
-        List<String> errors = CheckCompatibility.writeCompatibilityErrors(mapSchema, fromSchema);
-        Assert.assertEquals("Should produce 1 error message", 1, errors.size());
-
-        Assert.assertTrue("Should complain that primitive to map is not allowed",
-            errors.get(0).contains("cannot be read as a map"));
-      }
+      testDisallowPrimitiveToStruct(from, fromSchema);
+      testDisallowPrimitiveToList(from, fromSchema);
+      testDisallowPrimitiveToMap(from, fromSchema);
     }
+  }
+
+  private void testDisallowPrimitiveToMap(PrimitiveType from, Schema fromSchema) {
+    Schema mapSchema = new Schema(required(1, "map_field",
+        Types.MapType.ofRequired(2, 3, Types.StringType.get(), from)));
+
+    List<String> errors = CheckCompatibility.writeCompatibilityErrors(mapSchema, fromSchema);
+    Assert.assertEquals("Should produce 1 error message", 1, errors.size());
+
+    Assert.assertTrue("Should complain that primitive to map is not allowed",
+        errors.get(0).contains("cannot be read as a map"));
+  }
+
+  private void testDisallowPrimitiveToList(PrimitiveType from, Schema fromSchema) {
+
+    Schema listSchema = new Schema(required(1, "list_field", Types.ListType.ofRequired(2, from)));
+
+    List<String> errors = CheckCompatibility.writeCompatibilityErrors(listSchema, fromSchema);
+    Assert.assertEquals("Should produce 1 error message", 1, errors.size());
+    Assert.assertTrue("Should complain that primitive to list is not allowed",
+        errors.get(0).contains("cannot be read as a list"));
+  }
+
+  private void testDisallowPrimitiveToStruct(PrimitiveType from, Schema fromSchema) {
+    Schema structSchema = new Schema(required(1, "struct_field", Types.StructType.of(
+        required(2, "from", from))
+    ));
+
+    List<String> errors = CheckCompatibility.writeCompatibilityErrors(structSchema, fromSchema);
+    Assert.assertEquals("Should produce 1 error message", 1, errors.size());
+    Assert.assertTrue("Should complain that primitive to struct is not allowed",
+        errors.get(0).contains("cannot be read as a struct"));
   }
 
   @Test

@@ -28,6 +28,9 @@ import org.apache.iceberg.expressions.UnboundPredicate;
 import static org.apache.iceberg.expressions.Expressions.predicate;
 
 class ProjectionUtil {
+
+  private ProjectionUtil() {}
+
   static <T> UnboundPredicate<T> truncateInteger(
       String name, BoundPredicate<Integer> pred, Transform<Integer, T> transform) {
     int boundary = pred.literal().value();

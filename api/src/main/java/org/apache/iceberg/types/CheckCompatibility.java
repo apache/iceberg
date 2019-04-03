@@ -29,8 +29,6 @@ import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.iceberg.Schema;
 
-import static org.apache.iceberg.types.TypeUtil.isPromotionAllowed;
-
 public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<String>> {
   /**
    * Returns a list of compatibility errors for writing with the given write schema.
@@ -217,7 +215,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
           currentType.typeId().toString().toLowerCase(Locale.ENGLISH), readPrimitive));
     }
 
-    if (!isPromotionAllowed(currentType.asPrimitiveType(), readPrimitive)) {
+    if (!TypeUtil.isPromotionAllowed(currentType.asPrimitiveType(), readPrimitive)) {
       return ImmutableList.of(String.format(": %s cannot be promoted to %s",
           currentType, readPrimitive));
     }

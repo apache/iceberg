@@ -321,24 +321,24 @@ public class TestMiscLiteralConversions {
   }
 
   private static class Pair<X, Y> {
-    public static <X, Y> Pair<X, Y> of(X x, Y y) {
-      return new Pair<>(x, y);
+    public static <X, Y> Pair<X, Y> of(X first, Y second) {
+      return new Pair<>(first, second);
     }
 
-    private final X x;
-    private final Y y;
+    private final X first;
+    private final Y second;
 
-    private Pair(X x, Y y) {
-      this.x = x;
-      this.y = y;
+    private Pair(X first, Y second) {
+      this.first = first;
+      this.second = second;
     }
 
     public X first() {
-      return x;
+      return first;
     }
 
     public Y second() {
-      return y;
+      return second;
     }
   }
 }

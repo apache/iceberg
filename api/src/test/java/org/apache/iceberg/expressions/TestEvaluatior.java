@@ -156,11 +156,10 @@ public class TestEvaluatior {
   @Test
   public void testCaseSensitiveNot() {
     TestHelpers.assertThrows(
-      "X != x when case sensitivity is on",
-      ValidationException.class,
-      "Cannot find field 'X' in struct",
-      () -> { new Evaluator(STRUCT, not(equal("X", 7)), true); }
-      );
+        "X != x when case sensitivity is on",
+        ValidationException.class,
+        "Cannot find field 'X' in struct",
+        () -> new Evaluator(STRUCT, not(equal("X", 7)), true));
   }
 
   @Test

@@ -71,9 +71,9 @@ public enum FileFormat {
     return null;
   }
 
-  private static int lastIndexOf(char c, CharSequence seq) {
+  private static int lastIndexOf(char ch, CharSequence seq) {
     for (int i = seq.length() - 1; i >= 0; i -= 1) {
-      if (seq.charAt(i) == c) {
+      if (seq.charAt(i) == ch) {
         return i;
       }
     }

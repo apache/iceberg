@@ -25,12 +25,12 @@ import java.io.IOException;
  * Exception used to wrap {@link IOException} as a {@link RuntimeException} and add context.
  */
 public class RuntimeIOException extends RuntimeException {
-  public RuntimeIOException(IOException e) {
-    super(e);
+  public RuntimeIOException(IOException cause) {
+    super(cause);
   }
 
-  public RuntimeIOException(IOException e, String message, Object... args) {
-    super(String.format(message, args), e);
+  public RuntimeIOException(IOException cause, String message, Object... args) {
+    super(String.format(message, args), cause);
   }
 
   public RuntimeIOException(String message, Object...args) {

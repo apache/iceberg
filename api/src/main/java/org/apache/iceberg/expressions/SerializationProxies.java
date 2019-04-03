@@ -35,10 +35,10 @@ class SerializationProxies {
     /**
      * Constructor for Java serialization.
      */
-    public ConstantExpressionProxy() {
+    ConstantExpressionProxy() {
     }
 
-    public ConstantExpressionProxy(boolean trueOrFalse) {
+    ConstantExpressionProxy(boolean trueOrFalse) {
       this.trueOrFalse = trueOrFalse;
     }
 
@@ -63,7 +63,7 @@ class SerializationProxies {
     }
 
     Object readResolve() throws ObjectStreamException {
-      return new Literals.BinaryLiteral(ByteBuffer.wrap(bytes));
+      return new Literals.BinaryLiteral(ByteBuffer.wrap(bytes()));
     }
   }
 
@@ -71,7 +71,7 @@ class SerializationProxies {
    * Replacement for FixedLiteral in Java Serialization.
    */
   static class FixedLiteralProxy implements Serializable {
-    protected byte[] bytes;
+    private byte[] bytes;
 
     /**
      * Constructor for Java serialization.
@@ -86,6 +86,10 @@ class SerializationProxies {
 
     Object readResolve() throws ObjectStreamException {
       return new Literals.FixedLiteral(ByteBuffer.wrap(bytes));
+    }
+
+    protected byte[] bytes() {
+      return bytes;
     }
   }
 }

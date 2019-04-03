@@ -54,7 +54,7 @@ public class PartitionSpec implements Serializable {
   private final PartitionField[] fields;
   private transient Map<Integer, PartitionField> fieldsBySourceId = null;
   private transient Map<String, PartitionField> fieldsByName = null;
-  private transient Class<?>[] javaClasses = null;
+  private transient Class<?>[] lazyJavaClasses = null;
   private transient List<PartitionField> fieldList = null;
 
   private PartitionSpec(Schema schema, int specId, List<PartitionField> fields) {
@@ -114,17 +114,17 @@ public class PartitionSpec implements Serializable {
   }
 
   public Class<?>[] javaClasses() {
-    if (javaClasses == null) {
-      this.javaClasses = new Class<?>[fields.length];
+    if (lazyJavaClasses == null) {
+      this.lazyJavaClasses = new Class<?>[fields.length];
       for (int i = 0; i < fields.length; i += 1) {
         PartitionField field = fields[i];
         Type sourceType = schema.findType(field.sourceId());
         Type result = field.transform().getResultType(sourceType);
-        javaClasses[i] = result.typeId().javaClass();
+        lazyJavaClasses[i] = result.typeId().javaClass();
       }
     }
 
-    return javaClasses;
+    return lazyJavaClasses;
   }
 
   @SuppressWarnings("unchecked")
@@ -242,8 +242,7 @@ public class PartitionSpec implements Serializable {
    */
   public Set<Integer> identitySourceIds() {
     Set<Integer> sourceIds = Sets.newHashSet();
-    List<PartitionField> fields = this.fields();
-    for (PartitionField field : fields) {
+    for (PartitionField field : fields()) {
       if ("identity".equals(field.transform().toString())) {
         sourceIds.add(field.sourceId());
       }
@@ -313,8 +312,8 @@ public class PartitionSpec implements Serializable {
       partitionNames.add(name);
     }
 
-    public Builder withSpecId(int specId) {
-      this.specId = specId;
+    public Builder withSpecId(int newSpecId) {
+      this.specId = newSpecId;
       return this;
     }
 

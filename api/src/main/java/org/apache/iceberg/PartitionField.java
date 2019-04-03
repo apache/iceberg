@@ -68,11 +68,9 @@ public class PartitionField implements Serializable {
     }
 
     PartitionField that = (PartitionField) other;
-    return (
-        sourceId == that.sourceId &&
+    return sourceId == that.sourceId &&
         name.equals(that.name) &&
-        transform.equals(that.transform)
-    );
+        transform.equals(that.transform);
   }
 
   @Override

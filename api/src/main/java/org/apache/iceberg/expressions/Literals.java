@@ -116,7 +116,7 @@ class Literals {
     private static final Comparator<? extends Comparable> CMP =
         Comparators.<Comparable>nullsFirst().thenComparing(Comparator.naturalOrder());
 
-    public ComparableLiteral(C value) {
+    ComparableLiteral(C value) {
       super(value);
     }
 
@@ -340,7 +340,7 @@ class Literals {
     @SuppressWarnings("unchecked")
     public <T> Literal<T> to(Type type) {
       if (type.typeId() == Type.TypeID.TIME) {
-        return (Literal<T>) this ;
+        return (Literal<T>) this;
       }
       return null;
     }

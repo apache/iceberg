@@ -18,11 +18,17 @@
  */
 
 buildscript {
-  repositories { jcenter() }
+  repositories {
+    jcenter()
+    gradlePluginPortal()
+    maven { url  "http://palantir.bintray.com/releases" }
+  }
   dependencies {
     classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.0'
     classpath 'com.netflix.nebula:gradle-aggregate-javadocs-plugin:2.2.+'
     classpath 'com.netflix.nebula:nebula-publishing-plugin:5.1.5'
+    classpath 'com.palantir.baseline:gradle-baseline-java:0.53.0'
+    classpath 'gradle.plugin.org.inferred:gradle-processors:2.1.0'
   }
 }
 
@@ -37,7 +43,7 @@ if (JavaVersion.current() != JavaVersion.VERSION_1_8) {
 
 allprojects {
   group = "org.apache.iceberg"
-  apply plugin: 'idea'
+  apply plugin: 'com.palantir.baseline-idea'
   version = gitVersion()
 }
 
@@ -49,10 +55,10 @@ subprojects {
   apply plugin: 'java'
   apply plugin: 'maven' // make pom files for deployment
   apply plugin: 'nebula.maven-base-publish'
-
   repositories {
     mavenCentral()
     mavenLocal()
+    maven { url  "http://palantir.bintray.com/releases" }
   }
 
   configurations {
@@ -103,6 +109,12 @@ project(':iceberg-api') {
     testCompile "org.apache.avro:avro:$avroVersion"
     testCompile 'joda-time:joda-time:2.9.9'
   }
+  apply plugin: 'org.inferred.processors'
+  pluginManager.withPlugin('com.palantir.baseline') {
+    // Disable Baseline's Spotless Java checks for now. It does not support having the static
+    // imports being at the bottom of the import list.
+    tasks.spotlessJava.enabled = false
+  }
 }
 
 project(':iceberg-common') {
@@ -134,6 +146,11 @@ project(':iceberg-data') {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
+  }
+
+  test {
+    // Only for TestSplitScan as of Gradle 5.0+
+    maxHeapSize '1500m'
   }
 }
 

@@ -36,15 +36,15 @@ public class BoundReference<T> implements Reference {
     this.type = struct.fields().get(pos).type();
   }
 
-  private int find(int fieldId, Types.StructType struct) {
+  private int find(int id, Types.StructType struct) {
     List<Types.NestedField> fields = struct.fields();
     for (int i = 0; i < fields.size(); i += 1) {
-      if (fields.get(i).fieldId() == fieldId) {
+      if (fields.get(i).fieldId() == id) {
         return i;
       }
     }
     throw new ValidationException(
-        "Cannot find top-level field id %d in struct: %s", fieldId, struct);
+        "Cannot find top-level field id %d in struct: %s", id, struct);
   }
 
   public Type type() {
