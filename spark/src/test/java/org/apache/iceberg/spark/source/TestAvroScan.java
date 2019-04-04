@@ -68,6 +68,7 @@ public class TestAvroScan extends AvroDataTest {
     spark.stop();
   }
 
+  @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     File parent = temp.newFolder("avro");
     File location = new File(parent, "test");
