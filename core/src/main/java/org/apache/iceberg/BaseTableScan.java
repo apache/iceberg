@@ -212,9 +212,11 @@ class BaseTableScan implements TableScan {
 
     Function<FileScanTask, Long> weightFunc = file -> Math.max(file.length(), openFileCost);
 
+    CloseableIterable<FileScanTask> splitFiles = splitFiles(splitSize);
     return CloseableIterable.transform(
-        CloseableIterable.wrap(splitFiles(splitSize), splits ->
-            new BinPacking.PackingIterable<>(splits, splitSize, lookback, weightFunc, true)),
+        CloseableIterable.combine(
+            new BinPacking.PackingIterable<>(splitFiles, splitSize, lookback, weightFunc, true),
+            splitFiles),
         BaseCombinedScanTask::new);
   }
 

@@ -42,16 +42,7 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
   }
 
   static <E> CloseableIterable<E> empty() {
-    return new CloseableIterable<E>() {
-      @Override
-      public void close() {
-      }
-
-      @Override
-      public Iterator<E> iterator() {
-        return Collections.emptyIterator();
-      }
-    };
+    return withNoopClose(Collections.emptyList());
   }
 
   static <E> CloseableIterable<E> combine(Iterable<E> iterable, Closeable closeable) {
@@ -64,22 +55,6 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
       @Override
       public Iterator<E> iterator() {
         return iterable.iterator();
-      }
-    };
-  }
-
-  static <I, O> CloseableIterable<O> wrap(CloseableIterable<I> iterable, Function<Iterable<I>, Iterable<O>> wrap) {
-    Iterable<O> wrappedIterable = wrap.apply(iterable);
-
-    return new CloseableIterable<O>() {
-      @Override
-      public void close() throws IOException {
-        iterable.close();
-      }
-
-      @Override
-      public Iterator<O> iterator() {
-        return wrappedIterable.iterator();
       }
     };
   }
