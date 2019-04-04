@@ -34,6 +34,7 @@ import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.InclusiveManifestEvaluator;
+import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.types.Types;
 
@@ -47,7 +48,7 @@ class ManifestGroup {
   private final boolean ignoreDeleted;
   private final List<String> columns;
 
-  private final LoadingCache<Integer, InclusiveManifestEvaluator> EVAL_CACHE = CacheBuilder
+  private final LoadingCache<Integer, InclusiveManifestEvaluator> evalCache = CacheBuilder
       .newBuilder()
       .build(new CacheLoader<Integer, InclusiveManifestEvaluator>() {
         @Override
@@ -109,7 +110,7 @@ class ManifestGroup {
     List<Closeable> toClose = Lists.newArrayList();
 
     Iterable<ManifestFile> matchingManifests = Iterables.filter(manifests,
-        manifest -> EVAL_CACHE.getUnchecked(manifest.partitionSpecId()).eval(manifest));
+        manifest -> evalCache.getUnchecked(manifest.partitionSpecId()).eval(manifest));
 
     if (ignoreDeleted) {
       // remove any manifests that don't have any existing or added files. if either the added or
@@ -122,7 +123,9 @@ class ManifestGroup {
     Iterable<Iterable<ManifestEntry>> readers = Iterables.transform(
         matchingManifests,
         manifest -> {
-          ManifestReader reader = ManifestReader.read(ops.io().newInputFile(manifest.path()));
+          ManifestReader reader = ManifestReader.read(
+              ops.io().newInputFile(manifest.path()),
+              ops.current()::spec);
           FilteredManifest filtered = reader.filterRows(dataFilter).select(columns);
           toClose.add(reader);
           return Iterables.filter(

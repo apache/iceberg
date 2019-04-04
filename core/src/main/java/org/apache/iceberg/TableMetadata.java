@@ -258,8 +258,11 @@ public class TableMetadata {
 
   public TableMetadata updateSchema(Schema schema, int lastColumnId) {
     PartitionSpec.checkCompatibility(spec(), schema);
+    // rebuild all of the partition specs for the new current schema
+    List<PartitionSpec> updatedSpecs = Lists.transform(specs,
+        spec -> updateSpecSchema(schema, spec));
     return new TableMetadata(ops, null, location,
-        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
+        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, updatedSpecs, properties,
         currentSnapshotId, snapshots, snapshotLog);
   }
 
@@ -421,6 +424,18 @@ public class TableMetadata {
     return new TableMetadata(ops, null, newLocation,
         System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
         currentSnapshotId, snapshots, snapshotLog);
+  }
+
+  private static PartitionSpec updateSpecSchema(Schema schema, PartitionSpec partitionSpec) {
+    PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(schema)
+        .withSpecId(partitionSpec.specId());
+
+    // add all of the fields to the builder. IDs should not change.
+    for (PartitionField field : partitionSpec.fields()) {
+      specBuilder.add(field.sourceId(), field.name(), field.transform().toString());
+    }
+
+    return specBuilder.build();
   }
 
   private static PartitionSpec freshSpec(int specId, Schema schema, PartitionSpec partitionSpec) {

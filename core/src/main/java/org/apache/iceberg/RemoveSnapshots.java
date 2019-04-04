@@ -174,7 +174,8 @@ class RemoveSnapshots implements ExpireSnapshots {
           }
 
           // the manifest has deletes, scan it to find files to delete
-          try (ManifestReader reader = ManifestReader.read(ops.io().newInputFile(manifest.path()))) {
+          try (ManifestReader reader = ManifestReader.read(
+              ops.io().newInputFile(manifest.path()), ops.current()::spec)) {
             for (ManifestEntry entry : reader.entries()) {
               // if the snapshot ID of the DELETE entry is no longer valid, the data can be deleted
               if (entry.status() == ManifestEntry.Status.DELETED &&
