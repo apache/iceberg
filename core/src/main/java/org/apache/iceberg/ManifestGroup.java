@@ -107,7 +107,6 @@ class ManifestGroup {
    */
   public CloseableIterable<ManifestEntry> entries() {
     Evaluator evaluator = new Evaluator(DataFile.getType(EMPTY_STRUCT), fileFilter);
-    List<Closeable> toClose = Lists.newArrayList();
 
     Iterable<ManifestFile> matchingManifests = Iterables.filter(manifests,
         manifest -> evalCache.getUnchecked(manifest.partitionSpecId()).eval(manifest));
@@ -127,7 +126,6 @@ class ManifestGroup {
               ops.io().newInputFile(manifest.path()),
               ops.current()::spec);
           FilteredManifest filtered = reader.filterRows(dataFilter).select(columns);
-          toClose.add(reader);
           return CloseableIterable.combine(
               Iterables.filter(
                   ignoreDeleted ? filtered.liveEntries() : filtered.allEntries(),
