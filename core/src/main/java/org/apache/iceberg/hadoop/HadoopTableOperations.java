@@ -136,36 +136,13 @@ public class HadoopTableOperations implements TableOperations {
           "Failed to check if next version exists: " + finalMetadataFile);
     }
 
-    try {
-      // this rename operation is the atomic commit operation
-      if (!fs.rename(tempMetadataFile, finalMetadataFile)) {
-        deleteFileNoThrow(tempMetadataFile);
-        throw new CommitFailedException(
-            "Failed to commit changes using rename: %s", finalMetadataFile);
-      }
-    } catch (IOException e) {
-      deleteFileNoThrow(tempMetadataFile);
-      throw new CommitFailedException(e,
-          "Failed to commit changes using rename: %s", finalMetadataFile);
-    }
+    // this rename operation is the atomic commit operation
+    renameToFinal(fs, tempMetadataFile, finalMetadataFile);
 
     // update the best-effort version pointer
     writeVersionHint(nextVersion);
 
     this.shouldRefresh = true;
-  }
-
-  /**
-   * Deletes the file from the file system. Any RuntimeIOException will be swallowed and logged.
-   *
-   * @param tempMetadataFile the file to be deleted.
-   */
-  private void deleteFileNoThrow(final Path tempMetadataFile) {
-    try {
-      io().deleteFile(tempMetadataFile.toString());
-    } catch (RuntimeIOException e) {
-      LOG.warn("Failed to delete temporary metadata file {}", tempMetadataFile, e);
-    }
   }
 
   @Override
@@ -224,6 +201,43 @@ public class HadoopTableOperations implements TableOperations {
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to get file system for path: %s", versionHintFile);
+    }
+  }
+
+  /**
+   * Renames the source file to destination, using the provided file system. If rename failed,
+   * the source file will be attempted to deleted.
+   *
+   * @param fs the filesystem used for the rename
+   * @param src the source file
+   * @param dst the destination file
+   */
+  private void renameToFinal(final FileSystem fs, final Path src, final Path dst) {
+    try {
+      if (!fs.rename(src, dst)) {
+        final CommitFailedException cfe = new CommitFailedException(
+            "Failed to commit changes using rename: %s", dst);
+        deleteFileNoThrow(src, cfe);
+        throw cfe;
+      }
+    } catch (IOException e) {
+      final CommitFailedException cfe = new CommitFailedException(e,
+          "Failed to commit changes using rename: %s", dst);
+      deleteFileNoThrow(src, cfe);
+      throw cfe;
+    }
+  }
+
+  /**
+   * Deletes the file from the file system. Any RuntimeException will be suppressed.
+   *
+   * @param tempMetadataFile the file to be deleted.
+   */
+  private void deleteFileNoThrow(Path tempMetadataFile, CommitFailedException cfe) {
+    try {
+      io().deleteFile(tempMetadataFile.toString());
+    } catch (RuntimeException re) {
+      cfe.addSuppressed(re);
     }
   }
 
