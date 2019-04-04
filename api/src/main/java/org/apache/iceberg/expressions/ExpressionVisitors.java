@@ -97,6 +97,7 @@ public class ExpressionVisitors {
       return null;
     }
 
+    @Override
     public <T> R predicate(BoundPredicate<T> pred) {
       switch (pred.op()) {
         case IS_NULL:
@@ -125,6 +126,7 @@ public class ExpressionVisitors {
       }
     }
 
+    @Override
     public <T> R predicate(UnboundPredicate<T> pred) {
       throw new UnsupportedOperationException("Not a bound predicate: " + pred);
     }

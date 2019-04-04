@@ -95,10 +95,12 @@ public class BinPacking {
       this.largestBinFirst = largestBinFirst;
     }
 
+    @Override
     public boolean hasNext() {
       return items.hasNext() || !bins.isEmpty();
     }
 
+    @Override
     public List<T> next() {
       while (items.hasNext()) {
         T item = items.next();

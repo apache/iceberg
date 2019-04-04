@@ -126,6 +126,7 @@ class BaseTableScan implements TableScan {
     return useSnapshot(lastSnapshotId);
   }
 
+  @Override
   public TableScan project(Schema schema) {
     return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, caseSensitive, selectedColumns);
   }

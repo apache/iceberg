@@ -648,12 +648,12 @@ public class SparkParquetReaders {
       return Arrays.copyOfRange(values, 0, numElements);
     }
 
-//    @Override
+    @Override
     public void setNullAt(int i) {
       values[i] = null;
     }
 
-//    @Override
+    @Override
     public void update(int ordinal, Object value) {
       values[ordinal] = value;
     }

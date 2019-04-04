@@ -64,6 +64,7 @@ public class HadoopTableOperations implements TableOperations {
     this.location = location;
   }
 
+  @Override
   public TableMetadata current() {
     if (shouldRefresh) {
       return refresh();

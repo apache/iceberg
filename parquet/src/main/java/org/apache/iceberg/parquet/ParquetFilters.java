@@ -186,6 +186,7 @@ class ParquetFilters {
       this.partitionStruct = schema.findField(column).type().asNestedType().asStructType();
     }
 
+    @Override
     protected Expression bind(UnboundPredicate<?> pred) {
       // instead of binding the predicate using the top-level schema, bind it to the partition data
       return pred.bind(partitionStruct, true);

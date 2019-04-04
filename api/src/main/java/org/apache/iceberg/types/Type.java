@@ -98,10 +98,12 @@ public interface Type extends Serializable {
   }
 
   abstract class PrimitiveType implements Type {
+    @Override
     public boolean isPrimitiveType() {
       return true;
     }
 
+    @Override
     public PrimitiveType asPrimitiveType() {
       return this;
     }
@@ -112,10 +114,12 @@ public interface Type extends Serializable {
   }
 
   abstract class NestedType implements Type {
+    @Override
     public boolean isNestedType() {
       return true;
     }
 
+    @Override
     public NestedType asNestedType() {
       return this;
     }
