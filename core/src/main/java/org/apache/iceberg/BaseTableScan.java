@@ -28,14 +28,12 @@ import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
-import java.io.Closeable;
 import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Function;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.events.Listeners;
@@ -175,30 +173,26 @@ class BaseTableScan implements TableScan {
       Iterable<ManifestFile> matchingManifests = Iterables.filter(snapshot.manifests(),
           manifest -> evalCache.getUnchecked(manifest.partitionSpecId()).eval(manifest));
 
-      ConcurrentLinkedQueue<Closeable> toClose = new ConcurrentLinkedQueue<>();
-      Iterable<Iterable<FileScanTask>> readers = Iterables.transform(
+      Iterable<CloseableIterable<FileScanTask>> readers = Iterables.transform(
           matchingManifests,
           manifest -> {
               ManifestReader reader = ManifestReader
                   .read(ops.io().newInputFile(manifest.path()), ops.current()::spec)
                   .caseSensitive(caseSensitive);
             PartitionSpec spec = ops.current().spec(manifest.partitionSpecId());
-            toClose.add(reader);
             String schemaString = SchemaParser.toJson(spec.schema());
             String specString = PartitionSpecParser.toJson(spec);
             ResidualEvaluator residuals = new ResidualEvaluator(spec, rowFilter, caseSensitive);
-            return Iterables.transform(
+            return CloseableIterable.transform(
                 reader.filterRows(rowFilter).select(SNAPSHOT_COLUMNS),
                 file -> new BaseFileScanTask(file, schemaString, specString, residuals)
             );
           });
 
       if (PLAN_SCANS_WITH_WORKER_POOL && snapshot.manifests().size() > 1) {
-        return CloseableIterable.combine(
-            new ParallelIterable<>(readers, getWorkerPool()),
-            toClose);
+        return new ParallelIterable<>(readers, getWorkerPool());
       } else {
-        return CloseableIterable.combine(Iterables.concat(readers), toClose);
+        return CloseableIterable.concat(readers);
       }
 
     } else {
@@ -218,9 +212,11 @@ class BaseTableScan implements TableScan {
 
     Function<FileScanTask, Long> weightFunc = file -> Math.max(file.length(), openFileCost);
 
+    CloseableIterable<FileScanTask> splitFiles = splitFiles(splitSize);
     return CloseableIterable.transform(
-        CloseableIterable.wrap(splitFiles(splitSize), splits ->
-            new BinPacking.PackingIterable<>(splits, splitSize, lookback, weightFunc, true)),
+        CloseableIterable.combine(
+            new BinPacking.PackingIterable<>(splitFiles, splitSize, lookback, weightFunc, true),
+            splitFiles),
         BaseCombinedScanTask::new);
   }
 
@@ -255,7 +251,7 @@ class BaseTableScan implements TableScan {
         .from(fileScanTasks)
         .transformAndConcat(input -> input.split(splitSize));
     // Capture manifests which can be closed after scan planning
-    return CloseableIterable.combine(splitTasks, ImmutableList.of(fileScanTasks));
+    return CloseableIterable.combine(splitTasks, fileScanTasks);
   }
 
   /**

@@ -107,7 +107,6 @@ class ManifestGroup {
    */
   public CloseableIterable<ManifestEntry> entries() {
     Evaluator evaluator = new Evaluator(DataFile.getType(EMPTY_STRUCT), fileFilter);
-    List<Closeable> toClose = Lists.newArrayList();
 
     Iterable<ManifestFile> matchingManifests = Iterables.filter(manifests,
         manifest -> evalCache.getUnchecked(manifest.partitionSpecId()).eval(manifest));
@@ -120,19 +119,20 @@ class ManifestGroup {
               manifest.addedFilesCount() + manifest.existingFilesCount() > 0);
     }
 
-    Iterable<Iterable<ManifestEntry>> readers = Iterables.transform(
+    Iterable<CloseableIterable<ManifestEntry>> readers = Iterables.transform(
         matchingManifests,
         manifest -> {
           ManifestReader reader = ManifestReader.read(
               ops.io().newInputFile(manifest.path()),
               ops.current()::spec);
           FilteredManifest filtered = reader.filterRows(dataFilter).select(columns);
-          toClose.add(reader);
-          return Iterables.filter(
-              ignoreDeleted ? filtered.liveEntries() : filtered.allEntries(),
-              entry -> evaluator.eval((GenericDataFile) entry.file()));
+          return CloseableIterable.combine(
+              Iterables.filter(
+                  ignoreDeleted ? filtered.liveEntries() : filtered.allEntries(),
+                  entry -> evaluator.eval((GenericDataFile) entry.file())),
+              reader);
         });
 
-    return CloseableIterable.combine(Iterables.concat(readers), toClose);
+    return CloseableIterable.concat(readers);
   }
 }

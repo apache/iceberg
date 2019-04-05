@@ -20,6 +20,7 @@
 package org.apache.iceberg.io;
 
 import com.google.common.base.Preconditions;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
@@ -41,34 +42,19 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
   }
 
   static <E> CloseableIterable<E> empty() {
+    return withNoopClose(Collections.emptyList());
+  }
+
+  static <E> CloseableIterable<E> combine(Iterable<E> iterable, Closeable closeable) {
     return new CloseableIterable<E>() {
       @Override
-      public void close() {
+      public void close() throws IOException {
+        closeable.close();
       }
 
       @Override
       public Iterator<E> iterator() {
-        return Collections.emptyIterator();
-      }
-    };
-  }
-
-  static <E> CloseableIterable<E> combine(Iterable<E> iterable, Iterable<Closeable> closeables) {
-    return new CloseableGroup.ClosingIterable<>(iterable, closeables);
-  }
-
-  static <I, O> CloseableIterable<O> wrap(CloseableIterable<I> iterable, Function<Iterable<I>, Iterable<O>> wrap) {
-    Iterable<O> wrappedIterable = wrap.apply(iterable);
-
-    return new CloseableIterable<O>() {
-      @Override
-      public void close() throws IOException {
-        iterable.close();
-      }
-
-      @Override
-      public Iterator<O> iterator() {
-        return wrappedIterable.iterator();
+        return iterable.iterator();
       }
     };
   }
@@ -100,4 +86,95 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
       }
     };
   }
+
+  static <E> CloseableIterable<E> concat(Iterable<CloseableIterable<E>> iterable) {
+    Iterator<CloseableIterable<E>> iterables = iterable.iterator();
+    if (!iterables.hasNext()) {
+      return empty();
+    } else {
+      return new ConcatCloseableIterable<>(iterable);
+    }
+  }
+
+  class ConcatCloseableIterable<E> extends CloseableGroup implements CloseableIterable<E> {
+    private final Iterable<CloseableIterable<E>> inputs;
+
+    ConcatCloseableIterable(Iterable<CloseableIterable<E>> inputs) {
+      this.inputs = inputs;
+    }
+
+    @Override
+    public Iterator<E> iterator() {
+      ConcatCloseableIterator<E> iter = new ConcatCloseableIterator<>(inputs);
+      addCloseable(iter);
+      return iter;
+    }
+
+    private static class ConcatCloseableIterator<E> implements Iterator<E>, Closeable {
+      private final Iterator<CloseableIterable<E>> iterables;
+      private CloseableIterable<E> currentIterable = null;
+      private Iterator<E> currentIterator = null;
+      private boolean closed = false;
+
+      private ConcatCloseableIterator(Iterable<CloseableIterable<E>> inputs) {
+        this.iterables = inputs.iterator();
+        this.currentIterable = iterables.next();
+        this.currentIterator = currentIterable.iterator();
+      }
+
+      @Override
+      public boolean hasNext() {
+        if (closed) {
+          return false;
+        }
+
+        if (currentIterator.hasNext()) {
+          return true;
+        }
+
+        while (iterables.hasNext()) {
+          try {
+            currentIterable.close();
+          } catch (IOException e) {
+            throw new RuntimeIOException(e, "Failed to close iterable");
+          }
+
+          this.currentIterable = iterables.next();
+          this.currentIterator = currentIterable.iterator();
+
+          if (currentIterator.hasNext()) {
+            return true;
+          }
+        }
+
+        try {
+          currentIterable.close();
+        } catch (IOException e) {
+          throw new RuntimeIOException(e, "Failed to close iterable");
+        }
+
+        this.closed = true;
+        this.currentIterator = null;
+        this.currentIterable = null;
+
+        return false;
+      }
+
+      @Override
+      public void close() throws IOException {
+        if (!closed) {
+          currentIterable.close();
+          this.closed = true;
+          this.currentIterator = null;
+          this.currentIterable = null;
+        }
+      }
+
+      @Override
+      public E next() {
+        return currentIterator.next();
+      }
+    }
+  }
+
 }
