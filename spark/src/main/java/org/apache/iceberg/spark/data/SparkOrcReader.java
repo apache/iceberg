@@ -24,7 +24,6 @@ import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.orc.OrcIterator;
 import org.apache.iceberg.orc.TypeConversion;
 import org.apache.orc.TypeDescription;
-import org.apache.orc.storage.common.type.FastHiveDecimal;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
 import org.apache.orc.storage.ql.exec.vector.DecimalColumnVector;

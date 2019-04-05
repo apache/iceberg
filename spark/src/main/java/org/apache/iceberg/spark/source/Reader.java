@@ -449,8 +449,8 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     }
 
     private CloseableIterable<InternalRow> newAvroIterable(InputFile location,
-                                                           FileScanTask task,
-                                                           Schema readSchema) {
+                                                      FileScanTask task,
+                                                      Schema readSchema) {
       return Avro.read(location)
           .reuseContainers()
           .project(readSchema)
@@ -460,8 +460,8 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     }
 
     private CloseableIterable<InternalRow> newParquetIterable(InputFile location,
-                                                              FileScanTask task,
-                                                              Schema readSchema) {
+                                                            FileScanTask task,
+                                                            Schema readSchema) {
       return Parquet.read(location)
           .project(readSchema)
           .split(task.start(), task.length())
