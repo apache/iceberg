@@ -500,19 +500,7 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
     }
   }
 
-  /**
-   * This hack is to get the unscaled value (for precision <= 18) quickly.
-   * This can be replaced when we upgrade to storage-api 2.5.0.
-   */
-  static class DecimalHack extends FastHiveDecimal {
-    long unscaledLong(FastHiveDecimal value) {
-      fastSet(value);
-      return fastSignum * fast1 * 10_000_000_000_000_000L + fast0;
-    }
-  }
-
   private static class Decimal18Converter implements Converter {
-    final DecimalHack hack = new DecimalHack();
     final int precision;
     final int scale;
 
@@ -532,7 +520,7 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
       } else {
         HiveDecimalWritable v = ((DecimalColumnVector) vector).vector[row];
         writer.write(column,
-            new Decimal().set(hack.unscaledLong(v), precision, v.scale()),
+            new Decimal().set(v.serialize64(v.scale()), v.precision(), v.scale()),
             precision, scale);
       }
     }
@@ -548,7 +536,7 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
       } else {
         HiveDecimalWritable v = ((DecimalColumnVector) vector).vector[row];
         writer.write(element,
-            new Decimal().set(hack.unscaledLong(v), precision, v.scale()),
+            new Decimal().set(v.serialize64(v.scale()), v.precision(), v.scale()),
             precision, scale);
       }
     }
