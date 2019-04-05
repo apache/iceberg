@@ -112,89 +112,83 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
     reader.close();
   }
 
-  private static void printRow(SpecializedGetters row, TypeDescription schema) {
-    List<TypeDescription> children = schema.getChildren();
-    System.out.print("{");
+  private static String rowToString(SpecializedGetters row, TypeDescription schema) {
+    final List<TypeDescription> children = schema.getChildren();
+    final StringBuilder rowBuilder = new StringBuilder("{");
+
     for(int c = 0; c < children.size(); ++c) {
-      System.out.print("\"" + schema.getFieldNames().get(c) + "\": ");
-      printRow(row, c, children.get(c));
+      rowBuilder.append("\"");
+      rowBuilder.append(schema.getFieldNames().get(c));
+      rowBuilder.append("\": ");
+      rowBuilder.append(rowEntryToString(row, c, children.get(c)));
     }
-    System.out.print("}");
+    rowBuilder.append("}");
+    return rowBuilder.toString();
   }
 
-  private static void printRow(SpecializedGetters row, int ord, TypeDescription schema) {
+  private static String rowEntryToString(SpecializedGetters row, int ord, TypeDescription schema) {
     switch (schema.getCategory()) {
       case BOOLEAN:
-        System.out.print(row.getBoolean(ord));
-        break;
+        return Boolean.toString(row.getBoolean(ord));
       case BYTE:
-        System.out.print(row.getByte(ord));
-        break;
+        return Byte.toString(row.getByte(ord));
       case SHORT:
-        System.out.print(row.getShort(ord));
-        break;
+        return Short.toString(row.getShort(ord));
       case INT:
-        System.out.print(row.getInt(ord));
-        break;
+        return Integer.toString(row.getInt(ord));
       case LONG:
-        System.out.print(row.getLong(ord));
-        break;
+        return Long.toString(row.getLong(ord));
       case FLOAT:
-        System.out.print(row.getFloat(ord));
-        break;
+        return Float.toString(row.getFloat(ord));
       case DOUBLE:
-        System.out.print(row.getDouble(ord));
-        break;
+        return Double.toString(row.getDouble(ord));
       case CHAR:
       case VARCHAR:
       case STRING:
-        System.out.print("\"" + row.getUTF8String(ord) + "\"");
-        break;
+        return "\"" + row.getUTF8String(ord) + "\"";
       case BINARY: {
         byte[] bin = row.getBinary(ord);
+        final StringBuilder binStr;
         if (bin == null) {
-          System.out.print("null");
+          binStr = new StringBuilder("null");
         } else {
-          System.out.print("[");
+          binStr = new StringBuilder("[");
           for (int i = 0; i < bin.length; ++i) {
             if (i != 0) {
-              System.out.print(", ");
+              binStr.append(", ");
             }
             int v = bin[i] & 0xff;
             if (v < 16) {
-              System.out.print("0" + Integer.toHexString(v));
+              binStr.append("0");
+              binStr.append(Integer.toHexString(v));
             } else {
-              System.out.print(Integer.toHexString(v));
+              binStr.append(Integer.toHexString(v));
             }
           }
-          System.out.print("]");
+          binStr.append("]");
         }
-        break;
+        return binStr.toString();
       }
       case DECIMAL:
-        System.out.print(row.getDecimal(ord, schema.getPrecision(), schema.getScale()));
-        break;
+        return row.getDecimal(ord, schema.getPrecision(), schema.getScale()).toString();
       case DATE:
-        System.out.print("\"" + new DateWritable(row.getInt(ord)) + "\"");
-        break;
+        return "\"" + new DateWritable(row.getInt(ord)) + "\"";
       case TIMESTAMP:
-        System.out.print("\"" + new Timestamp(row.getLong(ord)) + "\"");
-        break;
+        return "\"" + new Timestamp(row.getLong(ord)) + "\"";
       case STRUCT:
-        printRow(row.getStruct(ord, schema.getChildren().size()), schema);
-        break;
+        return rowToString(row.getStruct(ord, schema.getChildren().size()), schema);
       case LIST: {
         TypeDescription child = schema.getChildren().get(0);
-        System.out.print("[");
+        final StringBuilder listStr = new StringBuilder("[");
         ArrayData list = row.getArray(ord);
         for(int e=0; e < list.numElements(); ++e) {
           if (e != 0) {
-            System.out.print(", ");
+            listStr.append(", ");
           }
-          printRow(list, e, child);
+          listStr.append(rowEntryToString(list, e, child));
         }
-        System.out.print("]");
-        break;
+        listStr.append("]");
+        return listStr.toString();
       }
       case MAP: {
         TypeDescription keyType = schema.getChildren().get(0);
@@ -202,17 +196,17 @@ public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
         MapData map = row.getMap(ord);
         ArrayData keys = map.keyArray();
         ArrayData values = map.valueArray();
-        System.out.print("[");
+        StringBuilder mapStr = new StringBuilder("[");
         for(int e=0; e < map.numElements(); ++e) {
           if (e != 0) {
-            System.out.print(", ");
+            mapStr.append(", ");
           }
-          printRow(keys, e, keyType);
-          System.out.print(": ");
-          printRow(values, e, valueType);
+          mapStr.append(rowEntryToString(keys, e, keyType));
+          mapStr.append(": ");
+          mapStr.append(rowEntryToString(values, e, valueType));
         }
-        System.out.print("]");
-        break;
+        mapStr.append("]");
+        return mapStr.toString();
       }
       default:
         throw new IllegalArgumentException("Unhandled type " + schema);
