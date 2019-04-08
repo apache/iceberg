@@ -25,7 +25,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
-
+import java.util.stream.Collectors;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
@@ -363,8 +363,8 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     }
 
     // Verifies that there is no temporary metadata.json files left on rename failures.
-    String[] children = metadataDir.list((dir, name) -> name.endsWith(".metadata.json"));
+    Set<String> actual = listMetadataJsonFiles().stream().map(File::getName).collect(Collectors.toSet());
     Set<String> expected = Sets.newHashSet("v1.metadata.json", "v2.metadata.json");
-    assertEquals("only v1 and v2 metadata.json should exist.", expected, Sets.newHashSet(children));
+    assertEquals("only v1 and v2 metadata.json should exist.", expected, actual);
   }
 }
