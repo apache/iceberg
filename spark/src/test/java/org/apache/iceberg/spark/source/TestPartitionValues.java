@@ -62,7 +62,7 @@ public class TestPartitionValues {
     };
   }
 
-  protected static final Schema SUPPORTED_PRIMITIVES = new Schema(
+  private static final Schema SUPPORTED_PRIMITIVES = new Schema(
       required(100, "id", Types.LongType.get()),
       required(101, "data", Types.StringType.get()),
       required(102, "b", Types.BooleanType.get()),
