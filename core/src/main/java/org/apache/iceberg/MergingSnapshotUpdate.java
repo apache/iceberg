@@ -305,7 +305,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
 
   @Override
   protected void cleanUncommitted(Set<ManifestFile> committed) {
-    if (!committed.contains(newManifest)) {
+    if (newManifest != null && !committed.contains(newManifest)) {
       deleteFile(newManifest.path());
       this.newManifest = null;
     }
