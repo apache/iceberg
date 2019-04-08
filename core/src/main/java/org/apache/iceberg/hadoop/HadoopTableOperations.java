@@ -205,39 +205,47 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   /**
-   * Renames the source file to destination, using the provided file system. If rename failed,
-   * the source file will be attempted to deleted.
+   * Renames the source file to destination, using the provided file system. If the rename failed,
+   * an attempt will be made to delete the source file.
    *
    * @param fs the filesystem used for the rename
    * @param src the source file
    * @param dst the destination file
    */
-  private void renameToFinal(final FileSystem fs, final Path src, final Path dst) {
+  private void renameToFinal(FileSystem fs, Path src, Path dst) {
     try {
       if (!fs.rename(src, dst)) {
-        final CommitFailedException cfe = new CommitFailedException(
+        CommitFailedException cfe = new CommitFailedException(
             "Failed to commit changes using rename: %s", dst);
-        deleteFileNoThrow(src, cfe);
+        RuntimeException re = tryDelete(src);
+        if (re != null) {
+          cfe.addSuppressed(re);
+        }
         throw cfe;
       }
     } catch (IOException e) {
-      final CommitFailedException cfe = new CommitFailedException(e,
+      CommitFailedException cfe = new CommitFailedException(e,
           "Failed to commit changes using rename: %s", dst);
-      deleteFileNoThrow(src, cfe);
+      RuntimeException re = tryDelete(src);
+      if (re != null) {
+        cfe.addSuppressed(re);
+      }
       throw cfe;
     }
   }
 
   /**
-   * Deletes the file from the file system. Any RuntimeException will be suppressed.
+   * Deletes the file from the file system. Any RuntimeException will be caught and returned.
    *
-   * @param tempMetadataFile the file to be deleted.
+   * @param location the file to be deleted.
+   * @return RuntimeException caught, if any. null otherwise.
    */
-  private void deleteFileNoThrow(Path tempMetadataFile, CommitFailedException cfe) {
+  private RuntimeException tryDelete(Path location) {
     try {
-      io().deleteFile(tempMetadataFile.toString());
+      io().deleteFile(location.toString());
+      return null;
     } catch (RuntimeException re) {
-      cfe.addSuppressed(re);
+      return re;
     }
   }
 

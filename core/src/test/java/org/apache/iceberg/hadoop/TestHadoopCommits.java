@@ -20,10 +20,11 @@
 package org.apache.iceberg.hadoop;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.iceberg.AssertHelpers;
@@ -40,12 +41,11 @@ import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
@@ -54,7 +54,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TestHadoopCommits extends HadoopTableTestBase {
-  private static final Logger LOG = LoggerFactory.getLogger(TestHadoopCommits.class);
 
   @Test
   public void testCreateTable() throws Exception {
@@ -311,57 +310,61 @@ public class TestHadoopCommits extends HadoopTableTestBase {
   }
 
   @Test
-  public void testRenameFailures() throws Exception {
-    Assert.assertTrue("Should create v1 metadata",
-        version(1).exists() && version(1).isFile());
-    Assert.assertFalse("Should not create v2 or newer versions",
-        version(2).exists());
-    assertTrue(table instanceof BaseTable);
-    final BaseTable bt = (BaseTable) table;
-    // use v1 metafile as the test commit destination
-    final TableMetadata meta1 = bt.operations().current();
-
-    // create v2 metafile as base
-    table.updateSchema()
-        .addColumn("n", Types.IntegerType.get())
-        .commit();
-    Assert.assertTrue("Should create v2 for the update",
-        version(2).exists() && version(2).isFile());
-    Assert.assertEquals("Should write the current version to the hint file",
-        2, readVersionHint());
-
-    // mock / spy the classes for testing
-    final TableOperations tops = bt.operations();
-    assertTrue(tops instanceof HadoopTableOperations);
-    final HadoopTableOperations htops = (HadoopTableOperations) tops;
-    final HadoopTableOperations spyOps = Mockito.spy(htops);
-
-    // mock for rename returning false, verify tempMetadataFile is removed
-    final FileSystem mockFS = mock(FileSystem.class);
+  public void testRenameReturnFalse() throws Exception {
+    FileSystem mockFS = mock(FileSystem.class);
     when(mockFS.exists(any())).thenReturn(false);
     when(mockFS.rename(any(), any())).thenReturn(false);
-    doReturn(mockFS).when(spyOps).getFS(any(), any());
+    testRenameWithFS(mockFS);
+  }
 
-    verifyTempMetaFileGone(meta1, spyOps);
-
-    // mock for rename throwing, verify tempMetadataFile is removed
+  @Test
+  public void testRenameThrow() throws Exception {
+    FileSystem mockFS = mock(FileSystem.class);
+    when(mockFS.exists(any())).thenReturn(false);
     when(mockFS.rename(any(), any())).thenThrow(new IOException("test injected"));
-    verifyTempMetaFileGone(meta1, spyOps);
+    testRenameWithFS(mockFS);
   }
 
   /**
-   * Verifies that there is no temporary metadata.json file left on rename failures.
+   * Test rename during {@link HadoopTableOperations#commit(TableMetadata, TableMetadata)} with the provided
+   * {@link FileSystem} object. The provided FileSystem will be injected for commit call.
    */
-  private void verifyTempMetaFileGone(TableMetadata meta1, HadoopTableOperations spyOps) {
+  private void testRenameWithFS(FileSystem mockFS) throws Exception {
+    assertTrue("Should create v1 metadata",
+        version(1).exists() && version(1).isFile());
+    assertFalse("Should not create v2 or newer versions",
+        version(2).exists());
+    assertTrue(table instanceof BaseTable);
+    BaseTable baseTable = (BaseTable) table;
+    // use v1 metafile as the test rename destination.
+    TableMetadata meta1 = baseTable.operations().current();
+
+    // create v2 metafile as base. This is solely for the convenience of rename testing later
+    // (so that we have 2 valid and different metadata files, which will reach the rename part during commit)
+    table.updateSchema()
+        .addColumn("n", Types.IntegerType.get())
+        .commit();
+    assertTrue("Should create v2 for the update",
+        version(2).exists() && version(2).isFile());
+    assertEquals("Should write the current version to the hint file",
+        2, readVersionHint());
+
+    // mock / spy the classes for testing
+    TableOperations tops = baseTable.operations();
+    assertTrue(tops instanceof HadoopTableOperations);
+    HadoopTableOperations spyOps = Mockito.spy((HadoopTableOperations) tops);
+
+    // inject the mockFS into the TableOperations
+    doReturn(mockFS).when(spyOps).getFS(any(), any());
     try {
       spyOps.commit(spyOps.current(), meta1);
       fail("Commit should fail due to mock file system");
     } catch (CommitFailedException expected) {
-      LOG.info("Caught expected exception", expected);
     }
 
-    final String[] children = metadataDir.list((dir, name) -> name.endsWith(".metadata.json"));
-    LOG.info("metadataDir has children: {}", Arrays.toString(children));
-    assertEquals("only v1 and v2 metadata.json should exist.", 2, children.length);
+    // Verifies that there is no temporary metadata.json files left on rename failures.
+    String[] children = metadataDir.list((dir, name) -> name.endsWith(".metadata.json"));
+    Set<String> expected = Sets.newHashSet("v1.metadata.json", "v2.metadata.json");
+    assertEquals("only v1 and v2 metadata.json should exist.", expected, Sets.newHashSet(children));
   }
 }
