@@ -20,23 +20,38 @@
 package org.apache.iceberg.hadoop;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
-
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TestHadoopCommits extends HadoopTableTestBase {
 
@@ -292,5 +307,64 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     TableMetadata metadata = readMetadataVersion(5);
     Assert.assertEquals("Current snapshot should contain 1 merged manifest",
         1, metadata.currentSnapshot().manifests().size());
+  }
+
+  @Test
+  public void testRenameReturnFalse() throws Exception {
+    FileSystem mockFS = mock(FileSystem.class);
+    when(mockFS.exists(any())).thenReturn(false);
+    when(mockFS.rename(any(), any())).thenReturn(false);
+    testRenameWithFS(mockFS);
+  }
+
+  @Test
+  public void testRenameThrow() throws Exception {
+    FileSystem mockFS = mock(FileSystem.class);
+    when(mockFS.exists(any())).thenReturn(false);
+    when(mockFS.rename(any(), any())).thenThrow(new IOException("test injected"));
+    testRenameWithFS(mockFS);
+  }
+
+  /**
+   * Test rename during {@link HadoopTableOperations#commit(TableMetadata, TableMetadata)} with the provided
+   * {@link FileSystem} object. The provided FileSystem will be injected for commit call.
+   */
+  private void testRenameWithFS(FileSystem mockFS) throws Exception {
+    assertTrue("Should create v1 metadata",
+        version(1).exists() && version(1).isFile());
+    assertFalse("Should not create v2 or newer versions",
+        version(2).exists());
+    assertTrue(table instanceof BaseTable);
+    BaseTable baseTable = (BaseTable) table;
+    // use v1 metafile as the test rename destination.
+    TableMetadata meta1 = baseTable.operations().current();
+
+    // create v2 metafile as base. This is solely for the convenience of rename testing later
+    // (so that we have 2 valid and different metadata files, which will reach the rename part during commit)
+    table.updateSchema()
+        .addColumn("n", Types.IntegerType.get())
+        .commit();
+    assertTrue("Should create v2 for the update",
+        version(2).exists() && version(2).isFile());
+    assertEquals("Should write the current version to the hint file",
+        2, readVersionHint());
+
+    // mock / spy the classes for testing
+    TableOperations tops = baseTable.operations();
+    assertTrue(tops instanceof HadoopTableOperations);
+    HadoopTableOperations spyOps = Mockito.spy((HadoopTableOperations) tops);
+
+    // inject the mockFS into the TableOperations
+    doReturn(mockFS).when(spyOps).getFS(any(), any());
+    try {
+      spyOps.commit(spyOps.current(), meta1);
+      fail("Commit should fail due to mock file system");
+    } catch (CommitFailedException expected) {
+    }
+
+    // Verifies that there is no temporary metadata.json files left on rename failures.
+    Set<String> actual = listMetadataJsonFiles().stream().map(File::getName).collect(Collectors.toSet());
+    Set<String> expected = Sets.newHashSet("v1.metadata.json", "v2.metadata.json");
+    assertEquals("only v1 and v2 metadata.json should exist.", expected, actual);
   }
 }
