@@ -20,12 +20,12 @@
 package org.apache.iceberg.io;
 
 import com.google.common.base.Preconditions;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.function.Function;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 
 public interface CloseableIterable<T> extends Iterable<T>, Closeable {
   static <E> CloseableIterable<E> withNoopClose(Iterable<E> iterable) {
