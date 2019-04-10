@@ -28,21 +28,21 @@ public class TestTimestamps {
   @Test
   public void testTimestampWithoutZoneToHumanString() {
     Types.TimestampType type = Types.TimestampType.withoutZone();
-    Literal<Integer> date = Literal.of("2017-12-01T10:12:55.038194").to(type);
+    Literal<Long> date = Literal.of("2017-12-01T10:12:55.038194").to(type);
 
-    Transform<Integer, Integer> year = Transforms.year(type);
+    Transform<Long, Integer> year = Transforms.year(type);
     Assert.assertEquals("Should produce the correct Human string",
         "2017", year.toHumanString(year.apply(date.value())));
 
-    Transform<Integer, Integer> month = Transforms.month(type);
+    Transform<Long, Integer> month = Transforms.month(type);
     Assert.assertEquals("Should produce the correct Human string",
         "2017-12", month.toHumanString(month.apply(date.value())));
 
-    Transform<Integer, Integer> day = Transforms.day(type);
+    Transform<Long, Integer> day = Transforms.day(type);
     Assert.assertEquals("Should produce the correct Human string",
         "2017-12-01", day.toHumanString(day.apply(date.value())));
 
-    Transform<Integer, Integer> hour = Transforms.hour(type);
+    Transform<Long, Integer> hour = Transforms.hour(type);
     Assert.assertEquals("Should produce the correct Human string",
         "2017-12-01-10", hour.toHumanString(hour.apply(date.value())));
   }
@@ -50,22 +50,22 @@ public class TestTimestamps {
   @Test
   public void testTimestampWithZoneToHumanString() {
     Types.TimestampType type = Types.TimestampType.withZone();
-    Literal<Integer> date = Literal.of("2017-12-01T10:12:55.038194-08:00").to(type);
+    Literal<Long> date = Literal.of("2017-12-01T10:12:55.038194-08:00").to(type);
 
-    Transform<Integer, Integer> year = Transforms.year(type);
+    Transform<Long, Integer> year = Transforms.year(type);
     Assert.assertEquals("Should produce the correct Human string",
         "2017", year.toHumanString(year.apply(date.value())));
 
-    Transform<Integer, Integer> month = Transforms.month(type);
+    Transform<Long, Integer> month = Transforms.month(type);
     Assert.assertEquals("Should produce the correct Human string",
         "2017-12", month.toHumanString(month.apply(date.value())));
 
-    Transform<Integer, Integer> day = Transforms.day(type);
+    Transform<Long, Integer> day = Transforms.day(type);
     Assert.assertEquals("Should produce the correct Human string",
         "2017-12-01", day.toHumanString(day.apply(date.value())));
 
     // the hour is 18 because the value is always UTC
-    Transform<Integer, Integer> hour = Transforms.hour(type);
+    Transform<Long, Integer> hour = Transforms.hour(type);
     Assert.assertEquals("Should produce the correct Human string",
         "2017-12-01-18", hour.toHumanString(hour.apply(date.value())));
   }
