@@ -22,7 +22,6 @@ package org.apache.iceberg.expressions;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
-
 import com.google.common.collect.Maps;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;

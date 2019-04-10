@@ -68,7 +68,6 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
    * @throws ValidationException if literals do not match bound references, or if comparison on expression is invalid
    */
   public Expression bind(Types.StructType struct, boolean caseSensitive) {
-
     Schema schema = new Schema(struct.fields());
     Types.NestedField field = caseSensitive ?
             schema.findField(ref().name()) :
@@ -133,5 +132,4 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
     }
     return new BoundPredicate<>(op(), new BoundReference<>(schema, field.fieldId()), lit);
   }
-
 }

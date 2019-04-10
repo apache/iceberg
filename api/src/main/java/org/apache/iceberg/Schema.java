@@ -157,7 +157,6 @@ public class Schema implements Serializable {
     return null;
   }
 
-
   public Types.NestedField caseInsensitiveFindField(String name) {
     Preconditions.checkArgument(!name.isEmpty(), "Invalid column name: (empty)");
     Integer id = lazyLowerCaseNameToId().get(name.toLowerCase(Locale.ROOT));
