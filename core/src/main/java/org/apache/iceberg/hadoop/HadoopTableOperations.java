@@ -235,19 +235,19 @@ public class HadoopTableOperations implements TableOperations {
   /**
    * Deletes the file from the file system. Any RuntimeException will be caught and returned.
    *
-   * @param location the file to be deleted.
+   * @param path the file to be deleted.
    * @return RuntimeException caught, if any. null otherwise.
    */
-  private RuntimeException tryDelete(Path location) {
+  private RuntimeException tryDelete(Path path) {
     try {
-      io().deleteFile(location.toString());
+      io().deleteFile(path.toString());
       return null;
     } catch (RuntimeException re) {
       return re;
     }
   }
 
-  protected FileSystem getFileSystem(Path path, Configuration conf) {
-    return Util.getFs(path, conf);
+  protected FileSystem getFileSystem(Path path, Configuration hadoopCOnf) {
+    return Util.getFs(path, hadoopCOnf);
   }
 }
