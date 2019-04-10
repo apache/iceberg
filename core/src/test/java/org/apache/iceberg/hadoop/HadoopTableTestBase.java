@@ -120,8 +120,12 @@ public class HadoopTableTestBase {
         !name.startsWith("snap") && Files.getFileExtension(name).equalsIgnoreCase("avro")));
   }
 
-  File version(int version) {
-    return new File(metadataDir, "v" + version + getFileExtension(new Configuration()));
+  List<File> listMetadataJsonFiles() {
+    return Lists.newArrayList(metadataDir.listFiles((dir, name) -> name.endsWith(".metadata.json")));
+  }
+
+  File version(int versionNumber) {
+    return new File(metadataDir, "v" + versionNumber + getFileExtension(new Configuration()));
   }
 
   TableMetadata readMetadataVersion(int version) {
