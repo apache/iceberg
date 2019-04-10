@@ -22,18 +22,21 @@ package org.apache.iceberg.util;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableGroup;
+import org.apache.iceberg.io.CloseableIterable;
 
-public class ParallelIterable<T> extends CloseableGroup implements Iterable<T> {
-  private final Iterable<Iterable<T>> iterables;
+public class ParallelIterable<T> extends CloseableGroup implements CloseableIterable<T> {
+  private final Iterable<? extends Iterable<T>> iterables;
   private final ExecutorService workerPool;
 
-  public ParallelIterable(Iterable<Iterable<T>> iterables,
+  public ParallelIterable(Iterable<? extends Iterable<T>> iterables,
                           ExecutorService workerPool) {
     this.iterables = iterables;
     this.workerPool = workerPool;
@@ -53,12 +56,17 @@ public class ParallelIterable<T> extends CloseableGroup implements Iterable<T> {
     private final ConcurrentLinkedQueue<T> queue = new ConcurrentLinkedQueue<>();
     private boolean closed = false;
 
-    private ParallelIterator(Iterable<Iterable<T>> iterables,
+    private ParallelIterator(Iterable<? extends Iterable<T>> iterables,
                              ExecutorService workerPool) {
       this.tasks = Iterables.transform(iterables, iterable ->
           (Runnable) () -> {
-            for (T item : iterable) {
-              queue.add(item);
+            try (Closeable ignored = (iterable instanceof Closeable) ?
+                (Closeable) iterable : () -> {}) {
+              for (T item : iterable) {
+                queue.add(item);
+              }
+            } catch (IOException e) {
+              throw new RuntimeIOException(e, "Failed to close iterable");
             }
           }).iterator();
       this.workerPool = workerPool;

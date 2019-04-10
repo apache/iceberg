@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import java.io.Serializable;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
@@ -30,6 +31,7 @@ import org.apache.avro.util.Utf8;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 
 class PartitionData
     implements IndexedRecord, StructLike, SpecificData.SchemaConstructable, Serializable {
@@ -83,6 +85,7 @@ class PartitionData
     return partitionType;
   }
 
+  @Override
   public Schema getSchema() {
     if (schema == null) {
       this.schema = new Schema.Parser().parse(stringSchema);
@@ -121,6 +124,12 @@ class PartitionData
     if (value instanceof Utf8) {
       // Utf8 is not Serializable
       data[pos] = value.toString();
+    } else if (value instanceof ByteBuffer) {
+      // ByteBuffer is not Serializable
+      ByteBuffer buffer = (ByteBuffer) value;
+      byte[] bytes = new byte[buffer.remaining()];
+      buffer.duplicate().get(bytes);
+      data[pos] = bytes;
     } else {
       data[pos] = value;
     }
@@ -136,6 +145,11 @@ class PartitionData
     if (i >= data.length) {
       return null;
     }
+
+    if (data[i] instanceof byte[]) {
+      return ByteBuffer.wrap((byte[]) data[i]);
+    }
+
     return data[i];
   }
 

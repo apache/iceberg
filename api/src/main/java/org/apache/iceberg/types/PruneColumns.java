@@ -27,7 +27,7 @@ import org.apache.iceberg.Schema;
 class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
   private final Set<Integer> selected;
 
-  public PruneColumns(Set<Integer> selected) {
+  PruneColumns(Set<Integer> selected) {
     this.selected = selected;
   }
 

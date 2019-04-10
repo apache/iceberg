@@ -20,7 +20,6 @@
 package org.apache.iceberg.transforms;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Charsets;
 import com.google.common.base.Objects;
 import com.google.common.collect.Sets;
 import com.google.common.hash.HashFunction;
@@ -28,6 +27,7 @@ import com.google.common.hash.Hashing;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.expressions.BoundPredicate;
@@ -42,37 +42,37 @@ abstract class Bucket<T> implements Transform<T, Integer> {
   private static final HashFunction MURMUR3 = Hashing.murmur3_32();
 
   @SuppressWarnings("unchecked")
-  static <T> Bucket<T> get(Type type, int N) {
+  static <T> Bucket<T> get(Type type, int numBuckets) {
     switch (type.typeId()) {
       case DATE:
       case INTEGER:
-        return (Bucket<T>) new BucketInteger(N);
+        return (Bucket<T>) new BucketInteger(numBuckets);
       case TIME:
       case TIMESTAMP:
       case LONG:
-        return (Bucket<T>) new BucketLong(N);
+        return (Bucket<T>) new BucketLong(numBuckets);
       case DECIMAL:
-        return (Bucket<T>) new BucketDecimal(N);
+        return (Bucket<T>) new BucketDecimal(numBuckets);
       case STRING:
-        return (Bucket<T>) new BucketString(N);
+        return (Bucket<T>) new BucketString(numBuckets);
       case FIXED:
       case BINARY:
-        return (Bucket<T>) new BucketByteBuffer(N);
+        return (Bucket<T>) new BucketByteBuffer(numBuckets);
       case UUID:
-        return (Bucket<T>) new BucketUUID(N);
+        return (Bucket<T>) new BucketUUID(numBuckets);
       default:
         throw new IllegalArgumentException("Cannot bucket by type: " + type);
     }
   }
 
-  private final int N;
+  private final int numBuckets;
 
-  private Bucket(int N) {
-    this.N = N;
+  private Bucket(int numBuckets) {
+    this.numBuckets = numBuckets;
   }
 
   public Integer numBuckets() {
-    return N;
+    return numBuckets;
   }
 
   @VisibleForTesting
@@ -80,7 +80,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
   @Override
   public Integer apply(T value) {
-    return (hash(value) & Integer.MAX_VALUE) % N;
+    return (hash(value) & Integer.MAX_VALUE) % numBuckets;
   }
 
   @Override
@@ -93,17 +93,17 @@ abstract class Bucket<T> implements Transform<T, Integer> {
     }
 
     Bucket<?> bucket = (Bucket<?>) o;
-    return N == bucket.N;
+    return numBuckets == bucket.numBuckets;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(N);
+    return Objects.hashCode(numBuckets);
   }
 
   @Override
   public String toString() {
-    return "bucket[" + N + "]";
+    return "bucket[" + numBuckets + "]";
   }
 
   @Override
@@ -141,10 +141,11 @@ abstract class Bucket<T> implements Transform<T, Integer> {
   }
 
   private static class BucketInteger extends Bucket<Integer> {
-    private BucketInteger(int N) {
-      super(N);
+    private BucketInteger(int numBuckets) {
+      super(numBuckets);
     }
 
+    @Override
     public int hash(Integer value) {
       return MURMUR3.hashLong(value.longValue()).asInt();
     }
@@ -156,31 +157,32 @@ abstract class Bucket<T> implements Transform<T, Integer> {
   }
 
   private static class BucketLong extends Bucket<Long> {
-    private BucketLong(int N) {
-      super(N);
+    private BucketLong(int numBuckets) {
+      super(numBuckets);
     }
 
+    @Override
     public int hash(Long value) {
       return MURMUR3.hashLong(value).asInt();
     }
 
     @Override
     public boolean canTransform(Type type) {
-      return (
-          type.typeId() == TypeID.LONG ||
+      return type.typeId() == TypeID.LONG ||
           type.typeId() == TypeID.TIME ||
-          type.typeId() == TypeID.TIMESTAMP
-      );
+          type.typeId() == TypeID.TIMESTAMP;
+
     }
   }
 
   // bucketing by Double is not allowed by the spec, but this has the float hash implementation
   static class BucketFloat extends Bucket<Float> {
     // used by tests because the factory method will not instantiate a bucket function for floats
-    BucketFloat(int N) {
-      super(N);
+    BucketFloat(int numBuckets) {
+      super(numBuckets);
     }
 
+    @Override
     public int hash(Float value) {
       return MURMUR3.hashLong(Double.doubleToRawLongBits((double) value)).asInt();
     }
@@ -194,10 +196,11 @@ abstract class Bucket<T> implements Transform<T, Integer> {
   // bucketing by Double is not allowed by the spec, but this has the double hash implementation
   static class BucketDouble extends Bucket<Double> {
     // used by tests because the factory method will not instantiate a bucket function for doubles
-    BucketDouble(int N) {
-      super(N);
+    BucketDouble(int numBuckets) {
+      super(numBuckets);
     }
 
+    @Override
     public int hash(Double value) {
       return MURMUR3.hashLong(Double.doubleToRawLongBits(value)).asInt();
     }
@@ -209,12 +212,13 @@ abstract class Bucket<T> implements Transform<T, Integer> {
   }
 
   private static class BucketString extends Bucket<CharSequence> {
-    private BucketString(int N) {
-      super(N);
+    private BucketString(int numBuckets) {
+      super(numBuckets);
     }
 
+    @Override
     public int hash(CharSequence value) {
-      return MURMUR3.hashString(value, Charsets.UTF_8).asInt();
+      return MURMUR3.hashString(value, StandardCharsets.UTF_8).asInt();
     }
 
     @Override
@@ -227,10 +231,11 @@ abstract class Bucket<T> implements Transform<T, Integer> {
     private static final Set<TypeID> SUPPORTED_TYPES = Sets.newHashSet(
         TypeID.BINARY, TypeID.FIXED);
 
-    private BucketBytes(int N) {
-      super(N);
+    private BucketBytes(int numBuckets) {
+      super(numBuckets);
     }
 
+    @Override
     public int hash(byte[] value) {
       return MURMUR3.hashBytes(value).asInt();
     }
@@ -245,10 +250,11 @@ abstract class Bucket<T> implements Transform<T, Integer> {
     private static final Set<TypeID> SUPPORTED_TYPES = Sets.newHashSet(
         TypeID.BINARY, TypeID.FIXED);
 
-    private BucketByteBuffer(int N) {
-      super(N);
+    private BucketByteBuffer(int numBuckets) {
+      super(numBuckets);
     }
 
+    @Override
     public int hash(ByteBuffer value) {
       if (value.hasArray()) {
         return MURMUR3.hashBytes(value.array(),
@@ -280,10 +286,11 @@ abstract class Bucket<T> implements Transform<T, Integer> {
       return buffer;
     });
 
-    private BucketUUID(int N) {
-      super(N);
+    private BucketUUID(int numBuckets) {
+      super(numBuckets);
     }
 
+    @Override
     public int hash(UUID value) {
       ByteBuffer buffer = BUFFER.get();
       buffer.rewind();
@@ -299,10 +306,11 @@ abstract class Bucket<T> implements Transform<T, Integer> {
   }
 
   private static class BucketDecimal extends Bucket<BigDecimal> {
-    private BucketDecimal(int N) {
-      super(N);
+    private BucketDecimal(int numBuckets) {
+      super(numBuckets);
     }
 
+    @Override
     public int hash(BigDecimal value) {
       return MURMUR3.hashBytes(value.unscaledValue().toByteArray()).asInt();
     }

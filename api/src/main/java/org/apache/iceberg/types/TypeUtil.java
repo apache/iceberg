@@ -25,7 +25,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import java.util.LinkedList;
+import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -35,6 +35,9 @@ import java.util.function.Supplier;
 import org.apache.iceberg.Schema;
 
 public class TypeUtil {
+
+  private TypeUtil() {}
+
   public static Schema select(Schema schema, Set<Integer> fieldIds) {
     Preconditions.checkNotNull(schema, "Schema cannot be null");
     Preconditions.checkNotNull(fieldIds, "Field ids cannot be null");
@@ -83,8 +86,8 @@ public class TypeUtil {
 
   public static Map<String, Integer> indexByLowerCaseName(Types.StructType struct) {
     Map<String, Integer> indexByLowerCaseName = Maps.newHashMap();
-    indexByName(struct).forEach( (name, integer) ->
-      indexByLowerCaseName.put(name.toLowerCase(Locale.ROOT), integer));
+    indexByName(struct).forEach((name, integer) ->
+        indexByLowerCaseName.put(name.toLowerCase(Locale.ROOT), integer));
     return indexByLowerCaseName;
   }
 
@@ -160,8 +163,8 @@ public class TypeUtil {
         }
 
         Types.DecimalType toDecimal = (Types.DecimalType) to;
-        return (fromDecimal.scale() == toDecimal.scale() &&
-            fromDecimal.precision() <= toDecimal.precision());
+        return fromDecimal.scale() == toDecimal.scale() &&
+            fromDecimal.precision() <= toDecimal.precision();
     }
 
     return false;
@@ -175,8 +178,8 @@ public class TypeUtil {
   }
 
   public static class SchemaVisitor<T> {
-    protected LinkedList<String> fieldNames = Lists.newLinkedList();
-    protected LinkedList<Integer> fieldIds = Lists.newLinkedList();
+    private final Deque<String> fieldNames = Lists.newLinkedList();
+    private final Deque<Integer> fieldIds = Lists.newLinkedList();
 
     public T schema(Schema schema, T structResult) {
       return null;
@@ -200,6 +203,14 @@ public class TypeUtil {
 
     public T primitive(Type.PrimitiveType primitive) {
       return null;
+    }
+
+    protected Deque<String> fieldNames() {
+      return fieldNames;
+    }
+
+    protected Deque<Integer> fieldIds() {
+      return fieldIds;
     }
   }
 
@@ -369,23 +380,23 @@ public class TypeUtil {
 
   static int decimalMaxPrecision(int numBytes) {
     Preconditions.checkArgument(numBytes >= 0 && numBytes < 24,
-        "Unsupported decimal length: " + numBytes);
+        "Unsupported decimal length: %s", numBytes);
     return MAX_PRECISION[numBytes];
   }
 
   public static int decimalRequriedBytes(int precision) {
     Preconditions.checkArgument(precision >= 0 && precision < 40,
-        "Unsupported decimal precision: " + precision);
+        "Unsupported decimal precision: %s", precision);
     return REQUIRED_LENGTH[precision];
   }
 
-  private static int[] MAX_PRECISION = new int[24];
-  private static int[] REQUIRED_LENGTH = new int[40];
+  private static final int[] MAX_PRECISION = new int[24];
+  private static final int[] REQUIRED_LENGTH = new int[40];
 
   static {
     // for each length, calculate the max precision
     for (int len = 0; len < MAX_PRECISION.length; len += 1) {
-      MAX_PRECISION[len] = (int) Math.floor(Math.log10(Math.pow(2, 8*len - 1) - 1));
+      MAX_PRECISION[len] = (int) Math.floor(Math.log10(Math.pow(2, 8 * len - 1) - 1));
     }
 
     // for each precision, find the first length that can hold it

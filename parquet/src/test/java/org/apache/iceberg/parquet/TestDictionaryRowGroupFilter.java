@@ -155,6 +155,35 @@ public class TestDictionaryRowGroupFilter {
   }
 
   @Test
+  public void testAssumptions() {
+    // this case validates that other cases don't need to test expressions with null literals.
+    TestHelpers.assertThrows("Should reject null literal in equal expression",
+        NullPointerException.class,
+        "Cannot create expression literal from null",
+        () -> equal("col", null));
+    TestHelpers.assertThrows("Should reject null literal in notEqual expression",
+        NullPointerException.class,
+        "Cannot create expression literal from null",
+        () -> notEqual("col", null));
+    TestHelpers.assertThrows("Should reject null literal in lessThan expression",
+        NullPointerException.class,
+        "Cannot create expression literal from null",
+        () -> lessThan("col", null));
+    TestHelpers.assertThrows("Should reject null literal in lessThanOrEqual expression",
+        NullPointerException.class,
+        "Cannot create expression literal from null",
+        () -> lessThanOrEqual("col", null));
+    TestHelpers.assertThrows("Should reject null literal in greaterThan expression",
+        NullPointerException.class,
+        "Cannot create expression literal from null",
+        () -> greaterThan("col", null));
+    TestHelpers.assertThrows("Should reject null literal in greaterThanOrEqual expression",
+        NullPointerException.class,
+        "Cannot create expression literal from null",
+        () -> greaterThanOrEqual("col", null));
+  }
+
+  @Test
   public void testAllNulls() {
     boolean shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notNull("all_nulls"))
         .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
@@ -462,7 +491,11 @@ public class TestDictionaryRowGroupFilter {
   public void testStringNotEq() {
     boolean shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("some_nulls", "some"))
         .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
-    Assert.assertFalse("Should skip: all values are 'some'", shouldRead);
+    Assert.assertTrue("Should read: contains null != 'some'", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("no_nulls", ""))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertFalse("Should skip: contains only ''", shouldRead);
   }
 
   @Test

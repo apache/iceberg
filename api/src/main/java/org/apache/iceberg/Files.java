@@ -33,6 +33,8 @@ import org.apache.iceberg.io.SeekableInputStream;
 
 public class Files {
 
+  private Files() {}
+
   public static OutputFile localOutput(File file) {
     return new LocalOutputFile(file);
   }
@@ -213,14 +215,14 @@ public class Files {
     }
 
     @Override
-    public void close() throws IOException {
-      stream.close();
-      this.isClosed = true;
+    public void write(int b) throws IOException {
+      stream.write(b);
     }
 
     @Override
-    public void write(int b) throws IOException {
-      stream.write(b);
+    public void close() throws IOException {
+      stream.close();
+      this.isClosed = true;
     }
   }
 }

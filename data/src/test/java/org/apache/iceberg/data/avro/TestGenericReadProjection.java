@@ -30,6 +30,7 @@ import org.apache.iceberg.data.TestReadProjection;
 import org.apache.iceberg.io.FileAppender;
 
 public class TestGenericReadProjection extends TestReadProjection {
+  @Override
   protected Record writeAndRead(String desc, Schema writeSchema, Schema readSchema, Record record)
       throws IOException {
     File file = temp.newFile(desc + ".avro");

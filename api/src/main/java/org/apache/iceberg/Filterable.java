@@ -22,13 +22,14 @@ package org.apache.iceberg;
 import com.google.common.collect.Lists;
 import java.util.Collection;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.io.CloseableIterable;
 
 /**
  * Methods to filter files in a snapshot or manifest when reading.
  *
  * @param <T> Java class returned by filter methods, also filterable
  */
-public interface Filterable<T extends Filterable<T>> extends Iterable<DataFile> {
+public interface Filterable<T extends Filterable<T>> extends CloseableIterable<DataFile> {
   /**
    * Selects the columns of a file manifest to read.
    * <p>

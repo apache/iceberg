@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 
 import com.google.common.collect.Maps;
 import java.lang.reflect.Array;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -170,6 +171,8 @@ class PartitionKey implements StructLike {
         return new StringAccessor(p, convert(type));
       case DECIMAL:
         return new DecimalAccessor(p, convert(type));
+      case BINARY:
+        return new BytesAccessor(p, convert(type));
       default:
         return new PositionAccessor(p, convert(type));
     }
@@ -273,6 +276,20 @@ class PartitionKey implements StructLike {
         return null;
       }
       return ((Decimal) row.get(p, type)).toJavaBigDecimal();
+    }
+  }
+
+  private static class BytesAccessor extends PositionAccessor {
+    private BytesAccessor(int p, DataType type) {
+      super(p, type);
+    }
+
+    @Override
+    public Object get(InternalRow row) {
+      if (row.isNullAt(p)) {
+        return null;
+      }
+      return ByteBuffer.wrap((byte[]) row.get(p, type));
     }
   }
 

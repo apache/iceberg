@@ -78,8 +78,8 @@ public class ResidualEvaluator implements Serializable {
   private class ResidualVisitor extends ExpressionVisitors.BoundExpressionVisitor<Expression> {
     private StructLike struct;
 
-    private Expression eval(StructLike struct) {
-      this.struct = struct;
+    private Expression eval(StructLike structLike) {
+      this.struct = structLike;
       return ExpressionVisitors.visit(expr, this);
     }
 

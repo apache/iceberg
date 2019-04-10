@@ -58,6 +58,7 @@ import org.apache.iceberg.spark.data.SparkAvroReader;
 import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Attribute;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
@@ -521,8 +522,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       if (type instanceof StringType) {
         return UTF8String.fromString(value.toString());
       } else if (type instanceof BinaryType) {
-        ByteBuffer buffer = (ByteBuffer) value;
-        return buffer.get(new byte[buffer.remaining()]);
+        return ByteBuffers.toByteArray((ByteBuffer) value);
       } else if (type instanceof DecimalType) {
         return Decimal.fromDecimal(value);
       }

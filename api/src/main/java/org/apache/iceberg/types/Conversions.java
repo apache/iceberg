@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.types;
 
-import com.google.common.base.Charsets;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -28,11 +27,15 @@ import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CharsetEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.UUID;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 
 public class Conversions {
+
+  private Conversions() {}
+
   private static final String HIVE_NULL = "__HIVE_DEFAULT_PARTITION__";
 
   public static Object fromPartitionString(Type type, String asString) {
@@ -58,9 +61,9 @@ public class Conversions {
       case FIXED:
         Types.FixedType fixed = (Types.FixedType) type;
         return Arrays.copyOf(
-            asString.getBytes(Charsets.UTF_8), fixed.length());
+            asString.getBytes(StandardCharsets.UTF_8), fixed.length());
       case BINARY:
-        return asString.getBytes(Charsets.UTF_8);
+        return asString.getBytes(StandardCharsets.UTF_8);
       case DECIMAL:
         return new BigDecimal(asString);
       default:
@@ -70,9 +73,9 @@ public class Conversions {
   }
 
   private static final ThreadLocal<CharsetEncoder> ENCODER =
-      ThreadLocal.withInitial(Charsets.UTF_8::newEncoder);
+      ThreadLocal.withInitial(StandardCharsets.UTF_8::newEncoder);
   private static final ThreadLocal<CharsetDecoder> DECODER =
-      ThreadLocal.withInitial(Charsets.UTF_8::newDecoder);
+      ThreadLocal.withInitial(StandardCharsets.UTF_8::newDecoder);
 
   public static ByteBuffer toByteBuffer(Type type, Object value) {
     switch (type.typeId()) {
@@ -98,9 +101,9 @@ public class Conversions {
         }
       case UUID:
         UUID uuid = (UUID) value;
-        return ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
+        return ByteBuffer.allocate(16).order(ByteOrder.BIG_ENDIAN)
             .putLong(0, uuid.getMostSignificantBits())
-            .putLong(1, uuid.getLeastSignificantBits());
+            .putLong(8, uuid.getLeastSignificantBits());
       case FIXED:
       case BINARY:
         return (ByteBuffer) value;
@@ -117,10 +120,15 @@ public class Conversions {
   }
 
   private static Object internalFromByteBuffer(Type type, ByteBuffer buffer) {
-    ByteBuffer tmp = buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN);
+    ByteBuffer tmp = buffer.duplicate();
+    if (type == Types.UUIDType.get() || type instanceof Types.DecimalType) {
+      tmp.order(ByteOrder.BIG_ENDIAN);
+    } else {
+      tmp.order(ByteOrder.LITTLE_ENDIAN);
+    }
     switch (type.typeId()) {
       case BOOLEAN:
-        return (tmp.get() != 0x00);
+        return tmp.get() != 0x00;
       case INTEGER:
       case DATE:
         return tmp.getInt();

@@ -64,8 +64,8 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
 
   private void addField(String name, int fieldId) {
     String fullName = name;
-    if (!fieldNames.isEmpty()) {
-      fullName = DOT.join(DOT.join(fieldNames.descendingIterator()), name);
+    if (!fieldNames().isEmpty()) {
+      fullName = DOT.join(DOT.join(fieldNames().descendingIterator()), name);
     }
     nameToId.put(fullName, fieldId);
   }

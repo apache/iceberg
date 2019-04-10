@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.transforms;
 
-import com.google.common.base.Charsets;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
@@ -29,6 +29,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 
 class TransformUtil {
+
+  private TransformUtil() {}
+
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private static final int EPOCH_YEAR = EPOCH.getYear();
 
@@ -66,6 +69,6 @@ class TransformUtil {
 
   static String base64encode(ByteBuffer buffer) {
     // use direct encoding because all of the encoded bytes are in ASCII
-    return Charsets.ISO_8859_1.decode(Base64.getEncoder().encode(buffer)).toString();
+    return StandardCharsets.ISO_8859_1.decode(Base64.getEncoder().encode(buffer)).toString();
   }
 }

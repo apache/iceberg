@@ -64,6 +64,7 @@ public class HadoopTableOperations implements TableOperations {
     this.location = location;
   }
 
+  @Override
   public TableMetadata current() {
     if (shouldRefresh) {
       return refresh();
@@ -135,16 +136,8 @@ public class HadoopTableOperations implements TableOperations {
           "Failed to check if next version exists: " + finalMetadataFile);
     }
 
-    try {
-      // this rename operation is the atomic commit operation
-      if (!fs.rename(tempMetadataFile, finalMetadataFile)) {
-        throw new CommitFailedException(
-            "Failed to commit changes using rename: %s", finalMetadataFile);
-      }
-    } catch (IOException e) {
-      throw new CommitFailedException(e,
-          "Failed to commit changes using rename: %s", finalMetadataFile);
-    }
+    // this rename operation is the atomic commit operation
+    renameToFinal(fs, tempMetadataFile, finalMetadataFile);
 
     // update the best-effort version pointer
     writeVersionHint(nextVersion);
@@ -208,6 +201,51 @@ public class HadoopTableOperations implements TableOperations {
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to get file system for path: %s", versionHintFile);
+    }
+  }
+
+  /**
+   * Renames the source file to destination, using the provided file system. If the rename failed,
+   * an attempt will be made to delete the source file.
+   *
+   * @param fs the filesystem used for the rename
+   * @param src the source file
+   * @param dst the destination file
+   */
+  private void renameToFinal(FileSystem fs, Path src, Path dst) {
+    try {
+      if (!fs.rename(src, dst)) {
+        CommitFailedException cfe = new CommitFailedException(
+            "Failed to commit changes using rename: %s", dst);
+        RuntimeException re = tryDelete(src);
+        if (re != null) {
+          cfe.addSuppressed(re);
+        }
+        throw cfe;
+      }
+    } catch (IOException e) {
+      CommitFailedException cfe = new CommitFailedException(e,
+          "Failed to commit changes using rename: %s", dst);
+      RuntimeException re = tryDelete(src);
+      if (re != null) {
+        cfe.addSuppressed(re);
+      }
+      throw cfe;
+    }
+  }
+
+  /**
+   * Deletes the file from the file system. Any RuntimeException will be caught and returned.
+   *
+   * @param location the file to be deleted.
+   * @return RuntimeException caught, if any. null otherwise.
+   */
+  private RuntimeException tryDelete(Path location) {
+    try {
+      io().deleteFile(location.toString());
+      return null;
+    } catch (RuntimeException re) {
+      return re;
     }
   }
 

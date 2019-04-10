@@ -305,7 +305,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
 
   @Override
   protected void cleanUncommitted(Set<ManifestFile> committed) {
-    if (!committed.contains(newManifest)) {
+    if (newManifest != null && !committed.contains(newManifest)) {
       deleteFile(newManifest.path());
       this.newManifest = null;
     }
@@ -334,7 +334,8 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
       return manifest;
     }
 
-    try (ManifestReader reader = ManifestReader.read(ops.io().newInputFile(manifest.path()))) {
+    try (ManifestReader reader = ManifestReader.read(
+        ops.io().newInputFile(manifest.path()), ops.current()::spec)) {
       Expression inclusiveExpr = Projections
           .inclusive(reader.spec())
           .project(deleteExpression);
@@ -436,7 +437,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
     // use a lookback of 1 to avoid reordering the manifests. using 1 also means this should pack
     // from the end so that the manifest that gets under-filled is the first one, which will be
     // merged the next time.
-    ListPacker<ManifestFile> packer = new ListPacker<>(manifestTargetSizeBytes, 1);
+    ListPacker<ManifestFile> packer = new ListPacker<>(manifestTargetSizeBytes, 1, false);
     List<List<ManifestFile>> bins = packer.packEnd(group, manifest -> manifest.length());
 
     // process bins in parallel, but put results in the order of the bins into an array to preserve
@@ -487,7 +488,8 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
     try {
 
       for (ManifestFile manifest : bin) {
-        try (ManifestReader reader = ManifestReader.read(ops.io().newInputFile(manifest.path()))) {
+        try (ManifestReader reader = ManifestReader.read(
+            ops.io().newInputFile(manifest.path()), ops.current()::spec)) {
           for (ManifestEntry entry : reader.entries()) {
             if (entry.status() == Status.DELETED) {
               // suppress deletes from previous snapshots. only files deleted by this snapshot

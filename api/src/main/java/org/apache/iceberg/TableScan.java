@@ -106,6 +106,13 @@ public interface TableScan {
   TableScan filter(Expression expr);
 
   /**
+   * Returns this scan's filter {@link Expression}.
+   *
+   * @return this scan's filter expression
+   */
+  Expression filter();
+
+  /**
    * Plan the {@link FileScanTask files} that will be read by this scan.
    * <p>
    * Each file has a residual expression that should be applied to filter the file's rows.
@@ -138,13 +145,6 @@ public interface TableScan {
    * @return this scan's projection schema
    */
   Schema schema();
-
-  /**
-   * Returns this scan's filter {@link Expression}.
-   *
-   * @return this scan's filter expression
-   */
-  Expression filter();
 
   /**
    * Returns whether this scan should apply column name case sensitiveness as per {@link #caseSensitive(boolean)}.

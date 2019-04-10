@@ -132,10 +132,11 @@ public class TestProjection {
         .identity("id")
         .build();
 
-    assertThrows("X != x when case sensitivity is on",
+    assertThrows(
+        "X != x when case sensitivity is on",
         ValidationException.class,
         "Cannot find field 'ID' in struct",
-        () -> { Projections.inclusive(spec, true).project(Expressions.notNull("ID")); });
+        () -> Projections.inclusive(spec, true).project(Expressions.notNull("ID")));
   }
 
   @Test
@@ -216,15 +217,13 @@ public class TestProjection {
 
   @Test
   public void testCaseSensitiveStrictIdentityProjection() {
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
-      .identity("id")
-      .build();
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
 
     assertThrows(
-      "X != x when case sensitivity is on",
-      ValidationException.class,
-      "Cannot find field 'ID' in struct",
-      () -> { Projections.strict(spec, true).project(Expressions.notNull("ID")); });
+        "X != x when case sensitivity is on",
+        ValidationException.class,
+        "Cannot find field 'ID' in struct",
+        () -> Projections.strict(spec, true).project(Expressions.notNull("ID")));
   }
 
   @Test

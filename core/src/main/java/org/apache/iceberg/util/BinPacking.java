@@ -23,6 +23,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -33,20 +35,22 @@ public class BinPacking {
   public static class ListPacker<T> {
     private final long targetWeight;
     private final int lookback;
+    private final boolean largestBinFirst;
 
-    public ListPacker(long targetWeight, int lookback) {
+    public ListPacker(long targetWeight, int lookback, boolean largestBinFirst) {
       this.targetWeight = targetWeight;
       this.lookback = lookback;
+      this.largestBinFirst = largestBinFirst;
     }
 
     public List<List<T>> packEnd(List<T> items, Function<T, Long> weightFunc) {
       return Lists.reverse(ImmutableList.copyOf(Iterables.transform(
-          new PackingIterable<>(Lists.reverse(items), targetWeight, lookback, weightFunc),
+          new PackingIterable<>(Lists.reverse(items), targetWeight, lookback, weightFunc, largestBinFirst),
           Lists::reverse)));
     }
 
     public List<List<T>> pack(Iterable<T> items, Function<T, Long> weightFunc) {
-      return ImmutableList.copyOf(new PackingIterable<>(items, targetWeight, lookback, weightFunc));
+      return ImmutableList.copyOf(new PackingIterable<>(items, targetWeight, lookback, weightFunc, largestBinFirst));
     }
   }
 
@@ -55,20 +59,22 @@ public class BinPacking {
     private final long targetWeight;
     private final int lookback;
     private final Function<T, Long> weightFunc;
+    private final boolean largestBinFirst;
 
     public PackingIterable(Iterable<T> iterable, long targetWeight, int lookback,
-                           Function<T, Long> weightFunc) {
+                           Function<T, Long> weightFunc, boolean largestBinFirst) {
       Preconditions.checkArgument(lookback > 0,
           "Bin look-back size must be greater than 0: %s", lookback);
       this.iterable = iterable;
       this.targetWeight = targetWeight;
       this.lookback = lookback;
       this.weightFunc = weightFunc;
+      this.largestBinFirst = largestBinFirst;
     }
 
     @Override
     public Iterator<List<T>> iterator() {
-      return new PackingIterator<>(iterable.iterator(), targetWeight, lookback, weightFunc);
+      return new PackingIterator<>(iterable.iterator(), targetWeight, lookback, weightFunc, largestBinFirst);
     }
   }
 
@@ -78,19 +84,23 @@ public class BinPacking {
     private final long targetWeight;
     private final int lookback;
     private final Function<T, Long> weightFunc;
+    private final boolean largestBinFirst;
 
     private PackingIterator(Iterator<T> items, long targetWeight, int lookback,
-                            Function<T, Long> weightFunc) {
+                            Function<T, Long> weightFunc, boolean largestBinFirst) {
       this.items = items;
       this.targetWeight = targetWeight;
       this.lookback = lookback;
       this.weightFunc = weightFunc;
+      this.largestBinFirst = largestBinFirst;
     }
 
+    @Override
     public boolean hasNext() {
       return items.hasNext() || !bins.isEmpty();
     }
 
+    @Override
     public List<T> next() {
       while (items.hasNext()) {
         T item = items.next();
@@ -107,7 +117,13 @@ public class BinPacking {
           bins.addLast(bin);
 
           if (bins.size() > lookback) {
-            return ImmutableList.copyOf(bins.removeFirst().items());
+            Bin binToRemove;
+            if (largestBinFirst) {
+              binToRemove = removeLargestBin(bins);
+            } else {
+              binToRemove = bins.removeFirst();
+            }
+            return ImmutableList.copyOf(binToRemove.items());
           }
         }
       }
@@ -117,6 +133,18 @@ public class BinPacking {
       }
 
       return ImmutableList.copyOf(bins.removeFirst().items());
+    }
+
+    private Bin removeLargestBin(LinkedList<Bin> bins) {
+      // Iterate through all bins looking for one with maximum weight, taking O(n) time.
+      Bin maxBin = Collections.max(bins, Comparator.comparingLong(Bin::weight));
+
+      // Sanity check: we have removed maxBin from list of bins.
+      if (bins.remove(maxBin)) {
+        return maxBin;
+      } else {
+        throw new NoSuchElementException();
+      }
     }
 
     private Bin find(List<Bin> bins, long weight) {
@@ -143,6 +171,10 @@ public class BinPacking {
       public void add(T item, long weight) {
         this.binWeight += weight;
         items.add(item);
+      }
+
+      public long weight() {
+        return binWeight;
       }
     }
   }

@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
 import org.apache.iceberg.ManifestEntry.Status;
@@ -127,6 +128,11 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
     } else {
       return Iterators.transform(reader.iterator(partFilter, columns), DataFile::copy);
     }
+  }
+
+  @Override
+  public void close() throws IOException {
+    reader.close();
   }
 
   private Evaluator evaluator() {

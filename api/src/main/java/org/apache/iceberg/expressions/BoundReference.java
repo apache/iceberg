@@ -48,7 +48,6 @@ public class BoundReference<T> implements Reference {
 
   }
 
-
   private int findTopFieldPos(int fieldId, Types.StructType struct) {
     List<Types.NestedField> fields = struct.fields();
     for (int i = 0; i < fields.size(); i += 1) {

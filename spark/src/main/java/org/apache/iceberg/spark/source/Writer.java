@@ -207,6 +207,7 @@ class Writer implements DataSourceWriter {
     }
 
     private class SparkAppenderFactory implements AppenderFactory<InternalRow> {
+      @Override
       public FileAppender<InternalRow> newAppender(OutputFile file, FileFormat format) {
         Schema schema = spec.schema();
         try {

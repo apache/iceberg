@@ -35,6 +35,9 @@ import org.apache.iceberg.types.Type.NestedType;
 import org.apache.iceberg.types.Type.PrimitiveType;
 
 public class Types {
+
+  private Types() {}
+
   private static final ImmutableMap<String, PrimitiveType> TYPES = ImmutableMap
       .<String, PrimitiveType>builder()
       .put(BooleanType.get().toString(), BooleanType.get())
@@ -536,8 +539,13 @@ public class Types {
       return lazyFieldsByName().get(name);
     }
 
+    @Override
+    public NestedField field(int id) {
+      return lazyFieldsById().get(id);
+    }
+
     public NestedField caseInsensitiveField(String name) {
-        return lazyFieldsByLowerCaseName().get(name.toLowerCase(Locale.ROOT));
+      return lazyFieldsByLowerCaseName().get(name.toLowerCase(Locale.ROOT));
     }
 
     @Override
@@ -547,11 +555,6 @@ public class Types {
         return field.type();
       }
       return null;
-    }
-
-    @Override
-    public NestedField field(int id) {
-      return lazyFieldsById().get(id);
     }
 
     @Override
@@ -606,10 +609,10 @@ public class Types {
     }
 
     private Map<String, NestedField> lazyFieldsByLowerCaseName() {
-        if (fieldsByLowerCaseName == null) {
-          indexFields();
-        }
-        return fieldsByLowerCaseName;
+      if (fieldsByLowerCaseName == null) {
+        indexFields();
+      }
+      return fieldsByLowerCaseName;
     }
 
     private Map<Integer, NestedField> lazyFieldsById() {
