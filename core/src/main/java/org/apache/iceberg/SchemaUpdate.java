@@ -98,10 +98,10 @@ class SchemaUpdate implements UpdateSchema {
       Preconditions.checkArgument(!deletes.contains(parentId),
           "Cannot add to a column that will be deleted: %s", parent);
       Preconditions.checkArgument(schema.findField(parent + "." + name) == null,
-          "Cannot add column, name already exists: " + parent + "." + name);
+          "Cannot add column, name already exists: %s.%s", parent, name);
     } else {
       Preconditions.checkArgument(schema.findField(name) == null,
-          "Cannot add column, name already exists: " + name);
+          "Cannot add column, name already exists: %s", name);
     }
 
     // assign new IDs in order

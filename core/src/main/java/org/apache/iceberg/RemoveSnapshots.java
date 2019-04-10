@@ -66,9 +66,9 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   @Override
-  public ExpireSnapshots expireSnapshotId(long snapshotId) {
-    LOG.info("Expiring snapshot with id: {}", snapshotId);
-    idsToRemove.add(snapshotId);
+  public ExpireSnapshots expireSnapshotId(long expireSnapshotId) {
+    LOG.info("Expiring snapshot with id: {}", expireSnapshotId);
+    idsToRemove.add(expireSnapshotId);
     return this;
   }
 
@@ -80,8 +80,8 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   @Override
-  public ExpireSnapshots deleteWith(Consumer<String> deleteFunc) {
-    this.deleteFunc = deleteFunc;
+  public ExpireSnapshots deleteWith(Consumer<String> newDeleteFunc) {
+    this.deleteFunc = newDeleteFunc;
     return this;
   }
 
@@ -97,10 +97,9 @@ class RemoveSnapshots implements ExpireSnapshots {
   private TableMetadata internalApply() {
     this.base = ops.refresh();
 
-    return base.removeSnapshotsIf(snapshot -> (
+    return base.removeSnapshotsIf(snapshot ->
         idsToRemove.contains(snapshot.snapshotId()) ||
-        (expireOlderThan != null && snapshot.timestampMillis() < expireOlderThan)
-    ));
+        (expireOlderThan != null && snapshot.timestampMillis() < expireOlderThan));
   }
 
   @Override
@@ -111,7 +110,7 @@ class RemoveSnapshots implements ExpireSnapshots {
             base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
             base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
             base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-            2.0 /* exponential */ )
+            2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
         .run(item -> {
           TableMetadata updated = internalApply();
@@ -135,15 +134,15 @@ class RemoveSnapshots implements ExpireSnapshots {
     TableMetadata current = ops.refresh();
     Set<Long> currentIds = Sets.newHashSet();
     Set<ManifestFile> currentManifests = Sets.newHashSet();
-    for (Snapshot snapshot : current.snapshots()) {
+    current.snapshots().forEach(snapshot -> {
       currentIds.add(snapshot.snapshotId());
       currentManifests.addAll(snapshot.manifests());
-    }
+    });
 
     Set<String> manifestListsToDelete = Sets.newHashSet();
     Set<ManifestFile> allManifests = Sets.newHashSet(currentManifests);
     Set<String> manifestsToDelete = Sets.newHashSet();
-    for (Snapshot snapshot : base.snapshots()) {
+    base.snapshots().forEach(snapshot -> {
       long snapshotId = snapshot.snapshotId();
       if (!currentIds.contains(snapshotId)) {
         // the snapshot was expired
@@ -160,7 +159,7 @@ class RemoveSnapshots implements ExpireSnapshots {
           manifestListsToDelete.add(snapshot.manifestListLocation());
         }
       }
-    }
+    });
 
     Set<String> filesToDelete = new ConcurrentSet<>();
     Tasks.foreach(allManifests)
@@ -187,23 +186,23 @@ class RemoveSnapshots implements ExpireSnapshots {
           } catch (IOException e) {
             throw new RuntimeIOException(e, "Failed to read manifest file: " + manifest.path());
           }
-    });
+        });
 
     LOG.warn("Manifests to delete: {}", Joiner.on(", ").join(manifestsToDelete));
 
     Tasks.foreach(filesToDelete)
         .noRetry().suppressFailureWhenFinished()
-        .onFailure((file, exc) -> LOG.warn("Delete failed for data file: " + file, exc))
+        .onFailure((file, exc) -> LOG.warn("Delete failed for data file: {}", file, exc))
         .run(file -> deleteFunc.accept(file));
 
     Tasks.foreach(manifestsToDelete)
         .noRetry().suppressFailureWhenFinished()
-        .onFailure((manifest, exc) -> LOG.warn("Delete failed for manifest: " + manifest, exc))
+        .onFailure((manifest, exc) -> LOG.warn("Delete failed for manifest: {}", manifest, exc))
         .run(deleteFunc::accept);
 
     Tasks.foreach(manifestListsToDelete)
         .noRetry().suppressFailureWhenFinished()
-        .onFailure((list, exc) -> LOG.warn("Delete failed for manifest list: " + list, exc))
+        .onFailure((list, exc) -> LOG.warn("Delete failed for manifest list: {}", list, exc))
         .run(deleteFunc::accept);
   }
 }

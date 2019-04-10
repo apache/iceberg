@@ -67,6 +67,8 @@ public class TestSchemaUpdate {
       ), "string map of properties")
   );
 
+  private static final Set<Integer> ALL_IDS = ImmutableSet.copyOf(TypeUtil.getProjectedIds(SCHEMA));
+
   private static final int SCHEMA_LAST_COLUMN_ID = 23;
 
   @Test
@@ -78,7 +80,6 @@ public class TestSchemaUpdate {
   @Test
   public void testDeleteFields() {
     // use schema projection to test column deletes
-    Set<Integer> ALL_IDS = ImmutableSet.copyOf(TypeUtil.getProjectedIds(SCHEMA));
     List<String> columns = Lists.newArrayList("id", "data", "preferences", "preferences.feature1",
         "preferences.feature2", "locations", "locations.lat", "locations.long", "points",
         "points.x", "points.y", "doubles", "properties");

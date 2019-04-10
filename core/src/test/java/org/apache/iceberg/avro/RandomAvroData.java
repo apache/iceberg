@@ -40,6 +40,9 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 public class RandomAvroData {
+
+  private RandomAvroData() {}
+
   public static List<Record> generate(Schema schema, int numRecords, long seed) {
     RandomDataGenerator generator = new RandomDataGenerator(schema, seed);
     List<Record> records = Lists.newArrayListWithExpectedSize(numRecords);
@@ -154,6 +157,7 @@ public class RandomAvroData {
     }
   }
 
+  @SuppressWarnings("RandomModInteger")
   private static Object generatePrimitive(Type.PrimitiveType primitive,
                                          Random random) {
     int choice = random.nextInt(20);
@@ -289,6 +293,7 @@ public class RandomAvroData {
   }
 
   private static final String DIGITS = "0123456789";
+
   private static BigInteger randomUnscaled(int precision, Random random) {
     int length = random.nextInt(precision);
     if (length == 0) {

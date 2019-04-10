@@ -27,8 +27,8 @@ public class ByteBuffers {
   public static byte[] toByteArray(ByteBuffer buffer) {
     if (buffer.hasArray()) {
       byte[] array = buffer.array();
-      if (buffer.arrayOffset() == 0 && buffer.position() == 0
-          && array.length == buffer.remaining()) {
+      if (buffer.arrayOffset() == 0 && buffer.position() == 0 &&
+          array.length == buffer.remaining()) {
         return array;
       } else {
         int start = buffer.arrayOffset() + buffer.position();

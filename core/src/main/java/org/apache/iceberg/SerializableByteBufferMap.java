@@ -43,7 +43,7 @@ class SerializableByteBufferMap implements Map<Integer, ByteBuffer>, Serializabl
     return new SerializableByteBufferMap(map);
   }
 
-  public SerializableByteBufferMap() {
+  SerializableByteBufferMap() {
     this.wrapped = Maps.newLinkedHashMap();
   }
 
@@ -61,7 +61,7 @@ class SerializableByteBufferMap implements Map<Integer, ByteBuffer>, Serializabl
     MapSerializationProxy() {
     }
 
-    public MapSerializationProxy(int[] keys, byte[][] values) {
+    MapSerializationProxy(int[] keys, byte[][] values) {
       this.keys = keys;
       this.values = values;
     }
@@ -82,11 +82,11 @@ class SerializableByteBufferMap implements Map<Integer, ByteBuffer>, Serializabl
     int[] keys = new int[entries.size()];
     byte[][] values = new byte[keys.length][];
 
-    int i = 0;
+    int keyIndex = 0;
     for (Map.Entry<Integer, ByteBuffer> entry : entries) {
-      keys[i] = entry.getKey();
-      values[i] = ByteBuffers.toByteArray(entry.getValue());
-      i += 1;
+      keys[keyIndex] = entry.getKey();
+      values[keyIndex] = ByteBuffers.toByteArray(entry.getValue());
+      keyIndex += 1;
     }
 
     return new MapSerializationProxy(keys, values);

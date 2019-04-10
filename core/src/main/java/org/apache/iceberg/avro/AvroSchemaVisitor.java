@@ -21,7 +21,7 @@ package org.apache.iceberg.avro;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-import java.util.LinkedList;
+import java.util.Deque;
 import java.util.List;
 import org.apache.avro.Schema;
 
@@ -67,7 +67,7 @@ public abstract class AvroSchemaVisitor<T> {
     }
   }
 
-  protected LinkedList<String> recordLevels = Lists.newLinkedList();
+  private Deque<String> recordLevels = Lists.newLinkedList();
 
   public T record(Schema record, List<String> names, List<T> fields) {
     return null;

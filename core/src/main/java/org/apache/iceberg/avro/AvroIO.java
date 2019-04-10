@@ -61,7 +61,7 @@ class AvroIO {
     private final SeekableInputStream stream;
     private final long length;
 
-    public AvroInputStreamAdapter(SeekableInputStream stream, long length) {
+    AvroInputStreamAdapter(SeekableInputStream stream, long length) {
       this.stream = stream;
       this.length = length;
     }

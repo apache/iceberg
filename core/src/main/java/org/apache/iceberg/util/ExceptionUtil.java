@@ -20,16 +20,19 @@
 package org.apache.iceberg.util;
 
 public class ExceptionUtil {
+
+  private ExceptionUtil() {}
+
   @SuppressWarnings("unchecked")
   static <E extends Exception> void castAndThrow(
-      Throwable e, Class<E> exceptionClass) throws E {
-    if (e instanceof RuntimeException) {
-      throw (RuntimeException) e;
-    } else if (e instanceof Error) {
-      throw (Error) e;
-    } else if (exceptionClass.isInstance(e)) {
-      throw (E) e;
+      Throwable exception, Class<E> exceptionClass) throws E {
+    if (exception instanceof RuntimeException) {
+      throw (RuntimeException) exception;
+    } else if (exception instanceof Error) {
+      throw (Error) exception;
+    } else if (exceptionClass.isInstance(exception)) {
+      throw (E) exception;
     }
-    throw new RuntimeException(e);
+    throw new RuntimeException(exception);
   }
 }

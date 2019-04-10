@@ -23,8 +23,7 @@ public class Exceptions {
   private Exceptions() {
   }
 
-  public static <E extends Exception>
-  E suppressExceptions(E alreadyThrown, Runnable run) {
+  public static <E extends Exception> E suppressExceptions(E alreadyThrown, Runnable run) {
     try {
       run.run();
     } catch (Exception e) {
@@ -33,8 +32,7 @@ public class Exceptions {
     return alreadyThrown;
   }
 
-  public static <E extends Exception>
-  void suppressAndThrow(E alreadyThrown, Runnable run) throws E {
+  public static <E extends Exception> void suppressAndThrow(E alreadyThrown, Runnable run) throws E {
     throw suppressExceptions(alreadyThrown, run);
   }
 }

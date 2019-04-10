@@ -19,11 +19,10 @@
 
 package org.apache.iceberg;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
@@ -42,16 +41,14 @@ import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.InclusiveManifestEvaluator;
-import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.BinPacking;
 import org.apache.iceberg.util.ParallelIterable;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static org.apache.iceberg.util.ThreadPools.getWorkerPool;
 
 /**
  * Base class for {@link TableScan} implementations.
@@ -75,6 +72,7 @@ class BaseTableScan implements TableScan {
   private final Expression rowFilter;
   private final boolean caseSensitive;
   private final Collection<String> selectedColumns;
+  private final LoadingCache<Integer, InclusiveManifestEvaluator> evalCache;
 
   BaseTableScan(TableOperations ops, Table table) {
     this(ops, table, null, table.schema(), Expressions.alwaysTrue(), true, null);
@@ -89,6 +87,10 @@ class BaseTableScan implements TableScan {
     this.rowFilter = rowFilter;
     this.caseSensitive = caseSensitive;
     this.selectedColumns = selectedColumns;
+    this.evalCache = Caffeine.newBuilder().build(specId -> {
+      PartitionSpec spec = ops.current().spec(specId);
+      return new InclusiveManifestEvaluator(spec, rowFilter, caseSensitive);
+    });
   }
 
   @Override
@@ -97,12 +99,12 @@ class BaseTableScan implements TableScan {
   }
 
   @Override
-  public TableScan useSnapshot(long snapshotId) {
+  public TableScan useSnapshot(long scanSnapshotId) {
     Preconditions.checkArgument(this.snapshotId == null,
-        "Cannot override snapshot, already set to id=%s", snapshotId);
-    Preconditions.checkArgument(ops.current().snapshot(snapshotId) != null,
-        "Cannot find snapshot with ID %s", snapshotId);
-    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, caseSensitive, selectedColumns);
+        "Cannot override snapshot, already set to id=%s", scanSnapshotId);
+    Preconditions.checkArgument(ops.current().snapshot(scanSnapshotId) != null,
+        "Cannot find snapshot with ID %s", scanSnapshotId);
+    return new BaseTableScan(ops, table, scanSnapshotId, schema, rowFilter, caseSensitive, selectedColumns);
   }
 
   @Override
@@ -126,13 +128,13 @@ class BaseTableScan implements TableScan {
   }
 
   @Override
-  public TableScan project(Schema schema) {
-    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, caseSensitive, selectedColumns);
+  public TableScan project(Schema projectedSchema) {
+    return new BaseTableScan(ops, table, snapshotId, projectedSchema, rowFilter, caseSensitive, selectedColumns);
   }
 
   @Override
-  public TableScan caseSensitive(boolean caseSensitive) {
-    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, caseSensitive, selectedColumns);
+  public TableScan caseSensitive(boolean scanCaseSensitive) {
+    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, scanCaseSensitive, selectedColumns);
   }
 
   @Override
@@ -146,15 +148,10 @@ class BaseTableScan implements TableScan {
                              caseSensitive, selectedColumns);
   }
 
-  private final LoadingCache<Integer, InclusiveManifestEvaluator> evalCache = CacheBuilder
-      .newBuilder()
-      .build(new CacheLoader<Integer, InclusiveManifestEvaluator>() {
-        @Override
-        public InclusiveManifestEvaluator load(Integer specId) {
-          PartitionSpec spec = ops.current().spec(specId);
-          return new InclusiveManifestEvaluator(spec, rowFilter, caseSensitive);
-        }
-      });
+  @Override
+  public Expression filter() {
+    return rowFilter;
+  }
 
   @Override
   public CloseableIterable<FileScanTask> planFiles() {
@@ -171,7 +168,7 @@ class BaseTableScan implements TableScan {
           new ScanEvent(table.toString(), snapshot.snapshotId(), rowFilter, schema()));
 
       Iterable<ManifestFile> matchingManifests = Iterables.filter(snapshot.manifests(),
-          manifest -> evalCache.getUnchecked(manifest.partitionSpecId()).eval(manifest));
+          manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
 
       Iterable<CloseableIterable<FileScanTask>> readers = Iterables.transform(
           matchingManifests,
@@ -190,7 +187,7 @@ class BaseTableScan implements TableScan {
           });
 
       if (PLAN_SCANS_WITH_WORKER_POOL && snapshot.manifests().size() > 1) {
-        return new ParallelIterable<>(readers, getWorkerPool());
+        return new ParallelIterable<>(readers, ThreadPools.getWorkerPool());
       } else {
         return CloseableIterable.concat(readers);
       }
@@ -208,26 +205,20 @@ class BaseTableScan implements TableScan {
     int lookback = ops.current().propertyAsInt(
         TableProperties.SPLIT_LOOKBACK, TableProperties.SPLIT_LOOKBACK_DEFAULT);
     long openFileCost = ops.current().propertyAsLong(
-      TableProperties.SPLIT_OPEN_FILE_COST, TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+        TableProperties.SPLIT_OPEN_FILE_COST, TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
 
     Function<FileScanTask, Long> weightFunc = file -> Math.max(file.length(), openFileCost);
 
     CloseableIterable<FileScanTask> splitFiles = splitFiles(splitSize);
-    return CloseableIterable.transform(
-        CloseableIterable.combine(
-            new BinPacking.PackingIterable<>(splitFiles, splitSize, lookback, weightFunc, true),
-            splitFiles),
+    return CloseableIterable.transform(CloseableIterable.combine(
+        new BinPacking.PackingIterable<>(splitFiles, splitSize, lookback, weightFunc, true),
+        splitFiles),
         BaseCombinedScanTask::new);
   }
 
   @Override
   public Schema schema() {
     return lazyColumnProjection();
-  }
-
-  @Override
-  public Expression filter() {
-    return rowFilter;
   }
 
   @Override
@@ -261,7 +252,7 @@ class BaseTableScan implements TableScan {
    * @return the Schema to project
    */
   private Schema lazyColumnProjection() {
-    if (selectedColumns != null ) {
+    if (selectedColumns != null) {
       Set<Integer> requiredFieldIds = Sets.newHashSet();
 
       // all of the filter columns are required

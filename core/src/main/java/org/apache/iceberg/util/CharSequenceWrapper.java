@@ -35,8 +35,8 @@ public class CharSequenceWrapper {
     this.wrapped = wrapped;
   }
 
-  public CharSequenceWrapper set(CharSequence wrapped) {
-    this.wrapped = wrapped;
+  public CharSequenceWrapper set(CharSequence newWrapped) {
+    this.wrapped = newWrapped;
     return this;
   }
 
@@ -61,8 +61,8 @@ public class CharSequenceWrapper {
   public int hashCode() {
     int result = 177;
     for (int i = 0; i < wrapped.length(); i += 1) {
-      char c = wrapped.charAt(i);
-      result = 31 * result + (int) c;
+      char ch = wrapped.charAt(i);
+      result = 31 * result + (int) ch;
     }
     return result;
   }

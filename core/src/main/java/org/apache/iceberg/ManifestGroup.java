@@ -19,14 +19,12 @@
 
 package org.apache.iceberg;
 
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import java.io.Closeable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -34,7 +32,6 @@ import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.InclusiveManifestEvaluator;
-import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.types.Types;
 
@@ -48,15 +45,7 @@ class ManifestGroup {
   private final boolean ignoreDeleted;
   private final List<String> columns;
 
-  private final LoadingCache<Integer, InclusiveManifestEvaluator> evalCache = CacheBuilder
-      .newBuilder()
-      .build(new CacheLoader<Integer, InclusiveManifestEvaluator>() {
-        @Override
-        public InclusiveManifestEvaluator load(Integer specId) {
-          PartitionSpec spec = ops.current().spec(specId);
-          return new InclusiveManifestEvaluator(spec, dataFilter);
-        }
-      });
+  private final LoadingCache<Integer, InclusiveManifestEvaluator> evalCache;
 
   ManifestGroup(TableOperations ops, Iterable<ManifestFile> manifests) {
     this(ops, Sets.newHashSet(manifests), Expressions.alwaysTrue(), Expressions.alwaysTrue(),
@@ -72,6 +61,10 @@ class ManifestGroup {
     this.fileFilter = fileFilter;
     this.ignoreDeleted = ignoreDeleted;
     this.columns = columns;
+    this.evalCache = Caffeine.newBuilder().build(specId -> {
+      PartitionSpec spec = ops.current().spec(specId);
+      return new InclusiveManifestEvaluator(spec, dataFilter);
+    });
   }
 
   public ManifestGroup filterData(Expression expr) {
@@ -88,13 +81,13 @@ class ManifestGroup {
     return new ManifestGroup(ops, manifests, dataFilter, fileFilter, true, columns);
   }
 
-  public ManifestGroup select(List<String> columns) {
+  public ManifestGroup select(List<String> selectedColumns) {
     return new ManifestGroup(
-        ops, manifests, dataFilter, fileFilter, ignoreDeleted, Lists.newArrayList(columns));
+        ops, manifests, dataFilter, fileFilter, ignoreDeleted, Lists.newArrayList(selectedColumns));
   }
 
-  public ManifestGroup select(String... columns) {
-    return select(Arrays.asList(columns));
+  public ManifestGroup select(String... selectedColumns) {
+    return select(Arrays.asList(selectedColumns));
   }
 
   /**
@@ -109,7 +102,7 @@ class ManifestGroup {
     Evaluator evaluator = new Evaluator(DataFile.getType(EMPTY_STRUCT), fileFilter);
 
     Iterable<ManifestFile> matchingManifests = Iterables.filter(manifests,
-        manifest -> evalCache.getUnchecked(manifest.partitionSpecId()).eval(manifest));
+        manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
 
     if (ignoreDeleted) {
       // remove any manifests that don't have any existing or added files. if either the added or

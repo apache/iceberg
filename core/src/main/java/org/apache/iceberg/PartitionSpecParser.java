@@ -21,13 +21,12 @@ package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.base.Preconditions;
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.Iterator;
-import java.util.concurrent.ExecutionException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
@@ -79,24 +78,20 @@ public class PartitionSpecParser {
     return builder.build();
   }
 
-  private static Cache<Pair<Types.StructType, String>, PartitionSpec> SPEC_CACHE = CacheBuilder
+  private static final Cache<Pair<Types.StructType, String>, PartitionSpec> SPEC_CACHE = Caffeine
       .newBuilder()
       .weakValues()
       .build();
 
   public static PartitionSpec fromJson(Schema schema, String json) {
-    try {
-      return SPEC_CACHE.get(Pair.of(schema.asStruct(), json),
-          () -> fromJson(schema, JsonUtil.mapper().readValue(json, JsonNode.class)));
-
-    } catch (ExecutionException e) {
-      if (e.getCause() instanceof IOException) {
-        throw new RuntimeIOException(
-            (IOException) e.getCause(), "Failed to parse partition spec: %s", json);
-      } else {
-        throw new RuntimeException("Failed to parse partition spec: " + json, e.getCause());
-      }
-    }
+    return SPEC_CACHE.get(Pair.of(schema.asStruct(), json),
+        schemaJsonPair -> {
+          try {
+            return fromJson(schema, JsonUtil.mapper().readValue(json, JsonNode.class));
+          } catch (IOException e) {
+            throw new RuntimeIOException(e);
+          }
+        });
   }
 
   static void toJsonFields(PartitionSpec spec, JsonGenerator generator) throws IOException {

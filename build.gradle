@@ -84,6 +84,7 @@ subprojects {
 
     scalaVersion = '2.11'
     sparkVersion = '2.4.0'
+    caffeineVersion = "2.7.0"
   }
 
   sourceCompatibility = '1.8'
@@ -110,7 +111,7 @@ subprojects {
 
 // We enable baseline-idea everywhere so that everyone can use IntelliJ to build code against the
 // Baseline style guide.
-def baselineProjects = [ project("iceberg-api"), project("iceberg-common") ]
+def baselineProjects = [ project("iceberg-api"), project("iceberg-common"), project("iceberg-core") ]
 
 configure(subprojects - baselineProjects) {
   // error-prone is brought in with baseline-idea, but we're not prepared to handle error-prone
@@ -176,6 +177,7 @@ project(':iceberg-core') {
 
     compile "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
     compile "com.fasterxml.jackson.core:jackson-core:$jacksonVersion"
+    compile "com.github.ben-manes.caffeine:caffeine:$caffeineVersion"
     compileOnly("org.apache.hadoop:hadoop-client:$hadoopVersion") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'

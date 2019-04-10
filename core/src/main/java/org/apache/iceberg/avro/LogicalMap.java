@@ -23,8 +23,6 @@ import com.google.common.base.Preconditions;
 import org.apache.avro.LogicalType;
 import org.apache.avro.Schema;
 
-import static org.apache.avro.Schema.Type.ARRAY;
-
 public class LogicalMap extends LogicalType {
   static final String NAME = "map";
   private static final LogicalMap INSTANCE = new LogicalMap();
@@ -40,7 +38,7 @@ public class LogicalMap extends LogicalType {
   @Override
   public void validate(Schema schema) {
     super.validate(schema);
-    Preconditions.checkArgument(schema.getType() == ARRAY,
+    Preconditions.checkArgument(schema.getType() == Schema.Type.ARRAY,
         "Invalid type for map, must be an array: %s", schema);
     Preconditions.checkArgument(AvroSchemaUtil.isKeyValueSchema(schema.getElementType()),
         "Invalid key-value record: %s", schema.getElementType());

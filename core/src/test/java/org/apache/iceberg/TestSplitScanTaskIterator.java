@@ -29,21 +29,22 @@ import static org.apache.iceberg.BaseFileScanTask.SplitScanTaskIterator;
 public class TestSplitScanTaskIterator {
   @Test
   public void testSplits() {
-    verify(15L, 100L, l(l(0L, 15L), l(15L, 15L), l(30L, 15L), l(45L, 15L), l(60L, 15L), l(75L, 15L), l(90L, 10L)));
-    verify(10L, 10L, l(l(0L, 10L)));
-    verify(20L, 10L, l(l(0L, 10L)));
+    verify(15L, 100L, asList(
+        asList(0L, 15L), asList(15L, 15L), asList(30L, 15L), asList(45L, 15L), asList(60L, 15L),
+        asList(75L, 15L), asList(90L, 10L)));
+    verify(10L, 10L, asList(asList(0L, 10L)));
+    verify(20L, 10L, asList(asList(0L, 10L)));
   }
 
   private static void verify(long splitSize, long fileLen, List<List<Long>> offsetLenPairs) {
     List<FileScanTask> tasks = Lists.newArrayList(new SplitScanTaskIterator(splitSize, new MockFileScanTask(fileLen)));
-    int i = 0;
-    for (FileScanTask task : tasks) {
+    for (int i = 0; i < tasks.size(); i++) {
+      FileScanTask task = tasks.get(i);
       List<Long> split = offsetLenPairs.get(i);
       long offset = split.get(0);
       long length = split.get(1);
       Assert.assertEquals(offset, task.start());
       Assert.assertEquals(length, task.length());
-      i += 1;
     }
   }
 
@@ -61,7 +62,7 @@ public class TestSplitScanTaskIterator {
     }
   }
 
-  private <T> List<T> l(T... items) {
+  private <T> List<T> asList(T... items) {
     return Lists.newArrayList(items);
   }
 }

@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.hadoop;
 
-import com.google.common.base.Charsets;
 import com.google.common.collect.Lists;
 import com.google.common.io.Files;
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
@@ -120,8 +120,8 @@ public class HadoopTableTestBase {
         !name.startsWith("snap") && Files.getFileExtension(name).equalsIgnoreCase("avro")));
   }
 
-  File version(int i) {
-    return new File(metadataDir, "v" + i + getFileExtension(new Configuration()));
+  File version(int version) {
+    return new File(metadataDir, "v" + version + getFileExtension(new Configuration()));
   }
 
   TableMetadata readMetadataVersion(int version) {
@@ -130,12 +130,12 @@ public class HadoopTableTestBase {
   }
 
   int readVersionHint() throws IOException {
-    return Integer.parseInt(Files.readFirstLine(versionHintFile, Charsets.UTF_8));
+    return Integer.parseInt(Files.readFirstLine(versionHintFile, StandardCharsets.UTF_8));
   }
 
   void replaceVersionHint(int version) throws IOException {
     // remove the checksum that will no longer match
     new File(metadataDir, ".version-hint.text.crc").delete();
-    Files.write(String.valueOf(version), versionHintFile, Charsets.UTF_8);
+    Files.write(String.valueOf(version), versionHintFile, StandardCharsets.UTF_8);
   }
 }

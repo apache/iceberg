@@ -25,8 +25,8 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
@@ -79,7 +79,7 @@ public class BinPacking {
   }
 
   private static class PackingIterator<T> implements Iterator<List<T>> {
-    private final LinkedList<Bin> bins = Lists.newLinkedList();
+    private final Deque<Bin> bins = Lists.newLinkedList();
     private final Iterator<T> items;
     private final long targetWeight;
     private final int lookback;
@@ -106,7 +106,7 @@ public class BinPacking {
         T item = items.next();
 
         long weight = weightFunc.apply(item);
-        Bin bin = find(bins, weight);
+        Bin bin = findBinWithWeight(weight);
 
         if (bin != null) {
           bin.add(item, weight);
@@ -119,7 +119,7 @@ public class BinPacking {
           if (bins.size() > lookback) {
             Bin binToRemove;
             if (largestBinFirst) {
-              binToRemove = removeLargestBin(bins);
+              binToRemove = removeLargestBin();
             } else {
               binToRemove = bins.removeFirst();
             }
@@ -135,7 +135,7 @@ public class BinPacking {
       return ImmutableList.copyOf(bins.removeFirst().items());
     }
 
-    private Bin removeLargestBin(LinkedList<Bin> bins) {
+    private Bin removeLargestBin() {
       // Iterate through all bins looking for one with maximum weight, taking O(n) time.
       Bin maxBin = Collections.max(bins, Comparator.comparingLong(Bin::weight));
 
@@ -147,7 +147,7 @@ public class BinPacking {
       }
     }
 
-    private Bin find(List<Bin> bins, long weight) {
+    private Bin findBinWithWeight(long weight) {
       for (Bin bin : bins) {
         if (bin.canAdd(weight)) {
           return bin;
@@ -165,7 +165,7 @@ public class BinPacking {
       }
 
       public boolean canAdd(long weight) {
-        return (binWeight + weight <= targetWeight);
+        return binWeight + weight <= targetWeight;
       }
 
       public void add(T item, long weight) {

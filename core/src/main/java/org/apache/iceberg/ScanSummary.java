@@ -32,7 +32,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
+import java.util.SortedMap;
 import java.util.function.Function;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.And;
@@ -153,9 +153,6 @@ public class ScanSummary {
         return ImmutableMap.of(); // no snapshots, so there are no partitions
       }
 
-      TopN<String, PartitionMetrics> topN = new TopN<>(
-          limit, throwIfLimited, Comparators.charSequences());
-
       List<Expression> filters = Lists.newArrayList();
       removeTimeFilters(filters, Expressions.rewriteNot(scan.filter()));
       Expression rowFilter = joinFilters(filters);
@@ -207,6 +204,17 @@ public class ScanSummary {
           return timestamp != null && timestamp >= minTimestamp;
         });
       }
+
+      return computeTopPartitionMetrics(rowFilter, manifests, filterByTimestamp, snapshotsInTimeRange);
+    }
+
+    private Map<String, PartitionMetrics> computeTopPartitionMetrics(
+        Expression rowFilter,
+        Iterable<ManifestFile> manifests,
+        boolean filterByTimestamp,
+        Set<Long> snapshotsInTimeRange) {
+      TopN<String, PartitionMetrics> topN = new TopN<>(
+          limit, throwIfLimited, Comparators.charSequences());
 
       try (CloseableIterable<ManifestEntry> entries = new ManifestGroup(ops, manifests)
           .filterData(rowFilter)
@@ -283,12 +291,12 @@ public class ScanSummary {
   private static class TopN<K, V> {
     private final int maxSize;
     private final boolean throwIfLimited;
-    private final TreeMap<K, V> map;
+    private final SortedMap<K, V> map;
     private final Comparator<? super K> keyComparator;
     private K cut = null;
 
-    TopN(int N, boolean throwIfLimited, Comparator<? super K> keyComparator) {
-      this.maxSize = N;
+    TopN(int maxSize, boolean throwIfLimited, Comparator<? super K> keyComparator) {
+      this.maxSize = maxSize;
       this.throwIfLimited = throwIfLimited;
       this.map = Maps.newTreeMap(keyComparator);
       this.keyComparator = keyComparator;

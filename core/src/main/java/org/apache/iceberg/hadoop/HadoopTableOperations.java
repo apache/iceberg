@@ -42,8 +42,6 @@ import org.apache.iceberg.io.LocationProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableMetadataParser.getFileExtension;
-
 /**
  * TableOperations implementation for file systems that support atomic rename.
  * <p>
@@ -76,7 +74,7 @@ public class HadoopTableOperations implements TableOperations {
   public TableMetadata refresh() {
     int ver = version != null ? version : readVersionHint();
     Path metadataFile = metadataFile(ver);
-    FileSystem fs = getFS(metadataFile, conf);
+    FileSystem fs = getFileSystem(metadataFile, conf);
     try {
       // don't check if the file exists if version is non-null because it was already checked
       if (version == null && !fs.exists(metadataFile)) {
@@ -119,12 +117,12 @@ public class HadoopTableOperations implements TableOperations {
         !metadata.properties().containsKey(TableProperties.WRITE_METADATA_LOCATION),
         "Hadoop path-based tables cannot relocate metadata");
 
-    Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + getFileExtension(conf));
+    Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + TableMetadataParser.getFileExtension(conf));
     TableMetadataParser.write(metadata, io().newOutputFile(tempMetadataFile.toString()));
 
     int nextVersion = (version != null ? version : 0) + 1;
     Path finalMetadataFile = metadataFile(nextVersion);
-    FileSystem fs = getFS(tempMetadataFile, conf);
+    FileSystem fs = getFileSystem(tempMetadataFile, conf);
 
     try {
       if (fs.exists(finalMetadataFile)) {
@@ -171,8 +169,8 @@ public class HadoopTableOperations implements TableOperations {
     return metadataPath(fileName).toString();
   }
 
-  private Path metadataFile(int version) {
-    return metadataPath("v" + version + getFileExtension(conf));
+  private Path metadataFile(int metadataVersion) {
+    return metadataPath("v" + metadataVersion + TableMetadataParser.getFileExtension(conf));
   }
 
   private Path metadataPath(String filename) {
@@ -183,12 +181,12 @@ public class HadoopTableOperations implements TableOperations {
     return metadataPath("version-hint.text");
   }
 
-  private void writeVersionHint(int version) {
+  private void writeVersionHint(int versionToWrite) {
     Path versionHintFile = versionHintFile();
-    FileSystem fs = getFS(versionHintFile, conf);
+    FileSystem fs = getFileSystem(versionHintFile, conf);
 
-    try (FSDataOutputStream out = fs.create(versionHintFile, true /* overwrite */ )) {
-      out.write(String.valueOf(version).getBytes(StandardCharsets.UTF_8));
+    try (FSDataOutputStream out = fs.create(versionHintFile, true /* overwrite */)) {
+      out.write(String.valueOf(versionToWrite).getBytes(StandardCharsets.UTF_8));
 
     } catch (IOException e) {
       LOG.warn("Failed to update version hint", e);
@@ -198,7 +196,7 @@ public class HadoopTableOperations implements TableOperations {
   private int readVersionHint() {
     Path versionHintFile = versionHintFile();
     try {
-      FileSystem fs = Util.getFS(versionHintFile, conf);
+      FileSystem fs = Util.getFs(versionHintFile, conf);
       if (!fs.exists(versionHintFile)) {
         return 0;
       }
@@ -212,7 +210,7 @@ public class HadoopTableOperations implements TableOperations {
     }
   }
 
-  protected FileSystem getFS(Path path, Configuration conf) {
-    return Util.getFS(path, conf);
+  protected FileSystem getFileSystem(Path path, Configuration hadoopConf) {
+    return Util.getFs(path, hadoopConf);
   }
 }

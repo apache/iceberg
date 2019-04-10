@@ -30,6 +30,9 @@ import java.util.List;
 import java.util.Map;
 
 public class JsonUtil {
+
+  private JsonUtil() {}
+
   private static final JsonFactory FACTORY = new JsonFactory();
   private static final ObjectMapper MAPPER = new ObjectMapper(FACTORY);
 

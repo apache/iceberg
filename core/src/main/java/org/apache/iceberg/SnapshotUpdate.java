@@ -19,9 +19,8 @@
 
 package org.apache.iceberg;
 
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -38,6 +37,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.Exceptions;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,7 +51,6 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.MANIFEST_LISTS_ENABLED;
 import static org.apache.iceberg.TableProperties.MANIFEST_LISTS_ENABLED_DEFAULT;
-import static org.apache.iceberg.util.ThreadPools.getWorkerPool;
 
 abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotUpdate.class);
@@ -60,17 +59,7 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
   /**
    * Cache used to enrich ManifestFile instances that are written to a ManifestListWriter.
    */
-  private final LoadingCache<ManifestFile, ManifestFile> manifestsWithMetadata = CacheBuilder
-      .newBuilder()
-      .build(new CacheLoader<ManifestFile, ManifestFile>() {
-        @Override
-        public ManifestFile load(ManifestFile file) {
-          if (file.snapshotId() != null) {
-            return file;
-          }
-          return addMetadata(ops, file);
-        }
-      });
+  private final LoadingCache<ManifestFile, ManifestFile> manifestsWithMetadata;
 
   private final TableOperations ops;
   private final String commitUUID = UUID.randomUUID().toString();
@@ -82,15 +71,15 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
   protected SnapshotUpdate(TableOperations ops) {
     this.ops = ops;
     this.base = ops.current();
+    this.manifestsWithMetadata = Caffeine
+      .newBuilder()
+      .build(file -> {
+        if (file.snapshotId() != null) {
+          return file;
+        }
+        return addMetadata(ops, file);
+      });
   }
-
-  /**
-   * Apply the update's changes to the base table metadata and return the new manifest list.
-   *
-   * @param base the base table metadata to apply changes to
-   * @return a manifest list for the new snapshot.
-   */
-  protected abstract List<ManifestFile> apply(TableMetadata base);
 
   /**
    * Clean up any uncommitted manifests that were created.
@@ -112,27 +101,71 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
   protected abstract String operation();
 
   /**
-   * A string map with a summary of the changes in this snapshot update.
+   * Apply the update's changes to the base table metadata and return the new manifest list.
    *
-   * @return a string map that summarizes the update
+   * @param metadataToUpdate the base table metadata to apply changes to
+   * @return a manifest list for the new snapshot.
    */
-  protected Map<String, String> summary() {
-    return ImmutableMap.of();
+  protected abstract List<ManifestFile> apply(TableMetadata metadataToUpdate);
+
+  @Override
+  public Snapshot apply() {
+    this.base = ops.refresh();
+    Long parentSnapshotId = base.currentSnapshot() != null ?
+        base.currentSnapshot().snapshotId() : null;
+
+    List<ManifestFile> manifests = apply(base);
+
+    if (base.propertyAsBoolean(MANIFEST_LISTS_ENABLED, MANIFEST_LISTS_ENABLED_DEFAULT)) {
+      OutputFile manifestList = manifestListPath();
+
+      try (ManifestListWriter writer = new ManifestListWriter(
+          manifestList, snapshotId(), parentSnapshotId)) {
+
+        // keep track of the manifest lists created
+        manifestLists.add(manifestList.location());
+
+        ManifestFile[] manifestFiles = new ManifestFile[manifests.size()];
+
+        Tasks.range(manifestFiles.length)
+            .stopOnFailure().throwFailureWhenFinished()
+            .executeWith(ThreadPools.getWorkerPool())
+            .run(index ->
+                manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
+
+        writer.addAll(Arrays.asList(manifestFiles));
+
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to write manifest list file");
+      }
+
+      return new BaseSnapshot(ops,
+          snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
+          ops.io().newInputFile(manifestList.location()));
+
+    } else {
+      return new BaseSnapshot(ops,
+          snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
+          manifests);
+    }
   }
+
+  protected abstract Map<String, String> summary();
 
   /**
    * Returns the snapshot summary from the implementation and updates totals.
    */
-  private Map<String, String> summary(TableMetadata base) {
+  private Map<String, String> summary(TableMetadata previous) {
     Map<String, String> summary = summary();
+
     if (summary == null) {
       return ImmutableMap.of();
     }
 
     Map<String, String> previousSummary;
-    if (base.currentSnapshot() != null) {
-      if (base.currentSnapshot().summary() != null) {
-        previousSummary = base.currentSnapshot().summary();
+    if (previous.currentSnapshot() != null) {
+      if (previous.currentSnapshot().summary() != null) {
+        previousSummary = previous.currentSnapshot().summary();
       } else {
         // previous snapshot had no summary, use an empty summary
         previousSummary = ImmutableMap.of();
@@ -160,48 +193,6 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
   }
 
   @Override
-  public Snapshot apply() {
-    this.base = ops.refresh();
-    Long parentSnapshotId = base.currentSnapshot() != null ?
-        base.currentSnapshot().snapshotId() : null;
-
-    List<ManifestFile> manifests = apply(base);
-
-    if (base.propertyAsBoolean(MANIFEST_LISTS_ENABLED, MANIFEST_LISTS_ENABLED_DEFAULT)) {
-      OutputFile manifestList = manifestListPath();
-
-      try (ManifestListWriter writer = new ManifestListWriter(
-          manifestList, snapshotId(), parentSnapshotId)) {
-
-        // keep track of the manifest lists created
-        manifestLists.add(manifestList.location());
-
-        ManifestFile[] manifestFiles = new ManifestFile[manifests.size()];
-
-        Tasks.range(manifestFiles.length)
-            .stopOnFailure().throwFailureWhenFinished()
-            .executeWith(getWorkerPool())
-            .run(index ->
-                manifestFiles[index] = manifestsWithMetadata.getUnchecked(manifests.get(index)));
-
-        writer.addAll(Arrays.asList(manifestFiles));
-
-      } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to write manifest list file");
-      }
-
-      return new BaseSnapshot(ops,
-          snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
-          ops.io().newInputFile(manifestList.location()));
-
-    } else {
-      return new BaseSnapshot(ops,
-          snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
-          manifests);
-    }
-  }
-
-  @Override
   public void commit() {
     // this is always set to the latest commit attempt's snapshot id.
     AtomicLong newSnapshotId = new AtomicLong(-1L);
@@ -212,13 +203,13 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
               base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
               base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
               base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-              2.0 /* exponential */ )
+              2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
-          .run(ops -> {
+          .run(taskOps -> {
             Snapshot newSnapshot = apply();
             newSnapshotId.set(newSnapshot.snapshotId());
             TableMetadata updated = base.replaceCurrentSnapshot(newSnapshot);
-            ops.commit(base, updated);
+            taskOps.commit(base, updated);
           });
 
     } catch (RuntimeException e) {
@@ -267,9 +258,9 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
         String.format("snap-%d-%d-%s", snapshotId(), attempt.incrementAndGet(), commitUUID))));
   }
 
-  protected OutputFile manifestPath(int i) {
+  protected OutputFile manifestPath(int manifestNumber) {
     return ops.io().newOutputFile(
-        ops.metadataFileLocation(FileFormat.AVRO.addExtension(commitUUID + "-m" + i)));
+        ops.metadataFileLocation(FileFormat.AVRO.addExtension(commitUUID + "-m" + manifestNumber)));
   }
 
   protected long snapshotId() {

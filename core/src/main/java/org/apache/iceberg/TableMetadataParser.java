@@ -45,6 +45,8 @@ import org.apache.iceberg.util.JsonUtil;
 
 public class TableMetadataParser {
 
+  private TableMetadataParser() {}
+
   // visible for testing
   static final String FORMAT_VERSION = "format-version";
   static final String LOCATION = "location";
@@ -60,18 +62,6 @@ public class TableMetadataParser {
   static final String SNAPSHOT_ID = "snapshot-id";
   static final String TIMESTAMP_MS = "timestamp-ms";
   static final String SNAPSHOT_LOG = "snapshot-log";
-
-  public static String toJson(TableMetadata metadata) {
-    StringWriter writer = new StringWriter();
-    try {
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      toJson(metadata, generator);
-      generator.flush();
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to write json for: %s", metadata);
-    }
-    return writer.toString();
-  }
 
   public static void write(TableMetadata metadata, OutputFile outputFile) {
     try (OutputStreamWriter writer = new OutputStreamWriter(
@@ -89,6 +79,18 @@ public class TableMetadataParser {
 
   public static String getFileExtension(Configuration configuration) {
     return ConfigProperties.shouldCompress(configuration) ? ".metadata.json.gz" : ".metadata.json";
+  }
+
+  public static String toJson(TableMetadata metadata) {
+    StringWriter writer = new StringWriter();
+    try {
+      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+      toJson(metadata, generator);
+      generator.flush();
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to write json for: %s", metadata);
+    }
+    return writer.toString();
   }
 
   private static void toJson(TableMetadata metadata, JsonGenerator generator) throws IOException {
@@ -143,7 +145,8 @@ public class TableMetadataParser {
 
   public static TableMetadata read(TableOperations ops, InputFile file) {
     try {
-      InputStream is = file.location().endsWith("gz") ? new GzipCompressorInputStream(file.newStream()): file.newStream();
+      InputStream is =
+          file.location().endsWith("gz") ? new GzipCompressorInputStream(file.newStream()) : file.newStream();
       return fromJson(ops, file, JsonUtil.mapper().readValue(is, JsonNode.class));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read file: %s", file);

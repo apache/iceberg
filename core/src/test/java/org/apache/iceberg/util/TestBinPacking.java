@@ -29,106 +29,106 @@ public class TestBinPacking {
   @Test
   public void testBasicBinPacking() {
     Assert.assertEquals("Should pack the first 2 values",
-        l(l(1, 2), l(3), l(4), l(5)), pack(l(1, 2, 3, 4, 5), 3));
+        asList(asList(1, 2), asList(3), asList(4), asList(5)), pack(asList(1, 2, 3, 4, 5), 3));
 
     Assert.assertEquals("Should pack the first 2 values",
-        l(l(1, 2), l(3), l(4), l(5)), pack(l(1, 2, 3, 4, 5), 5));
+        asList(asList(1, 2), asList(3), asList(4), asList(5)), pack(asList(1, 2, 3, 4, 5), 5));
 
     Assert.assertEquals("Should pack the first 3 values",
-        l(l(1, 2, 3), l(4), l(5)), pack(l(1, 2, 3, 4, 5), 6));
+        asList(asList(1, 2, 3), asList(4), asList(5)), pack(asList(1, 2, 3, 4, 5), 6));
 
     Assert.assertEquals("Should pack the first 3 values",
-        l(l(1, 2, 3), l(4), l(5)), pack(l(1, 2, 3, 4, 5), 8));
+        asList(asList(1, 2, 3), asList(4), asList(5)), pack(asList(1, 2, 3, 4, 5), 8));
 
     Assert.assertEquals("Should pack the first 3 values, last 2 values",
-        l(l(1, 2, 3), l(4, 5)), pack(l(1, 2, 3, 4, 5), 9));
+        asList(asList(1, 2, 3), asList(4, 5)), pack(asList(1, 2, 3, 4, 5), 9));
 
     Assert.assertEquals("Should pack the first 4 values",
-        l(l(1, 2, 3, 4), l(5)), pack(l(1, 2, 3, 4, 5), 10));
+        asList(asList(1, 2, 3, 4), asList(5)), pack(asList(1, 2, 3, 4, 5), 10));
 
     Assert.assertEquals("Should pack the first 4 values",
-        l(l(1, 2, 3, 4), l(5)), pack(l(1, 2, 3, 4, 5), 14));
+        asList(asList(1, 2, 3, 4), asList(5)), pack(asList(1, 2, 3, 4, 5), 14));
 
     Assert.assertEquals("Should pack the first 5 values",
-        l(l(1, 2, 3, 4, 5)), pack(l(1, 2, 3, 4, 5), 15));
+        asList(asList(1, 2, 3, 4, 5)), pack(asList(1, 2, 3, 4, 5), 15));
   }
 
   @Test
   public void testReverseBinPackingSingleLookback() {
     Assert.assertEquals("Should pack the first 2 values",
-        l(l(1, 2), l(3), l(4), l(5)), packEnd(l(1, 2, 3, 4, 5), 3, 1));
+        asList(asList(1, 2), asList(3), asList(4), asList(5)), packEnd(asList(1, 2, 3, 4, 5), 3, 1));
 
     Assert.assertEquals("Should pack the first 2 values",
-        l(l(1, 2), l(3), l(4), l(5)), packEnd(l(1, 2, 3, 4, 5), 4, 1));
+        asList(asList(1, 2), asList(3), asList(4), asList(5)), packEnd(asList(1, 2, 3, 4, 5), 4, 1));
 
     Assert.assertEquals("Should pack the second and third values",
-        l(l(1), l(2, 3), l(4), l(5)), packEnd(l(1, 2, 3, 4, 5), 5, 1));
+        asList(asList(1), asList(2, 3), asList(4), asList(5)), packEnd(asList(1, 2, 3, 4, 5), 5, 1));
 
     Assert.assertEquals("Should pack the first 3 values",
-        l(l(1, 2, 3), l(4), l(5)), packEnd(l(1, 2, 3, 4, 5), 6, 1));
+        asList(asList(1, 2, 3), asList(4), asList(5)), packEnd(asList(1, 2, 3, 4, 5), 6, 1));
 
     Assert.assertEquals("Should pack the first two pairs of values",
-        l(l(1, 2), l(3, 4), l(5)), packEnd(l(1, 2, 3, 4, 5), 7, 1));
+        asList(asList(1, 2), asList(3, 4), asList(5)), packEnd(asList(1, 2, 3, 4, 5), 7, 1));
 
     Assert.assertEquals("Should pack the first two pairs of values",
-        l(l(1, 2), l(3, 4), l(5)), packEnd(l(1, 2, 3, 4, 5), 8, 1));
+        asList(asList(1, 2), asList(3, 4), asList(5)), packEnd(asList(1, 2, 3, 4, 5), 8, 1));
 
     Assert.assertEquals("Should pack the first 3 values, last 2 values",
-        l(l(1, 2, 3), l(4, 5)), packEnd(l(1, 2, 3, 4, 5), 9, 1));
+        asList(asList(1, 2, 3), asList(4, 5)), packEnd(asList(1, 2, 3, 4, 5), 9, 1));
 
     Assert.assertEquals("Should pack the first 3 values, last 2 values",
-        l(l(1, 2, 3), l(4, 5)), packEnd(l(1, 2, 3, 4, 5), 11, 1));
+        asList(asList(1, 2, 3), asList(4, 5)), packEnd(asList(1, 2, 3, 4, 5), 11, 1));
 
     Assert.assertEquals("Should pack the first 3 values, last 2 values",
-        l(l(1, 2), l(3, 4, 5)), packEnd(l(1, 2, 3, 4, 5), 12, 1));
+        asList(asList(1, 2), asList(3, 4, 5)), packEnd(asList(1, 2, 3, 4, 5), 12, 1));
 
     Assert.assertEquals("Should pack the last 4 values",
-        l(l(1), l(2, 3, 4, 5)), packEnd(l(1, 2, 3, 4, 5), 14, 1));
+        asList(asList(1), asList(2, 3, 4, 5)), packEnd(asList(1, 2, 3, 4, 5), 14, 1));
 
     Assert.assertEquals("Should pack the first 5 values",
-        l(l(1, 2, 3, 4, 5)), packEnd(l(1, 2, 3, 4, 5), 15, 1));
+        asList(asList(1, 2, 3, 4, 5)), packEnd(asList(1, 2, 3, 4, 5), 15, 1));
   }
 
   @Test
   public void testReverseBinPackingUnlimitedLookback() {
     Assert.assertEquals("Should pack the first 2 values",
-        l(l(1, 2), l(3), l(4), l(5)), packEnd(l(1, 2, 3, 4, 5), 3));
+        asList(asList(1, 2), asList(3), asList(4), asList(5)), packEnd(asList(1, 2, 3, 4, 5), 3));
 
     Assert.assertEquals("Should pack 1 with 3",
-        l(l(2), l(1, 3), l(4), l(5)), packEnd(l(1, 2, 3, 4, 5), 4));
+        asList(asList(2), asList(1, 3), asList(4), asList(5)), packEnd(asList(1, 2, 3, 4, 5), 4));
 
     Assert.assertEquals("Should pack 2,3 and 1,4",
-        l(l(2, 3), l(1, 4), l(5)), packEnd(l(1, 2, 3, 4, 5), 5));
+        asList(asList(2, 3), asList(1, 4), asList(5)), packEnd(asList(1, 2, 3, 4, 5), 5));
 
     Assert.assertEquals("Should pack 2,4 and 1,5",
-        l(l(3), l(2, 4), l(1, 5)), packEnd(l(1, 2, 3, 4, 5), 6));
+        asList(asList(3), asList(2, 4), asList(1, 5)), packEnd(asList(1, 2, 3, 4, 5), 6));
 
     Assert.assertEquals("Should pack 3,4 and 2,5",
-        l(l(1), l(3, 4), l(2, 5)), packEnd(l(1, 2, 3, 4, 5), 7));
+        asList(asList(1), asList(3, 4), asList(2, 5)), packEnd(asList(1, 2, 3, 4, 5), 7));
 
     Assert.assertEquals("Should pack 1,2,3 and 3,5",
-        l(l(1, 2, 4), l(3, 5)), packEnd(l(1, 2, 3, 4, 5), 8));
+        asList(asList(1, 2, 4), asList(3, 5)), packEnd(asList(1, 2, 3, 4, 5), 8));
 
     Assert.assertEquals("Should pack the first 3 values, last 2 values",
-        l(l(1, 2, 3), l(4, 5)), packEnd(l(1, 2, 3, 4, 5), 9));
+        asList(asList(1, 2, 3), asList(4, 5)), packEnd(asList(1, 2, 3, 4, 5), 9));
 
     Assert.assertEquals("Should pack 2,3 and 1,4,5",
-        l(l(2, 3), l(1, 4, 5)), packEnd(l(1, 2, 3, 4, 5), 10));
+        asList(asList(2, 3), asList(1, 4, 5)), packEnd(asList(1, 2, 3, 4, 5), 10));
 
     Assert.assertEquals("Should pack 1,3 and 2,4,5",
-        l(l(1, 3), l(2, 4, 5)), packEnd(l(1, 2, 3, 4, 5), 11));
+        asList(asList(1, 3), asList(2, 4, 5)), packEnd(asList(1, 2, 3, 4, 5), 11));
 
     Assert.assertEquals("Should pack 1,2 and 3,4,5",
-        l(l(1, 2), l(3, 4, 5)), packEnd(l(1, 2, 3, 4, 5), 12));
+        asList(asList(1, 2), asList(3, 4, 5)), packEnd(asList(1, 2, 3, 4, 5), 12));
 
     Assert.assertEquals("Should pack 1,2 and 3,4,5",
-        l(l(2), l(1, 3, 4, 5)), packEnd(l(1, 2, 3, 4, 5), 13));
+        asList(asList(2), asList(1, 3, 4, 5)), packEnd(asList(1, 2, 3, 4, 5), 13));
 
     Assert.assertEquals("Should pack the last 4 values",
-        l(l(1), l(2, 3, 4, 5)), packEnd(l(1, 2, 3, 4, 5), 14));
+        asList(asList(1), asList(2, 3, 4, 5)), packEnd(asList(1, 2, 3, 4, 5), 14));
 
     Assert.assertEquals("Should pack the first 5 values",
-        l(l(1, 2, 3, 4, 5)), packEnd(l(1, 2, 3, 4, 5), 15));
+        asList(asList(1, 2, 3, 4, 5)), packEnd(asList(1, 2, 3, 4, 5), 15));
   }
 
   @Test
@@ -141,7 +141,7 @@ public class TestBinPacking {
     // 5. [5, 1, 1], [5], [5]
     // 6. [5, 1, 1, 1], [5], [5]
     Assert.assertEquals("Unlimited look-back: should merge ones into first bin",
-        l(l(5, 1, 1, 1), l(5), l(5)), pack(l(5, 1, 5, 1, 5, 1), 8));
+        asList(asList(5, 1, 1, 1), asList(5), asList(5)), pack(asList(5, 1, 5, 1, 5, 1), 8));
 
     // lookback state:
     // 1. [5]
@@ -151,7 +151,7 @@ public class TestBinPacking {
     // 5. [5], [5]          ([5, 1, 1] drops out of look-back)
     // 6. [5, 1], [5]
     Assert.assertEquals("2 bin look-back: should merge two ones into first bin",
-        l(l(5, 1, 1), l(5, 1), l(5)), pack(l(5, 1, 5, 1, 5, 1), 8, 2));
+        asList(asList(5, 1, 1), asList(5, 1), asList(5)), pack(asList(5, 1, 5, 1, 5, 1), 8, 2));
 
     // lookback state:
     // 1. [5]
@@ -161,16 +161,16 @@ public class TestBinPacking {
     // 5. [5]               ([5, 1] #2 drops out of look-back)
     // 6. [5, 1]
     Assert.assertEquals("1 bin look-back: should merge ones with fives",
-        l(l(5, 1), l(5, 1), l(5, 1)), pack(l(5, 1, 5, 1, 5, 1), 8, 1));
+        asList(asList(5, 1), asList(5, 1), asList(5, 1)), pack(asList(5, 1, 5, 1, 5, 1), 8, 1));
 
     Assert.assertEquals("2 bin look-back: should merge until targetWeight when largestBinFirst is enabled",
-        l(l(36, 36, 36), l(128), l(36, 65), l(65)),
-        pack(l(36, 36, 36, 36, 65, 65, 128), 128, 2, true));
+        asList(asList(36, 36, 36), asList(128), asList(36, 65), asList(65)),
+        pack(asList(36, 36, 36, 36, 65, 65, 128), 128, 2, true));
 
     Assert.assertEquals(
         "1 bin look-back: should merge until targetWeight when largestBinFirst is enabled",
-        l(l(64, 64), l(128), l(32, 32, 32, 32)),
-        pack(l(64, 64, 128, 32, 32, 32, 32), 128, 1, true));
+        asList(asList(64, 64), asList(128), asList(32, 32, 32, 32)),
+        pack(asList(64, 64, 128, 32, 32, 32, 32), 128, 1, true));
   }
 
   private List<List<Integer>> pack(List<Integer> items, long targetWeight) {
@@ -195,7 +195,7 @@ public class TestBinPacking {
     return packer.packEnd(items, Integer::longValue);
   }
 
-  private <T> List<T> l(T... items) {
+  private <T> List<T> asList(T... items) {
     return Lists.newArrayList(items);
   }
 }

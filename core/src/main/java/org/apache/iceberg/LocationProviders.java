@@ -32,6 +32,8 @@ import static org.apache.iceberg.TableProperties.OBJECT_STORE_PATH;
 
 public class LocationProviders {
 
+  private LocationProviders() {}
+
   public static LocationProvider locationsFor(String location, Map<String, String> properties) {
     if (PropertyUtil.propertyAsBoolean(properties,
         TableProperties.OBJECT_STORE_ENABLED,
