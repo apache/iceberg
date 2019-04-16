@@ -46,4 +46,10 @@ class MergeAppend extends MergingSnapshotProducer<AppendFiles> implements Append
     add(file);
     return this;
   }
+
+  @Override
+  public AppendFiles appendManifest(ManifestFile manifest) {
+    add(manifest);
+    return this;
+  }
 }

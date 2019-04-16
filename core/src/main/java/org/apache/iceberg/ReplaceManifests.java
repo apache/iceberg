@@ -236,7 +236,7 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
         writer = newWriter();
       }
 
-      writer.addExisting(entry);
+      writer.existing(entry);
       estimatedSize += len;
     }
 

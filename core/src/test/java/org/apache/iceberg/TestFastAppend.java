@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -43,6 +44,45 @@ public class TestFastAppend extends TableTestBase {
         .apply();
 
     validateSnapshot(base.currentSnapshot(), pending, FILE_A, FILE_B);
+  }
+
+  @Test
+  public void testEmptyTableAppendManifest() throws IOException {
+    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+
+    TableMetadata base = readMetadata();
+    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
+
+    ManifestFile manifest = writeManifest(FILE_A, FILE_B);
+    Snapshot pending = table.newFastAppend()
+        .appendManifest(manifest)
+        .apply();
+
+    validateSnapshot(base.currentSnapshot(), pending, FILE_A, FILE_B);
+  }
+
+  @Test
+  public void testEmptyTableAppendFilesAndManifest() throws IOException {
+    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+
+    TableMetadata base = readMetadata();
+    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
+
+    ManifestFile manifest = writeManifest(FILE_A, FILE_B);
+    Snapshot pending = table.newFastAppend()
+        .appendFile(FILE_C)
+        .appendFile(FILE_D)
+        .appendManifest(manifest)
+        .apply();
+
+    long pendingId = pending.snapshotId();
+
+    validateManifest(pending.manifests().get(0),
+        ids(pendingId, pendingId),
+        files(FILE_C, FILE_D));
+    validateManifest(pending.manifests().get(1),
+        ids(pendingId, pendingId),
+        files(FILE_A, FILE_B));
   }
 
   @Test
@@ -160,6 +200,24 @@ public class TestFastAppend extends TableTestBase {
     ops.failCommits(5);
 
     AppendFiles append = table.newFastAppend().appendFile(FILE_B);
+    Snapshot pending = append.apply();
+    ManifestFile newManifest = pending.manifests().get(0);
+    Assert.assertTrue("Should create new manifest", new File(newManifest.path()).exists());
+
+    AssertHelpers.assertThrows("Should retry 4 times and throw last failure",
+        CommitFailedException.class, "Injected failure", append::commit);
+
+    Assert.assertFalse("Should clean up new manifest", new File(newManifest.path()).exists());
+  }
+
+  @Test
+  public void testAppendManifestCleanup() throws IOException {
+    // inject 5 failures
+    TestTables.TestTableOperations ops = table.ops();
+    ops.failCommits(5);
+
+    ManifestFile manifest = writeManifest(FILE_A, FILE_B);
+    AppendFiles append = table.newFastAppend().appendManifest(manifest);
     Snapshot pending = append.apply();
     ManifestFile newManifest = pending.manifests().get(0);
     Assert.assertTrue("Should create new manifest", new File(newManifest.path()).exists());

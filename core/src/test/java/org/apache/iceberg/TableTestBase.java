@@ -24,8 +24,10 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.io.Files;
 import java.io.File;
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
 import org.junit.Assert;
@@ -117,6 +119,23 @@ public class TableTestBase {
 
   TableMetadata readMetadata() {
     return TestTables.readMetadata("test");
+  }
+
+  ManifestFile writeManifest(DataFile... files) throws IOException {
+    File manifestFile = temp.newFile("input.m0.avro");
+    Assert.assertTrue(manifestFile.delete());
+    OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
+
+    ManifestWriter writer = ManifestWriter.write(table.spec(), outputFile);
+    try {
+      for (DataFile file : files) {
+        writer.add(file);
+      }
+    } finally {
+      writer.close();
+    }
+
+    return writer.toManifestFile();
   }
 
   void validateSnapshot(Snapshot old, Snapshot snap, DataFile... newFiles) {
