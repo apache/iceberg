@@ -20,9 +20,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Metrics;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.orc.ColumnStatistics;
@@ -34,36 +34,39 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 /**
  * Create a file appender for ORC.
  */
-public class OrcFileAppender implements FileAppender<VectorizedRowBatch> {
-  private final Writer writer;
+public class OrcFileAppender<D> implements FileAppender<D> {
+  private final static int BATCH_SIZE = 1024;
+
   private final TypeDescription orcSchema;
   private final ColumnIdMap columnIds = new ColumnIdMap();
   private final Path path;
+  private final Writer writer;
+  private final VectorizedRowBatch batch;
+  private final OrcValueWriter<D> valueWriter;
   private boolean isClosed = false;
 
   public static final String COLUMN_NUMBERS_ATTRIBUTE = "iceberg.column.ids";
 
-  OrcFileAppender(Schema schema,
-                  OutputFile file,
-                  OrcFile.WriterOptions options,
-                  Map<String,byte[]> metadata) {
-    orcSchema = TypeConversion.toOrc(schema, columnIds);
-    options.setSchema(orcSchema);
+  OrcFileAppender(TypeDescription schema, OutputFile file,
+                  Function<TypeDescription, OrcValueWriter<?>> createWriterFunc,
+                  OrcFile.WriterOptions options, Map<String, byte[]> metadata) {
+    orcSchema = schema;
     path = new Path(file.location());
-    try {
-      writer = OrcFile.createWriter(path, options);
-    } catch (IOException e) {
-      throw new RuntimeException("Can't create file " + path, e);
-    }
-    writer.addUserMetadata(COLUMN_NUMBERS_ATTRIBUTE, columnIds.serialize());
-    metadata.forEach(
-        (key,value) -> writer.addUserMetadata(key, ByteBuffer.wrap(value)));
+    batch = orcSchema.createRowBatch(BATCH_SIZE);
+
+    options.setSchema(orcSchema);
+    writer = newOrcWriter(file, columnIds, options, metadata);
+    valueWriter = newOrcValueWriter(orcSchema, createWriterFunc);
   }
 
   @Override
-  public void add(VectorizedRowBatch datum) {
+  public void add(D datum) {
     try {
-      writer.addRowBatch(datum);
+      valueWriter.write(datum, batch);
+      if (batch.size == BATCH_SIZE) {
+        writer.addRowBatch(batch);
+        batch.reset();
+      }
     } catch (IOException e) {
       throw new RuntimeException("Problem writing to ORC file " + path, e);
     }
@@ -108,12 +111,44 @@ public class OrcFileAppender implements FileAppender<VectorizedRowBatch> {
   @Override
   public void close() throws IOException {
     if (!isClosed) {
-      this.isClosed = true;
-      writer.close();
+      try {
+        if (batch.size > 0) {
+          writer.addRowBatch(batch);
+          batch.reset();
+        }
+      }
+      finally {
+        writer.close();
+        this.isClosed = true;
+      }
     }
   }
 
   public TypeDescription getSchema() {
     return orcSchema;
+  }
+
+  private static Writer newOrcWriter(OutputFile file,
+                                     ColumnIdMap columnIds,
+                                     OrcFile.WriterOptions options, Map<String, byte[]> metadata) {
+    final Path locPath = new Path(file.location());
+    final Writer writer;
+
+    try {
+      writer = OrcFile.createWriter(locPath, options);
+    } catch (IOException e) {
+      throw new RuntimeException("Can't create file " + locPath, e);
+    }
+
+    writer.addUserMetadata(COLUMN_NUMBERS_ATTRIBUTE, columnIds.serialize());
+    metadata.forEach((key,value) -> writer.addUserMetadata(key, ByteBuffer.wrap(value)));
+
+    return writer;
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <D> OrcValueWriter<D> newOrcValueWriter(TypeDescription schema,
+                                                         Function<TypeDescription, OrcValueWriter<?>> createWriterFunc) {
+    return (OrcValueWriter<D>) createWriterFunc.apply(schema);
   }
 }

@@ -21,11 +21,13 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
+import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.orc.OrcFile;
@@ -44,6 +46,7 @@ public class ORC {
     private final OutputFile file;
     private final Configuration conf;
     private Schema schema = null;
+    private Function<TypeDescription, OrcValueWriter<?>>  createWriterFunc;
     private Map<String, byte[]> metadata = new HashMap<>();
 
     private WriteBuilder(OutputFile file) {
@@ -65,15 +68,26 @@ public class ORC {
       return this;
     }
 
+    public WriteBuilder createWriterFunc(Function<TypeDescription, OrcValueWriter<?>> writerFunction) {
+      this.createWriterFunc = writerFunction;
+      return this;
+    }
+
+    public WriteBuilder setAll(Map<String, String> properties) {
+      properties.forEach(conf::set);
+      return this;
+    }
+
     public WriteBuilder schema(Schema schema) {
       this.schema = schema;
       return this;
     }
 
-    public OrcFileAppender build() {
-      OrcFile.WriterOptions options =
-          OrcFile.writerOptions(conf);
-      return new OrcFileAppender(schema, file, options, metadata);
+    public <D> FileAppender<D> build() {
+      Preconditions.checkNotNull(schema, "Schema is required");
+      OrcFile.WriterOptions options = OrcFile.writerOptions(conf);
+      return new OrcFileAppender<>(TypeConversion.toOrc(schema, new ColumnIdMap()),
+          this.file, createWriterFunc, options, metadata);
     }
   }
 

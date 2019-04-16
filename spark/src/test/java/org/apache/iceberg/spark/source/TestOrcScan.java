@@ -24,7 +24,9 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.orc.ORC;
+import org.apache.iceberg.orc.OrcFileAppender;
 import org.apache.iceberg.spark.data.AvroDataTest;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.SparkOrcWriter;
@@ -90,9 +92,10 @@ public class TestOrcScan extends AvroDataTest {
     Schema tableSchema = table.schema();
 
     Metrics metrics;
-    SparkOrcWriter writer = new SparkOrcWriter(ORC.write(localOutput(orcFile))
+    FileAppender<InternalRow> writer = ORC.write(localOutput(orcFile))
         .schema(tableSchema)
-        .build());
+        .createWriterFunc(SparkOrcWriter::new)
+        .build();
     try {
       writer.addAll(RandomData.generateSpark(tableSchema, ROW_COUNT, SEED));
     } finally {

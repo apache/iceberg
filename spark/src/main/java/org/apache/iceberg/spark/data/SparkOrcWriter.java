@@ -16,9 +16,7 @@
 
 package org.apache.iceberg.spark.data;
 
-import org.apache.iceberg.Metrics;
-import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.orc.OrcFileAppender;
+import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.common.type.HiveDecimal;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
@@ -36,24 +34,26 @@ import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
 
-import java.io.IOException;
 import java.util.List;
 
 /**
  * This class acts as an adaptor from an OrcFileAppender to a
  * FileAppender&lt;InternalRow&gt;.
  */
-public class SparkOrcWriter implements FileAppender<InternalRow> {
-  private final static int BATCH_SIZE = 1024;
-  private final VectorizedRowBatch batch;
-  private final OrcFileAppender writer;
+public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
+
   private final Converter[] converters;
 
-  public SparkOrcWriter(OrcFileAppender writer) {
-    TypeDescription schema = writer.getSchema();
-    batch = schema.createRowBatch(BATCH_SIZE);
-    this.writer = writer;
+  public SparkOrcWriter(TypeDescription schema) {
     converters = buildConverters(schema);
+  }
+
+  @Override
+  public void write(InternalRow value, VectorizedRowBatch output) {
+    int row = output.size++;
+    for(int c=0; c < converters.length; ++c) {
+      converters[c].addValue(row, c, value, output.cols[c]);
+    }
   }
 
   /**
@@ -403,34 +403,4 @@ public class SparkOrcWriter implements FileAppender<InternalRow> {
     return result;
   }
 
-  @Override
-  public void add(InternalRow datum) {
-    int row = batch.size++;
-    for(int c=0; c < converters.length; ++c) {
-      converters[c].addValue(row, c, datum, batch.cols[c]);
-    }
-    if (batch.size == BATCH_SIZE) {
-      writer.add(batch);
-      batch.reset();
-    }
-  }
-
-  @Override
-  public Metrics metrics() {
-    return writer.metrics();
-  }
-
-  @Override
-  public long length() {
-    return writer.length();
-  }
-
-  @Override
-  public void close() throws IOException {
-    if (batch.size > 0) {
-      writer.add(batch);
-      batch.reset();
-    }
-    writer.close();
-  }
 }
