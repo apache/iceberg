@@ -410,6 +410,7 @@ public class Tasks {
             for (Class<? extends Exception> exClass : onlyRetryExceptions) {
               if (exClass.isInstance(e)) {
                 matchedRetryException = true;
+                break;
               }
             }
             if (!matchedRetryException) {
