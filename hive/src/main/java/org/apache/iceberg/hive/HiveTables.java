@@ -16,13 +16,15 @@
 package org.apache.iceberg.hive;
 
 import com.google.common.base.Splitter;
+import java.io.Closeable;
+import java.io.IOException;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore;
-import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.BaseMetastoreTables;
 import org.apache.iceberg.PartitionSpec;
@@ -33,16 +35,15 @@ import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
 
-import static org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars.CLIENT_SOCKET_TIMEOUT;
-import static org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars.THRIFT_URIS;
-
-public class HiveTables extends BaseMetastoreTables {
+public class HiveTables extends BaseMetastoreTables implements Closeable {
   private static final Splitter DOT = Splitter.on('.').limit(2);
-  private Configuration conf;
+  private final Configuration conf;
+  private final HiveClientPool clients;
 
   public HiveTables(Configuration conf) {
     super(conf);
     this.conf = conf;
+    this.clients = new HiveClientPool(2, conf);
   }
 
   @Override
@@ -70,12 +71,17 @@ public class HiveTables extends BaseMetastoreTables {
 
   @Override
   public BaseMetastoreTableOperations newTableOps(Configuration conf, String database, String table) {
-    return new HiveTableOperations(conf, getClient(), database, table);
+    return new HiveTableOperations(conf, clients, database, table);
   }
 
-  private ThriftHiveMetastore.Client getClient() {
-    final URI metastoreUri = URI.create(MetastoreConf.getAsString(conf, THRIFT_URIS));
-    final int socketTimeOut = (int) MetastoreConf.getTimeVar(conf, CLIENT_SOCKET_TIMEOUT, TimeUnit.MILLISECONDS);
+  @Override
+  public void close() throws IOException {
+    clients.close();
+  }
+
+  private ThriftHiveMetastore.Client newClient() {
+    final URI metastoreUri = URI.create(HiveConf.getVar(conf, HiveConf.ConfVars.METASTOREURIS));
+    final int socketTimeOut = (int) HiveConf.getTimeVar(conf, HiveConf.ConfVars.METASTORE_CLIENT_SOCKET_TIMEOUT, TimeUnit.MILLISECONDS);
     TTransport transport = new TSocket(metastoreUri.getHost(), metastoreUri.getPort(), socketTimeOut);
     try {
       transport.open();

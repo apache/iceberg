@@ -22,12 +22,12 @@ import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Tasks;
@@ -43,7 +43,7 @@ public class HiveTablesTest extends HiveTableBaseTest {
   @Test
   public void testCreate() throws TException {
     // Table should be created in hive metastore
-    final Table table = metastoreClient.getTable(DB_NAME, TABLE_NAME);
+    final org.apache.hadoop.hive.metastore.api.Table table = metastoreClient.getTable(DB_NAME, TABLE_NAME);
 
     // check parameters are in expected state
     final Map<String, String> parameters = table.getParameters();
@@ -61,25 +61,25 @@ public class HiveTablesTest extends HiveTableBaseTest {
     Assert.assertEquals(1, metadataVersionFiles(TABLE_NAME).size());
     Assert.assertEquals(0, manifestFiles(TABLE_NAME).size());
 
-    final org.apache.iceberg.Table icebergTable = new HiveTables(hiveConf).load(DB_NAME, TABLE_NAME);
+    final Table icebergTable = tables.load(DB_NAME, TABLE_NAME);
     // Iceberg schema should match the loaded table
     Assert.assertEquals(schema.asStruct(), icebergTable.schema().asStruct());
   }
 
   @Test
   public void testExistingTableUpdate() throws TException {
-    org.apache.iceberg.Table icebergTable = new HiveTables(hiveConf).load(DB_NAME, TABLE_NAME);
+    Table icebergTable = tables.load(DB_NAME, TABLE_NAME);
     // add a column
     icebergTable.updateSchema().addColumn("data", Types.LongType.get()).commit();
 
-    icebergTable = new HiveTables(hiveConf).load(DB_NAME, TABLE_NAME);
+    icebergTable = tables.load(DB_NAME, TABLE_NAME);
 
     // Only 2 snapshotFile Should exist and no manifests should exist
     Assert.assertEquals(2, metadataVersionFiles(TABLE_NAME).size());
     Assert.assertEquals(0, manifestFiles(TABLE_NAME).size());
     Assert.assertEquals(altered.asStruct(), icebergTable.schema().asStruct());
 
-    final Table table = metastoreClient.getTable(DB_NAME, TABLE_NAME);
+    final org.apache.hadoop.hive.metastore.api.Table table = metastoreClient.getTable(DB_NAME, TABLE_NAME);
     final List<String> hiveColumns = table.getSd().getCols().stream().map(f -> f.getName()).collect(Collectors.toList());
     final List<String> icebergColumns = altered.columns().stream().map(f -> f.name()).collect(Collectors.toList());
     Assert.assertEquals(icebergColumns, hiveColumns);
@@ -87,9 +87,9 @@ public class HiveTablesTest extends HiveTableBaseTest {
 
   @Test(expected = CommitFailedException.class)
   public void testFailure() throws TException {
-    org.apache.iceberg.Table icebergTable = new HiveTables(hiveConf).load(DB_NAME, TABLE_NAME);
-    final Table table = metastoreClient.getTable(DB_NAME, TABLE_NAME);
-    final String dummyLocation = "dummylocation";
+    Table icebergTable = tables.load(DB_NAME, TABLE_NAME);
+    org.apache.hadoop.hive.metastore.api.Table table = metastoreClient.getTable(DB_NAME, TABLE_NAME);
+    String dummyLocation = "dummylocation";
     table.getParameters().put(METADATA_LOCATION_PROP, dummyLocation);
     metastoreClient.alter_table(DB_NAME, TABLE_NAME, table);
     icebergTable.updateSchema()
@@ -99,9 +99,8 @@ public class HiveTablesTest extends HiveTableBaseTest {
 
   @Test
   public void testConcurrentFastAppends() {
-    HiveTables hiveTables = new HiveTables(hiveConf);
-    org.apache.iceberg.Table icebergTable = hiveTables.load(DB_NAME, TABLE_NAME);
-    org.apache.iceberg.Table anotherIcebergTable = hiveTables.load(DB_NAME, TABLE_NAME);
+    Table icebergTable = tables.load(DB_NAME, TABLE_NAME);
+    Table anotherIcebergTable = tables.load(DB_NAME, TABLE_NAME);
 
     String fileName = UUID.randomUUID().toString();
     DataFile file = DataFiles.builder(icebergTable.spec())
@@ -113,20 +112,22 @@ public class HiveTablesTest extends HiveTableBaseTest {
     ExecutorService executorService = MoreExecutors.getExitingExecutorService(
       (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
 
+    AtomicInteger barrier = new AtomicInteger(0);
     Tasks.foreach(icebergTable, anotherIcebergTable)
       .stopOnFailure().throwFailureWhenFinished()
       .executeWith(executorService)
       .run(table -> {
         for (int numCommittedFiles = 0; numCommittedFiles < 10; numCommittedFiles++) {
-          long commitStartTime = System.currentTimeMillis();
-          table.newFastAppend().appendFile(file).commit();
-          long commitEndTime = System.currentTimeMillis();
-          long commitDuration = commitEndTime - commitStartTime;
-          try {
-            TimeUnit.MILLISECONDS.sleep(200 - commitDuration);
-          } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+          while (barrier.get() < numCommittedFiles * 2) {
+            try {
+              Thread.sleep(10);
+            } catch (InterruptedException e) {
+              throw new RuntimeException(e);
+            }
           }
+
+          table.newFastAppend().appendFile(file).commit();
+          barrier.incrementAndGet();
         }
       });
 
