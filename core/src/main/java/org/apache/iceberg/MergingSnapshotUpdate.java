@@ -28,7 +28,6 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.lang.reflect.Array;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -220,7 +219,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
               filtered[index] = manifest;
             }, IOException.class);
 
-        Arrays.stream(filtered).forEach(manifest -> {
+        for (ManifestFile manifest : filtered) {
           PartitionSpec manifestSpec = ops.current().spec(manifest.partitionSpecId());
           Iterable<DataFile> manifestDeletes = filteredManifestToDeletedFiles.get(manifest);
           if (manifestDeletes != null) {
@@ -238,17 +237,19 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
             group.add(manifest);
             groups.put(manifest.partitionSpecId(), group);
           }
-        });
+        }
       }
 
       List<ManifestFile> manifests = Lists.newArrayList();
-      groups.forEach((groupId, manifestGroup) -> {
+      for (Map.Entry<Integer, List<ManifestFile>> entry : groups.entrySet()) {
+        int groupId = entry.getKey();
+        List<ManifestFile> manifestGroup = entry.getValue();
         try {
           mergeGroup(groupId, manifestGroup).forEach(manifests::add);
         } catch (IOException e) {
           throw new RuntimeIOException(e);
         }
-      });
+      }
 
       ValidationException.check(!failMissingDeletePaths || deletedFiles.containsAll(deletePaths),
           "Missing required files to delete: %s",
@@ -359,7 +360,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
         return manifest;
       }
 
-      return filterManifestsWithDeletedFiles(
+      return filterManifestWithDeletedFiles(
           metricsEvaluator,
           manifest,
           reader,
@@ -370,13 +371,8 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
     }
   }
 
-  private boolean manifestHasDeletedFiles(
-      StrictMetricsEvaluator metricsEvaluator,
-      ManifestReader reader,
-      Evaluator inclusive,
-      Evaluator strict,
-      CharSequenceWrapper pathWrapper,
-      StructLikeWrapper partitionWrapper) {
+  private boolean manifestHasDeletedFiles(StrictMetricsEvaluator metricsEvaluator, ManifestReader reader,
+      Evaluator inclusive, Evaluator strict, CharSequenceWrapper pathWrapper, StructLikeWrapper partitionWrapper) {
     boolean hasDeletedFiles = false;
     for (ManifestEntry entry : reader.entries()) {
       DataFile file = entry.file();
@@ -398,7 +394,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
     return hasDeletedFiles;
   }
 
-  private ManifestFile filterManifestsWithDeletedFiles(
+  private ManifestFile filterManifestWithDeletedFiles(
       StrictMetricsEvaluator metricsEvaluator,
       ManifestFile manifest,
       ManifestReader reader,

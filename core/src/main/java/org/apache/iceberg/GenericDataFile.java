@@ -69,7 +69,8 @@ class GenericDataFile
   /**
    * Used by Avro reflection to instantiate this class when reading manifest files.
    */
-  GenericDataFile(org.apache.avro.Schema avroSchema) {
+  @SuppressWarnings("checkstyle:RedundantModifier") // Must be public
+  public GenericDataFile(org.apache.avro.Schema avroSchema) {
     this.avroSchema = avroSchema;
 
     Types.StructType schema = AvroSchemaUtil.convert(avroSchema).asNestedType().asStructType();

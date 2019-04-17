@@ -99,7 +99,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
           .suppressFailureWhenFinished()
           .run(metadataLocation -> {
             this.currentMetadata = TableMetadataParser.read(
-              this, HadoopInputFile.fromLocation(metadataLocation, conf));
+                this, HadoopInputFile.fromLocation(metadataLocation, conf));
             this.currentMetadataLocation = metadataLocation;
             this.version = parseVersion(metadataLocation);
           });
