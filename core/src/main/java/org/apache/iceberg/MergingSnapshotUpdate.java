@@ -196,7 +196,9 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
     try {
       if (newFiles.size() > 0) {
         // add all of the new files to the summary builder
-        newFiles.forEach(file -> summaryBuilder.addedFile(spec, file));
+        for (DataFile file : newFiles) {
+          summaryBuilder.addedFile(spec, file);
+        }
 
         ManifestFile newManifest = newFilesAsManifest();
         List<ManifestFile> manifestGroup = Lists.newArrayList();
