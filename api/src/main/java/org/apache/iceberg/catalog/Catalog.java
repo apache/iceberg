@@ -18,28 +18,33 @@
  */
 package org.apache.iceberg.catalog;
 
+import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 
-import java.util.List;
-import java.util.Map;
-
 public interface Catalog {
   /**
    * creates the table or throws {@link AlreadyExistsException}.
+   *
    * @param schema the schema for this table, can not be null.
    * @param spec the partition spec for this table, can not be null.
    * @param tableProperties can be null or empty
    * @param tableIdentifier an identifier to identify this table in a namespace.
    * @return Table instance that was created
    */
-  Table createTable(Schema schema, PartitionSpec spec, Map<String, String> tableProperties, TableIdentifier tableIdentifier);
+  Table createTable(
+      Schema schema,
+      PartitionSpec spec,
+      Map<String, String> tableProperties,
+      TableIdentifier tableIdentifier);
 
   /**
    * Check if table exists or not.
+   *
    * @param tableIdentifier an identifier to identify this table in a namespace.
    * @return true if table exists, false if it doesn't.
    */
@@ -47,6 +52,7 @@ public interface Catalog {
 
   /**
    * Drops the table if it exists, otherwise throws {@link NoSuchTableException}
+   *
    * @param tableIdentifier an identifier to identify this table in a namespace.
    * @param shouldDeleteData should the data corresponding to this table be deleted
    */
@@ -55,6 +61,7 @@ public interface Catalog {
   /**
    * Renames a table. If {@code from} does not exists throws {@link NoSuchTableException}
    * If {@code to} exists than throws {@link AlreadyExistsException}.
+   *
    * @param from original name of the table.
    * @param to expected new name of the table.
    */
@@ -62,6 +69,7 @@ public interface Catalog {
 
   /**
    * Returns list of all the tables {@link TableIdentifier tables} under the provided namespace.
+   *
    * @param namespaceIdentifier identifier for the namespace under which tables are to be listed.
    * @return List of {@link TableIdentifier} under the specified namespaceIdentifier.
    */

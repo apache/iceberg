@@ -25,7 +25,7 @@ public class NamespaceIdentifier {
   private final String[] namespaceParts;
 
   public NamespaceIdentifier(String[] namespaceParts) {
-    if(namespaceParts == null || namespaceParts.length == 0) {
+    if (namespaceParts == null || namespaceParts.length == 0) {
       throw new IllegalArgumentException("schemaName can not be null or empty");
     }
 
@@ -35,5 +35,4 @@ public class NamespaceIdentifier {
   public String[] namespaceParts() {
     return namespaceParts;
   }
-
 }

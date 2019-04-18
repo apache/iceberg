@@ -26,11 +26,11 @@ public class TableIdentifier {
   private final String tableName;
 
   public TableIdentifier(NamespaceIdentifier namespaceIdentifier, String tableName) {
-    if(namespaceIdentifier == null) {
+    if (namespaceIdentifier == null) {
       throw new IllegalArgumentException("namespaceIdentifier can not be null");
     }
 
-    if(tableName == null || tableName.isEmpty()) {
+    if (tableName == null || tableName.isEmpty()) {
       throw new IllegalArgumentException("tableName can not be null");
     }
 
