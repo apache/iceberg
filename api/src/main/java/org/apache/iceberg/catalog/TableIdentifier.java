@@ -22,24 +22,24 @@ package org.apache.iceberg.catalog;
  * Identifies a table in iceberg catalog
  */
 public class TableIdentifier {
-  private final SchemaIdentifier schemaIdentifier;
+  private final NamespaceIdentifier namespaceIdentifier;
   private final String tableName;
 
-  public TableIdentifier(SchemaIdentifier schemaIdentifier, String tableName) {
-    if(schemaIdentifier == null) {
-      throw new IllegalArgumentException("schemaIdentifier can not be null");
+  public TableIdentifier(NamespaceIdentifier namespaceIdentifier, String tableName) {
+    if(namespaceIdentifier == null) {
+      throw new IllegalArgumentException("namespaceIdentifier can not be null");
     }
 
     if(tableName == null || tableName.isEmpty()) {
       throw new IllegalArgumentException("tableName can not be null");
     }
 
-    this.schemaIdentifier = schemaIdentifier;
+    this.namespaceIdentifier = namespaceIdentifier;
     this.tableName = tableName;
   }
 
-  public SchemaIdentifier schemaNameIdentifier() {
-    return schemaIdentifier;
+  public NamespaceIdentifier schemaNameIdentifier() {
+    return namespaceIdentifier;
   }
 
   public String tableName() {

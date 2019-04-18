@@ -19,21 +19,21 @@
 package org.apache.iceberg.catalog;
 
 /**
- * Identifies a schema in iceberg catalog
+ * Identifies a namespace in iceberg catalog
  */
-public class SchemaIdentifier {
-  private final String schemaName;
+public class NamespaceIdentifier {
+  private final String[] namespaceParts;
 
-  public SchemaIdentifier(String schemaName) {
-    if(schemaName == null || schemaName.isEmpty()) {
+  public NamespaceIdentifier(String[] namespaceParts) {
+    if(namespaceParts == null || namespaceParts.length == 0) {
       throw new IllegalArgumentException("schemaName can not be null or empty");
     }
 
-    this.schemaName = schemaName;
+    this.namespaceParts = namespaceParts;
   }
 
-  public String schemaName() {
-    return schemaName;
+  public String[] namespaceParts() {
+    return namespaceParts;
   }
 
 }

@@ -25,43 +25,45 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 
 import java.util.List;
+import java.util.Map;
 
 public interface Catalog {
   /**
    * creates the table or throws {@link AlreadyExistsException}.
-   * @param schema
-   * @param spec
-   * @param tableIdentifier
+   * @param schema the schema for this table, can not be null.
+   * @param spec the partition spec for this table, can not be null.
+   * @param tableProperties can be null or empty
+   * @param tableIdentifier an identifier to identify this table in a namespace.
    * @return Table instance that was created
    */
-  Table createTable(Schema schema, PartitionSpec spec, TableIdentifier tableIdentifier);
+  Table createTable(Schema schema, PartitionSpec spec, Map<String, String> tableProperties, TableIdentifier tableIdentifier);
 
   /**
-   * check if tables exists or not.
-   * @param tableIdentifier
+   * Check if table exists or not.
+   * @param tableIdentifier an identifier to identify this table in a namespace.
    * @return true if table exists, false if it doesn't.
    */
   boolean tableExists(TableIdentifier tableIdentifier);
 
   /**
    * Drops the table if it exists, otherwise throws {@link NoSuchTableException}
-   * @param tableIdentifier
+   * @param tableIdentifier an identifier to identify this table in a namespace.
    * @param shouldDeleteData should the data corresponding to this table be deleted
    */
   void dropTable(TableIdentifier tableIdentifier, boolean shouldDeleteData);
 
   /**
-   * Renames a table. If @{code from} does not exists throws {@link NoSuchTableException}
+   * Renames a table. If {@code from} does not exists throws {@link NoSuchTableException}
    * If {@code to} exists than throws {@link AlreadyExistsException}.
-   * @param from
-   * @param to
+   * @param from original name of the table.
+   * @param to expected new name of the table.
    */
   void renameTable(TableIdentifier from, TableIdentifier to);
 
   /**
-   * Returns list of all the tables {@link TableIdentifier tables} under the provided schema.
-   * @param schemaIdentifier
-   * @return List of {@link TableIdentifier} under the specified schemaIdentifier.
+   * Returns list of all the tables {@link TableIdentifier tables} under the provided namespace.
+   * @param namespaceIdentifier identifier for the namespace under which tables are to be listed.
+   * @return List of {@link TableIdentifier} under the specified namespaceIdentifier.
    */
-  List<TableIdentifier> listTables(SchemaIdentifier schemaIdentifier);
+  List<TableIdentifier> listTables(NamespaceIdentifier namespaceIdentifier);
 }
