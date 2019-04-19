@@ -18,27 +18,36 @@
  */
 package org.apache.iceberg.catalog;
 
+import java.util.Optional;
+
 /**
  * Identifies a table in iceberg catalog
  */
 public class TableIdentifier {
-  private final Namespace namespace;
+  private final Optional<Namespace> namespace;
   private final String name;
 
-  public TableIdentifier(Namespace namespace, String name) {
-    if (namespace == null) {
-      throw new IllegalArgumentException("namespace can not be null");
-    }
+  public TableIdentifier(String name) {
+    this(Optional.empty(), name);
+  }
 
+  public TableIdentifier(Namespace namespace, String name) {
+    this((namespace == null ? Optional.empty() : Optional.of(namespace)), name);
+  }
+
+  private TableIdentifier(Optional<Namespace> namespace, String name) {
     if (name == null || name.isEmpty()) {
       throw new IllegalArgumentException("name can not be null or empty");
     }
-
     this.namespace = namespace;
     this.name = name;
   }
 
-  public Namespace namespace() {
+  public boolean hasNamespace() {
+    return namespace.isPresent();
+  }
+
+  public Optional<Namespace> namespace() {
     return namespace;
   }
 

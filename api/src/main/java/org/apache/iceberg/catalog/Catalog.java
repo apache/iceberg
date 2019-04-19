@@ -26,6 +26,9 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 
+/**
+ * Top level Catalog APIs that supports table DDLs and namespace listing.
+ */
 public interface Catalog {
   /**
    * creates the table or throws {@link AlreadyExistsException}.
@@ -52,11 +55,13 @@ public interface Catalog {
 
   /**
    * Drops the table if it exists, otherwise throws {@link NoSuchTableException}
+   * The implementation should not delete the underlying data but ensure that a
+   * subsequent call to {@link Catalog#tableExists(TableIdentifier)} returns false.
    *
+   * If the table does not exists it will throw {@link NoSuchTableException}
    * @param tableIdentifier an identifier to identify this table in a namespace.
-   * @param shouldDeleteData should the data corresponding to this table be deleted
    */
-  void dropTable(TableIdentifier tableIdentifier, boolean shouldDeleteData);
+  void dropTable(TableIdentifier tableIdentifier);
 
   /**
    * Renames a table. If {@code from} does not exists throws {@link NoSuchTableException}
