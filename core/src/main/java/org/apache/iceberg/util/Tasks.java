@@ -39,7 +39,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class Tasks {
-
   private static final Logger LOG = LoggerFactory.getLogger(Tasks.class);
 
   private Tasks() {}
