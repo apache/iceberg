@@ -21,18 +21,18 @@ package org.apache.iceberg.catalog;
 /**
  * Identifies a namespace in iceberg catalog
  */
-public class NamespaceIdentifier {
-  private final String[] namespaceParts;
+public class Namespace {
+  private final String[] levels;
 
-  public NamespaceIdentifier(String[] namespaceParts) {
-    if (namespaceParts == null || namespaceParts.length == 0) {
-      throw new IllegalArgumentException("schemaName can not be null or empty");
+  public Namespace(String[] levels) {
+    if (levels == null || levels.length == 0) {
+      throw new IllegalArgumentException("namespace levels can not be null or empty");
     }
 
-    this.namespaceParts = namespaceParts;
+    this.levels = levels;
   }
 
-  public String[] namespaceParts() {
-    return namespaceParts;
+  public String[] levels() {
+    return levels;
   }
 }

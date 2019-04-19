@@ -30,17 +30,17 @@ public interface Catalog {
   /**
    * creates the table or throws {@link AlreadyExistsException}.
    *
+   * @param tableIdentifier an identifier to identify this table in a namespace.
    * @param schema the schema for this table, can not be null.
    * @param spec the partition spec for this table, can not be null.
    * @param tableProperties can be null or empty
-   * @param tableIdentifier an identifier to identify this table in a namespace.
    * @return Table instance that was created
    */
   Table createTable(
+      TableIdentifier tableIdentifier,
       Schema schema,
       PartitionSpec spec,
-      Map<String, String> tableProperties,
-      TableIdentifier tableIdentifier);
+      Map<String, String> tableProperties);
 
   /**
    * Check if table exists or not.
@@ -70,8 +70,8 @@ public interface Catalog {
   /**
    * Returns list of all the tables {@link TableIdentifier tables} under the provided namespace.
    *
-   * @param namespaceIdentifier identifier for the namespace under which tables are to be listed.
-   * @return List of {@link TableIdentifier} under the specified namespaceIdentifier.
+   * @param namespace identifier for the namespace under which tables are to be listed.
+   * @return List of {@link TableIdentifier} under the specified namespace.
    */
-  List<TableIdentifier> listTables(NamespaceIdentifier namespaceIdentifier);
+  List<TableIdentifier> listTables(Namespace namespace);
 }
