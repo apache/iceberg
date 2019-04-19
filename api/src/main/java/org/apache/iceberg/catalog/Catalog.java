@@ -57,8 +57,9 @@ public interface Catalog {
    * Drops the table if it exists, otherwise throws {@link NoSuchTableException}
    * The implementation should not delete the underlying data but ensure that a
    * subsequent call to {@link Catalog#tableExists(TableIdentifier)} returns false.
-   *
+   * <p>
    * If the table does not exists it will throw {@link NoSuchTableException}
+   *
    * @param tableIdentifier an identifier to identify this table in a namespace.
    */
   void dropTable(TableIdentifier tableIdentifier);

@@ -23,16 +23,29 @@ package org.apache.iceberg.catalog;
  */
 public class Namespace {
   private final String[] levels;
+  private static final Namespace EMPTY = new Namespace(new String[] {});
 
-  public Namespace(String[] levels) {
-    if (levels == null || levels.length == 0) {
-      throw new IllegalArgumentException("namespace levels can not be null or empty");
-    }
-
+  private Namespace(String[] levels) {
     this.levels = levels;
   }
 
   public String[] levels() {
     return levels;
+  }
+
+  public boolean isEmpty() {
+    return this.equals(Namespace.EMPTY);
+  }
+
+  public static Namespace namespace(String[] levels) {
+    if (levels == null || levels.length == 0) {
+      return Namespace.EMPTY;
+    }
+
+    return new Namespace(levels);
+  }
+
+  public static Namespace empty() {
+    return EMPTY;
   }
 }

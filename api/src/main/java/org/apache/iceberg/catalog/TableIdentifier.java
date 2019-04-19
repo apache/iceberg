@@ -18,36 +18,32 @@
  */
 package org.apache.iceberg.catalog;
 
-import java.util.Optional;
-
 /**
- * Identifies a table in iceberg catalog
+ * Identifies a table in iceberg catalog, the namespace is optional
+ * so callers can use {@link #hasNamespace()} to check if namespace is present or not.
  */
 public class TableIdentifier {
-  private final Optional<Namespace> namespace;
+  private final Namespace namespace;
   private final String name;
 
   public TableIdentifier(String name) {
-    this(Optional.empty(), name);
+    this(Namespace.empty(), name);
   }
 
   public TableIdentifier(Namespace namespace, String name) {
-    this((namespace == null ? Optional.empty() : Optional.of(namespace)), name);
-  }
-
-  private TableIdentifier(Optional<Namespace> namespace, String name) {
     if (name == null || name.isEmpty()) {
       throw new IllegalArgumentException("name can not be null or empty");
     }
-    this.namespace = namespace;
+
+    this.namespace = namespace == null ? Namespace.empty() : namespace;
     this.name = name;
   }
 
   public boolean hasNamespace() {
-    return namespace.isPresent();
+    return !namespace.isEmpty();
   }
 
-  public Optional<Namespace> namespace() {
+  public Namespace namespace() {
     return namespace;
   }
 
