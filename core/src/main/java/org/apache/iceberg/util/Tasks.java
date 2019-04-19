@@ -40,9 +40,9 @@ import org.slf4j.LoggerFactory;
 
 public class Tasks {
 
-  private Tasks() {}
-
   private static final Logger LOG = LoggerFactory.getLogger(Tasks.class);
+
+  private Tasks() {}
 
   public static class UnrecoverableException extends RuntimeException {
     public UnrecoverableException(String message) {
@@ -92,8 +92,8 @@ public class Tasks {
       this.items = items;
     }
 
-    public Builder<I> executeWith(ExecutorService newService) {
-      this.service = newService;
+    public Builder<I> executeWith(ExecutorService svc) {
+      this.service = svc;
       return this;
     }
 
@@ -167,14 +167,14 @@ public class Tasks {
       return this;
     }
 
-    public Builder<I> exponentialBackoff(long newMinSleepTimeMs,
-                                         long newMaxSleepTimeMs,
-                                         long newMaxRetryTimeMs,
-                                         double newScaleFactor) {
-      this.minSleepTimeMs = newMinSleepTimeMs;
-      this.maxSleepTimeMs = newMaxSleepTimeMs;
-      this.maxDurationMs = newMaxRetryTimeMs;
-      this.scaleFactor = newScaleFactor;
+    public Builder<I> exponentialBackoff(long backoffMinSleepTimeMs,
+                                         long backoffMaxSleepTimeMs,
+                                         long backoffMaxRetryTimeMs,
+                                         double backoffScaleFactor) {
+      this.minSleepTimeMs = backoffMinSleepTimeMs;
+      this.maxSleepTimeMs = backoffMaxSleepTimeMs;
+      this.maxDurationMs = backoffMaxRetryTimeMs;
+      this.scaleFactor = backoffScaleFactor;
       return this;
     }
 
@@ -191,6 +191,7 @@ public class Tasks {
       }
     }
 
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     private <E extends Exception> boolean runSingleThreaded(
         Task<I, E> task, Class<E> exceptionClass) throws E {
       List<I> succeeded = Lists.newArrayList();
@@ -199,10 +200,64 @@ public class Tasks {
       Iterator<I> iterator = items.iterator();
       boolean threw = true;
       try {
-        tryRunTasksSingleThreaded(task, succeeded, exceptions, iterator);
+        while (iterator.hasNext()) {
+          I item = iterator.next();
+          try {
+            runTaskWithRetry(task, item);
+            succeeded.add(item);
+
+          } catch (Exception e) {
+            exceptions.add(e);
+
+            if (onFailure != null) {
+              tryRunOnFailure(item, e);
+            }
+
+            if (stopOnFailure) {
+              break;
+            }
+          }
+        }
+
         threw = false;
+
       } finally {
-        handleSingleThreadedTaskFailures(succeeded, exceptions, iterator, threw);
+        // threw handles exceptions that were *not* caught by the catch block,
+        // and exceptions that were caught and possibly handled by onFailure
+        // are kept in exceptions.
+        if (threw || !exceptions.isEmpty()) {
+          if (revertTask != null) {
+            boolean failed = false;
+            for (I item : succeeded) {
+              try {
+                revertTask.run(item);
+              } catch (Exception e) {
+                failed = true;
+                LOG.error("Failed to revert task", e);
+                // keep going
+              }
+              if (stopRevertsOnFailure && failed) {
+                break;
+              }
+            }
+          }
+
+          if (abortTask != null) {
+            boolean failed = false;
+            while (iterator.hasNext()) {
+              try {
+                abortTask.run(iterator.next());
+              } catch (Exception e) {
+                failed = true;
+                LOG.error("Failed to abort task", e);
+                // keep going
+              }
+              if (stopAbortsOnFailure && failed) {
+                break;
+              }
+            }
+          }
+        }
       }
 
       if (throwFailureWhenFinished && !exceptions.isEmpty()) {
@@ -215,77 +270,13 @@ public class Tasks {
       return !threw;
     }
 
-    private void handleSingleThreadedTaskFailures(
-        List<I> succeeded, List<Throwable> exceptions, Iterator<I> iterator, boolean threw) {
-      // threw handles exceptions that were *not* caught by the catch block,
-      // and exceptions that were caught and possibly handled by onFailure
-      // are kept in exceptions.
-      if (threw || !exceptions.isEmpty()) {
-        revertSingleThreadedTaskIfNecessary(succeeded);
-        abortSingleThreadedTaskIfNecessary(iterator);
-      }
-    }
-
-    private void abortSingleThreadedTaskIfNecessary(Iterator<I> iterator) {
-      if (abortTask != null) {
-        boolean failed = false;
-        while (iterator.hasNext()) {
-          try {
-            abortTask.run(iterator.next());
-          } catch (Exception e) {
-            failed = true;
-            LOG.error("Failed to abort task", e);
-            // keep going
-          }
-          if (stopAbortsOnFailure && failed) {
-            break;
-          }
-        }
-      }
-    }
-
-    private void revertSingleThreadedTaskIfNecessary(List<I> succeeded) {
-      if (revertTask != null) {
-        boolean failed = false;
-        for (I item : succeeded) {
-          try {
-            revertTask.run(item);
-          } catch (Exception e) {
-            failed = true;
-            LOG.error("Failed to revert task", e);
-            // keep going
-          }
-          if (stopRevertsOnFailure && failed) {
-            break;
-          }
-        }
-      }
-    }
-
-    private <E extends Exception> void tryRunTasksSingleThreaded(
-        Task<I, E> task, List<I> succeeded, List<Throwable> exceptions, Iterator<I> iterator) {
-      while (iterator.hasNext()) {
-        I item = iterator.next();
-        try {
-          runTaskWithRetry(task, item);
-          succeeded.add(item);
-        } catch (Exception e) {
-          exceptions.add(e);
-
-          if (onFailure != null) {
-            try {
-              onFailure.run(item, e);
-            } catch (Exception failException) {
-              e.addSuppressed(failException);
-              LOG.error("Failed to clean up on failure", e);
-              // keep going
-            }
-          }
-
-          if (stopOnFailure) {
-            break;
-          }
-        }
+    private void tryRunOnFailure(I item, Exception failure) {
+      try {
+        onFailure.run(item, failure);
+      } catch (Exception failException) {
+        failure.addSuppressed(failException);
+        LOG.error("Failed to clean up on failure", failure);
+        // keep going
       }
     }
 
@@ -320,13 +311,7 @@ public class Tasks {
                 exceptions.add(e);
 
                 if (onFailure != null) {
-                  try {
-                    onFailure.run(item, e);
-                  } catch (Exception failException) {
-                    e.addSuppressed(failException);
-                    LOG.error("Failed to clean up on failure", e);
-                    // swallow the exception
-                  }
+                  tryRunOnFailure(item, e);
                 }
               } finally {
                 if (threw) {
@@ -401,7 +386,9 @@ public class Tasks {
       return !taskFailed.get();
     }
 
-    private <E extends Exception> void runTaskWithRetry(Task<I, E> task, I item) throws E {
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
+    private <E extends Exception> void runTaskWithRetry(Task<I, E> task, I item)
+        throws E {
       long start = System.currentTimeMillis();
       int attempt = 0;
       while (true) {
@@ -409,107 +396,117 @@ public class Tasks {
         try {
           task.run(item);
           break;
+
         } catch (Exception e) {
-          if (shouldPropagate(start, attempt, e)) {
+          long durationMs = System.currentTimeMillis() - start;
+          if (attempt >= maxAttempts || (durationMs > maxDurationMs && attempt > 1)) {
+            if (durationMs > maxDurationMs) {
+              LOG.info("Stopping retries after {} ms", durationMs);
+            }
             throw e;
+          }
+
+          if (onlyRetryExceptions != null) {
+            // if onlyRetryExceptions are present, then this retries if one is found
+            boolean matchedRetryException = false;
+            for (Class<? extends Exception> exClass : onlyRetryExceptions) {
+              if (exClass.isInstance(e)) {
+                matchedRetryException = true;
+              }
+            }
+            if (!matchedRetryException) {
+              throw e;
+            }
+
           } else {
-            int delayMs = (int) Math.min(
-                minSleepTimeMs * Math.pow(scaleFactor, attempt - 1), maxSleepTimeMs);
-            int jitter = ThreadLocalRandom.current().nextInt(Math.max(1, (int) (delayMs * 0.1)));
-            LOG.warn("Retrying task after failure: {}", e.getMessage(), e);
-            try {
-              TimeUnit.MILLISECONDS.sleep(delayMs + jitter);
-            } catch (InterruptedException ie) {
-              Thread.currentThread().interrupt();
-              throw new RuntimeException(ie);
+            // otherwise, always retry unless one of the stop exceptions is found
+            for (Class<? extends Exception> exClass : stopRetryExceptions) {
+              if (exClass.isInstance(e)) {
+                throw e;
+              }
             }
           }
-        }
-      }
-    }
 
-    private <E extends Exception> boolean shouldPropagate(long start, int attempt, E exception) {
-      long durationMs = System.currentTimeMillis() - start;
-      if (attempt >= maxAttempts || (durationMs > maxDurationMs && attempt > 1)) {
-        if (durationMs > maxDurationMs) {
-          LOG.info("Stopping retries after {} ms", durationMs);
-        }
-        return true;
-      }
+          int delayMs = (int) Math.min(
+              minSleepTimeMs * Math.pow(scaleFactor, attempt - 1),
+              maxSleepTimeMs);
+          int jitter = ThreadLocalRandom.current()
+              .nextInt(Math.max(1, (int) (delayMs * 0.1)));
 
-      if (onlyRetryExceptions != null) {
-        // if onlyRetryExceptions are present, then this retries if one is found
-        boolean matchedRetryException = false;
-        for (Class<? extends Exception> exClass : onlyRetryExceptions) {
-          if (exClass.isInstance(exception)) {
-            matchedRetryException = true;
-          }
-        }
-        if (!matchedRetryException) {
-          return true;
-        }
+          LOG.warn("Retrying task after failure: {}", e.getMessage(), e);
 
-      } else {
-        // otherwise, always retry unless one of the stop exceptions is found
-        for (Class<? extends Exception> exClass : stopRetryExceptions) {
-          if (exClass.isInstance(exception)) {
-            return true;
+          try {
+            TimeUnit.MILLISECONDS.sleep(delayMs + jitter);
+          } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(ie);
           }
         }
       }
-      return false;
     }
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private static Collection<Throwable> waitFor(Collection<Future<?>> futures) {
     while (true) {
-      long numFinished = futures.stream().filter(Future::isDone).count();
+      int numFinished = 0;
+      for (Future<?> future : futures) {
+        if (future.isDone()) {
+          numFinished += 1;
+        }
+      }
+
       if (numFinished == futures.size()) {
         List<Throwable> uncaught = new ArrayList<>();
         // all of the futures are done, get any uncaught exceptions
-        futures.forEach(future -> uncaught.addAll(extractUncaughtException(future)));
+        for (Future<?> future : futures) {
+          try {
+            future.get();
+
+          } catch (InterruptedException e) {
+            LOG.warn("Interrupted while getting future results", e);
+            for (Throwable t : uncaught) {
+              e.addSuppressed(t);
+            }
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+
+          } catch (CancellationException e) {
+            // ignore cancellations
+
+          } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (Error.class.isInstance(cause)) {
+              for (Throwable t : uncaught) {
+                cause.addSuppressed(t);
+              }
+              throw (Error) cause;
+            }
+
+            if (cause != null) {
+              uncaught.add(e);
+            }
+
+            LOG.warn("Task threw uncaught exception", cause);
+          }
+        }
+
         return uncaught;
+
       } else {
         try {
           Thread.sleep(10);
         } catch (InterruptedException e) {
           LOG.warn("Interrupted while waiting for tasks to finish", e);
-          futures.forEach(future -> future.cancel(true));
+
+          for (Future<?> future : futures) {
+            future.cancel(true);
+          }
           Thread.currentThread().interrupt();
           throw new RuntimeException(e);
         }
       }
     }
-  }
-
-  private static List<Throwable> extractUncaughtException(Future<?> future) {
-    List<Throwable> uncaught = Lists.newArrayList();
-    try {
-      future.get();
-
-    } catch (InterruptedException e) {
-      LOG.warn("Interrupted while getting future results", e);
-      uncaught.forEach(e::addSuppressed);
-      Thread.currentThread().interrupt();
-      throw new RuntimeException(e);
-
-    } catch (CancellationException e) {
-      // ignore cancellations
-
-    } catch (ExecutionException e) {
-      Throwable cause = e.getCause();
-      if (Error.class.isInstance(cause)) {
-        uncaught.forEach(cause::addSuppressed);
-        throw (Error) cause;
-      }
-
-      if (cause != null) {
-        uncaught.add(e);
-      }
-
-      LOG.warn("Task threw uncaught exception", cause);
-    }
-    return uncaught;
   }
 
   /**
@@ -568,7 +565,7 @@ public class Tasks {
       }
     }
 
-    ExceptionUtil.<E>castAndThrow(exception, allowedException);
+    ExceptionUtil.castAndThrow(exception, allowedException);
   }
 
 }
