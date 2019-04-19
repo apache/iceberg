@@ -54,12 +54,11 @@ public class StructLikeWrapper {
 
     StructLikeWrapper that = (StructLikeWrapper) other;
 
-    // Reference equality also checks for null
     if (this.struct == that.struct) {
       return true;
     }
 
-    if (that.struct == null) {
+    if (this.struct == null ^ that.struct == null) {
       return false;
     }
 
