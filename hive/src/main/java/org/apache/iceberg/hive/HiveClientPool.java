@@ -33,13 +33,7 @@ class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> {
   }
 
   HiveClientPool(int poolSize, Configuration conf) {
-    super(poolSize, client -> {
-      try {
-        client.reconnect();
-      } catch (MetaException e) {
-        throw new RuntimeMetaException(e, "Failed to reconnect to Hive Metastore");
-      }
-    }, TException.class, HiveMetaStoreClient::close);
+    super(poolSize, TException.class);
     this.hiveConf = new HiveConf(conf, HiveClientPool.class);
   }
 
@@ -50,5 +44,20 @@ class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> {
     } catch (MetaException e) {
       throw new RuntimeMetaException(e, "Failed to connect to Hive Metastore");
     }
+  }
+
+  @Override
+  protected HiveMetaStoreClient reconnect(HiveMetaStoreClient client) {
+    try {
+      client.reconnect();
+    } catch (MetaException e) {
+      throw new RuntimeMetaException(e, "Failed to reconnect to Hive Metastore");
+    }
+    return client;
+  }
+
+  @Override
+  protected void close(HiveMetaStoreClient client) {
+    client.close();
   }
 }

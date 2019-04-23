@@ -20,33 +20,27 @@
 package org.apache.iceberg.hive;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.io.Closeable;
-import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.function.Consumer;
 
 abstract class ClientPool<C, E extends Exception> implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(ClientPool.class);
 
   private final int poolSize;
   private final Deque<C> clients;
-  private final Consumer<C> reconnectFunc;
   private final Class<E> reconnectExc;
-  private final Consumer<C> closeFunc;
   private final Object signal = new Object();
   private volatile int currentSize;
   private boolean closed;
   private int runs = 0;
 
-  ClientPool(int poolSize, Consumer<C> reconnectFunc, Class<E> reconnectExc, Consumer<C> closeFunc) {
+  ClientPool(int poolSize, Class<E> reconnectExc) {
     this.poolSize = poolSize;
-    this.reconnectFunc = reconnectFunc;
     this.reconnectExc = reconnectExc;
-    this.closeFunc = closeFunc;
-    this.clients = Lists.newLinkedList();
+    this.clients = new ArrayDeque<>(poolSize);
     this.currentSize = 0;
     this.closed = false;
   }
@@ -64,7 +58,7 @@ abstract class ClientPool<C, E extends Exception> implements Closeable {
     } catch (Exception exc) {
       if (reconnectExc.isInstance(exc)) {
         try {
-          reconnectFunc.accept(client);
+          client = reconnect(client);
         } catch (Exception ignored) {
           // if reconnection throws any exception, rethrow the original failure
           throw reconnectExc.cast(exc);
@@ -82,8 +76,12 @@ abstract class ClientPool<C, E extends Exception> implements Closeable {
 
   protected abstract C newClient();
 
+  protected abstract C reconnect(C client);
+
+  protected abstract void close(C client);
+
   private C get() throws InterruptedException {
-    Preconditions.checkArgument(!closed, "Cannot get a client from a closed pool");
+    Preconditions.checkState(!closed, "Cannot get a client from a closed pool");
     while (true) {
       if (!clients.isEmpty() || currentSize < poolSize) {
         synchronized (this) {
@@ -120,7 +118,7 @@ abstract class ClientPool<C, E extends Exception> implements Closeable {
           synchronized (this) {
             if (!clients.isEmpty()) {
               C client = clients.removeFirst();
-              closeFunc.accept(client);
+              close(client);
               currentSize -= 1;
             }
           }
