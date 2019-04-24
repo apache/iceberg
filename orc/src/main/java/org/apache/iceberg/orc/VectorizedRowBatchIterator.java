@@ -19,7 +19,6 @@ package org.apache.iceberg.orc;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
-import org.apache.hadoop.fs.Path;
 import org.apache.orc.RecordReader;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
@@ -29,14 +28,14 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
  * Because the same VectorizedRowBatch is reused on each call to next,
  * it gets changed when hasNext or next is called.
  */
-public class OrcIterator implements Iterator<VectorizedRowBatch>, Closeable {
-  private final Path filename;
+public class VectorizedRowBatchIterator implements Iterator<VectorizedRowBatch>, Closeable {
+  private final String fileLocation;
   private final RecordReader rows;
   private final VectorizedRowBatch batch;
   private boolean advanced = false;
 
-  OrcIterator(Path filename, TypeDescription schema, RecordReader rows) {
-    this.filename = filename;
+  VectorizedRowBatchIterator(String fileLocation, TypeDescription schema, RecordReader rows) {
+    this.fileLocation = fileLocation;
     this.rows = rows;
     this.batch = schema.createRowBatch();
   }
@@ -51,7 +50,7 @@ public class OrcIterator implements Iterator<VectorizedRowBatch>, Closeable {
       try {
         rows.nextBatch(batch);
       } catch (IOException e) {
-        throw new RuntimeException("Problem reading ORC file " + filename, e);
+        throw new RuntimeException("Problem reading ORC file " + fileLocation, e);
       }
       advanced = true;
     }

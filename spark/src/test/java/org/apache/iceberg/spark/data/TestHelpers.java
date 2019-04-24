@@ -41,6 +41,8 @@ import org.apache.iceberg.types.Types;
 import org.apache.orc.storage.serde2.io.DateWritable;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder;
+import org.apache.spark.sql.catalyst.encoders.RowEncoder;
 import org.apache.spark.sql.catalyst.expressions.GenericRow;
 import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
 import org.apache.spark.sql.catalyst.util.ArrayData;
@@ -52,6 +54,7 @@ import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.Assert;
 import scala.collection.Seq;
@@ -594,6 +597,8 @@ public class TestHelpers {
           actual instanceof MapData);
       assertEquals(context, (MapType) type, (MapData) expected, (MapData) actual);
 
+    } else if (type instanceof BinaryType) {
+      assertEqualBytes(context, (byte[]) expected, (byte[]) actual);
     } else {
       Assert.assertEquals("Value should match expected: " + context, expected, actual);
     }

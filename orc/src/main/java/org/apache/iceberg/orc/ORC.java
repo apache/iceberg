@@ -27,6 +27,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -102,6 +103,8 @@ public class ORC {
     private Long start = null;
     private Long length = null;
 
+    private Function<Schema, OrcValueReader<?>> readerFunction;
+
     private ReadBuilder(InputFile file) {
       Preconditions.checkNotNull(file, "Input file cannot be null");
       this.file = file;
@@ -135,22 +138,14 @@ public class ORC {
       return this;
     }
 
-    public OrcIterator build() {
+    public ReadBuilder createReaderFunc(Function<Schema, OrcValueReader<?>> readerFunction) {
+      this.readerFunction = readerFunction;
+      return this;
+    }
+
+    public <D> CloseableIterable<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
-      try {
-        Path path = new Path(file.location());
-        Reader reader = OrcFile.createReader(path, OrcFile.readerOptions(conf));
-        ColumnIdMap columnIds = new ColumnIdMap();
-        TypeDescription orcSchema = TypeConversion.toOrc(schema, columnIds);
-        Reader.Options options = reader.options();
-        if (start != null) {
-          options.range(start, length);
-        }
-        options.schema(orcSchema);
-        return new OrcIterator(path, orcSchema, reader.rows(options));
-      } catch (IOException e) {
-        throw new RuntimeException("Can't open " + file.location(), e);
-      }
+      return new OrcIterable<>(file, conf, schema, start, length, readerFunction);
     }
   }
 }

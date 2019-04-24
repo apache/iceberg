@@ -16,12 +16,9 @@
 
 package org.apache.iceberg.spark.data;
 
-import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ColumnIdMap;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.orc.OrcIterator;
+import org.apache.iceberg.orc.OrcValueReader;
 import org.apache.iceberg.orc.TypeConversion;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
@@ -38,7 +35,6 @@ import org.apache.orc.storage.serde2.io.DateWritable;
 import org.apache.orc.storage.serde2.io.HiveDecimalWritable;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
-import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
 import org.apache.spark.sql.catalyst.expressions.codegen.UnsafeArrayWriter;
 import org.apache.spark.sql.catalyst.expressions.codegen.UnsafeRowWriter;
 import org.apache.spark.sql.catalyst.expressions.codegen.UnsafeWriter;
@@ -47,11 +43,8 @@ import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.Platform;
 
-import java.io.Closeable;
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
-import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -60,55 +53,40 @@ import java.util.List;
  *
  * It minimizes allocations by reusing most of the objects in the implementation.
  */
-public class SparkOrcReader implements Iterator<InternalRow>, Closeable {
+public class SparkOrcReader implements OrcValueReader<InternalRow> {
   private final static int INITIAL_SIZE = 128 * 1024;
-  private final OrcIterator reader;
-  private final UnsafeRowWriter writer;
-  private int nextRow = 0;
-  private VectorizedRowBatch current = null;
-  private Converter[] converter;
+  private final int numFields;
+  private final TypeDescription orcSchema;
 
-  public SparkOrcReader(InputFile location,
-                        FileScanTask task,
-                        Schema readSchema) {
-    ColumnIdMap columnIds = new ColumnIdMap();
-    TypeDescription orcSchema = TypeConversion.toOrc(readSchema, columnIds);
-    reader = ORC.read(location)
-        .split(task.start(), task.length())
-        .schema(readSchema)
-        .build();
-    int numFields = readSchema.columns().size();
-    writer = new UnsafeRowWriter(numFields, INITIAL_SIZE);
-    converter = new Converter[numFields];
+  public SparkOrcReader(Schema readSchema) {
+    orcSchema = TypeConversion.toOrc(readSchema, new ColumnIdMap());
+    numFields = readSchema.columns().size();
+  }
+
+  private Converter[] buildConverters(final UnsafeRowWriter writer) {
+    final Converter[] converters = new Converter[numFields];
     for(int c = 0; c < numFields; ++c) {
-      converter[c] = buildConverter(writer, orcSchema.getChildren().get(c));
+      converters[c] = buildConverter(writer, orcSchema.getChildren().get(c));
     }
+    return converters;
   }
 
   @Override
-  public boolean hasNext() {
-    return (current != null && nextRow < current.size) || reader.hasNext();
-  }
-
-  @Override
-  public UnsafeRow next() {
-    if (current == null || nextRow >= current.size) {
-      current = reader.next();
-      nextRow = 0;
+  public InternalRow read(Object reuse, int row) {
+    if (!(reuse instanceof VectorizedRowBatch)) {
+      throw new IllegalArgumentException("Value to read must be of type "+ VectorizedRowBatch.class);
     }
 
-    writer.reset();
-    writer.zeroOutNullBytes();
-    for(int c=0; c < current.cols.length; ++c) {
-      converter[c].convert(writer, c, current.cols[c], nextRow);
-    }
-    nextRow++;
-    return writer.getRow();
-  }
+    final VectorizedRowBatch batch = (VectorizedRowBatch) reuse;
+    final UnsafeRowWriter rowWriter = new UnsafeRowWriter(numFields, INITIAL_SIZE);
+    final Converter[] converters = buildConverters(rowWriter);
 
-  @Override
-  public void close() throws IOException {
-    reader.close();
+    rowWriter.reset();
+    rowWriter.zeroOutNullBytes();
+    for(int c=0; c < batch.cols.length; ++c) {
+      converters[c].convert(rowWriter, c, batch.cols[c], row);
+    }
+    return rowWriter.getRow();
   }
 
   private static String rowToString(SpecializedGetters row, TypeDescription schema) {

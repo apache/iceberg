@@ -51,6 +51,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -474,18 +475,11 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     private CloseableIterable<InternalRow> newOrcIterable(InputFile location,
                                                           FileScanTask task,
                                                           Schema readSchema) {
-      final SparkOrcReader orcReader = new SparkOrcReader(location, task, readSchema);
-      return new CloseableIterable<InternalRow>() {
-        @Override
-        public void close() throws IOException {
-          orcReader.close();
-        }
-
-        @Override
-        public Iterator<InternalRow> iterator() {
-          return orcReader;
-        }
-      };
+      return ORC.read(location)
+          .schema(readSchema)
+          .split(task.start(), task.length())
+          .createReaderFunc(SparkOrcReader::new)
+          .build();
     }
   }
 
