@@ -40,11 +40,9 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.data.SparkAvroWriter;
 import org.apache.iceberg.spark.data.SparkParquetWriters;
-import org.apache.iceberg.spark.data.SparkOrcWriter;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
@@ -226,13 +224,6 @@ class Writer implements DataSourceWriter {
                   .createWriterFunc(ignored -> new SparkAvroWriter(schema))
                   .setAll(properties)
                   .schema(schema)
-                  .build();
-
-            case ORC:
-              return ORC.write(file)
-                  .schema(schema)
-                  .setAll(properties)
-                  .createWriterFunc(SparkOrcWriter::new)
                   .build();
 
             default:
