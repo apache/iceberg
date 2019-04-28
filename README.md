@@ -52,7 +52,7 @@ Community discussions happen primarily on the [dev mailing list][dev-list] or on
 
 ### Building
 
-Iceberg is built using Gradle 4.4.
+Iceberg is built using Gradle 5.2.1.
 
 Iceberg table support is organized in library modules:
 
