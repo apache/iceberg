@@ -22,6 +22,9 @@ package org.apache.iceberg;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -61,7 +64,7 @@ class GenericDataFile
   private Map<Integer, Long> nullValueCounts = null;
   private Map<Integer, ByteBuffer> lowerBounds = null;
   private Map<Integer, ByteBuffer> upperBounds = null;
-  private ByteBuffer keyMetadata = null;
+  private transient ByteBuffer keyMetadata = null;
 
   // cached schema
   private transient org.apache.avro.Schema avroSchema = null;
@@ -438,5 +441,30 @@ class GenericDataFile
       return ImmutableList.copyOf(list);
     }
     return null;
+  }
+
+  private void writeObject(ObjectOutputStream output) throws IOException {
+    output.defaultWriteObject();
+    if (keyMetadata != null) {
+      output.writeBoolean(true);
+      byte[] keyMetadataArray = ByteBuffers.toByteArray(keyMetadata);
+      output.writeInt(keyMetadataArray.length);
+      output.write(keyMetadataArray);
+    } else {
+      output.writeBoolean(false);
+    }
+  }
+
+  private void readObject(ObjectInputStream input) throws IOException, ClassNotFoundException {
+    input.defaultReadObject();
+    boolean hasKeyMetadata = input.readBoolean();
+    if (hasKeyMetadata) {
+      int keyMetadataLength = input.readInt();
+      byte[] keyMetadataArray = new byte[keyMetadataLength];
+      input.read(keyMetadataArray);
+      this.keyMetadata = ByteBuffer.wrap(keyMetadataArray);
+    } else {
+      this.keyMetadata = null;
+    }
   }
 }
