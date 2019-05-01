@@ -417,8 +417,7 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
 
     private long convert(TimestampColumnVector vector, int row) {
       // compute microseconds past 1970.
-      long micros = (vector.time[row]/1000) * 1_000_000 + vector.nanos[row] / 1000;
-      return micros;
+      return (vector.time[row]/1000) * 1_000_000 + vector.nanos[row] / 1000;
     }
 
     @Override

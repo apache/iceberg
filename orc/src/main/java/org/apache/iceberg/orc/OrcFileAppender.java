@@ -34,7 +34,7 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 /**
  * Create a file appender for ORC.
  */
-public class OrcFileAppender<D> implements FileAppender<D> {
+class OrcFileAppender<D> implements FileAppender<D> {
   private final static int BATCH_SIZE = 1024;
 
   private final TypeDescription orcSchema;
@@ -45,7 +45,7 @@ public class OrcFileAppender<D> implements FileAppender<D> {
   private final OrcValueWriter<D> valueWriter;
   private boolean isClosed = false;
 
-  public static final String COLUMN_NUMBERS_ATTRIBUTE = "iceberg.column.ids";
+  static final String COLUMN_NUMBERS_ATTRIBUTE = "iceberg.column.ids";
 
   OrcFileAppender(TypeDescription schema, OutputFile file,
                   Function<TypeDescription, OrcValueWriter<?>> createWriterFunc,
@@ -116,8 +116,7 @@ public class OrcFileAppender<D> implements FileAppender<D> {
           writer.addRowBatch(batch);
           batch.reset();
         }
-      }
-      finally {
+      } finally {
         writer.close();
         this.isClosed = true;
       }

@@ -37,7 +37,7 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 /**
  * Iterable used to read rows from ORC.
  */
-public class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
+class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private final Configuration config;
   private final Schema schema;
   private final InputFile file;
@@ -45,7 +45,7 @@ public class OrcIterable<T> extends CloseableGroup implements CloseableIterable<
   private final Long length;
   private final Function<Schema, OrcValueReader<?>> readerFunction;
 
-  public OrcIterable(InputFile file, Configuration config, Schema schema,
+  OrcIterable(InputFile file, Configuration config, Schema schema,
                      Long start, Long length,
                      Function<Schema, OrcValueReader<?>> readerFunction) {
     this.schema = schema;
@@ -76,8 +76,7 @@ public class OrcIterable<T> extends CloseableGroup implements CloseableIterable<
 
     try {
       return new VectorizedRowBatchIterator(file.location(), orcSchema, orcFileReader.rows(options));
-    }
-    catch (IOException ioe) {
+    } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to get ORC rows for file: %s", file);
     }
   }
@@ -86,8 +85,7 @@ public class OrcIterable<T> extends CloseableGroup implements CloseableIterable<
     try {
       return OrcFile.createReader(new Path(file.location()),
           OrcFile.readerOptions(config));
-    }
-    catch (IOException ioe) {
+    } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to open file: %s", file);
     }
   }
