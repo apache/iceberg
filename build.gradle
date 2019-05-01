@@ -24,7 +24,7 @@ buildscript {
     maven { url  "http://palantir.bintray.com/releases" }
   }
   dependencies {
-    classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.0'
+    classpath 'com.github.jengelman.gradle.plugins:shadow:5.0.0'
     classpath 'com.netflix.nebula:gradle-aggregate-javadocs-plugin:2.2.+'
     classpath 'com.netflix.nebula:nebula-publishing-plugin:5.1.5'
     classpath 'com.palantir.baseline:gradle-baseline-java:0.55.0'

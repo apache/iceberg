@@ -149,10 +149,10 @@ public class HiveTableBaseTest {
     HiveConf serverConf = new HiveConf(hiveConf);
     serverConf.set(HiveConf.ConfVars.METASTORECONNECTURLKEY.varname, "jdbc:derby:" + getDerbyPath() + ";create=true");
     HiveMetaStore.HMSHandler baseHandler = new HiveMetaStore.HMSHandler("new db based metaserver", serverConf);
-    //IHMSHandler handler = RetryingHMSHandler.getProxy(serverConf, baseHandler, false);
+    IHMSHandler handler = RetryingHMSHandler.getProxy(serverConf, baseHandler, false);
 
     TThreadPoolServer.Args args = new TThreadPoolServer.Args(socket)
-            .processor(new TSetIpAddressProcessor<>(baseHandler))
+            .processor(new TSetIpAddressProcessor<>(handler))
             .transportFactory(new TTransportFactory())
             .protocolFactory(new TBinaryProtocol.Factory())
             .minWorkerThreads(3)
@@ -166,8 +166,9 @@ public class HiveTableBaseTest {
     ScriptRunner scriptRunner = new ScriptRunner(connection, true, true);
 
     URL hiveSqlScript = HiveTableBaseTest.class.getClassLoader().getResource("hive-schema-3.1.0.derby.sql");
-    Reader reader = new BufferedReader(new FileReader(new File(hiveSqlScript.getFile())));
-    scriptRunner.runScript(reader);
+    try (Reader reader = new BufferedReader(new FileReader(new File(hiveSqlScript.getFile())))) {
+      scriptRunner.runScript(reader);
+    }
   }
 
   private static String getDBPath() {
