@@ -38,24 +38,31 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
  * Iterable used to read rows from ORC.
  */
 public class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
+  private final Configuration config;
   private final Schema schema;
+  private final InputFile file;
+  private final Long start;
+  private final Long length;
   private final Function<Schema, OrcValueReader<?>> readerFunction;
-  private final VectorizedRowBatchIterator orcIter;
 
   public OrcIterable(InputFile file, Configuration config, Schema schema,
                      Long start, Long length,
                      Function<Schema, OrcValueReader<?>> readerFunction) {
     this.schema = schema;
     this.readerFunction = readerFunction;
-    final Reader orcFileReader = newFileReader(file, config);
-    this.orcIter = newOrcIterator(file, TypeConversion.toOrc(schema, new ColumnIdMap()),
-        start, length, orcFileReader);
+    this.file = file;
+    this.start = start;
+    this.length = length;
+    this.config = config;
   }
 
   @SuppressWarnings("unchecked")
   @Override
   public Iterator<T> iterator() {
-    return new OrcIterator(orcIter, (OrcValueReader<T>) readerFunction.apply(schema));
+    return new OrcIterator(
+        newOrcIterator(file, TypeConversion.toOrc(schema, new ColumnIdMap()),
+            start, length, newFileReader(file, config)),
+        readerFunction.apply(schema));
   }
 
   private static VectorizedRowBatchIterator newOrcIterator(InputFile file, TypeDescription orcSchema,
@@ -85,7 +92,7 @@ public class OrcIterable<T> extends CloseableGroup implements CloseableIterable<
     }
   }
 
-  private class OrcIterator implements Iterator<T> {
+  private static class OrcIterator<T> implements Iterator<T> {
 
     private int nextRow;
     private VectorizedRowBatch current;
