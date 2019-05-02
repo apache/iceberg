@@ -16,33 +16,23 @@
 package org.apache.iceberg.hive;
 
 import com.google.common.base.Splitter;
-import java.net.URI;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore;
-import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.BaseMetastoreTables;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.transport.TSocket;
-import org.apache.thrift.transport.TTransport;
-import org.apache.thrift.transport.TTransportException;
+import java.io.Closeable;
+import java.util.List;
+import java.util.Map;
 
-import static org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars.CLIENT_SOCKET_TIMEOUT;
-import static org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars.THRIFT_URIS;
-
-public class HiveTables extends BaseMetastoreTables {
+public class HiveTables extends BaseMetastoreTables implements Closeable {
   private static final Splitter DOT = Splitter.on('.').limit(2);
-  private Configuration conf;
+  private final HiveClientPool clients;
 
   public HiveTables(Configuration conf) {
     super(conf);
-    this.conf = conf;
+    this.clients = new HiveClientPool(2, conf);
   }
 
   @Override
@@ -70,18 +60,11 @@ public class HiveTables extends BaseMetastoreTables {
 
   @Override
   public BaseMetastoreTableOperations newTableOps(Configuration conf, String database, String table) {
-    return new HiveTableOperations(conf, getClient(), database, table);
+    return new HiveTableOperations(conf, clients, database, table);
   }
 
-  private ThriftHiveMetastore.Client getClient() {
-    final URI metastoreUri = URI.create(MetastoreConf.getAsString(conf, THRIFT_URIS));
-    final int socketTimeOut = (int) MetastoreConf.getTimeVar(conf, CLIENT_SOCKET_TIMEOUT, TimeUnit.MILLISECONDS);
-    TTransport transport = new TSocket(metastoreUri.getHost(), metastoreUri.getPort(), socketTimeOut);
-    try {
-      transport.open();
-    } catch (TTransportException e) {
-      throw new RuntimeException("failed to open socket for " + metastoreUri + " with timeoutMillis " + socketTimeOut);
-    }
-    return new ThriftHiveMetastore.Client(new TBinaryProtocol(transport));
+  @Override
+  public void close() {
+    clients.close();
   }
 }

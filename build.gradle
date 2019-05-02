@@ -78,7 +78,7 @@ subprojects {
     avroVersion = '1.8.2'
     orcVersion = '1.4.2'
     parquetVersion = '1.10.0'
-    hiveVersion = '3.1.0'
+    hiveVersion = '1.2.1'
 
     jacksonVersion = '2.6.7'
 
@@ -97,6 +97,7 @@ subprojects {
     testCompile 'org.slf4j:slf4j-simple:1.7.5'
     testCompile 'org.mockito:mockito-all:1.10.19'
   }
+
   publishing {
     publications {
       nebula(MavenPublication) {
@@ -207,12 +208,15 @@ project(':iceberg-hive') {
 
     compileOnly "org.apache.avro:avro:$avroVersion"
 
-    compileOnly("org.apache.hive:hive-standalone-metastore:$hiveVersion") {
+    compileOnly("org.apache.hive:hive-metastore:$hiveVersion") {
       exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
     testCompile("org.apache.hive:hive-exec:$hiveVersion") {
       exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'org.pentaho' // missing dependency
     }
 
     compileOnly("org.apache.hadoop:hadoop-client:$hadoopVersion") {
@@ -368,7 +372,7 @@ project(':iceberg-presto-runtime') {
 
         shadow "org.apache.parquet:parquet-avro:$parquetVersion"
         shadow "org.apache.avro:avro:$avroVersion"
-        shadow ("org.apache.hive:hive-standalone-metastore:$hiveVersion") {
+        shadow ("org.apache.hive:hive-metastore:$hiveVersion") {
             exclude group: 'org.apache.hadoop', module: 'hadoop-common'
 //            exclude group: 'org.apache.orc', module: 'orc-core'
         }
