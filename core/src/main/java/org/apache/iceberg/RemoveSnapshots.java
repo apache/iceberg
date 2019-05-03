@@ -161,6 +161,27 @@ class RemoveSnapshots implements ExpireSnapshots {
       }
     }
 
+    Set<String> filesToDelete = getFilesToDelete(currentIds, allManifests);
+
+    LOG.warn("Manifests to delete: {}", Joiner.on(", ").join(manifestsToDelete));
+
+    Tasks.foreach(filesToDelete)
+        .noRetry().suppressFailureWhenFinished()
+        .onFailure((file, exc) -> LOG.warn("Delete failed for data file: {}", file, exc))
+        .run(file -> deleteFunc.accept(file));
+
+    Tasks.foreach(manifestsToDelete)
+        .noRetry().suppressFailureWhenFinished()
+        .onFailure((manifest, exc) -> LOG.warn("Delete failed for manifest: {}", manifest, exc))
+        .run(deleteFunc::accept);
+
+    Tasks.foreach(manifestListsToDelete)
+        .noRetry().suppressFailureWhenFinished()
+        .onFailure((list, exc) -> LOG.warn("Delete failed for manifest list: {}", list, exc))
+        .run(deleteFunc::accept);
+  }
+
+  private Set<String> getFilesToDelete(Set<Long> currentIds, Set<ManifestFile> allManifests) {
     Set<String> filesToDelete = new ConcurrentSet<>();
     Tasks.foreach(allManifests)
         .noRetry().suppressFailureWhenFinished()
@@ -187,22 +208,6 @@ class RemoveSnapshots implements ExpireSnapshots {
             throw new RuntimeIOException(e, "Failed to read manifest file: " + manifest.path());
           }
         });
-
-    LOG.warn("Manifests to delete: {}", Joiner.on(", ").join(manifestsToDelete));
-
-    Tasks.foreach(filesToDelete)
-        .noRetry().suppressFailureWhenFinished()
-        .onFailure((file, exc) -> LOG.warn("Delete failed for data file: {}", file, exc))
-        .run(file -> deleteFunc.accept(file));
-
-    Tasks.foreach(manifestsToDelete)
-        .noRetry().suppressFailureWhenFinished()
-        .onFailure((manifest, exc) -> LOG.warn("Delete failed for manifest: {}", manifest, exc))
-        .run(deleteFunc::accept);
-
-    Tasks.foreach(manifestListsToDelete)
-        .noRetry().suppressFailureWhenFinished()
-        .onFailure((list, exc) -> LOG.warn("Delete failed for manifest list: {}", list, exc))
-        .run(deleteFunc::accept);
+    return filesToDelete;
   }
 }

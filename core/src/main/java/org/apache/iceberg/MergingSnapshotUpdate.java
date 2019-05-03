@@ -210,36 +210,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
 
       // group manifests by compatible partition specs to be merged
       if (current != null) {
-        List<ManifestFile> manifests = current.manifests();
-        ManifestFile[] filtered = new ManifestFile[manifests.size()];
-        // open all of the manifest files in parallel, use index to avoid reordering
-        Tasks.range(filtered.length)
-            .stopOnFailure().throwFailureWhenFinished()
-            .executeWith(ThreadPools.getWorkerPool())
-            .run(index -> {
-              ManifestFile manifest = filterManifest(metricsEvaluator, manifests.get(index));
-              filtered[index] = manifest;
-            }, IOException.class);
-
-        for (ManifestFile manifest : filtered) {
-          PartitionSpec manifestSpec = ops.current().spec(manifest.partitionSpecId());
-          Iterable<DataFile> manifestDeletes = filteredManifestToDeletedFiles.get(manifest);
-          if (manifestDeletes != null) {
-            for (DataFile file : manifestDeletes) {
-              summaryBuilder.deletedFile(manifestSpec, file);
-              deletedFiles.add(CharSequenceWrapper.wrap(file.path()));
-            }
-          }
-
-          List<ManifestFile> group = groups.get(manifest.partitionSpecId());
-          if (group != null) {
-            group.add(manifest);
-          } else {
-            group = Lists.newArrayList();
-            group.add(manifest);
-            groups.put(manifest.partitionSpecId(), group);
-          }
-        }
+        groupManifestsByPartitionSpec(current, groups, metricsEvaluator, deletedFiles);
       }
 
       List<ManifestFile> manifests = Lists.newArrayList();
@@ -261,6 +232,42 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to create snapshot manifest list");
+    }
+  }
+
+  private void groupManifestsByPartitionSpec(
+      Snapshot current,
+      Map<Integer, List<ManifestFile>> groups,
+      StrictMetricsEvaluator metricsEvaluator, Set<CharSequenceWrapper> deletedFiles) throws IOException {
+    List<ManifestFile> manifests = current.manifests();
+    ManifestFile[] filtered = new ManifestFile[manifests.size()];
+    // open all of the manifest files in parallel, use index to avoid reordering
+    Tasks.range(filtered.length)
+        .stopOnFailure().throwFailureWhenFinished()
+        .executeWith(ThreadPools.getWorkerPool())
+        .run(index -> {
+          ManifestFile manifest = filterManifest(metricsEvaluator, manifests.get(index));
+          filtered[index] = manifest;
+        }, IOException.class);
+
+    for (ManifestFile manifest : filtered) {
+      PartitionSpec manifestSpec = ops.current().spec(manifest.partitionSpecId());
+      Iterable<DataFile> manifestDeletes = filteredManifestToDeletedFiles.get(manifest);
+      if (manifestDeletes != null) {
+        for (DataFile file : manifestDeletes) {
+          summaryBuilder.deletedFile(manifestSpec, file);
+          deletedFiles.add(CharSequenceWrapper.wrap(file.path()));
+        }
+      }
+
+      List<ManifestFile> group = groups.get(manifest.partitionSpecId());
+      if (group != null) {
+        group.add(manifest);
+      } else {
+        group = Lists.newArrayList();
+        group.add(manifest);
+        groups.put(manifest.partitionSpecId(), group);
+      }
     }
   }
 
@@ -507,7 +514,6 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
 
     ManifestWriter writer = new ManifestWriter(ops.current().spec(specId), out, snapshotId());
     try {
-
       for (ManifestFile manifest : bin) {
         try (ManifestReader reader = ManifestReader.read(
             ops.io().newInputFile(manifest.path()), ops.current()::spec)) {
@@ -528,7 +534,6 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
           }
         }
       }
-
     } finally {
       writer.close();
     }
