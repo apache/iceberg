@@ -247,7 +247,7 @@ public class HadoopTableOperations implements TableOperations {
     }
   }
 
-  protected FileSystem getFileSystem(Path path, Configuration hadoopCOnf) {
-    return Util.getFs(path, hadoopCOnf);
+  protected FileSystem getFileSystem(Path path, Configuration hadoopConf) {
+    return Util.getFs(path, hadoopConf);
   }
 }

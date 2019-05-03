@@ -225,10 +225,10 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
           PartitionSpec manifestSpec = ops.current().spec(manifest.partitionSpecId());
           Iterable<DataFile> manifestDeletes = filteredManifestToDeletedFiles.get(manifest);
           if (manifestDeletes != null) {
-            manifestDeletes.forEach(file -> {
+            for (DataFile file : manifestDeletes) {
               summaryBuilder.deletedFile(manifestSpec, file);
               deletedFiles.add(CharSequenceWrapper.wrap(file.path()));
-            });
+            }
           }
 
           List<ManifestFile> group = groups.get(manifest.partitionSpecId());
@@ -246,10 +246,8 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
       for (Map.Entry<Integer, List<ManifestFile>> entry : groups.entrySet()) {
         int groupId = entry.getKey();
         List<ManifestFile> manifestGroup = entry.getValue();
-        try {
-          mergeGroup(groupId, manifestGroup).forEach(manifests::add);
-        } catch (IOException e) {
-          throw new RuntimeIOException(e);
+        for (ManifestFile manifest : mergeGroup(groupId, manifestGroup)) {
+          manifests.add(manifest);
         }
       }
 
@@ -335,15 +333,6 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
 
     try (ManifestReader reader = ManifestReader.read(
         ops.io().newInputFile(manifest.path()), ops.current()::spec)) {
-      Expression inclusiveExpr = Projections
-          .inclusive(reader.spec())
-          .project(deleteExpression);
-      Evaluator inclusive = new Evaluator(reader.spec().partitionType(), inclusiveExpr);
-
-      Expression strictExpr = Projections
-          .strict(reader.spec())
-          .project(deleteExpression);
-      Evaluator strict = new Evaluator(reader.spec().partitionType(), strictExpr);
 
       // this is reused to compare file paths with the delete set
       CharSequenceWrapper pathWrapper = CharSequenceWrapper.wrap("");
@@ -355,26 +344,23 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
       // manifest without copying data. if a manifest does have a file to remove, this will break
       // out of the loop and move on to filtering the manifest.
       boolean hasDeletedFiles =
-          manifestHasDeletedFiles(metricsEvaluator, reader, inclusive, strict, pathWrapper, partitionWrapper);
+          manifestHasDeletedFiles(metricsEvaluator, reader, pathWrapper, partitionWrapper);
 
       if (!hasDeletedFiles) {
         filteredManifests.put(manifest, manifest);
         return manifest;
       }
 
-      return filterManifestWithDeletedFiles(
-          metricsEvaluator,
-          manifest,
-          reader,
-          inclusive,
-          strict,
-          pathWrapper,
+      return filterManifestWithDeletedFiles(metricsEvaluator, manifest, reader, pathWrapper,
           partitionWrapper);
     }
   }
 
-  private boolean manifestHasDeletedFiles(StrictMetricsEvaluator metricsEvaluator, ManifestReader reader,
-      Evaluator inclusive, Evaluator strict, CharSequenceWrapper pathWrapper, StructLikeWrapper partitionWrapper) {
+  private boolean manifestHasDeletedFiles(
+      StrictMetricsEvaluator metricsEvaluator, ManifestReader reader,
+      CharSequenceWrapper pathWrapper, StructLikeWrapper partitionWrapper) {
+    Evaluator inclusive = extractInclusiveDeleteExpression(reader);
+    Evaluator strict = extractStrictDeleteExpression(reader);
     boolean hasDeletedFiles = false;
     for (ManifestEntry entry : reader.entries()) {
       DataFile file = entry.file();
@@ -397,13 +383,10 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
   }
 
   private ManifestFile filterManifestWithDeletedFiles(
-      StrictMetricsEvaluator metricsEvaluator,
-      ManifestFile manifest,
-      ManifestReader reader,
-      Evaluator inclusive,
-      Evaluator strict,
-      CharSequenceWrapper pathWrapper,
-      StructLikeWrapper partitionWrapper) throws IOException {
+      StrictMetricsEvaluator metricsEvaluator, ManifestFile manifest, ManifestReader reader,
+      CharSequenceWrapper pathWrapper, StructLikeWrapper partitionWrapper) throws IOException {
+    Evaluator inclusive = extractInclusiveDeleteExpression(reader);
+    Evaluator strict = extractStrictDeleteExpression(reader);
     // when this point is reached, there is at least one file that will be deleted in the
     // manifest. produce a copy of the manifest with all deleted files removed.
     List<DataFile> deletedFiles = Lists.newArrayList();
@@ -453,6 +436,20 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
     filteredManifestToDeletedFiles.put(filtered, deletedFiles);
 
     return filtered;
+  }
+
+  private Evaluator extractStrictDeleteExpression(ManifestReader reader) {
+    Expression strictExpr = Projections
+        .strict(reader.spec())
+        .project(deleteExpression);
+    return new Evaluator(reader.spec().partitionType(), strictExpr);
+  }
+
+  private Evaluator extractInclusiveDeleteExpression(ManifestReader reader) {
+    Expression inclusiveExpr = Projections
+        .inclusive(reader.spec())
+        .project(deleteExpression);
+    return new Evaluator(reader.spec().partitionType(), inclusiveExpr);
   }
 
   @SuppressWarnings("unchecked")

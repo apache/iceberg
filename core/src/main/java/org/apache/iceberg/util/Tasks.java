@@ -274,7 +274,7 @@ public class Tasks {
         onFailure.run(item, failure);
       } catch (Exception failException) {
         failure.addSuppressed(failException);
-        LOG.error("Failed to clean up on failure", failure);
+        LOG.error("Failed to clean up on failure", failException);
         // keep going
       }
     }

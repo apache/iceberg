@@ -134,15 +134,15 @@ class RemoveSnapshots implements ExpireSnapshots {
     TableMetadata current = ops.refresh();
     Set<Long> currentIds = Sets.newHashSet();
     Set<ManifestFile> currentManifests = Sets.newHashSet();
-    current.snapshots().forEach(snapshot -> {
+    for (Snapshot snapshot : current.snapshots()) {
       currentIds.add(snapshot.snapshotId());
       currentManifests.addAll(snapshot.manifests());
-    });
+    }
 
     Set<String> manifestListsToDelete = Sets.newHashSet();
     Set<ManifestFile> allManifests = Sets.newHashSet(currentManifests);
     Set<String> manifestsToDelete = Sets.newHashSet();
-    base.snapshots().forEach(snapshot -> {
+    for (Snapshot snapshot : base.snapshots()) {
       long snapshotId = snapshot.snapshotId();
       if (!currentIds.contains(snapshotId)) {
         // the snapshot was expired
@@ -159,7 +159,7 @@ class RemoveSnapshots implements ExpireSnapshots {
           manifestListsToDelete.add(snapshot.manifestListLocation());
         }
       }
-    });
+    }
 
     Set<String> filesToDelete = new ConcurrentSet<>();
     Tasks.foreach(allManifests)
