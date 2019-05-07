@@ -35,12 +35,12 @@ import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
+import static org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch.DEFAULT_SIZE;
+
 /**
  * Create a file appender for ORC.
  */
 class OrcFileAppender<D> implements FileAppender<D> {
-  private final static int BATCH_SIZE = 1024;
-
   private final TypeDescription orcSchema;
   private final ColumnIdMap columnIds = new ColumnIdMap();
   private final Path path;
@@ -56,7 +56,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
                   OrcFile.WriterOptions options, Map<String, byte[]> metadata) {
     orcSchema = schema;
     path = new Path(file.location());
-    batch = orcSchema.createRowBatch(BATCH_SIZE);
+    batch = orcSchema.createRowBatch(DEFAULT_SIZE);
 
     options.setSchema(orcSchema);
     writer = newOrcWriter(file, columnIds, options, metadata);
@@ -67,7 +67,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
   public void add(D datum) {
     try {
       valueWriter.write(datum, batch);
-      if (batch.size == BATCH_SIZE) {
+      if (batch.size == DEFAULT_SIZE) {
         writer.addRowBatch(batch);
         batch.reset();
       }
@@ -125,10 +125,6 @@ class OrcFileAppender<D> implements FileAppender<D> {
         this.isClosed = true;
       }
     }
-  }
-
-  public TypeDescription getSchema() {
-    return orcSchema;
   }
 
   private static Writer newOrcWriter(OutputFile file,
