@@ -76,7 +76,7 @@ subprojects {
   ext {
     hadoopVersion = '2.7.3'
     avroVersion = '1.8.2'
-    orcVersion = '1.5.0'
+    orcVersion = '1.5.5'
     parquetVersion = '1.10.0'
     hiveVersion = '1.2.1'
 
