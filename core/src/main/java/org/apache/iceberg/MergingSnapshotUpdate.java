@@ -210,7 +210,9 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
 
       // group manifests by compatible partition specs to be merged
       if (current != null) {
-        groupManifestsByPartitionSpec(current, groups, metricsEvaluator, deletedFiles);
+        List<ManifestFile> manifests = current.manifests();
+        ManifestFile[] filtered = filterManifests(metricsEvaluator, manifests);
+        groupManifestsByPartitionSpec(groups, deletedFiles, filtered);
       }
 
       List<ManifestFile> manifests = Lists.newArrayList();
@@ -235,11 +237,8 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
     }
   }
 
-  private void groupManifestsByPartitionSpec(
-      Snapshot current,
-      Map<Integer, List<ManifestFile>> groups,
-      StrictMetricsEvaluator metricsEvaluator, Set<CharSequenceWrapper> deletedFiles) throws IOException {
-    List<ManifestFile> manifests = current.manifests();
+  private ManifestFile[] filterManifests(StrictMetricsEvaluator metricsEvaluator, List<ManifestFile> manifests)
+      throws IOException {
     ManifestFile[] filtered = new ManifestFile[manifests.size()];
     // open all of the manifest files in parallel, use index to avoid reordering
     Tasks.range(filtered.length)
@@ -249,7 +248,12 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
           ManifestFile manifest = filterManifest(metricsEvaluator, manifests.get(index));
           filtered[index] = manifest;
         }, IOException.class);
+    return filtered;
+  }
 
+  private void groupManifestsByPartitionSpec(
+      Map<Integer, List<ManifestFile>> groups,
+      Set<CharSequenceWrapper> deletedFiles, ManifestFile[] filtered) {
     for (ManifestFile manifest : filtered) {
       PartitionSpec manifestSpec = ops.current().spec(manifest.partitionSpecId());
       Iterable<DataFile> manifestDeletes = filteredManifestToDeletedFiles.get(manifest);
