@@ -34,8 +34,8 @@ public class TestTransaction extends TableTestBase {
 
     TableMetadata base = readMetadata();
 
-    Transaction t = table.newTransaction();
-    t.commitTransaction();
+    Transaction txn = table.newTransaction();
+    txn.commitTransaction();
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
@@ -48,13 +48,13 @@ public class TestTransaction extends TableTestBase {
 
     TableMetadata base = readMetadata();
 
-    Transaction t = table.newTransaction();
+    Transaction txn = table.newTransaction();
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
     Assert.assertEquals("Table should be on version 0 after txn create", 0, (int) version());
 
-    t.newAppend()
+    txn.newAppend()
         .appendFile(FILE_A)
         .appendFile(FILE_B)
         .commit();
@@ -63,7 +63,7 @@ public class TestTransaction extends TableTestBase {
         base, readMetadata());
     Assert.assertEquals("Table should be on version 0 after append", 0, (int) version());
 
-    t.commitTransaction();
+    txn.commitTransaction();
 
     validateSnapshot(base.currentSnapshot(), readMetadata().currentSnapshot(), FILE_A, FILE_B);
     Assert.assertEquals("Table should be on version 1 after commit", 1, (int) version());
@@ -75,13 +75,13 @@ public class TestTransaction extends TableTestBase {
 
     TableMetadata base = readMetadata();
 
-    Transaction t = table.newTransaction();
+    Transaction txn = table.newTransaction();
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
     Assert.assertEquals("Table should be on version 0 after txn create", 0, (int) version());
 
-    t.newAppend()
+    txn.newAppend()
         .appendFile(FILE_A)
         .appendFile(FILE_B)
         .commit();
@@ -90,19 +90,19 @@ public class TestTransaction extends TableTestBase {
         base, readMetadata());
     Assert.assertEquals("Table should be on version 0 after txn create", 0, (int) version());
 
-    Snapshot appendSnapshot = t.table().currentSnapshot();
+    Snapshot appendSnapshot = txn.table().currentSnapshot();
 
-    t.newDelete()
+    txn.newDelete()
         .deleteFile(FILE_A)
         .commit();
 
-    Snapshot deleteSnapshot = t.table().currentSnapshot();
+    Snapshot deleteSnapshot = txn.table().currentSnapshot();
 
     Assert.assertSame("Base metadata should not change when an append is committed",
         base, readMetadata());
     Assert.assertEquals("Table should be on version 0 after append", 0, (int) version());
 
-    t.commitTransaction();
+    txn.commitTransaction();
 
     Assert.assertEquals("Table should be on version 1 after commit", 1, (int) version());
     Assert.assertEquals("Table should have one manifest after commit",
@@ -126,13 +126,13 @@ public class TestTransaction extends TableTestBase {
 
     TableMetadata base = readMetadata();
 
-    Transaction t = table.newTransaction();
+    Transaction txn = table.newTransaction();
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
     Assert.assertEquals("Table should be on version 0 after txn create", 0, (int) version());
 
-    t.newAppend()
+    txn.newAppend()
         .appendFile(FILE_A)
         .appendFile(FILE_B)
         .commit();
@@ -141,19 +141,19 @@ public class TestTransaction extends TableTestBase {
         base, readMetadata());
     Assert.assertEquals("Table should be on version 0 after txn create", 0, (int) version());
 
-    Snapshot appendSnapshot = t.table().currentSnapshot();
+    Snapshot appendSnapshot = txn.table().currentSnapshot();
 
-    t.table().newDelete()
+    txn.table().newDelete()
         .deleteFile(FILE_A)
         .commit();
 
-    Snapshot deleteSnapshot = t.table().currentSnapshot();
+    Snapshot deleteSnapshot = txn.table().currentSnapshot();
 
     Assert.assertSame("Base metadata should not change when an append is committed",
         base, readMetadata());
     Assert.assertEquals("Table should be on version 0 after append", 0, (int) version());
 
-    t.commitTransaction();
+    txn.commitTransaction();
 
     Assert.assertEquals("Table should be on version 1 after commit", 1, (int) version());
     Assert.assertEquals("Table should have one manifest after commit",
@@ -177,13 +177,13 @@ public class TestTransaction extends TableTestBase {
 
     TableMetadata base = readMetadata();
 
-    Transaction t = table.newTransaction();
+    Transaction txn = table.newTransaction();
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
     Assert.assertEquals("Table should be on version 0 after txn create", 0, (int) version());
 
-    t.newAppend().appendFile(FILE_A).appendFile(FILE_B); // not committed
+    txn.newAppend().appendFile(FILE_A).appendFile(FILE_B); // not committed
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
@@ -192,7 +192,7 @@ public class TestTransaction extends TableTestBase {
     AssertHelpers.assertThrows("Should reject commit when last operation has not committed",
         IllegalStateException.class,
         "Cannot create new DeleteFiles: last operation has not committed",
-        t::newDelete);
+        txn::newDelete);
   }
 
   @Test
@@ -201,13 +201,13 @@ public class TestTransaction extends TableTestBase {
 
     TableMetadata base = readMetadata();
 
-    Transaction t = table.newTransaction();
+    Transaction txn = table.newTransaction();
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
     Assert.assertEquals("Table should be on version 0 after txn create", 0, (int) version());
 
-    t.newAppend().appendFile(FILE_A).appendFile(FILE_B); // not committed
+    txn.newAppend().appendFile(FILE_A).appendFile(FILE_B); // not committed
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
@@ -216,7 +216,7 @@ public class TestTransaction extends TableTestBase {
     AssertHelpers.assertThrows("Should reject commit when last operation has not committed",
         IllegalStateException.class,
         "Cannot commit transaction: last operation has not committed",
-        t::commitTransaction);
+        txn::commitTransaction);
   }
 
   @Test
@@ -230,13 +230,13 @@ public class TestTransaction extends TableTestBase {
 
     TableMetadata base = readMetadata();
 
-    Transaction t = table.newTransaction();
+    Transaction txn = table.newTransaction();
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
     Assert.assertEquals("Table should be on version 1 after txn create", 1, (int) version());
 
-    t.newAppend()
+    txn.newAppend()
         .appendFile(FILE_A)
         .appendFile(FILE_B)
         .commit();
@@ -249,7 +249,7 @@ public class TestTransaction extends TableTestBase {
     table.ops().failCommits(1);
 
     AssertHelpers.assertThrows("Transaction commit should fail",
-        CommitFailedException.class, "Injected failure", t::commitTransaction);
+        CommitFailedException.class, "Injected failure", txn::commitTransaction);
   }
 
   @Test
@@ -263,18 +263,18 @@ public class TestTransaction extends TableTestBase {
 
     TableMetadata base = readMetadata();
 
-    Transaction t = table.newTransaction();
+    Transaction txn = table.newTransaction();
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
     Assert.assertEquals("Table should be on version 1 after txn create", 1, (int) version());
 
-    t.newAppend()
+    txn.newAppend()
         .appendFile(FILE_A)
         .appendFile(FILE_B)
         .commit();
 
-    Set<ManifestFile> appendManifests = Sets.newHashSet(t.table().currentSnapshot().manifests());
+    Set<ManifestFile> appendManifests = Sets.newHashSet(txn.table().currentSnapshot().manifests());
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
@@ -283,7 +283,7 @@ public class TestTransaction extends TableTestBase {
     // cause the transaction commit to fail
     table.ops().failCommits(1);
 
-    t.commitTransaction();
+    txn.commitTransaction();
 
     Assert.assertEquals("Table should be on version 2 after commit", 2, (int) version());
 
@@ -302,18 +302,18 @@ public class TestTransaction extends TableTestBase {
 
     TableMetadata base = readMetadata();
 
-    Transaction t = table.newTransaction();
+    Transaction txn = table.newTransaction();
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
     Assert.assertEquals("Table should be on version 1 after txn create", 1, (int) version());
 
-    t.newAppend()
+    txn.newAppend()
         .appendFile(FILE_A)
         .appendFile(FILE_B)
         .commit();
 
-    Set<ManifestFile> appendManifests = Sets.newHashSet(t.table().currentSnapshot().manifests());
+    Set<ManifestFile> appendManifests = Sets.newHashSet(txn.table().currentSnapshot().manifests());
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
@@ -329,7 +329,7 @@ public class TestTransaction extends TableTestBase {
 
     Set<ManifestFile> conflictAppendManifests = Sets.newHashSet(table.currentSnapshot().manifests());
 
-    t.commitTransaction();
+    txn.commitTransaction();
 
     Assert.assertEquals("Table should be on version 3 after commit", 3, (int) version());
 
@@ -353,24 +353,24 @@ public class TestTransaction extends TableTestBase {
 
     TableMetadata base = readMetadata();
 
-    Transaction t = table.newTransaction();
+    Transaction txn = table.newTransaction();
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
     Assert.assertEquals("Table should be on version 1 after txn create", 1, (int) version());
 
-    t.updateProperties()
+    txn.updateProperties()
         .set("test-property", "test-value")
         .commit();
 
-    t.newAppend()
+    txn.newAppend()
         .appendFile(FILE_A)
         .appendFile(FILE_B)
         .commit();
 
     Assert.assertEquals("Append should create one manifest",
-        1, t.table().currentSnapshot().manifests().size());
-    ManifestFile appendManifest = t.table().currentSnapshot().manifests().get(0);
+        1, txn.table().currentSnapshot().manifests().size());
+    ManifestFile appendManifest = txn.table().currentSnapshot().manifests().get(0);
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
@@ -386,7 +386,7 @@ public class TestTransaction extends TableTestBase {
 
     Set<ManifestFile> conflictAppendManifests = Sets.newHashSet(table.currentSnapshot().manifests());
 
-    t.commitTransaction();
+    txn.commitTransaction();
 
     Assert.assertEquals("Table should be on version 3 after commit", 3, (int) version());
 
@@ -414,20 +414,20 @@ public class TestTransaction extends TableTestBase {
 
     TableMetadata base = readMetadata();
 
-    Transaction t = table.newTransaction();
+    Transaction txn = table.newTransaction();
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
     Assert.assertEquals("Table should be on version 1 after txn create", 1, (int) version());
 
-    t.newAppend()
+    txn.newAppend()
         .appendFile(FILE_A)
         .appendFile(FILE_B)
         .commit();
 
     Assert.assertEquals("Append should create one manifest",
-        1, t.table().currentSnapshot().manifests().size());
-    ManifestFile appendManifest = t.table().currentSnapshot().manifests().get(0);
+        1, txn.table().currentSnapshot().manifests().size());
+    ManifestFile appendManifest = txn.table().currentSnapshot().manifests().get(0);
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
@@ -443,7 +443,7 @@ public class TestTransaction extends TableTestBase {
 
     Set<ManifestFile> conflictAppendManifests = Sets.newHashSet(table.currentSnapshot().manifests());
 
-    t.commitTransaction();
+    txn.commitTransaction();
 
     Assert.assertEquals("Table should be on version 3 after commit", 3, (int) version());
 

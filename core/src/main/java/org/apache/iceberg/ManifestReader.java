@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import java.io.IOException;
@@ -41,7 +40,6 @@ import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.ManifestEntry.Status.DELETED;
 import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 
 /**
@@ -79,8 +77,8 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
   private final boolean caseSensitive;
 
   // lazily initialized
-  private List<ManifestEntry> adds = null;
-  private List<ManifestEntry> deletes = null;
+  private List<ManifestEntry> cachedAdds = null;
+  private List<ManifestEntry> cachedDeletes = null;
 
   private ManifestReader(InputFile file, Function<Integer, PartitionSpec> specLookup) {
     this.file = file;
@@ -126,11 +124,11 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
    * {@link #filterPartitions(Expression)} or {@link #filterRows(Expression)}, will apply the specified
    * case sensitivity for column name matching.
    *
-   * @param caseSensitive whether column name matching should have case sensitivity
+   * @param readCaseSensitive whether column name matching should have case sensitivity
    * @return a manifest reader with case sensitivity as stated
    */
-  public ManifestReader caseSensitive(boolean caseSensitive) {
-    return new ManifestReader(file, metadata, spec, schema, caseSensitive);
+  public ManifestReader caseSensitive(boolean readCaseSensitive) {
+    return new ManifestReader(file, metadata, spec, schema, readCaseSensitive);
   }
 
   public InputFile file() {
@@ -143,11 +141,6 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
 
   public PartitionSpec spec() {
     return spec;
-  }
-
-  @Override
-  public Iterator<DataFile> iterator() {
-    return iterator(alwaysTrue(), ALL_COLUMNS);
   }
 
   @Override
@@ -170,17 +163,17 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
   }
 
   public List<ManifestEntry> addedFiles() {
-    if (adds == null) {
+    if (cachedAdds == null) {
       cacheChanges();
     }
-    return adds;
+    return cachedAdds;
   }
 
   public List<ManifestEntry> deletedFiles() {
-    if (deletes == null) {
+    if (cachedDeletes == null) {
       cacheChanges();
     }
-    return deletes;
+    return cachedDeletes;
   }
 
   private void cacheChanges() {
@@ -199,8 +192,8 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
       }
     }
 
-    this.adds = adds;
-    this.deletes = deletes;
+    this.cachedAdds = adds;
+    this.cachedDeletes = deletes;
   }
 
   CloseableIterable<ManifestEntry> entries() {
@@ -209,13 +202,13 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
 
   CloseableIterable<ManifestEntry> entries(Collection<String> columns) {
     FileFormat format = FileFormat.fromFileName(file.location());
-    Preconditions.checkArgument(format != null, "Unable to determine format of manifest: " + file);
+    Preconditions.checkArgument(format != null, "Unable to determine format of manifest: %s", file);
 
-    Schema schema = ManifestEntry.projectSchema(spec.partitionType(), columns);
+    Schema projectedSchema = ManifestEntry.projectSchema(spec.partitionType(), columns);
     switch (format) {
       case AVRO:
         AvroIterable<ManifestEntry> reader = Avro.read(file)
-            .project(schema)
+            .project(projectedSchema)
             .rename("manifest_entry", ManifestEntry.class.getName())
             .rename("partition", PartitionData.class.getName())
             .rename("r102", PartitionData.class.getName())
@@ -233,11 +226,16 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
     }
   }
 
+  @Override
+  public Iterator<DataFile> iterator() {
+    return iterator(alwaysTrue(), ALL_COLUMNS);
+  }
+
   // visible for use by PartialManifest
   Iterator<DataFile> iterator(Expression partFilter, Collection<String> columns) {
     return Iterables.transform(Iterables.filter(
         entries(columns),
-        entry -> entry.status() != DELETED),
+        entry -> entry.status() != ManifestEntry.Status.DELETED),
         ManifestEntry::file).iterator();
   }
 

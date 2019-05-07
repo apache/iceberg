@@ -311,25 +311,25 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
   @Test
   public void testRenameReturnFalse() throws Exception {
-    FileSystem mockFS = mock(FileSystem.class);
-    when(mockFS.exists(any())).thenReturn(false);
-    when(mockFS.rename(any(), any())).thenReturn(false);
-    testRenameWithFS(mockFS);
+    FileSystem mockFs = mock(FileSystem.class);
+    when(mockFs.exists(any())).thenReturn(false);
+    when(mockFs.rename(any(), any())).thenReturn(false);
+    testRenameWithFileSystem(mockFs);
   }
 
   @Test
   public void testRenameThrow() throws Exception {
-    FileSystem mockFS = mock(FileSystem.class);
-    when(mockFS.exists(any())).thenReturn(false);
-    when(mockFS.rename(any(), any())).thenThrow(new IOException("test injected"));
-    testRenameWithFS(mockFS);
+    FileSystem mockFs = mock(FileSystem.class);
+    when(mockFs.exists(any())).thenReturn(false);
+    when(mockFs.rename(any(), any())).thenThrow(new IOException("test injected"));
+    testRenameWithFileSystem(mockFs);
   }
 
   /**
    * Test rename during {@link HadoopTableOperations#commit(TableMetadata, TableMetadata)} with the provided
    * {@link FileSystem} object. The provided FileSystem will be injected for commit call.
    */
-  private void testRenameWithFS(FileSystem mockFS) throws Exception {
+  private void testRenameWithFileSystem(FileSystem mockFs) throws Exception {
     assertTrue("Should create v1 metadata",
         version(1).exists() && version(1).isFile());
     assertFalse("Should not create v2 or newer versions",
@@ -355,7 +355,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     HadoopTableOperations spyOps = Mockito.spy((HadoopTableOperations) tops);
 
     // inject the mockFS into the TableOperations
-    doReturn(mockFS).when(spyOps).getFS(any(), any());
+    doReturn(mockFs).when(spyOps).getFileSystem(any(), any());
     try {
       spyOps.commit(spyOps.current(), meta1);
       fail("Commit should fail due to mock file system");

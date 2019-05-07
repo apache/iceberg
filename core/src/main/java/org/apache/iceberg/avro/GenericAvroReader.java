@@ -45,7 +45,7 @@ class GenericAvroReader<T> implements DatumReader<T> {
   private Schema fileSchema = null;
   private ValueReader<T> reader = null;
 
-  public GenericAvroReader(Schema readSchema) {
+  GenericAvroReader(Schema readSchema) {
     this.readSchema = readSchema;
   }
 
@@ -55,13 +55,13 @@ class GenericAvroReader<T> implements DatumReader<T> {
   }
 
   @Override
-  public void setSchema(Schema fileSchema) {
-    this.fileSchema = Schema.applyAliases(fileSchema, readSchema);
+  public void setSchema(Schema schema) {
+    this.fileSchema = Schema.applyAliases(schema, readSchema);
     initReader();
   }
 
-  public void setClassLoader(ClassLoader loader) {
-    this.loader = loader;
+  public void setClassLoader(ClassLoader newClassLoader) {
+    this.loader = newClassLoader;
   }
 
   @Override

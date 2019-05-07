@@ -29,7 +29,7 @@ class Util {
   private Util() {
   }
 
-  public static FileSystem getFS(Path path, Configuration conf) {
+  public static FileSystem getFs(Path path, Configuration conf) {
     try {
       return path.getFileSystem(conf);
     } catch (IOException e) {

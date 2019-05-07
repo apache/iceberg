@@ -42,8 +42,8 @@ class BaseSnapshot implements Snapshot {
 
   // lazily initialized
   private List<ManifestFile> manifests = null;
-  private List<DataFile> adds = null;
-  private List<DataFile> deletes = null;
+  private List<DataFile> cachedAdds = null;
+  private List<DataFile> cachedDeletes = null;
 
   /**
    * For testing only.
@@ -132,18 +132,18 @@ class BaseSnapshot implements Snapshot {
 
   @Override
   public List<DataFile> addedFiles() {
-    if (adds == null) {
+    if (cachedAdds == null) {
       cacheChanges();
     }
-    return adds;
+    return cachedAdds;
   }
 
   @Override
   public List<DataFile> deletedFiles() {
-    if (deletes == null) {
+    if (cachedDeletes == null) {
       cacheChanges();
     }
-    return deletes;
+    return cachedDeletes;
   }
 
   @Override
@@ -176,8 +176,8 @@ class BaseSnapshot implements Snapshot {
       }
     }
 
-    this.adds = adds;
-    this.deletes = deletes;
+    this.cachedAdds = adds;
+    this.cachedDeletes = deletes;
   }
 
   @Override

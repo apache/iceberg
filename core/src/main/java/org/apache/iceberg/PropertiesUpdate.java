@@ -100,12 +100,12 @@ class PropertiesUpdate implements UpdateProperties {
             base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
             base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
             base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-            2.0 /* exponential */ )
+            2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
-        .run(ops -> {
+        .run(taskOps -> {
           Map<String, String> newProperties = apply();
           TableMetadata updated = base.replaceProperties(newProperties);
-          ops.commit(base, updated);
+          taskOps.commit(base, updated);
         });
   }
 }

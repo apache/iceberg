@@ -32,9 +32,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceWrapper;
 
-import static com.google.common.collect.Iterables.concat;
-import static com.google.common.collect.Iterables.transform;
-
 public class FileHistory {
   private static final List<String> HISTORY_COLUMNS = ImmutableList.of("file_path");
 
@@ -95,9 +92,9 @@ public class FileHistory {
       }
 
       // only use manifests that were added in the matching snapshots
-      Set<Long> matchingIds = Sets.newHashSet(transform(snapshots, snap -> snap.snapshotId()));
+      Set<Long> matchingIds = Sets.newHashSet(Iterables.transform(snapshots, Snapshot::snapshotId));
       Iterable<ManifestFile> manifests = Iterables.filter(
-          concat(transform(snapshots, Snapshot::manifests)),
+          Iterables.concat(Iterables.transform(snapshots, Snapshot::manifests)),
           manifest -> manifest.snapshotId() == null || matchingIds.contains(manifest.snapshotId()));
 
       // a manifest group will only read each manifest once

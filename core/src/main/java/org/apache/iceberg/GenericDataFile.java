@@ -72,6 +72,7 @@ class GenericDataFile
   /**
    * Used by Avro reflection to instantiate this class when reading manifest files.
    */
+  @SuppressWarnings("checkstyle:RedundantModifier") // Must be public
   public GenericDataFile(org.apache.avro.Schema avroSchema) {
     this.avroSchema = avroSchema;
 
@@ -338,9 +339,15 @@ class GenericDataFile
         return;
       case 13:
         this.keyMetadata = (ByteBuffer) v;
+        return;
       default:
         // ignore the object, it must be from a newer version of the format
     }
+  }
+
+  @Override
+  public <T> void set(int pos, T value) {
+    put(pos, value);
   }
 
   @Override
@@ -384,6 +391,11 @@ class GenericDataFile
     }
   }
 
+  @Override
+  public <T> T get(int pos, Class<T> javaClass) {
+    return javaClass.cast(get(pos));
+  }
+
   private static org.apache.avro.Schema getAvroSchema(Types.StructType partitionType) {
     Types.StructType type = DataFile.getType(partitionType);
     return AvroSchemaUtil.convert(type, ImmutableMap.of(
@@ -394,21 +406,6 @@ class GenericDataFile
   @Override
   public int size() {
     return 14;
-  }
-
-  @Override
-  public <T> T get(int pos, Class<T> javaClass) {
-    return javaClass.cast(get(pos));
-  }
-
-  @Override
-  public <T> void set(int pos, T value) {
-    put(pos, value);
-  }
-
-  @Override
-  public DataFile copy() {
-    return new GenericDataFile(this);
   }
 
   @Override
@@ -427,6 +424,11 @@ class GenericDataFile
         .add("upper_bounds", upperBounds)
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .toString();
+  }
+
+  @Override
+  public DataFile copy() {
+    return new GenericDataFile(this);
   }
 
   private static <K, V> Map<K, V> copy(Map<K, V> map) {

@@ -26,8 +26,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 
-import static org.apache.iceberg.TableMetadata.newTableMetadata;
-
 public abstract class BaseMetastoreTables implements Tables {
   private final Configuration conf;
 
@@ -35,7 +33,7 @@ public abstract class BaseMetastoreTables implements Tables {
     this.conf = conf;
   }
 
-  protected abstract BaseMetastoreTableOperations newTableOps(Configuration conf,
+  protected abstract BaseMetastoreTableOperations newTableOps(Configuration newConf,
                                                               String database, String table);
 
   public Table load(String database, String table) {
@@ -63,7 +61,7 @@ public abstract class BaseMetastoreTables implements Tables {
     }
 
     String location = defaultWarehouseLocation(conf, database, table);
-    TableMetadata metadata = newTableMetadata(ops, schema, spec, location, properties);
+    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, location, properties);
     ops.commit(null, metadata);
 
     return new BaseTable(ops, database + "." + table);
@@ -81,7 +79,7 @@ public abstract class BaseMetastoreTables implements Tables {
     }
 
     String location = defaultWarehouseLocation(conf, database, table);
-    TableMetadata metadata = newTableMetadata(ops, schema, spec, location, properties);
+    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, location, properties);
 
     return BaseTransaction.createTableTransaction(ops, metadata);
   }
@@ -102,14 +100,14 @@ public abstract class BaseMetastoreTables implements Tables {
       return BaseTransaction.replaceTableTransaction(ops, metadata);
     } else {
       String location = defaultWarehouseLocation(conf, database, table);
-      metadata = newTableMetadata(ops, schema, spec, location, properties);
+      metadata = TableMetadata.newTableMetadata(ops, schema, spec, location, properties);
       return BaseTransaction.createTableTransaction(ops, metadata);
     }
   }
 
-  protected String defaultWarehouseLocation(Configuration conf,
+  protected String defaultWarehouseLocation(Configuration hadoopConf,
                                             String database, String table) {
-    String warehouseLocation = conf.get("hive.metastore.warehouse.dir");
+    String warehouseLocation = hadoopConf.get("hive.metastore.warehouse.dir");
     Preconditions.checkNotNull(warehouseLocation,
         "Warehouse location is not set: hive.metastore.warehouse.dir=null");
     return String.format("%s/%s.db/%s", warehouseLocation, database, table);

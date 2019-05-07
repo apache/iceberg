@@ -20,6 +20,9 @@
 package org.apache.iceberg;
 
 public class TableProperties {
+
+  private TableProperties() {}
+
   public static final String COMMIT_NUM_RETRIES = "commit.retry.num-retries";
   public static final int COMMIT_NUM_RETRIES_DEFAULT = 4;
 

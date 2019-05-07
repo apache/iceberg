@@ -27,6 +27,9 @@ import java.util.concurrent.ThreadPoolExecutor;
 import org.apache.iceberg.SystemProperties;
 
 public class ThreadPools {
+
+  private ThreadPools() {}
+
   public static final String WORKER_THREAD_POOL_SIZE_PROP =
       SystemProperties.WORKER_THREAD_POOL_SIZE_PROP;
 
@@ -34,7 +37,7 @@ public class ThreadPools {
       WORKER_THREAD_POOL_SIZE_PROP,
       Runtime.getRuntime().availableProcessors());
 
-  private static ExecutorService WORKER_POOL = MoreExecutors.getExitingExecutorService(
+  private static final ExecutorService WORKER_POOL = MoreExecutors.getExitingExecutorService(
       (ThreadPoolExecutor) Executors.newFixedThreadPool(
           WORKER_THREAD_POOL_SIZE,
           new ThreadFactoryBuilder()

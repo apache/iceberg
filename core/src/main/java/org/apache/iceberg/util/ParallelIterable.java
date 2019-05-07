@@ -61,7 +61,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
       this.tasks = Iterables.transform(iterables, iterable ->
           (Runnable) () -> {
             try (Closeable ignored = (iterable instanceof Closeable) ?
-                (Closeable) iterable : () -> {}) {
+                (Closeable) iterable : () -> { }) {
               for (T item : iterable) {
                 queue.add(item);
               }

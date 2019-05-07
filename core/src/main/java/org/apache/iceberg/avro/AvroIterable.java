@@ -51,14 +51,14 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
     this.reuseContainers = reuseContainers;
   }
 
-  private DataFileReader<D> initMetadata(DataFileReader<D> reader) {
+  private DataFileReader<D> initMetadata(DataFileReader<D> metadataReader) {
     if (metadata == null) {
       this.metadata = Maps.newHashMap();
-      for (String key : reader.getMetaKeys()) {
-        metadata.put(key, reader.getMetaString(key));
+      for (String key : metadataReader.getMetaKeys()) {
+        metadata.put(key, metadataReader.getMetaString(key));
       }
     }
-    return reader;
+    return metadataReader;
   }
 
   public Map<String, String> getMetadata() {
@@ -74,19 +74,19 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
 
   @Override
   public Iterator<D> iterator() {
-    FileReader<D> reader = initMetadata(newFileReader());
+    FileReader<D> fileReader = initMetadata(newFileReader());
 
     if (start != null) {
-      reader = new AvroRangeIterator<>(reader, start, end);
+      fileReader = new AvroRangeIterator<>(fileReader, start, end);
     }
 
-    addCloseable(reader);
+    addCloseable(fileReader);
 
     if (reuseContainers) {
-      return new AvroReuseIterator<>(reader);
+      return new AvroReuseIterator<>(fileReader);
     }
 
-    return reader;
+    return fileReader;
   }
 
   private DataFileReader<D> newFileReader() {
@@ -121,7 +121,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
     @Override
     public boolean hasNext() {
       try {
-        return (reader.hasNext() && !reader.pastSync(end));
+        return reader.hasNext() && !reader.pastSync(end);
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to check range end: %d", end);
       }

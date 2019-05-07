@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -62,7 +63,7 @@ class BaseTransaction implements Transaction {
   }
 
   // exposed for testing
-  final TableOperations ops;
+  private final TableOperations ops;
   private final TransactionTable transactionTable;
   private final TableOperations transactionOps;
   private final List<PendingUpdate> updates;
@@ -200,14 +201,14 @@ class BaseTransaction implements Transaction {
                 base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
                 2.0 /* exponential */)
             .onlyRetryOn(CommitFailedException.class)
-            .run(ops -> {
+            .run(underlyingOps -> {
               // because this is a replace table, it will always completely replace the table
               // metadata. even if it was just updated.
-              if (base != ops.refresh()) {
-                this.base = ops.current(); // just refreshed
+              if (base != underlyingOps.refresh()) {
+                this.base = underlyingOps.current(); // just refreshed
               }
 
-              ops.commit(base, replaceMetadata);
+              underlyingOps.commit(base, replaceMetadata);
             });
         break;
 
@@ -225,9 +226,9 @@ class BaseTransaction implements Transaction {
                 base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
                 2.0 /* exponential */)
             .onlyRetryOn(CommitFailedException.class)
-            .run(ops -> {
-              if (base != ops.refresh()) {
-                this.base = ops.current(); // just refreshed
+            .run(underlyingOps -> {
+              if (base != underlyingOps.refresh()) {
+                this.base = underlyingOps.current(); // just refreshed
                 this.current = base;
                 for (PendingUpdate update : updates) {
                   // re-commit each update in the chain to apply it and update current
@@ -236,7 +237,7 @@ class BaseTransaction implements Transaction {
               }
 
               // fix up the snapshot log, which should not contain intermediate snapshots
-              ops.commit(base, current.removeSnapshotLogEntries(intermediateSnapshotIds));
+              underlyingOps.commit(base, current.removeSnapshotLogEntries(intermediateSnapshotIds));
             });
         break;
     }
@@ -263,8 +264,8 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
-    public void commit(TableMetadata base, TableMetadata metadata) {
-      if (base != current) {
+    public void commit(TableMetadata underlyingBase, TableMetadata metadata) {
+      if (underlyingBase != current) {
         // trigger a refresh and retry
         throw new CommitFailedException("Table metadata refresh is required");
       }
@@ -414,5 +415,10 @@ class BaseTransaction implements Transaction {
     public LocationProvider locationProvider() {
       return transactionOps.locationProvider();
     }
+  }
+
+  @VisibleForTesting
+  TableOperations ops() {
+    return ops;
   }
 }
