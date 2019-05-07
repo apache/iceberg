@@ -41,6 +41,7 @@ import static org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch.DEFAULT_S
  * Create a file appender for ORC.
  */
 class OrcFileAppender<D> implements FileAppender<D> {
+  private final int batchSize;
   private final TypeDescription orcSchema;
   private final ColumnIdMap columnIds = new ColumnIdMap();
   private final Path path;
@@ -49,14 +50,19 @@ class OrcFileAppender<D> implements FileAppender<D> {
   private final OrcValueWriter<D> valueWriter;
   private boolean isClosed = false;
 
+  static final String VECTOR_ROW_BATCH_SIZE = "iceberg.orc.vectorbatch.size";
   static final String COLUMN_NUMBERS_ATTRIBUTE = "iceberg.column.ids";
+
+  static final int DEFAULT_BATCH_SIZE = DEFAULT_SIZE;
 
   OrcFileAppender(TypeDescription schema, OutputFile file,
                   Function<TypeDescription, OrcValueWriter<?>> createWriterFunc,
-                  OrcFile.WriterOptions options, Map<String, byte[]> metadata) {
+                  OrcFile.WriterOptions options, Map<String, byte[]> metadata,
+                  int batchSize) {
     orcSchema = schema;
     path = new Path(file.location());
-    batch = orcSchema.createRowBatch(DEFAULT_SIZE);
+    this.batchSize = batchSize;
+    batch = orcSchema.createRowBatch(batchSize);
 
     options.setSchema(orcSchema);
     writer = newOrcWriter(file, columnIds, options, metadata);
