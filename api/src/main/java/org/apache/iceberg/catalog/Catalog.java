@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.catalog;
 
-import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -72,12 +71,4 @@ public interface Catalog {
    * @param to expected new name of the table.
    */
   void renameTable(TableIdentifier from, TableIdentifier to);
-
-  /**
-   * Returns list of all the tables {@link TableIdentifier tables} under the provided namespace.
-   *
-   * @param namespace identifier for the namespace under which tables are to be listed.
-   * @return List of {@link TableIdentifier} under the specified namespace.
-   */
-  List<TableIdentifier> listTables(Namespace namespace);
 }
