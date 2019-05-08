@@ -32,7 +32,7 @@ import org.apache.iceberg.expressions.Projections;
  * When committing, these changes will be applied to the latest table snapshot. Commit conflicts
  * will be resolved by applying the changes to the new latest snapshot and reattempting the commit.
  */
-public interface DeleteFiles extends PendingUpdate<Snapshot> {
+public interface DeleteFiles extends SnapshotUpdate<DeleteFiles> {
   /**
    * Delete a file path from the underlying table.
    * <p>

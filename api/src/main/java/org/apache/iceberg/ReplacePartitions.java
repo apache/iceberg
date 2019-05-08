@@ -34,7 +34,7 @@ package org.apache.iceberg;
  * This has no requirements for the latest snapshot and will not fail based on other snapshot
  * changes.
  */
-public interface ReplacePartitions extends PendingUpdate<Snapshot> {
+public interface ReplacePartitions extends SnapshotUpdate<ReplacePartitions> {
   /**
    * Add a {@link DataFile} to the table.
    *

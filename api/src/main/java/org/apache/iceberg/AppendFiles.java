@@ -28,7 +28,7 @@ package org.apache.iceberg;
  * When committing, these changes will be applied to the latest table snapshot. Commit conflicts
  * will be resolved by applying the changes to the new latest snapshot and reattempting the commit.
  */
-public interface AppendFiles extends PendingUpdate<Snapshot> {
+public interface AppendFiles extends SnapshotUpdate<AppendFiles> {
   /**
    * Append a {@link DataFile} to the table.
    *

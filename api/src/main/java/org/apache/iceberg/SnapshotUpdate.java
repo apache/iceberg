@@ -19,31 +19,20 @@
 
 package org.apache.iceberg;
 
-import org.apache.iceberg.exceptions.CommitFailedException;
-
 /**
- * Append implementation that produces a minimal number of manifest files.
- * <p>
- * This implementation will attempt to commit 5 times before throwing {@link CommitFailedException}.
+ * API for table changes that produce snapshots. This interface contains common methods for all
+ * updates that create a new table {@link Snapshot}.
+ *
+ * @param <THIS> the child Java API class, returned by method chaining.
  */
-class MergeAppend extends MergingSnapshotProducer<AppendFiles> implements AppendFiles {
-  MergeAppend(TableOperations ops) {
-    super(ops);
-  }
+public interface SnapshotUpdate<THIS> extends PendingUpdate<Snapshot> {
+  /**
+   * Set a summary property in the snapshot produced by this update.
+   *
+   * @param property a String property name
+   * @param value a String property value
+   * @return this for method chaining
+   */
+  THIS set(String property, String value);
 
-  @Override
-  protected AppendFiles self() {
-    return this;
-  }
-
-  @Override
-  protected String operation() {
-    return DataOperations.APPEND;
-  }
-
-  @Override
-  public MergeAppend appendFile(DataFile file) {
-    add(file);
-    return this;
-  }
 }
