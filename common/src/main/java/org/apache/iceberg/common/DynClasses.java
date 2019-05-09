@@ -24,6 +24,9 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 public class DynClasses {
+
+  private DynClasses() {}
+
   public static Builder builder() {
     return new Builder();
   }
@@ -39,11 +42,11 @@ public class DynClasses {
      * <p>
      * If not set, the current thread's ClassLoader is used.
      *
-     * @param loader a ClassLoader
+     * @param newLoader a ClassLoader
      * @return this Builder for method chaining
      */
-    public Builder loader(ClassLoader loader) {
-      this.loader = loader;
+    public Builder loader(ClassLoader newLoader) {
+      this.loader = newLoader;
       return this;
     }
 
@@ -115,4 +118,3 @@ public class DynClasses {
     }
   }
 }
-

@@ -34,6 +34,8 @@ import org.apache.iceberg.util.JsonUtil;
 
 public class SnapshotParser {
 
+  private SnapshotParser() {}
+
   private static final String SNAPSHOT_ID = "snapshot-id";
   private static final String PARENT_SNAPSHOT_ID = "parent-snapshot-id";
   private static final String TIMESTAMP_MS = "timestamp-ms";

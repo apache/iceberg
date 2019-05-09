@@ -33,6 +33,8 @@ import java.util.Set;
 
 public class DynFields {
 
+  private DynFields() {}
+
   /**
    * Convenience wrapper class around {@link java.lang.reflect.Field}.
    *
@@ -84,10 +86,11 @@ public class DynFields {
      */
     public BoundField<T> bind(Object target) {
       Preconditions.checkState(!isStatic() || this == AlwaysNull.INSTANCE,
-          "Cannot bind static field " + name);
+          "Cannot bind static field %s", name);
       Preconditions.checkArgument(
           field.getDeclaringClass().isAssignableFrom(target.getClass()),
-          "Cannot bind field " + name + " to instance of " +
+          "Cannot bind field %s to instance of %s",
+              name,
               target.getClass());
 
       return new BoundField<>(this, target);
@@ -100,7 +103,7 @@ public class DynFields {
      * @throws IllegalStateException if the method is not static
      */
     public StaticField<T> asStatic() {
-      Preconditions.checkState(isStatic(), "Field " + name + " is not static");
+      Preconditions.checkState(isStatic(), "Field %s is not static", name);
       return new StaticField<>(this);
     }
 
@@ -201,11 +204,11 @@ public class DynFields {
      * <p>
      * If not set, the current thread's ClassLoader is used.
      *
-     * @param loader a ClassLoader
+     * @param newLoader a ClassLoader
      * @return this Builder for method chaining
      */
-    public Builder loader(ClassLoader loader) {
-      this.loader = loader;
+    public Builder loader(ClassLoader newLoader) {
+      this.loader = newLoader;
       return this;
     }
 
@@ -342,6 +345,21 @@ public class DynFields {
     }
 
     /**
+     * Returns the first valid implementation as a BoundMethod or throws a
+     * NoSuchMethodException if there is none.
+     *
+     * @param target an Object on which to get and set the field
+     * @param <T> Java class stored in the field
+     * @return a {@link BoundField} with a valid implementation and target
+     * @throws IllegalStateException if the method is static
+     * @throws IllegalArgumentException if the receiver's class is incompatible
+     * @throws NoSuchFieldException if no implementation was found
+     */
+    public <T> BoundField<T> buildChecked(Object target) throws NoSuchFieldException {
+      return this.<T>buildChecked().bind(target);
+    }
+
+    /**
      * Returns the first valid implementation as a UnboundField or throws a
      * NoSuchFieldException if there is none.
      *
@@ -359,21 +377,6 @@ public class DynFields {
         throw new RuntimeException("Cannot find field from candidates: " +
             Joiner.on(", ").join(candidates));
       }
-    }
-
-    /**
-     * Returns the first valid implementation as a BoundMethod or throws a
-     * NoSuchMethodException if there is none.
-     *
-     * @param target an Object on which to get and set the field
-     * @param <T> Java class stored in the field
-     * @return a {@link BoundField} with a valid implementation and target
-     * @throws IllegalStateException if the method is static
-     * @throws IllegalArgumentException if the receiver's class is incompatible
-     * @throws NoSuchFieldException if no implementation was found
-     */
-    public <T> BoundField<T> buildChecked(Object target) throws NoSuchFieldException {
-      return this.<T>buildChecked().bind(target);
     }
 
     /**
@@ -422,7 +425,7 @@ public class DynFields {
   private static class MakeFieldAccessible implements PrivilegedAction<Void> {
     private Field hidden;
 
-    public MakeFieldAccessible(Field hidden) {
+    MakeFieldAccessible(Field hidden) {
       this.hidden = hidden;
     }
 

@@ -27,6 +27,7 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Collection;
+import java.util.Deque;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -122,12 +123,13 @@ public class ValueReaders {
     return new RecordReader(readers, recordSchema);
   }
 
-  public static <R extends IndexedRecord> ValueReader<R> record(List<ValueReader<?>> readers, Class<R> recordClass, Schema recordSchema) {
+  public static <R extends IndexedRecord> ValueReader<R> record(
+      List<ValueReader<?>> readers, Class<R> recordClass, Schema recordSchema) {
     return new IndexedRecordReader<>(readers, recordClass, recordSchema);
   }
 
   private static class NullReader implements ValueReader<Object> {
-    private static NullReader INSTANCE = new NullReader();
+    private static final NullReader INSTANCE = new NullReader();
 
     private NullReader() {
     }
@@ -140,7 +142,7 @@ public class ValueReaders {
   }
 
   private static class BooleanReader implements ValueReader<Boolean> {
-    private static BooleanReader INSTANCE = new BooleanReader();
+    private static final BooleanReader INSTANCE = new BooleanReader();
 
     private BooleanReader() {
     }
@@ -152,7 +154,7 @@ public class ValueReaders {
   }
 
   private static class IntegerReader implements ValueReader<Integer> {
-    private static IntegerReader INSTANCE = new IntegerReader();
+    private static final IntegerReader INSTANCE = new IntegerReader();
 
     private IntegerReader() {
     }
@@ -164,7 +166,7 @@ public class ValueReaders {
   }
 
   private static class LongReader implements ValueReader<Long> {
-    private static LongReader INSTANCE = new LongReader();
+    private static final LongReader INSTANCE = new LongReader();
 
     private LongReader() {
     }
@@ -176,7 +178,7 @@ public class ValueReaders {
   }
 
   private static class FloatReader implements ValueReader<Float> {
-    private static FloatReader INSTANCE = new FloatReader();
+    private static final FloatReader INSTANCE = new FloatReader();
 
     private FloatReader() {
     }
@@ -188,7 +190,7 @@ public class ValueReaders {
   }
 
   private static class DoubleReader implements ValueReader<Double> {
-    private static DoubleReader INSTANCE = new DoubleReader();
+    private static final DoubleReader INSTANCE = new DoubleReader();
 
     private DoubleReader() {
     }
@@ -200,7 +202,7 @@ public class ValueReaders {
   }
 
   private static class StringReader implements ValueReader<String> {
-    private static StringReader INSTANCE = new StringReader();
+    private static final StringReader INSTANCE = new StringReader();
     private final ThreadLocal<Utf8> reusedTempUtf8 = ThreadLocal.withInitial(Utf8::new);
 
     private StringReader() {
@@ -218,7 +220,7 @@ public class ValueReaders {
   }
 
   private static class Utf8Reader implements ValueReader<Utf8> {
-    private static Utf8Reader INSTANCE = new Utf8Reader();
+    private static final Utf8Reader INSTANCE = new Utf8Reader();
 
     private Utf8Reader() {
     }
@@ -244,7 +246,7 @@ public class ValueReaders {
       return buffer;
     });
 
-    private static UUIDReader INSTANCE = new UUIDReader();
+    private static final UUIDReader INSTANCE = new UUIDReader();
 
     private UUIDReader() {
     }
@@ -311,7 +313,7 @@ public class ValueReaders {
   }
 
   private static class BytesReader implements ValueReader<byte[]> {
-    private static BytesReader INSTANCE = new BytesReader();
+    private static final BytesReader INSTANCE = new BytesReader();
 
     private BytesReader() {
     }
@@ -333,7 +335,7 @@ public class ValueReaders {
   }
 
   private static class ByteBufferReader implements ValueReader<ByteBuffer> {
-    private static ByteBufferReader INSTANCE = new ByteBufferReader();
+    private static final ByteBufferReader INSTANCE = new ByteBufferReader();
 
     private ByteBufferReader() {
     }
@@ -406,7 +408,7 @@ public class ValueReaders {
 
   private static class ArrayReader<T> implements ValueReader<Collection<T>> {
     private final ValueReader<T> elementReader;
-    private LinkedList<?> lastList = null;
+    private Deque<?> lastList = null;
 
     private ArrayReader(ValueReader<T> elementReader) {
       this.elementReader = elementReader;
@@ -415,7 +417,7 @@ public class ValueReaders {
     @Override
     @SuppressWarnings("unchecked")
     public Collection<T> read(Decoder decoder, Object reused) throws IOException {
-      LinkedList<T> resultList;
+      Deque<T> resultList;
       if (lastList != null) {
         lastList.clear();
         resultList = (LinkedList<T>) lastList;

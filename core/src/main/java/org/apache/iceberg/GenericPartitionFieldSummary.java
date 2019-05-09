@@ -124,11 +124,6 @@ public class GenericPartitionFieldSummary
   }
 
   @Override
-  public void put(int i, Object v) {
-    set(i, v);
-  }
-
-  @Override
   public Object get(int i) {
     int pos = i;
     // if the schema was projected, map the incoming ordinal to the expected one
@@ -168,6 +163,11 @@ public class GenericPartitionFieldSummary
       default:
         // ignore the object, it must be from a newer version of the format
     }
+  }
+
+  @Override
+  public void put(int i, Object v) {
+    set(i, v);
   }
 
   @Override

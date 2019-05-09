@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import com.google.common.collect.Lists;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -31,7 +32,6 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static avro.shaded.com.google.common.collect.Lists.newArrayList;
 import static org.apache.iceberg.ConfigProperties.COMPRESS_METADATA;
 import static org.apache.iceberg.PartitionSpec.unpartitioned;
 import static org.apache.iceberg.TableMetadata.newTableMetadata;
@@ -40,8 +40,9 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TableMetadataParserTest {
 
-  private final Schema SCHEMA = new Schema(newArrayList(optional(1, "b", BooleanType.get())));
-  private final TableMetadata EXPECTED = newTableMetadata(null, SCHEMA, unpartitioned(), "file://tmp/db/table");
+  private static final Schema SCHEMA = new Schema(Lists.newArrayList(optional(1, "b", BooleanType.get())));
+  private static final TableMetadata EXPECTED =
+      newTableMetadata(null, SCHEMA, unpartitioned(), "file://tmp/db/table");
 
   @Test
   public void testCompressionProperty() throws IOException {
@@ -52,7 +53,8 @@ public class TableMetadataParserTest {
       final OutputFile outputFile = Files.localOutput(getFileExtension(configuration));
       TableMetadataParser.write(EXPECTED, outputFile);
       Assert.assertEquals(prop, isCompressed(getFileExtension(configuration)));
-      final TableMetadata read = TableMetadataParser.read(null, Files.localInput(new File(getFileExtension(configuration))));
+      final TableMetadata read = TableMetadataParser.read(
+          null, Files.localInput(new File(getFileExtension(configuration))));
       verifyMetadata(read);
     }
   }
@@ -78,10 +80,11 @@ public class TableMetadataParserTest {
     try (InputStream ignored = new GzipCompressorInputStream(new FileInputStream(new File(path)))) {
       return true;
     } catch (IOException e) {
-      if (e.getMessage().equals("Input is not in the .gz format"))
+      if (e.getMessage().equals("Input is not in the .gz format")) {
         return false;
-      else
+      } else {
         throw e;
+      }
     }
   }
 }

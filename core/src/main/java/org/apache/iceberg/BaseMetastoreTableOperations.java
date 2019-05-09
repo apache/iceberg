@@ -20,24 +20,16 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Objects;
-import java.io.IOException;
 import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static org.apache.iceberg.TableMetadataParser.getFileExtension;
-import static org.apache.iceberg.TableMetadataParser.read;
-import static org.apache.iceberg.hadoop.HadoopInputFile.fromLocation;
-
 
 public abstract class BaseMetastoreTableOperations implements TableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(BaseMetastoreTableOperations.class);
@@ -83,8 +75,8 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     this.shouldRefresh = true;
   }
 
-  protected String writeNewMetadata(TableMetadata metadata, int version) {
-    String newTableMetadataFilePath = newTableMetadataFilePath(metadata, version);
+  protected String writeNewMetadata(TableMetadata metadata, int newVersion) {
+    String newTableMetadataFilePath = newTableMetadataFilePath(metadata, newVersion);
     OutputFile newMetadataLocation = fileIo.newOutputFile(newTableMetadataFilePath);
 
     // write the new metadata
@@ -100,13 +92,14 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   protected void refreshFromMetadataLocation(String newLocation, int numRetries) {
     // use null-safe equality check because new tables have a null metadata location
     if (!Objects.equal(currentMetadataLocation, newLocation)) {
-      LOG.info("Refreshing table metadata from new version: " + newLocation);
+      LOG.info("Refreshing table metadata from new version: {}", newLocation);
 
       Tasks.foreach(newLocation)
-          .retry(numRetries).exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */ )
+          .retry(numRetries).exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */)
           .suppressFailureWhenFinished()
           .run(metadataLocation -> {
-            this.currentMetadata = read(this, fromLocation(metadataLocation, conf));
+            this.currentMetadata = TableMetadataParser.read(
+                this, HadoopInputFile.fromLocation(metadataLocation, conf));
             this.currentMetadataLocation = metadataLocation;
             this.version = parseVersion(metadataLocation);
           });
@@ -142,7 +135,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   private String newTableMetadataFilePath(TableMetadata meta, int newVersion) {
     return metadataFileLocation(meta,
-        String.format("%05d-%s%s", newVersion, UUID.randomUUID(), getFileExtension(this.conf)));
+        String.format("%05d-%s%s", newVersion, UUID.randomUUID(), TableMetadataParser.getFileExtension(this.conf)));
   }
 
   private static int parseVersion(String metadataLocation) {
@@ -151,16 +144,8 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     try {
       return Integer.valueOf(metadataLocation.substring(versionStart, versionEnd));
     } catch (NumberFormatException e) {
-      LOG.warn("Unable to parse version from metadata location: " + metadataLocation);
+      LOG.warn("Unable to parse version from metadata location: {}", metadataLocation, e);
       return -1;
-    }
-  }
-
-  private static FileSystem getFS(Path path, Configuration conf) {
-    try {
-      return path.getFileSystem(conf);
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
     }
   }
 }

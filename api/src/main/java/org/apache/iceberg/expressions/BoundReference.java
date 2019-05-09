@@ -19,10 +19,10 @@
 
 package org.apache.iceberg.expressions;
 
+import com.google.common.collect.Maps;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
-import com.google.common.collect.Maps;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -47,10 +47,10 @@ public class BoundReference<T> implements Reference {
 
   }
 
-  private int findTopFieldPos(int fieldId, Types.StructType struct) {
+  private int findTopFieldPos(int localFieldId, Types.StructType struct) {
     List<Types.NestedField> fields = struct.fields();
     for (int i = 0; i < fields.size(); i += 1) {
-      if (fields.get(i).fieldId() == fieldId) {
+      if (fields.get(i).fieldId() == localFieldId) {
         return i;
       }
     }
@@ -88,19 +88,19 @@ public class BoundReference<T> implements Reference {
   }
 
   private static class PositionAccessor implements Accessor<StructLike> {
-    private int p;
+    private int position;
     private final Type type;
     private final Class<?> javaClass;
 
-    private PositionAccessor(int p, Type type) {
-      this.p = p;
+    private PositionAccessor(int pos, Type type) {
+      this.position = pos;
       this.type = type;
       this.javaClass = type.typeId().javaClass();
     }
 
     @Override
     public Object get(StructLike row) {
-      return row.get(p, javaClass);
+      return row.get(position, javaClass);
     }
 
     @Override
@@ -115,9 +115,9 @@ public class BoundReference<T> implements Reference {
     private final Type type;
     private final Class<?> javaClass;
 
-    private Position2Accessor(int p, PositionAccessor wrapped) {
-      this.p0 = p;
-      this.p1 = wrapped.p;
+    private Position2Accessor(int pos, PositionAccessor wrapped) {
+      this.p0 = pos;
+      this.p1 = wrapped.position;
       this.type = wrapped.type;
       this.javaClass = wrapped.javaClass;
     }
@@ -140,8 +140,8 @@ public class BoundReference<T> implements Reference {
     private final Type type;
     private final Class<?> javaClass;
 
-    private Position3Accessor(int p, Position2Accessor wrapped) {
-      this.p0 = p;
+    private Position3Accessor(int pos, Position2Accessor wrapped) {
+      this.p0 = pos;
       this.p1 = wrapped.p0;
       this.p2 = wrapped.p1;
       this.type = wrapped.type;
@@ -160,17 +160,17 @@ public class BoundReference<T> implements Reference {
   }
 
   private static class WrappedPositionAccessor implements Accessor<StructLike> {
-    private final int p;
+    private final int position;
     private final Accessor<StructLike> accessor;
 
-    private WrappedPositionAccessor(int p, Accessor<StructLike> accessor) {
-      this.p = p;
+    private WrappedPositionAccessor(int pos, Accessor<StructLike> accessor) {
+      this.position = pos;
       this.accessor = accessor;
     }
 
     @Override
     public Object get(StructLike row) {
-      StructLike inner = row.get(p, StructLike.class);
+      StructLike inner = row.get(position, StructLike.class);
       if (inner != null) {
         return accessor.get(inner);
       }
@@ -193,21 +193,21 @@ public class BoundReference<T> implements Reference {
     return idToAccessor;
   }
 
-  private static Accessor<StructLike> newAccessor(int p, Type type) {
-    return new PositionAccessor(p, type);
+  private static Accessor<StructLike> newAccessor(int pos, Type type) {
+    return new PositionAccessor(pos, type);
   }
 
-  private static Accessor<StructLike> newAccessor(int p, boolean isOptional,
+  private static Accessor<StructLike> newAccessor(int pos, boolean isOptional,
                                                   Accessor<StructLike> accessor) {
     if (isOptional) {
       // the wrapped position handles null layers
-      return new WrappedPositionAccessor(p, accessor);
+      return new WrappedPositionAccessor(pos, accessor);
     } else if (accessor instanceof PositionAccessor) {
-      return new Position2Accessor(p, (PositionAccessor) accessor);
+      return new Position2Accessor(pos, (PositionAccessor) accessor);
     } else if (accessor instanceof Position2Accessor) {
-      return new Position3Accessor(p, (Position2Accessor) accessor);
+      return new Position3Accessor(pos, (Position2Accessor) accessor);
     } else {
-      return new WrappedPositionAccessor(p, accessor);
+      return new WrappedPositionAccessor(pos, accessor);
     }
   }
 

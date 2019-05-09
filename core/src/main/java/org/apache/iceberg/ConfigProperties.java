@@ -21,6 +21,9 @@ package org.apache.iceberg;
 import org.apache.hadoop.conf.Configuration;
 
 public class ConfigProperties {
+
+  private ConfigProperties() {}
+
   public static final String COMPRESS_METADATA = "iceberg.compress.metadata";
   public static final boolean COMPRESS_METADATA_DEFAULT = false;
 

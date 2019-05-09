@@ -34,7 +34,9 @@ import org.apache.iceberg.util.ByteBuffers;
 
 public class DataFiles {
 
-  private static final long DEFAULT_BLOCK_SIZE = 64*1024*1024;
+  private DataFiles() {}
+
+  private static final long DEFAULT_BLOCK_SIZE = 64 * 1024 * 1024;
 
   private static PartitionData newPartitionData(PartitionSpec spec) {
     return new PartitionData(spec.partitionType());
@@ -76,7 +78,8 @@ public class DataFiles {
           parts.length == 2 &&
               parts[0] != null &&
               field.name().equals(parts[0]),
-          "Invalid partition: " + partitions[i]);
+          "Invalid partition: %s",
+          partitions[i]);
 
       data.set(i, Conversions.fromPartitionString(data.getType(i), parts[1]));
     }
@@ -92,20 +95,32 @@ public class DataFiles {
     return copyPartitionData(spec, partition, null);
   }
 
-  public static DataFile fromInputFile(InputFile file, long rowCount) {
-    if (file instanceof HadoopInputFile) {
-      return fromStat(((HadoopInputFile) file).getStat(), rowCount);
-    }
-
-    String location = file.location();
-    FileFormat format = FileFormat.fromFileName(location);
-    return new GenericDataFile(location, format, rowCount, file.getLength(), DEFAULT_BLOCK_SIZE);
-  }
-
   public static DataFile fromStat(FileStatus stat, long rowCount) {
     String location = stat.getPath().toString();
     FileFormat format = FileFormat.fromFileName(location);
     return new GenericDataFile(location, format, rowCount, stat.getLen(), stat.getBlockSize());
+  }
+
+  public static DataFile fromStat(FileStatus stat, PartitionData partition, long rowCount) {
+    String location = stat.getPath().toString();
+    FileFormat format = FileFormat.fromFileName(location);
+    return new GenericDataFile(
+        location, format, partition, rowCount, stat.getLen(), stat.getBlockSize());
+  }
+
+  public static DataFile fromStat(FileStatus stat, PartitionData partition, Metrics metrics) {
+    String location = stat.getPath().toString();
+    FileFormat format = FileFormat.fromFileName(location);
+    return new GenericDataFile(
+        location, format, partition, stat.getLen(), stat.getBlockSize(), metrics);
+  }
+
+  public static DataFile fromStat(FileStatus stat, PartitionData partition, Metrics metrics,
+      EncryptionKeyMetadata keyMetadata) {
+    String location = stat.getPath().toString();
+    FileFormat format = FileFormat.fromFileName(location);
+    return new GenericDataFile(
+        location, format, partition, stat.getLen(), stat.getBlockSize(), metrics, keyMetadata.buffer());
   }
 
   public static DataFile fromInputFile(InputFile file, PartitionData partition, long rowCount) {
@@ -119,13 +134,6 @@ public class DataFiles {
         location, format, partition, rowCount, file.getLength(), DEFAULT_BLOCK_SIZE);
   }
 
-  public static DataFile fromStat(FileStatus stat, PartitionData partition, long rowCount) {
-    String location = stat.getPath().toString();
-    FileFormat format = FileFormat.fromFileName(location);
-    return new GenericDataFile(
-        location, format, partition, rowCount, stat.getLen(), stat.getBlockSize());
-  }
-
   public static DataFile fromInputFile(InputFile file, PartitionData partition, Metrics metrics) {
     if (file instanceof HadoopInputFile) {
       return fromStat(((HadoopInputFile) file).getStat(), partition, metrics);
@@ -135,6 +143,16 @@ public class DataFiles {
     FileFormat format = FileFormat.fromFileName(location);
     return new GenericDataFile(
         location, format, partition, file.getLength(), DEFAULT_BLOCK_SIZE, metrics);
+  }
+
+  public static DataFile fromInputFile(InputFile file, long rowCount) {
+    if (file instanceof HadoopInputFile) {
+      return fromStat(((HadoopInputFile) file).getStat(), rowCount);
+    }
+
+    String location = file.location();
+    FileFormat format = FileFormat.fromFileName(location);
+    return new GenericDataFile(location, format, rowCount, file.getLength(), DEFAULT_BLOCK_SIZE);
   }
 
   public static DataFile fromEncryptedOutputFile(EncryptedOutputFile encryptedFile, PartitionData partition,
@@ -149,21 +167,6 @@ public class DataFiles {
     FileFormat format = FileFormat.fromFileName(location);
     return new GenericDataFile(
         location, format, partition, file.getLength(), DEFAULT_BLOCK_SIZE, metrics, keyMetadata.buffer());
-  }
-
-  public static DataFile fromStat(FileStatus stat, PartitionData partition, Metrics metrics) {
-    String location = stat.getPath().toString();
-    FileFormat format = FileFormat.fromFileName(location);
-    return new GenericDataFile(
-        location, format, partition, stat.getLen(), stat.getBlockSize(), metrics);
-  }
-
-  public static DataFile fromStat(FileStatus stat, PartitionData partition, Metrics metrics,
-                                  EncryptionKeyMetadata keyMetadata) {
-    String location = stat.getPath().toString();
-    FileFormat format = FileFormat.fromFileName(location);
-    return new GenericDataFile(
-        location, format, partition, stat.getLen(), stat.getBlockSize(), metrics, keyMetadata.buffer());
   }
 
   public static DataFile fromParquetInputFile(InputFile file,
@@ -276,51 +279,51 @@ public class DataFiles {
       return this;
     }
 
-    public Builder withEncryptedOutputFile(EncryptedOutputFile encryptedFile) {
-      withInputFile(encryptedFile.encryptingOutputFile().toInputFile());
-      withEncryptionKeyMetadata(encryptedFile.keyMetadata());
+    public Builder withEncryptedOutputFile(EncryptedOutputFile newEncryptedFile) {
+      withInputFile(newEncryptedFile.encryptingOutputFile().toInputFile());
+      withEncryptionKeyMetadata(newEncryptedFile.keyMetadata());
       return this;
     }
 
-    public Builder withPath(String filePath) {
-      this.filePath = filePath;
+    public Builder withPath(String newFilePath) {
+      this.filePath = newFilePath;
       return this;
     }
 
-    public Builder withFormat(String format) {
-      this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
+    public Builder withFormat(String newFormat) {
+      this.format = FileFormat.valueOf(newFormat.toUpperCase(Locale.ENGLISH));
       return this;
     }
 
-    public Builder withFormat(FileFormat format) {
-      this.format = format;
+    public Builder withFormat(FileFormat newFormat) {
+      this.format = newFormat;
       return this;
     }
 
-    public Builder withPartition(StructLike partition) {
-      this.partitionData = copyPartitionData(spec, partition, partitionData);
+    public Builder withPartition(StructLike newPartition) {
+      this.partitionData = copyPartitionData(spec, newPartition, partitionData);
       return this;
     }
 
-    public Builder withRecordCount(long recordCount) {
-      this.recordCount = recordCount;
+    public Builder withRecordCount(long newRecordCount) {
+      this.recordCount = newRecordCount;
       return this;
     }
 
-    public Builder withFileSizeInBytes(long fileSizeInBytes) {
-      this.fileSizeInBytes = fileSizeInBytes;
+    public Builder withFileSizeInBytes(long newFileSizeInBytes) {
+      this.fileSizeInBytes = newFileSizeInBytes;
       return this;
     }
 
-    public Builder withBlockSizeInBytes(long blockSizeInBytes) {
-      this.blockSizeInBytes = blockSizeInBytes;
+    public Builder withBlockSizeInBytes(long newBlockSizeInBytes) {
+      this.blockSizeInBytes = newBlockSizeInBytes;
       return this;
     }
 
-    public Builder withPartitionPath(String partitionPath) {
-      Preconditions.checkArgument(isPartitioned || partitionPath.isEmpty(),
+    public Builder withPartitionPath(String newPartitionPath) {
+      Preconditions.checkArgument(isPartitioned || newPartitionPath.isEmpty(),
           "Cannot add partition data for an unpartitioned table");
-      this.partitionData = fillFromPath(spec, partitionPath, partitionData);
+      this.partitionData = fillFromPath(spec, newPartitionPath, partitionData);
       return this;
     }
 
@@ -335,17 +338,17 @@ public class DataFiles {
       return this;
     }
 
-    public Builder withEncryptionKeyMetadata(ByteBuffer keyMetadata) {
-      this.keyMetadata = keyMetadata;
+    public Builder withEncryptionKeyMetadata(ByteBuffer newKeyMetadata) {
+      this.keyMetadata = newKeyMetadata;
       return this;
     }
 
-    public Builder withEncryptionKeyMetadata(EncryptionKeyMetadata keyMetadata) {
-      return withEncryptionKeyMetadata(keyMetadata.buffer());
+    public Builder withEncryptionKeyMetadata(EncryptionKeyMetadata newKeyMetadata) {
+      return withEncryptionKeyMetadata(newKeyMetadata.buffer());
     }
 
-    public Builder withEncryptionKeyMetadata(byte[] keyMetadata) {
-      return withEncryptionKeyMetadata(ByteBuffer.wrap(keyMetadata));
+    public Builder withEncryptionKeyMetadata(byte[] newKeyMetadata) {
+      return withEncryptionKeyMetadata(ByteBuffer.wrap(newKeyMetadata));
     }
 
     public DataFile build() {

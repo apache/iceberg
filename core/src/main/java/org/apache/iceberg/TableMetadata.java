@@ -202,16 +202,16 @@ public class TableMetadata {
     return specsById.get(defaultSpecId);
   }
 
-  public int defaultSpecId() {
-    return defaultSpecId;
-  }
-
   public PartitionSpec spec(int id) {
     return specsById.get(id);
   }
 
   public List<PartitionSpec> specs() {
     return specs;
+  }
+
+  public int defaultSpecId() {
+    return defaultSpecId;
   }
 
   public String location() {
@@ -256,23 +256,23 @@ public class TableMetadata {
         currentSnapshotId, snapshots, snapshotLog);
   }
 
-  public TableMetadata updateSchema(Schema schema, int lastColumnId) {
-    PartitionSpec.checkCompatibility(spec(), schema);
+  public TableMetadata updateSchema(Schema newSchema, int newLastColumnId) {
+    PartitionSpec.checkCompatibility(spec(), newSchema);
     // rebuild all of the partition specs for the new current schema
     List<PartitionSpec> updatedSpecs = Lists.transform(specs,
-        spec -> updateSpecSchema(schema, spec));
+        spec -> updateSpecSchema(newSchema, spec));
     return new TableMetadata(ops, null, location,
-        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, updatedSpecs, properties,
+        System.currentTimeMillis(), newLastColumnId, newSchema, defaultSpecId, updatedSpecs, properties,
         currentSnapshotId, snapshots, snapshotLog);
   }
 
-  public TableMetadata updatePartitionSpec(PartitionSpec partitionSpec) {
-    PartitionSpec.checkCompatibility(partitionSpec, schema);
+  public TableMetadata updatePartitionSpec(PartitionSpec newPartitionSpec) {
+    PartitionSpec.checkCompatibility(newPartitionSpec, schema);
 
     // if the spec already exists, use the same ID. otherwise, use 1 more than the highest ID.
     int newDefaultSpecId = INITIAL_SPEC_ID;
     for (PartitionSpec spec : specs) {
-      if (partitionSpec.compatibleWith(spec)) {
+      if (newPartitionSpec.compatibleWith(spec)) {
         newDefaultSpecId = spec.specId();
         break;
       } else if (newDefaultSpecId <= spec.specId()) {
@@ -287,7 +287,7 @@ public class TableMetadata {
         .addAll(specs);
     if (!specsById.containsKey(newDefaultSpecId)) {
       // get a fresh spec to ensure the spec ID is set to the new default
-      builder.add(freshSpec(newDefaultSpecId, schema, partitionSpec));
+      builder.add(freshSpec(newDefaultSpecId, schema, newPartitionSpec));
     }
 
     return new TableMetadata(ops, null, location,
@@ -380,10 +380,10 @@ public class TableMetadata {
         currentSnapshotId, snapshots, newSnapshotLog);
   }
 
-  public TableMetadata buildReplacement(Schema schema, PartitionSpec partitionSpec,
-                                        Map<String, String> properties) {
-    AtomicInteger lastColumnId = new AtomicInteger(0);
-    Schema freshSchema = TypeUtil.assignFreshIds(schema, lastColumnId::incrementAndGet);
+  public TableMetadata buildReplacement(Schema updatedSchema, PartitionSpec updatedPartitionSpec,
+                                        Map<String, String> updatedProperties) {
+    AtomicInteger nextLastColumnId = new AtomicInteger(0);
+    Schema freshSchema = TypeUtil.assignFreshIds(updatedSchema, nextLastColumnId::incrementAndGet);
 
     int nextSpecId = TableMetadata.INITIAL_SPEC_ID;
     for (Integer specId : specsById.keySet()) {
@@ -393,7 +393,7 @@ public class TableMetadata {
     }
 
     // rebuild the partition spec using the new column ids
-    PartitionSpec freshSpec = freshSpec(nextSpecId, freshSchema, partitionSpec);
+    PartitionSpec freshSpec = freshSpec(nextSpecId, freshSchema, updatedPartitionSpec);
 
     // if the spec already exists, use the same ID. otherwise, use 1 more than the highest ID.
     int specId = nextSpecId;
@@ -412,10 +412,10 @@ public class TableMetadata {
 
     Map<String, String> newProperties = Maps.newHashMap();
     newProperties.putAll(this.properties);
-    newProperties.putAll(properties);
+    newProperties.putAll(updatedProperties);
 
     return new TableMetadata(ops, null, location,
-        System.currentTimeMillis(), lastColumnId.get(), freshSchema,
+        System.currentTimeMillis(), nextLastColumnId.get(), freshSchema,
         specId, builder.build(), ImmutableMap.copyOf(newProperties),
         -1, snapshots, ImmutableList.of());
   }

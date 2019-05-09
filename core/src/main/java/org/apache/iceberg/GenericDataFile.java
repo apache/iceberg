@@ -22,6 +22,9 @@ package org.apache.iceberg;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -61,7 +64,7 @@ class GenericDataFile
   private Map<Integer, Long> nullValueCounts = null;
   private Map<Integer, ByteBuffer> lowerBounds = null;
   private Map<Integer, ByteBuffer> upperBounds = null;
-  private ByteBuffer keyMetadata = null;
+  private transient ByteBuffer keyMetadata = null;
 
   // cached schema
   private transient org.apache.avro.Schema avroSchema = null;
@@ -69,6 +72,7 @@ class GenericDataFile
   /**
    * Used by Avro reflection to instantiate this class when reading manifest files.
    */
+  @SuppressWarnings("checkstyle:RedundantModifier") // Must be public
   public GenericDataFile(org.apache.avro.Schema avroSchema) {
     this.avroSchema = avroSchema;
 
@@ -335,9 +339,15 @@ class GenericDataFile
         return;
       case 13:
         this.keyMetadata = (ByteBuffer) v;
+        return;
       default:
         // ignore the object, it must be from a newer version of the format
     }
+  }
+
+  @Override
+  public <T> void set(int pos, T value) {
+    put(pos, value);
   }
 
   @Override
@@ -381,6 +391,11 @@ class GenericDataFile
     }
   }
 
+  @Override
+  public <T> T get(int pos, Class<T> javaClass) {
+    return javaClass.cast(get(pos));
+  }
+
   private static org.apache.avro.Schema getAvroSchema(Types.StructType partitionType) {
     Types.StructType type = DataFile.getType(partitionType);
     return AvroSchemaUtil.convert(type, ImmutableMap.of(
@@ -391,21 +406,6 @@ class GenericDataFile
   @Override
   public int size() {
     return 14;
-  }
-
-  @Override
-  public <T> T get(int pos, Class<T> javaClass) {
-    return javaClass.cast(get(pos));
-  }
-
-  @Override
-  public <T> void set(int pos, T value) {
-    put(pos, value);
-  }
-
-  @Override
-  public DataFile copy() {
-    return new GenericDataFile(this);
   }
 
   @Override
@@ -426,6 +426,11 @@ class GenericDataFile
         .toString();
   }
 
+  @Override
+  public DataFile copy() {
+    return new GenericDataFile(this);
+  }
+
   private static <K, V> Map<K, V> copy(Map<K, V> map) {
     if (map != null) {
       return ImmutableMap.copyOf(map);
@@ -438,5 +443,30 @@ class GenericDataFile
       return ImmutableList.copyOf(list);
     }
     return null;
+  }
+
+  private void writeObject(ObjectOutputStream output) throws IOException {
+    output.defaultWriteObject();
+    if (keyMetadata != null) {
+      output.writeBoolean(true);
+      byte[] keyMetadataArray = ByteBuffers.toByteArray(keyMetadata);
+      output.writeInt(keyMetadataArray.length);
+      output.write(keyMetadataArray);
+    } else {
+      output.writeBoolean(false);
+    }
+  }
+
+  private void readObject(ObjectInputStream input) throws IOException, ClassNotFoundException {
+    input.defaultReadObject();
+    boolean hasKeyMetadata = input.readBoolean();
+    if (hasKeyMetadata) {
+      int keyMetadataLength = input.readInt();
+      byte[] keyMetadataArray = new byte[keyMetadataLength];
+      input.read(keyMetadataArray);
+      this.keyMetadata = ByteBuffer.wrap(keyMetadataArray);
+    } else {
+      this.keyMetadata = null;
+    }
   }
 }

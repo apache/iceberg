@@ -17,22 +17,19 @@
  * under the License.
  */
 
-package org.apache.iceberg.util;
+package org.apache.iceberg.hive;
 
-public class ExceptionUtil {
+import org.apache.hadoop.hive.metastore.api.MetaException;
 
-  private ExceptionUtil() {}
+/**
+ * Exception used to wrap {@link MetaException} as a {@link RuntimeException} and add context.
+ */
+public class RuntimeMetaException extends RuntimeException {
+  public RuntimeMetaException(MetaException cause) {
+    super(cause);
+  }
 
-  @SuppressWarnings("unchecked")
-  static <E extends Exception> void castAndThrow(
-      Throwable exception, Class<E> exceptionClass) throws E {
-    if (exception instanceof RuntimeException) {
-      throw (RuntimeException) exception;
-    } else if (exception instanceof Error) {
-      throw (Error) exception;
-    } else if (exceptionClass.isInstance(exception)) {
-      throw (E) exception;
-    }
-    throw new RuntimeException(exception);
+  public RuntimeMetaException(MetaException cause, String message, Object... args) {
+    super(String.format(message, args), cause);
   }
 }

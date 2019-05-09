@@ -119,7 +119,7 @@ public class ValueWriters {
   }
 
   private static class NullWriter implements ValueWriter<Void> {
-    private static NullWriter INSTANCE = new NullWriter();
+    private static final NullWriter INSTANCE = new NullWriter();
 
     private NullWriter() {
     }
@@ -131,7 +131,7 @@ public class ValueWriters {
   }
 
   private static class BooleanWriter implements ValueWriter<Boolean> {
-    private static BooleanWriter INSTANCE = new BooleanWriter();
+    private static final BooleanWriter INSTANCE = new BooleanWriter();
 
     private BooleanWriter() {
     }
@@ -143,7 +143,7 @@ public class ValueWriters {
   }
 
   private static class IntegerWriter implements ValueWriter<Integer> {
-    private static IntegerWriter INSTANCE = new IntegerWriter();
+    private static final IntegerWriter INSTANCE = new IntegerWriter();
 
     private IntegerWriter() {
     }
@@ -155,7 +155,7 @@ public class ValueWriters {
   }
 
   private static class LongWriter implements ValueWriter<Long> {
-    private static LongWriter INSTANCE = new LongWriter();
+    private static final LongWriter INSTANCE = new LongWriter();
 
     private LongWriter() {
     }
@@ -167,7 +167,7 @@ public class ValueWriters {
   }
 
   private static class FloatWriter implements ValueWriter<Float> {
-    private static FloatWriter INSTANCE = new FloatWriter();
+    private static final FloatWriter INSTANCE = new FloatWriter();
 
     private FloatWriter() {
     }
@@ -179,7 +179,7 @@ public class ValueWriters {
   }
 
   private static class DoubleWriter implements ValueWriter<Double> {
-    private static DoubleWriter INSTANCE = new DoubleWriter();
+    private static final DoubleWriter INSTANCE = new DoubleWriter();
 
     private DoubleWriter() {
     }
@@ -191,7 +191,7 @@ public class ValueWriters {
   }
 
   private static class StringWriter implements ValueWriter<Object> {
-    private static StringWriter INSTANCE = new StringWriter();
+    private static final StringWriter INSTANCE = new StringWriter();
 
     private StringWriter() {
     }
@@ -215,7 +215,7 @@ public class ValueWriters {
   }
 
   private static class Utf8Writer implements ValueWriter<Utf8> {
-    private static Utf8Writer INSTANCE = new Utf8Writer();
+    private static final Utf8Writer INSTANCE = new Utf8Writer();
 
     private Utf8Writer() {
     }
@@ -233,7 +233,7 @@ public class ValueWriters {
       return buffer;
     });
 
-    private static UUIDWriter INSTANCE = new UUIDWriter();
+    private static final UUIDWriter INSTANCE = new UUIDWriter();
 
     private UUIDWriter() {
     }
@@ -280,7 +280,7 @@ public class ValueWriters {
   }
 
   private static class BytesWriter implements ValueWriter<byte[]> {
-    private static BytesWriter INSTANCE = new BytesWriter();
+    private static final BytesWriter INSTANCE = new BytesWriter();
 
     private BytesWriter() {
     }
@@ -292,7 +292,7 @@ public class ValueWriters {
   }
 
   private static class ByteBufferWriter implements ValueWriter<ByteBuffer> {
-    private static ByteBufferWriter INSTANCE = new ByteBufferWriter();
+    private static final ByteBufferWriter INSTANCE = new ByteBufferWriter();
 
     private ByteBufferWriter() {
     }

@@ -21,21 +21,23 @@ package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.base.Preconditions;
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 
 public class SchemaParser {
+
+  private SchemaParser() {}
+
   private static final String TYPE = "type";
   private static final String STRUCT = "struct";
   private static final String LIST = "list";
@@ -237,22 +239,17 @@ public class SchemaParser {
     return new Schema(type.asNestedType().asStructType().fields());
   }
 
-  private static Cache<String, Schema> SCHEMA_CACHE = CacheBuilder.newBuilder()
+  private static final Cache<String, Schema> SCHEMA_CACHE = Caffeine.newBuilder()
       .weakValues()
       .build();
 
   public static Schema fromJson(String json) {
-    try {
-      return SCHEMA_CACHE.get(json,
-          () -> fromJson(JsonUtil.mapper().readValue(json, JsonNode.class)));
-
-    } catch (ExecutionException e) {
-      if (e.getCause() instanceof IOException) {
-        throw new RuntimeIOException(
-            (IOException) e.getCause(), "Failed to parse schema: %s", json);
-      } else {
-        throw new RuntimeException("Failed to parse schema: " + json, e.getCause());
+    return SCHEMA_CACHE.get(json, jsonKey -> {
+      try {
+        return fromJson(JsonUtil.mapper().readValue(jsonKey, JsonNode.class));
+      } catch (IOException e) {
+        throw new RuntimeIOException(e);
       }
-    }
+    });
   }
 }

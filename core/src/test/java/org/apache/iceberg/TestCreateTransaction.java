@@ -35,14 +35,14 @@ public class TestCreateTransaction extends TableTestBase {
     File tableDir = temp.newFolder();
     Assert.assertTrue(tableDir.delete());
 
-    Transaction t = TestTables.beginCreate(tableDir, "test_create", SCHEMA, unpartitioned());
+    Transaction txn = TestTables.beginCreate(tableDir, "test_create", SCHEMA, unpartitioned());
 
     Assert.assertNull("Starting a create transaction should not commit metadata",
         TestTables.readMetadata("test_create"));
     Assert.assertNull("Should have no metadata version",
         TestTables.metadataVersion("test_create"));
 
-    t.commitTransaction();
+    txn.commitTransaction();
 
     TableMetadata meta = TestTables.readMetadata("test_create");
     Assert.assertNotNull("Table metadata should be created after transaction commits", meta);
@@ -62,14 +62,14 @@ public class TestCreateTransaction extends TableTestBase {
     File tableDir = temp.newFolder();
     Assert.assertTrue(tableDir.delete());
 
-    Transaction t = TestTables.beginCreate(tableDir, "test_append", SCHEMA, unpartitioned());
+    Transaction txn = TestTables.beginCreate(tableDir, "test_append", SCHEMA, unpartitioned());
 
     Assert.assertNull("Starting a create transaction should not commit metadata",
         TestTables.readMetadata("test_append"));
     Assert.assertNull("Should have no metadata version",
         TestTables.metadataVersion("test_append"));
 
-    t.newAppend()
+    txn.newAppend()
         .appendFile(FILE_A)
         .appendFile(FILE_B)
         .commit();
@@ -79,7 +79,7 @@ public class TestCreateTransaction extends TableTestBase {
     Assert.assertNull("Should have no metadata version",
         TestTables.metadataVersion("test_append"));
 
-    t.commitTransaction();
+    txn.commitTransaction();
 
     TableMetadata meta = TestTables.readMetadata("test_append");
     Assert.assertNotNull("Table metadata should be created after transaction commits", meta);
@@ -101,7 +101,7 @@ public class TestCreateTransaction extends TableTestBase {
     File tableDir = temp.newFolder();
     Assert.assertTrue(tableDir.delete());
 
-    Transaction t = TestTables.beginCreate(tableDir, "test_append", SCHEMA, unpartitioned());
+    Transaction txn = TestTables.beginCreate(tableDir, "test_append", SCHEMA, unpartitioned());
 
     Assert.assertNull("Starting a create transaction should not commit metadata",
         TestTables.readMetadata("test_append"));
@@ -109,9 +109,9 @@ public class TestCreateTransaction extends TableTestBase {
         TestTables.metadataVersion("test_append"));
 
     Assert.assertTrue("Should return a transaction table",
-        t.table() instanceof BaseTransaction.TransactionTable);
+        txn.table() instanceof BaseTransaction.TransactionTable);
 
-    t.table().newAppend()
+    txn.table().newAppend()
         .appendFile(FILE_A)
         .appendFile(FILE_B)
         .commit();
@@ -121,7 +121,7 @@ public class TestCreateTransaction extends TableTestBase {
     Assert.assertNull("Should have no metadata version",
         TestTables.metadataVersion("test_append"));
 
-    t.commitTransaction();
+    txn.commitTransaction();
 
     TableMetadata meta = TestTables.readMetadata("test_append");
     Assert.assertNotNull("Table metadata should be created after transaction commits", meta);
@@ -143,14 +143,14 @@ public class TestCreateTransaction extends TableTestBase {
     File tableDir = temp.newFolder();
     Assert.assertTrue(tableDir.delete());
 
-    Transaction t = TestTables.beginCreate(tableDir, "test_properties", SCHEMA, unpartitioned());
+    Transaction txn = TestTables.beginCreate(tableDir, "test_properties", SCHEMA, unpartitioned());
 
     Assert.assertNull("Starting a create transaction should not commit metadata",
         TestTables.readMetadata("test_properties"));
     Assert.assertNull("Should have no metadata version",
         TestTables.metadataVersion("test_properties"));
 
-    t.updateProperties()
+    txn.updateProperties()
         .set("test-property", "test-value")
         .commit();
 
@@ -159,7 +159,7 @@ public class TestCreateTransaction extends TableTestBase {
     Assert.assertNull("Should have no metadata version",
         TestTables.metadataVersion("test_properties"));
 
-    t.commitTransaction();
+    txn.commitTransaction();
 
     TableMetadata meta = TestTables.readMetadata("test_properties");
     Assert.assertNotNull("Table metadata should be created after transaction commits", meta);
@@ -182,7 +182,7 @@ public class TestCreateTransaction extends TableTestBase {
     File tableDir = temp.newFolder();
     Assert.assertTrue(tableDir.delete());
 
-    Transaction t = TestTables.beginCreate(tableDir, "test_properties", SCHEMA, unpartitioned());
+    Transaction txn = TestTables.beginCreate(tableDir, "test_properties", SCHEMA, unpartitioned());
 
     Assert.assertNull("Starting a create transaction should not commit metadata",
         TestTables.readMetadata("test_properties"));
@@ -190,9 +190,9 @@ public class TestCreateTransaction extends TableTestBase {
         TestTables.metadataVersion("test_properties"));
 
     Assert.assertTrue("Should return a transaction table",
-        t.table() instanceof BaseTransaction.TransactionTable);
+        txn.table() instanceof BaseTransaction.TransactionTable);
 
-    t.table().updateProperties()
+    txn.table().updateProperties()
         .set("test-property", "test-value")
         .commit();
 
@@ -201,7 +201,7 @@ public class TestCreateTransaction extends TableTestBase {
     Assert.assertNull("Should have no metadata version",
         TestTables.metadataVersion("test_properties"));
 
-    t.commitTransaction();
+    txn.commitTransaction();
 
     TableMetadata meta = TestTables.readMetadata("test_properties");
     Assert.assertNotNull("Table metadata should be created after transaction commits", meta);
@@ -224,19 +224,19 @@ public class TestCreateTransaction extends TableTestBase {
     File tableDir = temp.newFolder();
     Assert.assertTrue(tableDir.delete());
 
-    Transaction t = TestTables.beginCreate(tableDir, "uncommitted_change", SCHEMA, unpartitioned());
+    Transaction txn = TestTables.beginCreate(tableDir, "uncommitted_change", SCHEMA, unpartitioned());
 
     Assert.assertNull("Starting a create transaction should not commit metadata",
         TestTables.readMetadata("uncommitted_change"));
     Assert.assertNull("Should have no metadata version",
         TestTables.metadataVersion("uncommitted_change"));
 
-    t.updateProperties().set("test-property", "test-value"); // not committed
+    txn.updateProperties().set("test-property", "test-value"); // not committed
 
     AssertHelpers.assertThrows("Should reject commit when last operation has not committed",
         IllegalStateException.class,
         "Cannot create new DeleteFiles: last operation has not committed",
-        t::newDelete);
+        txn::newDelete);
   }
 
   @Test
@@ -244,18 +244,18 @@ public class TestCreateTransaction extends TableTestBase {
     File tableDir = temp.newFolder();
     Assert.assertTrue(tableDir.delete());
 
-    Transaction t = TestTables.beginCreate(tableDir, "uncommitted_change", SCHEMA, unpartitioned());
+    Transaction txn = TestTables.beginCreate(tableDir, "uncommitted_change", SCHEMA, unpartitioned());
 
     Assert.assertNull("Starting a create transaction should not commit metadata",
         TestTables.readMetadata("uncommitted_change"));
     Assert.assertNull("Should have no metadata version",
         TestTables.metadataVersion("uncommitted_change"));
 
-    t.updateProperties().set("test-property", "test-value"); // not committed
+    txn.updateProperties().set("test-property", "test-value"); // not committed
 
     AssertHelpers.assertThrows("Should reject commit when last operation has not committed",
         IllegalStateException.class, "Cannot commit transaction: last operation has not committed",
-        t::commitTransaction);
+        txn::commitTransaction);
   }
 
   @Test
@@ -263,7 +263,7 @@ public class TestCreateTransaction extends TableTestBase {
     File tableDir = temp.newFolder();
     Assert.assertTrue(tableDir.delete());
 
-    Transaction t = TestTables.beginCreate(tableDir, "test_conflict", SCHEMA, SPEC);
+    Transaction txn = TestTables.beginCreate(tableDir, "test_conflict", SCHEMA, SPEC);
 
     Assert.assertNull("Starting a create transaction should not commit metadata",
         TestTables.readMetadata("test_conflict"));
@@ -280,7 +280,7 @@ public class TestCreateTransaction extends TableTestBase {
         conflict.snapshots().iterator().hasNext());
 
     AssertHelpers.assertThrows("Transaction commit should fail",
-        CommitFailedException.class, "Commit failed: table was updated", t::commitTransaction);
+        CommitFailedException.class, "Commit failed: table was updated", txn::commitTransaction);
   }
 
   private static Schema assignFreshIds(Schema schema) {

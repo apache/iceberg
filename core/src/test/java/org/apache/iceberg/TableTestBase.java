@@ -98,8 +98,8 @@ public class TableTestBase {
     return listManifestFiles(tableDir);
   }
 
-  List<File> listManifestFiles(File tableDir) {
-    return Lists.newArrayList(new File(tableDir, "metadata").listFiles((dir, name) ->
+  List<File> listManifestFiles(File tableDirToList) {
+    return Lists.newArrayList(new File(tableDirToList, "metadata").listFiles((dir, name) ->
         !name.startsWith("snap") && Files.getFileExtension(name).equalsIgnoreCase("avro")));
   }
 

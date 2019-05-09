@@ -53,7 +53,8 @@ enum Timestamps implements Transform<Long, Integer> {
     OffsetDateTime timestamp = Instant
         .ofEpochSecond(timestampMicros / 1_000_000)
         .atOffset(ZoneOffset.UTC);
-    return (int) granularity.between(EPOCH, timestamp);
+    Integer year = Long.valueOf(granularity.between(EPOCH, timestamp)).intValue();
+    return year;
   }
 
   @Override

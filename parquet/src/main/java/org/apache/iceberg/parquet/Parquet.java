@@ -257,6 +257,7 @@ public class Parquet {
     private ReadSupport<?> readSupport = null;
     private Function<MessageType, ParquetValueReader<?>> readerFunc = null;
     private boolean filterRecords = true;
+    private boolean caseSensitive = true;
     private Map<String, String> properties = Maps.newHashMap();
     private boolean callInit = false;
     private boolean reuseContainers = false;
@@ -280,6 +281,15 @@ public class Parquet {
 
     public ReadBuilder project(Schema schema) {
       this.schema = schema;
+      return this;
+    }
+
+    public ReadBuilder caseInsensitive() {
+      return caseSensitive(false);
+    }
+
+    public ReadBuilder caseSensitive(boolean caseSensitive) {
+      this.caseSensitive = caseSensitive;
       return this;
     }
 
@@ -339,7 +349,7 @@ public class Parquet {
         ParquetReadOptions options = optionsBuilder.build();
 
         return new org.apache.iceberg.parquet.ParquetReader<>(
-            file, schema, options, readerFunc, filter, reuseContainers);
+            file, schema, options, readerFunc, filter, reuseContainers, caseSensitive);
       }
 
       ParquetReadBuilder<D> builder = new ParquetReadBuilder<>(ParquetIO.file(file));
@@ -374,7 +384,7 @@ public class Parquet {
         builder.useStatsFilter()
             .useDictionaryFilter()
             .useRecordFilter(filterRecords)
-            .withFilter(ParquetFilters.convert(fileSchema, filter));
+            .withFilter(ParquetFilters.convert(fileSchema, filter, caseSensitive));
       } else {
         // turn off filtering
         builder.useStatsFilter(false)

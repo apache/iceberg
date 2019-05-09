@@ -25,15 +25,13 @@ import java.util.Iterator;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetAvroValueReaders;
 import org.apache.iceberg.parquet.ParquetAvroWriter;
-import org.apache.iceberg.parquet.ParquetReader;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.schema.MessageType;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -87,13 +85,15 @@ public class TestParquetAvroWriter {
       writer.addAll(records);
     }
 
+    // RandomData uses the root record name "test", which must match for records to be equal
     MessageType readSchema = ParquetSchemaUtil.convert(COMPLEX_SCHEMA, "test");
 
     // verify that the new read path is correct
-    try (ParquetReader<Record> reader = new ParquetReader<>(
-        Files.localInput(testFile), COMPLEX_SCHEMA, ParquetReadOptions.builder().build(),
-        fileSchema -> ParquetAvroValueReaders.buildReader(COMPLEX_SCHEMA, readSchema),
-        Expressions.alwaysTrue(), false)) {
+    try (CloseableIterable<Record> reader = Parquet.read(Files.localInput(testFile))
+        .project(COMPLEX_SCHEMA)
+        .createReaderFunc(
+            fileSchema -> ParquetAvroValueReaders.buildReader(COMPLEX_SCHEMA, readSchema))
+        .build()) {
       int i = 0;
       Iterator<Record> iter = records.iterator();
       for (Record actual : reader) {

@@ -28,8 +28,6 @@ import org.apache.iceberg.io.OutputFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.ManifestEntry.Status.DELETED;
-
 /**
  * Writer for manifest files.
  */
@@ -59,7 +57,7 @@ class ManifestWriter implements FileAppender<DataFile> {
 
   public void addExisting(Iterable<ManifestEntry> entries) {
     for (ManifestEntry entry : entries) {
-      if (entry.status() != DELETED) {
+      if (entry.status() != ManifestEntry.Status.DELETED) {
         addExisting(entry);
       }
     }
@@ -69,8 +67,8 @@ class ManifestWriter implements FileAppender<DataFile> {
     add(reused.wrapExisting(entry.snapshotId(), entry.file()));
   }
 
-  public void addExisting(long snapshotId, DataFile file) {
-    add(reused.wrapExisting(snapshotId, file));
+  public void addExisting(long newSnapshotId, DataFile newFile) {
+    add(reused.wrapExisting(newSnapshotId, newFile));
   }
 
   public void delete(ManifestEntry entry) {
@@ -79,8 +77,8 @@ class ManifestWriter implements FileAppender<DataFile> {
     add(reused.wrapDelete(snapshotId, entry.file()));
   }
 
-  public void delete(DataFile file) {
-    add(reused.wrapDelete(snapshotId, file));
+  public void delete(DataFile deletedFile) {
+    add(reused.wrapDelete(snapshotId, deletedFile));
   }
 
   public void add(ManifestEntry entry) {
@@ -99,17 +97,11 @@ class ManifestWriter implements FileAppender<DataFile> {
     writer.add(entry);
   }
 
-  public void addEntries(Iterable<ManifestEntry> entries) {
-    for (ManifestEntry entry : entries) {
-      add(entry);
-    }
-  }
-
   @Override
-  public void add(DataFile file) {
+  public void add(DataFile addedFile) {
     // TODO: this assumes that file is a GenericDataFile that can be written directly to Avro
     // Eventually, this should check in case there are other DataFile implementations.
-    add(reused.wrapAppend(snapshotId, file));
+    add(reused.wrapAppend(snapshotId, addedFile));
   }
 
   @Override

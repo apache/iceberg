@@ -33,8 +33,6 @@ import org.apache.iceberg.Tables;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 
-import static org.apache.iceberg.TableMetadata.newTableMetadata;
-
 /**
  * Implementation of Iceberg tables that uses the Hadoop FileSystem
  * to store metadata and manifests.
@@ -83,7 +81,7 @@ public class HadoopTables implements Tables, Configurable {
       throw new AlreadyExistsException("Table already exists at location: " + location);
     }
 
-    TableMetadata metadata = newTableMetadata(ops, schema, spec, location, properties);
+    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, location, properties);
     ops.commit(null, metadata);
 
     return new BaseTable(ops, location);

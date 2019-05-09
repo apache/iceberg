@@ -26,7 +26,7 @@ class BaseEncryptedInputFile implements EncryptedInputFile {
   private final InputFile encryptedInputFile;
   private final EncryptionKeyMetadata keyMetadata;
 
-  public BaseEncryptedInputFile(InputFile encryptedInputFile, EncryptionKeyMetadata keyMetadata) {
+  BaseEncryptedInputFile(InputFile encryptedInputFile, EncryptionKeyMetadata keyMetadata) {
     this.encryptedInputFile = encryptedInputFile;
     this.keyMetadata = keyMetadata;
   }

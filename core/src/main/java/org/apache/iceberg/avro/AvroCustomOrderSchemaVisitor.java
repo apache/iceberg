@@ -22,7 +22,7 @@ package org.apache.iceberg.avro;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import java.util.LinkedList;
+import java.util.Deque;
 import java.util.List;
 import java.util.function.Supplier;
 import org.apache.avro.Schema;
@@ -69,7 +69,7 @@ abstract class AvroCustomOrderSchemaVisitor<T, F> {
     }
   }
 
-  protected LinkedList<String> recordLevels = Lists.newLinkedList();
+  private Deque<String> recordLevels = Lists.newLinkedList();
 
   public T record(Schema record, List<String> names, Iterable<F> fields) {
     return null;
@@ -94,8 +94,6 @@ abstract class AvroCustomOrderSchemaVisitor<T, F> {
   public T primitive(Schema primitive) {
     return null;
   }
-
-
 
   private static class VisitFuture<T, F> implements Supplier<T> {
     private final Schema schema;

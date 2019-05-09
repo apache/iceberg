@@ -38,9 +38,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
 public class Tasks {
   private static final Logger LOG = LoggerFactory.getLogger(Tasks.class);
+
+  private Tasks() {}
 
   public static class UnrecoverableException extends RuntimeException {
     public UnrecoverableException(String message) {
@@ -90,8 +91,8 @@ public class Tasks {
       this.items = items;
     }
 
-    public Builder<I> executeWith(ExecutorService service) {
-      this.service = service;
+    public Builder<I> executeWith(ExecutorService svc) {
+      this.service = svc;
       return this;
     }
 
@@ -110,13 +111,13 @@ public class Tasks {
       return this;
     }
 
-    public Builder<I> suppressFailureWhenFinished() {
-      this.throwFailureWhenFinished = false;
+    public Builder<I> throwFailureWhenFinished(boolean throwWhenFinished) {
+      this.throwFailureWhenFinished = throwWhenFinished;
       return this;
     }
 
-    public Builder<I> throwFailureWhenFinished(boolean throwWhenFinished) {
-      this.throwFailureWhenFinished = throwWhenFinished;
+    public Builder<I> suppressFailureWhenFinished() {
+      this.throwFailureWhenFinished = false;
       return this;
     }
 
@@ -165,14 +166,14 @@ public class Tasks {
       return this;
     }
 
-    public Builder<I> exponentialBackoff(long minSleepTimeMs,
-                                         long maxSleepTimeMs,
-                                         long maxRetryTimeMs,
-                                         double scaleFactor) {
-      this.minSleepTimeMs = minSleepTimeMs;
-      this.maxSleepTimeMs = maxSleepTimeMs;
-      this.maxDurationMs = maxRetryTimeMs;
-      this.scaleFactor = scaleFactor;
+    public Builder<I> exponentialBackoff(long backoffMinSleepTimeMs,
+                                         long backoffMaxSleepTimeMs,
+                                         long backoffMaxRetryTimeMs,
+                                         double backoffScaleFactor) {
+      this.minSleepTimeMs = backoffMinSleepTimeMs;
+      this.maxSleepTimeMs = backoffMaxSleepTimeMs;
+      this.maxDurationMs = backoffMaxRetryTimeMs;
+      this.scaleFactor = backoffScaleFactor;
       return this;
     }
 
@@ -189,6 +190,7 @@ public class Tasks {
       }
     }
 
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     private <E extends Exception> boolean runSingleThreaded(
         Task<I, E> task, Class<E> exceptionClass) throws E {
       List<I> succeeded = Lists.newArrayList();
@@ -207,13 +209,7 @@ public class Tasks {
             exceptions.add(e);
 
             if (onFailure != null) {
-              try {
-                onFailure.run(item, e);
-              } catch (Exception failException) {
-                e.addSuppressed(failException);
-                LOG.error("Failed to clean up on failure", e);
-                // keep going
-              }
+              tryRunOnFailure(item, e);
             }
 
             if (stopOnFailure) {
@@ -273,6 +269,16 @@ public class Tasks {
       return !threw;
     }
 
+    private void tryRunOnFailure(I item, Exception failure) {
+      try {
+        onFailure.run(item, failure);
+      } catch (Exception failException) {
+        failure.addSuppressed(failException);
+        LOG.error("Failed to clean up on failure", failException);
+        // keep going
+      }
+    }
+
     private <E extends Exception> boolean runParallel(final Task<I, E> task,
                                                       Class<E> exceptionClass)
         throws E {
@@ -304,13 +310,7 @@ public class Tasks {
                 exceptions.add(e);
 
                 if (onFailure != null) {
-                  try {
-                    onFailure.run(item, e);
-                  } catch (Exception failException) {
-                    e.addSuppressed(failException);
-                    LOG.error("Failed to clean up on failure", e);
-                    // swallow the exception
-                  }
+                  tryRunOnFailure(item, e);
                 }
               } finally {
                 if (threw) {
@@ -385,6 +385,7 @@ public class Tasks {
       return !taskFailed.get();
     }
 
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     private <E extends Exception> void runTaskWithRetry(Task<I, E> task, I item)
         throws E {
       long start = System.currentTimeMillis();
@@ -410,6 +411,7 @@ public class Tasks {
             for (Class<? extends Exception> exClass : onlyRetryExceptions) {
               if (exClass.isInstance(e)) {
                 matchedRetryException = true;
+                break;
               }
             }
             if (!matchedRetryException) {
@@ -431,7 +433,7 @@ public class Tasks {
           int jitter = ThreadLocalRandom.current()
               .nextInt(Math.max(1, (int) (delayMs * 0.1)));
 
-          LOG.warn("Retrying task after failure: " + e.getMessage(), e);
+          LOG.warn("Retrying task after failure: {}", e.getMessage(), e);
 
           try {
             TimeUnit.MILLISECONDS.sleep(delayMs + jitter);
@@ -444,8 +446,8 @@ public class Tasks {
     }
   }
 
-  private static Collection<Throwable> waitFor(Collection<Future<?>> futures)
-      throws Error {
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  private static Collection<Throwable> waitFor(Collection<Future<?>> futures) {
     while (true) {
       int numFinished = 0;
       for (Future<?> future : futures) {
@@ -456,38 +458,38 @@ public class Tasks {
 
       if (numFinished == futures.size()) {
         List<Throwable> uncaught = new ArrayList<>();
-          // all of the futures are done, get any uncaught exceptions
-          for (Future<?> future : futures) {
-            try {
-              future.get();
+        // all of the futures are done, get any uncaught exceptions
+        for (Future<?> future : futures) {
+          try {
+            future.get();
 
-            } catch (InterruptedException e) {
-              LOG.warn("Interrupted while getting future results", e);
-              for (Throwable t : uncaught) {
-                e.addSuppressed(t);
-              }
-              Thread.currentThread().interrupt();
-              throw new RuntimeException(e);
-
-            } catch (CancellationException e) {
-              // ignore cancellations
-
-            } catch (ExecutionException e) {
-              Throwable cause = e.getCause();
-              if (Error.class.isInstance(cause)) {
-                for (Throwable t : uncaught) {
-                  cause.addSuppressed(t);
-                }
-                throw (Error) cause;
-              }
-
-              if (cause != null) {
-                uncaught.add(e);
-              }
-
-              LOG.warn("Task threw uncaught exception", cause);
+          } catch (InterruptedException e) {
+            LOG.warn("Interrupted while getting future results", e);
+            for (Throwable t : uncaught) {
+              e.addSuppressed(t);
             }
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+
+          } catch (CancellationException e) {
+            // ignore cancellations
+
+          } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (Error.class.isInstance(cause)) {
+              for (Throwable t : uncaught) {
+                cause.addSuppressed(t);
+              }
+              throw (Error) cause;
+            }
+
+            if (cause != null) {
+              uncaught.add(e);
+            }
+
+            LOG.warn("Task threw uncaught exception", cause);
           }
+        }
 
         return uncaught;
 
@@ -553,17 +555,17 @@ public class Tasks {
   private static <E extends Exception> void throwOne(
       Collection<Throwable> exceptions, Class<E> allowedException) throws E {
     Iterator<Throwable> iter = exceptions.iterator();
-    Throwable e = iter.next();
-    Class<? extends Throwable> exceptionClass = e.getClass();
+    Throwable exception = iter.next();
+    Class<? extends Throwable> exceptionClass = exception.getClass();
 
     while (iter.hasNext()) {
       Throwable other = iter.next();
       if (!exceptionClass.isInstance(other)) {
-        e.addSuppressed(other);
+        exception.addSuppressed(other);
       }
     }
 
-    ExceptionUtil.<E>castAndThrow(e, allowedException);
+    ExceptionUtil.castAndThrow(exception, allowedException);
   }
 
 }

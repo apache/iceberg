@@ -54,8 +54,8 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
   }
 
   @Override
-  public FilteredManifest select(Collection<String> columns) {
-    return new FilteredManifest(reader, partFilter, rowFilter, columns, caseSensitive);
+  public FilteredManifest select(Collection<String> selectedColumns) {
+    return new FilteredManifest(reader, partFilter, rowFilter, selectedColumns, caseSensitive);
   }
 
   @Override
@@ -84,9 +84,9 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
       InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
 
       return Iterables.filter(reader.entries(columns),
-          entry -> (entry != null &&
+          entry -> entry != null &&
               evaluator.eval(entry.file().partition()) &&
-              metricsEvaluator.eval(entry.file())));
+              metricsEvaluator.eval(entry.file()));
 
     } else {
       return reader.entries(columns);
@@ -100,10 +100,10 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
       InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
 
       return Iterables.filter(reader.entries(columns),
-          entry -> (entry != null &&
+          entry -> entry != null &&
               entry.status() != Status.DELETED &&
               evaluator.eval(entry.file().partition()) &&
-              metricsEvaluator.eval(entry.file())));
+              metricsEvaluator.eval(entry.file()));
 
     } else {
       return Iterables.filter(reader.entries(columns),
@@ -120,9 +120,9 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
 
       return Iterators.transform(
           Iterators.filter(reader.iterator(partFilter, columns),
-              input -> (input != null &&
+              input -> input != null &&
                   evaluator.eval(input.partition()) &&
-                  metricsEvaluator.eval(input))),
+                  metricsEvaluator.eval(input)),
           DataFile::copy);
 
     } else {

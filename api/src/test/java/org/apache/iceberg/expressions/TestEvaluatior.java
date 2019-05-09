@@ -261,8 +261,6 @@ public class TestEvaluatior {
     Assert.assertFalse("7, null => false", evaluator.eval(TestHelpers.Row.of(7, 0, null)));
     Assert.assertFalse("8, null => false", evaluator.eval(TestHelpers.Row.of(8, 0, null)));
 
-
-
     Evaluator structEvaluator = new Evaluator(STRUCT, and(equal("s1.s2.s3.s4.i", 7),
         notNull("s1.s2.s3.s4.i")));
 
@@ -277,7 +275,7 @@ public class TestEvaluatior {
                 TestHelpers.Row.of(
                     TestHelpers.Row.of(8)))))));
 
-    Assert.assertFalse("7, null => false", structEvaluator.eval(TestHelpers.Row.of(7, 0, null, null )));
+    Assert.assertFalse("7, null => false", structEvaluator.eval(TestHelpers.Row.of(7, 0, null, null)));
 
     Assert.assertFalse("8, notnull => false", structEvaluator.eval(TestHelpers.Row.of(8, 0, null,
         TestHelpers.Row.of(
@@ -323,12 +321,12 @@ public class TestEvaluatior {
     Assert.assertTrue("not(8 == 7) => false", evaluator.eval(TestHelpers.Row.of(8)));
 
     Evaluator structEvaluator = new Evaluator(STRUCT, not(equal("s1.s2.s3.s4.i", 7)));
-    Assert.assertFalse("not(7 == 7) => false", structEvaluator.eval(TestHelpers.Row.of(7,null,null,
+    Assert.assertFalse("not(7 == 7) => false", structEvaluator.eval(TestHelpers.Row.of(7, null, null,
         TestHelpers.Row.of(
             TestHelpers.Row.of(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(7)))) )));
-    Assert.assertTrue("not(8 == 7) => false", structEvaluator.eval(TestHelpers.Row.of(8,null,null,
+                    TestHelpers.Row.of(7)))))));
+    Assert.assertTrue("not(8 == 7) => false", structEvaluator.eval(TestHelpers.Row.of(8, null, null,
         TestHelpers.Row.of(
             TestHelpers.Row.of(
                 TestHelpers.Row.of(
@@ -346,12 +344,12 @@ public class TestEvaluatior {
         TestHelpers.Row.of(
             TestHelpers.Row.of(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(7)))) )));
+                    TestHelpers.Row.of(7)))))));
     Assert.assertTrue("not(8 == 7) => false", structEvaluator.eval(TestHelpers.Row.of(8, null, null,
         TestHelpers.Row.of(
             TestHelpers.Row.of(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(8)))) )));
+                    TestHelpers.Row.of(8)))))));
   }
 
   @Test

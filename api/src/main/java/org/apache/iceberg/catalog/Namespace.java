@@ -16,23 +16,36 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.iceberg.catalog;
 
-package org.apache.iceberg.util;
+/**
+ * Identifies a namespace in iceberg catalog
+ */
+public class Namespace {
+  private final String[] levels;
+  private static final Namespace EMPTY = new Namespace(new String[] {});
 
-public class ExceptionUtil {
+  private Namespace(String[] levels) {
+    this.levels = levels;
+  }
 
-  private ExceptionUtil() {}
+  public String[] levels() {
+    return levels;
+  }
 
-  @SuppressWarnings("unchecked")
-  static <E extends Exception> void castAndThrow(
-      Throwable exception, Class<E> exceptionClass) throws E {
-    if (exception instanceof RuntimeException) {
-      throw (RuntimeException) exception;
-    } else if (exception instanceof Error) {
-      throw (Error) exception;
-    } else if (exceptionClass.isInstance(exception)) {
-      throw (E) exception;
+  public boolean isEmpty() {
+    return this.equals(Namespace.EMPTY);
+  }
+
+  public static Namespace namespace(String[] levels) {
+    if (levels == null || levels.length == 0) {
+      return Namespace.EMPTY;
     }
-    throw new RuntimeException(exception);
+
+    return new Namespace(levels);
+  }
+
+  public static Namespace empty() {
+    return EMPTY;
   }
 }

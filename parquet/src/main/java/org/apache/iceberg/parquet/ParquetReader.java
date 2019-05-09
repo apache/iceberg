@@ -49,10 +49,11 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   private final Function<MessageType, ParquetValueReader<?>> readerFunc;
   private final Expression filter;
   private final boolean reuseContainers;
+  private final boolean caseSensitive;
 
   public ParquetReader(InputFile input, Schema expectedSchema, ParquetReadOptions options,
                        Function<MessageType, ParquetValueReader<?>> readerFunc,
-                       Expression filter, boolean reuseContainers) {
+                       Expression filter, boolean reuseContainers, boolean caseSensitive) {
     this.input = input;
     this.expectedSchema = expectedSchema;
     this.options = options;
@@ -60,6 +61,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     // replace alwaysTrue with null to avoid extra work evaluating a trivial filter
     this.filter = filter == Expressions.alwaysTrue() ? null : filter;
     this.reuseContainers = reuseContainers;
+    this.caseSensitive = caseSensitive;
   }
 
   private static class ReadConf<T> {
@@ -75,7 +77,8 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
     @SuppressWarnings("unchecked")
     ReadConf(InputFile file, ParquetReadOptions options, Schema expectedSchema, Expression filter,
-             Function<MessageType, ParquetValueReader<?>> readerFunc, boolean reuseContainers) {
+             Function<MessageType, ParquetValueReader<?>> readerFunc, boolean reuseContainers,
+             boolean caseSensitive) {
       this.file = file;
       this.options = options;
       this.reader = newReader(file, options);
@@ -95,8 +98,8 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       ParquetMetricsRowGroupFilter statsFilter = null;
       ParquetDictionaryRowGroupFilter dictFilter = null;
       if (filter != null) {
-        statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter);
-        dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter);
+        statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, caseSensitive);
+        dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive);
       }
 
       long totalValues = 0L;
@@ -172,7 +175,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   private ReadConf<T> init() {
     if (conf == null) {
       ReadConf<T> conf = new ReadConf<>(
-          input, options, expectedSchema, filter, readerFunc, reuseContainers);
+          input, options, expectedSchema, filter, readerFunc, reuseContainers, caseSensitive);
       this.conf = conf.copy();
       return conf;
     }

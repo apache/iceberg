@@ -27,7 +27,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.metastore.api.CheckLockRequest;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.LockComponent;
 import org.apache.hadoop.hive.metastore.api.LockLevel;
@@ -37,11 +36,8 @@ import org.apache.hadoop.hive.metastore.api.LockState;
 import org.apache.hadoop.hive.metastore.api.LockType;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
-import org.apache.hadoop.hive.metastore.api.SerdeType;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
-import org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore;
-import org.apache.hadoop.hive.metastore.api.UnlockRequest;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
@@ -56,20 +52,17 @@ import static java.lang.String.format;
 /**
  * TODO we should be able to extract some more commonalities to BaseMetastoreTableOperations to
  * avoid code duplication between this class and Metacat Tables.
- *
- * Note! This class is not thread-safe as {@link ThriftHiveMetastore.Client} does not behave
- * correctly in a multi-threaded environment.
  */
 public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HiveTableOperations.class);
 
-  private final ThriftHiveMetastore.Client metaStoreClient;
+  private final HiveClientPool metaClients;
   private final String database;
   private final String tableName;
 
-  protected HiveTableOperations(Configuration conf, ThriftHiveMetastore.Client metaStoreClient, String database, String table) {
+  protected HiveTableOperations(Configuration conf, HiveClientPool metaClients, String database, String table) {
     super(conf);
-    this.metaStoreClient = metaStoreClient;
+    this.metaClients = metaClients;
     this.database = database;
     this.tableName = table;
   }
@@ -78,7 +71,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   public TableMetadata refresh() {
     String metadataLocation = null;
     try {
-      final Table table = metaStoreClient.get_table(database, tableName);
+      final Table table = metaClients.run(client -> client.getTable(database, tableName));
       String tableType = table.getParameters().get(TABLE_TYPE_PROP);
 
       if (tableType == null || !tableType.equalsIgnoreCase(ICEBERG_TABLE_TYPE_VALUE)) {
@@ -96,7 +89,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       }
 
     } catch (TException e) {
-      throw new RuntimeException(format("Failed to get table info from metastore %s.%s", database, tableName));
+      throw new RuntimeException(format("Failed to get table info from metastore %s.%s", database, tableName), e);
+
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException("Interrupted during refresh", e);
     }
 
     refreshFromMetadataLocation(metadataLocation);
@@ -108,7 +105,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   public void commit(TableMetadata base, TableMetadata metadata) {
     // if the metadata is already out of date, reject it
     if (base != current()) {
-      throw new CommitFailedException(format("stale table metadata for %s.%s", database, tableName));
+      throw new CommitFailedException("Cannot commit: stale table metadata for %s.%s", database, tableName);
     }
 
     // if the metadata is not changed, return early
@@ -126,7 +123,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       // TODO add lock heart beating for cases where default lock timeout is too low.
       Table tbl;
       if (base != null) {
-        tbl = metaStoreClient.get_table(database, tableName);
+        tbl = metaClients.run(client -> client.getTable(database, tableName));
       } else {
         final long currentTimeMillis = System.currentTimeMillis();
         tbl = new Table(tableName,
@@ -153,13 +150,24 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       setParameters(newMetadataLocation, tbl);
 
       if (base != null) {
-        metaStoreClient.alter_table(database, tableName, tbl);
+        metaClients.run(client -> {
+          client.alter_table(database, tableName, tbl);
+          return null;
+        });
       } else {
-        metaStoreClient.create_table(tbl);
+        metaClients.run(client -> {
+          client.createTable(tbl);
+          return null;
+        });
       }
       threw = false;
     } catch (TException | UnknownHostException e) {
       throw new RuntimeException(format("Metastore operation failed for %s.%s", database, tableName), e);
+
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException("Interrupted during commit", e);
+
     } finally {
       if (threw) {
         // if anything went wrong, clean up the uncommitted metadata file
@@ -196,7 +204,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     storageDescriptor.setOutputFormat("org.apache.hadoop.mapred.FileInputFormat");
     storageDescriptor.setInputFormat("org.apache.hadoop.mapred.FileOutputFormat");
     SerDeInfo serDeInfo = new SerDeInfo();
-    serDeInfo.setSerdeType(SerdeType.HIVE);
     serDeInfo.setSerializationLib("org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe");
     storageDescriptor.setSerdeInfo(serDeInfo);
     return storageDescriptor;
@@ -206,18 +213,18 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     return schema.columns().stream().map(col -> new FieldSchema(col.name(), HiveTypeConverter.convert(col.type()), "")).collect(Collectors.toList());
   }
 
-  private long acquireLock() throws UnknownHostException, TException {
+  private long acquireLock() throws UnknownHostException, TException, InterruptedException {
     final LockComponent lockComponent = new LockComponent(LockType.EXCLUSIVE, LockLevel.TABLE, database);
     lockComponent.setTablename(tableName);
     final LockRequest lockRequest = new LockRequest(Lists.newArrayList(lockComponent),
             System.getProperty("user.name"),
             InetAddress.getLocalHost().getHostName());
-    LockResponse lockResponse = metaStoreClient.lock(lockRequest);
+    LockResponse lockResponse = metaClients.run(client -> client.lock(lockRequest));
     LockState state = lockResponse.getState();
     long lockId = lockResponse.getLockid();
     //TODO add timeout
     while (state.equals(LockState.WAITING)) {
-      lockResponse = metaStoreClient.check_lock(new CheckLockRequest(lockResponse.getLockid()));
+      lockResponse = metaClients.run(client -> client.checkLock(lockId));
       state = lockResponse.getState();
     }
 
@@ -231,8 +238,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private void unlock(Optional<Long> lockId) {
     if (lockId.isPresent()) {
       try {
-        metaStoreClient.unlock(new UnlockRequest(lockId.get()));
-      } catch (TException e) {
+        metaClients.run(client -> {
+          client.unlock(lockId.get());
+          return null;
+        });
+      } catch (Exception e) {
         throw new RuntimeException(format("Failed to unlock %s.%s", database, tableName) , e);
       }
     }

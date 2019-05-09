@@ -16,23 +16,38 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.iceberg.catalog;
 
-package org.apache.iceberg.util;
+/**
+ * Identifies a table in iceberg catalog, the namespace is optional
+ * so callers can use {@link #hasNamespace()} to check if namespace is present or not.
+ */
+public class TableIdentifier {
+  private final Namespace namespace;
+  private final String name;
 
-public class Exceptions {
-  private Exceptions() {
+  public TableIdentifier(String name) {
+    this(Namespace.empty(), name);
   }
 
-  public static <E extends Exception> E suppressExceptions(E alreadyThrown, Runnable run) {
-    try {
-      run.run();
-    } catch (Exception e) {
-      alreadyThrown.addSuppressed(e);
+  public TableIdentifier(Namespace namespace, String name) {
+    if (name == null || name.isEmpty()) {
+      throw new IllegalArgumentException("name can not be null or empty");
     }
-    return alreadyThrown;
+
+    this.namespace = namespace == null ? Namespace.empty() : namespace;
+    this.name = name;
   }
 
-  public static <E extends Exception> void suppressAndThrow(E alreadyThrown, Runnable run) throws E {
-    throw suppressExceptions(alreadyThrown, run);
+  public boolean hasNamespace() {
+    return !namespace.isEmpty();
+  }
+
+  public Namespace namespace() {
+    return namespace;
+  }
+
+  public String name() {
+    return name;
   }
 }

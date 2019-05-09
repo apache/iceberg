@@ -48,7 +48,7 @@ public class HadoopOutputFile implements OutputFile {
 
   @Override
   public PositionOutputStream create() {
-    FileSystem fs = Util.getFS(path, conf);
+    FileSystem fs = Util.getFs(path, conf);
     try {
       return HadoopStreams.wrap(fs.create(path, false /* createOrOverwrite */));
     } catch (FileAlreadyExistsException e) {
@@ -60,9 +60,9 @@ public class HadoopOutputFile implements OutputFile {
 
   @Override
   public PositionOutputStream createOrOverwrite() {
-    FileSystem fs = Util.getFS(path, conf);
+    FileSystem fs = Util.getFs(path, conf);
     try {
-      return HadoopStreams.wrap(fs.create(path, true /* createOrOverwrite */ ));
+      return HadoopStreams.wrap(fs.create(path, true /* createOrOverwrite */));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to create file: %s", path);
     }

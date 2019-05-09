@@ -23,6 +23,9 @@ package org.apache.iceberg;
  * Configuration properties that are controlled by Java system properties.
  */
 public class SystemProperties {
+
+  private SystemProperties() {}
+
   /**
    * Sets the size of the worker pool. The worker pool limits the number of tasks concurrently
    * processing manifests in the base table implementation across all concurrent planning or commit

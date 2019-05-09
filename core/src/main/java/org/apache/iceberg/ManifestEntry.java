@@ -30,18 +30,11 @@ import org.apache.iceberg.types.Types.StructType;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable{
+class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
   enum Status {
     EXISTING(0),
     ADDED(1),
     DELETED(2);
-
-    public static Status[] values = new Status[3];
-    static {
-      for (Status status : Status.values()) {
-        values[status.id] = status;
-      }
-    }
 
     private final int id;
 
@@ -52,10 +45,6 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable{
     public int id() {
       return id;
     }
-
-    public static Status fromId(int id) {
-      return values[id];
-    }
   }
 
   private final org.apache.avro.Schema schema;
@@ -63,7 +52,7 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable{
   private long snapshotId = 0L;
   private DataFile file = null;
 
-  public ManifestEntry(org.apache.avro.Schema schema) {
+  ManifestEntry(org.apache.avro.Schema schema) {
     this.schema = schema;
   }
 
@@ -78,24 +67,24 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable{
     this.file = toCopy.file().copy();
   }
 
-  ManifestEntry wrapExisting(long snapshotId, DataFile file) {
+  ManifestEntry wrapExisting(long newSnapshotId, DataFile newFile) {
     this.status = Status.EXISTING;
-    this.snapshotId = snapshotId;
-    this.file = file;
+    this.snapshotId = newSnapshotId;
+    this.file = newFile;
     return this;
   }
 
-  ManifestEntry wrapAppend(long snapshotId, DataFile file) {
+  ManifestEntry wrapAppend(long newSnapshotId, DataFile newFile) {
     this.status = Status.ADDED;
-    this.snapshotId = snapshotId;
-    this.file = file;
+    this.snapshotId = newSnapshotId;
+    this.file = newFile;
     return this;
   }
 
-  ManifestEntry wrapDelete(long snapshotId, DataFile file) {
+  ManifestEntry wrapDelete(long newSnapshotId, DataFile newFile) {
     this.status = Status.DELETED;
-    this.snapshotId = snapshotId;
-    this.file = file;
+    this.snapshotId = newSnapshotId;
+    this.file = newFile;
     return this;
   }
 
@@ -128,7 +117,7 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable{
   public void put(int i, Object v) {
     switch (i) {
       case 0:
-        this.status = Status.fromId((Integer) v);
+        this.status = Status.values()[(Integer) v];
         return;
       case 1:
         this.snapshotId = (Long) v;
@@ -160,13 +149,13 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable{
     return schema;
   }
 
+  static Schema getSchema(StructType partitionType) {
+    return wrapFileSchema(DataFile.getType(partitionType));
+  }
+
   static Schema projectSchema(StructType partitionType, Collection<String> columns) {
     return wrapFileSchema(
         new Schema(DataFile.getType(partitionType).fields()).select(columns).asStruct());
-  }
-
-  static Schema getSchema(StructType partitionType) {
-    return wrapFileSchema(DataFile.getType(partitionType));
   }
 
   private static Schema wrapFileSchema(StructType fileStruct) {

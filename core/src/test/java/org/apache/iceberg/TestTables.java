@@ -35,6 +35,9 @@ import org.apache.iceberg.io.OutputFile;
 import static org.apache.iceberg.TableMetadata.newTableMetadata;
 
 public class TestTables {
+
+  private TestTables() {}
+
   static TestTable create(File temp, String name, Schema schema, PartitionSpec spec) {
     TestTableOperations ops = new TestTableOperations(name, temp);
     if (ops.current() != null) {
@@ -154,7 +157,7 @@ public class TestTables {
     }
 
     @Override
-    public void commit(TableMetadata base, TableMetadata metadata) {
+    public void commit(TableMetadata base, TableMetadata updatedMetadata) {
       if (base != current) {
         throw new CommitFailedException("Cannot commit changes based on stale metadata");
       }
@@ -167,8 +170,8 @@ public class TestTables {
           }
           Integer version = VERSIONS.get(tableName);
           VERSIONS.put(tableName, version == null ? 0 : version + 1);
-          METADATA.put(tableName, metadata);
-          this.current = metadata;
+          METADATA.put(tableName, updatedMetadata);
+          this.current = updatedMetadata;
         } else {
           throw new CommitFailedException(
               "Commit failed: table was updated at %d", current.lastUpdatedMillis());

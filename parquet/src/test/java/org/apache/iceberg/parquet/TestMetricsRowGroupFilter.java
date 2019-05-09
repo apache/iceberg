@@ -614,5 +614,12 @@ public class TestMetricsRowGroupFilter {
     shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", 85))
             .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
     Assert.assertTrue("Should read: id above upper bound", shouldRead);
-  }  
+  }
+
+  @Test
+  public void testCaseInsensitive() {
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("ID", 5), false)
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+  }
 }

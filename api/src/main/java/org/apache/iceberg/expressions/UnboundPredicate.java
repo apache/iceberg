@@ -21,7 +21,6 @@ package org.apache.iceberg.expressions;
 
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 import static org.apache.iceberg.expressions.Expression.Operation.IS_NULL;
