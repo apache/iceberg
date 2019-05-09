@@ -26,17 +26,16 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
+import java.util.Collections;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericFixed;
 import org.apache.commons.io.Charsets;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.BinaryType;
 import org.apache.iceberg.types.Types.BooleanType;
@@ -60,7 +59,6 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.Files.localInput;
-import static org.apache.iceberg.Files.localOutput;
 import static org.apache.iceberg.types.Conversions.fromByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -292,14 +290,6 @@ public class TestParquetMetrics {
   }
 
   private File writeRecords(Schema schema, Record... records) throws IOException {
-    File tmpFolder = temp.newFolder("parquet");
-    String filename = UUID.randomUUID().toString();
-    File file = new File(tmpFolder, FileFormat.PARQUET.addExtension(filename));
-    try (FileAppender<Record> writer = Parquet.write(localOutput(file))
-        .schema(schema)
-        .build()) {
-      writer.addAll(Lists.newArrayList(records));
-    }
-    return file;
+    return TestParquet.writeRecords(temp, schema, Collections.emptyMap(), null, records);
   }
 }

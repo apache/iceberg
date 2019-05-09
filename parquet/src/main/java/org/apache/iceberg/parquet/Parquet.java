@@ -42,6 +42,7 @@ import org.apache.parquet.HadoopReadOptions;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.avro.AvroReadSupport;
 import org.apache.parquet.avro.AvroWriteSupport;
+import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.parquet.hadoop.ParquetReader;
@@ -144,13 +145,6 @@ public class Parquet {
       }
     }
 
-    void forwardConfig(String parquetProperty, String icebergProperty, String defaultValue) {
-      String value = config.getOrDefault(icebergProperty, defaultValue);
-      if (value != null) {
-        set(parquetProperty, value);
-      }
-    }
-
     public <D> FileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(name, "Table name is required and cannot be null");
@@ -158,13 +152,13 @@ public class Parquet {
       // add the Iceberg schema to keyValueMetadata
       meta("iceberg.schema", SchemaParser.toJson(schema));
 
-      // add Parquet configuration
-      forwardConfig("parquet.block.size",
-          PARQUET_ROW_GROUP_SIZE_BYTES, PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
-      forwardConfig("parquet.page.size",
-          PARQUET_PAGE_SIZE_BYTES, PARQUET_PAGE_SIZE_BYTES_DEFAULT);
-      forwardConfig("parquet.dictionary.page.size",
-          PARQUET_DICT_SIZE_BYTES, PARQUET_DICT_SIZE_BYTES_DEFAULT);
+      // Map Iceberg properties to pass down to the Parquet writer
+      int rowGroupSize = Integer.parseInt(config.getOrDefault(
+              PARQUET_ROW_GROUP_SIZE_BYTES, PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT));
+      int pageSize = Integer.parseInt(config.getOrDefault(
+              PARQUET_PAGE_SIZE_BYTES, PARQUET_PAGE_SIZE_BYTES_DEFAULT));
+      int dictionaryPageSize = Integer.parseInt(config.getOrDefault(
+              PARQUET_DICT_SIZE_BYTES, PARQUET_DICT_SIZE_BYTES_DEFAULT));
 
       set("parquet.avro.write-old-list-structure", "false");
       MessageType type = ParquetSchemaUtil.convert(schema, name);
@@ -183,10 +177,13 @@ public class Parquet {
           conf.set(entry.getKey(), entry.getValue());
         }
 
-        long rowGroupSize = Long.parseLong(config.getOrDefault(
-            PARQUET_ROW_GROUP_SIZE_BYTES, PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT));
+        ParquetProperties parquetProperties = ParquetProperties.builder()
+                .withDictionaryPageSize(pageSize)
+                .withDictionaryPageSize(dictionaryPageSize)
+                .build();
+
         return new org.apache.iceberg.parquet.ParquetWriter<>(
-            conf, file, schema, rowGroupSize, metadata, createWriterFunc, codec());
+            conf, file, schema, rowGroupSize, metadata, createWriterFunc, codec(), parquetProperties);
       } else {
         return new ParquetWriteAdapter<>(new ParquetWriteBuilder<D>(ParquetIO.file(file))
             .setType(type)
@@ -195,6 +192,9 @@ public class Parquet {
             .setWriteSupport(getWriteSupport(type))
             .withCompressionCodec(codec())
             .withWriteMode(ParquetFileWriter.Mode.OVERWRITE) // TODO: support modes
+            .withRowGroupSize(rowGroupSize)
+            .withPageSize(pageSize)
+            .withDictionaryPageSize(dictionaryPageSize)
             .build());
       }
     }
