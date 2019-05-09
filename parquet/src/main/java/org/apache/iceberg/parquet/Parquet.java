@@ -43,6 +43,7 @@ import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.avro.AvroReadSupport;
 import org.apache.parquet.avro.AvroWriteSupport;
 import org.apache.parquet.column.ParquetProperties;
+import org.apache.parquet.column.ParquetProperties.WriterVersion;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.parquet.hadoop.ParquetReader;
@@ -154,11 +155,13 @@ public class Parquet {
 
       // Map Iceberg properties to pass down to the Parquet writer
       int rowGroupSize = Integer.parseInt(config.getOrDefault(
-              PARQUET_ROW_GROUP_SIZE_BYTES, PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT));
+          PARQUET_ROW_GROUP_SIZE_BYTES, PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT));
       int pageSize = Integer.parseInt(config.getOrDefault(
-              PARQUET_PAGE_SIZE_BYTES, PARQUET_PAGE_SIZE_BYTES_DEFAULT));
+          PARQUET_PAGE_SIZE_BYTES, PARQUET_PAGE_SIZE_BYTES_DEFAULT));
       int dictionaryPageSize = Integer.parseInt(config.getOrDefault(
-              PARQUET_DICT_SIZE_BYTES, PARQUET_DICT_SIZE_BYTES_DEFAULT));
+          PARQUET_DICT_SIZE_BYTES, PARQUET_DICT_SIZE_BYTES_DEFAULT));
+
+      WriterVersion writerVersion = ParquetProperties.WriterVersion.PARQUET_1_0;
 
       set("parquet.avro.write-old-list-structure", "false");
       MessageType type = ParquetSchemaUtil.convert(schema, name);
@@ -178,14 +181,16 @@ public class Parquet {
         }
 
         ParquetProperties parquetProperties = ParquetProperties.builder()
-                .withDictionaryPageSize(pageSize)
-                .withDictionaryPageSize(dictionaryPageSize)
-                .build();
+            .withWriterVersion(writerVersion)
+            .withDictionaryPageSize(pageSize)
+            .withDictionaryPageSize(dictionaryPageSize)
+            .build();
 
         return new org.apache.iceberg.parquet.ParquetWriter<>(
             conf, file, schema, rowGroupSize, metadata, createWriterFunc, codec(), parquetProperties);
       } else {
         return new ParquetWriteAdapter<>(new ParquetWriteBuilder<D>(ParquetIO.file(file))
+            .withWriterVersion(writerVersion)
             .setType(type)
             .setConfig(config)
             .setKeyValueMetadata(metadata)

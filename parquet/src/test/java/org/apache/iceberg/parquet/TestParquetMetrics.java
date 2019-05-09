@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
-import java.util.Collections;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData;
@@ -54,19 +53,15 @@ import org.apache.iceberg.types.Types.TimeType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.types.Types.UUIDType;
 import org.junit.Assert;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.Files.localInput;
 import static org.apache.iceberg.types.Conversions.fromByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-public class TestParquetMetrics {
+public class TestParquetMetrics extends BaseParquetWritingTest {
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
   private final UUID uuid = UUID.randomUUID();
   private final GenericFixed fixed = new GenericData.Fixed(
       org.apache.avro.Schema.createFixed("fixedCol", null, null, 4),
@@ -289,7 +284,4 @@ public class TestParquetMetrics {
         upperBounds.containsKey(fieldId) ? fromByteBuffer(type, upperBounds.get(fieldId)) : null);
   }
 
-  private File writeRecords(Schema schema, Record... records) throws IOException {
-    return TestParquet.writeRecords(temp, schema, Collections.emptyMap(), null, records);
-  }
 }
