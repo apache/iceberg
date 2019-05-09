@@ -161,7 +161,7 @@ public class Parquet {
       int dictionaryPageSize = Integer.parseInt(config.getOrDefault(
           PARQUET_DICT_SIZE_BYTES, PARQUET_DICT_SIZE_BYTES_DEFAULT));
 
-      WriterVersion writerVersion = ParquetProperties.WriterVersion.PARQUET_1_0;
+      WriterVersion writerVersion = WriterVersion.PARQUET_1_0;
 
       set("parquet.avro.write-old-list-structure", "false");
       MessageType type = ParquetSchemaUtil.convert(schema, name);
