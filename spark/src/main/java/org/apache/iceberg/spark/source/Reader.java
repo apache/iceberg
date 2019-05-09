@@ -479,6 +479,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
           .schema(readSchema)
           .split(task.start(), task.length())
           .createReaderFunc(SparkOrcReader::new)
+          .caseSensitive(caseSensitive)
           .build();
     }
   }

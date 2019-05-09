@@ -59,17 +59,17 @@ import java.util.List;
 public class SparkOrcReader implements OrcValueReader<InternalRow> {
   private final static int INITIAL_SIZE = 128 * 1024;
   private final int numFields;
-  private final TypeDescription orcSchema;
+  private final TypeDescription readSchema;
 
   public SparkOrcReader(Schema readSchema) {
-    orcSchema = TypeConversion.toOrc(readSchema, new ColumnIdMap());
+    this.readSchema = TypeConversion.toOrc(readSchema, new ColumnIdMap());
     numFields = readSchema.columns().size();
   }
 
   private Converter[] buildConverters(final UnsafeRowWriter writer) {
     final Converter[] converters = new Converter[numFields];
     for(int c = 0; c < numFields; ++c) {
-      converters[c] = buildConverter(writer, orcSchema.getChildren().get(c));
+      converters[c] = buildConverter(writer, readSchema.getChildren().get(c));
     }
     return converters;
   }
@@ -96,6 +96,9 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
       rowBuilder.append(schema.getFieldNames().get(c));
       rowBuilder.append("\": ");
       rowBuilder.append(rowEntryToString(row, c, children.get(c)));
+      if (c != children.size() - 1) {
+        rowBuilder.append(", ");
+      }
     }
     rowBuilder.append("}");
     return rowBuilder.toString();

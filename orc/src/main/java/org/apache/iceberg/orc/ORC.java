@@ -32,6 +32,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.orc.OrcConf;
 import org.apache.orc.OrcFile;
 import org.apache.orc.TypeDescription;
 
@@ -136,6 +137,11 @@ public class ORC {
 
     public ReadBuilder schema(org.apache.iceberg.Schema schema) {
       this.schema = schema;
+      return this;
+    }
+
+    public ReadBuilder caseSensitive(boolean caseSensitive) {
+      OrcConf.IS_SCHEMA_EVOLUTION_CASE_SENSITIVE.setBoolean(this.conf, caseSensitive);
       return this;
     }
 

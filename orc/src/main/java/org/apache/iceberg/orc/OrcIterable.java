@@ -65,17 +65,18 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
         readerFunction.apply(schema));
   }
 
-  private static VectorizedRowBatchIterator newOrcIterator(InputFile file, TypeDescription orcSchema,
+  private static VectorizedRowBatchIterator newOrcIterator(InputFile file,
+                                                           TypeDescription readerSchema,
                                                            Long start, Long length,
                                                            Reader orcFileReader) {
     final Reader.Options options = orcFileReader.options();
     if (start != null) {
       options.range(start, length);
     }
-    options.schema(orcSchema);
+    options.schema(readerSchema);
 
     try {
-      return new VectorizedRowBatchIterator(file.location(), orcSchema, orcFileReader.rows(options));
+      return new VectorizedRowBatchIterator(file.location(), readerSchema, orcFileReader.rows(options));
     } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to get ORC rows for file: %s", file);
     }
