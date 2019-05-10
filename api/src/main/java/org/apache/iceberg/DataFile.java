@@ -19,9 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.types.Types.BinaryType;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.ListType;
@@ -29,6 +26,10 @@ import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
+
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.Map;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -45,7 +46,7 @@ public interface DataFile {
         required(102, "partition", partitionType),
         required(103, "record_count", LongType.get()),
         required(104, "file_size_in_bytes", LongType.get()),
-        required(105, "block_size_in_bytes", LongType.get()),
+        optional(105, "block_size_in_bytes", LongType.get()),
         optional(106, "file_ordinal", IntegerType.get()),
         optional(107, "sort_columns", ListType.ofRequired(112, IntegerType.get())),
         optional(108, "column_sizes", MapType.ofRequired(117, 118,
