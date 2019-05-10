@@ -54,7 +54,6 @@ class GenericDataFile
   private PartitionData partitionData = null;
   private Long recordCount = null;
   private long fileSizeInBytes = -1L;
-  private long blockSizeInBytes = -1L;
 
   // optional fields
   private Integer fileOrdinal = null; // boxed for nullability
@@ -68,6 +67,8 @@ class GenericDataFile
 
   // cached schema
   private transient org.apache.avro.Schema avroSchema = null;
+
+  private static final long DEFAULT_BLOCK_SIZE = 64 * 1024 * 1024;
 
   /**
    * Used by Avro reflection to instantiate this class when reading manifest files.
@@ -107,14 +108,13 @@ class GenericDataFile
   }
 
   GenericDataFile(String filePath, FileFormat format, long recordCount,
-                  long fileSizeInBytes, long blockSizeInBytes) {
+                  long fileSizeInBytes) {
     this.filePath = filePath;
     this.format = format;
     this.partitionData = EMPTY_PARTITION_DATA;
     this.partitionType = EMPTY_PARTITION_DATA.getPartitionType();
     this.recordCount = recordCount;
     this.fileSizeInBytes = fileSizeInBytes;
-    this.blockSizeInBytes = blockSizeInBytes;
     this.fileOrdinal = null;
     this.sortColumns = null;
     this.columnSizes = null;
@@ -126,14 +126,13 @@ class GenericDataFile
   }
 
   GenericDataFile(String filePath, FileFormat format, PartitionData partition,
-                  long recordCount, long fileSizeInBytes, long blockSizeInBytes) {
+                  long recordCount, long fileSizeInBytes) {
     this.filePath = filePath;
     this.format = format;
     this.partitionData = partition;
     this.partitionType = partition.getPartitionType();
     this.recordCount = recordCount;
     this.fileSizeInBytes = fileSizeInBytes;
-    this.blockSizeInBytes = blockSizeInBytes;
     this.fileOrdinal = null;
     this.sortColumns = null;
     this.columnSizes = null;
@@ -145,7 +144,7 @@ class GenericDataFile
   }
 
   GenericDataFile(String filePath, FileFormat format, PartitionData partition,
-                  long fileSizeInBytes, long blockSizeInBytes, Metrics metrics) {
+                  long fileSizeInBytes, Metrics metrics) {
     this.filePath = filePath;
     this.format = format;
 
@@ -161,7 +160,6 @@ class GenericDataFile
     // this will throw NPE if metrics.recordCount is null
     this.recordCount = metrics.recordCount();
     this.fileSizeInBytes = fileSizeInBytes;
-    this.blockSizeInBytes = blockSizeInBytes;
     this.fileOrdinal = null;
     this.sortColumns = null;
     this.columnSizes = metrics.columnSizes();
@@ -173,9 +171,9 @@ class GenericDataFile
   }
 
   GenericDataFile(String filePath, FileFormat format, PartitionData partition,
-                  long fileSizeInBytes, long blockSizeInBytes, Metrics metrics,
+                  long fileSizeInBytes, Metrics metrics,
                   ByteBuffer keyMetadata) {
-    this(filePath, format, partition, fileSizeInBytes, blockSizeInBytes, metrics);
+    this(filePath, format, partition, fileSizeInBytes, metrics);
     this.keyMetadata = keyMetadata;
   }
 
@@ -191,7 +189,6 @@ class GenericDataFile
     this.partitionType = toCopy.partitionType;
     this.recordCount = toCopy.recordCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
-    this.blockSizeInBytes = toCopy.blockSizeInBytes;
     this.fileOrdinal = toCopy.fileOrdinal;
     this.sortColumns = copy(toCopy.sortColumns);
     // TODO: support lazy conversion to/from map
@@ -233,11 +230,6 @@ class GenericDataFile
   @Override
   public long fileSizeInBytes() {
     return fileSizeInBytes;
-  }
-
-  @Override
-  public long blockSizeInBytes() {
-    return blockSizeInBytes;
   }
 
   @Override
@@ -314,7 +306,6 @@ class GenericDataFile
         this.fileSizeInBytes = (Long) v;
         return;
       case 5:
-        this.blockSizeInBytes = (Long) v;
         return;
       case 6:
         this.fileOrdinal = (Integer) v;
@@ -369,7 +360,9 @@ class GenericDataFile
       case 4:
         return fileSizeInBytes;
       case 5:
-        return blockSizeInBytes;
+        // block_size_in_bytes is not used. However, it was a required avro field in DataFile. So
+        // to maintain compatibility, we need to return something.
+        return DEFAULT_BLOCK_SIZE;
       case 6:
         return fileOrdinal;
       case 7:
@@ -416,7 +409,6 @@ class GenericDataFile
         .add("partition", partitionData)
         .add("record_count", recordCount)
         .add("file_size_in_bytes", fileSizeInBytes)
-        .add("block_size_in_bytes", blockSizeInBytes)
         .add("column_sizes", columnSizes)
         .add("value_counts", valueCounts)
         .add("null_value_counts", nullValueCounts)

@@ -19,6 +19,9 @@
 
 package org.apache.iceberg;
 
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.types.Types.BinaryType;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.ListType;
@@ -27,9 +30,6 @@ import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
 
-import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.Map;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -88,11 +88,6 @@ public interface DataFile {
    * @return the data file size in bytes
    */
   long fileSizeInBytes();
-
-  /**
-   * @return the data file block size in bytes (for split planning)
-   */
-  long blockSizeInBytes();
 
   /**
    * @return file ordinal if written in a global ordering, or null

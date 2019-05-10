@@ -36,8 +36,6 @@ public class DataFiles {
 
   private DataFiles() {}
 
-  private static final long DEFAULT_BLOCK_SIZE = 64 * 1024 * 1024;
-
   private static PartitionData newPartitionData(PartitionSpec spec) {
     return new PartitionData(spec.partitionType());
   }
@@ -98,21 +96,21 @@ public class DataFiles {
   public static DataFile fromStat(FileStatus stat, long rowCount) {
     String location = stat.getPath().toString();
     FileFormat format = FileFormat.fromFileName(location);
-    return new GenericDataFile(location, format, rowCount, stat.getLen(), stat.getBlockSize());
+    return new GenericDataFile(location, format, rowCount, stat.getLen());
   }
 
   public static DataFile fromStat(FileStatus stat, PartitionData partition, long rowCount) {
     String location = stat.getPath().toString();
     FileFormat format = FileFormat.fromFileName(location);
     return new GenericDataFile(
-        location, format, partition, rowCount, stat.getLen(), stat.getBlockSize());
+        location, format, partition, rowCount, stat.getLen());
   }
 
   public static DataFile fromStat(FileStatus stat, PartitionData partition, Metrics metrics) {
     String location = stat.getPath().toString();
     FileFormat format = FileFormat.fromFileName(location);
     return new GenericDataFile(
-        location, format, partition, stat.getLen(), stat.getBlockSize(), metrics);
+        location, format, partition, stat.getLen(), metrics);
   }
 
   public static DataFile fromStat(FileStatus stat, PartitionData partition, Metrics metrics,
@@ -120,7 +118,7 @@ public class DataFiles {
     String location = stat.getPath().toString();
     FileFormat format = FileFormat.fromFileName(location);
     return new GenericDataFile(
-        location, format, partition, stat.getLen(), stat.getBlockSize(), metrics, keyMetadata.buffer());
+        location, format, partition, stat.getLen(), metrics, keyMetadata.buffer());
   }
 
   public static DataFile fromInputFile(InputFile file, PartitionData partition, long rowCount) {
@@ -131,7 +129,7 @@ public class DataFiles {
     String location = file.location();
     FileFormat format = FileFormat.fromFileName(location);
     return new GenericDataFile(
-        location, format, partition, rowCount, file.getLength(), DEFAULT_BLOCK_SIZE);
+        location, format, partition, rowCount, file.getLength());
   }
 
   public static DataFile fromInputFile(InputFile file, PartitionData partition, Metrics metrics) {
@@ -142,7 +140,7 @@ public class DataFiles {
     String location = file.location();
     FileFormat format = FileFormat.fromFileName(location);
     return new GenericDataFile(
-        location, format, partition, file.getLength(), DEFAULT_BLOCK_SIZE, metrics);
+        location, format, partition, file.getLength(), metrics);
   }
 
   public static DataFile fromInputFile(InputFile file, long rowCount) {
@@ -152,7 +150,7 @@ public class DataFiles {
 
     String location = file.location();
     FileFormat format = FileFormat.fromFileName(location);
-    return new GenericDataFile(location, format, rowCount, file.getLength(), DEFAULT_BLOCK_SIZE);
+    return new GenericDataFile(location, format, rowCount, file.getLength());
   }
 
   public static DataFile fromEncryptedOutputFile(EncryptedOutputFile encryptedFile, PartitionData partition,
@@ -166,7 +164,7 @@ public class DataFiles {
     String location = file.location();
     FileFormat format = FileFormat.fromFileName(location);
     return new GenericDataFile(
-        location, format, partition, file.getLength(), DEFAULT_BLOCK_SIZE, metrics, keyMetadata.buffer());
+        location, format, partition, file.getLength(), metrics, keyMetadata.buffer());
   }
 
   public static DataFile fromParquetInputFile(InputFile file,
@@ -179,14 +177,14 @@ public class DataFiles {
     String location = file.location();
     FileFormat format = FileFormat.PARQUET;
     return new GenericDataFile(
-        location, format, partition, file.getLength(), DEFAULT_BLOCK_SIZE, metrics);
+        location, format, partition, file.getLength(), metrics);
   }
 
   public static DataFile fromParquetStat(FileStatus stat, PartitionData partition, Metrics metrics) {
     String location = stat.getPath().toString();
     FileFormat format = FileFormat.PARQUET;
     return new GenericDataFile(
-        location, format, partition, stat.getLen(), stat.getBlockSize(), metrics);
+        location, format, partition, stat.getLen(), metrics);
   }
 
   public static Builder builder(PartitionSpec spec) {
@@ -205,7 +203,6 @@ public class DataFiles {
     private FileFormat format = null;
     private long recordCount = -1L;
     private long fileSizeInBytes = -1L;
-    private long blockSizeInBytes = -1L;
 
     // optional fields
     private Map<Integer, Long> columnSizes = null;
@@ -235,7 +232,6 @@ public class DataFiles {
       this.format = null;
       this.recordCount = -1L;
       this.fileSizeInBytes = -1L;
-      this.blockSizeInBytes = -1L;
       this.columnSizes = null;
       this.valueCounts = null;
       this.nullValueCounts = null;
@@ -251,7 +247,6 @@ public class DataFiles {
       this.format = toCopy.format();
       this.recordCount = toCopy.recordCount();
       this.fileSizeInBytes = toCopy.fileSizeInBytes();
-      this.blockSizeInBytes = toCopy.blockSizeInBytes();
       this.columnSizes = toCopy.columnSizes();
       this.valueCounts = toCopy.valueCounts();
       this.nullValueCounts = toCopy.nullValueCounts();
@@ -265,7 +260,6 @@ public class DataFiles {
     public Builder withStatus(FileStatus stat) {
       this.filePath = stat.getPath().toString();
       this.fileSizeInBytes = stat.getLen();
-      this.blockSizeInBytes = stat.getBlockSize();
       return this;
     }
 
@@ -315,11 +309,6 @@ public class DataFiles {
       return this;
     }
 
-    public Builder withBlockSizeInBytes(long newBlockSizeInBytes) {
-      this.blockSizeInBytes = newBlockSizeInBytes;
-      return this;
-    }
-
     public Builder withPartitionPath(String newPartitionPath) {
       Preconditions.checkArgument(isPartitioned || newPartitionPath.isEmpty(),
           "Cannot add partition data for an unpartitioned table");
@@ -360,13 +349,9 @@ public class DataFiles {
       Preconditions.checkArgument(fileSizeInBytes >= 0, "File size is required");
       Preconditions.checkArgument(recordCount >= 0, "Record count is required");
 
-      if (blockSizeInBytes < 0) {
-        this.blockSizeInBytes = DEFAULT_BLOCK_SIZE; // assume 64MB blocks
-      }
-
       return new GenericDataFile(
           filePath, format, isPartitioned ? partitionData.copy() : null,
-          fileSizeInBytes, blockSizeInBytes, new Metrics(
+          fileSizeInBytes, new Metrics(
               recordCount, columnSizes, valueCounts, nullValueCounts, lowerBounds, upperBounds), keyMetadata);
     }
   }
