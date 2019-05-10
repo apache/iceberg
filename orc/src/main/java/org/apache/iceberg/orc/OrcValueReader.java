@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.orc;
 
+import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
+
 /**
  * Used for implementing ORC value readers.
  */
@@ -27,6 +29,6 @@ public interface OrcValueReader<T> {
   /**
    * Reads a value in row.
    */
-  T read(Object reuse, int row);
+  T read(VectorizedRowBatch batch, int row);
 
 }

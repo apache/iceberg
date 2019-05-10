@@ -75,12 +75,7 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
   }
 
   @Override
-  public InternalRow read(Object reuse, int row) {
-    if (!(reuse instanceof VectorizedRowBatch)) {
-      throw new IllegalArgumentException("Value to read must be of type "+ VectorizedRowBatch.class);
-    }
-
-    final VectorizedRowBatch batch = (VectorizedRowBatch) reuse;
+  public InternalRow read(VectorizedRowBatch batch, int row) {
     final UnsafeRowWriter rowWriter = new UnsafeRowWriter(numFields, INITIAL_SIZE);
     final Converter[] converters = buildConverters(rowWriter);
 
