@@ -23,9 +23,9 @@ package org.apache.iceberg;
  * API for table changes that produce snapshots. This interface contains common methods for all
  * updates that create a new table {@link Snapshot}.
  *
- * @param <THIS> the child Java API class, returned by method chaining.
+ * @param <ThisT> the child Java API class, returned by method chaining.
  */
-public interface SnapshotUpdate<THIS> extends PendingUpdate<Snapshot> {
+public interface SnapshotUpdate<ThisT> extends PendingUpdate<Snapshot> {
   /**
    * Set a summary property in the snapshot produced by this update.
    *
@@ -33,6 +33,6 @@ public interface SnapshotUpdate<THIS> extends PendingUpdate<Snapshot> {
    * @param value a String property value
    * @return this for method chaining
    */
-  THIS set(String property, String value);
+  ThisT set(String property, String value);
 
 }
