@@ -23,9 +23,15 @@ import java.util.List;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 
-public class ReplacePartitionsOperation extends MergingSnapshotUpdate implements ReplacePartitions {
+public class ReplacePartitionsOperation
+    extends MergingSnapshotProducer<ReplacePartitions> implements ReplacePartitions {
   ReplacePartitionsOperation(TableOperations ops) {
     super(ops);
+  }
+
+  @Override
+  protected ReplacePartitions self() {
+    return this;
   }
 
   @Override

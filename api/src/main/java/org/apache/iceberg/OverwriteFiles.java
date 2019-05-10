@@ -37,7 +37,7 @@ import org.apache.iceberg.expressions.Projections;
  * This has no requirements for the latest snapshot and will not fail based on other snapshot
  * changes.
  */
-public interface OverwriteFiles extends PendingUpdate<Snapshot> {
+public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
   /**
    * Delete files that match an {@link Expression} on data rows from the table.
    * <p>
