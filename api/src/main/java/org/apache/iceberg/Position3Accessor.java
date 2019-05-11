@@ -17,9 +17,8 @@
  * under the License.
  */
 
-package org.apache.iceberg.expressions;
+package org.apache.iceberg;
 
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Type;
 
 class Position3Accessor implements Accessor<StructLike> {

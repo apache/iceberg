@@ -17,13 +17,30 @@
  * under the License.
  */
 
-package org.apache.iceberg.expressions;
+package org.apache.iceberg;
 
-import java.io.Serializable;
 import org.apache.iceberg.types.Type;
 
-interface Accessor<T> extends Serializable {
-  Object get(T container);
+class WrappedPositionAccessor implements Accessor<StructLike> {
+  private final int position;
+  private final Accessor<StructLike> accessor;
 
-  Type type();
+  WrappedPositionAccessor(int pos, Accessor<StructLike> accessor) {
+    this.position = pos;
+    this.accessor = accessor;
+  }
+
+  @Override
+  public Object get(StructLike row) {
+    StructLike inner = row.get(position, StructLike.class);
+    if (inner != null) {
+      return accessor.get(inner);
+    }
+    return null;
+  }
+
+  @Override
+  public Type type() {
+    return accessor.type();
+  }
 }

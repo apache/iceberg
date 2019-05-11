@@ -17,37 +17,13 @@
  * under the License.
  */
 
-package org.apache.iceberg.expressions;
+package org.apache.iceberg;
 
-import org.apache.iceberg.StructLike;
+import java.io.Serializable;
 import org.apache.iceberg.types.Type;
 
-class PositionAccessor implements Accessor<StructLike> {
-  private int position;
-  private final Type type;
-  private final Class<?> javaClass;
+public interface Accessor<T> extends Serializable {
+  Object get(T container);
 
-  PositionAccessor(int pos, Type type) {
-    this.position = pos;
-    this.type = type;
-    this.javaClass = type.typeId().javaClass();
-  }
-
-  @Override
-  public Object get(StructLike row) {
-    return row.get(position, javaClass);
-  }
-
-  @Override
-  public Type type() {
-    return type;
-  }
-
-  public int position() {
-    return position;
-  }
-
-  public Class<?> javaClass() {
-    return javaClass;
-  }
+  Type type();
 }

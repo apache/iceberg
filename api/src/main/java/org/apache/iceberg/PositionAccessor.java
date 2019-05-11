@@ -17,31 +17,36 @@
  * under the License.
  */
 
-package org.apache.iceberg.expressions;
+package org.apache.iceberg;
 
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Type;
 
-class WrappedPositionAccessor implements Accessor<StructLike> {
-  private final int position;
-  private final Accessor<StructLike> accessor;
+class PositionAccessor implements Accessor<StructLike> {
+  private int position;
+  private final Type type;
+  private final Class<?> javaClass;
 
-  WrappedPositionAccessor(int pos, Accessor<StructLike> accessor) {
+  PositionAccessor(int pos, Type type) {
     this.position = pos;
-    this.accessor = accessor;
+    this.type = type;
+    this.javaClass = type.typeId().javaClass();
   }
 
   @Override
   public Object get(StructLike row) {
-    StructLike inner = row.get(position, StructLike.class);
-    if (inner != null) {
-      return accessor.get(inner);
-    }
-    return null;
+    return row.get(position, javaClass);
   }
 
   @Override
   public Type type() {
-    return accessor.type();
+    return type;
+  }
+
+  public int position() {
+    return position;
+  }
+
+  public Class<?> javaClass() {
+    return javaClass;
   }
 }

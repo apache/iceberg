@@ -20,12 +20,11 @@
 package org.apache.iceberg.expressions;
 
 import java.util.List;
-import java.util.Map;
+import org.apache.iceberg.Accessor;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 public class BoundReference<T> implements Reference {
@@ -33,12 +32,10 @@ public class BoundReference<T> implements Reference {
   private final Accessor<StructLike> accessor;
   private final int pos;
 
-  BoundReference(Schema schema, int fieldId) {
+  BoundReference(Schema schema, int fieldId, Accessor<StructLike> accessor) {
     this.fieldId = fieldId;
 
-    Map<Integer, Accessor<StructLike>> accessors = lazyIdToAccessor(schema);
-
-    this.accessor = accessors.get(fieldId);
+    this.accessor = accessor;
 
     // only look for top level field position
     this.pos = findTopFieldPos(fieldId, schema.asStruct());
@@ -80,13 +77,4 @@ public class BoundReference<T> implements Reference {
     return String.format("ref(id=%d, accessor=%s)", fieldId, accessor);
   }
 
-  private transient Map<Integer, Accessor<StructLike>> idToAccessor = null;
-
-  private Map<Integer, Accessor<StructLike>> lazyIdToAccessor(Schema schema) {
-
-    if (idToAccessor == null) {
-      idToAccessor = TypeUtil.visit(schema, new BuildPositionAccessors());
-    }
-    return idToAccessor;
-  }
 }

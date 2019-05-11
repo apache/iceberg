@@ -49,6 +49,16 @@ public class Schema implements Serializable {
   private transient BiMap<String, Integer> nameToId = null;
   private transient BiMap<String, Integer> lowerCaseNameToId = null;
 
+  private transient Map<Integer, Accessor<StructLike>> idToAccessor = null;
+
+  private Map<Integer, Accessor<StructLike>> lazyIdToAccessor() {
+
+    if (idToAccessor == null) {
+      idToAccessor = TypeUtil.visit(this, new BuildPositionAccessors());
+    }
+    return idToAccessor;
+  }
+
   public Schema(List<Types.NestedField> columns, Map<String, Integer> aliases) {
     this.struct = Types.StructType.of(columns);
     this.aliasToId = aliases != null ? ImmutableBiMap.copyOf(aliases) : null;
@@ -83,6 +93,9 @@ public class Schema implements Serializable {
     this(Arrays.asList(columns));
   }
 
+  public Accessor<StructLike> getAccessorForField(int id) {
+    return lazyIdToAccessor().get(id);
+  }
   /**
    * Returns an alias map for this schema, if set.
    * <p>
