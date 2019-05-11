@@ -19,9 +19,6 @@
 
 package org.apache.iceberg.orc;
 
-import static org.apache.iceberg.orc.OrcFileAppender.DEFAULT_BATCH_SIZE;
-import static org.apache.iceberg.orc.OrcFileAppender.VECTOR_ROW_BATCH_SIZE;
-
 import com.google.common.base.Preconditions;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -38,7 +35,12 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.orc.OrcFile;
 import org.apache.orc.TypeDescription;
 
+import static org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch.DEFAULT_SIZE;
+
 public class ORC {
+
+  static final String VECTOR_ROW_BATCH_SIZE = "iceberg.orc.vectorbatch.size";
+
   private ORC() {
   }
 
@@ -92,7 +94,7 @@ public class ORC {
       OrcFile.WriterOptions options = OrcFile.writerOptions(conf);
       return new OrcFileAppender<>(TypeConversion.toOrc(schema, new ColumnIdMap()),
           this.file, createWriterFunc, options, metadata,
-          conf.getInt(VECTOR_ROW_BATCH_SIZE, DEFAULT_BATCH_SIZE));
+          conf.getInt(VECTOR_ROW_BATCH_SIZE, DEFAULT_SIZE));
     }
   }
 

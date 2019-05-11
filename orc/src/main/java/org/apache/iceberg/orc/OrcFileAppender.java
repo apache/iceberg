@@ -35,8 +35,6 @@ import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
-import static org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch.DEFAULT_SIZE;
-
 /**
  * Create a file appender for ORC.
  */
@@ -50,10 +48,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
   private final OrcValueWriter<D> valueWriter;
   private boolean isClosed = false;
 
-  static final String VECTOR_ROW_BATCH_SIZE = "iceberg.orc.vectorbatch.size";
-  static final String COLUMN_NUMBERS_ATTRIBUTE = "iceberg.column.ids";
-
-  static final int DEFAULT_BATCH_SIZE = DEFAULT_SIZE;
+  private static final String COLUMN_NUMBERS_ATTRIBUTE = "iceberg.column.ids";
 
   OrcFileAppender(TypeDescription schema, OutputFile file,
                   Function<TypeDescription, OrcValueWriter<?>> createWriterFunc,
@@ -62,7 +57,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
     orcSchema = schema;
     path = new Path(file.location());
     this.batchSize = batchSize;
-    batch = orcSchema.createRowBatch(batchSize);
+    batch = orcSchema.createRowBatch(this.batchSize);
 
     options.setSchema(orcSchema);
     writer = newOrcWriter(file, columnIds, options, metadata);
@@ -73,7 +68,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
   public void add(D datum) {
     try {
       valueWriter.write(datum, batch);
-      if (batch.size == DEFAULT_SIZE) {
+      if (batch.size == this.batchSize) {
         writer.addRowBatch(batch);
         batch.reset();
       }
