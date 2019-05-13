@@ -114,7 +114,6 @@ object SparkTableUtil {
           .withFormat(format)
           .withPartitionPath(partitionKey)
           .withFileSizeInBytes(fileSize)
-          .withBlockSizeInBytes(rowGroupSize)
           .withMetrics(new Metrics(rowCount,
             arrayToMap(columnSizes),
             arrayToMap(valueCounts),
