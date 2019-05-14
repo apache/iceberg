@@ -81,13 +81,13 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
           if (field.isRequired()) {
             return Expressions.alwaysFalse();
           }
-          return new BoundPredicate<>(IS_NULL, new BoundReference<>(schema, field.fieldId(),
+          return new BoundPredicate<>(IS_NULL, new BoundReference<>(field.fieldId(),
               schema.getAccessorForField(field.fieldId())));
         case NOT_NULL:
           if (field.isRequired()) {
             return Expressions.alwaysTrue();
           }
-          return new BoundPredicate<>(NOT_NULL, new BoundReference<>(schema, field.fieldId(),
+          return new BoundPredicate<>(NOT_NULL, new BoundReference<>(field.fieldId(),
               schema.getAccessorForField(field.fieldId())));
         default:
           throw new ValidationException("Operation must be IS_NULL or NOT_NULL");
@@ -131,7 +131,7 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
 //          break;
       }
     }
-    return new BoundPredicate<>(op(), new BoundReference<>(schema, field.fieldId(),
+    return new BoundPredicate<>(op(), new BoundReference<>(field.fieldId(),
         schema.getAccessorForField(field.fieldId())), lit);
   }
 }

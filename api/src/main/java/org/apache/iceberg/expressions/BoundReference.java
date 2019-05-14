@@ -19,36 +19,17 @@
 
 package org.apache.iceberg.expressions;
 
-import java.util.List;
 import org.apache.iceberg.Accessor;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 
 public class BoundReference<T> implements Reference {
   private final int fieldId;
   private final Accessor<StructLike> accessor;
-  private final int pos;
 
-  BoundReference(Schema schema, int fieldId, Accessor<StructLike> accessor) {
+  BoundReference(int fieldId, Accessor<StructLike> accessor) {
     this.fieldId = fieldId;
-
     this.accessor = accessor;
-
-    // only look for top level field position
-    this.pos = findTopFieldPos(fieldId, schema.asStruct());
-
-  }
-
-  private int findTopFieldPos(int localFieldId, Types.StructType struct) {
-    List<Types.NestedField> fields = struct.fields();
-    for (int i = 0; i < fields.size(); i += 1) {
-      if (fields.get(i).fieldId() == localFieldId) {
-        return i;
-      }
-    }
-    return -1;
   }
 
   public Type type() {
