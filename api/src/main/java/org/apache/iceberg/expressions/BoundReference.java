@@ -23,7 +23,6 @@ import java.util.List;
 import org.apache.iceberg.Accessor;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -58,13 +57,6 @@ public class BoundReference<T> implements Reference {
 
   public int fieldId() {
     return fieldId;
-  }
-
-  public int pos() {
-    if (pos == -1) {
-      throw new ValidationException("Cannot find position for non-primitive field id %d", fieldId);
-    }
-    return pos;
   }
 
   @SuppressWarnings("unchecked")

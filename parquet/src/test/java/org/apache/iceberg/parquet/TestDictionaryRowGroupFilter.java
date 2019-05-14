@@ -555,7 +555,8 @@ public class TestDictionaryRowGroupFilter {
 
   @Test
   public void testStructFieldGtEq() {
-    boolean shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, greaterThanOrEqual("struct_not_null.int_field", 85))
+    boolean shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA,
+        greaterThanOrEqual("struct_not_null.int_field", 85))
             .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
     Assert.assertFalse("Should not read: id range above upper bound (85 < 79)", shouldRead);
 

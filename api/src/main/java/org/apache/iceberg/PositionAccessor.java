@@ -19,9 +19,10 @@
 
 package org.apache.iceberg;
 
+import java.util.List;
 import org.apache.iceberg.types.Type;
 
-class PositionAccessor implements Accessor<StructLike> {
+public class PositionAccessor implements Accessor<StructLike> {
   private int position;
   private final Type type;
   private final Class<?> javaClass;
@@ -44,6 +45,10 @@ class PositionAccessor implements Accessor<StructLike> {
 
   public int position() {
     return position;
+  }
+
+  public ManifestFile.PartitionFieldSummary stat(List<ManifestFile.PartitionFieldSummary> stats) {
+    return stats.get(position);
   }
 
   public Class<?> javaClass() {
