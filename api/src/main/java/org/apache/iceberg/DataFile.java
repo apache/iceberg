@@ -59,8 +59,9 @@ public interface DataFile {
             IntegerType.get(), BinaryType.get())),
         optional(128, "upper_bounds", MapType.ofRequired(129, 130,
             IntegerType.get(), BinaryType.get())),
-        optional(131, "key_metadata", BinaryType.get())
-        // NEXT ID TO ASSIGN: 132
+        optional(131, "key_metadata", BinaryType.get()),
+        optional(132, "offset_ranges", ListType.ofRequired(133, LongType.get()))
+        // NEXT ID TO ASSIGN: 134
     );
   }
 
@@ -137,4 +138,9 @@ public interface DataFile {
    * @return a copy of this data file
    */
   DataFile copy();
+
+  /**
+   * @return a list of offsets for file blocks if applicable, null otherwise
+   */
+  List<Long> offsetRanges();
 }

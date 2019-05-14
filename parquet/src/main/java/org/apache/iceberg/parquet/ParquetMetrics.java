@@ -19,11 +19,13 @@
 
 package org.apache.iceberg.parquet;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -105,6 +107,14 @@ public class ParquetMetrics implements Serializable {
 
     return new Metrics(rowCount, columnSizes, valueCounts, nullValueCounts,
         toBufferMap(fileSchema, lowerBounds), toBufferMap(fileSchema, upperBounds));
+  }
+
+  public static List<Long> getOffsetRanges(ParquetMetadata md) {
+    List<Long> offsetRanges = new ArrayList<>(md.getBlocks().size());
+    for (BlockMetaData blockMetaData : md.getBlocks()) {
+      offsetRanges.add(blockMetaData.getStartingPos());
+    }
+    return ImmutableList.copyOf(offsetRanges);
   }
 
   // we allow struct nesting, but not maps or arrays

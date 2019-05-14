@@ -21,6 +21,7 @@ package org.apache.iceberg.io;
 
 import java.io.Closeable;
 import java.util.Iterator;
+import java.util.List;
 import org.apache.iceberg.Metrics;
 
 public interface FileAppender<D> extends Closeable {
@@ -45,4 +46,11 @@ public interface FileAppender<D> extends Closeable {
    * @return the length of this file. Only valid after the file is closed.
    */
   long length();
+
+  /**
+   * @return list of offsets for blocks of a file. Only valid after the file is closed.
+   */
+  default List<Long> offsetRanges() {
+    return null;
+  }
 }

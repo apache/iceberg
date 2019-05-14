@@ -22,6 +22,7 @@ package org.apache.iceberg.parquet;
 import com.google.common.collect.ImmutableMap;
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
@@ -125,6 +126,12 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to get file length");
     }
+  }
+
+  @Override
+  public List<Long> offsetRanges()
+  {
+    return ParquetMetrics.getOffsetRanges(writer.getFooter());
   }
 
   private void checkSize() {

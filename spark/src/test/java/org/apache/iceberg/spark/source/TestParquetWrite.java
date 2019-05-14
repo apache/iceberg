@@ -24,6 +24,9 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -40,6 +43,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import static org.apache.iceberg.Files.localInput;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TestParquetWrite {
@@ -96,8 +100,18 @@ public class TestParquetWrite {
         .load(location.toString());
 
     List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
+    for (ManifestFile manifest : table.currentSnapshot().manifests()) {
+      for (DataFile file : ManifestReader.read(localInput(manifest.path()), null)) {
+        Assert.assertNotNull("Offset ranges not present", file.offsetRanges());
+        Assert.assertEquals("Should have reported record count as 1" , 1, file.recordCount());
+        Assert.assertNotNull("Column sizes metric not present", file.columnSizes());
+        Assert.assertNotNull("Counts metric not present", file.valueCounts());
+        Assert.assertNotNull("Null value counts metric not present", file.nullValueCounts());
+        Assert.assertNotNull("Lower bounds metric not present", file.lowerBounds());
+        Assert.assertNotNull("Upper bounds metric not present", file.upperBounds());
+      }
+    }
   }
 }
