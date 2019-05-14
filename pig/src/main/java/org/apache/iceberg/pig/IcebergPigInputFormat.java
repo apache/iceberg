@@ -106,6 +106,8 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
   }
 
   private static class IcebergSplit extends InputSplit implements Writable {
+    private static final String[] ANYWHERE = new String[] { "*" };
+
     private CombinedScanTask task;
 
     IcebergSplit(CombinedScanTask task) {
@@ -123,7 +125,7 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
 
     @Override
     public String[] getLocations() {
-      return new String[0];
+      return ANYWHERE;
     }
 
     @Override
