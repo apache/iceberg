@@ -22,7 +22,6 @@ package org.apache.iceberg.parquet;
 import java.io.File;
 import java.io.IOException;
 import java.util.UUID;
-
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.Files;
@@ -76,7 +75,6 @@ public class TestDictionaryRowGroupFilter {
       optional(7, "non_dict", StringType.get()),
       optional(8, "struct_not_null", structFieldType),
       optional(10, "not_in_file", FloatType.get())
-
   );
 
   private static final Types.StructType _structFieldType =
