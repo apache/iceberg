@@ -166,7 +166,7 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
 
     @SuppressWarnings("unchecked")
     private boolean advance() throws IOException {
-      if(reader != null) {
+      if (reader != null) {
         reader.close();
       }
 
@@ -244,11 +244,18 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
 
     @Override
     public boolean nextKeyValue() throws IOException {
-      if (recordIterator.hasNext() || advance()) {
+      if (recordIterator.hasNext()) {
         currentRecord = recordIterator.next();
         return true;
       }
-      
+
+      while (advance()) {
+        if (recordIterator.hasNext()) {
+          currentRecord = recordIterator.next();
+          return true;
+        }
+      }
+
       return false;
     }
 
