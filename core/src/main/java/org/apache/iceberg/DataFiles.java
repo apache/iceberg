@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Locale;
@@ -106,19 +107,12 @@ public class DataFiles {
         location, format, partition, rowCount, stat.getLen());
   }
 
-  public static DataFile fromStat(FileStatus stat, PartitionData partition, Metrics metrics) {
-    String location = stat.getPath().toString();
-    FileFormat format = FileFormat.fromFileName(location);
-    return new GenericDataFile(
-        location, format, partition, stat.getLen(), metrics);
-  }
-
   public static DataFile fromStat(FileStatus stat, PartitionData partition, Metrics metrics,
-      EncryptionKeyMetadata keyMetadata) {
+      EncryptionKeyMetadata keyMetadata, List<Long> offsetRanges) {
     String location = stat.getPath().toString();
     FileFormat format = FileFormat.fromFileName(location);
     return new GenericDataFile(
-        location, format, partition, stat.getLen(), metrics, keyMetadata.buffer());
+        location, format, partition, stat.getLen(), metrics, keyMetadata.buffer(), offsetRanges);
   }
 
   public static DataFile fromInputFile(InputFile file, PartitionData partition, long rowCount) {
@@ -132,17 +126,6 @@ public class DataFiles {
         location, format, partition, rowCount, file.getLength());
   }
 
-  public static DataFile fromInputFile(InputFile file, PartitionData partition, Metrics metrics) {
-    if (file instanceof HadoopInputFile) {
-      return fromStat(((HadoopInputFile) file).getStat(), partition, metrics);
-    }
-
-    String location = file.location();
-    FileFormat format = FileFormat.fromFileName(location);
-    return new GenericDataFile(
-        location, format, partition, file.getLength(), metrics);
-  }
-
   public static DataFile fromInputFile(InputFile file, long rowCount) {
     if (file instanceof HadoopInputFile) {
       return fromStat(((HadoopInputFile) file).getStat(), rowCount);
@@ -154,37 +137,17 @@ public class DataFiles {
   }
 
   public static DataFile fromEncryptedOutputFile(EncryptedOutputFile encryptedFile, PartitionData partition,
-                                                Metrics metrics) {
+                                                Metrics metrics, List<Long> offsetRanges) {
     EncryptionKeyMetadata keyMetadata = encryptedFile.keyMetadata();
     InputFile file = encryptedFile.encryptingOutputFile().toInputFile();
     if (encryptedFile instanceof HadoopInputFile) {
-      return fromStat(((HadoopInputFile) file).getStat(), partition, metrics, keyMetadata);
+      return fromStat(((HadoopInputFile) file).getStat(), partition, metrics, keyMetadata, offsetRanges);
     }
 
     String location = file.location();
     FileFormat format = FileFormat.fromFileName(location);
     return new GenericDataFile(
-        location, format, partition, file.getLength(), metrics, keyMetadata.buffer());
-  }
-
-  public static DataFile fromParquetInputFile(InputFile file,
-                                              PartitionData partition,
-                                              Metrics metrics) {
-    if (file instanceof HadoopInputFile) {
-      return fromParquetStat(((HadoopInputFile) file).getStat(), partition, metrics);
-    }
-
-    String location = file.location();
-    FileFormat format = FileFormat.PARQUET;
-    return new GenericDataFile(
-        location, format, partition, file.getLength(), metrics);
-  }
-
-  public static DataFile fromParquetStat(FileStatus stat, PartitionData partition, Metrics metrics) {
-    String location = stat.getPath().toString();
-    FileFormat format = FileFormat.PARQUET;
-    return new GenericDataFile(
-        location, format, partition, stat.getLen(), metrics);
+        location, format, partition, file.getLength(), metrics, keyMetadata.buffer(), offsetRanges);
   }
 
   public static Builder builder(PartitionSpec spec) {
@@ -211,6 +174,7 @@ public class DataFiles {
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
     private ByteBuffer keyMetadata = null;
+    private List<Long> offsetRanges = null;
 
     public Builder() {
       this.spec = null;
@@ -237,6 +201,7 @@ public class DataFiles {
       this.nullValueCounts = null;
       this.lowerBounds = null;
       this.upperBounds = null;
+      this.offsetRanges = null;
     }
 
     public Builder copy(DataFile toCopy) {
@@ -254,6 +219,8 @@ public class DataFiles {
       this.upperBounds = toCopy.upperBounds();
       this.keyMetadata = toCopy.keyMetadata() == null ? null
           : ByteBuffers.copy(toCopy.keyMetadata());
+      this.offsetRanges = toCopy.offsetRanges() == null ? null
+          : ImmutableList.copyOf(toCopy.offsetRanges());
       return this;
     }
 
@@ -327,6 +294,11 @@ public class DataFiles {
       return this;
     }
 
+    public Builder withOffsetRanges(List<Long> ranges) {
+      this.offsetRanges = ranges;
+      return this;
+    }
+
     public Builder withEncryptionKeyMetadata(ByteBuffer newKeyMetadata) {
       this.keyMetadata = newKeyMetadata;
       return this;
@@ -334,10 +306,6 @@ public class DataFiles {
 
     public Builder withEncryptionKeyMetadata(EncryptionKeyMetadata newKeyMetadata) {
       return withEncryptionKeyMetadata(newKeyMetadata.buffer());
-    }
-
-    public Builder withEncryptionKeyMetadata(byte[] newKeyMetadata) {
-      return withEncryptionKeyMetadata(ByteBuffer.wrap(newKeyMetadata));
     }
 
     public DataFile build() {
@@ -352,7 +320,8 @@ public class DataFiles {
       return new GenericDataFile(
           filePath, format, isPartitioned ? partitionData.copy() : null,
           fileSizeInBytes, new Metrics(
-              recordCount, columnSizes, valueCounts, nullValueCounts, lowerBounds, upperBounds), keyMetadata);
+              recordCount, columnSizes, valueCounts, nullValueCounts, lowerBounds, upperBounds),
+                  keyMetadata, offsetRanges);
     }
   }
 }
