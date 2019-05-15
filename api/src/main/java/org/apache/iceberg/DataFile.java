@@ -89,11 +89,6 @@ public interface DataFile {
   long fileSizeInBytes();
 
   /**
-   * @return the data file block size in bytes (for split planning)
-   */
-  long blockSizeInBytes();
-
-  /**
    * @return file ordinal if written in a global ordering, or null
    */
   Integer fileOrdinal();

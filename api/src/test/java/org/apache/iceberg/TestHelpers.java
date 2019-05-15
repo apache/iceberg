@@ -333,11 +333,6 @@ public class TestHelpers {
     }
 
     @Override
-    public long blockSizeInBytes() {
-      return 0;
-    }
-
-    @Override
     public Integer fileOrdinal() {
       return null;
     }
