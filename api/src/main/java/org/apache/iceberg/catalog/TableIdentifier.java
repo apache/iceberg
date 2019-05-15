@@ -50,4 +50,8 @@ public class TableIdentifier {
   public String name() {
     return name;
   }
+
+  public String toString() {
+    return namespace.toString() + "." + name;
+  }
 }

@@ -38,11 +38,13 @@ import org.apache.hadoop.hive.metastore.HiveMetaStore;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.IHMSHandler;
 import org.apache.hadoop.hive.metastore.RetryingHMSHandler;
-import org.apache.hadoop.hive.metastore.TServerSocketKeepAlive;
 import org.apache.hadoop.hive.metastore.TSetIpAddressProcessor;
 import org.apache.hadoop.hive.metastore.api.Database;
+import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.server.TServer;
@@ -63,10 +65,12 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 
-public class HiveTableBaseTest {
+public class HiveCatalogBaseTest {
 
   static final String DB_NAME = "hivedb";
   static final String TABLE_NAME =  "tbl";
+  static final TableIdentifier TABLE_IDENTIFIER =
+      new TableIdentifier(Namespace.namespace(new String[] {DB_NAME}), TABLE_NAME);
 
   static final Schema schema = new Schema(Types.StructType.of(
           required(1, "id", Types.LongType.get())).fields());
@@ -77,7 +81,7 @@ public class HiveTableBaseTest {
 
   private static final PartitionSpec partitionSpec = builderFor(schema).identity("id").build();
 
-  private static HiveConf hiveConf;
+  protected static HiveConf hiveConf;
   private static File hiveLocalDir;
 
   private static ExecutorService executorService;
@@ -87,23 +91,23 @@ public class HiveTableBaseTest {
 
   @BeforeClass
   public static void startMetastore() throws Exception {
-    HiveTableBaseTest.executorService = Executors.newSingleThreadExecutor();
-    HiveTableBaseTest.hiveLocalDir = createTempDirectory("hive", asFileAttribute(fromString("rwxrwxrwx"))).toFile();
+    HiveCatalogBaseTest.executorService = Executors.newSingleThreadExecutor();
+    HiveCatalogBaseTest.hiveLocalDir = createTempDirectory("hive", asFileAttribute(fromString("rwxrwxrwx"))).toFile();
     File derbyLogFile = new File(hiveLocalDir, "derby.log");
     System.setProperty("derby.stream.error.file", derbyLogFile.getAbsolutePath());
     setupDB("jdbc:derby:" + getDerbyPath() + ";create=true");
 
-    HiveTableBaseTest.server = thriftServer();
+    HiveCatalogBaseTest.server = thriftServer();
     executorService.submit(() -> server.serve());
 
-    HiveTableBaseTest.metastoreClient = new HiveMetaStoreClient(hiveConf);
+    HiveCatalogBaseTest.metastoreClient = new HiveMetaStoreClient(hiveConf);
     metastoreClient.createDatabase(new Database(DB_NAME, "description", getDBPath(), new HashMap<>()));
   }
 
   @AfterClass
   public static void stopMetastore() {
     metastoreClient.close();
-    HiveTableBaseTest.metastoreClient = null;
+    HiveCatalogBaseTest.metastoreClient = null;
 
     if (server != null) {
       server.stop();
@@ -116,23 +120,28 @@ public class HiveTableBaseTest {
     }
   }
 
-  HiveTables tables;
+  HiveCatalog catalog;
 
   @Before
   public void createTestTable() throws Exception {
-    this.tables = new HiveTables(hiveConf);
-    tables.create(schema, partitionSpec, DB_NAME, TABLE_NAME);
+    this.catalog = new HiveCatalog(hiveConf);
+    catalog.createTable(TABLE_IDENTIFIER, schema, partitionSpec, null);
   }
 
   @After
   public void dropTestTable() throws Exception {
-    metastoreClient.dropTable(DB_NAME, TABLE_NAME);
-    tables.close();
-    this.tables = null;
+    try {
+      metastoreClient.getTable(DB_NAME, TABLE_NAME);
+      metastoreClient.dropTable(DB_NAME, TABLE_NAME);
+      this.catalog.close();
+      this.catalog = null;
+    } catch(NoSuchObjectException e) {
+      // ignore
+    }
   }
 
   private static HiveConf hiveConf(Configuration conf, int port) {
-    final HiveConf hiveConf = new HiveConf(conf, HiveTableBaseTest.class);
+    final HiveConf hiveConf = new HiveConf(conf, HiveCatalogBaseTest.class);
     hiveConf.set(HiveConf.ConfVars.METASTOREURIS.varname, "thrift://localhost:" + port);
     hiveConf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file:" + hiveLocalDir.getAbsolutePath());
     return hiveConf;
@@ -145,7 +154,7 @@ public class HiveTableBaseTest {
 
   private static TServer thriftServer() throws Exception {
     TServerSocket socket = new TServerSocket(0);
-    HiveTableBaseTest.hiveConf = hiveConf(new Configuration(), socket.getServerSocket().getLocalPort());
+    HiveCatalogBaseTest.hiveConf = hiveConf(new Configuration(), socket.getServerSocket().getLocalPort());
     HiveConf serverConf = new HiveConf(hiveConf);
     serverConf.set(HiveConf.ConfVars.METASTORECONNECTURLKEY.varname, "jdbc:derby:" + getDerbyPath() + ";create=true");
     HiveMetaStore.HMSHandler baseHandler = new HiveMetaStore.HMSHandler("new db based metaserver", serverConf);
@@ -156,7 +165,7 @@ public class HiveTableBaseTest {
             .transportFactory(new TTransportFactory())
             .protocolFactory(new TBinaryProtocol.Factory())
             .minWorkerThreads(3)
-            .maxWorkerThreads(5);
+            .maxWorkerThreads(32);
 
     return new TThreadPoolServer(args);
   }
@@ -165,7 +174,7 @@ public class HiveTableBaseTest {
     Connection connection = DriverManager.getConnection(dbURL);
     ScriptRunner scriptRunner = new ScriptRunner(connection, true, true);
 
-    URL hiveSqlScript = HiveTableBaseTest.class.getClassLoader().getResource("hive-schema-3.1.0.derby.sql");
+    URL hiveSqlScript = HiveCatalogBaseTest.class.getClassLoader().getResource("hive-schema-3.1.0.derby.sql");
     try (Reader reader = new BufferedReader(new FileReader(new File(hiveSqlScript.getFile())))) {
       scriptRunner.runScript(reader);
     }

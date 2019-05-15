@@ -31,7 +31,10 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.data.AvroDataTest;
@@ -88,8 +91,12 @@ public class TestParquetScan extends AvroDataTest {
     File parquetFile = new File(dataFolder,
         FileFormat.PARQUET.addExtension(UUID.randomUUID().toString()));
 
-    HadoopTables tables = new HadoopTables(CONF);
-    Table table = tables.create(schema, PartitionSpec.unpartitioned(), location.toString());
+    Catalog catalog = new HadoopCatalog(CONF);
+    Table table = catalog.createTable(
+        new TableIdentifier(Namespace.empty(), location.toString()),
+        schema,
+        PartitionSpec.unpartitioned(),
+        null);
 
     // Important: use the table's schema for the rest of the test
     // When tables are created, the column ids are reassigned.

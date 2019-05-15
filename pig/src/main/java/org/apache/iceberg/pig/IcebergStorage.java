@@ -37,8 +37,11 @@ import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Tables;
+import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.pig.IcebergPigInputFormat.IcebergRecordReader;
 import org.apache.iceberg.types.Types;
 import org.apache.pig.Expression;
@@ -96,7 +99,7 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
   private static final Logger LOG = LoggerFactory.getLogger(IcebergStorage.class);
 
   public static final String PIG_ICEBERG_TABLES_IMPL = "pig.iceberg.tables.impl";
-  private static Tables iceberg;
+  private static Catalog iceberg;
   private static Map<String, Table> tables = Maps.newConcurrentMap();
   private static Map<String, String> locations = Maps.newConcurrentMap();
 
@@ -322,9 +325,9 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
 
   private Table load(String location, Job job) throws IOException {
     if(iceberg == null) {
-      Class<?> tablesImpl = job.getConfiguration().getClass(PIG_ICEBERG_TABLES_IMPL, HadoopTables.class);
+      Class<?> tablesImpl = job.getConfiguration().getClass(PIG_ICEBERG_TABLES_IMPL, HadoopCatalog.class);
       Log.info("Initializing iceberg tables implementation: " + tablesImpl);
-      iceberg = (Tables) ReflectionUtils.newInstance(tablesImpl, job.getConfiguration());
+      iceberg = (Catalog) ReflectionUtils.newInstance(tablesImpl, job.getConfiguration());
     }
 
     Table result = tables.get(location);
@@ -332,7 +335,7 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
     if (result == null) {
       try {
         LOG.info(format("[%s]: Loading table for location: %s", signature, location));
-        result = iceberg.load(location);
+        result = iceberg.getTable(new TableIdentifier(Namespace.empty(), location));
         tables.put(location, result);
       } catch (Exception e) {
         throw new FrontendException("Failed to instantiate tables implementation", e);

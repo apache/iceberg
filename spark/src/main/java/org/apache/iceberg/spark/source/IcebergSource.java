@@ -28,7 +28,10 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.CheckCompatibility;
 import org.apache.spark.sql.SaveMode;
@@ -101,9 +104,9 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Preconditions.checkArgument(location.isPresent(),
         "Cannot open table without a location: path is not set");
 
-    HadoopTables tables = new HadoopTables(conf);
+    Catalog catalog = new HadoopCatalog(conf);
 
-    return tables.load(location.get());
+    return catalog.getTable(new TableIdentifier(Namespace.empty(), location.get()));
   }
 
   private SparkSession lazySparkSession() {

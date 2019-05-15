@@ -27,7 +27,10 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -71,9 +74,14 @@ public class TestParquetWrite {
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test");
 
-    HadoopTables tables = new HadoopTables(CONF);
+    Catalog catalog = new HadoopCatalog(CONF);
+
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
-    Table table = tables.create(SCHEMA, spec, location.toString());
+    Table table = catalog.createTable(
+        new TableIdentifier(Namespace.empty(), location.toString()),
+        SCHEMA,
+        spec,
+        null);
 
     List<SimpleRecord> expected = Lists.newArrayList(
         new SimpleRecord(1, "a"),
