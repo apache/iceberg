@@ -360,7 +360,7 @@ class GenericDataFile
       case 4:
         return fileSizeInBytes;
       case 5:
-        // block_size_in_bytes is not used. However, it was a required avro field in DataFile. So
+        // block_size_in_bytes is not used. However, it is a required avro field in DataFile. So
         // to maintain compatibility, we need to return something.
         return DEFAULT_BLOCK_SIZE;
       case 6:

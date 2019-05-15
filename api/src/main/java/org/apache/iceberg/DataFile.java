@@ -45,8 +45,7 @@ public interface DataFile {
         required(102, "partition", partitionType),
         required(103, "record_count", LongType.get()),
         required(104, "file_size_in_bytes", LongType.get()),
-        // Note that although this field is optional, we need to always write it for older readers
-        optional(105, "block_size_in_bytes", LongType.get()),
+        required(105, "block_size_in_bytes", LongType.get()),
         optional(106, "file_ordinal", IntegerType.get()),
         optional(107, "sort_columns", ListType.ofRequired(112, IntegerType.get())),
         optional(108, "column_sizes", MapType.ofRequired(117, 118,
