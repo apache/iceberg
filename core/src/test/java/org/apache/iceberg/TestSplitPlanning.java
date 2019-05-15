@@ -26,7 +26,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Before;
@@ -39,7 +41,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 public class TestSplitPlanning {
 
   private static final Configuration CONF = new Configuration();
-  private static final HadoopTables TABLES = new HadoopTables(CONF);
+  private static final HadoopCatalog HADOOP_CATALOG = new HadoopCatalog(CONF);
   private static final Schema SCHEMA = new Schema(
       optional(1, "id", Types.IntegerType.get()),
       optional(2, "data", Types.StringType.get())
@@ -53,7 +55,8 @@ public class TestSplitPlanning {
   public void setupTable() throws IOException {
     File tableDir = temp.newFolder();
     String tableLocation = tableDir.toURI().toString();
-    table = TABLES.create(SCHEMA, tableLocation);
+    table = HADOOP_CATALOG.createTable(new TableIdentifier(Namespace.empty(), tableLocation), SCHEMA,
+        PartitionSpec.unpartitioned(), null);
     table.updateProperties()
         .set(TableProperties.SPLIT_SIZE, String.valueOf(128 * 1024 * 1024))
         .set(TableProperties.SPLIT_OPEN_FILE_COST, String.valueOf(4 * 1024 * 1024))

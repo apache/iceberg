@@ -37,8 +37,11 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.Literal;
-import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.data.TestHelpers;
@@ -79,7 +82,7 @@ import static org.apache.spark.sql.functions.column;
 @RunWith(Parameterized.class)
 public class TestFilteredScan {
   private static final Configuration CONF = new Configuration();
-  private static final HadoopTables TABLES = new HadoopTables(CONF);
+  Catalog CATALOG = new HadoopCatalog(CONF);
 
   private static final Schema SCHEMA = new Schema(
       Types.NestedField.required(1, "id", Types.LongType.get()),
@@ -155,7 +158,11 @@ public class TestFilteredScan {
     File dataFolder = new File(unpartitioned, "data");
     Assert.assertTrue("Mkdir should succeed", dataFolder.mkdirs());
 
-    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), unpartitioned.toString());
+    Table table = CATALOG.createTable(
+        new TableIdentifier(Namespace.empty(), unpartitioned.toString()),
+        SCHEMA,
+        PartitionSpec.unpartitioned(),
+        null);
     Schema tableSchema = table.schema(); // use the table schema because ids are reassigned
 
     FileFormat fileFormat = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
@@ -457,7 +464,11 @@ public class TestFilteredScan {
 
   private File buildPartitionedTable(String desc, PartitionSpec spec, String udf, String partitionColumn) {
     File location = new File(parent, desc);
-    Table byId = TABLES.create(SCHEMA, spec, location.toString());
+    Catalog catalog = new HadoopCatalog(CONF);
+    Table byId = catalog.createTable(new TableIdentifier(Namespace.empty(), location.toString()),
+        SCHEMA,
+        spec,
+        null);
 
     // Do not combine or split files because the tests expect a split per partition.
     // A target split size of 2048 helps us achieve that.

@@ -19,6 +19,10 @@
 
 package org.apache.iceberg.catalog;
 
+import java.util.Arrays;
+
+import static java.util.stream.Collectors.joining;
+
 /**
  * Identifies a namespace in iceberg catalog
  */
@@ -48,5 +52,11 @@ public class Namespace {
 
   public static Namespace empty() {
     return EMPTY;
+  }
+
+  @Override
+  public String toString() {
+    // assumes a level it self won't have a period in it, otherwise it will be ambiguous
+    return Arrays.stream(levels).collect(joining("."));
   }
 }

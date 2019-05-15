@@ -36,7 +36,10 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.UpdateSchema;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
@@ -62,11 +65,11 @@ public class TestHadoopCommits extends HadoopTableTestBase {
         .build();
 
     Assert.assertEquals("Table schema should match schema with reassigned ids",
-        TABLE_SCHEMA.asStruct(), table.schema().asStruct());
+        TABLE_SCHEMA.asStruct(), this.table.schema().asStruct());
     Assert.assertEquals("Table partition spec should match with reassigned ids",
-        expectedSpec, table.spec());
+        expectedSpec, this.table.spec());
 
-    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles());
+    List<FileScanTask> tasks = Lists.newArrayList(this.table.newScan().planFiles());
     Assert.assertEquals("Should not create any scan tasks", 0, tasks.size());
 
     Assert.assertTrue("Table location should exist",
@@ -84,6 +87,19 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     List<File> manifests = listManifestFiles();
     Assert.assertEquals("Should contain 0 Avro manifest files", 0, manifests.size());
+  }
+
+  @Test(expected = UnsupportedOperationException.class)
+  public void testRenameTable() throws Exception {
+    String newLocation = temp.newFolder().toURI().toString();
+    TableIdentifier renameIdentifier = new TableIdentifier(Namespace.empty(), newLocation);
+    HADOOP_CATALOG.renameTable(tableIdentifier, renameIdentifier);
+  }
+
+  @Test(expected = NoSuchTableException.class)
+  public void testDropTable() {
+    HADOOP_CATALOG.dropTable(tableIdentifier);
+    HADOOP_CATALOG.getTable(tableIdentifier);
   }
 
   @Test
@@ -180,7 +196,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
   @Test
   public void testStaleMetadata() throws Exception {
-    Table tableCopy = TABLES.load(tableLocation);
+    Table tableCopy = HADOOP_CATALOG.getTable(tableIdentifier);
 
     Assert.assertTrue("Should create v1 metadata",
         version(1).exists() && version(1).isFile());
@@ -216,7 +232,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
   @Test
   public void testStaleVersionHint() throws Exception {
-    Table stale = TABLES.load(tableLocation);
+    Table stale = HADOOP_CATALOG.getTable(tableIdentifier);
 
     Assert.assertTrue("Should create v1 metadata",
         version(1).exists() && version(1).isFile());
@@ -238,7 +254,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     // roll the version hint back to 1
     replaceVersionHint(1);
 
-    Table reloaded = TABLES.load(tableLocation);
+    Table reloaded = HADOOP_CATALOG.getTable(tableIdentifier);
     Assert.assertEquals("Updated schema for newly loaded table should match",
         UPDATED_SCHEMA.asStruct(), reloaded.schema().asStruct());
 

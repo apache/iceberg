@@ -26,12 +26,14 @@ import java.util.List;
 import java.util.Locale;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
-import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.types.Types;
@@ -48,7 +50,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 @RunWith(Parameterized.class)
 public class TestSplitScan {
   private static final Configuration CONF = new Configuration();
-  private static final HadoopTables TABLES = new HadoopTables(CONF);
+  private static final HadoopCatalog HADOOP_CATALOG = new HadoopCatalog(CONF);
 
   private static final long SPLIT_SIZE = 16 * 1024 * 1024;
 
@@ -97,7 +99,11 @@ public class TestSplitScan {
   }
 
   private void setupTable() throws IOException {
-    table = TABLES.create(SCHEMA, tableLocation.toString());
+    table = HADOOP_CATALOG.createTable(
+        new TableIdentifier(Namespace.empty(), tableLocation.toString()),
+        SCHEMA,
+        PartitionSpec.unpartitioned(),
+        null);
     table.updateProperties()
         .set(TableProperties.SPLIT_SIZE, String.valueOf(SPLIT_SIZE))
         .commit();
