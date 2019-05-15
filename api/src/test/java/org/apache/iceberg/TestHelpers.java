@@ -378,7 +378,7 @@ public class TestHelpers {
     }
 
     @Override
-    public List<Long> offsetRanges() {
+    public List<Long> splitOffsets() {
       return null;
     }
   }

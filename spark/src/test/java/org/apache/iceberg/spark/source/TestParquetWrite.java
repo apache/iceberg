@@ -104,7 +104,7 @@ public class TestParquetWrite {
     Assert.assertEquals("Result rows should match", expected, actual);
     for (ManifestFile manifest : table.currentSnapshot().manifests()) {
       for (DataFile file : ManifestReader.read(localInput(manifest.path()), null)) {
-        Assert.assertNotNull("Offset ranges not present", file.offsetRanges());
+        Assert.assertNotNull("Split offsets not present", file.splitOffsets());
         Assert.assertEquals("Should have reported record count as 1" , 1, file.recordCount());
         Assert.assertNotNull("Column sizes metric not present", file.columnSizes());
         Assert.assertNotNull("Counts metric not present", file.valueCounts());

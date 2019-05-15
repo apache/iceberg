@@ -59,7 +59,7 @@ public interface DataFile {
         optional(128, "upper_bounds", MapType.ofRequired(129, 130,
             IntegerType.get(), BinaryType.get())),
         optional(131, "key_metadata", BinaryType.get()),
-        optional(132, "offset_ranges", ListType.ofRequired(133, LongType.get()))
+        optional(132, "split_offsets", ListType.ofRequired(133, LongType.get()))
         // NEXT ID TO ASSIGN: 134
     );
   }
@@ -139,7 +139,8 @@ public interface DataFile {
   DataFile copy();
 
   /**
-   * @return a list of offsets for file blocks if applicable, null otherwise
+   * @return a list of offsets for file blocks if applicable, null otherwise. When available, this
+   * information is used for planning scan tasks whose boundaries are determined by these offsets.
    */
-  List<Long> offsetRanges();
+  List<Long> splitOffsets();
 }

@@ -116,7 +116,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   @Override
   public Metrics metrics() {
-    return ParquetMetrics.fromMetadata(writer.getFooter());
+    return ParquetUtil.fromMetadata(writer.getFooter());
   }
 
   @Override
@@ -129,9 +129,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   }
 
   @Override
-  public List<Long> offsetRanges()
-  {
-    return ParquetMetrics.getOffsetRanges(writer.getFooter());
+  public List<Long> splitOffsets() {
+    return ParquetUtil.getSplitOffsets(writer.getFooter());
   }
 
   private void checkSize() {

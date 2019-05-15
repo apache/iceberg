@@ -63,7 +63,7 @@ class GenericDataFile
   private Map<Integer, Long> nullValueCounts = null;
   private Map<Integer, ByteBuffer> lowerBounds = null;
   private Map<Integer, ByteBuffer> upperBounds = null;
-  private List<Long> offsetRanges = null;
+  private List<Long> splitOffsets = null;
   private transient ByteBuffer keyMetadata = null;
 
   // cached schema
@@ -129,7 +129,7 @@ class GenericDataFile
   }
 
   GenericDataFile(String filePath, FileFormat format, PartitionData partition,
-                  long fileSizeInBytes, Metrics metrics, List<Long> offsetRanges) {
+                  long fileSizeInBytes, Metrics metrics, List<Long> splitOffsets) {
     this.filePath = filePath;
     this.format = format;
 
@@ -150,13 +150,13 @@ class GenericDataFile
     this.nullValueCounts = metrics.nullValueCounts();
     this.lowerBounds = SerializableByteBufferMap.wrap(metrics.lowerBounds());
     this.upperBounds = SerializableByteBufferMap.wrap(metrics.upperBounds());
-    this.offsetRanges = copy(offsetRanges);
+    this.splitOffsets = copy(splitOffsets);
   }
 
   GenericDataFile(String filePath, FileFormat format, PartitionData partition,
                   long fileSizeInBytes, Metrics metrics,
-                  ByteBuffer keyMetadata, List<Long> offsetRanges) {
-    this(filePath, format, partition, fileSizeInBytes, metrics, offsetRanges);
+                  ByteBuffer keyMetadata, List<Long> splitOffsets) {
+    this(filePath, format, partition, fileSizeInBytes, metrics, splitOffsets);
     this.keyMetadata = keyMetadata;
   }
 
@@ -182,7 +182,7 @@ class GenericDataFile
     this.upperBounds = SerializableByteBufferMap.wrap(copy(toCopy.upperBounds));
     this.fromProjectionPos = toCopy.fromProjectionPos;
     this.keyMetadata = toCopy.keyMetadata == null ? null : ByteBuffers.copy(toCopy.keyMetadata);
-    this.offsetRanges = copy(toCopy.offsetRanges);
+    this.splitOffsets = copy(toCopy.splitOffsets);
   }
 
   /**
@@ -257,8 +257,8 @@ class GenericDataFile
   }
 
   @Override
-  public List<Long> offsetRanges() {
-    return offsetRanges;
+  public List<Long> splitOffsets() {
+    return splitOffsets;
   }
 
   @Override
@@ -321,7 +321,7 @@ class GenericDataFile
         this.keyMetadata = (ByteBuffer) v;
         return;
       case 14:
-        this.offsetRanges = (List<Long>) v;
+        this.splitOffsets = (List<Long>) v;
         return;
       default:
         // ignore the object, it must be from a newer version of the format
@@ -372,7 +372,7 @@ class GenericDataFile
       case 13:
         return keyMetadata;
       case 14:
-        return offsetRanges;
+        return splitOffsets;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -392,7 +392,7 @@ class GenericDataFile
 
   @Override
   public int size() {
-    return 14;
+    return 15;
   }
 
   @Override
@@ -409,7 +409,7 @@ class GenericDataFile
         .add("lower_bounds", lowerBounds)
         .add("upper_bounds", upperBounds)
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
-        .add("offset_ranges", offsetRanges == null ? "null" : offsetRanges)
+        .add("split_offsets", splitOffsets == null ? "null" : splitOffsets)
         .toString();
   }
 

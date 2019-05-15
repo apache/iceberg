@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import java.io.IOException;
-import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -48,8 +47,9 @@ import org.apache.parquet.schema.MessageType;
 
 import static org.apache.iceberg.parquet.ParquetConversions.fromParquetPrimitive;
 
-public class ParquetMetrics implements Serializable {
-  private ParquetMetrics() {
+public class ParquetUtil {
+  // not meant to be instantiated
+  private ParquetUtil() {
   }
 
   public static Metrics fromInputFile(InputFile file) {
@@ -109,12 +109,12 @@ public class ParquetMetrics implements Serializable {
         toBufferMap(fileSchema, lowerBounds), toBufferMap(fileSchema, upperBounds));
   }
 
-  public static List<Long> getOffsetRanges(ParquetMetadata md) {
-    List<Long> offsetRanges = new ArrayList<>(md.getBlocks().size());
+  public static List<Long> getSplitOffsets(ParquetMetadata md) {
+    List<Long> splitOffsets = new ArrayList<>(md.getBlocks().size());
     for (BlockMetaData blockMetaData : md.getBlocks()) {
-      offsetRanges.add(blockMetaData.getStartingPos());
+      splitOffsets.add(blockMetaData.getStartingPos());
     }
-    return ImmutableList.copyOf(offsetRanges);
+    return ImmutableList.copyOf(splitOffsets);
   }
 
   // we allow struct nesting, but not maps or arrays
