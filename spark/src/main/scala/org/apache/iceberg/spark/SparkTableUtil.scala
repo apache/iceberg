@@ -234,7 +234,7 @@ object SparkTableUtil {
     val fs = partition.getFileSystem(conf)
 
     fs.listStatus(partition, HiddenPathFilter).filter(_.isFile).map { stat =>
-      val metrics = ParquetUtil.fromMetadata(ParquetFileReader.readFooter(conf, stat))
+      val metrics = ParquetUtil.footerMetrics(ParquetFileReader.readFooter(conf, stat))
 
       SparkDataFile(
         stat.getPath.toString,

@@ -319,9 +319,8 @@ public class DataFiles {
       return new GenericDataFile(
           filePath, format, isPartitioned ? partitionData.copy() : null,
           fileSizeInBytes, new Metrics(
-          recordCount, columnSizes, valueCounts, nullValueCounts, lowerBounds, upperBounds),
-          keyMetadata, splitOffsets
-      );
+              recordCount, columnSizes, valueCounts, nullValueCounts, lowerBounds, upperBounds),
+          keyMetadata, splitOffsets);
     }
   }
 }

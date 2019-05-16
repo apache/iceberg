@@ -52,15 +52,15 @@ public class ParquetUtil {
   private ParquetUtil() {
   }
 
-  public static Metrics fromInputFile(InputFile file) {
+  public static Metrics fileMetrics(InputFile file) {
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file))) {
-      return fromMetadata(reader.getFooter());
+      return footerMetrics(reader.getFooter());
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read footer of file: %s", file);
     }
   }
 
-  public static Metrics fromMetadata(ParquetMetadata metadata) {
+  public static Metrics footerMetrics(ParquetMetadata metadata) {
     long rowCount = 0;
     Map<Integer, Long> columnSizes = Maps.newHashMap();
     Map<Integer, Long> valueCounts = Maps.newHashMap();

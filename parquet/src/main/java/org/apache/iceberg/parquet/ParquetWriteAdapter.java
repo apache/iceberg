@@ -48,7 +48,7 @@ public class ParquetWriteAdapter<D> implements FileAppender<D> {
   @Override
   public Metrics metrics() {
     Preconditions.checkState(footer != null, "Cannot produce metrics until closed");
-    return ParquetUtil.fromMetadata(footer);
+    return ParquetUtil.footerMetrics(footer);
   }
 
   @Override

@@ -115,7 +115,7 @@ public class TestParquetUtil extends BaseParquetWritingTest {
 
     File parquetFile = writeRecords(schema, firstRecord, secondRecord);
 
-    Metrics metrics = ParquetUtil.fromInputFile(localInput(parquetFile));
+    Metrics metrics = ParquetUtil.fileMetrics(localInput(parquetFile));
     Assert.assertEquals(2L, (long) metrics.recordCount());
     assertCounts(1, 2L, 0L, metrics);
     assertBounds(1, BooleanType.get(), false, true, metrics);
@@ -162,7 +162,7 @@ public class TestParquetUtil extends BaseParquetWritingTest {
 
     File parquetFile = writeRecords(schema, record);
 
-    Metrics metrics = ParquetUtil.fromInputFile(localInput(parquetFile));
+    Metrics metrics = ParquetUtil.fileMetrics(localInput(parquetFile));
     Assert.assertEquals(1L, (long) metrics.recordCount());
     assertCounts(1, 1L, 0L, metrics);
     assertBounds(1, DecimalType.of(4, 2), new BigDecimal("2.55"), new BigDecimal("2.55"), metrics);
@@ -199,7 +199,7 @@ public class TestParquetUtil extends BaseParquetWritingTest {
 
     File parquetFile = writeRecords(schema, record);
 
-    Metrics metrics = ParquetUtil.fromInputFile(localInput(parquetFile));
+    Metrics metrics = ParquetUtil.fileMetrics(localInput(parquetFile));
     Assert.assertEquals(1L, (long) metrics.recordCount());
     assertCounts(1, 1L, 0L, metrics);
     assertBounds(1, IntegerType.get(), Integer.MAX_VALUE, Integer.MAX_VALUE, metrics);
@@ -234,7 +234,7 @@ public class TestParquetUtil extends BaseParquetWritingTest {
 
     File parquetFile = writeRecords(schema, record);
 
-    Metrics metrics = ParquetUtil.fromInputFile(localInput(parquetFile));
+    Metrics metrics = ParquetUtil.fileMetrics(localInput(parquetFile));
     Assert.assertEquals(1L, (long) metrics.recordCount());
     assertCounts(1, 1, 0, metrics);
     assertBounds(1, IntegerType.get(), null, null, metrics);
@@ -258,7 +258,7 @@ public class TestParquetUtil extends BaseParquetWritingTest {
 
     File parquetFile = writeRecords(schema, firstRecord, secondRecord);
 
-    Metrics metrics = ParquetUtil.fromInputFile(localInput(parquetFile));
+    Metrics metrics = ParquetUtil.fileMetrics(localInput(parquetFile));
     Assert.assertEquals(2L, (long) metrics.recordCount());
     assertCounts(1, 2, 2, metrics);
     assertBounds(1, IntegerType.get(), null, null, metrics);

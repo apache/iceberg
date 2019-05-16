@@ -45,7 +45,6 @@ import org.apache.parquet.schema.MessageType;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static org.apache.iceberg.parquet.ParquetSchemaUtil.convert;
-import static org.apache.parquet.column.ParquetProperties.WriterVersion.PARQUET_1_0;
 
 class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private static final DynConstructors.Ctor<PageWriteStore> pageStoreCtor = DynConstructors
@@ -116,7 +115,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   @Override
   public Metrics metrics() {
-    return ParquetUtil.fromMetadata(writer.getFooter());
+    return ParquetUtil.footerMetrics(writer.getFooter());
   }
 
   @Override
