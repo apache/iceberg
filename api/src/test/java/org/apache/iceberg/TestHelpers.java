@@ -376,5 +376,10 @@ public class TestHelpers {
     public DataFile copy() {
       return this;
     }
+
+    @Override
+    public List<Long> splitOffsets() {
+      return null;
+    }
   }
 }

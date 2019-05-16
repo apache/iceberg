@@ -19,11 +19,12 @@
 
 package org.apache.iceberg.parquet;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import java.io.IOException;
-import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -46,19 +47,20 @@ import org.apache.parquet.schema.MessageType;
 
 import static org.apache.iceberg.parquet.ParquetConversions.fromParquetPrimitive;
 
-public class ParquetMetrics implements Serializable {
-  private ParquetMetrics() {
+public class ParquetUtil {
+  // not meant to be instantiated
+  private ParquetUtil() {
   }
 
-  public static Metrics fromInputFile(InputFile file) {
+  public static Metrics fileMetrics(InputFile file) {
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file))) {
-      return fromMetadata(reader.getFooter());
+      return footerMetrics(reader.getFooter());
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read footer of file: %s", file);
     }
   }
 
-  public static Metrics fromMetadata(ParquetMetadata metadata) {
+  public static Metrics footerMetrics(ParquetMetadata metadata) {
     long rowCount = 0;
     Map<Integer, Long> columnSizes = Maps.newHashMap();
     Map<Integer, Long> valueCounts = Maps.newHashMap();
@@ -105,6 +107,14 @@ public class ParquetMetrics implements Serializable {
 
     return new Metrics(rowCount, columnSizes, valueCounts, nullValueCounts,
         toBufferMap(fileSchema, lowerBounds), toBufferMap(fileSchema, upperBounds));
+  }
+
+  public static List<Long> getSplitOffsets(ParquetMetadata md) {
+    List<Long> splitOffsets = new ArrayList<>(md.getBlocks().size());
+    for (BlockMetaData blockMetaData : md.getBlocks()) {
+      splitOffsets.add(blockMetaData.getStartingPos());
+    }
+    return ImmutableList.copyOf(splitOffsets);
   }
 
   // we allow struct nesting, but not maps or arrays

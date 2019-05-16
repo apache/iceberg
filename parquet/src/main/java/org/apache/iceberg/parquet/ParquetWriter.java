@@ -22,6 +22,7 @@ package org.apache.iceberg.parquet;
 import com.google.common.collect.ImmutableMap;
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
@@ -44,7 +45,6 @@ import org.apache.parquet.schema.MessageType;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static org.apache.iceberg.parquet.ParquetSchemaUtil.convert;
-import static org.apache.parquet.column.ParquetProperties.WriterVersion.PARQUET_1_0;
 
 class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private static final DynConstructors.Ctor<PageWriteStore> pageStoreCtor = DynConstructors
@@ -115,7 +115,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   @Override
   public Metrics metrics() {
-    return ParquetMetrics.fromMetadata(writer.getFooter());
+    return ParquetUtil.footerMetrics(writer.getFooter());
   }
 
   @Override
@@ -125,6 +125,11 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to get file length");
     }
+  }
+
+  @Override
+  public List<Long> splitOffsets() {
+    return ParquetUtil.getSplitOffsets(writer.getFooter());
   }
 
   private void checkSize() {

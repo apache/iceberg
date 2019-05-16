@@ -63,6 +63,7 @@ class GenericDataFile
   private Map<Integer, Long> nullValueCounts = null;
   private Map<Integer, ByteBuffer> lowerBounds = null;
   private Map<Integer, ByteBuffer> upperBounds = null;
+  private List<Long> splitOffsets = null;
   private transient ByteBuffer keyMetadata = null;
 
   // cached schema
@@ -115,14 +116,6 @@ class GenericDataFile
     this.partitionType = EMPTY_PARTITION_DATA.getPartitionType();
     this.recordCount = recordCount;
     this.fileSizeInBytes = fileSizeInBytes;
-    this.fileOrdinal = null;
-    this.sortColumns = null;
-    this.columnSizes = null;
-    this.valueCounts = null;
-    this.nullValueCounts = null;
-    this.lowerBounds = null;
-    this.upperBounds = null;
-    this.fromProjectionPos = null;
   }
 
   GenericDataFile(String filePath, FileFormat format, PartitionData partition,
@@ -133,18 +126,10 @@ class GenericDataFile
     this.partitionType = partition.getPartitionType();
     this.recordCount = recordCount;
     this.fileSizeInBytes = fileSizeInBytes;
-    this.fileOrdinal = null;
-    this.sortColumns = null;
-    this.columnSizes = null;
-    this.valueCounts = null;
-    this.nullValueCounts = null;
-    this.lowerBounds = null;
-    this.upperBounds = null;
-    this.fromProjectionPos = null;
   }
 
   GenericDataFile(String filePath, FileFormat format, PartitionData partition,
-                  long fileSizeInBytes, Metrics metrics) {
+                  long fileSizeInBytes, Metrics metrics, List<Long> splitOffsets) {
     this.filePath = filePath;
     this.format = format;
 
@@ -160,20 +145,18 @@ class GenericDataFile
     // this will throw NPE if metrics.recordCount is null
     this.recordCount = metrics.recordCount();
     this.fileSizeInBytes = fileSizeInBytes;
-    this.fileOrdinal = null;
-    this.sortColumns = null;
     this.columnSizes = metrics.columnSizes();
     this.valueCounts = metrics.valueCounts();
     this.nullValueCounts = metrics.nullValueCounts();
     this.lowerBounds = SerializableByteBufferMap.wrap(metrics.lowerBounds());
     this.upperBounds = SerializableByteBufferMap.wrap(metrics.upperBounds());
-    this.fromProjectionPos = null;
+    this.splitOffsets = copy(splitOffsets);
   }
 
   GenericDataFile(String filePath, FileFormat format, PartitionData partition,
                   long fileSizeInBytes, Metrics metrics,
-                  ByteBuffer keyMetadata) {
-    this(filePath, format, partition, fileSizeInBytes, metrics);
+                  ByteBuffer keyMetadata, List<Long> splitOffsets) {
+    this(filePath, format, partition, fileSizeInBytes, metrics, splitOffsets);
     this.keyMetadata = keyMetadata;
   }
 
@@ -199,6 +182,7 @@ class GenericDataFile
     this.upperBounds = SerializableByteBufferMap.wrap(copy(toCopy.upperBounds));
     this.fromProjectionPos = toCopy.fromProjectionPos;
     this.keyMetadata = toCopy.keyMetadata == null ? null : ByteBuffers.copy(toCopy.keyMetadata);
+    this.splitOffsets = copy(toCopy.splitOffsets);
   }
 
   /**
@@ -273,6 +257,11 @@ class GenericDataFile
   }
 
   @Override
+  public List<Long> splitOffsets() {
+    return splitOffsets;
+  }
+
+  @Override
   public org.apache.avro.Schema getSchema() {
     if (avroSchema == null) {
       this.avroSchema = getAvroSchema(partitionType);
@@ -331,6 +320,9 @@ class GenericDataFile
       case 13:
         this.keyMetadata = (ByteBuffer) v;
         return;
+      case 14:
+        this.splitOffsets = (List<Long>) v;
+        return;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -379,6 +371,8 @@ class GenericDataFile
         return upperBounds;
       case 13:
         return keyMetadata;
+      case 14:
+        return splitOffsets;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -398,7 +392,7 @@ class GenericDataFile
 
   @Override
   public int size() {
-    return 14;
+    return 15;
   }
 
   @Override
@@ -415,6 +409,7 @@ class GenericDataFile
         .add("lower_bounds", lowerBounds)
         .add("upper_bounds", upperBounds)
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
+        .add("split_offsets", splitOffsets == null ? "null" : splitOffsets)
         .toString();
   }
 
