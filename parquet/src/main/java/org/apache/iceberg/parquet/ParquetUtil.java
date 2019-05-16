@@ -25,6 +25,7 @@ import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -109,11 +110,17 @@ public class ParquetUtil {
         toBufferMap(fileSchema, lowerBounds), toBufferMap(fileSchema, upperBounds));
   }
 
+
+  /**
+   * @return a list of offsets in ascending order determined by the starting position
+   * of the row groups
+   */
   public static List<Long> getSplitOffsets(ParquetMetadata md) {
     List<Long> splitOffsets = new ArrayList<>(md.getBlocks().size());
     for (BlockMetaData blockMetaData : md.getBlocks()) {
       splitOffsets.add(blockMetaData.getStartingPos());
     }
+    Collections.sort(splitOffsets);
     return ImmutableList.copyOf(splitOffsets);
   }
 

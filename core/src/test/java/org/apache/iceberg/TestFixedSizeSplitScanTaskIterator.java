@@ -24,9 +24,9 @@ import java.util.List;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.apache.iceberg.BaseFileScanTask.SplitScanTaskIterator;
+import static org.apache.iceberg.BaseFileScanTask.FixedSizeSplitScanTaskIterator;
 
-public class TestSplitScanTaskIterator {
+public class TestFixedSizeSplitScanTaskIterator {
   @Test
   public void testSplits() {
     verify(15L, 100L, asList(
@@ -37,7 +37,8 @@ public class TestSplitScanTaskIterator {
   }
 
   private static void verify(long splitSize, long fileLen, List<List<Long>> offsetLenPairs) {
-    List<FileScanTask> tasks = Lists.newArrayList(new SplitScanTaskIterator(splitSize, new MockFileScanTask(fileLen)));
+    List<FileScanTask> tasks = Lists.newArrayList(
+        new FixedSizeSplitScanTaskIterator(splitSize, new MockFileScanTask(fileLen)));
     for (int i = 0; i < tasks.size(); i++) {
       FileScanTask task = tasks.get(i);
       List<Long> split = offsetLenPairs.get(i);

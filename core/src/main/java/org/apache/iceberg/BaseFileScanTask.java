@@ -19,9 +19,11 @@
 
 package org.apache.iceberg;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
 import java.util.Iterator;
+import java.util.List;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 
@@ -70,11 +72,12 @@ class BaseFileScanTask implements FileScanTask {
 
   @Override
   public Iterable<FileScanTask> split(long splitSize) {
-    if (file.format().isSplittable()) {
-      return () -> new SplitScanTaskIterator(splitSize, this);
-    } else {
-      return ImmutableList.of(this);
+    if (file.splitOffsets() != null) {
+      return () -> new OffsetsBasedSplitScanTaskIterator(file.splitOffsets(), this);
+    } else if (file.format().isSplittable()) {
+      return () -> new FixedSizeSplitScanTaskIterator(splitSize, this);
     }
+    return ImmutableList.of(this);
   }
 
   @Override
@@ -86,16 +89,38 @@ class BaseFileScanTask implements FileScanTask {
         .toString();
   }
 
-  /**
-   * Visible for Testing
-   */
-  static final class SplitScanTaskIterator implements Iterator<FileScanTask> {
+  @VisibleForTesting
+  static final class OffsetsBasedSplitScanTaskIterator implements Iterator<FileScanTask> {
+    private final List<Long> splitOffsets;
+    private final FileScanTask parentScanTask;
+    private int idx = 0;
+
+    OffsetsBasedSplitScanTaskIterator(List<Long> splitOffsets, FileScanTask fileScanTask) {
+      this.splitOffsets = splitOffsets;
+      this.parentScanTask = fileScanTask;
+    }
+
+    @Override
+    public boolean hasNext() {
+      return idx < splitOffsets.size();
+    }
+
+    @Override
+    public FileScanTask next() {
+      long start = splitOffsets.get(idx++);
+      long end = hasNext() ? splitOffsets.get(idx) : parentScanTask.length();
+      return new SplitScanTask(start, end - start, parentScanTask);
+    }
+  }
+
+  @VisibleForTesting
+  static final class FixedSizeSplitScanTaskIterator implements Iterator<FileScanTask> {
     private long offset;
     private long remainingLen;
     private long splitSize;
     private final FileScanTask fileScanTask;
 
-    SplitScanTaskIterator(long splitSize, FileScanTask fileScanTask) {
+    FixedSizeSplitScanTaskIterator(long splitSize, FileScanTask fileScanTask) {
       this.offset = 0;
       this.remainingLen = fileScanTask.length();
       this.splitSize = splitSize;
