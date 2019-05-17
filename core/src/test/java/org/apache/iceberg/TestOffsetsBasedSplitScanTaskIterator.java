@@ -24,20 +24,28 @@ import java.util.List;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.apache.iceberg.BaseFileScanTask.SplitScanTaskIterator;
-
-public class TestSplitScanTaskIterator {
+public class TestOffsetsBasedSplitScanTaskIterator {
   @Test
   public void testSplits() {
-    verify(15L, 100L, asList(
-        asList(0L, 15L), asList(15L, 15L), asList(30L, 15L), asList(45L, 15L), asList(60L, 15L),
-        asList(75L, 15L), asList(90L, 10L)));
-    verify(10L, 10L, asList(asList(0L, 10L)));
-    verify(20L, 10L, asList(asList(0L, 10L)));
+    // case when the last row group has more than one byte
+    verify(asList(4L, 10L, 15L, 18L, 30L, 45L), 48L, asList(
+        asList(4L, 6L), asList(10L, 5L), asList(15L, 3L), asList(18L, 12L), asList(30L, 15L),
+        asList(45L, 3L)));
+
+    // case when the last row group has 1 byte
+    verify(asList(4L, 10L, 15L, 18L, 30L, 45L), 46L, asList(
+        asList(4L, 6L), asList(10L, 5L), asList(15L, 3L), asList(18L, 12L), asList(30L, 15L),
+        asList(45L, 1L)));
+
+    // case when there is only one row group
+    verify(asList(4L), 48L, asList(
+        asList(4L, 44L)));
   }
 
-  private static void verify(long splitSize, long fileLen, List<List<Long>> offsetLenPairs) {
-    List<FileScanTask> tasks = Lists.newArrayList(new SplitScanTaskIterator(splitSize, new MockFileScanTask(fileLen)));
+  private static void verify(List<Long> offsetRanges, long fileLen, List<List<Long>> offsetLenPairs) {
+    List<FileScanTask> tasks = Lists.newArrayList(
+            new BaseFileScanTask.OffsetsBasedSplitScanTaskIterator(offsetRanges, new MockFileScanTask(fileLen)));
+    Assert.assertEquals("Number of tasks don't match", offsetLenPairs.size(), tasks.size());
     for (int i = 0; i < tasks.size(); i++) {
       FileScanTask task = tasks.get(i);
       List<Long> split = offsetLenPairs.get(i);
@@ -48,21 +56,7 @@ public class TestSplitScanTaskIterator {
     }
   }
 
-  private static class MockFileScanTask extends BaseFileScanTask {
-    private final long length;
-
-    MockFileScanTask(long length) {
-      super(null, null, null, null);
-      this.length = length;
-    }
-
-    @Override
-    public long length() {
-      return length;
-    }
-  }
-
-  private <T> List<T> asList(T... items) {
+  private static <T> List<T> asList(T... items) {
     return Lists.newArrayList(items);
   }
 }
