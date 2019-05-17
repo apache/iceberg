@@ -72,10 +72,12 @@ class BaseFileScanTask implements FileScanTask {
 
   @Override
   public Iterable<FileScanTask> split(long splitSize) {
-    if (file.splitOffsets() != null) {
-      return () -> new OffsetsBasedSplitScanTaskIterator(file.splitOffsets(), this);
-    } else if (file.format().isSplittable()) {
-      return () -> new FixedSizeSplitScanTaskIterator(splitSize, this);
+    if (file.format().isSplittable()) {
+      if (file.splitOffsets() != null) {
+        return () -> new OffsetsBasedSplitScanTaskIterator(file.splitOffsets(), this);
+      } else {
+        return () -> new FixedSizeSplitScanTaskIterator(splitSize, this);
+      }
     }
     return ImmutableList.of(this);
   }
@@ -107,7 +109,8 @@ class BaseFileScanTask implements FileScanTask {
 
     @Override
     public FileScanTask next() {
-      long start = splitOffsets.get(idx++);
+      long start = splitOffsets.get(idx);
+      idx++;
       long end = hasNext() ? splitOffsets.get(idx) : parentScanTask.length();
       return new SplitScanTask(start, end - start, parentScanTask);
     }

@@ -28,17 +28,17 @@ public class TestOffsetsBasedSplitScanTaskIterator {
   @Test
   public void testSplits() {
     // case when the last row group has more than one byte
-    verify(Lists.newArrayList(4L, 10L, 15L, 18L, 30L, 45L), 48L, asList(
+    verify(asList(4L, 10L, 15L, 18L, 30L, 45L), 48L, asList(
         asList(4L, 6L), asList(10L, 5L), asList(15L, 3L), asList(18L, 12L), asList(30L, 15L),
         asList(45L, 3L)));
 
     // case when the last row group has 1 byte
-    verify(Lists.newArrayList(4L, 10L, 15L, 18L, 30L, 45L), 46L, asList(
+    verify(asList(4L, 10L, 15L, 18L, 30L, 45L), 46L, asList(
         asList(4L, 6L), asList(10L, 5L), asList(15L, 3L), asList(18L, 12L), asList(30L, 15L),
         asList(45L, 1L)));
 
     // case when there is only one row group
-    verify(Lists.newArrayList(4L), 48L, asList(
+    verify(asList(4L), 48L, asList(
         asList(4L, 44L)));
   }
 
@@ -56,21 +56,7 @@ public class TestOffsetsBasedSplitScanTaskIterator {
     }
   }
 
-  private static class MockFileScanTask extends BaseFileScanTask {
-    private final long length;
-
-    MockFileScanTask(long length) {
-      super(null, null, null, null);
-      this.length = length;
-    }
-
-    @Override
-    public long length() {
-      return length;
-    }
-  }
-
-  private <T> List<T> asList(T... items) {
+  private static <T> List<T> asList(T... items) {
     return Lists.newArrayList(items);
   }
 }

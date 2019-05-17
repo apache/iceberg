@@ -139,10 +139,9 @@ public interface DataFile {
   DataFile copy();
 
   /**
-   * @return List of offsets for blocks of a file, if applicable, null otherwise.
+   * @return List of recommended split locations, if applicable, null otherwise.
    * When available, this information is used for planning scan tasks whose boundaries
-   * are determined by these offsets.It is important that the returned list is sorted
-   * in ascending order.
+   * are determined by these offsets. The returned list must be sorted in ascending order.
    */
   List<Long> splitOffsets();
 }

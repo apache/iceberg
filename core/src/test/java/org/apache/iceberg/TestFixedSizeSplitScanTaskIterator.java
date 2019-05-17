@@ -49,20 +49,6 @@ public class TestFixedSizeSplitScanTaskIterator {
     }
   }
 
-  private static class MockFileScanTask extends BaseFileScanTask {
-    private final long length;
-
-    MockFileScanTask(long length) {
-      super(null, null, null, null);
-      this.length = length;
-    }
-
-    @Override
-    public long length() {
-      return length;
-    }
-  }
-
   private <T> List<T> asList(T... items) {
     return Lists.newArrayList(items);
   }

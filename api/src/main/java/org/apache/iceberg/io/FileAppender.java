@@ -48,9 +48,9 @@ public interface FileAppender<D> extends Closeable {
   long length();
 
   /**
-   * @return a list of offsets for file blocks, if applicable, null otherwise. When available, this
-   * information is used for planning scan tasks whose boundaries are determined by these offsets.
-   * It is important that the returned list is sorted in ascending order.
+   * @return a list of recommended split locations, if applicable, null otherwise. When available,
+   * this information is used for planning scan tasks whose boundaries are determined by these offsets.
+   * The returned list must be sorted in ascending order.
    * Only valid after the file is closed.
    */
   default List<Long> splitOffsets() {
