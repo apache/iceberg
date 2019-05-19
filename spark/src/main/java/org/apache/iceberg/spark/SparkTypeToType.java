@@ -115,6 +115,7 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
     }
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   @Override
   public Type atomic(DataType atomic) {
     if (atomic instanceof BooleanType) {

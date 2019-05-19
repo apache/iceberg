@@ -52,7 +52,7 @@ class SparkTypeVisitor<T> {
           (ArrayType) type,
           visit(((ArrayType) type).elementType(), visitor));
 
-    } else if (type instanceof UserDefinedType){
+    } else if (type instanceof UserDefinedType) {
       throw new UnsupportedOperationException(
           "User-defined types are not supported");
 

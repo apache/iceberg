@@ -60,8 +60,6 @@ import org.apache.spark.sql.sources.v2.writer.WriterCommitMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static com.google.common.collect.Iterables.concat;
-import static com.google.common.collect.Iterables.transform;
 import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
@@ -118,7 +116,7 @@ class Writer implements DataSourceWriter {
             propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
             propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
             propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-            2.0 /* exponential */ )
+            2.0 /* exponential */)
         .throwFailureWhenFinished()
         .run(file -> {
           fileIo.deleteFile(file.path().toString());
@@ -131,9 +129,9 @@ class Writer implements DataSourceWriter {
 
   protected Iterable<DataFile> files(WriterCommitMessage[] messages) {
     if (messages.length > 0) {
-      return concat(transform(Arrays.asList(messages), message -> message != null
-          ? ImmutableList.copyOf(((TaskCommit) message).files())
-          : ImmutableList.of()));
+      return Iterables.concat(Iterables.transform(Arrays.asList(messages), message -> message != null ?
+          ImmutableList.copyOf(((TaskCommit) message).files()) :
+          ImmutableList.of()));
     }
     return ImmutableList.of();
   }
@@ -211,10 +209,10 @@ class Writer implements DataSourceWriter {
 
     private class SparkAppenderFactory implements AppenderFactory<InternalRow> {
       @Override
-      public FileAppender<InternalRow> newAppender(OutputFile file, FileFormat format) {
+      public FileAppender<InternalRow> newAppender(OutputFile file, FileFormat fileFormat) {
         Schema schema = spec.schema();
         try {
-          switch (format) {
+          switch (fileFormat) {
             case PARQUET:
               return Parquet.write(file)
                   .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(schema, msgType))
@@ -230,7 +228,7 @@ class Writer implements DataSourceWriter {
                   .build();
 
             default:
-              throw new UnsupportedOperationException("Cannot write unknown format: " + format);
+              throw new UnsupportedOperationException("Cannot write unknown format: " + fileFormat);
           }
         } catch (IOException e) {
           throw new RuntimeIOException(e);

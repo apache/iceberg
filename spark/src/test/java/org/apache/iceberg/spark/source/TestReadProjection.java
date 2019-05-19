@@ -568,9 +568,9 @@ public abstract class TestReadProjection {
 
   private static org.apache.avro.Schema fromOption(org.apache.avro.Schema schema) {
     Preconditions.checkArgument(schema.getType() == UNION,
-        "Expected union schema but was passed: {}", schema);
+        "Expected union schema but was passed: %s", schema);
     Preconditions.checkArgument(schema.getTypes().size() == 2,
-        "Expected optional schema, but was passed: {}", schema);
+        "Expected optional schema, but was passed: %s", schema);
     if (schema.getTypes().get(0).getType() == org.apache.avro.Schema.Type.NULL) {
       return schema.getTypes().get(1);
     } else {
