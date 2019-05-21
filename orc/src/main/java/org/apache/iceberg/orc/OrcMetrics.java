@@ -19,16 +19,24 @@
 
 package org.apache.iceberg.orc;
 
+import com.google.common.collect.Maps;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Metrics;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.orc.ColumnStatistics;
+import org.apache.orc.OrcProto;
 import org.apache.orc.Reader;
 import org.apache.orc.Writer;
 
@@ -47,8 +55,8 @@ public class OrcMetrics {
     try (Reader orcReader = ORC.newFileReader(file, config)) {
 
       ColumnStatistics[] colStats = orcReader.getStatistics();
-      Map<Integer, Long> columSizes = new HashMap<>(colStats.length);
-      Map<Integer, Long> valueCounts = new HashMap<>(colStats.length);
+      Map<Integer, Long> columSizes = Maps.newHashMapWithExpectedSize(colStats.length);
+      Map<Integer, Long> valueCounts = Maps.newHashMapWithExpectedSize(colStats.length);
       for (int i = 0; i < colStats.length; i++) {
         columSizes.put(i, colStats[i].getBytesOnDisk());
         valueCounts.put(i, colStats[i].getNumberOfValues());
@@ -61,6 +69,70 @@ public class OrcMetrics {
     } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to read footer of file: %s", file);
     }
+  }
+
+  private static Optional<Literal<?>> fromOrcMin(Types.NestedField column,
+                                                    OrcProto.ColumnStatistics columnStats) {
+    Literal<?> min = null;
+    if (columnStats.hasIntStatistics()) {
+      if (column.type().typeId() == Type.TypeID.INTEGER) {
+        min = Literal.of((int) columnStats.getIntStatistics().getMinimum());
+      } else {
+        min = Literal.of(columnStats.getIntStatistics().getMinimum());
+      }
+    } else if (columnStats.hasDoubleStatistics()) {
+      min = Literal.of(columnStats.getDoubleStatistics().getMinimum());
+    } else if (columnStats.hasStringStatistics()) {
+      min = Literal.of(columnStats.getStringStatistics().getMinimum());
+    } else if (columnStats.hasDecimalStatistics()) {
+      min = Literal.of(columnStats.getDecimalStatistics().getMinimum());
+    } else if (columnStats.hasDateStatistics()) {
+      min = Literal.of(columnStats.getDateStatistics().getMinimum());
+    } else if (columnStats.hasTimestampStatistics()) {
+      min = Literal.of(columnStats.getTimestampStatistics().getMinimum());
+    }
+    return Optional.ofNullable(min);
+  }
+
+  private static Optional<Literal<?>> fromOrcMax(Types.NestedField column,
+                                                    OrcProto.ColumnStatistics columnStats) {
+    Literal<?> max = null;
+    if (columnStats.hasIntStatistics()) {
+      if (column.type().typeId() == Type.TypeID.INTEGER) {
+        max = Literal.of((int) columnStats.getIntStatistics().getMaximum());
+      } else {
+        max = Literal.of(columnStats.getIntStatistics().getMaximum());
+      }
+    } else if (columnStats.hasDoubleStatistics()) {
+      max = Literal.of(columnStats.getDoubleStatistics().getMaximum());
+    } else if (columnStats.hasStringStatistics()) {
+      max = Literal.of(columnStats.getStringStatistics().getMaximum());
+    } else if (columnStats.hasDecimalStatistics()) {
+      max = Literal.of(columnStats.getDecimalStatistics().getMaximum());
+    } else if (columnStats.hasDateStatistics()) {
+      max = Literal.of(columnStats.getDateStatistics().getMaximum());
+    } else if (columnStats.hasTimestampStatistics()) {
+      max = Literal.of(columnStats.getTimestampStatistics().getMaximum());
+    }
+    return Optional.ofNullable(max);
+  }
+
+  static Map<Integer, ?> fromBufferMap(Schema schema, Map<Integer, ByteBuffer> map) {
+    Map<Integer, ?> values = Maps.newHashMap();
+    for (Map.Entry<Integer, ByteBuffer> entry : map.entrySet()) {
+      values.put(entry.getKey(),
+          Conversions.fromByteBuffer(schema.findType(entry.getKey()), entry.getValue()));
+    }
+    return values;
+  }
+
+  static Map<Integer, ByteBuffer> toBufferMap(Schema schema, Map<Integer, Literal<?>> map) {
+    Map<Integer, ByteBuffer> bufferMap = Maps.newHashMap();
+    for (Map.Entry<Integer, Literal<?>> entry : map.entrySet()) {
+      bufferMap.put(entry.getKey(),
+          Conversions.toByteBuffer(schema.findType(entry.getKey()), entry.getValue().value()));
+    }
+    return bufferMap;
   }
 
   static Metrics fromWriter(Writer writer) {
