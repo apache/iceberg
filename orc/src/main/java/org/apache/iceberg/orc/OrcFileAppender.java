@@ -22,15 +22,23 @@ package org.apache.iceberg.orc;
 import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Metrics;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.orc.ColumnStatistics;
 import org.apache.orc.OrcFile;
+import org.apache.orc.Reader;
+import org.apache.orc.StripeInformation;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
@@ -47,18 +55,21 @@ class OrcFileAppender<D> implements FileAppender<D> {
   private final VectorizedRowBatch batch;
   private final OrcValueWriter<D> valueWriter;
   private boolean isClosed = false;
+  private final Configuration conf;
 
   private static final String COLUMN_NUMBERS_ATTRIBUTE = "iceberg.column.ids";
 
   OrcFileAppender(TypeDescription schema, OutputFile file,
                   Function<TypeDescription, OrcValueWriter<?>> createWriterFunc,
-                  OrcFile.WriterOptions options, Map<String, byte[]> metadata,
+                  Configuration conf, Map<String, byte[]> metadata,
                   int batchSize) {
+    this.conf = conf;
     orcSchema = schema;
     path = new Path(file.location());
     this.batchSize = batchSize;
     batch = orcSchema.createRowBatch(this.batchSize);
 
+    OrcFile.WriterOptions options = OrcFile.writerOptions(conf);
     options.setSchema(orcSchema);
     writer = newOrcWriter(file, columnIds, options, metadata);
     valueWriter = newOrcValueWriter(orcSchema, createWriterFunc);
@@ -111,6 +122,18 @@ class OrcFileAppender<D> implements FileAppender<D> {
     Preconditions.checkState(isClosed,
         "Cannot return length while appending to an open file.");
     return writer.getRawDataSize();
+  }
+
+  @Override
+  public List<Long> splitOffsets() {
+    Reader reader;
+    try {
+      reader = OrcFile.createReader(path, new OrcFile.ReaderOptions(conf));
+    } catch (IOException e) {
+      throw new RuntimeIOException("Cannot read file " + path, e);
+    }
+    List<StripeInformation> stripes = reader.getStripes();
+    return Collections.unmodifiableList(Lists.transform(stripes, StripeInformation::getOffset));
   }
 
   @Override
