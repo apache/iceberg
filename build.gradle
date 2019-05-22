@@ -207,6 +207,7 @@ project(':iceberg-core') {
     compile project(':iceberg-common')
 
     compile "org.apache.avro:avro"
+    compile "org.apache.arrow:arrow-vector"
 
     compile "com.fasterxml.jackson.core:jackson-databind"
     compile "com.fasterxml.jackson.core:jackson-core"
