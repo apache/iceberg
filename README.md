@@ -24,7 +24,7 @@
 
 Apache Iceberg (incubating) is a new table format for storing large, slow-moving tabular data. It is designed to improve on the de-facto standard table layout built into Hive, Presto, and Spark.
 
-Background and documentation is available at [iceberg.incubator.apache.org](https://iceberg.incubator.apache.org)
+Background and documentation is available at <https://iceberg.incubator.apache.org>
 
 
 ## Status
@@ -52,7 +52,7 @@ Community discussions happen primarily on the [dev mailing list][dev-list] or on
 
 ### Building
 
-Iceberg is built using Gradle 4.4.
+Iceberg is built using Gradle 5.2.1.
 
 Iceberg table support is organized in library modules:
 
