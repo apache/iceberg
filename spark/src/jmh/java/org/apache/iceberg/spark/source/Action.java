@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.benchmark.base;
+package org.apache.iceberg.spark.source;
 
 @FunctionalInterface
 public interface Action {

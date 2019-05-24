@@ -17,11 +17,12 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.benchmark.parquet;
+package org.apache.iceberg.spark.source.parquet;
 
 import com.google.common.collect.Maps;
 import java.io.IOException;
 import java.util.Map;
+import org.apache.iceberg.spark.source.IcebergSourceFlatDataBenchmark;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
@@ -40,11 +41,11 @@ import static org.apache.spark.sql.functions.expr;
  * To run this benchmark:
  * <code>
  *   ./gradlew :iceberg-spark:jmh
- *       -PjmhIncludeRegex=SparkParquetFlatDataWriteBenchmark
- *       -PjmhOutputPath=benchmark/parquet-flat-data-write-benchmark-result.txt
+ *       -PjmhIncludeRegex=IcebergSourceFlatParquetDataWriteBenchmark
+ *       -PjmhOutputPath=benchmark/iceberg-source-flat-parquet-data-write-benchmark-result.txt
  * </code>
  */
-public class SparkParquetFlatDataWriteBenchmark extends SparkParquetFlatDataBenchmark {
+public class IcebergSourceFlatParquetDataWriteBenchmark extends IcebergSourceFlatDataBenchmark {
 
   private static final int NUM_ROWS = 5000000;
 

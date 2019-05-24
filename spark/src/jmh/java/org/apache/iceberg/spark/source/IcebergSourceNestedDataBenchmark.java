@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.benchmark.parquet;
+package org.apache.iceberg.spark.source;
 
 import com.google.common.collect.Maps;
 import org.apache.hadoop.conf.Configuration;
@@ -26,13 +26,12 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.spark.benchmark.base.SparkBenchmark;
 import org.apache.iceberg.types.Types;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-public abstract class SparkParquetFlatDataBenchmark extends SparkBenchmark {
+public abstract class IcebergSourceNestedDataBenchmark extends IcebergSourceBenchmark {
 
   @Override
   protected Configuration initHadoopConf() {
@@ -44,14 +43,13 @@ public abstract class SparkParquetFlatDataBenchmark extends SparkBenchmark {
   @Override
   protected final Table initTable() {
     Schema schema = new Schema(
-        required(1, "longCol", Types.LongType.get()),
-        required(2, "intCol", Types.IntegerType.get()),
-        required(3, "floatCol", Types.FloatType.get()),
-        optional(4, "doubleCol", Types.DoubleType.get()),
-        optional(5, "decimalCol", Types.DecimalType.of(20, 5)),
-        optional(6, "dateCol", Types.DateType.get()),
-        optional(7, "timestampCol", Types.TimestampType.withZone()),
-        optional(8, "stringCol", Types.StringType.get()));
+        required(0, "id", Types.LongType.get()),
+        optional(4, "nested", Types.StructType.of(
+            required(1, "col1", Types.StringType.get()),
+            required(2, "col2", Types.DoubleType.get()),
+            required(3, "col3", Types.LongType.get())
+        ))
+    );
     PartitionSpec partitionSpec = PartitionSpec.unpartitioned();
     HadoopTables tables = new HadoopTables(hadoopConf());
     return tables.create(schema, partitionSpec, Maps.newHashMap(), newTableLocation());

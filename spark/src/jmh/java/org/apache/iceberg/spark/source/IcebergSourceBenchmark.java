@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.benchmark.base;
+package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -50,7 +50,7 @@ import static org.apache.iceberg.TableProperties.WRITE_NEW_DATA_LOCATION;
 @Warmup(iterations = 3)
 @Measurement(iterations = 5)
 @BenchmarkMode(Mode.SingleShotTime)
-public abstract class SparkBenchmark {
+public abstract class IcebergSourceBenchmark {
 
   private final Configuration hadoopConf = initHadoopConf();
   private final Table table = initTable();

@@ -17,11 +17,12 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.benchmark.parquet;
+package org.apache.iceberg.spark.source.parquet;
 
 import com.google.common.collect.Maps;
 import java.io.IOException;
 import java.util.Map;
+import org.apache.iceberg.spark.source.IcebergSourceNestedDataBenchmark;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.internal.SQLConf;
@@ -42,11 +43,11 @@ import static org.apache.spark.sql.functions.struct;
  * To run this benchmark:
  * <code>
  *   ./gradlew :iceberg-spark:jmh
- *       -PjmhIncludeRegex=SparkParquetNestedDataReadBenchmark
- *       -PjmhOutputPath=benchmark/parquet-nested-data-read-benchmark-result.txt
+ *       -PjmhIncludeRegex=IcebergSourceNestedParquetDataReadBenchmark
+ *       -PjmhOutputPath=benchmark/iceberg-source-nested-parquet-data-read-benchmark-result.txt
  * </code>
  */
-public class SparkParquetNestedDataReadBenchmark extends SparkParquetNestedDataBenchmark {
+public class IcebergSourceNestedParquetDataReadBenchmark extends IcebergSourceNestedDataBenchmark {
 
   private static final int NUM_FILES = 10;
   private static final int NUM_ROWS = 1000000;

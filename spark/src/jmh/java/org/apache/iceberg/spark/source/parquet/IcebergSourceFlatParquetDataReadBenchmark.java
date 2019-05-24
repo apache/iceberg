@@ -17,11 +17,12 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.benchmark.parquet;
+package org.apache.iceberg.spark.source.parquet;
 
 import com.google.common.collect.Maps;
 import java.io.IOException;
 import java.util.Map;
+import org.apache.iceberg.spark.source.IcebergSourceFlatDataBenchmark;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.internal.SQLConf;
@@ -36,25 +37,20 @@ import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 
 /**
- * A benchmark that evaluates the file skipping capabilities in the Spark data source for Iceberg.
- *
- * This class uses a dataset with a flat schema, where the records are clustered according to the
- * column used in the filter predicate.
- *
- * The performance is compared to the built-in file source in Spark.
+ * A benchmark that evaluates the performance of reading Parquet data with a flat schema
+ * using Iceberg and the built-in file source in Spark.
  *
  * To run this benchmark:
  * <code>
  *   ./gradlew :iceberg-spark:jmh
- *       -PjmhIncludeRegex=SparkParquetFlatDataFilterBenchmark
- *       -PjmhOutputPath=benchmark/parquet-flat-data-filter-benchmark-result.txt
+ *       -PjmhIncludeRegex=IcebergSourceFlatParquetDataReadBenchmark
+ *       -PjmhOutputPath=benchmark/iceberg-source-flat-parquet-data-read-benchmark-result.txt
  * </code>
  */
-public class SparkParquetFlatDataFilterBenchmark extends SparkParquetFlatDataBenchmark {
+public class IcebergSourceFlatParquetDataReadBenchmark extends IcebergSourceFlatDataBenchmark {
 
-  private static final String FILTER_COND = "dateCol == date_add(current_date(), 1)";
-  private static final int NUM_FILES = 500;
-  private static final int NUM_ROWS = 10000;
+  private static final int NUM_FILES = 10;
+  private static final int NUM_ROWS = 1000000;
 
   @Setup
   public void setup() {
@@ -70,42 +66,78 @@ public class SparkParquetFlatDataFilterBenchmark extends SparkParquetFlatDataBen
 
   @Benchmark
   @Threads(1)
-  public void readWithFilterIceberg() {
+  public void readIceberg() {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
     withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).filter(FILTER_COND);
+      Dataset<Row> df = spark().read().format("iceberg").load(tableLocation);
       materialize(df);
     });
   }
 
   @Benchmark
   @Threads(1)
-  public void readWithFilterFileSourceVectorized() {
+  public void readFileSourceVectorized() {
     Map<String, String> conf = Maps.newHashMap();
     conf.put(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "true");
     conf.put(SQLConf.FILES_OPEN_COST_IN_BYTES().key(), Integer.toString(128 * 1024 * 1024));
     withSQLConf(conf, () -> {
-      Dataset<Row> df = spark().read().parquet(dataLocation()).filter(FILTER_COND);
+      Dataset<Row> df = spark().read().parquet(dataLocation());
       materialize(df);
     });
   }
 
   @Benchmark
   @Threads(1)
-  public void readWithFilterFileSourceNonVectorized() {
+  public void readFileSourceNonVectorized() {
     Map<String, String> conf = Maps.newHashMap();
     conf.put(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "false");
     conf.put(SQLConf.FILES_OPEN_COST_IN_BYTES().key(), Integer.toString(128 * 1024 * 1024));
     withSQLConf(conf, () -> {
-      Dataset<Row> df = spark().read().parquet(dataLocation()).filter(FILTER_COND);
+      Dataset<Row> df = spark().read().parquet(dataLocation());
+      materialize(df);
+    });
+  }
+
+  @Benchmark
+  @Threads(1)
+  public void readWithProjectionIceberg() {
+    Map<String, String> tableProperties = Maps.newHashMap();
+    tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
+    withTableProperties(tableProperties, () -> {
+      String tableLocation = table().location();
+      Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).select("longCol");
+      materialize(df);
+    });
+  }
+
+  @Benchmark
+  @Threads(1)
+  public void readWithProjectionFileSourceVectorized() {
+    Map<String, String> conf = Maps.newHashMap();
+    conf.put(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "true");
+    conf.put(SQLConf.FILES_OPEN_COST_IN_BYTES().key(), Integer.toString(128 * 1024 * 1024));
+    withSQLConf(conf, () -> {
+      Dataset<Row> df = spark().read().parquet(dataLocation()).select("longCol");
+      materialize(df);
+    });
+  }
+
+  @Benchmark
+  @Threads(1)
+  public void readWithProjectionFileSourceNonVectorized() {
+    Map<String, String> conf = Maps.newHashMap();
+    conf.put(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "false");
+    conf.put(SQLConf.FILES_OPEN_COST_IN_BYTES().key(), Integer.toString(128 * 1024 * 1024));
+    withSQLConf(conf, () -> {
+      Dataset<Row> df = spark().read().parquet(dataLocation()).select("longCol");
       materialize(df);
     });
   }
 
   private void appendData() {
-    for (int fileNum = 1; fileNum < NUM_FILES; fileNum++) {
+    for (int fileNum = 1; fileNum <= NUM_FILES; fileNum++) {
       Dataset<Row> df = spark().range(NUM_ROWS)
           .withColumnRenamed("id", "longCol")
           .withColumn("intCol", expr("CAST(longCol AS INT)"))
