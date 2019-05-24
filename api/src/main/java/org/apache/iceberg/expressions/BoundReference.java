@@ -47,7 +47,7 @@ public class BoundReference<T> implements Reference {
 
   @Override
   public String toString() {
-    return String.format("ref(id=%d, accessor=%s)", fieldId, accessor);
+    return String.format("ref(id=%d, accessor-type=%s)", fieldId, accessor.type());
   }
 
 }
