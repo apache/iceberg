@@ -51,6 +51,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -59,6 +60,7 @@ import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Attribute;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
@@ -433,6 +435,10 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
           iter = newAvroIterable(location, task, readSchema);
           break;
 
+        case ORC:
+          iter = newOrcIterable(location, task, readSchema);
+          break;
+
         default:
           throw new UnsupportedOperationException(
               "Cannot read unknown format: " + task.file().format());
@@ -462,6 +468,17 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
           .split(task.start(), task.length())
           .createReaderFunc(fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema))
           .filter(task.residual())
+          .caseSensitive(caseSensitive)
+          .build();
+    }
+
+    private CloseableIterable<InternalRow> newOrcIterable(InputFile location,
+                                                          FileScanTask task,
+                                                          Schema readSchema) {
+      return ORC.read(location)
+          .schema(readSchema)
+          .split(task.start(), task.length())
+          .createReaderFunc(SparkOrcReader::new)
           .caseSensitive(caseSensitive)
           .build();
     }

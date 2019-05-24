@@ -17,33 +17,18 @@
  * under the License.
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.orc;
 
-import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
 /**
- * Append implementation that produces a minimal number of manifest files.
- * <p>
- * This implementation will attempt to commit 5 times before throwing {@link CommitFailedException}.
+ * Used for implementing ORC value readers.
  */
-class MergeAppend extends MergingSnapshotProducer<AppendFiles> implements AppendFiles {
-  MergeAppend(TableOperations ops) {
-    super(ops);
-  }
+public interface OrcValueReader<T> {
 
-  @Override
-  protected AppendFiles self() {
-    return this;
-  }
+  /**
+   * Reads a value in row.
+   */
+  T read(VectorizedRowBatch batch, int row);
 
-  @Override
-  protected String operation() {
-    return DataOperations.APPEND;
-  }
-
-  @Override
-  public MergeAppend appendFile(DataFile file) {
-    add(file);
-    return this;
-  }
 }

@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import java.util.Map;
 import java.util.Set;
@@ -49,6 +50,7 @@ public class SnapshotSummary {
     private long deletedDuplicateFiles = 0L;
     private long addedRecords = 0L;
     private long deletedRecords = 0L;
+    private Map<String, String> properties = Maps.newHashMap();
 
     public void clear() {
       changedPartitions.clear();
@@ -75,8 +77,15 @@ public class SnapshotSummary {
       this.addedRecords += file.recordCount();
     }
 
+    public void set(String property, String value) {
+      properties.put(property, value);
+    }
+
     public Map<String, String> build() {
       ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+
+      // copy custom summary properties
+      builder.putAll(properties);
 
       setIf(addedFiles > 0, builder, ADDED_FILES_PROP, addedFiles);
       setIf(deletedFiles > 0, builder, DELETED_FILES_PROP, deletedFiles);

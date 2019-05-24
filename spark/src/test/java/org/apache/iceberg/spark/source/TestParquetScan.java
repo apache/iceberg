@@ -51,7 +51,7 @@ import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.Files.localInput;
 import static org.apache.iceberg.Files.localOutput;
-import static org.apache.iceberg.parquet.ParquetMetrics.fromInputFile;
+import static org.apache.iceberg.parquet.ParquetUtil.fileMetrics;
 
 public class TestParquetScan extends AvroDataTest {
   private static final Configuration CONF = new Configuration();
@@ -106,7 +106,7 @@ public class TestParquetScan extends AvroDataTest {
     DataFile file = DataFiles.builder(PartitionSpec.unpartitioned())
         .withFileSizeInBytes(parquetFile.length())
         .withPath(parquetFile.toString())
-        .withMetrics(fromInputFile(localInput(parquetFile)))
+        .withMetrics(fileMetrics(localInput(parquetFile)))
         .build();
 
     table.newAppend().appendFile(file).commit();

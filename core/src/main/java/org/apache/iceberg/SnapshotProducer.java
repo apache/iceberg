@@ -52,8 +52,8 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFA
 import static org.apache.iceberg.TableProperties.MANIFEST_LISTS_ENABLED;
 import static org.apache.iceberg.TableProperties.MANIFEST_LISTS_ENABLED_DEFAULT;
 
-abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
-  private static final Logger LOG = LoggerFactory.getLogger(SnapshotUpdate.class);
+abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
+  private static final Logger LOG = LoggerFactory.getLogger(SnapshotProducer.class);
   static final Set<ManifestFile> EMPTY_SET = Sets.newHashSet();
 
   /**
@@ -68,7 +68,7 @@ abstract class SnapshotUpdate implements PendingUpdate<Snapshot> {
   private Long snapshotId = null;
   private TableMetadata base = null;
 
-  protected SnapshotUpdate(TableOperations ops) {
+  protected SnapshotProducer(TableOperations ops) {
     this.ops = ops;
     this.base = ops.current();
     this.manifestsWithMetadata = Caffeine

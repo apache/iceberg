@@ -32,11 +32,9 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericFixed;
 import org.apache.commons.io.Charsets;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.BinaryType;
 import org.apache.iceberg.types.Types.BooleanType;
@@ -55,20 +53,14 @@ import org.apache.iceberg.types.Types.TimeType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.types.Types.UUIDType;
 import org.junit.Assert;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.Files.localInput;
-import static org.apache.iceberg.Files.localOutput;
 import static org.apache.iceberg.types.Conversions.fromByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-public class TestParquetMetrics {
-
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+public class TestParquetUtil extends BaseParquetWritingTest {
   private final UUID uuid = UUID.randomUUID();
   private final GenericFixed fixed = new GenericData.Fixed(
       org.apache.avro.Schema.createFixed("fixedCol", null, null, 4),
@@ -123,7 +115,7 @@ public class TestParquetMetrics {
 
     File parquetFile = writeRecords(schema, firstRecord, secondRecord);
 
-    Metrics metrics = ParquetMetrics.fromInputFile(localInput(parquetFile));
+    Metrics metrics = ParquetUtil.fileMetrics(localInput(parquetFile));
     Assert.assertEquals(2L, (long) metrics.recordCount());
     assertCounts(1, 2L, 0L, metrics);
     assertBounds(1, BooleanType.get(), false, true, metrics);
@@ -170,7 +162,7 @@ public class TestParquetMetrics {
 
     File parquetFile = writeRecords(schema, record);
 
-    Metrics metrics = ParquetMetrics.fromInputFile(localInput(parquetFile));
+    Metrics metrics = ParquetUtil.fileMetrics(localInput(parquetFile));
     Assert.assertEquals(1L, (long) metrics.recordCount());
     assertCounts(1, 1L, 0L, metrics);
     assertBounds(1, DecimalType.of(4, 2), new BigDecimal("2.55"), new BigDecimal("2.55"), metrics);
@@ -207,7 +199,7 @@ public class TestParquetMetrics {
 
     File parquetFile = writeRecords(schema, record);
 
-    Metrics metrics = ParquetMetrics.fromInputFile(localInput(parquetFile));
+    Metrics metrics = ParquetUtil.fileMetrics(localInput(parquetFile));
     Assert.assertEquals(1L, (long) metrics.recordCount());
     assertCounts(1, 1L, 0L, metrics);
     assertBounds(1, IntegerType.get(), Integer.MAX_VALUE, Integer.MAX_VALUE, metrics);
@@ -242,7 +234,7 @@ public class TestParquetMetrics {
 
     File parquetFile = writeRecords(schema, record);
 
-    Metrics metrics = ParquetMetrics.fromInputFile(localInput(parquetFile));
+    Metrics metrics = ParquetUtil.fileMetrics(localInput(parquetFile));
     Assert.assertEquals(1L, (long) metrics.recordCount());
     assertCounts(1, 1, 0, metrics);
     assertBounds(1, IntegerType.get(), null, null, metrics);
@@ -266,7 +258,7 @@ public class TestParquetMetrics {
 
     File parquetFile = writeRecords(schema, firstRecord, secondRecord);
 
-    Metrics metrics = ParquetMetrics.fromInputFile(localInput(parquetFile));
+    Metrics metrics = ParquetUtil.fileMetrics(localInput(parquetFile));
     Assert.assertEquals(2L, (long) metrics.recordCount());
     assertCounts(1, 2, 2, metrics);
     assertBounds(1, IntegerType.get(), null, null, metrics);
@@ -291,15 +283,4 @@ public class TestParquetMetrics {
         upperBounds.containsKey(fieldId) ? fromByteBuffer(type, upperBounds.get(fieldId)) : null);
   }
 
-  private File writeRecords(Schema schema, Record... records) throws IOException {
-    File tmpFolder = temp.newFolder("parquet");
-    String filename = UUID.randomUUID().toString();
-    File file = new File(tmpFolder, FileFormat.PARQUET.addExtension(filename));
-    try (FileAppender<Record> writer = Parquet.write(localOutput(file))
-        .schema(schema)
-        .build()) {
-      writer.addAll(Lists.newArrayList(records));
-    }
-    return file;
-  }
 }

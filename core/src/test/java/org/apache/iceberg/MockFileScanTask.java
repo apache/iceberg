@@ -16,34 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
-import org.apache.iceberg.exceptions.CommitFailedException;
+public class MockFileScanTask extends BaseFileScanTask {
 
-/**
- * Append implementation that produces a minimal number of manifest files.
- * <p>
- * This implementation will attempt to commit 5 times before throwing {@link CommitFailedException}.
- */
-class MergeAppend extends MergingSnapshotProducer<AppendFiles> implements AppendFiles {
-  MergeAppend(TableOperations ops) {
-    super(ops);
+  private final long length;
+
+  public MockFileScanTask(long length) {
+    super(null, null, null, null);
+    this.length = length;
   }
 
   @Override
-  protected AppendFiles self() {
-    return this;
-  }
-
-  @Override
-  protected String operation() {
-    return DataOperations.APPEND;
-  }
-
-  @Override
-  public MergeAppend appendFile(DataFile file) {
-    add(file);
-    return this;
+  public long length() {
+    return length;
   }
 }

@@ -333,11 +333,6 @@ public class TestHelpers {
     }
 
     @Override
-    public long blockSizeInBytes() {
-      return 0;
-    }
-
-    @Override
     public Integer fileOrdinal() {
       return null;
     }
@@ -380,6 +375,11 @@ public class TestHelpers {
     @Override
     public DataFile copy() {
       return this;
+    }
+
+    @Override
+    public List<Long> splitOffsets() {
+      return null;
     }
   }
 }

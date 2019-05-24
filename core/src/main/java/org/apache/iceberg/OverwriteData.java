@@ -26,11 +26,16 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
 
-public class OverwriteData extends MergingSnapshotUpdate implements OverwriteFiles {
+public class OverwriteData extends MergingSnapshotProducer<OverwriteFiles> implements OverwriteFiles {
   private boolean validateAddedFiles = false;
 
   protected OverwriteData(TableOperations ops) {
     super(ops);
+  }
+
+  @Override
+  protected OverwriteFiles self() {
+    return this;
   }
 
   @Override

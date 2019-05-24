@@ -244,6 +244,7 @@ class Writer implements DataSourceWriter {
     private final FileIO fileIo;
     private FileAppender<InternalRow> appender = null;
     private Metrics metrics = null;
+    private List<Long> offsetRanges = null;
     private final EncryptedOutputFile file;
 
     UnpartitionedWriter(
@@ -265,6 +266,7 @@ class Writer implements DataSourceWriter {
     public WriterCommitMessage commit() throws IOException {
       Preconditions.checkArgument(appender != null, "Commit called on a closed writer: %s", this);
 
+      // metrics and splitOffsets are populated on close
       close();
 
       if (metrics.recordCount() == 0L) {
@@ -272,7 +274,7 @@ class Writer implements DataSourceWriter {
         return new TaskCommit();
       }
 
-      DataFile dataFile = DataFiles.fromEncryptedOutputFile(file, null, metrics);
+      DataFile dataFile = DataFiles.fromEncryptedOutputFile(file, null, metrics, offsetRanges);
 
       return new TaskCommit(dataFile);
     }
@@ -290,6 +292,7 @@ class Writer implements DataSourceWriter {
       if (this.appender != null) {
         this.appender.close();
         this.metrics = appender.metrics();
+        this.offsetRanges = appender.splitOffsets();
         this.appender = null;
       }
     }
@@ -371,12 +374,14 @@ class Writer implements DataSourceWriter {
         currentAppender.close();
         // metrics are only valid after the appender is closed
         Metrics metrics = currentAppender.metrics();
+        List<Long> splitOffsets = currentAppender.splitOffsets();
         this.currentAppender = null;
 
         DataFile dataFile = DataFiles.builder(spec)
             .withEncryptedOutputFile(currentFile)
             .withPartition(currentKey)
             .withMetrics(metrics)
+            .withSplitOffsets(splitOffsets)
             .build();
 
         completedPartitions.add(currentKey);

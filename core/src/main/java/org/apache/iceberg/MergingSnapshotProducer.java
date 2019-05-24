@@ -55,8 +55,8 @@ import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT_DEFAUL
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
 
-abstract class MergingSnapshotUpdate extends SnapshotUpdate {
-  private static final Logger LOG = LoggerFactory.getLogger(MergingSnapshotUpdate.class);
+abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
+  private static final Logger LOG = LoggerFactory.getLogger(MergingSnapshotProducer.class);
 
   private static final Joiner COMMA = Joiner.on(",");
 
@@ -104,7 +104,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
 
   private boolean filterUpdated = false; // used to clear caches of filtered and merged manifests
 
-  MergingSnapshotUpdate(TableOperations ops) {
+  MergingSnapshotProducer(TableOperations ops) {
     super(ops);
     this.ops = ops;
     this.spec = ops.current().spec();
@@ -112,6 +112,14 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
         .propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
     this.minManifestsCountToMerge = ops.current()
         .propertyAsInt(MANIFEST_MIN_MERGE_COUNT, MANIFEST_MIN_MERGE_COUNT_DEFAULT);
+  }
+
+  protected abstract ThisT self();
+
+  @Override
+  public ThisT set(String property, String value) {
+    summaryBuilder.set(property, value);
+    return self();
   }
 
   protected PartitionSpec writeSpec() {
@@ -181,7 +189,7 @@ abstract class MergingSnapshotUpdate extends SnapshotUpdate {
     summaryBuilder.clear();
 
     if (filterUpdated) {
-      cleanUncommittedFilters(SnapshotUpdate.EMPTY_SET);
+      cleanUncommittedFilters(SnapshotProducer.EMPTY_SET);
       this.filterUpdated = false;
     }
 

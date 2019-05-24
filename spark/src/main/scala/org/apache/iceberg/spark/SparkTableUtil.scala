@@ -21,17 +21,15 @@ package org.apache.iceberg.spark
 
 import java.nio.ByteBuffer
 import java.util
-
 import com.google.common.collect.Maps
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{Path, PathFilter}
+import org.apache.iceberg.parquet.ParquetUtil
 import org.apache.iceberg.{DataFile, DataFiles, Metrics, PartitionSpec}
-import org.apache.iceberg.parquet.ParquetMetrics
 import org.apache.iceberg.spark.hacks.Hive
 import org.apache.parquet.hadoop.ParquetFileReader
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.catalyst.catalog.CatalogTablePartition
-
 import scala.collection.JavaConverters._
 
 object SparkTableUtil {
@@ -114,7 +112,6 @@ object SparkTableUtil {
           .withFormat(format)
           .withPartitionPath(partitionKey)
           .withFileSizeInBytes(fileSize)
-          .withBlockSizeInBytes(rowGroupSize)
           .withMetrics(new Metrics(rowCount,
             arrayToMap(columnSizes),
             arrayToMap(valueCounts),
@@ -237,7 +234,7 @@ object SparkTableUtil {
     val fs = partition.getFileSystem(conf)
 
     fs.listStatus(partition, HiddenPathFilter).filter(_.isFile).map { stat =>
-      val metrics = ParquetMetrics.fromMetadata(ParquetFileReader.readFooter(conf, stat))
+      val metrics = ParquetUtil.footerMetrics(ParquetFileReader.readFooter(conf, stat))
 
       SparkDataFile(
         stat.getPath.toString,

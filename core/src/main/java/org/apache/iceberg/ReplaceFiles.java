@@ -22,12 +22,17 @@ package org.apache.iceberg;
 import com.google.common.base.Preconditions;
 import java.util.Set;
 
-class ReplaceFiles extends MergingSnapshotUpdate implements RewriteFiles {
+class ReplaceFiles extends MergingSnapshotProducer<RewriteFiles> implements RewriteFiles {
   ReplaceFiles(TableOperations ops) {
     super(ops);
 
     // replace files must fail if any of the deleted paths is missing and cannot be deleted
     failMissingDeletePaths();
+  }
+
+  @Override
+  protected RewriteFiles self() {
+    return this;
   }
 
   @Override

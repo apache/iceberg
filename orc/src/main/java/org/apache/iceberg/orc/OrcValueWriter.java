@@ -17,33 +17,21 @@
  * under the License.
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.orc;
 
-import org.apache.iceberg.exceptions.CommitFailedException;
+import java.io.IOException;
+import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
 /**
- * Append implementation that produces a minimal number of manifest files.
- * <p>
- * This implementation will attempt to commit 5 times before throwing {@link CommitFailedException}.
+ * Write data value of a schema.
  */
-class MergeAppend extends MergingSnapshotProducer<AppendFiles> implements AppendFiles {
-  MergeAppend(TableOperations ops) {
-    super(ops);
-  }
+public interface OrcValueWriter<T> {
 
-  @Override
-  protected AppendFiles self() {
-    return this;
-  }
-
-  @Override
-  protected String operation() {
-    return DataOperations.APPEND;
-  }
-
-  @Override
-  public MergeAppend appendFile(DataFile file) {
-    add(file);
-    return this;
-  }
+  /**
+   * Writes the data.
+   * @param value the data value to write.
+   * @param output the VectorizedRowBatch to which the output will be written.
+   * @throws IOException if there's any IO error while writing the data value.
+   */
+  void write(T value, VectorizedRowBatch output) throws IOException;
 }

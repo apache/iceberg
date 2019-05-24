@@ -21,6 +21,7 @@ package org.apache.iceberg.io;
 
 import java.io.Closeable;
 import java.util.Iterator;
+import java.util.List;
 import org.apache.iceberg.Metrics;
 
 public interface FileAppender<D> extends Closeable {
@@ -45,4 +46,14 @@ public interface FileAppender<D> extends Closeable {
    * @return the length of this file. Only valid after the file is closed.
    */
   long length();
+
+  /**
+   * @return a list of recommended split locations, if applicable, null otherwise. When available,
+   * this information is used for planning scan tasks whose boundaries are determined by these offsets.
+   * The returned list must be sorted in ascending order.
+   * Only valid after the file is closed.
+   */
+  default List<Long> splitOffsets() {
+    return null;
+  }
 }

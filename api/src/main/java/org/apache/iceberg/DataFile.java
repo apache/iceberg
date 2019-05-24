@@ -58,8 +58,9 @@ public interface DataFile {
             IntegerType.get(), BinaryType.get())),
         optional(128, "upper_bounds", MapType.ofRequired(129, 130,
             IntegerType.get(), BinaryType.get())),
-        optional(131, "key_metadata", BinaryType.get())
-        // NEXT ID TO ASSIGN: 132
+        optional(131, "key_metadata", BinaryType.get()),
+        optional(132, "split_offsets", ListType.ofRequired(133, LongType.get()))
+        // NEXT ID TO ASSIGN: 134
     );
   }
 
@@ -87,11 +88,6 @@ public interface DataFile {
    * @return the data file size in bytes
    */
   long fileSizeInBytes();
-
-  /**
-   * @return the data file block size in bytes (for split planning)
-   */
-  long blockSizeInBytes();
 
   /**
    * @return file ordinal if written in a global ordering, or null
@@ -141,4 +137,11 @@ public interface DataFile {
    * @return a copy of this data file
    */
   DataFile copy();
+
+  /**
+   * @return List of recommended split locations, if applicable, null otherwise.
+   * When available, this information is used for planning scan tasks whose boundaries
+   * are determined by these offsets. The returned list must be sorted in ascending order.
+   */
+  List<Long> splitOffsets();
 }

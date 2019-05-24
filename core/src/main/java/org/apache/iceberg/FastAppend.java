@@ -33,7 +33,7 @@ import org.apache.iceberg.io.OutputFile;
  * <p>
  * This implementation will attempt to commit 5 times before throwing {@link CommitFailedException}.
  */
-class FastAppend extends SnapshotUpdate implements AppendFiles {
+class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   private final PartitionSpec spec;
   private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
   private final List<DataFile> newFiles = Lists.newArrayList();
@@ -43,6 +43,12 @@ class FastAppend extends SnapshotUpdate implements AppendFiles {
   FastAppend(TableOperations ops) {
     super(ops);
     this.spec = ops.current().spec();
+  }
+
+  @Override
+  public AppendFiles set(String property, String value) {
+    summaryBuilder.set(property, value);
+    return this;
   }
 
   @Override
