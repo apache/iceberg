@@ -40,6 +40,10 @@ public class BoundReference<T> implements Reference {
     return fieldId;
   }
 
+  public Accessor<StructLike> accessor() {
+    return accessor;
+  }
+
   @SuppressWarnings("unchecked")
   public T get(StructLike struct) {
     return (T) accessor.get(struct);

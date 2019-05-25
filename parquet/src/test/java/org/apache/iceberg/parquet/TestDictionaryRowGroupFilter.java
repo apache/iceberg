@@ -65,6 +65,7 @@ public class TestDictionaryRowGroupFilter {
 
   private static final Types.StructType structFieldType =
           Types.StructType.of(Types.NestedField.required(9, "int_field", IntegerType.get()));
+
   private static final Schema SCHEMA = new Schema(
       required(1, "id", IntegerType.get()),
       optional(2, "no_stats", StringType.get()),
@@ -79,6 +80,7 @@ public class TestDictionaryRowGroupFilter {
 
   private static final Types.StructType _structFieldType =
           Types.StructType.of(Types.NestedField.required(9, "_int_field", IntegerType.get()));
+
   private static final Schema FILE_SCHEMA = new Schema(
       required(1, "_id", IntegerType.get()),
       optional(2, "_no_stats", StringType.get()),
@@ -132,7 +134,7 @@ public class TestDictionaryRowGroupFilter {
 
           Record struct_not_null = new Record(structSchema);
           struct_not_null.put("_int_field", 30 + i);
-          builder.set("_struct_not_null", struct_not_null ); // struct with int
+          builder.set("_struct_not_null", struct_not_null); // struct with int
 
           appender.add(builder.build());
         }
@@ -572,7 +574,6 @@ public class TestDictionaryRowGroupFilter {
             .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
     Assert.assertTrue("Should read: may possible ids", shouldRead);
   }
-
 
   @Test
   public void testStructFieldEq() {

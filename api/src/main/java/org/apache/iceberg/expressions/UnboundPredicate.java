@@ -69,8 +69,8 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
   public Expression bind(Types.StructType struct, boolean caseSensitive) {
     Schema schema = new Schema(struct.fields());
     Types.NestedField field = caseSensitive ?
-            schema.findField(ref().name()) :
-            schema.caseInsensitiveFindField(ref().name());
+        schema.findField(ref().name()) :
+        schema.caseInsensitiveFindField(ref().name());
 
     ValidationException.check(field != null,
         "Cannot find field '%s' in struct: %s", ref().name(), schema.asStruct());
@@ -82,13 +82,13 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
             return Expressions.alwaysFalse();
           }
           return new BoundPredicate<>(IS_NULL, new BoundReference<>(field.fieldId(),
-              schema.getAccessorForField(field.fieldId())));
+              schema.accessorForField(field.fieldId())));
         case NOT_NULL:
           if (field.isRequired()) {
             return Expressions.alwaysTrue();
           }
           return new BoundPredicate<>(NOT_NULL, new BoundReference<>(field.fieldId(),
-              schema.getAccessorForField(field.fieldId())));
+              schema.accessorForField(field.fieldId())));
         default:
           throw new ValidationException("Operation must be IS_NULL or NOT_NULL");
       }
@@ -132,6 +132,6 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
       }
     }
     return new BoundPredicate<>(op(), new BoundReference<>(field.fieldId(),
-        schema.getAccessorForField(field.fieldId())), lit);
+        schema.accessorForField(field.fieldId())), lit);
   }
 }
