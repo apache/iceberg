@@ -53,6 +53,18 @@ def test_single_reference(assert_all_bound):
                      Binder.bind(STRUCT, expr))
 
 
+def test_case_insensitive_reference(assert_all_bound):
+    expr = Expressions.not_(Expressions.equal("X", 7))
+    assert_all_bound("Single reference",
+                     Binder.bind(STRUCT, expr, case_sensitive=False))
+
+
+def test_case_sensitive_reference():
+    with raises(ice_ex.ValidationException):
+        expr = Expressions.not_(Expressions.equal("X", 7))
+        Binder.bind(STRUCT, expr, case_sensitive=True)
+
+
 def test_multiple_references(assert_all_bound):
     expr = Expressions.or_(Expressions.and_(Expressions.equal("x", 7),
                                             Expressions.less_than("y", 100)),

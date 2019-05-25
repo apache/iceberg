@@ -21,8 +21,8 @@ from .expressions import ExpressionVisitors
 
 class Evaluator(object):
 
-    def __init__(self, struct, unbound):
-        self.expr = Binder.bind(struct, unbound)
+    def __init__(self, struct, unbound, case_sensitive=True):
+        self.expr = Binder.bind(struct, unbound, case_sensitive)
         self.visitors = None
 
     def visitor(self):

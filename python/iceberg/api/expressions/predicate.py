@@ -93,8 +93,12 @@ class UnboundPredicate(Predicate):
     def negate(self):
         return UnboundPredicate(self.op.negate(), self.ref, self.lit)
 
-    def bind(self, struct):  # noqa: C901
-        field = struct.field(self.ref.name)
+    def bind(self, struct, case_sensitive=True):  # noqa: C901
+        if case_sensitive:
+            field = struct.field(self.ref.name)
+        else:
+            field = struct.case_insensitive_field(self.ref.name.lower())
+
         ValidationException.check(field is not None,
                                   "Cannot find field '%s' in struct %s", (self.ref.name, struct))
 

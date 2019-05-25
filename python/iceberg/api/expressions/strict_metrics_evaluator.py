@@ -51,13 +51,13 @@ class StrictMetricsEvaluator(object):
             self.upper_bounds = None
 
         def eval(self, file):
-            if file.record_count <= 0:
+            if file.record_count() <= 0:
                 return StrictMetricsEvaluator.MetricsEvalVisitor.ROWS_MUST_MATCH
 
-            self.value_counts = file.value_counts
-            self.null_counts = file.null_value_counts
-            self.lower_bounds = file.lower_bounds
-            self.upper_bounds = file.upper_bounds
+            self.value_counts = file.value_counts()
+            self.null_counts = file.null_value_counts()
+            self.lower_bounds = file.lower_bounds()
+            self.upper_bounds = file.upper_bounds()
 
             return ExpressionVisitors.visit(self.expr, self)
 

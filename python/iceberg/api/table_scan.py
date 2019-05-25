@@ -21,20 +21,33 @@ class TableScan(object):
     def __init__(self):
         raise NotImplementedError()
 
+    @property
+    def row_filter(self):
+        raise NotImplementedError()
+
     def use_snapshot(self, snapshot_id):
         raise NotImplementedError()
 
     def as_of_time(self, timestamp_millis):
         raise NotImplementedError()
 
+    def project(self, schema):
+        raise NotImplementedError()
+
     def select(self, columns):
         raise NotImplementedError()
 
-    def filter(self, expr=None):
+    def filter(self, expr):
         raise NotImplementedError()
 
-    def plan_file(self):
+    def plan_files(self):
         raise NotImplementedError()
 
     def plan_tasks(self):
+        raise NotImplementedError()
+
+    def is_case_sensitive(self):
+        raise NotImplementedError()
+
+    def options(self):
         raise NotImplementedError()
