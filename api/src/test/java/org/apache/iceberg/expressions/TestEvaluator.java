@@ -43,7 +43,7 @@ import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-public class TestEvaluatior {
+public class TestEvaluator {
   private static final StructType STRUCT = StructType.of(
       required(13, "x", Types.IntegerType.get()),
       required(14, "y", Types.IntegerType.get()),
@@ -52,13 +52,7 @@ public class TestEvaluatior {
           Types.NestedField.required(17, "s2", Types.StructType.of(
               Types.NestedField.required(18, "s3", Types.StructType.of(
                   Types.NestedField.required(19, "s4", Types.StructType.of(
-                      Types.NestedField.required(20, "i", Types.IntegerType.get())
-                      )
-                  ))
-              ))
-          ))
-      )
-  );
+                      Types.NestedField.required(20, "i", Types.IntegerType.get()))))))))));
 
   @Test
   public void testLessThan() {
@@ -87,7 +81,6 @@ public class TestEvaluatior {
     Assert.assertTrue("7 <= 7 => true", evaluator.eval(TestHelpers.Row.of(7, 8, null)));
     Assert.assertTrue("6 <= 7 => true", evaluator.eval(TestHelpers.Row.of(6, 8, null)));
     Assert.assertFalse("8 <= 7 => false", evaluator.eval(TestHelpers.Row.of(8, 8, null)));
-
 
     Evaluator structEvaluator = new Evaluator(STRUCT, lessThanOrEqual("s1.s2.s3.s4.i", 7));
     Assert.assertTrue("7 <= 7 => true",
@@ -194,7 +187,6 @@ public class TestEvaluatior {
     Evaluator evaluator = new Evaluator(STRUCT, notEqual("x", 7));
     Assert.assertFalse("7 != 7 => false", evaluator.eval(TestHelpers.Row.of(7, 8, null)));
     Assert.assertTrue("6 != 7 => true", evaluator.eval(TestHelpers.Row.of(6, 8, null)));
-
 
     Evaluator structEvaluator = new Evaluator(STRUCT, notEqual("s1.s2.s3.s4.i", 7));
     Assert.assertFalse("7 != 7 => false",

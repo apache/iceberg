@@ -22,7 +22,6 @@ package org.apache.iceberg.parquet;
 import java.io.File;
 import java.io.IOException;
 import java.util.UUID;
-
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.Files;
@@ -65,6 +64,7 @@ public class TestMetricsRowGroupFilter {
 
   private static final Types.StructType structFieldType =
           Types.StructType.of(Types.NestedField.required(8, "int_field", IntegerType.get()));
+
   private static final Schema SCHEMA = new Schema(
       required(1, "id", IntegerType.get()),
       optional(2, "no_stats", StringType.get()),
@@ -73,13 +73,12 @@ public class TestMetricsRowGroupFilter {
       optional(5, "some_nulls", StringType.get()),
       optional(6, "no_nulls", StringType.get()),
       optional(7, "struct_not_null", structFieldType),
-      optional(9, "not_in_file", FloatType.get()),
-      optional(10, "map_not_null",
-              Types.MapType.ofRequired(11, 12, StringType.get(), IntegerType.get()))
+      optional(9, "not_in_file", FloatType.get())
   );
 
   private static final Types.StructType _structFieldType =
           Types.StructType.of(Types.NestedField.required(8, "_int_field", IntegerType.get()));
+
   private static final Schema FILE_SCHEMA = new Schema(
       required(1, "_id", IntegerType.get()),
       optional(2, "_no_stats", StringType.get()),
@@ -512,7 +511,6 @@ public class TestMetricsRowGroupFilter {
     shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThanOrEqual("struct_not_null.int_field", 79))
             .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
     Assert.assertTrue("Should read: many possible ids", shouldRead);
-
   }
 
   @Test
@@ -552,7 +550,6 @@ public class TestMetricsRowGroupFilter {
             .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
     Assert.assertTrue("Should read: may possible ids", shouldRead);
   }
-
 
   @Test
   public void testStructFieldEq() {
