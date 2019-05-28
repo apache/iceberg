@@ -73,7 +73,9 @@ public class TestMetricsRowGroupFilter {
       optional(5, "some_nulls", StringType.get()),
       optional(6, "no_nulls", StringType.get()),
       optional(7, "struct_not_null", structFieldType),
-      optional(9, "not_in_file", FloatType.get())
+      optional(9, "not_in_file", FloatType.get()),
+      optional(10, "map_not_null",
+          Types.MapType.ofRequired(11, 12, StringType.get(), IntegerType.get()))
   );
 
   private static final Types.StructType _structFieldType =
