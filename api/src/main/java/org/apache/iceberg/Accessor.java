@@ -17,41 +17,13 @@
  * under the License.
  */
 
-package org.apache.iceberg.expressions;
+package org.apache.iceberg;
 
-import org.apache.iceberg.Accessor;
-import org.apache.iceberg.StructLike;
+import java.io.Serializable;
 import org.apache.iceberg.types.Type;
 
-public class BoundReference<T> implements Reference {
-  private final int fieldId;
-  private final Accessor<StructLike> accessor;
+public interface Accessor<T> extends Serializable {
+  Object get(T container);
 
-  BoundReference(int fieldId, Accessor<StructLike> accessor) {
-    this.fieldId = fieldId;
-    this.accessor = accessor;
-  }
-
-  public Type type() {
-    return accessor.type();
-  }
-
-  public int fieldId() {
-    return fieldId;
-  }
-
-  public Accessor<StructLike> accessor() {
-    return accessor;
-  }
-
-  @SuppressWarnings("unchecked")
-  public T get(StructLike struct) {
-    return (T) accessor.get(struct);
-  }
-
-  @Override
-  public String toString() {
-    return String.format("ref(id=%d, accessor-type=%s)", fieldId, accessor.type());
-  }
-
+  Type type();
 }

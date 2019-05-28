@@ -27,6 +27,7 @@ import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.FileAppender;
@@ -60,6 +61,10 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestMetricsRowGroupFilter {
+
+  private static final Types.StructType structFieldType =
+          Types.StructType.of(Types.NestedField.required(8, "int_field", IntegerType.get()));
+
   private static final Schema SCHEMA = new Schema(
       required(1, "id", IntegerType.get()),
       optional(2, "no_stats", StringType.get()),
@@ -67,12 +72,14 @@ public class TestMetricsRowGroupFilter {
       optional(4, "all_nulls", LongType.get()),
       optional(5, "some_nulls", StringType.get()),
       optional(6, "no_nulls", StringType.get()),
-      optional(7, "not_in_file", FloatType.get()),
-      optional(8, "map_not_null",
-              Types.MapType.ofRequired(9, 10, StringType.get(), IntegerType.get())),
-      optional(9, "struct_not_null",
-              Types.StructType.of(Types.NestedField.required(10, "struct_subfield", StringType.get())))
+      optional(7, "struct_not_null", structFieldType),
+      optional(9, "not_in_file", FloatType.get()),
+      optional(10, "map_not_null",
+          Types.MapType.ofRequired(11, 12, StringType.get(), IntegerType.get()))
   );
+
+  private static final Types.StructType _structFieldType =
+          Types.StructType.of(Types.NestedField.required(8, "_int_field", IntegerType.get()));
 
   private static final Schema FILE_SCHEMA = new Schema(
       required(1, "_id", IntegerType.get()),
@@ -80,7 +87,8 @@ public class TestMetricsRowGroupFilter {
       required(3, "_required", StringType.get()),
       optional(4, "_all_nulls", LongType.get()),
       optional(5, "_some_nulls", StringType.get()),
-      optional(6, "_no_nulls", StringType.get())
+      optional(6, "_no_nulls", StringType.get()),
+      optional(7, "_struct_not_null", _structFieldType)
   );
 
   private static final String TOO_LONG_FOR_STATS;
@@ -102,6 +110,9 @@ public class TestMetricsRowGroupFilter {
       Assert.assertTrue(PARQUET_FILE.delete());
     }
 
+    // build struct field schema
+    org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(_structFieldType);
+
     OutputFile outFile = Files.localOutput(PARQUET_FILE);
     try (FileAppender<Record> appender = Parquet.write(outFile)
         .schema(FILE_SCHEMA)
@@ -115,6 +126,11 @@ public class TestMetricsRowGroupFilter {
         builder.set("_all_nulls", null); // never non-null
         builder.set("_some_nulls", (i % 10 == 0) ? null : "some"); // includes some null values
         builder.set("_no_nulls", ""); // optional, but always non-null
+
+        Record struct_not_null = new Record(structSchema);
+        struct_not_null.put("_int_field", 30 + i);
+        builder.set("_struct_not_null", struct_not_null ); // struct with int
+
         appender.add(builder.build());
       }
     }
@@ -458,6 +474,144 @@ public class TestMetricsRowGroupFilter {
 
     shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(equal("id", 85)))
         .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+  }
+
+  @Test
+  public void testStructFieldLt() {
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThan("struct_not_null.int_field", 5))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertFalse("Should not read: id range below lower bound (5 < 30)", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThan("struct_not_null.int_field", 30))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertFalse("Should not read: id range below lower bound (30 is not < 30)", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThan("struct_not_null.int_field", 31))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: one possible id", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThan("struct_not_null.int_field", 79))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: may possible ids", shouldRead);
+  }
+
+  @Test
+  public void testStructFieldLtEq() {
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThanOrEqual("struct_not_null.int_field", 5))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertFalse("Should not read: id range below lower bound (5 < 30)", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThanOrEqual("struct_not_null.int_field", 29))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertFalse("Should not read: id range below lower bound (29 < 30)", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThanOrEqual("struct_not_null.int_field", 30))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: one possible id", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThanOrEqual("struct_not_null.int_field", 79))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: many possible ids", shouldRead);
+  }
+
+  @Test
+  public void testStructFieldGt() {
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThan("struct_not_null.int_field", 85))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertFalse("Should not read: id range above upper bound (85 < 79)", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThan("struct_not_null.int_field", 79))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertFalse("Should not read: id range above upper bound (79 is not > 79)", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThan("struct_not_null.int_field", 78))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: one possible id", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThan("struct_not_null.int_field", 75))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: may possible ids", shouldRead);
+  }
+
+  @Test
+  public void testStructFieldGtEq() {
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThanOrEqual("struct_not_null.int_field", 85))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertFalse("Should not read: id range above upper bound (85 < 79)", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThanOrEqual("struct_not_null.int_field", 80))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertFalse("Should not read: id range above upper bound (80 > 79)", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThanOrEqual("struct_not_null.int_field", 79))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: one possible id", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThanOrEqual("struct_not_null.int_field", 75))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: may possible ids", shouldRead);
+  }
+
+  @Test
+  public void testStructFieldEq() {
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", 5))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", 29))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", 30))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", 75))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", 79))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", 80))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertFalse("Should not read: id above upper bound", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", 85))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertFalse("Should not read: id above upper bound", shouldRead);
+  }
+
+  @Test
+  public void testStructFieldNotEq() {
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", 5))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", 29))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", 30))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", 75))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", 79))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("id", 80))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", 85))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
     Assert.assertTrue("Should read: id above upper bound", shouldRead);
   }
 

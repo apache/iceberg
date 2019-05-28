@@ -168,8 +168,6 @@ public class ParquetDictionaryRowGroupFilter {
     @Override
     public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
-      Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       Boolean hasNonDictPage = isFallback.get(id);
       if (hasNonDictPage == null || hasNonDictPage) {
@@ -192,8 +190,6 @@ public class ParquetDictionaryRowGroupFilter {
     @Override
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
-      Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       Boolean hasNonDictPage = isFallback.get(id);
       if (hasNonDictPage == null || hasNonDictPage) {
@@ -216,8 +212,6 @@ public class ParquetDictionaryRowGroupFilter {
     @Override
     public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
-      Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       Boolean hasNonDictPage = isFallback.get(id);
       if (hasNonDictPage == null || hasNonDictPage) {
@@ -240,8 +234,6 @@ public class ParquetDictionaryRowGroupFilter {
     @Override
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
-      Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       Boolean hasNonDictPage = isFallback.get(id);
       if (hasNonDictPage == null || hasNonDictPage) {
@@ -264,8 +256,6 @@ public class ParquetDictionaryRowGroupFilter {
     @Override
     public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
-      Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       Boolean hasNonDictPage = isFallback.get(id);
       if (hasNonDictPage == null || hasNonDictPage) {
@@ -280,8 +270,6 @@ public class ParquetDictionaryRowGroupFilter {
     @Override
     public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
-      Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       Boolean hasNonDictPage = isFallback.get(id);
       if (hasNonDictPage == null || hasNonDictPage) {

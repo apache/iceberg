@@ -21,9 +21,11 @@ package org.apache.iceberg.expressions;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import org.apache.iceberg.Accessors;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
@@ -42,6 +44,7 @@ import static org.apache.iceberg.expressions.Expressions.rewriteNot;
  */
 public class InclusiveManifestEvaluator {
   private final StructType struct;
+  private final Schema schema;
   private final Expression expr;
   private transient ThreadLocal<ManifestEvalVisitor> visitors = null;
 
@@ -62,6 +65,7 @@ public class InclusiveManifestEvaluator {
       struct,
       rewriteNot(Projections.inclusive(spec, caseSensitive).project(rowFilter)),
       caseSensitive);
+    this.schema = new Schema(struct.fields());
   }
 
   /**
@@ -116,9 +120,10 @@ public class InclusiveManifestEvaluator {
 
     @Override
     public <T> Boolean isNull(BoundReference<T> ref) {
+      int pos = Accessors.toPosition(ref.accessor());
       // no need to check whether the field is required because binding evaluates that case
       // if the column has no null values, the expression cannot match
-      if (!stats.get(ref.pos()).containsNull()) {
+      if (!stats.get(pos).containsNull()) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -127,9 +132,10 @@ public class InclusiveManifestEvaluator {
 
     @Override
     public <T> Boolean notNull(BoundReference<T> ref) {
+      int pos = Accessors.toPosition(ref.accessor());
       // containsNull encodes whether at least one partition value is null, lowerBound is null if
       // all partition values are null.
-      ByteBuffer lowerBound = stats.get(ref.pos()).lowerBound();
+      ByteBuffer lowerBound = stats.get(pos).lowerBound();
       if (lowerBound == null) {
         return ROWS_CANNOT_MATCH; // all values are null
       }
@@ -139,7 +145,8 @@ public class InclusiveManifestEvaluator {
 
     @Override
     public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
-      ByteBuffer lowerBound = stats.get(ref.pos()).lowerBound();
+      int pos = Accessors.toPosition(ref.accessor());
+      ByteBuffer lowerBound = stats.get(pos).lowerBound();
       if (lowerBound == null) {
         return ROWS_CANNOT_MATCH; // values are all null
       }
@@ -156,7 +163,8 @@ public class InclusiveManifestEvaluator {
 
     @Override
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
-      ByteBuffer lowerBound = stats.get(ref.pos()).lowerBound();
+      int pos = Accessors.toPosition(ref.accessor());
+      ByteBuffer lowerBound = stats.get(pos).lowerBound();
       if (lowerBound == null) {
         return ROWS_CANNOT_MATCH; // values are all null
       }
@@ -173,7 +181,8 @@ public class InclusiveManifestEvaluator {
 
     @Override
     public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
-      ByteBuffer upperBound = stats.get(ref.pos()).upperBound();
+      int pos = Accessors.toPosition(ref.accessor());
+      ByteBuffer upperBound = stats.get(pos).upperBound();
       if (upperBound == null) {
         return ROWS_CANNOT_MATCH; // values are all null
       }
@@ -190,7 +199,8 @@ public class InclusiveManifestEvaluator {
 
     @Override
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
-      ByteBuffer upperBound = stats.get(ref.pos()).upperBound();
+      int pos = Accessors.toPosition(ref.accessor());
+      ByteBuffer upperBound = stats.get(pos).upperBound();
       if (upperBound == null) {
         return ROWS_CANNOT_MATCH; // values are all null
       }
@@ -207,7 +217,8 @@ public class InclusiveManifestEvaluator {
 
     @Override
     public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
-      PartitionFieldSummary fieldStats = stats.get(ref.pos());
+      int pos = Accessors.toPosition(ref.accessor());
+      PartitionFieldSummary fieldStats = stats.get(pos);
       if (fieldStats.lowerBound() == null) {
         return ROWS_CANNOT_MATCH; // values are all null and literal cannot contain null
       }

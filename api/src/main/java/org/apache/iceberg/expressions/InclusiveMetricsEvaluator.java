@@ -19,14 +19,12 @@
 
 package org.apache.iceberg.expressions;
 
-import com.google.common.base.Preconditions;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.types.Conversions;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
@@ -128,8 +126,6 @@ public class InclusiveMetricsEvaluator {
       // no need to check whether the field is required because binding evaluates that case
       // if the column has no null values, the expression cannot match
       Integer id = ref.fieldId();
-      Preconditions.checkNotNull(struct.field(id),
-          "Cannot filter by nested column: %s", schema.findField(id));
 
       if (nullCounts != null && nullCounts.containsKey(id) && nullCounts.get(id) == 0) {
         return ROWS_CANNOT_MATCH;
@@ -143,8 +139,6 @@ public class InclusiveMetricsEvaluator {
       // no need to check whether the field is required because binding evaluates that case
       // if the column has no non-null values, the expression cannot match
       Integer id = ref.fieldId();
-      Preconditions.checkNotNull(struct.field(id),
-          "Cannot filter by nested column: %s", schema.findField(id));
 
       if (valueCounts != null && valueCounts.containsKey(id) &&
           nullCounts != null && nullCounts.containsKey(id) &&
@@ -158,11 +152,9 @@ public class InclusiveMetricsEvaluator {
     @Override
     public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
-      Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        T lower = Conversions.fromByteBuffer(field.type(), lowerBounds.get(id));
+        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
 
         int cmp = lit.comparator().compare(lower, lit.value());
         if (cmp >= 0) {
@@ -176,11 +168,9 @@ public class InclusiveMetricsEvaluator {
     @Override
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
-      Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        T lower = Conversions.fromByteBuffer(field.type(), lowerBounds.get(id));
+        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
 
         int cmp = lit.comparator().compare(lower, lit.value());
         if (cmp > 0) {
@@ -194,11 +184,9 @@ public class InclusiveMetricsEvaluator {
     @Override
     public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
-      Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       if (upperBounds != null && upperBounds.containsKey(id)) {
-        T upper = Conversions.fromByteBuffer(field.type(), upperBounds.get(id));
+        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
 
         int cmp = lit.comparator().compare(upper, lit.value());
         if (cmp <= 0) {
@@ -212,11 +200,9 @@ public class InclusiveMetricsEvaluator {
     @Override
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
-      Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       if (upperBounds != null && upperBounds.containsKey(id)) {
-        T upper = Conversions.fromByteBuffer(field.type(), upperBounds.get(id));
+        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
 
         int cmp = lit.comparator().compare(upper, lit.value());
         if (cmp < 0) {
@@ -230,11 +216,9 @@ public class InclusiveMetricsEvaluator {
     @Override
     public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
-      Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        T lower = Conversions.fromByteBuffer(struct.field(id).type(), lowerBounds.get(id));
+        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
 
         int cmp = lit.comparator().compare(lower, lit.value());
         if (cmp > 0) {
@@ -243,7 +227,7 @@ public class InclusiveMetricsEvaluator {
       }
 
       if (upperBounds != null && upperBounds.containsKey(id)) {
-        T upper = Conversions.fromByteBuffer(field.type(), upperBounds.get(id));
+        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
 
         int cmp = lit.comparator().compare(upper, lit.value());
         if (cmp < 0) {

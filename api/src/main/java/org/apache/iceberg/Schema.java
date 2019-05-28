@@ -48,6 +48,7 @@ public class Schema implements Serializable {
   private transient Map<Integer, Types.NestedField> idToField = null;
   private transient BiMap<String, Integer> nameToId = null;
   private transient BiMap<String, Integer> lowerCaseNameToId = null;
+  private transient Map<Integer, Accessor<StructLike>> idToAccessor = null;
 
   public Schema(List<Types.NestedField> columns, Map<String, Integer> aliases) {
     this.struct = Types.StructType.of(columns);
@@ -56,6 +57,10 @@ public class Schema implements Serializable {
 
   public Schema(List<Types.NestedField> columns) {
     this.struct = Types.StructType.of(columns);
+  }
+
+  public Schema(Types.NestedField... columns) {
+    this(Arrays.asList(columns));
   }
 
   private Map<Integer, Types.NestedField> lazyIdToField() {
@@ -79,8 +84,11 @@ public class Schema implements Serializable {
     return lowerCaseNameToId;
   }
 
-  public Schema(Types.NestedField... columns) {
-    this(Arrays.asList(columns));
+  private Map<Integer, Accessor<StructLike>> lazyIdToAccessor() {
+    if (idToAccessor == null) {
+      idToAccessor = Accessors.forSchema(this);
+    }
+    return idToAccessor;
   }
 
   /**
@@ -141,9 +149,9 @@ public class Schema implements Serializable {
   }
 
   /**
-   * Returns a sub-field field by name as a {@link Types.NestedField}.
+   * Returns a sub-field by name as a {@link Types.NestedField}.
    * <p>
-   * The result may be a nested field.
+   * The result may be a top-level or a nested field.
    *
    * @param name a String name
    * @return a Type for the sub-field or null if it is not found
@@ -151,6 +159,23 @@ public class Schema implements Serializable {
   public Types.NestedField findField(String name) {
     Preconditions.checkArgument(!name.isEmpty(), "Invalid column name: (empty)");
     Integer id = lazyNameToId().get(name);
+    if (id != null) {
+      return lazyIdToField().get(id);
+    }
+    return null;
+  }
+
+  /**
+   * Returns a sub-field by name as a {@link Types.NestedField}.
+   * <p>
+   * The result may be a top-level or a nested field.
+   *
+   * @param name a String name
+   * @return the sub-field or null if it is not found
+   */
+  public Types.NestedField caseInsensitiveFindField(String name) {
+    Preconditions.checkArgument(!name.isEmpty(), "Invalid column name: (empty)");
+    Integer id = lazyLowerCaseNameToId().get(name.toLowerCase(Locale.ROOT));
     if (id != null) {
       return lazyIdToField().get(id);
     }
@@ -193,6 +218,18 @@ public class Schema implements Serializable {
       return aliasToId.inverse().get(fieldId);
     }
     return null;
+  }
+
+  /**
+   * Return an accessor for retrieving the data from {@link StructLike}.
+   * <p>
+   * Accessors do not retrieve data contained in lists or maps.
+   *
+   * @param id a column id in this schema
+   * @return an {@link Accessor} to retrieve values from a {@link StructLike} row
+   */
+  public Accessor<StructLike> accessorForField(int id) {
+    return lazyIdToAccessor().get(id);
   }
 
   /**
