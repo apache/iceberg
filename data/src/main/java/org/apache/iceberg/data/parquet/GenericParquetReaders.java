@@ -34,6 +34,7 @@ import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.parquet.ParquetValueReaders.BinaryAsDecimalReader;
@@ -59,9 +60,6 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
-import static org.apache.iceberg.parquet.ParquetSchemaUtil.hasIds;
-import static org.apache.iceberg.parquet.ParquetValueReaders.option;
-
 public class GenericParquetReaders {
   private GenericParquetReaders() {
   }
@@ -69,7 +67,7 @@ public class GenericParquetReaders {
   @SuppressWarnings("unchecked")
   public static ParquetValueReader<GenericRecord> buildReader(Schema expectedSchema,
                                                               MessageType fileSchema) {
-    if (hasIds(fileSchema)) {
+    if (ParquetSchemaUtil.hasIds(fileSchema)) {
       return (ParquetValueReader<GenericRecord>)
           TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
               new ReadBuilder(fileSchema));
@@ -102,8 +100,8 @@ public class GenericParquetReaders {
       List<Type> fields = struct.getFields();
       for (int i = 0; i < fields.size(); i += 1) {
         Type fieldType = fields.get(i);
-        int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName()))-1;
-        newFields.add(option(fieldType, fieldD, fieldReaders.get(i)));
+        int fieldD = getType().getMaxDefinitionLevel(path(fieldType.getName())) - 1;
+        newFields.add(ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
         types.add(fieldType);
       }
 
@@ -112,7 +110,7 @@ public class GenericParquetReaders {
   }
 
   private static class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
-    final MessageType type;
+    private final MessageType type;
 
     ReadBuilder(MessageType type) {
       this.type = type;
@@ -133,9 +131,9 @@ public class GenericParquetReaders {
       List<Type> fields = struct.getFields();
       for (int i = 0; i < fields.size(); i += 1) {
         Type fieldType = fields.get(i);
-        int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName()))-1;
+        int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName())) - 1;
         int id = fieldType.getId().intValue();
-        readersById.put(id, option(fieldType, fieldD, fieldReaders.get(i)));
+        readersById.put(id, ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
         typesById.put(id, fieldType);
       }
 
@@ -165,13 +163,13 @@ public class GenericParquetReaders {
       GroupType repeated = array.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
-      int repeatedD = type.getMaxDefinitionLevel(repeatedPath)-1;
-      int repeatedR = type.getMaxRepetitionLevel(repeatedPath)-1;
+      int repeatedD = type.getMaxDefinitionLevel(repeatedPath) - 1;
+      int repeatedR = type.getMaxRepetitionLevel(repeatedPath) - 1;
 
       Type elementType = repeated.getType(0);
-      int elementD = type.getMaxDefinitionLevel(path(elementType.getName()))-1;
+      int elementD = type.getMaxDefinitionLevel(path(elementType.getName())) - 1;
 
-      return new ListReader<>(repeatedD, repeatedR, option(elementType, elementD, elementReader));
+      return new ListReader<>(repeatedD, repeatedR, ParquetValueReaders.option(elementType, elementD, elementReader));
     }
 
     @Override
@@ -181,16 +179,17 @@ public class GenericParquetReaders {
       GroupType repeatedKeyValue = map.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
-      int repeatedD = type.getMaxDefinitionLevel(repeatedPath)-1;
-      int repeatedR = type.getMaxRepetitionLevel(repeatedPath)-1;
+      int repeatedD = type.getMaxDefinitionLevel(repeatedPath) - 1;
+      int repeatedR = type.getMaxRepetitionLevel(repeatedPath) - 1;
 
       Type keyType = repeatedKeyValue.getType(0);
-      int keyD = type.getMaxDefinitionLevel(path(keyType.getName()))-1;
+      int keyD = type.getMaxDefinitionLevel(path(keyType.getName())) - 1;
       Type valueType = repeatedKeyValue.getType(1);
-      int valueD = type.getMaxDefinitionLevel(path(valueType.getName()))-1;
+      int valueD = type.getMaxDefinitionLevel(path(valueType.getName())) - 1;
 
       return new MapReader<>(repeatedD, repeatedR,
-          option(keyType, keyD, keyReader), option(valueType, valueD, valueReader));
+          ParquetValueReaders.option(keyType, keyD, keyReader),
+          ParquetValueReaders.option(valueType, valueD, valueReader));
     }
 
     @Override
@@ -276,6 +275,10 @@ public class GenericParquetReaders {
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
+    }
+
+    public MessageType getType() {
+      return type;
     }
 
     private String[] currentPath() {
@@ -405,11 +408,13 @@ public class GenericParquetReaders {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:hiddenField")
     protected Record buildStruct(Record struct) {
       return struct;
     }
 
     @Override
+    @SuppressWarnings("checkstyle:hiddenField")
     protected void set(Record struct, int pos, Object value) {
       struct.set(pos, value);
     }

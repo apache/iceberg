@@ -19,13 +19,13 @@
 
 package org.apache.iceberg.data;
 
-import com.google.common.base.Charsets;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -45,6 +45,8 @@ import org.apache.iceberg.types.Types;
 import static java.time.temporal.ChronoUnit.MICROS;
 
 public class RandomGenericData {
+  private RandomGenericData() {}
+
   public static List<Record> generate(Schema schema, int numRecords, long seed) {
     RandomDataGenerator generator = new RandomDataGenerator(seed);
     List<Record> records = Lists.newArrayListWithExpectedSize(numRecords);
@@ -229,7 +231,7 @@ public class RandomGenericData {
 
       case DATE:
         // this will include negative values (dates before 1970-01-01)
-        return EPOCH_DAY.plusDays(random.nextInt() % ABOUT_380_YEARS_IN_DAYS);
+        return EPOCH_DAY.plusDays(random.nextInt(ABOUT_380_YEARS_IN_DAYS));
 
       case TIME:
         return LocalTime.ofNanoOfDay(
@@ -291,10 +293,11 @@ public class RandomGenericData {
       buffer[i] = (byte) CHARS.charAt(random.nextInt(CHARS.length()));
     }
 
-    return new String(buffer, Charsets.UTF_8);
+    return new String(buffer, StandardCharsets.UTF_8);
   }
 
   private static final String DIGITS = "0123456789";
+
   private static BigInteger randomUnscaled(int precision, Random random) {
     int length = random.nextInt(precision);
     if (length == 0) {

@@ -33,8 +33,6 @@ import org.apache.iceberg.avro.LogicalMap;
 import org.apache.iceberg.avro.ValueWriter;
 import org.apache.iceberg.avro.ValueWriters;
 
-import static org.apache.iceberg.avro.AvroSchemaVisitor.visit;
-
 public class DataWriter<T> implements DatumWriter<T> {
   private ValueWriter<T> writer = null;
 
@@ -49,7 +47,7 @@ public class DataWriter<T> implements DatumWriter<T> {
   @Override
   @SuppressWarnings("unchecked")
   public void setSchema(Schema schema) {
-    this.writer = (ValueWriter<T>) visit(schema, new WriteBuilder());
+    this.writer = (ValueWriter<T>) AvroSchemaVisitor.visit(schema, new WriteBuilder());
   }
 
   @Override
@@ -69,9 +67,9 @@ public class DataWriter<T> implements DatumWriter<T> {
     @Override
     public ValueWriter<?> union(Schema union, List<ValueWriter<?>> options) {
       Preconditions.checkArgument(options.contains(ValueWriters.nulls()),
-          "Cannot create writer for non-option union: " + union);
+          "Cannot create writer for non-option union: %s", union);
       Preconditions.checkArgument(options.size() == 2,
-          "Cannot create writer for non-option union: " + union);
+          "Cannot create writer for non-option union: %s", union);
       if (union.getTypes().get(0).getType() == Schema.Type.NULL) {
         return ValueWriters.option(0, options.get(1));
       } else {

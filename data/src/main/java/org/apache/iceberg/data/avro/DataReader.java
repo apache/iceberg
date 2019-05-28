@@ -58,8 +58,8 @@ public class DataReader<T> implements DatumReader<T> {
   }
 
   @Override
-  public void setSchema(Schema fileSchema) {
-    this.fileSchema = Schema.applyAliases(fileSchema, readSchema);
+  public void setSchema(Schema schema) {
+    this.fileSchema = Schema.applyAliases(schema, readSchema);
   }
 
   @Override

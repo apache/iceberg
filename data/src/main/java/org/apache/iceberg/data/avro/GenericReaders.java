@@ -128,11 +128,13 @@ class GenericReaders {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:hiddenField")
     protected Object get(Record struct, int pos) {
       return struct.get(pos);
     }
 
     @Override
+    @SuppressWarnings("checkstyle:hiddenField")
     protected void set(Record struct, int pos, Object value) {
       struct.set(pos, value);
     }

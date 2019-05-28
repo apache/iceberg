@@ -65,8 +65,8 @@ public class IcebergGenerics {
       return this;
     }
 
-    public ScanBuilder select(String... columns) {
-      this.columns = ImmutableList.copyOf(columns);
+    public ScanBuilder select(String... selectColumns) {
+      this.columns = ImmutableList.copyOf(selectColumns);
       return this;
     }
 
