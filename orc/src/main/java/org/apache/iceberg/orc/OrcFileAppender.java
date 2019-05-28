@@ -125,6 +125,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
 
   @Override
   public List<Long> splitOffsets() {
+    Preconditions.checkState(isClosed, "File is not yet closed");
     Reader reader;
     try {
       reader = OrcFile.createReader(path, new OrcFile.ReaderOptions(conf));
