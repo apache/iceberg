@@ -231,7 +231,8 @@ public class RandomGenericData {
 
       case DATE:
         // this will include negative values (dates before 1970-01-01)
-        return EPOCH_DAY.plusDays(random.nextInt(ABOUT_380_YEARS_IN_DAYS));
+        int days = (random.nextBoolean() ? 1 : -1) * random.nextInt(ABOUT_380_YEARS_IN_DAYS);
+        return EPOCH_DAY.plusDays(days);
 
       case TIME:
         return LocalTime.ofNanoOfDay(

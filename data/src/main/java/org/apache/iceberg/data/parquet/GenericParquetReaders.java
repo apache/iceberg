@@ -277,7 +277,7 @@ public class GenericParquetReaders {
       }
     }
 
-    public MessageType getType() {
+    MessageType getType() {
       return type;
     }
 
