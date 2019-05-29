@@ -40,6 +40,8 @@ import org.apache.orc.OrcProto;
 import org.apache.orc.Reader;
 import org.apache.orc.Writer;
 
+import static org.apache.iceberg.types.Conversions.toByteBuffer;
+
 public class OrcMetrics {
 
   private OrcMetrics() {
@@ -66,53 +68,54 @@ public class OrcMetrics {
           columSizes,
           valueCounts,
           Collections.emptyMap());
+
     } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to read footer of file: %s", file);
     }
   }
 
-  private static Optional<Literal<?>> fromOrcMin(Types.NestedField column,
+  private static Optional<ByteBuffer> fromOrcMin(Types.NestedField column,
                                                     OrcProto.ColumnStatistics columnStats) {
-    Literal<?> min = null;
+    ByteBuffer min = null;
     if (columnStats.hasIntStatistics()) {
       if (column.type().typeId() == Type.TypeID.INTEGER) {
-        min = Literal.of((int) columnStats.getIntStatistics().getMinimum());
+        min = toByteBuffer(column.type(), (int) columnStats.getIntStatistics().getMinimum());
       } else {
-        min = Literal.of(columnStats.getIntStatistics().getMinimum());
+        min = toByteBuffer(column.type(), columnStats.getIntStatistics().getMinimum());
       }
     } else if (columnStats.hasDoubleStatistics()) {
-      min = Literal.of(columnStats.getDoubleStatistics().getMinimum());
+      min = toByteBuffer(column.type(), columnStats.getDoubleStatistics().getMinimum());
     } else if (columnStats.hasStringStatistics()) {
-      min = Literal.of(columnStats.getStringStatistics().getMinimum());
+      min = toByteBuffer(column.type(), columnStats.getStringStatistics().getMinimum());
     } else if (columnStats.hasDecimalStatistics()) {
-      min = Literal.of(columnStats.getDecimalStatistics().getMinimum());
+      min = toByteBuffer(column.type(), columnStats.getDecimalStatistics().getMinimum());
     } else if (columnStats.hasDateStatistics()) {
-      min = Literal.of(columnStats.getDateStatistics().getMinimum());
+      min = toByteBuffer(column.type(), columnStats.getDateStatistics().getMinimum());
     } else if (columnStats.hasTimestampStatistics()) {
-      min = Literal.of(columnStats.getTimestampStatistics().getMinimum());
+      min = toByteBuffer(column.type(), columnStats.getTimestampStatistics().getMinimum());
     }
     return Optional.ofNullable(min);
   }
 
-  private static Optional<Literal<?>> fromOrcMax(Types.NestedField column,
+  private static Optional<ByteBuffer> fromOrcMax(Types.NestedField column,
                                                     OrcProto.ColumnStatistics columnStats) {
-    Literal<?> max = null;
+    ByteBuffer max = null;
     if (columnStats.hasIntStatistics()) {
       if (column.type().typeId() == Type.TypeID.INTEGER) {
-        max = Literal.of((int) columnStats.getIntStatistics().getMaximum());
+        max = toByteBuffer(column.type(), (int) columnStats.getIntStatistics().getMaximum());
       } else {
-        max = Literal.of(columnStats.getIntStatistics().getMaximum());
+        max = toByteBuffer(column.type(), columnStats.getIntStatistics().getMaximum());
       }
     } else if (columnStats.hasDoubleStatistics()) {
-      max = Literal.of(columnStats.getDoubleStatistics().getMaximum());
+      max = toByteBuffer(column.type(), columnStats.getDoubleStatistics().getMaximum());
     } else if (columnStats.hasStringStatistics()) {
-      max = Literal.of(columnStats.getStringStatistics().getMaximum());
+      max = toByteBuffer(column.type(), columnStats.getStringStatistics().getMaximum());
     } else if (columnStats.hasDecimalStatistics()) {
-      max = Literal.of(columnStats.getDecimalStatistics().getMaximum());
+      max = toByteBuffer(column.type(), columnStats.getDecimalStatistics().getMaximum());
     } else if (columnStats.hasDateStatistics()) {
-      max = Literal.of(columnStats.getDateStatistics().getMaximum());
+      max = toByteBuffer(column.type(), columnStats.getDateStatistics().getMaximum());
     } else if (columnStats.hasTimestampStatistics()) {
-      max = Literal.of(columnStats.getTimestampStatistics().getMaximum());
+      max = toByteBuffer(column.type(), columnStats.getTimestampStatistics().getMaximum());
     }
     return Optional.ofNullable(max);
   }
