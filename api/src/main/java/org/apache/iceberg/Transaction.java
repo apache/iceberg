@@ -85,6 +85,13 @@ public interface Transaction {
   RewriteFiles newRewrite();
 
   /**
+   * Create a new {@link RewriteManifests rewrite manifests API} to replace manifests for this table.
+   *
+   * @return a new {@link RewriteManifests}
+   */
+  RewriteManifests newRewriteManifests();
+
+  /**
    * Create a new {@link OverwriteFiles overwrite API} to overwrite files by a filter expression.
    *
    * @return a new {@link OverwriteFiles}

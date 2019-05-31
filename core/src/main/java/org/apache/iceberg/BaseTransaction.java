@@ -143,6 +143,14 @@ class BaseTransaction implements Transaction {
   }
 
   @Override
+  public RewriteManifests newRewriteManifests() {
+    checkLastOperationCommitted("RewriteManifests");
+    RewriteManifests rewrite = new ReplaceManifests(transactionOps);
+    updates.add(rewrite);
+    return rewrite;
+  }
+
+  @Override
   public OverwriteFiles newOverwrite() {
     checkLastOperationCommitted("OverwriteFiles");
     OverwriteFiles overwrite = new OverwriteData(transactionOps);
@@ -369,6 +377,11 @@ class BaseTransaction implements Transaction {
     @Override
     public RewriteFiles newRewrite() {
       return BaseTransaction.this.newRewrite();
+    }
+
+    @Override
+    public RewriteManifests newRewriteManifests() {
+      return BaseTransaction.this.newRewriteManifests();
     }
 
     @Override
