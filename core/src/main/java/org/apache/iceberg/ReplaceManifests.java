@@ -51,7 +51,7 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
 
   @Override
   protected String operation() {
-    return DataOperations.APPEND;
+    return DataOperations.REPLACE;
   }
 
   @Override
