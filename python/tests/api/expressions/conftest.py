@@ -18,9 +18,10 @@
 from decimal import Decimal
 import io
 import pickle
+import time
 import uuid
 
-from iceberg.api import DataFile
+from iceberg.api import DataFile, ManifestFile, PartitionFieldSummary, PartitionSpec
 from iceberg.api.expressions import (BoundPredicate,
                                      Expressions,
                                      ExpressionVisitors,
@@ -96,17 +97,83 @@ class TestDataFile(DataFile):
 
     def __init__(self, path, partition, record_count, value_counts=None, null_value_counts=None,
                  lower_bounds=None, upper_bounds=None):
+        self._path = path
+        self._partition = partition
+        self._record_count = record_count
+        self._value_counts = value_counts
+        self._null_value_counts = null_value_counts
+        self._lower_bounds = lower_bounds
+        self._upper_bounds = upper_bounds
+        self._file_size_in_bytes = 0
+        self._block_size_in_bytes = 0
+        self._file_ordinal = None
+        self._column_sizes = None
+
+    def path(self):
+        return self._path
+
+    def partition(self):
+        return self._partition
+
+    def record_count(self):
+        return self._record_count
+
+    def value_counts(self):
+        return self._value_counts
+
+    def null_value_counts(self):
+        return self._null_value_counts
+
+    def lower_bounds(self):
+        return self._lower_bounds
+
+    def upper_bounds(self):
+        return self._upper_bounds
+
+    def file_size_in_bytes(self):
+        return self._file_size_in_bytes
+
+    def file_ordinal(self):
+        return self._file_ordinal
+
+    def column_sizes(self):
+        return self._column_sizes
+
+    def copy(self):
+        return self
+
+
+class TestManifestFile(ManifestFile):
+
+    def __init__(self, path, length, spec_id, snapshot_id, added_files, existing_files, deleted_files, partitions):
         self.path = path
-        self.partition = partition
-        self.record_count = record_count
-        self.value_counts = value_counts
-        self.null_value_counts = null_value_counts
-        self.lower_bounds = lower_bounds
-        self.upper_bounds = upper_bounds
-        self.file_size_in_bytes = 0
-        self.block_size_in_bytes = 0
-        self.file_ordinal = None
-        self.column_size = None
+        self.length = length
+        self.spec_id = spec_id
+        self.snapshot_id = snapshot_id
+        self.added_files = added_files
+        self.existing_files = existing_files
+        self.deleted_files = deleted_files
+        self.partitions = partitions
+
+    def copy(self):
+        return self
+
+
+class TestFieldSummary(PartitionFieldSummary):
+
+    def __init__(self, contains_null, lower_bound, upper_bound):
+        self._contains_null = contains_null
+        self._lower_bound = lower_bound
+        self._upper_bound = upper_bound
+
+    def contains_null(self):
+        return self._contains_null
+
+    def lower_bound(self):
+        return self._lower_bound
+
+    def upper_bound(self):
+        return self._upper_bound
 
     def copy(self):
         return self
@@ -273,6 +340,18 @@ def not_eq_rewrite(request):
 
 
 @pytest.fixture(scope="session",
+                params=[Expressions.equal("ID", 5),
+                        Expressions.equal("ID", 29),
+                        Expressions.equal("ID", 30),
+                        Expressions.equal("ID", 75),
+                        Expressions.equal("ID", 79),
+                        Expressions.equal("ID", 80),
+                        Expressions.equal("ID", 85)])
+def not_eq_uc(request):
+    yield request.param
+
+
+@pytest.fixture(scope="session",
                 params=[Literal.of(False),
                         Literal.of(34),
                         Literal.of(35),
@@ -305,3 +384,42 @@ def type_val_tuples(request):
                         (DecimalType.of(9, 4), "34.5600")])
 def float_type_val_tuples(request):
     yield request.param
+
+
+@pytest.fixture(scope="session")
+def inc_man_spec():
+    inc_schema = Schema(NestedField.required(1, "id", IntegerType.get()),
+                        NestedField.optional(4, "all_nulls", StringType.get()),
+                        NestedField.optional(5, "some_nulls", StringType.get()),
+                        NestedField.optional(6, "no_nulls", StringType.get()))
+    return (PartitionSpec.builder_for(inc_schema)
+            .with_spec_id(0)
+            .identity("id")
+            .identity("all_nulls")
+            .identity("some_nulls")
+            .identity("no_nulls")
+            .build()
+            )
+
+
+@pytest.fixture(scope="session")
+def inc_man_file():
+    return TestManifestFile("manifest-list.avro", 1024, 0, int(time.time() * 1000), 5, 10, 0,
+                            (TestFieldSummary(False,
+                                              Conversions.to_byte_buffer(IntegerType.get(), 30),
+                                              Conversions.to_byte_buffer(IntegerType.get(), 79)),
+                             TestFieldSummary(True,
+                                              None,
+                                              None),
+                             TestFieldSummary(True,
+                                              Conversions.to_byte_buffer(StringType.get(), 'a'),
+                                              Conversions.to_byte_buffer(StringType.get(), 'z')),
+                             TestFieldSummary(False,
+                                              Conversions.to_byte_buffer(StringType.get(), 'a'),
+                                              Conversions.to_byte_buffer(StringType.get(), 'z'))
+                             ))
+
+
+@pytest.fixture(scope="session")
+def inc_man_file_ns():
+    return TestManifestFile("manifest-list.avro", 1024, 0, int(time.time() * 1000), None, None, None, None)

@@ -337,7 +337,7 @@ class FixedType(PrimitiveType):
         return not self.__eq__(other)
 
     def __repr__(self):
-        return "fixed[%s]" % (self.length())
+        return "fixed[%s]" % (self.length)
 
     def __str__(self):
         return self.__repr__()
@@ -475,6 +475,7 @@ class StructType(NestedType):
 
         self._fieldList = None
         self._fieldsByName = None
+        self._fieldsByLowercaseName = None
         self._fieldsById = None
 
     def __eq__(self, other):
@@ -490,15 +491,18 @@ class StructType(NestedType):
 
     @property
     def fields(self):
-        return self._lazyFieldList()
+        return self._lazy_field_list()
 
     def field(self, name=None, id=None):
         if name:
-            return self._lazyFieldsByName().get(name)
+            return self._lazy_fields_by_name().get(name)
         elif id:
-            return self._lazyFieldsById()[id]
+            return self._lazy_fields_by_id()[id]
 
         raise RuntimeError("No valid field info passed in ")
+
+    def case_insensitive_field(self, name):
+        return self._lazy_fields_by_lowercase_name().get(name)
 
     @property
     def type_id(self):
@@ -519,27 +523,34 @@ class StructType(NestedType):
     def __key(self):
         return StructType.__class__, self.fields
 
-    def _lazyFieldList(self):
+    def _lazy_field_list(self):
         if self._fieldList is None:
             self._fieldList = tuple(self._fields)
         return self._fieldList
 
-    def _lazyFieldsByName(self):
+    def _lazy_fields_by_name(self):
         if self._fieldsByName is None:
-            self.indexFields()
+            self.index_fields()
         return self._fieldsByName
 
-    def _lazyFieldsById(self):
+    def _lazy_fields_by_lowercase_name(self):
+        if self._fieldsByName is None:
+            self.index_fields()
+        return self._fieldsByName
+
+    def _lazy_fields_by_id(self):
         if self._fieldsById is None:
-            self.indexFields()
+            self.index_fields()
         return self._fieldsById
 
-    def indexFields(self):
+    def index_fields(self):
         self._fieldsByName = dict()
+        self._fieldsByLowercaseName = dict()
         self._fieldsById = dict()
 
         for field in self.fields:
             self._fieldsByName[field.name] = field
+            self._fieldsByLowercaseName[field.name.lower()] = field
             self._fieldsById[field.id] = field
 
 
@@ -668,7 +679,7 @@ class MapType(NestedType):
             return self.value_field
 
     def fields(self):
-        return self._lazyFieldList()
+        return self._lazy_field_list()
 
     def key_id(self):
         return self.key_field.field_id
@@ -702,5 +713,5 @@ class MapType(NestedType):
     def __key(self):
         return MapType.__class__, self.key_field, self.value_field
 
-    def _lazyFieldList(self):
+    def _lazy_field_list(self):
         return tuple(self.key_field, self.value_field)

@@ -22,10 +22,11 @@ from ..types import Conversions
 
 class InclusiveMetricsEvaluator(object):
 
-    def __init__(self, schema, unbound):
+    def __init__(self, schema, unbound, case_sensitive=True):
         self.schema = schema
         self.struct = schema.as_struct()
-        self.expr = Binder.bind(self.struct, Expressions.rewrite_not(unbound))
+        self.case_sensitive = case_sensitive
+        self.expr = Binder.bind(self.struct, Expressions.rewrite_not(unbound), case_sensitive)
         self._visitors = None
 
     def _visitor(self):
@@ -52,13 +53,13 @@ class MetricsEvalVisitor(ExpressionVisitors.BoundExpressionVisitor):
         self.struct = struct
 
     def eval(self, file):
-        if file.record_count <= 0:
+        if file.record_count() <= 0:
             return MetricsEvalVisitor.ROWS_CANNOT_MATCH
 
-        self.value_counts = file.value_counts
-        self.null_counts = file.null_value_counts
-        self.lower_bounds = file.lower_bounds
-        self.upper_bounds = file.upper_bounds
+        self.value_counts = file.value_counts()
+        self.null_counts = file.null_value_counts()
+        self.lower_bounds = file.lower_bounds()
+        self.upper_bounds = file.upper_bounds()
 
         return ExpressionVisitors.visit(self.expr, self)
 

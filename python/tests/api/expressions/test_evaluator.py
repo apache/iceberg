@@ -15,11 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
+
 import iceberg.api.expressions as exp
 from iceberg.api.types import (IntegerType,
                                NestedField,
                                StringType,
                                StructType)
+from iceberg.exceptions import ValidationException
+from pytest import raises
 
 STRUCT = StructType.of([NestedField.required(13, "x", IntegerType.get()),
                        NestedField.required(14, "y", IntegerType.get()),
@@ -121,6 +124,21 @@ def test_not(row_of):
                                         exp.expressions.Expressions.not_(exp.expressions.Expressions.equal("x", 7)))
     assert not evaluator.eval(row_of((7,)))
     assert evaluator.eval(row_of((8,)))
+
+
+def test_case_insensitive_not(row_of):
+    evaluator = exp.evaluator.Evaluator(STRUCT,
+                                        exp.expressions.Expressions.not_(exp.expressions.Expressions.equal("X", 7)),
+                                        case_sensitive=False)
+    assert not evaluator.eval(row_of((7,)))
+    assert evaluator.eval(row_of((8,)))
+
+
+def test_case_sensitive_not():
+    with raises(ValidationException):
+        exp.evaluator.Evaluator(STRUCT,
+                                exp.expressions.Expressions.not_(exp.expressions.Expressions.equal("X", 7)),
+                                case_sensitive=True)
 
 
 def test_char_seq_value(row_of):

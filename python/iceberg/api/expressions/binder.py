@@ -22,16 +22,16 @@ from .predicate import BoundPredicate
 class Binder(object):
 
     @staticmethod
-    def bind(struct, expr):
-        return ExpressionVisitors.visit(expr, Binder.BindVisitor(struct))
+    def bind(struct, expr, case_sensitive=True):
+        return ExpressionVisitors.visit(expr, Binder.BindVisitor(struct, case_sensitive))
 
     @staticmethod
-    def bound_references(struct, exprs):
+    def bound_references(struct, exprs, case_sensitive=True):
         if exprs is None:
             return set()
         visitor = Binder.ReferenceVisitor()
         for expr in exprs:
-            ExpressionVisitors.visit(Binder.bind(struct, expr), visitor)
+            ExpressionVisitors.visit(Binder.bind(struct, expr, case_sensitive), visitor)
 
         return visitor.references
 
@@ -40,8 +40,9 @@ class Binder(object):
 
     class BindVisitor(ExpressionVisitors.ExpressionVisitor):
 
-        def __init__(self, struct):
+        def __init__(self, struct, case_sensitive=True):
             self.struct = struct
+            self.case_sensitive = case_sensitive
 
         def always_true(self):
             return Expressions.always_true()
@@ -62,7 +63,7 @@ class Binder(object):
             if isinstance(pred, BoundPredicate):
                 raise RuntimeError("Found already bound predicate: {}".format(pred))
 
-            return pred.bind(self.struct)
+            return pred.bind(self.struct, self.case_sensitive)
 
     class ReferenceVisitor(ExpressionVisitors.ExpressionVisitor):
 
