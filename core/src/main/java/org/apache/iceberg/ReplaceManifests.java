@@ -29,23 +29,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import javax.annotation.concurrent.ThreadSafe;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 
 
-@ThreadSafe
 public class ReplaceManifests extends SnapshotProducer<RewriteManifests> implements RewriteManifests {
-  private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
-  private final List<ManifestFile> newManifests = Collections.synchronizedList(Lists.newArrayList());
-  private final List<ManifestFile> existingManifests = Collections.synchronizedList(Lists.newArrayList());
+  private final TableOperations ops;
   private final PartitionSpec spec;
+  private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
+  private final List<ManifestFile> newManifests = Lists.newArrayList();
   private final Map<Object, ManifestWriter> writers = Collections.synchronizedMap(new HashMap<>());
-  private AtomicInteger manifestCount = new AtomicInteger(0);
+  private final AtomicInteger manifestCount = new AtomicInteger(0);
+
+  private Function<DataFile, Object> clusterByFunc;
+  private Function<ManifestFile, Boolean> filterFunc;
 
   ReplaceManifests(TableOperations ops) {
     super(ops);
+    this.ops = ops;
     this.spec = ops.current().spec();
   }
 
@@ -56,21 +60,79 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
 
   @Override
   public RewriteManifests set(String property, String value) {
-    synchronized (summaryBuilder) {
-      summaryBuilder.set(property, value);
-    }
+    summaryBuilder.set(property, value);
     return this;
   }
 
   @Override
   protected Map<String, String> summary() {
-    synchronized (summaryBuilder) {
-      return summaryBuilder.build();
-    }
+    return summaryBuilder.build();
   }
 
   @Override
-  public ReplaceManifests appendFile(DataFile file, Object key) {
+  public ReplaceManifests clusterBy(Function<DataFile, Object> func) {
+    this.clusterByFunc = func;
+    return this;
+  }
+
+  @Override
+  public ReplaceManifests filter(Function<ManifestFile, Boolean> func) {
+    this.filterFunc = func;
+    return this;
+  }
+
+  @Override
+  public List<ManifestFile> apply(TableMetadata base) {
+    Preconditions.checkNotNull(clusterByFunc, "clusterBy function cannot be null");
+
+    List<ManifestFile> apply = Collections.synchronizedList(new ArrayList<>());
+
+    try {
+      Tasks.foreach(base.currentSnapshot().manifests())
+          .executeWith(ThreadPools.getWorkerPool())
+          .run(manifest -> {
+            if (filterFunc != null && !filterFunc.apply(manifest)) {
+              apply.add(manifest);
+            } else {
+              try (ManifestReader reader =
+                     ManifestReader.read(ops.io().newInputFile(manifest.path()))) {
+
+                FilteredManifest filteredManifest = reader.select(Lists.newArrayList("*"));
+                filteredManifest.iterator().forEachRemaining(
+                    file -> appendFile(file, clusterByFunc.apply(file))
+                );
+
+              } catch (IOException x) {
+                throw new RuntimeIOException(x);
+              }
+            }
+          });
+    } finally {
+      Tasks.foreach(writers.values()).executeWith(ThreadPools.getWorkerPool()).run(
+          writer -> {
+            try {
+              writer.close();
+            } catch (IOException x) {
+              throw new RuntimeIOException(x);
+            }
+          }
+      );
+    }
+
+    newManifests.addAll(
+        writers.values()
+          .stream()
+          .map(ManifestWriter::toManifestFile)
+          .collect(Collectors.toList())
+    );
+
+
+    apply.addAll(newManifests);
+
+    return apply;
+  }
+
+  private void appendFile(DataFile file, Object key) {
     Preconditions.checkNotNull(file, "Data file cannot be null");
     Preconditions.checkNotNull(key, "Key cannot be null");
 
@@ -82,17 +144,6 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
     synchronized (writer) {
       writer.add(file);
     }
-
-    return this;
-  }
-
-  @Override
-  public ReplaceManifests keepManifest(ManifestFile manifest) {
-    Preconditions.checkNotNull(manifest, "Manifest cannot be null");
-    Preconditions.checkNotNull(manifest.snapshotId(), "Manifest snapshot ID cannot be null");
-
-    existingManifests.add(manifest);
-    return this;
   }
 
   private ManifestWriter getWriter(Object key) {
@@ -111,27 +162,6 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
   }
 
   @Override
-  public synchronized List<ManifestFile> apply(TableMetadata base) {
-    List<ManifestFile> apply = new ArrayList<>();
-
-    Tasks.foreach(writers.values()).executeWith(ThreadPools.getWorkerPool()).run(
-        writer -> {
-          try {
-            writer.close();
-          } catch (IOException x) {
-            throw new RuntimeIOException(x);
-          }
-          newManifests.add(writer.toManifestFile());
-        }
-    );
-
-    apply.addAll(newManifests);
-    apply.addAll(existingManifests);
-
-    return apply;
-  }
-
-  @Override
   protected void cleanAll() {
     writers.values().stream().forEach(
         writer -> {
@@ -147,7 +177,7 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
   }
 
   @Override
-  protected synchronized void cleanUncommitted(Set<ManifestFile> committed) {
+  protected void cleanUncommitted(Set<ManifestFile> committed) {
     for (ManifestFile manifest : newManifests) {
       if (!committed.contains(manifest)) {
         deleteFile(manifest.path());

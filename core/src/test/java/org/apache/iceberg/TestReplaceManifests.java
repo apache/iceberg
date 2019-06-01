@@ -19,69 +19,67 @@
 
 package org.apache.iceberg;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.junit.Assert;
 import org.junit.Test;
+
+import static org.apache.iceberg.Files.localInput;
 
 public class TestReplaceManifests extends TableTestBase {
 
   @Test
-  public void testReplaceManifestsEmptyTable() {
+  public void testReplaceManifestsSeparate() {
     Table table = load();
-    table.newRewriteManifests()
-      .appendFile(FILE_A, "file")
+    table.newFastAppend()
+      .appendFile(FILE_A)
+      .appendFile(FILE_B)
       .commit();
 
-    long rewriteId = table.currentSnapshot().snapshotId();
+    Assert.assertEquals(1, table.currentSnapshot().manifests().size());
 
-    List<ManifestFile> manifests = table.currentSnapshot().manifests();
-    Assert.assertEquals(1, manifests.size());
+    // cluster by path will split the manifest into two
 
-    validateManifestEntries(manifests.get(0),
-                            ids(rewriteId),
-                            files(FILE_A),
-                            statuses(ManifestEntry.Status.ADDED));
-  }
-
-  @Test
-  public void testReplaceManifestsMultipleKeys() {
-    Table table = load();
-
-    // add 2 files using a different key
     table.newRewriteManifests()
-      .appendFile(FILE_A, "fileA")
-      .appendFile(FILE_B, "fileB")
+      .clusterBy(file -> file.path())
       .commit();
 
     long rewriteId = table.currentSnapshot().snapshotId();
 
     List<ManifestFile> manifests = table.currentSnapshot().manifests();
     Assert.assertEquals(2, manifests.size());
+    manifests.sort(Comparator.comparing(ManifestFile::path));
 
-    validateManifestEntries(manifests.get(1),
+    validateManifestEntries(manifests.get(0),
                             ids(rewriteId),
                             files(FILE_A),
                             statuses(ManifestEntry.Status.ADDED));
-    validateManifestEntries(table.currentSnapshot().manifests().get(0),
+    validateManifestEntries(table.currentSnapshot().manifests().get(1),
                             ids(rewriteId),
                             files(FILE_B),
                             statuses(ManifestEntry.Status.ADDED));
   }
 
   @Test
-  public void testReplaceManifestsOverwrite() {
+  public void testReplaceManifestsConsolidate() throws IOException {
     Table table = load();
 
-    // setup table with file A
-    table.newRewriteManifests()
-      .appendFile(FILE_A, "file")
+    table.newFastAppend()
+      .appendFile(FILE_A)
+      .commit();
+    table.newFastAppend()
+      .appendFile(FILE_B)
       .commit();
 
-    // add files B and C, using the same key
-    // also drop file A
+    Assert.assertEquals(2, table.currentSnapshot().manifests().size());
+
+    // cluster by constant will combine manifests into one
+
     table.newRewriteManifests()
-      .appendFile(FILE_B, "file")
-      .appendFile(FILE_C, "file")
+      .clusterBy(file -> "file")
       .commit();
 
     long rewriteId = table.currentSnapshot().snapshotId();
@@ -89,29 +87,51 @@ public class TestReplaceManifests extends TableTestBase {
     List<ManifestFile> manifests = table.currentSnapshot().manifests();
     Assert.assertEquals(1, manifests.size());
 
+    // get the file order correct
+    List<DataFile> files;
+    try (ManifestReader reader = ManifestReader.read(localInput(manifests.get(0).path()))) {
+      if (reader.iterator().next().path().equals(FILE_A.path())) {
+        files = Arrays.asList(FILE_A, FILE_B);
+      } else {
+        files = Arrays.asList(FILE_B, FILE_A);
+      }
+    }
+
     validateManifestEntries(manifests.get(0),
                             ids(rewriteId, rewriteId),
-                            files(FILE_B, FILE_C),
+                            files.iterator(),
                             statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
   }
 
   @Test
-  public void testReplaceManifestsKeepExisting() {
+  public void testReplaceManifestsWithFilter() throws IOException {
     Table table = load();
 
-    // setup table with file A
-    table.newRewriteManifests()
-      .appendFile(FILE_A, "file")
+    table.newFastAppend()
+      .appendFile(FILE_A)
+      .commit();
+    long firstRewriteId = table.currentSnapshot().snapshotId();
+
+    table.newFastAppend()
+      .appendFile(FILE_B)
+      .commit();
+    table.newFastAppend()
+      .appendFile(FILE_C)
       .commit();
 
-    long firstRewriteId = table.currentSnapshot().snapshotId();
-    ManifestFile firstManifest = table.currentSnapshot().manifests().get(0);
+    Assert.assertEquals(3, table.currentSnapshot().manifests().size());
 
-    // add files B and C, using the same key
-    // also drop file A
+    //keep the file A manifest, combine the other two
+
     table.newRewriteManifests()
-      .keepManifest(firstManifest)
-      .appendFile(FILE_B, "file")
+      .clusterBy(file -> "file")
+      .filter(manifest -> {
+        try (ManifestReader reader = ManifestReader.read(localInput(manifest.path()))) {
+          return !reader.iterator().next().path().equals(FILE_A.path());
+        } catch (IOException x) {
+          throw new RuntimeIOException(x);
+        }
+      })
       .commit();
 
     long secondRewriteId = table.currentSnapshot().snapshotId();
@@ -119,14 +139,24 @@ public class TestReplaceManifests extends TableTestBase {
     List<ManifestFile> manifests = table.currentSnapshot().manifests();
     Assert.assertEquals(2, manifests.size());
 
-    validateManifestEntries(manifests.get(1),
+    // get the file order correct
+    List<DataFile> files;
+    try (ManifestReader reader = ManifestReader.read(localInput(manifests.get(1).path()))) {
+      if (reader.iterator().next().path().equals(FILE_B.path())) {
+        files = Arrays.asList(FILE_B, FILE_C);
+      } else {
+        files = Arrays.asList(FILE_C, FILE_B);
+      }
+    }
+
+    validateManifestEntries(manifests.get(0),
                             ids(firstRewriteId),
                             files(FILE_A),
                             statuses(ManifestEntry.Status.ADDED));
-    validateManifestEntries(manifests.get(0),
-                            ids(secondRewriteId),
-                            files(FILE_B),
-                            statuses(ManifestEntry.Status.ADDED));
+    validateManifestEntries(manifests.get(1),
+                            ids(secondRewriteId, secondRewriteId),
+                            files.iterator(),
+                            statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
   }
 
 }

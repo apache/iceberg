@@ -19,6 +19,8 @@
 
 package org.apache.iceberg;
 
+import java.util.function.Function;
+
 /**
  * API for rewriting manifests for a table.
  * <p>
@@ -32,23 +34,24 @@ package org.apache.iceberg;
 public interface RewriteManifests extends SnapshotUpdate<RewriteManifests> {
 
   /**
-   * Append a {@link DataFile} to the table, and specify the manifest that should contain it with
-   * the given key. All files with the same key will be written to the same manifest.
+   * Group an existing {@link DataFile} by a partition key. The partition key will determine
+   * which data file will be associated with a particular manifest. All files with the same
+   * key will be written to the same manifest.
    *
-   * @param file a data file
-   * @param key  a key specifying the manifest
+   * @param func Function used to cluster data files to manifests.
    * @return this for method chaining
    */
-  RewriteManifests appendFile(DataFile file, Object key);
+  RewriteManifests clusterBy(Function<DataFile, Object> func);
 
   /**
-   * Keep an existing manifest as part of the table.
-   * <p>
-   * The manifest must be part of the table's current snapshot.
+   * Filter which existing {@link ManifestFile} for the table should be rewritten. Manifests
+   * that do not match the filter are kept as-is.
    *
-   * @param file a manifest file
+   * @param func Function used to filter manifests. This function should return true
+   *               to include the manifest file for rewrite and false to keep it as-is
    * @return this for method chaining
    */
-  RewriteManifests keepManifest(ManifestFile file);
+  RewriteManifests filter(Function<ManifestFile, Boolean> func);
+
 
 }
