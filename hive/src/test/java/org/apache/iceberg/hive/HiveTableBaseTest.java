@@ -1,18 +1,22 @@
 /*
- * Copyright 2017 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
+
 package org.apache.iceberg.hive;
 
 import java.io.BufferedReader;
@@ -38,7 +42,6 @@ import org.apache.hadoop.hive.metastore.HiveMetaStore;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.IHMSHandler;
 import org.apache.hadoop.hive.metastore.RetryingHMSHandler;
-import org.apache.hadoop.hive.metastore.TServerSocketKeepAlive;
 import org.apache.hadoop.hive.metastore.TSetIpAddressProcessor;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.PartitionSpec;
@@ -69,11 +72,11 @@ public class HiveTableBaseTest {
   static final String TABLE_NAME =  "tbl";
 
   static final Schema schema = new Schema(Types.StructType.of(
-          required(1, "id", Types.LongType.get())).fields());
+      required(1, "id", Types.LongType.get())).fields());
 
   static final Schema altered = new Schema(Types.StructType.of(
-          required(1, "id", Types.LongType.get()),
-          optional(2, "data", Types.LongType.get())).fields());
+      required(1, "id", Types.LongType.get()),
+      optional(2, "data", Types.LongType.get())).fields());
 
   private static final PartitionSpec partitionSpec = builderFor(schema).identity("id").build();
 
@@ -132,15 +135,15 @@ public class HiveTableBaseTest {
   }
 
   private static HiveConf hiveConf(Configuration conf, int port) {
-    final HiveConf hiveConf = new HiveConf(conf, HiveTableBaseTest.class);
-    hiveConf.set(HiveConf.ConfVars.METASTOREURIS.varname, "thrift://localhost:" + port);
-    hiveConf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file:" + hiveLocalDir.getAbsolutePath());
-    return hiveConf;
+    final HiveConf newHiveConf = new HiveConf(conf, HiveTableBaseTest.class);
+    newHiveConf.set(HiveConf.ConfVars.METASTOREURIS.varname, "thrift://localhost:" + port);
+    newHiveConf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file:" + hiveLocalDir.getAbsolutePath());
+    return newHiveConf;
   }
 
   private static String getDerbyPath() {
-    final File metastore_db = new File(hiveLocalDir, "metastore_db");
-    return metastore_db.getPath();
+    final File metastoreDb = new File(hiveLocalDir, "metastore_db");
+    return metastoreDb.getPath();
   }
 
   private static TServer thriftServer() throws Exception {
@@ -152,11 +155,11 @@ public class HiveTableBaseTest {
     IHMSHandler handler = RetryingHMSHandler.getProxy(serverConf, baseHandler, false);
 
     TThreadPoolServer.Args args = new TThreadPoolServer.Args(socket)
-            .processor(new TSetIpAddressProcessor<>(handler))
-            .transportFactory(new TTransportFactory())
-            .protocolFactory(new TBinaryProtocol.Factory())
-            .minWorkerThreads(3)
-            .maxWorkerThreads(5);
+        .processor(new TSetIpAddressProcessor<>(handler))
+        .transportFactory(new TTransportFactory())
+        .protocolFactory(new TBinaryProtocol.Factory())
+        .minWorkerThreads(3)
+        .maxWorkerThreads(5);
 
     return new TThreadPoolServer(args);
   }
@@ -172,7 +175,7 @@ public class HiveTableBaseTest {
   }
 
   private static String getDBPath() {
-   return Paths.get(hiveLocalDir.getAbsolutePath(), DB_NAME + ".db").toAbsolutePath().toString();
+    return Paths.get(hiveLocalDir.getAbsolutePath(), DB_NAME + ".db").toAbsolutePath().toString();
   }
 
   private static String getTableBasePath(String tableName) {
@@ -189,8 +192,8 @@ public class HiveTableBaseTest {
 
   private static List<String> metadataFiles(String tableName) {
     return Arrays.stream(new File(metadataLocation(tableName)).listFiles())
-            .map(File::getAbsolutePath)
-            .collect(Collectors.toList());
+        .map(File::getAbsolutePath)
+        .collect(Collectors.toList());
   }
 
   protected static List<String> metadataVersionFiles(String tableName) {
@@ -203,9 +206,9 @@ public class HiveTableBaseTest {
 
   private static List<String> filterByExtension(String tableName, String extension) {
     return metadataFiles(tableName)
-            .stream()
-            .filter(f -> f.endsWith(extension))
-            .collect(Collectors.toList());
+        .stream()
+        .filter(f -> f.endsWith(extension))
+        .collect(Collectors.toList());
   }
 
 }

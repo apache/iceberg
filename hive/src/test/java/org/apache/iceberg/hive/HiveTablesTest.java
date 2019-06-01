@@ -1,18 +1,22 @@
 /*
- * Copyright 2017 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
+
 package org.apache.iceberg.hive;
 
 import com.google.common.util.concurrent.MoreExecutors;
@@ -24,6 +28,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -52,10 +57,10 @@ public class HiveTablesTest extends HiveTableBaseTest {
     Assert.assertTrue(ICEBERG_TABLE_TYPE_VALUE.equalsIgnoreCase(table.getTableType()));
 
     // Ensure the table is pointing to empty location
-    Assert.assertEquals(getTableLocation(TABLE_NAME) , table.getSd().getLocation());
+    Assert.assertEquals(getTableLocation(TABLE_NAME), table.getSd().getLocation());
 
     // Ensure it is stored as unpartitioned table in hive.
-    Assert.assertEquals(0 , table.getPartitionKeysSize());
+    Assert.assertEquals(0, table.getPartitionKeysSize());
 
     // Only 1 snapshotFile Should exist and no manifests should exist
     Assert.assertEquals(1, metadataVersionFiles(TABLE_NAME).size());
@@ -80,8 +85,12 @@ public class HiveTablesTest extends HiveTableBaseTest {
     Assert.assertEquals(altered.asStruct(), icebergTable.schema().asStruct());
 
     final org.apache.hadoop.hive.metastore.api.Table table = metastoreClient.getTable(DB_NAME, TABLE_NAME);
-    final List<String> hiveColumns = table.getSd().getCols().stream().map(f -> f.getName()).collect(Collectors.toList());
-    final List<String> icebergColumns = altered.columns().stream().map(f -> f.name()).collect(Collectors.toList());
+    final List<String> hiveColumns = table.getSd().getCols().stream()
+        .map(FieldSchema::getName)
+        .collect(Collectors.toList());
+    final List<String> icebergColumns = altered.columns().stream()
+        .map(Types.NestedField::name)
+        .collect(Collectors.toList());
     Assert.assertEquals(icebergColumns, hiveColumns);
   }
 
@@ -93,8 +102,8 @@ public class HiveTablesTest extends HiveTableBaseTest {
     table.getParameters().put(METADATA_LOCATION_PROP, dummyLocation);
     metastoreClient.alter_table(DB_NAME, TABLE_NAME, table);
     icebergTable.updateSchema()
-            .addColumn("data", Types.LongType.get())
-            .commit();
+        .addColumn("data", Types.LongType.get())
+        .commit();
   }
 
   @Test
@@ -104,32 +113,32 @@ public class HiveTablesTest extends HiveTableBaseTest {
 
     String fileName = UUID.randomUUID().toString();
     DataFile file = DataFiles.builder(icebergTable.spec())
-      .withPath(FileFormat.PARQUET.addExtension(fileName))
-      .withRecordCount(2)
-      .withFileSizeInBytes(0)
-      .build();
+        .withPath(FileFormat.PARQUET.addExtension(fileName))
+        .withRecordCount(2)
+        .withFileSizeInBytes(0)
+        .build();
 
     ExecutorService executorService = MoreExecutors.getExitingExecutorService(
-      (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
+        (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
 
     AtomicInteger barrier = new AtomicInteger(0);
     Tasks.foreach(icebergTable, anotherIcebergTable)
-      .stopOnFailure().throwFailureWhenFinished()
-      .executeWith(executorService)
-      .run(table -> {
-        for (int numCommittedFiles = 0; numCommittedFiles < 10; numCommittedFiles++) {
-          while (barrier.get() < numCommittedFiles * 2) {
-            try {
-              Thread.sleep(10);
-            } catch (InterruptedException e) {
-              throw new RuntimeException(e);
+        .stopOnFailure().throwFailureWhenFinished()
+        .executeWith(executorService)
+        .run(table -> {
+          for (int numCommittedFiles = 0; numCommittedFiles < 10; numCommittedFiles++) {
+            while (barrier.get() < numCommittedFiles * 2) {
+              try {
+                Thread.sleep(10);
+              } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+              }
             }
-          }
 
-          table.newFastAppend().appendFile(file).commit();
-          barrier.incrementAndGet();
-        }
-      });
+            table.newFastAppend().appendFile(file).commit();
+            barrier.incrementAndGet();
+          }
+        });
 
     icebergTable.refresh();
     Assert.assertEquals(20, icebergTable.currentSnapshot().manifests().size());

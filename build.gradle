@@ -140,7 +140,8 @@ task deploySite(type: Exec) {
 // We enable baseline-idea everywhere so that everyone can use IntelliJ to build code against the
 // Baseline style guide.
 def baselineProjects = [ project("iceberg-api"), project("iceberg-common"), project("iceberg-core"),
-                         project("iceberg-data"), project("iceberg-orc"), project("iceberg-spark") ]
+                         project("iceberg-data"), project("iceberg-orc"), project("iceberg-spark"),
+                         project("iceberg-hive") ]
 
 
 configure(subprojects - baselineProjects) {
