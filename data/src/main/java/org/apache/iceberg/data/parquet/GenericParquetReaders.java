@@ -383,13 +383,13 @@ public class GenericParquetReaders {
   }
 
   static class RecordReader extends StructReader<Record, Record> {
-    private final StructType struct;
+    private final StructType record;
 
     RecordReader(List<Type> types,
                  List<ParquetValueReader<?>> readers,
                  StructType struct) {
       super(types, readers);
-      this.struct = struct;
+      this.record = struct;
     }
 
     @Override
@@ -397,7 +397,7 @@ public class GenericParquetReaders {
       if (reuse != null) {
         return reuse;
       } else {
-        return GenericRecord.create(struct);
+        return GenericRecord.create(record);
       }
     }
 
@@ -408,13 +408,11 @@ public class GenericParquetReaders {
     }
 
     @Override
-    @SuppressWarnings("checkstyle:hiddenField")
     protected Record buildStruct(Record struct) {
       return struct;
     }
 
     @Override
-    @SuppressWarnings("checkstyle:hiddenField")
     protected void set(Record struct, int pos, Object value) {
       struct.set(pos, value);
     }
