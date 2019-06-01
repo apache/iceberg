@@ -100,7 +100,7 @@ public class GenericParquetReaders {
       List<Type> fields = struct.getFields();
       for (int i = 0; i < fields.size(); i += 1) {
         Type fieldType = fields.get(i);
-        int fieldD = getType().getMaxDefinitionLevel(path(fieldType.getName())) - 1;
+        int fieldD = type().getMaxDefinitionLevel(path(fieldType.getName())) - 1;
         newFields.add(ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
         types.add(fieldType);
       }
@@ -277,7 +277,7 @@ public class GenericParquetReaders {
       }
     }
 
-    MessageType getType() {
+    MessageType type() {
       return type;
     }
 

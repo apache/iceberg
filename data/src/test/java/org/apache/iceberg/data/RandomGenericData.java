@@ -154,6 +154,7 @@ public class RandomGenericData {
     }
   }
 
+  @SuppressWarnings("RandomModInteger")
   private static Object generatePrimitive(Type.PrimitiveType primitive, Random random) {
     int choice = random.nextInt(20);
 
@@ -231,8 +232,7 @@ public class RandomGenericData {
 
       case DATE:
         // this will include negative values (dates before 1970-01-01)
-        int days = (random.nextBoolean() ? 1 : -1) * random.nextInt(ABOUT_380_YEARS_IN_DAYS);
-        return EPOCH_DAY.plusDays(days);
+        return EPOCH_DAY.plusDays(random.nextInt() % ABOUT_380_YEARS_IN_DAYS);
 
       case TIME:
         return LocalTime.ofNanoOfDay(
