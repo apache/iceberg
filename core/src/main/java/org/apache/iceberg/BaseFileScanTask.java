@@ -22,8 +22,10 @@ package org.apache.iceberg;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 
@@ -71,12 +73,12 @@ class BaseFileScanTask implements FileScanTask {
   }
 
   @Override
-  public Iterable<FileScanTask> split(long splitSize) {
+  public Iterable<FileScanTask> split(long targetSplitSize) {
     if (file.format().isSplittable()) {
       if (file.splitOffsets() != null) {
-        return () -> new OffsetsBasedSplitScanTaskIterator(file.splitOffsets(), this);
+        return () -> new OffsetsAwareTargetSplitSizeScanTaskIterator(file.splitOffsets(), this, targetSplitSize);
       } else {
-        return () -> new FixedSizeSplitScanTaskIterator(splitSize, this);
+        return () -> new FixedSizeSplitScanTaskIterator(targetSplitSize, this);
       }
     }
     return ImmutableList.of(this);
@@ -91,31 +93,76 @@ class BaseFileScanTask implements FileScanTask {
         .toString();
   }
 
-  @VisibleForTesting
-  static final class OffsetsBasedSplitScanTaskIterator implements Iterator<FileScanTask> {
-    private final List<Long> splitOffsets;
-    private final FileScanTask parentScanTask;
-    private int idx = 0;
 
-    OffsetsBasedSplitScanTaskIterator(List<Long> splitOffsets, FileScanTask fileScanTask) {
-      this.splitOffsets = splitOffsets;
-      this.parentScanTask = fileScanTask;
+  /**
+   * This iterator returns {@link FileScanTask} using guidance provided by split offsets.
+   */
+  @VisibleForTesting
+  static final class OffsetsAwareTargetSplitSizeScanTaskIterator implements Iterator<FileScanTask> {
+    private final List<Long> offsets;
+    private final List<Long> splitSizes;
+    private final FileScanTask parentScanTask;
+    private final long targetSplitSize;
+    private int offsetIdx = 0;
+    private int sizeIdx = 0;
+
+    OffsetsAwareTargetSplitSizeScanTaskIterator(
+        List<Long> offsetList,
+        FileScanTask parentScanTask,
+        long targetSplitSize
+    ) {
+      this.offsets = ImmutableList.copyOf(offsetList);
+      this.parentScanTask = parentScanTask;
+      this.targetSplitSize = targetSplitSize;
+      this.splitSizes = new ArrayList<>(offsetList.size());
+      int idx = 0;
+      while (idx < offsets.size()) {
+        splitSizes.add(getSplitSize(idx));
+        idx++;
+      }
     }
 
     @Override
     public boolean hasNext() {
-      return idx < splitOffsets.size();
+      return sizeIdx < splitSizes.size();
     }
 
     @Override
     public FileScanTask next() {
-      long start = splitOffsets.get(idx);
-      idx++;
-      long end = hasNext() ? splitOffsets.get(idx) : parentScanTask.length();
-      return new SplitScanTask(start, end - start, parentScanTask);
+      if (!hasNext()) {
+        throw new NoSuchElementException();
+      }
+      // We always pick the current split even if it potentially exceeds the target split size
+      long currentSize = splitSizes.get(sizeIdx);
+      FileScanTask combinedTask;
+      sizeIdx++;
+      while (hasNext()) {
+        if (currentSize + splitSizes.get(sizeIdx) <= targetSplitSize) {
+          currentSize += splitSizes.get(sizeIdx);
+          sizeIdx++;
+        } else {
+          combinedTask = new SplitScanTask(offsets.get(offsetIdx), currentSize, parentScanTask);
+          offsetIdx = sizeIdx;
+          return combinedTask;
+        }
+      }
+      combinedTask = new SplitScanTask(offsets.get(offsetIdx), currentSize, parentScanTask);
+      return combinedTask;
+    }
+
+    private long getSplitSize(int idx) {
+      long nextOffset = (idx + 1) < offsets.size() ? offsets.get(idx + 1) : parentScanTask.length();
+      return nextOffset - offsets.get(idx);
     }
   }
 
+  /**
+   * This iterator returns {@link FileScanTask} that generate tasks that scan fixed amount of data are generated using
+   * the guidance use split
+   * offset
+   * information
+   * available
+   */
   @VisibleForTesting
   static final class FixedSizeSplitScanTaskIterator implements Iterator<FileScanTask> {
     private long offset;
