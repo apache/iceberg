@@ -156,13 +156,6 @@ class BaseFileScanTask implements FileScanTask {
     }
   }
 
-  /**
-   * This iterator returns {@link FileScanTask} that generate tasks that scan fixed amount of data are generated using
-   * the guidance use split
-   * offset
-   * information
-   * available
-   */
   @VisibleForTesting
   static final class FixedSizeSplitScanTaskIterator implements Iterator<FileScanTask> {
     private long offset;
