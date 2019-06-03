@@ -107,19 +107,16 @@ class BaseFileScanTask implements FileScanTask {
     private int sizeIdx = 0;
 
     OffsetsAwareTargetSplitSizeScanTaskIterator(
-        List<Long> offsetList,
-        FileScanTask parentScanTask,
-        long targetSplitSize
-    ) {
+        List<Long> offsetList, FileScanTask parentScanTask, long targetSplitSize) {
       this.offsets = ImmutableList.copyOf(offsetList);
       this.parentScanTask = parentScanTask;
       this.targetSplitSize = targetSplitSize;
-      this.splitSizes = new ArrayList<>(offsetList.size());
-      int idx = 0;
-      while (idx < offsets.size()) {
-        splitSizes.add(getSplitSize(idx));
-        idx++;
+      this.splitSizes = new ArrayList<>(offsets.size());
+      int lastIndex = offsets.size() - 1;
+      for (int index = 0; index < lastIndex; index++) {
+        splitSizes.add(offsets.get(index + 1) - offsets.get(index));
       }
+      splitSizes.add(parentScanTask.length() - offsets.get(lastIndex));
     }
 
     @Override
@@ -132,28 +129,17 @@ class BaseFileScanTask implements FileScanTask {
       if (!hasNext()) {
         throw new NoSuchElementException();
       }
-      // We always pick the current split even if it potentially exceeds the target split size
       long currentSize = splitSizes.get(sizeIdx);
-      FileScanTask combinedTask;
-      sizeIdx++;
-      while (hasNext()) {
-        if (currentSize + splitSizes.get(sizeIdx) <= targetSplitSize) {
-          currentSize += splitSizes.get(sizeIdx);
-          sizeIdx++;
-        } else {
-          combinedTask = new SplitScanTask(offsets.get(offsetIdx), currentSize, parentScanTask);
-          offsetIdx = sizeIdx;
-          return combinedTask;
-        }
+      sizeIdx += 1; // always consume at least one file split
+      while (sizeIdx < splitSizes.size() && currentSize + splitSizes.get(sizeIdx) <= targetSplitSize) {
+        currentSize += splitSizes.get(sizeIdx);
+        sizeIdx += 1;
       }
-      combinedTask = new SplitScanTask(offsets.get(offsetIdx), currentSize, parentScanTask);
+      FileScanTask combinedTask = new SplitScanTask(offsets.get(offsetIdx), currentSize, parentScanTask);
+      offsetIdx = sizeIdx;
       return combinedTask;
     }
 
-    private long getSplitSize(int idx) {
-      long nextOffset = (idx + 1) < offsets.size() ? offsets.get(idx + 1) : parentScanTask.length();
-      return nextOffset - offsets.get(idx);
-    }
   }
 
   @VisibleForTesting

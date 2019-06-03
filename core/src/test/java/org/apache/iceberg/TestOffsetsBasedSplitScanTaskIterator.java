@@ -25,7 +25,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class TestOffsetsBasedSplitScanTaskIterator {
-
   @Test
   public void testSplits() {
     // case when the last row group has more than one byte
@@ -55,9 +54,8 @@ public class TestOffsetsBasedSplitScanTaskIterator {
   private static void verify(List<Long> offsetRanges, long fileLen,
                              long targetSplitSize, List<List<Long>> offsetLenPairs) {
     List<FileScanTask> tasks = Lists.newArrayList(
-        new BaseFileScanTask.OffsetsAwareTargetSplitSizeScanTaskIterator(offsetRanges,
-                                                                         new MockFileScanTask(fileLen),
-                                                                         targetSplitSize));
+        new BaseFileScanTask.OffsetsAwareTargetSplitSizeScanTaskIterator(
+            offsetRanges, new MockFileScanTask(fileLen), targetSplitSize));
     Assert.assertEquals("Number of tasks don't match", offsetLenPairs.size(), tasks.size());
     for (int i = 0; i < tasks.size(); i++) {
       FileScanTask task = tasks.get(i);
