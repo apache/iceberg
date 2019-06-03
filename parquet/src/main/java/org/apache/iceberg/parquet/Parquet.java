@@ -22,9 +22,11 @@ package org.apache.iceberg.parquet;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
+import com.google.common.collect.Sets;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
@@ -65,6 +67,9 @@ import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DE
 public class Parquet {
   private Parquet() {
   }
+
+  private static Collection<String> READ_PROPERTIES_TO_REMOVE = Sets.newHashSet(
+      "parquet.read.filter", "parquet.private.read.filter.predicate", "parquet.read.support.class");
 
   public static WriteBuilder write(OutputFile file) {
     return new WriteBuilder(file);
@@ -338,7 +343,12 @@ public class Parquet {
       if (readerFunc != null) {
         ParquetReadOptions.Builder optionsBuilder;
         if (file instanceof HadoopInputFile) {
-          optionsBuilder = HadoopReadOptions.builder(((HadoopInputFile) file).getConf());
+          // remove read properties already set that may conflict with this read
+          Configuration conf = new Configuration(((HadoopInputFile) file).getConf());
+          for (String property : READ_PROPERTIES_TO_REMOVE) {
+            conf.unset(property);
+          }
+          optionsBuilder = HadoopReadOptions.builder(conf);
         } else {
           optionsBuilder = ParquetReadOptions.builder();
         }
