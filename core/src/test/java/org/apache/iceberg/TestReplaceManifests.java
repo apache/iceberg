@@ -28,6 +28,8 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import static org.apache.iceberg.Files.localInput;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 public class TestReplaceManifests extends TableTestBase {
 
@@ -159,4 +161,34 @@ public class TestReplaceManifests extends TableTestBase {
                             statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
   }
 
+  @Test
+  public void testReplaceManifestsMaxSize() {
+    Table table = load();
+    table.newFastAppend()
+      .appendFile(FILE_A)
+      .appendFile(FILE_B)
+      .commit();
+
+    Assert.assertEquals(1, table.currentSnapshot().manifests().size());
+
+    // cluster by constant will combine manifests into one but small target size will create one per entry
+    ReplaceManifests rewriteManifests = spy((ReplaceManifests) table.newRewriteManifests());
+    when(rewriteManifests.getManifestTargetSizeBytes()).thenReturn(1L);
+    rewriteManifests.clusterBy(file -> "file").commit();
+
+    long rewriteId = table.currentSnapshot().snapshotId();
+
+    List<ManifestFile> manifests = table.currentSnapshot().manifests();
+    Assert.assertEquals(2, manifests.size());
+    manifests.sort(Comparator.comparing(ManifestFile::path));
+
+    validateManifestEntries(manifests.get(0),
+                            ids(rewriteId),
+                            files(FILE_A),
+                            statuses(ManifestEntry.Status.ADDED));
+    validateManifestEntries(table.currentSnapshot().manifests().get(1),
+                            ids(rewriteId),
+                            files(FILE_B),
+                            statuses(ManifestEntry.Status.ADDED));
+  }
 }

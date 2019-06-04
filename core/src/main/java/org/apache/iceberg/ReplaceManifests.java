@@ -35,13 +35,17 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 
+import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
+
 
 public class ReplaceManifests extends SnapshotProducer<RewriteManifests> implements RewriteManifests {
   private final TableOperations ops;
   private final PartitionSpec spec;
+  private final long manifestTargetSizeBytes;
   private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
-  private final List<ManifestFile> newManifests = Lists.newArrayList();
-  private final Map<Object, ManifestWriter> writers = Collections.synchronizedMap(new HashMap<>());
+  private final List<ManifestFile> newManifests = Collections.synchronizedList(Lists.newArrayList());
+  private final Map<Object, WriterWrapper> writers = Collections.synchronizedMap(new HashMap<>());
   private final AtomicInteger manifestCount = new AtomicInteger(0);
 
   private Function<DataFile, Object> clusterByFunc;
@@ -51,6 +55,8 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
     super(ops);
     this.ops = ops;
     this.spec = ops.current().spec();
+    this.manifestTargetSizeBytes =
+      ops.current().propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
   }
 
   @Override
@@ -94,12 +100,15 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
             if (filterFunc != null && !filterFunc.apply(manifest)) {
               apply.add(manifest);
             } else {
+              long avgEntryLen =
+                  manifest.length() /
+                    (manifest.addedFilesCount() + manifest.existingFilesCount() + manifest.deletedFilesCount());
+
               try (ManifestReader reader =
                      ManifestReader.read(ops.io().newInputFile(manifest.path()))) {
-
                 FilteredManifest filteredManifest = reader.select(Lists.newArrayList("*"));
                 filteredManifest.iterator().forEachRemaining(
-                    file -> appendFile(file, clusterByFunc.apply(file))
+                    file -> appendFile(file, avgEntryLen, clusterByFunc.apply(file))
                 );
 
               } catch (IOException x) {
@@ -108,21 +117,13 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
             }
           });
     } finally {
-      Tasks.foreach(writers.values()).executeWith(ThreadPools.getWorkerPool()).run(
-          writer -> {
-            try {
-              writer.close();
-            } catch (IOException x) {
-              throw new RuntimeIOException(x);
-            }
-          }
-      );
+      Tasks.foreach(writers.values()).executeWith(ThreadPools.getWorkerPool()).run(writer -> writer.close());
     }
 
     newManifests.addAll(
         writers.values()
           .stream()
-          .map(ManifestWriter::toManifestFile)
+          .map(WriterWrapper::toManifestFile)
           .collect(Collectors.toList())
     );
 
@@ -132,7 +133,7 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
     return apply;
   }
 
-  private void appendFile(DataFile file, Object key) {
+  private void appendFile(DataFile file, long avgEntryLen, Object key) {
     Preconditions.checkNotNull(file, "Data file cannot be null");
     Preconditions.checkNotNull(key, "Key cannot be null");
 
@@ -140,20 +141,17 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
       summaryBuilder.addedFile(spec, file);
     }
 
-    ManifestWriter writer = getWriter(key);
-    synchronized (writer) {
-      writer.add(file);
-    }
+    WriterWrapper writer = getWriter(key);
+    writer.addFile(file, avgEntryLen);
   }
 
-  private ManifestWriter getWriter(Object key) {
-    ManifestWriter writer = writers.get(key);
+  private WriterWrapper getWriter(Object key) {
+    WriterWrapper writer = writers.get(key);
     if (writer == null) {
       synchronized (writers) {
         writer = writers.get(key); // check again after getting lock
         if (writer == null) {
-          writer =
-            new ManifestWriter(spec, manifestPath(manifestCount.getAndIncrement()), snapshotId());
+          writer = new WriterWrapper();
           writers.put(key, writer);
         }
       }
@@ -163,16 +161,7 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
 
   @Override
   protected void cleanAll() {
-    writers.values().stream().forEach(
-        writer -> {
-          try {
-            writer.close();
-          } catch (IOException x) {
-            throw new RuntimeIOException(x);
-          }
-        }
-    );
-
+    writers.values().stream().forEach(writer -> writer.close());
     super.cleanAll();
   }
 
@@ -184,4 +173,47 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
       }
     }
   }
+
+  long getManifestTargetSizeBytes() {
+    return manifestTargetSizeBytes;
+  }
+
+  class WriterWrapper {
+    private ManifestWriter writer;
+    private long estimatedSize;
+
+    synchronized void addFile(DataFile file, long len) {
+      if (writer == null) {
+        writer = newWriter();
+      } else if (estimatedSize > getManifestTargetSizeBytes()) {
+        close();
+        newManifests.add(writer.toManifestFile());
+        writer = newWriter();
+      }
+
+      writer.add(file);
+      estimatedSize += len;
+    }
+
+    private ManifestWriter newWriter() {
+      return new ManifestWriter(spec, manifestPath(manifestCount.getAndIncrement()), snapshotId());
+    }
+
+    synchronized ManifestFile toManifestFile() {
+      Preconditions.checkNotNull(writer, "Writer should not be null");
+      return writer.toManifestFile();
+    }
+
+    synchronized void close() {
+      if (writer != null) {
+        try {
+          writer.close();
+        } catch (IOException x) {
+          throw new RuntimeIOException(x);
+        }
+      }
+    }
+
+  }
+
 }
