@@ -93,7 +93,6 @@ class BaseFileScanTask implements FileScanTask {
         .toString();
   }
 
-
   /**
    * This iterator returns {@link FileScanTask} using guidance provided by split offsets.
    */
@@ -103,7 +102,6 @@ class BaseFileScanTask implements FileScanTask {
     private final List<Long> splitSizes;
     private final FileScanTask parentScanTask;
     private final long targetSplitSize;
-    private int offsetIdx = 0;
     private int sizeIdx = 0;
 
     OffsetsAwareTargetSplitSizeScanTaskIterator(
@@ -129,6 +127,7 @@ class BaseFileScanTask implements FileScanTask {
       if (!hasNext()) {
         throw new NoSuchElementException();
       }
+      int offsetIdx = sizeIdx;
       long currentSize = splitSizes.get(sizeIdx);
       sizeIdx += 1; // always consume at least one file split
       while (sizeIdx < splitSizes.size() && currentSize + splitSizes.get(sizeIdx) <= targetSplitSize) {
@@ -136,7 +135,6 @@ class BaseFileScanTask implements FileScanTask {
         sizeIdx += 1;
       }
       FileScanTask combinedTask = new SplitScanTask(offsets.get(offsetIdx), currentSize, parentScanTask);
-      offsetIdx = sizeIdx;
       return combinedTask;
     }
 
