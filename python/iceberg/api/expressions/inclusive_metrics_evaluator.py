@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import threading
+
 from .expressions import Expressions, ExpressionVisitors
 from ..expressions.binder import Binder
 from ..types import Conversions
@@ -22,21 +24,21 @@ from ..types import Conversions
 
 class InclusiveMetricsEvaluator(object):
 
+    def visitor(self):
+        if not hasattr(self.thread_local_data, "visitors"):
+            self.thread_local_data.visitors = MetricsEvalVisitor(self.expr, self.schema, self.struct)
+
+        return self.thread_local_data.visitors
+
     def __init__(self, schema, unbound, case_sensitive=True):
         self.schema = schema
         self.struct = schema.as_struct()
         self.case_sensitive = case_sensitive
         self.expr = Binder.bind(self.struct, Expressions.rewrite_not(unbound), case_sensitive)
-        self._visitors = None
-
-    def _visitor(self):
-        if self._visitors is None:
-            self._visitors = MetricsEvalVisitor(self.expr, self.schema, self.struct)
-
-        return self._visitors
+        self.thread_local_data = threading.local()
 
     def eval(self, file):
-        return self._visitor().eval(file)
+        return self.visitor().eval(file)
 
 
 class MetricsEvalVisitor(ExpressionVisitors.BoundExpressionVisitor):

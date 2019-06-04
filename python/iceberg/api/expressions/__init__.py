@@ -37,6 +37,7 @@ __all__ = ["ABOVE_MAX",
            "FixedLiteral",
            "FloatLiteral",
            "inclusive",
+           "InclusiveManifestEvaluator",
            "InclusiveMetricsEvaluator",
            "InclusiveProjection",
            "IntegerLiteral",
@@ -52,6 +53,7 @@ __all__ = ["ABOVE_MAX",
            "Or",
            "Predicate",
            "Reference",
+           "ResidualEvaluator",
            "strict",
            "StrictMetricsEvaluator",
            "StrictProjection",
@@ -73,6 +75,7 @@ from .expression import (And,
                          TRUE,
                          TrueExp)
 from .expressions import Expressions, ExpressionVisitors
+from .inclusive_manifest_evaluator import InclusiveManifestEvaluator
 from .inclusive_metrics_evaluator import InclusiveMetricsEvaluator
 from .java_variables import (JAVA_MAX_FLOAT,
                              JAVA_MAX_INT,
@@ -102,4 +105,5 @@ from .projections import (inclusive,
 from .reference import (BoundReference,
                         NamedReference,
                         Reference)
+from .residual_evaluator import ResidualEvaluator
 from .strict_metrics_evaluator import StrictMetricsEvaluator
