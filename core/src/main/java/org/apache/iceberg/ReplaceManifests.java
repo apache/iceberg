@@ -196,6 +196,7 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
     }
 
     private ManifestWriter newWriter() {
+      estimatedSize = 0;
       return new ManifestWriter(spec, manifestPath(manifestCount.getAndIncrement()), snapshotId());
     }
 
