@@ -137,10 +137,6 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
     Preconditions.checkNotNull(file, "Data file cannot be null");
     Preconditions.checkNotNull(key, "Key cannot be null");
 
-    synchronized (summaryBuilder) {
-      summaryBuilder.addedFile(spec, file);
-    }
-
     WriterWrapper writer = getWriter(key);
     writer.addFile(file, avgEntryLen);
   }
