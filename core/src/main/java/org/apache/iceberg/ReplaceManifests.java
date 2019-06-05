@@ -100,9 +100,8 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
             if (filterFunc != null && !filterFunc.apply(manifest)) {
               apply.add(manifest);
             } else {
-              long avgEntryLen =
-                  manifest.length() /
-                    (manifest.addedFilesCount() + manifest.existingFilesCount() + manifest.deletedFilesCount());
+              long entryNum = manifest.addedFilesCount() + manifest.existingFilesCount() + manifest.deletedFilesCount();
+              long avgEntryLen = manifest.length() / entryNum;
 
               try (ManifestReader reader =
                      ManifestReader.read(ops.io().newInputFile(manifest.path()))) {
@@ -185,7 +184,7 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
     synchronized void addFile(DataFile file, long len) {
       if (writer == null) {
         writer = newWriter();
-      } else if (estimatedSize > getManifestTargetSizeBytes()) {
+      } else if (estimatedSize >= getManifestTargetSizeBytes()) {
         close();
         newManifests.add(writer.toManifestFile());
         writer = newWriter();
