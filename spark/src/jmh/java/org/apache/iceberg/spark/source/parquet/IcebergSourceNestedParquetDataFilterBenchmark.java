@@ -58,13 +58,13 @@ public class IcebergSourceNestedParquetDataFilterBenchmark extends IcebergSource
   private static final int NUM_ROWS = 10000;
 
   @Setup
-  public void setup() {
+  public void setupBenchmark() {
     setupSpark();
     appendData();
   }
 
   @TearDown
-  public void tearDown() throws IOException {
+  public void tearDownBenchmark() throws IOException {
     tearDownSpark();
     cleanupFiles();
   }

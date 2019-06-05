@@ -87,7 +87,6 @@ subprojects {
     scalaVersion = '2.11'
     sparkVersion = '2.4.0'
     caffeineVersion = "2.7.0"
-
     jmhVersion = '1.21'
   }
 

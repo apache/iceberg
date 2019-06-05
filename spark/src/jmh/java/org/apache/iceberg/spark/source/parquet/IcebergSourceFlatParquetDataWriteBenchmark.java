@@ -50,12 +50,12 @@ public class IcebergSourceFlatParquetDataWriteBenchmark extends IcebergSourceFla
   private static final int NUM_ROWS = 5000000;
 
   @Setup
-  public void setup() {
+  public void setupBenchmark() {
     setupSpark();
   }
 
   @TearDown
-  public void tearDown() throws IOException {
+  public void tearDownBenchmark() throws IOException {
     tearDownSpark();
     cleanupFiles();
   }

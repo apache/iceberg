@@ -30,10 +30,10 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.spark.SparkBenchmarkUtil;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.SparkParquetReaders;
-import org.apache.iceberg.spark.SparkBenchmarkUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
@@ -93,8 +93,8 @@ public class SparkParquetReadersNestedDataBenchmark {
   private File dataFile;
 
   @Setup
-  public void setup() throws IOException {
-    dataFile = File.createTempFile("parquet-flat-data-benchmark", ".parquet");
+  public void setupBenchmark() throws IOException {
+    dataFile = File.createTempFile("parquet-nested-data-benchmark", ".parquet");
     List<GenericData.Record> records = RandomData.generateList(SCHEMA, NUM_RECORDS, 0L);
     try (FileAppender<GenericData.Record> writer = Parquet.write(Files.localOutput(dataFile))
         .schema(SCHEMA)
@@ -105,7 +105,7 @@ public class SparkParquetReadersNestedDataBenchmark {
   }
 
   @TearDown
-  public void tearDown() {
+  public void tearDownBenchmark() {
     if (dataFile != null) {
       dataFile.delete();
     }
@@ -113,21 +113,21 @@ public class SparkParquetReadersNestedDataBenchmark {
 
   @Benchmark
   @Threads(1)
-  public void readUsingIcebergReader(Blackhole blackHole) throws IOException {
+  public void readUsingIcebergReader(Blackhole blackhole) throws IOException {
     try (CloseableIterable<InternalRow> rows = Parquet.read(Files.localInput(dataFile))
         .project(SCHEMA)
         .createReaderFunc(type -> SparkParquetReaders.buildReader(SCHEMA, type))
         .build()) {
 
       for (InternalRow row : rows) {
-        blackHole.consume(row);
+        blackhole.consume(row);
       }
     }
   }
 
   @Benchmark
   @Threads(1)
-  public void readUsingIcebergReaderUnsafe(Blackhole blackHole) throws IOException {
+  public void readUsingIcebergReaderUnsafe(Blackhole blackhole) throws IOException {
     try (CloseableIterable<InternalRow> rows = Parquet.read(Files.localInput(dataFile))
         .project(SCHEMA)
         .createReaderFunc(type -> SparkParquetReaders.buildReader(SCHEMA, type))
@@ -138,14 +138,14 @@ public class SparkParquetReadersNestedDataBenchmark {
           APPLY_PROJECTION.bind(SparkBenchmarkUtil.projection(SCHEMA, SCHEMA))::invoke);
 
       for (InternalRow row : unsafeRows) {
-        blackHole.consume(row);
+        blackhole.consume(row);
       }
     }
   }
 
   @Benchmark
   @Threads(1)
-  public void readUsingSparkReader(Blackhole blackHole) throws IOException {
+  public void readUsingSparkReader(Blackhole blackhole) throws IOException {
     StructType sparkSchema = SparkSchemaUtil.convert(SCHEMA);
     try (CloseableIterable<InternalRow> rows = Parquet.read(Files.localInput(dataFile))
         .project(SCHEMA)
@@ -157,28 +157,28 @@ public class SparkParquetReadersNestedDataBenchmark {
         .build()) {
 
       for (InternalRow row : rows) {
-        blackHole.consume(row);
+        blackhole.consume(row);
       }
     }
   }
 
   @Benchmark
   @Threads(1)
-  public void readWithProjectionUsingIcebergReader(Blackhole blackHole) throws IOException {
+  public void readWithProjectionUsingIcebergReader(Blackhole blackhole) throws IOException {
     try (CloseableIterable<InternalRow> rows = Parquet.read(Files.localInput(dataFile))
         .project(PROJECTED_SCHEMA)
         .createReaderFunc(type -> SparkParquetReaders.buildReader(PROJECTED_SCHEMA, type))
         .build()) {
 
       for (InternalRow row : rows) {
-        blackHole.consume(row);
+        blackhole.consume(row);
       }
     }
   }
 
   @Benchmark
   @Threads(1)
-  public void readWithProjectionUsingIcebergReaderUnsafe(Blackhole blackHole) throws IOException {
+  public void readWithProjectionUsingIcebergReaderUnsafe(Blackhole blackhole) throws IOException {
     try (CloseableIterable<InternalRow> rows = Parquet.read(Files.localInput(dataFile))
         .project(PROJECTED_SCHEMA)
         .createReaderFunc(type -> SparkParquetReaders.buildReader(PROJECTED_SCHEMA, type))
@@ -189,14 +189,14 @@ public class SparkParquetReadersNestedDataBenchmark {
           APPLY_PROJECTION.bind(SparkBenchmarkUtil.projection(PROJECTED_SCHEMA, PROJECTED_SCHEMA))::invoke);
 
       for (InternalRow row : unsafeRows) {
-        blackHole.consume(row);
+        blackhole.consume(row);
       }
     }
   }
 
   @Benchmark
   @Threads(1)
-  public void readWithProjectionUsingSparkReader(Blackhole blackHole) throws IOException {
+  public void readWithProjectionUsingSparkReader(Blackhole blackhole) throws IOException {
     StructType sparkSchema = SparkSchemaUtil.convert(PROJECTED_SCHEMA);
     try (CloseableIterable<InternalRow> rows = Parquet.read(Files.localInput(dataFile))
         .project(PROJECTED_SCHEMA)
@@ -208,7 +208,7 @@ public class SparkParquetReadersNestedDataBenchmark {
         .build()) {
 
       for (InternalRow row : rows) {
-        blackHole.consume(row);
+        blackhole.consume(row);
       }
     }
   }

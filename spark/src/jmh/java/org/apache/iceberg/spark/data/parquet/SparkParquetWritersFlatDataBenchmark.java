@@ -79,13 +79,13 @@ public class SparkParquetWritersFlatDataBenchmark {
   private File dataFile;
 
   @Setup
-  public void setup() throws IOException {
+  public void setupBenchmark() throws IOException {
     rows = RandomData.generateSpark(SCHEMA, NUM_RECORDS, 0L);
     dataFile = File.createTempFile("parquet-flat-data-benchmark", ".parquet");
   }
 
   @TearDown
-  public void tearDown() {
+  public void tearDownBenchmark() {
     if (dataFile != null) {
       dataFile.delete();
     }
