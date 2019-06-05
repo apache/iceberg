@@ -26,15 +26,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.avro.Schema;
+import org.apache.iceberg.mapping.MappedField;
+import org.apache.iceberg.mapping.NameMapping;
 
 class PruneColumns extends AvroSchemaVisitor<Schema> {
   private final Set<Integer> selectedIds;
+  private final NameMapping nameMapping;
 
-  PruneColumns(Set<Integer> selectedIds) {
+  PruneColumns(Set<Integer> selectedIds, NameMapping nameMapping) {
     this.selectedIds = selectedIds;
+    this.nameMapping = nameMapping;
   }
 
-  public Schema rootSchema(Schema record) {
+  Schema rootSchema(Schema record) {
     Schema result = visit(record, this);
     if (result != null) {
       return result;
@@ -47,9 +51,13 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
   public Schema record(Schema record, List<String> names, List<Schema> fields) {
     // Then this should access the record's fields by name
     List<Schema.Field> filteredFields = Lists.newArrayListWithExpectedSize(fields.size());
-    boolean hasChange = false;
     for (Schema.Field field : record.getFields()) {
-      int fieldId = AvroSchemaUtil.getFieldId(field);
+      Integer fieldId = fieldId(field);
+      if (fieldId == null) {
+        // both the schema and the nameMapping does not have field id. We prune this field.
+        continue;
+      }
+
       Schema fieldSchema = fields.get(field.pos());
       // All primitives are selected by selecting the field, but map and list
       // types can be selected by projecting the keys, values, or elements.
@@ -58,21 +66,19 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       // case where the converted field is non-null is when a map or list is
       // selected by lower IDs.
       if (selectedIds.contains(fieldId)) {
-        filteredFields.add(copyField(field, field.schema()));
+        filteredFields.add(copyField(field, field.schema(), fieldId));
       } else if (fieldSchema != null) {
-        hasChange = true;
-        filteredFields.add(copyField(field, fieldSchema));
+        filteredFields.add(copyField(field, fieldSchema, fieldId));
       }
     }
 
-    if (hasChange) {
+    if (filteredFields.size() > 0) {
       return copyRecord(record, filteredFields);
-    } else if (filteredFields.size() == record.getFields().size()) {
+    } else if (record.getFields().isEmpty()) {
       return record;
-    } else if (!filteredFields.isEmpty()) {
-      return copyRecord(record, filteredFields);
     }
 
+    // No fields selected, also record has fields
     return null;
   }
 
@@ -100,36 +106,46 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
   }
 
   @Override
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Schema array(Schema array, Schema element) {
-    if (array.getLogicalType() instanceof LogicalMap) {
+    if (array.getLogicalType() instanceof LogicalMap || AvroSchemaUtil.isKeyValueSchema(array.getElementType())) {
       Schema keyValue = array.getElementType();
-      int keyId = AvroSchemaUtil.getFieldId(keyValue.getField("key"));
-      int valueId = AvroSchemaUtil.getFieldId(keyValue.getField("value"));
+      Integer keyId = fieldId(keyValue.getField("key"));
+      Integer valueId = fieldId(keyValue.getField("value"));
+      if (keyId == null) {
+        Preconditions.checkState(valueId == null, "Map schema %s has value id but not key id", array);
+        return null;
+      }
 
       // if either key or value is selected, the whole map must be projected
       if (selectedIds.contains(keyId) || selectedIds.contains(valueId)) {
-        return array;
+        return complexMapWithIds(array, keyId, valueId);
       } else if (element != null) {
-        if (keyValue.getField("value").schema() != element.getField("value").schema()) {
+        if (keyValue.getField("key").schema() != element.getField("key").schema() ||
+            keyValue.getField("value").schema() != element.getField("value").schema()) {
           // the value must be a projection
           return AvroSchemaUtil.createMap(
-              keyId, keyValue.getField("key").schema(),
+              keyId, element.getField("key").schema(),
               valueId, element.getField("value").schema());
         } else {
-          return array;
+          return complexMapWithIds(array, keyId, valueId);
         }
       }
 
     } else {
-      int elementId = AvroSchemaUtil.getElementId(array);
+      Integer elementId = id(array, AvroSchemaUtil.ELEMENT_ID_PROP, "element");
+      if (elementId == null) {
+        return null;
+      }
+
       if (selectedIds.contains(elementId)) {
-        return array;
+        return arrayWithId(array, elementId);
       } else if (element != null) {
         if (element != array.getElementType()) {
           // the element must be a projection
-          return Schema.createArray(element);
+          return arrayWithId(Schema.createArray(element), elementId);
         }
-        return array;
+        return arrayWithId(array, elementId);
       }
     }
 
@@ -138,15 +154,20 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
 
   @Override
   public Schema map(Schema map, Schema value) {
-    int keyId = AvroSchemaUtil.getKeyId(map);
-    int valueId = AvroSchemaUtil.getValueId(map);
+    Integer keyId = id(map, AvroSchemaUtil.KEY_ID_PROP, "key");
+    Integer valueId = id(map, AvroSchemaUtil.VALUE_ID_PROP, "value");
+    if (keyId == null) {
+      Preconditions.checkState(valueId == null, "Map schema %s has value-id but not key-id", map);
+      return null;
+    }
     // if either key or value is selected, the whole map must be projected
     if (selectedIds.contains(keyId) || selectedIds.contains(valueId)) {
-      return map;
+      // Assign ids. Ids may not always be present in the schema
+      return mapWithIds(map, keyId, valueId);
     } else if (value != null) {
       if (value != map.getValueType()) {
         // the value must be a projection
-        return Schema.createMap(value);
+        return mapWithIds(Schema.createMap(value), keyId, valueId);
       }
       return map;
     }
@@ -154,10 +175,73 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
     return null;
   }
 
+  private Schema arrayWithId(Schema array, Integer elementId) {
+    if (!AvroSchemaUtil.hasProperty(array, AvroSchemaUtil.ELEMENT_ID_PROP)) {
+      Schema result = Schema.createArray(array.getElementType());
+      result.addProp(AvroSchemaUtil.ELEMENT_ID_PROP, elementId);
+      return result;
+    }
+    return array;
+  }
+
+  private Schema complexMapWithIds(Schema map, Integer keyId, Integer valueId) {
+    Schema keyValue = map.getElementType();
+    if (!AvroSchemaUtil.hasFieldId(keyValue.getField("key"))) {
+      return AvroSchemaUtil.createMap(
+          keyId, keyValue.getField("key").schema(),
+          valueId, keyValue.getField("value").schema());
+    }
+    return map;
+  }
+
+  private Schema mapWithIds(Schema map, Integer keyId, Integer valueId) {
+    if (!AvroSchemaUtil.hasProperty(map, AvroSchemaUtil.KEY_ID_PROP)) {
+      Schema result = Schema.createMap(map.getValueType());
+      result.addProp(AvroSchemaUtil.KEY_ID_PROP, keyId);
+      result.addProp(AvroSchemaUtil.VALUE_ID_PROP, valueId);
+      return result;
+    }
+    return map;
+  }
+
   @Override
   public Schema primitive(Schema primitive) {
     // primitives are not selected directly
     return null;
+  }
+
+  private Integer id(Schema schema, String propertyName, String mappedName) {
+    if (AvroSchemaUtil.hasProperty(schema, propertyName)) {
+      return AvroSchemaUtil.getId(schema, propertyName);
+    } else {
+      MappedField mappedField = mappedField(mappedName);
+      if (mappedField != null) {
+        return mappedField.id();
+      } else {
+        return null;
+      }
+    }
+  }
+
+  private Integer fieldId(Schema.Field field) {
+    if (AvroSchemaUtil.hasFieldId(field)) {
+      return AvroSchemaUtil.getFieldId(field);
+    } else {
+      MappedField mappedField = mappedField(field.name());
+      if (mappedField != null) {
+        return mappedField.id();
+      } else {
+        return null;
+      }
+    }
+  }
+
+  private MappedField mappedField(String fieldName) {
+    Preconditions.checkState(nameMapping != null,
+        "Cannot find mapped field for field name %s. NameMapping is null", fieldName);
+    List<String> fieldNames = Lists.newArrayList(fieldNames());
+    fieldNames.add(fieldName);
+    return nameMapping.find(fieldNames);
   }
 
   private static Schema copyRecord(Schema record, List<Schema.Field> newFields) {
@@ -171,12 +255,17 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
     return copy;
   }
 
-  private static Schema.Field copyField(Schema.Field field, Schema newSchema) {
+  private static Schema.Field copyField(Schema.Field field, Schema newSchema, Integer fieldId) {
     Schema.Field copy = new Schema.Field(field.name(),
         newSchema, field.doc(), field.defaultVal(), field.order());
 
     for (Map.Entry<String, Object> prop : field.getObjectProps().entrySet()) {
       copy.addProp(prop.getKey(), prop.getValue());
+    }
+
+    if (!AvroSchemaUtil.hasFieldId(field)) {
+      // field may not have a fieldId if the fieldId was fetched from nameMapping
+      copy.addProp(AvroSchemaUtil.FIELD_ID_PROP, fieldId);
     }
 
     return copy;

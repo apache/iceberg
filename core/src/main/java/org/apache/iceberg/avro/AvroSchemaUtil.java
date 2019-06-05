@@ -29,6 +29,7 @@ import org.apache.avro.JsonProperties;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
+import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -83,8 +84,8 @@ public class AvroSchemaUtil {
     return ImmutableMap.copyOf(converter.getConversionMap());
   }
 
-  public static Schema pruneColumns(Schema schema, Set<Integer> selectedIds) {
-    return new PruneColumns(selectedIds).rootSchema(schema);
+  public static Schema pruneColumns(Schema schema, Set<Integer> selectedIds, NameMapping nameMapping) {
+    return new PruneColumns(selectedIds, nameMapping).rootSchema(schema);
   }
 
   public static Schema buildAvroProjection(Schema schema, org.apache.iceberg.Schema expected,
@@ -196,7 +197,7 @@ public class AvroSchemaUtil {
     return LogicalMap.get().addToSchema(Schema.createArray(keyValueRecord));
   }
 
-  private static int getId(Schema schema, String propertyName) {
+  static int getId(Schema schema, String propertyName) {
     if (schema.getType() == UNION) {
       return getId(fromOption(schema), propertyName);
     }
@@ -205,6 +206,13 @@ public class AvroSchemaUtil {
     Preconditions.checkNotNull(id, "Missing expected '%s' property", propertyName);
 
     return toInt(id);
+  }
+
+  static boolean hasProperty(Schema schema, String propertyName) {
+    if (schema.getType() == UNION) {
+      return hasProperty(fromOption(schema), propertyName);
+    }
+    return schema.getObjectProp(propertyName) != null;
   }
 
   public static int getKeyId(Schema schema) {
@@ -230,6 +238,10 @@ public class AvroSchemaUtil {
     Preconditions.checkNotNull(id, "Missing expected '%s' property", FIELD_ID_PROP);
 
     return toInt(id);
+  }
+
+  public static boolean hasFieldId(Schema.Field field) {
+    return field.getObjectProp(FIELD_ID_PROP) != null;
   }
 
   private static int toInt(Object value) {

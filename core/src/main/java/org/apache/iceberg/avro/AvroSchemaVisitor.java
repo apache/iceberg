@@ -41,7 +41,8 @@ public abstract class AvroSchemaVisitor<T> {
         List<T> results = Lists.newArrayListWithExpectedSize(fields.size());
         for (Schema.Field field : schema.getFields()) {
           names.add(field.name());
-          results.add(visit(field.schema(), visitor));
+          T result = visitWithName(field.name(), field.schema(), visitor);
+          results.add(result);
         }
 
         visitor.recordLevels.pop();
@@ -57,10 +58,14 @@ public abstract class AvroSchemaVisitor<T> {
         return visitor.union(schema, options);
 
       case ARRAY:
-        return visitor.array(schema, visit(schema.getElementType(), visitor));
+        if (schema.getLogicalType() instanceof LogicalMap || AvroSchemaUtil.isKeyValueSchema(schema.getElementType())) {
+          return visitor.array(schema, visit(schema.getElementType(), visitor));
+        } else {
+          return visitor.array(schema, visitWithName("element", schema.getElementType(), visitor));
+        }
 
       case MAP:
-        return visitor.map(schema, visit(schema.getValueType(), visitor));
+        return visitor.map(schema, visitWithName("value", schema.getValueType(), visitor));
 
       default:
         return visitor.primitive(schema);
@@ -68,6 +73,20 @@ public abstract class AvroSchemaVisitor<T> {
   }
 
   private Deque<String> recordLevels = Lists.newLinkedList();
+  private Deque<String> fieldNames = Lists.newLinkedList();
+
+  protected Deque<String> fieldNames() {
+    return fieldNames;
+  }
+
+  private static <T> T visitWithName(String name, Schema schema, AvroSchemaVisitor<T> visitor) {
+    try {
+      visitor.fieldNames.addLast(name);
+      return visit(schema, visitor);
+    } finally {
+      visitor.fieldNames.removeLast();
+    }
+  }
 
   public T record(Schema record, List<String> names, List<T> fields) {
     return null;
