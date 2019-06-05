@@ -91,18 +91,17 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
   public List<ManifestFile> apply(TableMetadata base) {
     Preconditions.checkNotNull(clusterByFunc, "clusterBy function cannot be null");
 
-    List<ManifestFile> apply = Collections.synchronizedList(new ArrayList<>());
+    List<ManifestFile> existingManifests = Collections.synchronizedList(new ArrayList<>());
 
     try {
       Tasks.foreach(base.currentSnapshot().manifests())
           .executeWith(ThreadPools.getWorkerPool())
           .run(manifest -> {
             if (filterFunc != null && !filterFunc.apply(manifest)) {
-              apply.add(manifest);
+              existingManifests.add(manifest);
             } else {
-              long avgEntryLen =
-                  manifest.length() /
-                    (manifest.addedFilesCount() + manifest.existingFilesCount() + manifest.deletedFilesCount());
+              long entryNum = manifest.addedFilesCount() + manifest.existingFilesCount() + manifest.deletedFilesCount();
+              long avgEntryLen = manifest.length() / entryNum;
 
               try (ManifestReader reader =
                      ManifestReader.read(ops.io().newInputFile(manifest.path()))) {
@@ -127,8 +126,10 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
           .collect(Collectors.toList())
     );
 
-
+    // put new manifests at the beginning
+    List<ManifestFile> apply = new ArrayList<>();
     apply.addAll(newManifests);
+    apply.addAll(existingManifests);
 
     return apply;
   }
@@ -181,7 +182,7 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
     synchronized void addFile(DataFile file, long len) {
       if (writer == null) {
         writer = newWriter();
-      } else if (estimatedSize > getManifestTargetSizeBytes()) {
+      } else if (estimatedSize >= getManifestTargetSizeBytes()) {
         close();
         newManifests.add(writer.toManifestFile());
         writer = newWriter();

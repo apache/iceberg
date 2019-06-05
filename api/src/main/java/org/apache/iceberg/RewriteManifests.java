@@ -32,7 +32,6 @@ import java.util.function.Function;
  * will be resolved by applying the changes to the new latest snapshot and reattempting the commit.
  */
 public interface RewriteManifests extends SnapshotUpdate<RewriteManifests> {
-
   /**
    * Group an existing {@link DataFile} by a partition key. The partition key will determine
    * which data file will be associated with a particular manifest. All files with the same
@@ -52,6 +51,4 @@ public interface RewriteManifests extends SnapshotUpdate<RewriteManifests> {
    * @return this for method chaining
    */
   RewriteManifests filter(Function<ManifestFile, Boolean> func);
-
-
 }
