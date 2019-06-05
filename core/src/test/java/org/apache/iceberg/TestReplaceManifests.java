@@ -143,7 +143,7 @@ public class TestReplaceManifests extends TableTestBase {
 
     // get the file order correct
     List<DataFile> files;
-    try (ManifestReader reader = ManifestReader.read(localInput(manifests.get(1).path()))) {
+    try (ManifestReader reader = ManifestReader.read(localInput(manifests.get(0).path()))) {
       if (reader.iterator().next().path().equals(FILE_B.path())) {
         files = Arrays.asList(FILE_B, FILE_C);
       } else {
@@ -152,13 +152,13 @@ public class TestReplaceManifests extends TableTestBase {
     }
 
     validateManifestEntries(manifests.get(0),
-                            ids(firstRewriteId),
-                            files(FILE_A),
-                            statuses(ManifestEntry.Status.ADDED));
-    validateManifestEntries(manifests.get(1),
                             ids(secondRewriteId, secondRewriteId),
                             files.iterator(),
                             statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
+    validateManifestEntries(manifests.get(1),
+                            ids(firstRewriteId),
+                            files(FILE_A),
+                            statuses(ManifestEntry.Status.ADDED));
   }
 
   @Test
