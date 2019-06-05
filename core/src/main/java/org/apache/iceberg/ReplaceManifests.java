@@ -31,8 +31,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import org.apache.commons.collections.CollectionUtils;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
