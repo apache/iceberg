@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorLoader;
@@ -29,8 +30,7 @@ public class ArrowReader {
       StructType sparkSchema,
       String timeZoneId) {
 
-    // StructType sparkSchema = SparkSchemaUtil.convert(icebergSchema);
-
+    // timeZoneId required for TimestampType in StructType
     Schema arrowSchema = ArrowUtils.toArrowSchema(sparkSchema, timeZoneId);
     BufferAllocator allocator =
         ArrowUtils.rootAllocator().newChildAllocator("fromBatchIterator", 0, Long.MAX_VALUE);
@@ -40,12 +40,14 @@ public class ArrowReader {
     return new InternalRowOverArrowBatchIterator(arrowBatchIter, allocator, root);
   }
 
+  @NotThreadSafe
   public static class InternalRowOverArrowBatchIterator implements Iterator<InternalRow>, Closeable {
 
-    private Iterator<ArrowRecordBatch> arrowBatchIter;
+    private final Iterator<ArrowRecordBatch> arrowBatchIter;
+    private final BufferAllocator allocator;
+    private final VectorSchemaRoot root;
+
     private Iterator<InternalRow> rowIter;
-    private BufferAllocator allocator;
-    private VectorSchemaRoot root;
 
     InternalRowOverArrowBatchIterator(Iterator<ArrowRecordBatch> arrowBatchIter,
         BufferAllocator allocator,
@@ -55,11 +57,6 @@ public class ArrowReader {
       this.allocator = allocator;
       this.root = root;
 
-      // if (arrowBatchIter.hasNext()) {
-      //   rowIter = nextBatch();
-      // } else {
-      //   rowIter = Collections.emptyIterator();
-      // }
     }
 
 
@@ -73,8 +70,11 @@ public class ArrowReader {
         rowIter = nextBatch();
         return true;
       } else {
-        root.close();
-        allocator.close();
+        try {
+          close();
+        } catch (IOException ioe) {
+          throw new RuntimeException("Encountered an error while closing iterator. "+ioe.getMessage(), ioe);
+        }
         return false;
       }
     }
@@ -141,12 +141,12 @@ public class ArrowReader {
 
   public static class ArrowRecordBatchIterator implements Iterator<ArrowRecordBatch>, Closeable {
 
-    Iterator<InternalRow> rowIterator;
-    VectorSchemaRoot root;
-    BufferAllocator allocator;
-    int maxRecordsPerBatch;
-    ArrowWriter arrowWriter;
-    VectorUnloader unloader;
+    final Iterator<InternalRow> rowIterator;
+    final VectorSchemaRoot root;
+    final BufferAllocator allocator;
+    final int maxRecordsPerBatch;
+    final ArrowWriter arrowWriter;
+    final VectorUnloader unloader;
 
     ArrowRecordBatchIterator(Iterator<InternalRow> rowIterator,
         VectorSchemaRoot root,
@@ -166,8 +166,11 @@ public class ArrowReader {
 
       if (!rowIterator.hasNext()) {
 
-        root.close();
-        allocator.close();
+        try {
+          close();
+        } catch (IOException ioe) {
+          throw new RuntimeException("Encountered an error while closing iterator. "+ioe.getMessage(), ioe);
+        }
         return false;
       }
 
