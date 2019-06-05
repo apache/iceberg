@@ -60,11 +60,15 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
     this.schema = AvroSchemaUtil.convert(getSchema(partitionType), "manifest_entry");
   }
 
-  private ManifestEntry(ManifestEntry toCopy) {
+  private ManifestEntry(ManifestEntry toCopy, boolean fullCopy) {
     this.schema = toCopy.schema;
     this.status = toCopy.status;
     this.snapshotId = toCopy.snapshotId;
-    this.file = toCopy.file().copy();
+    if (fullCopy) {
+      this.file = toCopy.file().copy();
+    } else {
+      this.file = toCopy.file().slimCopy();
+    }
   }
 
   ManifestEntry wrapExisting(long newSnapshotId, DataFile newFile) {
@@ -110,7 +114,11 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
   }
 
   public ManifestEntry copy() {
-    return new ManifestEntry(this);
+    return new ManifestEntry(this, true /* full copy */);
+  }
+
+  public ManifestEntry slimCopy() {
+    return new ManifestEntry(this, false /* slim copy */);
   }
 
   @Override

@@ -22,9 +22,13 @@ package org.apache.iceberg;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
@@ -33,6 +37,9 @@ import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.Projections;
 
 public class FilteredManifest implements Filterable<FilteredManifest> {
+  private static final Set<String> STATS_COLUMNS = Sets.newHashSet(
+      "value_counts", "null_value_counts", "lower_bounds", "upper_bounds");
+
   private final ManifestReader reader;
   private final Expression partFilter;
   private final Expression rowFilter;
@@ -118,12 +125,19 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
       Evaluator evaluator = evaluator();
       InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
 
+      // ensure stats columns are present for metrics evaluation
+      List<String> projectColumns = Lists.newArrayList(columns);
+      projectColumns.addAll(STATS_COLUMNS); // order doesn't matter
+
+      // if no stats columns were projected, drop them by using slimCopy
+      boolean useSlimCopy = Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS).isEmpty();
+
       return Iterators.transform(
-          Iterators.filter(reader.iterator(partFilter, columns),
+          Iterators.filter(reader.iterator(partFilter, projectColumns),
               input -> input != null &&
                   evaluator.eval(input.partition()) &&
                   metricsEvaluator.eval(input)),
-          DataFile::copy);
+          useSlimCopy ? DataFile::slimCopy : DataFile::copy);
 
     } else {
       return Iterators.transform(reader.iterator(partFilter, columns), DataFile::copy);

@@ -434,7 +434,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             } else {
               // only add the file to deletes if it is a new delete
               // this keeps the snapshot summary accurate for non-duplicate data
-              deletedFiles.add(entry.file().copy());
+              deletedFiles.add(entry.file().slimCopy());
             }
             deletedPaths.add(wrapper);
 

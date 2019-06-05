@@ -183,10 +183,10 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
     for (ManifestEntry entry : entries(CHANGE_COLUNNS)) {
       switch (entry.status()) {
         case ADDED:
-          adds.add(entry.copy());
+          adds.add(entry.slimCopy());
           break;
         case DELETED:
-          deletes.add(entry.copy());
+          deletes.add(entry.slimCopy());
           break;
         default:
       }

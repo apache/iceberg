@@ -378,6 +378,11 @@ public class TestHelpers {
     }
 
     @Override
+    public DataFile slimCopy() {
+      return this;
+    }
+
+    @Override
     public List<Long> splitOffsets() {
       return null;
     }

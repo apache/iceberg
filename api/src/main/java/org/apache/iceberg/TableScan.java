@@ -76,6 +76,15 @@ public interface TableScan {
   TableScan caseSensitive(boolean caseSensitive);
 
   /**
+   * Create a new {@link TableScan} from this that loads the column stats with each data file.
+   * <p>
+   * Column stats include: value count, null value count, lower bounds, and upper bounds.
+   *
+   * @return a new scan based on this that loads column stats.
+   */
+  TableScan includeColumnStats();
+
+  /**
    * Create a new {@link TableScan} from this that will read the given data columns. This produces
    * an expected schema that includes all fields that are either selected or used by this scan's
    * filter expression.

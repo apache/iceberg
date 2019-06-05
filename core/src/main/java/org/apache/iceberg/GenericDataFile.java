@@ -165,7 +165,7 @@ class GenericDataFile
    *
    * @param toCopy a generic data file to copy.
    */
-  private GenericDataFile(GenericDataFile toCopy) {
+  private GenericDataFile(GenericDataFile toCopy, boolean fullCopy) {
     this.filePath = toCopy.filePath;
     this.format = toCopy.format;
     this.partitionData = toCopy.partitionData.copy();
@@ -174,12 +174,20 @@ class GenericDataFile
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
     this.fileOrdinal = toCopy.fileOrdinal;
     this.sortColumns = copy(toCopy.sortColumns);
-    // TODO: support lazy conversion to/from map
-    this.columnSizes = copy(toCopy.columnSizes);
-    this.valueCounts = copy(toCopy.valueCounts);
-    this.nullValueCounts = copy(toCopy.nullValueCounts);
-    this.lowerBounds = SerializableByteBufferMap.wrap(copy(toCopy.lowerBounds));
-    this.upperBounds = SerializableByteBufferMap.wrap(copy(toCopy.upperBounds));
+    if (fullCopy) {
+      // TODO: support lazy conversion to/from map
+      this.columnSizes = copy(toCopy.columnSizes);
+      this.valueCounts = copy(toCopy.valueCounts);
+      this.nullValueCounts = copy(toCopy.nullValueCounts);
+      this.lowerBounds = SerializableByteBufferMap.wrap(copy(toCopy.lowerBounds));
+      this.upperBounds = SerializableByteBufferMap.wrap(copy(toCopy.upperBounds));
+    } else {
+      this.columnSizes = null;
+      this.valueCounts = null;
+      this.nullValueCounts = null;
+      this.lowerBounds = null;
+      this.upperBounds = null;
+    }
     this.fromProjectionPos = toCopy.fromProjectionPos;
     this.keyMetadata = toCopy.keyMetadata == null ? null : ByteBuffers.copy(toCopy.keyMetadata);
     this.splitOffsets = copy(toCopy.splitOffsets);
@@ -414,8 +422,13 @@ class GenericDataFile
   }
 
   @Override
+  public DataFile slimCopy() {
+    return new GenericDataFile(this, false /* slim copy */);
+  }
+
+  @Override
   public DataFile copy() {
-    return new GenericDataFile(this);
+    return new GenericDataFile(this, true /* full copy */);
   }
 
   private static <K, V> Map<K, V> copy(Map<K, V> map) {

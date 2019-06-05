@@ -57,7 +57,11 @@ class BaseTableScan implements TableScan {
   private static final Logger LOG = LoggerFactory.getLogger(TableScan.class);
 
   private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
-  private static final List<String> SNAPSHOT_COLUMNS = ImmutableList.of(
+  private static final List<String> SCAN_COLUMNS = ImmutableList.of(
+      "snapshot_id", "file_path", "file_ordinal", "file_format", "block_size_in_bytes",
+      "file_size_in_bytes", "record_count", "partition"
+  );
+  private static final List<String> SCAN_WITH_STATS_COLUMNS = ImmutableList.of(
       "snapshot_id", "file_path", "file_ordinal", "file_format", "block_size_in_bytes",
       "file_size_in_bytes", "record_count", "partition", "value_counts", "null_value_counts",
       "lower_bounds", "upper_bounds"
@@ -71,21 +75,24 @@ class BaseTableScan implements TableScan {
   private final Schema schema;
   private final Expression rowFilter;
   private final boolean caseSensitive;
+  private final boolean colStats;
   private final Collection<String> selectedColumns;
   private final LoadingCache<Integer, InclusiveManifestEvaluator> evalCache;
 
   BaseTableScan(TableOperations ops, Table table) {
-    this(ops, table, null, table.schema(), Expressions.alwaysTrue(), true, null);
+    this(ops, table, null, table.schema(), Expressions.alwaysTrue(), true, false, null);
   }
 
   private BaseTableScan(TableOperations ops, Table table, Long snapshotId, Schema schema,
-                        Expression rowFilter, boolean caseSensitive, Collection<String> selectedColumns) {
+                        Expression rowFilter, boolean caseSensitive, boolean colStats,
+                        Collection<String> selectedColumns) {
     this.ops = ops;
     this.table = table;
     this.snapshotId = snapshotId;
     this.schema = schema;
     this.rowFilter = rowFilter;
     this.caseSensitive = caseSensitive;
+    this.colStats = colStats;
     this.selectedColumns = selectedColumns;
     this.evalCache = Caffeine.newBuilder().build(specId -> {
       PartitionSpec spec = ops.current().spec(specId);
@@ -104,7 +111,7 @@ class BaseTableScan implements TableScan {
         "Cannot override snapshot, already set to id=%s", scanSnapshotId);
     Preconditions.checkArgument(ops.current().snapshot(scanSnapshotId) != null,
         "Cannot find snapshot with ID %s", scanSnapshotId);
-    return new BaseTableScan(ops, table, scanSnapshotId, schema, rowFilter, caseSensitive, selectedColumns);
+    return new BaseTableScan(ops, table, scanSnapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns);
   }
 
   @Override
@@ -129,23 +136,29 @@ class BaseTableScan implements TableScan {
 
   @Override
   public TableScan project(Schema projectedSchema) {
-    return new BaseTableScan(ops, table, snapshotId, projectedSchema, rowFilter, caseSensitive, selectedColumns);
+    return new BaseTableScan(
+        ops, table, snapshotId, projectedSchema, rowFilter, caseSensitive, colStats, selectedColumns);
   }
 
   @Override
   public TableScan caseSensitive(boolean scanCaseSensitive) {
-    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, scanCaseSensitive, selectedColumns);
+    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, scanCaseSensitive, colStats, selectedColumns);
+  }
+
+  @Override
+  public TableScan includeColumnStats() {
+    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, caseSensitive, true, selectedColumns);
   }
 
   @Override
   public TableScan select(Collection<String> columns) {
-    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, caseSensitive, columns);
+    return new BaseTableScan(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, columns);
   }
 
   @Override
   public TableScan filter(Expression expr) {
-    return new BaseTableScan(ops, table, snapshotId, schema, Expressions.and(rowFilter, expr),
-                             caseSensitive, selectedColumns);
+    return new BaseTableScan(
+        ops, table, snapshotId, schema, Expressions.and(rowFilter, expr), caseSensitive, colStats, selectedColumns);
   }
 
   @Override
@@ -181,7 +194,7 @@ class BaseTableScan implements TableScan {
             String specString = PartitionSpecParser.toJson(spec);
             ResidualEvaluator residuals = new ResidualEvaluator(spec, rowFilter, caseSensitive);
             return CloseableIterable.transform(
-                reader.filterRows(rowFilter).select(SNAPSHOT_COLUMNS),
+                reader.filterRows(rowFilter).select(colStats ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS),
                 file -> new BaseFileScanTask(file, schemaString, specString, residuals)
             );
           });
