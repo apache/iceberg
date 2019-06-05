@@ -37,9 +37,9 @@ import org.apache.parquet.io.api.Binary;
 
 import static org.apache.iceberg.expressions.ExpressionVisitors.visit;
 
-class ParquetFilters {
+public class ParquetFilters {
 
-  static FilterCompat.Filter convert(Schema schema, Expression expr, boolean caseSensitive) {
+  public static FilterCompat.Filter convert(Schema schema, Expression expr, boolean caseSensitive) {
     FilterPredicate pred = visit(expr, new ConvertFilterToParquet(schema, caseSensitive));
     // TODO: handle AlwaysFalse.INSTANCE
     if (pred != null && pred != AlwaysTrue.INSTANCE) {

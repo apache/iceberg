@@ -464,7 +464,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
                                                             FileScanTask task,
                                                             Schema readSchema) {
       return Parquet.read(location)
-          .project(readSchema)
+          .project(readSchema, SparkSchemaUtil.convert(readSchema))
           .split(task.start(), task.length())
           .createReaderFunc(fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema))
           .filter(task.residual())
