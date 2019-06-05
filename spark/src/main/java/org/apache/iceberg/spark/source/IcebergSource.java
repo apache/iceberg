@@ -49,6 +49,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
 
   private SparkSession lazySpark = null;
   private Configuration lazyConf = null;
+  private static final int DEFAULT_NUM_RECORDS_PER_BATCH = 1000;
 
   @Override
   public String shortName() {
@@ -61,7 +62,13 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
     String caseSensitive = lazySparkSession().conf().get("spark.sql.caseSensitive", "true");
 
-    return new Reader(table, Boolean.valueOf(caseSensitive));
+    Optional<String> numRecordsPerBatchOpt = options.get("iceberg.read.numrecordsperbatch");
+    int numRecordsPerBatch = DEFAULT_NUM_RECORDS_PER_BATCH;
+    if(numRecordsPerBatchOpt.isPresent()) {
+      numRecordsPerBatch = Integer.parseInt(numRecordsPerBatchOpt.get());
+    }
+
+    return new Reader(table, Boolean.valueOf(caseSensitive), numRecordsPerBatch);
   }
 
   @Override

@@ -55,11 +55,12 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   private final boolean reuseContainers;
   private final boolean caseSensitive;
   private final StructType sparkSchema;
+  private final int maxRecordsPerBatch;
 
   public ParquetReader(InputFile input, Schema expectedSchema, ParquetReadOptions options,
                        Function<MessageType, ParquetValueReader<?>> readerFunc,
                        Expression filter, boolean reuseContainers, boolean caseSensitive,
-                       StructType sparkSchema) {
+                       StructType sparkSchema, int maxRecordsPerBatch) {
     this.input = input;
     this.expectedSchema = expectedSchema;
     this.sparkSchema = sparkSchema;
@@ -69,6 +70,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     this.filter = filter == Expressions.alwaysTrue() ? null : filter;
     this.reuseContainers = reuseContainers;
     this.caseSensitive = caseSensitive;
+    this.maxRecordsPerBatch = maxRecordsPerBatch;
   }
 
   private static class ReadConf<T> {
@@ -204,7 +206,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     // Convert InterRow iterator to ArrowRecordBatch Iterator
     Iterator<InternalRow> rowIterator = iter;
     ArrowReader.ArrowRecordBatchIterator arrowBatchIter = ArrowReader.toBatchIterator(rowIterator,
-        sparkSchema, 1000,
+        sparkSchema, maxRecordsPerBatch,
         TimeZone.getDefault().getID());
     addCloseable(arrowBatchIter);
 

@@ -268,6 +268,7 @@ public class Parquet {
     private Map<String, String> properties = Maps.newHashMap();
     private boolean callInit = false;
     private boolean reuseContainers = false;
+    private int maxRecordsPerBatch = 1000;
 
     private ReadBuilder(InputFile file) {
       this.file = file;
@@ -341,6 +342,12 @@ public class Parquet {
       return this;
     }
 
+    public ReadBuilder recordsPerBatch(int numRowsPerBatch) {
+
+      this.maxRecordsPerBatch = numRowsPerBatch;
+      return this;
+    }
+
     @SuppressWarnings("unchecked")
     public <D> CloseableIterable<D> build() {
       if (readerFunc != null) {
@@ -362,7 +369,7 @@ public class Parquet {
         ParquetReadOptions options = optionsBuilder.build();
 
         return new org.apache.iceberg.parquet.ParquetReader<>(
-            file, schema, options, readerFunc, filter, reuseContainers, caseSensitive, sparkSchema);
+            file, schema, options, readerFunc, filter, reuseContainers, caseSensitive, sparkSchema, maxRecordsPerBatch);
       }
 
       ParquetReadBuilder<D> builder = new ParquetReadBuilder<>(ParquetIO.file(file));

@@ -102,6 +102,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
   private final FileIO fileIo;
   private final EncryptionManager encryptionManager;
   private final boolean caseSensitive;
+  private final int numRecordsPerBatch;
   private StructType requestedSchema = null;
   private List<Expression> filterExpressions = null;
   private Filter[] pushedFilters = NO_FILTERS;
@@ -111,12 +112,13 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
   private StructType type = null; // cached because Spark accesses it multiple times
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
 
-  Reader(Table table, boolean caseSensitive) {
+  Reader(Table table, boolean caseSensitive, int numRecordsPerBatch) {
     this.table = table;
     this.schema = table.schema();
     this.fileIo = table.io();
     this.encryptionManager = table.encryption();
     this.caseSensitive = caseSensitive;
+    this.numRecordsPerBatch = numRecordsPerBatch;
   }
 
   private Schema lazySchema() {
@@ -150,7 +152,8 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     List<InputPartition<InternalRow>> readTasks = Lists.newArrayList();
     for (CombinedScanTask task : tasks()) {
       readTasks.add(
-        new ReadTask(task, tableSchemaString, expectedSchemaString, fileIo, encryptionManager, caseSensitive));
+        new ReadTask(task, tableSchemaString, expectedSchemaString, fileIo, encryptionManager,
+            caseSensitive, numRecordsPerBatch));
     }
 
     return readTasks;
@@ -249,25 +252,27 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     private final FileIO fileIo;
     private final EncryptionManager encryptionManager;
     private final boolean caseSensitive;
+    private final int numRecordsPerBatch;
 
     private transient Schema tableSchema = null;
     private transient Schema expectedSchema = null;
 
     private ReadTask(
         CombinedScanTask task, String tableSchemaString, String expectedSchemaString, FileIO fileIo,
-        EncryptionManager encryptionManager, boolean caseSensitive) {
+        EncryptionManager encryptionManager, boolean caseSensitive, int numRecordsPerBatch) {
       this.task = task;
       this.tableSchemaString = tableSchemaString;
       this.expectedSchemaString = expectedSchemaString;
       this.fileIo = fileIo;
       this.encryptionManager = encryptionManager;
       this.caseSensitive = caseSensitive;
+      this.numRecordsPerBatch = numRecordsPerBatch;
     }
 
     @Override
     public InputPartitionReader<InternalRow> createPartitionReader() {
       return new TaskDataReader(task, lazyTableSchema(), lazyExpectedSchema(), fileIo,
-        encryptionManager, caseSensitive);
+        encryptionManager, caseSensitive, numRecordsPerBatch);
     }
 
     private Schema lazyTableSchema() {
@@ -297,13 +302,14 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     private final FileIO fileIo;
     private final Map<String, InputFile> inputFiles;
     private final boolean caseSensitive;
+    private final int numRecordsPerBatch;
 
     private Iterator<InternalRow> currentIterator = null;
     private Closeable currentCloseable = null;
     private InternalRow current = null;
 
     public TaskDataReader(CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
-                          EncryptionManager encryptionManager, boolean caseSensitive) {
+                          EncryptionManager encryptionManager, boolean caseSensitive, int numRecordsPerBatch) {
       this.fileIo = fileIo;
       this.tasks = task.files().iterator();
       this.tableSchema = tableSchema;
@@ -319,6 +325,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       // open last because the schemas and fileIo must be set
       this.currentIterator = open(tasks.next());
       this.caseSensitive = caseSensitive;
+      this.numRecordsPerBatch = numRecordsPerBatch;
     }
 
     @Override
@@ -469,6 +476,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
           .createReaderFunc(fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema))
           .filter(task.residual())
           .caseSensitive(caseSensitive)
+          .recordsPerBatch(numRecordsPerBatch)
           .build();
     }
 
