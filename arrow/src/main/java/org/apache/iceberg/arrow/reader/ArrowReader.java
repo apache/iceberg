@@ -23,8 +23,24 @@ import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.util.TaskCompletionListener;
 
+/***
+ * This is a helper class for Arrow reading. It provides two main converter methods.
+ * These converter methods are currently used to first convert a Parquet FileIterator
+ * into Iterator<ArrowRecordBatches>. Second, the ArrowRecordBatch is made
+ * into Columnar Batch and exposed as an Iterator<InternalRow>. The second step is to
+ * done to conform to Spark's current interface. When Spark adds Arrow support we will
+ * take the second iterator out and just return the first one.
+ */
 public class ArrowReader {
 
+  /***
+   * Accepts an iterator over ArrowRecordBatches and copies into ColumnarBatches.
+   * Since Spark uses Iterator over InternalRow we return this over ColumarBatch.
+   * @param arrowBatchIter
+   * @param sparkSchema
+   * @param timeZoneId
+   * @return
+   */
   public static InternalRowOverArrowBatchIterator fromBatchIterator(
       Iterator<ArrowRecordBatch> arrowBatchIter,
       StructType sparkSchema,
@@ -112,6 +128,17 @@ public class ArrowReader {
 
   }
 
+  /**
+   * Acceepts Iterator over InternalRow coming in from ParqeutReader's FileIterator
+   * and creates ArrowRecordBatches over that by collecting rows from the input iter.
+   * Each next() call over this iterator will collect up to maxRecordsPerBatch rows
+   * at a time and create an Arrow batch with it and returns an iterator over that.
+   * @param rowIter
+   * @param sparkSchema
+   * @param maxRecordsPerBatch
+   * @param timezonId
+   * @return
+   */
   public static ArrowRecordBatchIterator toBatchIterator(
       Iterator<InternalRow> rowIter,
       StructType sparkSchema, int maxRecordsPerBatch,
