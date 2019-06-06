@@ -26,8 +26,8 @@ import org.apache.spark.util.TaskCompletionListener;
 /***
  * This is a helper class for Arrow reading. It provides two main converter methods.
  * These converter methods are currently used to first convert a Parquet FileIterator
- * into Iterator<ArrowRecordBatches>. Second, the ArrowRecordBatch is made
- * into Columnar Batch and exposed as an Iterator<InternalRow>. The second step is to
+ * into Iterator over ArrowRecordBatches. Second, the ArrowRecordBatch is made
+ * into Columnar Batch and exposed as an Iterator over InternalRow. The second step is to
  * done to conform to Spark's current interface. When Spark adds Arrow support we will
  * take the second iterator out and just return the first one.
  */
