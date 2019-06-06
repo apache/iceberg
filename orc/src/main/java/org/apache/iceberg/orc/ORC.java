@@ -92,9 +92,8 @@ public class ORC {
 
     public <D> FileAppender<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
-      OrcFile.WriterOptions options = OrcFile.writerOptions(conf);
       return new OrcFileAppender<>(TypeConversion.toOrc(schema, new ColumnIdMap()),
-          this.file, createWriterFunc, options, metadata,
+          this.file, createWriterFunc, conf, metadata,
           conf.getInt(VECTOR_ROW_BATCH_SIZE, DEFAULT_SIZE));
     }
   }
