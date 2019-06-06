@@ -82,8 +82,8 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
   }
 
   @Override
-  public ReplaceManifests rewriteIf(Predicate<ManifestFile> predicate) {
-    this.predicate = predicate;
+  public ReplaceManifests rewriteIf(Predicate<ManifestFile> pred) {
+    this.predicate = pred;
     return this;
   }
 
