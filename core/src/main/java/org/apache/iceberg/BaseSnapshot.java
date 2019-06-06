@@ -163,12 +163,12 @@ class BaseSnapshot implements Snapshot {
           ops.current()::spec)) {
         for (ManifestEntry add : reader.addedFiles()) {
           if (add.snapshotId() == snapshotId) {
-            adds.add(add.file().copy());
+            adds.add(add.file().copyWithoutStats());
           }
         }
         for (ManifestEntry delete : reader.deletedFiles()) {
           if (delete.snapshotId() == snapshotId) {
-            deletes.add(delete.file().copy());
+            deletes.add(delete.file().copyWithoutStats());
           }
         }
       } catch (IOException e) {
