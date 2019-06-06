@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * API for rewriting manifests for a table.
@@ -33,9 +34,10 @@ import java.util.function.Function;
  */
 public interface RewriteManifests extends SnapshotUpdate<RewriteManifests> {
   /**
-   * Group an existing {@link DataFile} by a partition key. The partition key will determine
-   * which data file will be associated with a particular manifest. All files with the same
-   * key will be written to the same manifest.
+   * Groups an existing {@link DataFile} by a cluster key produced by a function. The cluster key
+   * will determine which data file will be associated with a particular manifest. All data files
+   * with the same cluster key will be written to the same manifest (unless the file is large and
+   * split into multiple files).
    *
    * @param func Function used to cluster data files to manifests.
    * @return this for method chaining
@@ -43,12 +45,13 @@ public interface RewriteManifests extends SnapshotUpdate<RewriteManifests> {
   RewriteManifests clusterBy(Function<DataFile, Object> func);
 
   /**
-   * Filter which existing {@link ManifestFile} for the table should be rewritten. Manifests
-   * that do not match the filter are kept as-is.
+   * Determines which existing {@link ManifestFile} for the table should be rewritten. Manifests
+   * that do not match the predicate are kept as-is. If this is not called and no predicate is set, then
+   * all manifests will be rewritten.
    *
-   * @param func Function used to filter manifests. This function should return true
-   *               to include the manifest file for rewrite and false to keep it as-is
+   * @param predicate Predicate used to determine which manifests to rewrite. If true then the manifest
+   *                  file will be included for rewrite. If false then then manifest is kept as-is.
    * @return this for method chaining
    */
-  RewriteManifests filter(Function<ManifestFile, Boolean> func);
+  RewriteManifests rewriteIf(Predicate<ManifestFile> predicate);
 }

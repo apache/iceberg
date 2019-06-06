@@ -89,7 +89,7 @@ public interface Transaction {
    *
    * @return a new {@link RewriteManifests}
    */
-  RewriteManifests newRewriteManifests();
+  RewriteManifests rewriteManifests();
 
   /**
    * Create a new {@link OverwriteFiles overwrite API} to overwrite files by a filter expression.

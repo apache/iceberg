@@ -30,7 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.function.Predicate;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -49,7 +49,7 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
   private final AtomicInteger manifestCount = new AtomicInteger(0);
 
   private Function<DataFile, Object> clusterByFunc;
-  private Function<ManifestFile, Boolean> filterFunc;
+  private Predicate<ManifestFile> predicate;
 
   ReplaceManifests(TableOperations ops) {
     super(ops);
@@ -82,8 +82,8 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
   }
 
   @Override
-  public ReplaceManifests filter(Function<ManifestFile, Boolean> func) {
-    this.filterFunc = func;
+  public ReplaceManifests rewriteIf(Predicate<ManifestFile> predicate) {
+    this.predicate = predicate;
     return this;
   }
 
@@ -97,17 +97,17 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
       Tasks.foreach(base.currentSnapshot().manifests())
           .executeWith(ThreadPools.getWorkerPool())
           .run(manifest -> {
-            if (filterFunc != null && !filterFunc.apply(manifest)) {
+            if (predicate != null && !predicate.test(manifest)) {
               existingManifests.add(manifest);
             } else {
               long entryNum = manifest.addedFilesCount() + manifest.existingFilesCount() + manifest.deletedFilesCount();
               long avgEntryLen = manifest.length() / entryNum;
 
               try (ManifestReader reader =
-                     ManifestReader.read(ops.io().newInputFile(manifest.path()))) {
+                     ManifestReader.read(ops.io().newInputFile(manifest.path()), ops.current()::spec)) {
                 FilteredManifest filteredManifest = reader.select(Lists.newArrayList("*"));
-                filteredManifest.iterator().forEachRemaining(
-                    file -> appendFile(file, avgEntryLen, clusterByFunc.apply(file))
+                filteredManifest.liveEntries().forEach(
+                    entry -> appendEntry(entry, avgEntryLen, clusterByFunc.apply(entry.file()))
                 );
 
               } catch (IOException x) {
@@ -119,13 +119,6 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
       Tasks.foreach(writers.values()).executeWith(ThreadPools.getWorkerPool()).run(writer -> writer.close());
     }
 
-    newManifests.addAll(
-        writers.values()
-          .stream()
-          .map(WriterWrapper::toManifestFile)
-          .collect(Collectors.toList())
-    );
-
     // put new manifests at the beginning
     List<ManifestFile> apply = new ArrayList<>();
     apply.addAll(newManifests);
@@ -134,12 +127,12 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
     return apply;
   }
 
-  private void appendFile(DataFile file, long avgEntryLen, Object key) {
-    Preconditions.checkNotNull(file, "Data file cannot be null");
+  private void appendEntry(ManifestEntry entry, long avgEntryLen, Object key) {
+    Preconditions.checkNotNull(entry, "Manifest entry cannot be null");
     Preconditions.checkNotNull(key, "Key cannot be null");
 
     WriterWrapper writer = getWriter(key);
-    writer.addFile(file, avgEntryLen);
+    writer.addEntry(entry, avgEntryLen);
   }
 
   private WriterWrapper getWriter(Object key) {
@@ -154,12 +147,6 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
       }
     }
     return writer;
-  }
-
-  @Override
-  protected void cleanAll() {
-    writers.values().stream().forEach(writer -> writer.close());
-    super.cleanAll();
   }
 
   @Override
@@ -179,16 +166,15 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
     private ManifestWriter writer;
     private long estimatedSize;
 
-    synchronized void addFile(DataFile file, long len) {
+    synchronized void addEntry(ManifestEntry entry, long len) {
       if (writer == null) {
         writer = newWriter();
       } else if (estimatedSize >= getManifestTargetSizeBytes()) {
         close();
-        newManifests.add(writer.toManifestFile());
         writer = newWriter();
       }
 
-      writer.add(file);
+      writer.addExisting(entry);
       estimatedSize += len;
     }
 
@@ -197,15 +183,11 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
       return new ManifestWriter(spec, manifestPath(manifestCount.getAndIncrement()), snapshotId());
     }
 
-    synchronized ManifestFile toManifestFile() {
-      Preconditions.checkNotNull(writer, "Writer should not be null");
-      return writer.toManifestFile();
-    }
-
     synchronized void close() {
       if (writer != null) {
         try {
           writer.close();
+          newManifests.add(writer.toManifestFile());
         } catch (IOException x) {
           throw new RuntimeIOException(x);
         }

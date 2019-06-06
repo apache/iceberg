@@ -40,29 +40,28 @@ public class TestReplaceManifests extends TableTestBase {
       .appendFile(FILE_A)
       .appendFile(FILE_B)
       .commit();
+    long appendId = table.currentSnapshot().snapshotId();
 
     Assert.assertEquals(1, table.currentSnapshot().manifests().size());
 
     // cluster by path will split the manifest into two
 
-    table.newRewriteManifests()
+    table.rewriteManifests()
       .clusterBy(file -> file.path())
       .commit();
-
-    long rewriteId = table.currentSnapshot().snapshotId();
 
     List<ManifestFile> manifests = table.currentSnapshot().manifests();
     Assert.assertEquals(2, manifests.size());
     manifests.sort(Comparator.comparing(ManifestFile::path));
 
     validateManifestEntries(manifests.get(0),
-                            ids(rewriteId),
+                            ids(appendId),
                             files(FILE_A),
-                            statuses(ManifestEntry.Status.ADDED));
+                            statuses(ManifestEntry.Status.EXISTING));
     validateManifestEntries(table.currentSnapshot().manifests().get(1),
-                            ids(rewriteId),
+                            ids(appendId),
                             files(FILE_B),
-                            statuses(ManifestEntry.Status.ADDED));
+                            statuses(ManifestEntry.Status.EXISTING));
   }
 
   @Test
@@ -72,37 +71,40 @@ public class TestReplaceManifests extends TableTestBase {
     table.newFastAppend()
       .appendFile(FILE_A)
       .commit();
+    long appendIdA = table.currentSnapshot().snapshotId();
     table.newFastAppend()
       .appendFile(FILE_B)
       .commit();
+    long appendIdB = table.currentSnapshot().snapshotId();
 
     Assert.assertEquals(2, table.currentSnapshot().manifests().size());
 
     // cluster by constant will combine manifests into one
 
-    table.newRewriteManifests()
+    table.rewriteManifests()
       .clusterBy(file -> "file")
       .commit();
-
-    long rewriteId = table.currentSnapshot().snapshotId();
 
     List<ManifestFile> manifests = table.currentSnapshot().manifests();
     Assert.assertEquals(1, manifests.size());
 
     // get the file order correct
     List<DataFile> files;
+    List<Long> ids;
     try (ManifestReader reader = ManifestReader.read(localInput(manifests.get(0).path()))) {
       if (reader.iterator().next().path().equals(FILE_A.path())) {
         files = Arrays.asList(FILE_A, FILE_B);
+        ids = Arrays.asList(appendIdA, appendIdB);
       } else {
         files = Arrays.asList(FILE_B, FILE_A);
+        ids = Arrays.asList(appendIdB, appendIdA);
       }
     }
 
     validateManifestEntries(manifests.get(0),
-                            ids(rewriteId, rewriteId),
+                            ids.iterator(),
                             files.iterator(),
-                            statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
+                            statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING));
   }
 
   @Test
@@ -112,22 +114,25 @@ public class TestReplaceManifests extends TableTestBase {
     table.newFastAppend()
       .appendFile(FILE_A)
       .commit();
-    long firstRewriteId = table.currentSnapshot().snapshotId();
+    long appendIdA = table.currentSnapshot().snapshotId();
 
     table.newFastAppend()
       .appendFile(FILE_B)
       .commit();
+    long appendIdB = table.currentSnapshot().snapshotId();
+
     table.newFastAppend()
       .appendFile(FILE_C)
       .commit();
+    long appendIdC = table.currentSnapshot().snapshotId();
 
     Assert.assertEquals(3, table.currentSnapshot().manifests().size());
 
     //keep the file A manifest, combine the other two
 
-    table.newRewriteManifests()
+    table.rewriteManifests()
       .clusterBy(file -> "file")
-      .filter(manifest -> {
+      .rewriteIf(manifest -> {
         try (ManifestReader reader = ManifestReader.read(localInput(manifest.path()))) {
           return !reader.iterator().next().path().equals(FILE_A.path());
         } catch (IOException x) {
@@ -136,27 +141,28 @@ public class TestReplaceManifests extends TableTestBase {
       })
       .commit();
 
-    long secondRewriteId = table.currentSnapshot().snapshotId();
-
     List<ManifestFile> manifests = table.currentSnapshot().manifests();
     Assert.assertEquals(2, manifests.size());
 
     // get the file order correct
     List<DataFile> files;
+    List<Long> ids;
     try (ManifestReader reader = ManifestReader.read(localInput(manifests.get(0).path()))) {
       if (reader.iterator().next().path().equals(FILE_B.path())) {
         files = Arrays.asList(FILE_B, FILE_C);
+        ids = Arrays.asList(appendIdB, appendIdC);
       } else {
         files = Arrays.asList(FILE_C, FILE_B);
+        ids = Arrays.asList(appendIdC, appendIdB);
       }
     }
 
     validateManifestEntries(manifests.get(0),
-                            ids(secondRewriteId, secondRewriteId),
+                            ids.iterator(),
                             files.iterator(),
-                            statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
+                            statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING));
     validateManifestEntries(manifests.get(1),
-                            ids(firstRewriteId),
+                            ids(appendIdA),
                             files(FILE_A),
                             statuses(ManifestEntry.Status.ADDED));
   }
@@ -168,27 +174,26 @@ public class TestReplaceManifests extends TableTestBase {
       .appendFile(FILE_A)
       .appendFile(FILE_B)
       .commit();
+    long appendId = table.currentSnapshot().snapshotId();
 
     Assert.assertEquals(1, table.currentSnapshot().manifests().size());
 
     // cluster by constant will combine manifests into one but small target size will create one per entry
-    ReplaceManifests rewriteManifests = spy((ReplaceManifests) table.newRewriteManifests());
+    ReplaceManifests rewriteManifests = spy((ReplaceManifests) table.rewriteManifests());
     when(rewriteManifests.getManifestTargetSizeBytes()).thenReturn(1L);
     rewriteManifests.clusterBy(file -> "file").commit();
-
-    long rewriteId = table.currentSnapshot().snapshotId();
 
     List<ManifestFile> manifests = table.currentSnapshot().manifests();
     Assert.assertEquals(2, manifests.size());
     manifests.sort(Comparator.comparing(ManifestFile::path));
 
     validateManifestEntries(manifests.get(0),
-                            ids(rewriteId),
+                            ids(appendId),
                             files(FILE_A),
-                            statuses(ManifestEntry.Status.ADDED));
+                            statuses(ManifestEntry.Status.EXISTING));
     validateManifestEntries(table.currentSnapshot().manifests().get(1),
-                            ids(rewriteId),
+                            ids(appendId),
                             files(FILE_B),
-                            statuses(ManifestEntry.Status.ADDED));
+                            statuses(ManifestEntry.Status.EXISTING));
   }
 }
