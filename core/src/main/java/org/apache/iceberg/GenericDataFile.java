@@ -165,6 +165,7 @@ class GenericDataFile
    * Copy constructor.
    *
    * @param toCopy a generic data file to copy.
+   * @param fullCopy whether to copy all fields or to drop column-level stats
    */
   private GenericDataFile(GenericDataFile toCopy, boolean fullCopy) {
     this.filePath = toCopy.filePath;
