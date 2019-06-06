@@ -27,6 +27,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.nio.file.CopyOption;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.generic.IndexedRecord;
@@ -422,8 +423,8 @@ class GenericDataFile
   }
 
   @Override
-  public DataFile slimCopy() {
-    return new GenericDataFile(this, false /* slim copy */);
+  public DataFile copyWithoutStats() {
+    return new GenericDataFile(this, false /* drop stats */);
   }
 
   @Override

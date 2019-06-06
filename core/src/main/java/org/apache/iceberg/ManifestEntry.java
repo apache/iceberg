@@ -67,7 +67,7 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
     if (fullCopy) {
       this.file = toCopy.file().copy();
     } else {
-      this.file = toCopy.file().slimCopy();
+      this.file = toCopy.file().copyWithoutStats();
     }
   }
 
@@ -117,8 +117,8 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
     return new ManifestEntry(this, true /* full copy */);
   }
 
-  public ManifestEntry slimCopy() {
-    return new ManifestEntry(this, false /* slim copy */);
+  public ManifestEntry copyWithoutStats() {
+    return new ManifestEntry(this, false /* drop stats */);
   }
 
   @Override

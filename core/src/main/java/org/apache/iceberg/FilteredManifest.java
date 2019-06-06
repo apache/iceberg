@@ -129,15 +129,15 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
       List<String> projectColumns = Lists.newArrayList(columns);
       projectColumns.addAll(STATS_COLUMNS); // order doesn't matter
 
-      // if no stats columns were projected, drop them by using slimCopy
-      boolean useSlimCopy = Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS).isEmpty();
+      // if no stats columns were projected, drop them
+      boolean dropStats = Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS).isEmpty();
 
       return Iterators.transform(
           Iterators.filter(reader.iterator(partFilter, projectColumns),
               input -> input != null &&
                   evaluator.eval(input.partition()) &&
                   metricsEvaluator.eval(input)),
-          useSlimCopy ? DataFile::slimCopy : DataFile::copy);
+          dropStats ? DataFile::copyWithoutStats : DataFile::copy);
 
     } else {
       return Iterators.transform(reader.iterator(partFilter, columns), DataFile::copy);

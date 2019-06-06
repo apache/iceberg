@@ -378,7 +378,7 @@ public class TestHelpers {
     }
 
     @Override
-    public DataFile slimCopy() {
+    public DataFile copyWithoutStats() {
       return this;
     }
 
