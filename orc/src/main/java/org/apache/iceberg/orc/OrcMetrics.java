@@ -61,6 +61,8 @@ public class OrcMetrics {
   public static Metrics fromInputFile(InputFile file, Configuration config) {
     try (Reader orcReader = ORC.newFileReader(file, config)) {
 
+      final Schema schema = ORCSchemaUtil.convert(orcReader.getSchema());
+
       ColumnStatistics[] colStats = orcReader.getStatistics();
       Map<Integer, Long> columSizes = Maps.newHashMapWithExpectedSize(colStats.length);
       Map<Integer, Long> valueCounts = Maps.newHashMapWithExpectedSize(colStats.length);
@@ -69,10 +71,26 @@ public class OrcMetrics {
         valueCounts.put(i, colStats[i].getNumberOfValues());
       }
 
+      Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
+      Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
+
+      for(Types.NestedField col : schema.columns()) {
+        final int i = col.fieldId();
+        columSizes.put(i, colStats[i].getBytesOnDisk());
+        valueCounts.put(i, colStats[i].getNumberOfValues());
+
+        Optional<ByteBuffer> orcMin = fromOrcMin(col, colStats[i]);
+        orcMin.ifPresent(byteBuffer -> lowerBounds.put(i, byteBuffer));
+        Optional<ByteBuffer> orcMax = fromOrcMax(col, colStats[i]);
+        orcMax.ifPresent(byteBuffer -> upperBounds.put(i, byteBuffer));
+      }
+
       return new Metrics(orcReader.getNumberOfRows(),
           columSizes,
           valueCounts,
-          Collections.emptyMap());
+          Collections.emptyMap(),
+          lowerBounds,
+          upperBounds);
 
     } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to read footer of file: %s", file);

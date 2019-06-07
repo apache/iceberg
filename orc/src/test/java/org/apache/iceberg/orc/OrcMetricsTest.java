@@ -59,7 +59,7 @@ public class OrcMetricsTest {
 
   public OrcMetricsTest() {
     orcSchema = TypeDescription.fromString("struct<w:int,x:bigint,y:int,z:double>");
-    icebergSchema = TypeConversion.fromOrc(orcSchema);
+    icebergSchema = ORCSchemaUtil.convert(orcSchema);
   }
 
   private File writeOrcTestFile(int rows) throws IOException {
