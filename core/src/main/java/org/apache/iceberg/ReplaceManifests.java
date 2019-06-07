@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -119,7 +120,8 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
       return true;
     }
     // if any processed manifest is not in the current manifest list, perform a full rewrite
-    return processedManifests.stream().anyMatch(manifest -> !currentManifests.contains(manifest));
+    Set<ManifestFile> set = Sets.newHashSet(currentManifests);
+    return processedManifests.stream().anyMatch(manifest -> !set.contains(manifest));
   }
 
   private void addExistingFromNewCommit(List<ManifestFile> currentManifests) {
