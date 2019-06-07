@@ -23,8 +23,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Maps;
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -33,6 +35,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Conversions;
 import org.apache.orc.OrcFile;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
@@ -106,18 +109,27 @@ public class OrcMetricsTest {
     assertNotNull(orcMetrics);
     assertEquals(rows, orcMetrics.recordCount().intValue());
 
-    Map<Integer, ?> lowerBounds = OrcMetrics.fromBufferMap(icebergSchema,
+    Map<Integer, ?> lowerBounds = fromBufferMap(icebergSchema,
         orcMetrics.lowerBounds());
     assertEquals(0, lowerBounds.get(1));     // w (id = 1)
     assertEquals(10L, lowerBounds.get(2));   // x
     assertEquals(0, lowerBounds.get(3));     // y
     assertEquals(0.09, lowerBounds.get(4));  // z
 
-    Map<Integer, ?> upperBounds = OrcMetrics.fromBufferMap(icebergSchema,
+    Map<Integer, ?> upperBounds = fromBufferMap(icebergSchema,
         orcMetrics.upperBounds());
     assertEquals(rows - 1, upperBounds.get(1));        // w (id = 1)
     assertEquals(100L, upperBounds.get(2));            // x
     assertEquals((rows - 1) * 3, upperBounds.get(3));  // y
     assertEquals(2.3, upperBounds.get(4));             // z
+  }
+
+  private Map<Integer, ?> fromBufferMap(Schema schema, Map<Integer, ByteBuffer> map) {
+    Map<Integer, ?> values = Maps.newHashMap();
+    for (Map.Entry<Integer, ByteBuffer> entry : map.entrySet()) {
+      values.put(entry.getKey(),
+          Conversions.fromByteBuffer(schema.findType(entry.getKey()), entry.getValue()));
+    }
+    return values;
   }
 }
