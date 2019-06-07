@@ -73,6 +73,8 @@ object SparkTableUtil {
       listAvroPartition(partition, uri)
     } else if (format.contains("parquet")) {
       listParquetPartition(partition, uri)
+    } else if (format.contains("orc")) {
+      listOrcPartition(partition, uri)
     } else {
       throw new UnsupportedOperationException(s"Unknown partition format: $format")
     }
@@ -246,6 +248,29 @@ object SparkTableUtil {
         mapToArray(metrics.nullValueCounts),
         bytesMapToArray(metrics.lowerBounds),
         bytesMapToArray(metrics.upperBounds))
+    }
+  }
+
+  private def listOrcPartition(
+      partitionPath: Map[String, String],
+      partitionUri: String): Seq[SparkDataFile] = {
+    val conf = new Configuration()
+    val partition = new Path(partitionUri)
+    val fs = partition.getFileSystem(conf)
+
+    fs.listStatus(partition, HiddenPathFilter).filter(_.isFile).map { stat =>
+      // TODO: add ORC metrics
+      SparkDataFile(
+        stat.getPath.toString,
+        partitionPath, "orc", stat.getLen,
+        stat.getBlockSize,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      )
     }
   }
 }
