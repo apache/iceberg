@@ -225,14 +225,13 @@ public class TestReplaceManifests extends TableTestBase {
       })
       .commit();
 
-    List<ManifestFile> manifests = table.currentSnapshot().manifests();
-    Assert.assertEquals(2, manifests.size());
+    Assert.assertEquals(2, table.currentSnapshot().manifests().size());
 
     // commit the rewrite manifests in progress - this should perform a full rewrite as the manifest
     // with file B is no longer part of the snapshot
     rewrite.commit();
 
-    manifests = table.currentSnapshot().manifests();
+    List<ManifestFile> manifests = table.currentSnapshot().manifests();
     Assert.assertEquals(1, manifests.size());
 
     // get the file order correct
@@ -272,6 +271,8 @@ public class TestReplaceManifests extends TableTestBase {
       .commit();
     long appendIdB = table.currentSnapshot().snapshotId();
 
+    Assert.assertEquals(2, table.currentSnapshot().manifests().size());
+
     // commit the rewrite manifests in progress
     rewrite.commit();
 
@@ -307,6 +308,8 @@ public class TestReplaceManifests extends TableTestBase {
     table.rewriteManifests()
       .clusterBy(file -> "file")
       .commit();
+
+    Assert.assertEquals(1, table.currentSnapshot().manifests().size());
 
     // commit the append in progress
     append.commit();
