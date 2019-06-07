@@ -58,7 +58,7 @@ public class TestReplaceManifests extends TableTestBase {
                             ids(appendId),
                             files(FILE_A),
                             statuses(ManifestEntry.Status.EXISTING));
-    validateManifestEntries(table.currentSnapshot().manifests().get(1),
+    validateManifestEntries(manifests.get(1),
                             ids(appendId),
                             files(FILE_B),
                             statuses(ManifestEntry.Status.EXISTING));
@@ -191,9 +191,139 @@ public class TestReplaceManifests extends TableTestBase {
                             ids(appendId),
                             files(FILE_A),
                             statuses(ManifestEntry.Status.EXISTING));
-    validateManifestEntries(table.currentSnapshot().manifests().get(1),
+    validateManifestEntries(manifests.get(1),
                             ids(appendId),
                             files(FILE_B),
+                            statuses(ManifestEntry.Status.EXISTING));
+  }
+
+  @Test
+  public void testConcurrentRewriteManifest() throws IOException {
+    Table table = load();
+    table.newFastAppend()
+      .appendFile(FILE_A)
+      .commit();
+    long appendIdA = table.currentSnapshot().snapshotId();
+    table.newFastAppend()
+      .appendFile(FILE_B)
+      .commit();
+    long appendIdB = table.currentSnapshot().snapshotId();
+
+    // start a rewrite manifests that involves both manifests
+    RewriteManifests rewrite = table.rewriteManifests();
+    rewrite.clusterBy(file -> "file").apply();
+
+    // commit a rewrite manifests that only involves one manifest
+    table.rewriteManifests()
+      .clusterBy(file -> "file")
+      .rewriteIf(manifest -> {
+        try (ManifestReader reader = ManifestReader.read(localInput(manifest.path()))) {
+          return !reader.iterator().next().path().equals(FILE_A.path());
+        } catch (IOException x) {
+          throw new RuntimeIOException(x);
+        }
+      })
+      .commit();
+
+    List<ManifestFile> manifests = table.currentSnapshot().manifests();
+    Assert.assertEquals(2, manifests.size());
+
+    // commit the rewrite manifests in progress - this should perform a full rewrite as the manifest
+    // with file B is no longer part of the snapshot
+    rewrite.commit();
+
+    manifests = table.currentSnapshot().manifests();
+    Assert.assertEquals(1, manifests.size());
+
+    // get the file order correct
+    List<DataFile> files;
+    List<Long> ids;
+    try (ManifestReader reader = ManifestReader.read(localInput(manifests.get(0).path()))) {
+      if (reader.iterator().next().path().equals(FILE_A.path())) {
+        files = Arrays.asList(FILE_A, FILE_B);
+        ids = Arrays.asList(appendIdA, appendIdB);
+      } else {
+        files = Arrays.asList(FILE_B, FILE_A);
+        ids = Arrays.asList(appendIdB, appendIdA);
+      }
+    }
+
+    validateManifestEntries(manifests.get(0),
+                            ids.iterator(),
+                            files.iterator(),
+                            statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING));
+  }
+
+  @Test
+  public void testAppendDuringRewriteManifest() {
+    Table table = load();
+    table.newFastAppend()
+      .appendFile(FILE_A)
+      .commit();
+    long appendIdA = table.currentSnapshot().snapshotId();
+
+    // start the rewrite manifests
+    RewriteManifests rewrite = table.rewriteManifests();
+    rewrite.clusterBy(file -> "file").apply();
+
+    // append a file
+    table.newFastAppend()
+      .appendFile(FILE_B)
+      .commit();
+    long appendIdB = table.currentSnapshot().snapshotId();
+
+    // commit the rewrite manifests in progress
+    rewrite.commit();
+
+    // the rewrite should only affect the first manifest, so we will end up with 2 manifests even though we
+    // have a single cluster key, rewritten one should be the first in the list
+
+    List<ManifestFile> manifests = table.currentSnapshot().manifests();
+    Assert.assertEquals(2, manifests.size());
+
+    validateManifestEntries(manifests.get(0),
+                            ids(appendIdA),
+                            files(FILE_A),
+                            statuses(ManifestEntry.Status.EXISTING));
+    validateManifestEntries(manifests.get(1),
+                            ids(appendIdB),
+                            files(FILE_B),
+                            statuses(ManifestEntry.Status.ADDED));
+  }
+
+  @Test
+  public void testRewriteManifestDuringAppend() {
+    Table table = load();
+    table.newFastAppend()
+      .appendFile(FILE_A)
+      .commit();
+    long appendIdA = table.currentSnapshot().snapshotId();
+
+    // start an append
+    AppendFiles append = table.newFastAppend();
+    append.appendFile(FILE_B).apply();
+
+    // rewrite the manifests - only affects the first
+    table.rewriteManifests()
+      .clusterBy(file -> "file")
+      .commit();
+
+    // commit the append in progress
+    append.commit();
+    long appendIdB = table.currentSnapshot().snapshotId();
+
+    List<ManifestFile> manifests = table.currentSnapshot().manifests();
+    Assert.assertEquals(2, manifests.size());
+
+    // last append should be the first in the list
+
+    validateManifestEntries(manifests.get(0),
+                            ids(appendIdB),
+                            files(FILE_B),
+                            statuses(ManifestEntry.Status.ADDED));
+    validateManifestEntries(manifests.get(1),
+                            ids(appendIdA),
+                            files(FILE_A),
                             statuses(ManifestEntry.Status.EXISTING));
   }
 }

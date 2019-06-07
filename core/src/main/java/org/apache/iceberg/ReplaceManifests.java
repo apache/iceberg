@@ -20,11 +20,12 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -43,8 +44,11 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
   private final TableOperations ops;
   private final PartitionSpec spec;
   private final long manifestTargetSizeBytes;
+
   private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
-  private final List<ManifestFile> newManifests = Collections.synchronizedList(Lists.newArrayList());
+  private final List<ManifestFile> existingManifests = Collections.synchronizedList(new ArrayList<>());
+  private final List<ManifestFile> newManifests = Collections.synchronizedList(new ArrayList<>());
+  private final Set<ManifestFile> processedManifests = Collections.synchronizedSet(new HashSet<>());
   private final Map<Object, WriterWrapper> writers = Collections.synchronizedMap(new HashMap<>());
   private final AtomicInteger manifestCount = new AtomicInteger(0);
 
@@ -91,21 +95,66 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
   public List<ManifestFile> apply(TableMetadata base) {
     Preconditions.checkNotNull(clusterByFunc, "clusterBy function cannot be null");
 
-    List<ManifestFile> existingManifests = Collections.synchronizedList(new ArrayList<>());
+    List<ManifestFile> currentManifests = base.currentSnapshot().manifests();
+
+    if (requiresRewrite(currentManifests)) {
+      // run the rewrite process
+      performRewrite(currentManifests);
+    } else {
+      // just keep any new manifests that were added since the last apply(), don't rerun
+      addExistingFromNewCommit(currentManifests);
+    }
+
+    // put new manifests at the beginning
+    List<ManifestFile> apply = new ArrayList<>();
+    apply.addAll(newManifests);
+    apply.addAll(existingManifests);
+
+    return apply;
+  }
+
+  private boolean requiresRewrite(List<ManifestFile> currentManifests) {
+    if (processedManifests.size() == 0) {
+      // nothing yet processed so perform a full rewrite
+      return true;
+    }
+    // if any processed manifest is not in the current manifest list, perform a full rewrite
+    return processedManifests.stream().anyMatch(manifest -> !currentManifests.contains(manifest));
+  }
+
+  private void addExistingFromNewCommit(List<ManifestFile> currentManifests) {
+    // keep any existing manifests as-is that were not processed
+    existingManifests.clear();
+    currentManifests.stream()
+      .filter(manifest -> !processedManifests.contains(manifest))
+      .forEach(manifest -> existingManifests.add(manifest));
+  }
+
+  private void reset() {
+    existingManifests.clear();
+    processedManifests.clear();
+    newManifests.clear();
+    writers.clear();
+    summaryBuilder.clear();
+  }
+
+  private void performRewrite(List<ManifestFile> currentManifests) {
+    reset();
 
     try {
-      Tasks.foreach(base.currentSnapshot().manifests())
+      Tasks.foreach(currentManifests)
           .executeWith(ThreadPools.getWorkerPool())
           .run(manifest -> {
             if (predicate != null && !predicate.test(manifest)) {
               existingManifests.add(manifest);
             } else {
+              processedManifests.add(manifest);
               long entryNum = manifest.addedFilesCount() + manifest.existingFilesCount() + manifest.deletedFilesCount();
               long avgEntryLen = manifest.length() / entryNum;
 
               try (ManifestReader reader =
                      ManifestReader.read(ops.io().newInputFile(manifest.path()), ops.current()::spec)) {
-                FilteredManifest filteredManifest = reader.select(Lists.newArrayList("*"));
+                FilteredManifest filteredManifest = reader.select(Arrays.asList("*"));
                 filteredManifest.liveEntries().forEach(
                     entry -> appendEntry(entry, avgEntryLen, clusterByFunc.apply(entry.file()))
                 );
@@ -118,13 +167,6 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
     } finally {
       Tasks.foreach(writers.values()).executeWith(ThreadPools.getWorkerPool()).run(writer -> writer.close());
     }
-
-    // put new manifests at the beginning
-    List<ManifestFile> apply = new ArrayList<>();
-    apply.addAll(newManifests);
-    apply.addAll(existingManifests);
-
-    return apply;
   }
 
   private void appendEntry(ManifestEntry entry, long avgEntryLen, Object key) {
