@@ -36,8 +36,13 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.ColumnStatistics;
-import org.apache.orc.OrcProto;
+import org.apache.orc.DateColumnStatistics;
+import org.apache.orc.DecimalColumnStatistics;
+import org.apache.orc.DoubleColumnStatistics;
+import org.apache.orc.IntegerColumnStatistics;
 import org.apache.orc.Reader;
+import org.apache.orc.StringColumnStatistics;
+import org.apache.orc.TimestampColumnStatistics;
 import org.apache.orc.Writer;
 
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
@@ -75,47 +80,49 @@ public class OrcMetrics {
   }
 
   private static Optional<ByteBuffer> fromOrcMin(Types.NestedField column,
-                                                    OrcProto.ColumnStatistics columnStats) {
+                                                 ColumnStatistics columnStats) {
     ByteBuffer min = null;
-    if (columnStats.hasIntStatistics()) {
+    if (columnStats instanceof IntegerColumnStatistics) {
+      IntegerColumnStatistics intColStats = (IntegerColumnStatistics) columnStats;
       if (column.type().typeId() == Type.TypeID.INTEGER) {
-        min = toByteBuffer(column.type(), (int) columnStats.getIntStatistics().getMinimum());
+        min = toByteBuffer(column.type(), (int) intColStats.getMinimum());
       } else {
-        min = toByteBuffer(column.type(), columnStats.getIntStatistics().getMinimum());
+        min = toByteBuffer(column.type(), intColStats.getMinimum());
       }
-    } else if (columnStats.hasDoubleStatistics()) {
-      min = toByteBuffer(column.type(), columnStats.getDoubleStatistics().getMinimum());
-    } else if (columnStats.hasStringStatistics()) {
-      min = toByteBuffer(column.type(), columnStats.getStringStatistics().getMinimum());
-    } else if (columnStats.hasDecimalStatistics()) {
-      min = toByteBuffer(column.type(), columnStats.getDecimalStatistics().getMinimum());
-    } else if (columnStats.hasDateStatistics()) {
-      min = toByteBuffer(column.type(), columnStats.getDateStatistics().getMinimum());
-    } else if (columnStats.hasTimestampStatistics()) {
-      min = toByteBuffer(column.type(), columnStats.getTimestampStatistics().getMinimum());
+    } else if (columnStats instanceof DoubleColumnStatistics) {
+      min = toByteBuffer(column.type(), ((DoubleColumnStatistics) columnStats).getMinimum());
+    } else if (columnStats instanceof StringColumnStatistics) {
+      min = toByteBuffer(column.type(), ((StringColumnStatistics) columnStats).getMinimum());
+    } else if (columnStats instanceof DecimalColumnStatistics) {
+      min = toByteBuffer(column.type(), ((DecimalColumnStatistics) columnStats).getMinimum());
+    } else if (columnStats instanceof DateColumnStatistics) {
+      min = toByteBuffer(column.type(), ((DateColumnStatistics) columnStats).getMinimum());
+    } else if (columnStats instanceof TimestampColumnStatistics) {
+      min = toByteBuffer(column.type(), ((TimestampColumnStatistics) columnStats).getMinimum());
     }
     return Optional.ofNullable(min);
   }
 
   private static Optional<ByteBuffer> fromOrcMax(Types.NestedField column,
-                                                    OrcProto.ColumnStatistics columnStats) {
+                                                 ColumnStatistics columnStats) {
     ByteBuffer max = null;
-    if (columnStats.hasIntStatistics()) {
+    if (columnStats instanceof IntegerColumnStatistics) {
+      IntegerColumnStatistics intColStats = (IntegerColumnStatistics) columnStats;
       if (column.type().typeId() == Type.TypeID.INTEGER) {
-        max = toByteBuffer(column.type(), (int) columnStats.getIntStatistics().getMaximum());
+        max = toByteBuffer(column.type(), (int) intColStats.getMaximum());
       } else {
-        max = toByteBuffer(column.type(), columnStats.getIntStatistics().getMaximum());
+        max = toByteBuffer(column.type(), intColStats.getMaximum());
       }
-    } else if (columnStats.hasDoubleStatistics()) {
-      max = toByteBuffer(column.type(), columnStats.getDoubleStatistics().getMaximum());
-    } else if (columnStats.hasStringStatistics()) {
-      max = toByteBuffer(column.type(), columnStats.getStringStatistics().getMaximum());
-    } else if (columnStats.hasDecimalStatistics()) {
-      max = toByteBuffer(column.type(), columnStats.getDecimalStatistics().getMaximum());
-    } else if (columnStats.hasDateStatistics()) {
-      max = toByteBuffer(column.type(), columnStats.getDateStatistics().getMaximum());
-    } else if (columnStats.hasTimestampStatistics()) {
-      max = toByteBuffer(column.type(), columnStats.getTimestampStatistics().getMaximum());
+    } else if (columnStats instanceof DoubleColumnStatistics) {
+      max = toByteBuffer(column.type(), ((DoubleColumnStatistics) columnStats).getMaximum());
+    } else if (columnStats instanceof StringColumnStatistics) {
+      max = toByteBuffer(column.type(), ((StringColumnStatistics) columnStats).getMaximum());
+    } else if (columnStats instanceof DecimalColumnStatistics) {
+      max = toByteBuffer(column.type(), ((DecimalColumnStatistics) columnStats).getMaximum());
+    } else if (columnStats instanceof DateColumnStatistics) {
+      max = toByteBuffer(column.type(), ((DateColumnStatistics) columnStats).getMaximum());
+    } else if (columnStats instanceof TimestampColumnStatistics) {
+      max = toByteBuffer(column.type(), ((TimestampColumnStatistics) columnStats).getMaximum());
     }
     return Optional.ofNullable(max);
   }
