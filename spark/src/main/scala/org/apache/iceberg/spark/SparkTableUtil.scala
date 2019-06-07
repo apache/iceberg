@@ -32,6 +32,9 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.catalyst.catalog.CatalogTablePartition
 import scala.collection.JavaConverters._
 
+import org.apache.iceberg.hadoop.HadoopInputFile
+import org.apache.iceberg.orc.OrcMetrics
+
 object SparkTableUtil {
   /**
    * Returns a DataFrame with a row for each partition in the table.
@@ -259,17 +262,18 @@ object SparkTableUtil {
     val fs = partition.getFileSystem(conf)
 
     fs.listStatus(partition, HiddenPathFilter).filter(_.isFile).map { stat =>
-      // TODO: add ORC metrics
+      val metrics = OrcMetrics.fromInputFile(HadoopInputFile.fromPath(stat.getPath, conf))
+
       SparkDataFile(
         stat.getPath.toString,
         partitionPath, "orc", stat.getLen,
         stat.getBlockSize,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
+        metrics.recordCount,
+        mapToArray(metrics.columnSizes),
+        mapToArray(metrics.valueCounts),
+        mapToArray(metrics.nullValueCounts),
+        bytesMapToArray(metrics.lowerBounds()),
+        bytesMapToArray(metrics.upperBounds())
       )
     }
   }
