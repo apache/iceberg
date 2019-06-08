@@ -100,7 +100,7 @@ public class GenericRecord implements Record, StructLike {
   @Override
   public void setField(String name, Object value) {
     Integer pos = nameToPos.get(name);
-    Preconditions.checkNotNull(pos, "Cannot set unknown field named: %s", name);
+    Preconditions.checkArgument(pos != null, "Cannot set unknown field named: %s", name);
     values[pos] = value;
   }
 
