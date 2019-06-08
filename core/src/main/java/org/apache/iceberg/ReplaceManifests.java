@@ -133,6 +133,7 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
   }
 
   private void reset() {
+    cleanAll();
     existingManifests.clear();
     processedManifests.clear();
     newManifests.clear();
