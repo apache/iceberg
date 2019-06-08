@@ -32,6 +32,9 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.catalyst.catalog.CatalogTablePartition
 import scala.collection.JavaConverters._
 
+import org.apache.iceberg.hadoop.HadoopInputFile
+import org.apache.iceberg.orc.OrcMetrics
+
 object SparkTableUtil {
   /**
    * Returns a DataFrame with a row for each partition in the table.
@@ -73,6 +76,8 @@ object SparkTableUtil {
       listAvroPartition(partition, uri)
     } else if (format.contains("parquet")) {
       listParquetPartition(partition, uri)
+    } else if (format.contains("orc")) {
+      listOrcPartition(partition, uri)
     } else {
       throw new UnsupportedOperationException(s"Unknown partition format: $format")
     }
@@ -246,6 +251,30 @@ object SparkTableUtil {
         mapToArray(metrics.nullValueCounts),
         bytesMapToArray(metrics.lowerBounds),
         bytesMapToArray(metrics.upperBounds))
+    }
+  }
+
+  private def listOrcPartition(
+      partitionPath: Map[String, String],
+      partitionUri: String): Seq[SparkDataFile] = {
+    val conf = new Configuration()
+    val partition = new Path(partitionUri)
+    val fs = partition.getFileSystem(conf)
+
+    fs.listStatus(partition, HiddenPathFilter).filter(_.isFile).map { stat =>
+      val metrics = OrcMetrics.fromInputFile(HadoopInputFile.fromPath(stat.getPath, conf))
+
+      SparkDataFile(
+        stat.getPath.toString,
+        partitionPath, "orc", stat.getLen,
+        stat.getBlockSize,
+        metrics.recordCount,
+        mapToArray(metrics.columnSizes),
+        mapToArray(metrics.valueCounts),
+        mapToArray(metrics.nullValueCounts),
+        bytesMapToArray(metrics.lowerBounds()),
+        bytesMapToArray(metrics.upperBounds())
+      )
     }
   }
 }
