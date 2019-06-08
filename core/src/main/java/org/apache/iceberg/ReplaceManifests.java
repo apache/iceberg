@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -46,15 +47,23 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
   private final PartitionSpec spec;
   private final long manifestTargetSizeBytes;
 
-  private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
-  private final List<ManifestFile> existingManifests = Collections.synchronizedList(new ArrayList<>());
+  private final List<ManifestFile> keptManifests = Collections.synchronizedList(new ArrayList<>());
   private final List<ManifestFile> newManifests = Collections.synchronizedList(new ArrayList<>());
-  private final Set<ManifestFile> processedManifests = Collections.synchronizedSet(new HashSet<>());
+  private final Set<ManifestFile> replacedManifests = Collections.synchronizedSet(new HashSet<>());
   private final Map<Object, WriterWrapper> writers = Collections.synchronizedMap(new HashMap<>());
+
   private final AtomicInteger manifestCount = new AtomicInteger(0);
+  private final AtomicLong entryCount = new AtomicLong(0);
+
+  private final Map<String, String> summaryProps = new HashMap<>();
 
   private Function<DataFile, Object> clusterByFunc;
   private Predicate<ManifestFile> predicate;
+
+  private static final String REPLACED_CNT = "manifests-replaced";
+  private static final String KEPT_CNT = "manifests-kept";
+  private static final String NEW_CNT = "manifests-created";
+  private static final String ENTRY_CNT = "entries-processed";
 
   ReplaceManifests(TableOperations ops) {
     super(ops);
@@ -71,13 +80,19 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
 
   @Override
   public RewriteManifests set(String property, String value) {
-    summaryBuilder.set(property, value);
+    summaryProps.put(property, value);
     return this;
   }
 
   @Override
   protected Map<String, String> summary() {
-    return summaryBuilder.build();
+    Map<String, String> result = new HashMap<>();
+    result.putAll(summaryProps);
+    result.put(KEPT_CNT, Integer.toString(keptManifests.size()));
+    result.put(NEW_CNT, Integer.toString(newManifests.size()));
+    result.put(REPLACED_CNT, Integer.toString(replacedManifests.size()));
+    result.put(ENTRY_CNT, Long.toString(entryCount.get()));
+    return result;
   }
 
   @Override
@@ -109,36 +124,37 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
     // put new manifests at the beginning
     List<ManifestFile> apply = new ArrayList<>();
     apply.addAll(newManifests);
-    apply.addAll(existingManifests);
+    apply.addAll(keptManifests);
 
     return apply;
   }
 
   private boolean requiresRewrite(List<ManifestFile> currentManifests) {
-    if (processedManifests.size() == 0) {
+    if (replacedManifests.size() == 0) {
       // nothing yet processed so perform a full rewrite
       return true;
     }
     // if any processed manifest is not in the current manifest list, perform a full rewrite
     Set<ManifestFile> set = Sets.newHashSet(currentManifests);
-    return processedManifests.stream().anyMatch(manifest -> !set.contains(manifest));
+    return replacedManifests.stream().anyMatch(manifest -> !set.contains(manifest));
   }
 
   private void addExistingFromNewCommit(List<ManifestFile> currentManifests) {
     // keep any existing manifests as-is that were not processed
-    existingManifests.clear();
+    keptManifests.clear();
     currentManifests.stream()
-      .filter(manifest -> !processedManifests.contains(manifest))
-      .forEach(manifest -> existingManifests.add(manifest));
+      .filter(manifest -> !replacedManifests.contains(manifest))
+      .forEach(manifest -> keptManifests.add(manifest));
   }
 
   private void reset() {
     cleanAll();
-    existingManifests.clear();
-    processedManifests.clear();
+    entryCount.set(0);
+    manifestCount.set(0);
+    keptManifests.clear();
+    replacedManifests.clear();
     newManifests.clear();
     writers.clear();
-    summaryBuilder.clear();
   }
 
   private void performRewrite(List<ManifestFile> currentManifests) {
@@ -149,9 +165,9 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
           .executeWith(ThreadPools.getWorkerPool())
           .run(manifest -> {
             if (predicate != null && !predicate.test(manifest)) {
-              existingManifests.add(manifest);
+              keptManifests.add(manifest);
             } else {
-              processedManifests.add(manifest);
+              replacedManifests.add(manifest);
               long entryNum = manifest.addedFilesCount() + manifest.existingFilesCount() + manifest.deletedFilesCount();
               long avgEntryLen = manifest.length() / entryNum;
 
@@ -178,6 +194,7 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
 
     WriterWrapper writer = getWriter(key);
     writer.addEntry(entry, avgEntryLen);
+    entryCount.incrementAndGet();
   }
 
   private WriterWrapper getWriter(Object key) {
