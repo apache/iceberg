@@ -89,7 +89,7 @@ public class TypeConversion {
       }
       case STRUCT: {
         result = TypeDescription.createStruct();
-        for(Types.NestedField field: type.asStructType().fields()) {
+        for (Types.NestedField field : type.asStructType().fields()) {
           result.addField(field.name(), toOrc(field.fieldId(), field.type(), columnIds));
         }
         break;
@@ -102,7 +102,7 @@ public class TypeConversion {
       }
       case MAP: {
         Types.MapType map = (Types.MapType) type;
-        TypeDescription key = toOrc(map.keyId(),map.keyType(), columnIds);
+        TypeDescription key = toOrc(map.keyId(), map.keyType(), columnIds);
         result = TypeDescription.createMap(key,
             toOrc(map.valueId(), map.valueType(), columnIds));
         break;
@@ -156,7 +156,7 @@ public class TypeConversion {
         List<String> fieldNames = schema.getFieldNames();
         List<TypeDescription> fieldTypes = schema.getChildren();
         List<Types.NestedField> fields = new ArrayList<>(fieldNames.size());
-        for (int c=0; c < fieldNames.size(); ++c) {
+        for (int c = 0; c < fieldNames.size(); ++c) {
           String name = fieldNames.get(c);
           TypeDescription type = fieldTypes.get(c);
           fields.add(Types.NestedField.optional(columnIds.get(type), name,

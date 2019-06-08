@@ -29,7 +29,7 @@ import org.apache.orc.TypeDescription;
 
 /**
  * The mapping from ORC's TypeDescription to the Iceberg column ids.
- *
+ * <p>
  * Keep the API limited to Map rather than a concrete type so that we can
  * change it later.
  */
@@ -101,7 +101,7 @@ public class ColumnIdMap implements Map<TypeDescription, Integer> {
   public ByteBuffer serialize() {
     StringBuilder buffer = new StringBuilder();
     boolean needComma = false;
-    for(TypeDescription key: idMap.keySet()) {
+    for (TypeDescription key : idMap.keySet()) {
       if (needComma) {
         buffer.append(',');
       } else {
@@ -118,7 +118,7 @@ public class ColumnIdMap implements Map<TypeDescription, Integer> {
                                         ByteBuffer serial) {
     ColumnIdMap result = new ColumnIdMap();
     String[] parts = StandardCharsets.UTF_8.decode(serial).toString().split(",");
-    for(int i = 0; i < parts.length; ++i) {
+    for (int i = 0; i < parts.length; ++i) {
       String[] subparts = parts[i].split(":");
       result.put(schema.findSubtype(Integer.parseInt(subparts[0])),
           Integer.parseInt(subparts[1]));

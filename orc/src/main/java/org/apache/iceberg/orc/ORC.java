@@ -33,14 +33,13 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.orc.OrcConf;
-import org.apache.orc.OrcFile;
 import org.apache.orc.TypeDescription;
+import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
-import static org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch.DEFAULT_SIZE;
-
+@SuppressWarnings("checkstyle:AbbreviationAsWordInName")
 public class ORC {
 
-  static final String VECTOR_ROW_BATCH_SIZE = "iceberg.orc.vectorbatch.size";
+  private static final String VECTOR_ROW_BATCH_SIZE = "iceberg.orc.vectorbatch.size";
 
   private ORC() {
   }
@@ -85,8 +84,8 @@ public class ORC {
       return this;
     }
 
-    public WriteBuilder schema(Schema schema) {
-      this.schema = schema;
+    public WriteBuilder schema(Schema newSchema) {
+      this.schema = newSchema;
       return this;
     }
 
@@ -94,7 +93,7 @@ public class ORC {
       Preconditions.checkNotNull(schema, "Schema is required");
       return new OrcFileAppender<>(TypeConversion.toOrc(schema, new ColumnIdMap()),
           this.file, createWriterFunc, conf, metadata,
-          conf.getInt(VECTOR_ROW_BATCH_SIZE, DEFAULT_SIZE));
+          conf.getInt(VECTOR_ROW_BATCH_SIZE, VectorizedRowBatch.DEFAULT_SIZE));
     }
   }
 
@@ -109,7 +108,7 @@ public class ORC {
     private Long start = null;
     private Long length = null;
 
-    private Function<Schema, OrcValueReader<?>> readerFunction;
+    private Function<Schema, OrcValueReader<?>> readerFunc;
 
     private ReadBuilder(InputFile file) {
       Preconditions.checkNotNull(file, "Input file cannot be null");
@@ -124,18 +123,18 @@ public class ORC {
     /**
      * Restricts the read to the given range: [start, start + length).
      *
-     * @param start the start position for this read
-     * @param length the length of the range this read should scan
+     * @param newStart the start position for this read
+     * @param newLength the length of the range this read should scan
      * @return this builder for method chaining
      */
-    public ReadBuilder split(long start, long length) {
-      this.start = start;
-      this.length = length;
+    public ReadBuilder split(long newStart, long newLength) {
+      this.start = newStart;
+      this.length = newLength;
       return this;
     }
 
-    public ReadBuilder schema(org.apache.iceberg.Schema schema) {
-      this.schema = schema;
+    public ReadBuilder schema(org.apache.iceberg.Schema projectedSchema) {
+      this.schema = projectedSchema;
       return this;
     }
 
@@ -150,13 +149,13 @@ public class ORC {
     }
 
     public ReadBuilder createReaderFunc(Function<Schema, OrcValueReader<?>> readerFunction) {
-      this.readerFunction = readerFunction;
+      this.readerFunc = readerFunction;
       return this;
     }
 
     public <D> CloseableIterable<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
-      return new OrcIterable<>(file, conf, schema, start, length, readerFunction);
+      return new OrcIterable<>(file, conf, schema, start, length, readerFunc);
     }
   }
 }

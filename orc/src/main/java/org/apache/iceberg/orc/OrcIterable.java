@@ -96,8 +96,8 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
     private int nextRow;
     private VectorizedRowBatch current;
 
-    final VectorizedRowBatchIterator batchIter;
-    final OrcValueReader<T> reader;
+    private final VectorizedRowBatchIterator batchIter;
+    private final OrcValueReader<T> reader;
 
     OrcIterator(VectorizedRowBatchIterator batchIter, OrcValueReader<T> reader) {
       this.batchIter = batchIter;
