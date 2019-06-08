@@ -137,6 +137,14 @@ public interface Table {
   RewriteFiles newRewrite();
 
   /**
+   * Create a new {@link RewriteManifests rewrite manifests API} to replace manifests for this
+   * table and commit.
+   *
+   * @return a new {@link RewriteManifests}
+   */
+  RewriteManifests rewriteManifests();
+
+  /**
    * Create a new {@link OverwriteFiles overwrite API} to overwrite files by a filter expression.
    *
    * @return a new {@link OverwriteFiles}

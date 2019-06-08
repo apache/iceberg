@@ -114,6 +114,11 @@ public class BaseTable implements Table, HasTableOperations {
   }
 
   @Override
+  public RewriteManifests rewriteManifests() {
+    return new ReplaceManifests(ops);
+  }
+
+  @Override
   public OverwriteFiles newOverwrite() {
     return new OverwriteData(ops);
   }
