@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Metrics;
+import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
@@ -68,29 +69,29 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private final MessageType parquetSchema;
   private final ParquetValueWriter<T> model;
   private final ParquetFileWriter writer;
+  private final MetricsConfig metricsConfig;
 
   private DynMethods.BoundMethod flushPageStoreToWriter;
   private ColumnWriteStore writeStore;
   private long nextRowGroupSize = 0;
   private long recordCount = 0;
   private long nextCheckRecordCount = 10;
-  private int statsTruncateLength;
 
   @SuppressWarnings("unchecked")
   ParquetWriter(Configuration conf, OutputFile output, Schema schema, long rowGroupSize,
-                int statsTruncateLength,
                 Map<String, String> metadata,
                 Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
                 CompressionCodecName codec,
-                ParquetProperties properties) {
+                ParquetProperties properties,
+                MetricsConfig metricsConfig) {
     this.output = output;
     this.targetRowGroupSize = rowGroupSize;
     this.props = properties;
-    this.statsTruncateLength = statsTruncateLength;
     this.metadata = ImmutableMap.copyOf(metadata);
     this.compressor = new CodecFactory(conf, props.getPageSizeThreshold()).getCompressor(codec);
     this.parquetSchema = convert(schema, "table");
     this.model = (ParquetValueWriter<T>) createWriterFunc.apply(parquetSchema);
+    this.metricsConfig = metricsConfig;
 
     try {
       this.writer = new ParquetFileWriter(ParquetIO.file(output, conf), parquetSchema,
@@ -118,7 +119,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   @Override
   public Metrics metrics() {
-    return ParquetUtil.footerMetrics(writer.getFooter(), statsTruncateLength);
+    return ParquetUtil.footerMetrics(writer.getFooter(), metricsConfig);
   }
 
   @Override
