@@ -36,4 +36,15 @@ public interface AppendFiles extends SnapshotUpdate<AppendFiles> {
    * @return this for method chaining
    */
   AppendFiles appendFile(DataFile file);
+
+  /**
+   * Append the contents of a manifest to the table.
+   * <p>
+   * The manifest must contain only appended files. All files in the manifest will be appended to
+   * the table in the snapshot created by this update.
+   *
+   * @param file a manifest file
+   * @return this for method chaining
+   */
+  AppendFiles appendManifest(ManifestFile file);
 }
