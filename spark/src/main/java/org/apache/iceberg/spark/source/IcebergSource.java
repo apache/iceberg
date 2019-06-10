@@ -61,7 +61,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
     String caseSensitive = lazySparkSession().conf().get("spark.sql.caseSensitive", "true");
 
-    return new Reader(table, Boolean.valueOf(caseSensitive));
+    return new Reader(table, Boolean.valueOf(caseSensitive), options);
   }
 
   @Override

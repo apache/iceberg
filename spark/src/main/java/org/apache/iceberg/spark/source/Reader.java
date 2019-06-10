@@ -68,6 +68,7 @@ import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.expressions.JoinedRow;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
 import org.apache.spark.sql.sources.Filter;
+import org.apache.spark.sql.sources.v2.DataSourceOptions;
 import org.apache.spark.sql.sources.v2.reader.DataSourceReader;
 import org.apache.spark.sql.sources.v2.reader.InputPartition;
 import org.apache.spark.sql.sources.v2.reader.InputPartitionReader;
@@ -99,6 +100,8 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
   private static final Filter[] NO_FILTERS = new Filter[0];
 
   private final Table table;
+  private final Long snapshotId;
+  private final Long asOfTimestamp;
   private final FileIO fileIo;
   private final EncryptionManager encryptionManager;
   private final boolean caseSensitive;
@@ -111,8 +114,14 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
   private StructType type = null; // cached because Spark accesses it multiple times
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
 
-  Reader(Table table, boolean caseSensitive) {
+  Reader(Table table, boolean caseSensitive, DataSourceOptions options) {
     this.table = table;
+    this.snapshotId = options.get("snapshot-id").map(Long::parseLong).orElse(null);
+    this.asOfTimestamp = options.get("as-of-timestamp").map(Long::parseLong).orElse(null);
+    if (snapshotId != null && asOfTimestamp != null) {
+      throw new IllegalArgumentException(
+          "Cannot scan using both snapshot-id and as-of-timestamp to select the table snapshot");
+    }
     this.schema = table.schema();
     this.fileIo = table.io();
     this.encryptionManager = table.encryption();
@@ -218,6 +227,14 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
           .newScan()
           .caseSensitive(caseSensitive)
           .project(lazySchema());
+
+      if (snapshotId != null) {
+        scan = scan.useSnapshot(snapshotId);
+      }
+
+      if (asOfTimestamp != null) {
+        scan = scan.asOfTime(asOfTimestamp);
+      }
 
       if (filterExpressions != null) {
         for (Expression filter : filterExpressions) {
