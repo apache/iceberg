@@ -23,7 +23,7 @@ import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.util.List;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.orc.ColumnIdMap;
+import org.apache.iceberg.orc.ColumnMap;
 import org.apache.iceberg.orc.OrcValueReader;
 import org.apache.iceberg.orc.TypeConversion;
 import org.apache.orc.TypeDescription;
@@ -62,7 +62,7 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
   private final Converter[] converters;
 
   public SparkOrcReader(Schema readSchema) {
-    this.readSchema = TypeConversion.toOrc(readSchema, new ColumnIdMap());
+    this.readSchema = TypeConversion.toOrc(readSchema, new ColumnMap());
     numFields = readSchema.columns().size();
     converters = buildConverters();
   }

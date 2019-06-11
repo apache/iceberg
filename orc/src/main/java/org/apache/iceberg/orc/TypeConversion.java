@@ -26,7 +26,9 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
 
-public class TypeConversion {
+public final class TypeConversion {
+
+  private TypeConversion() {}
 
   /**
    * Convert a given Iceberg schema to ORC.
@@ -35,19 +37,21 @@ public class TypeConversion {
    * @return the ORC schema
    */
   public static TypeDescription toOrc(Schema schema,
-                                      ColumnIdMap columnIds) {
-    return toOrc(null, schema.asStruct(), columnIds);
+                                      ColumnMap columnIds) {
+    return toOrc(null, schema.asStruct(), false, columnIds);
   }
 
-  static TypeDescription toOrc(Integer fieldId,
+  private static TypeDescription toOrc(Integer fieldId,
                                Type type,
-                               ColumnIdMap columnIds) {
+                               boolean isRequired,
+                               ColumnMap columnIds) {
     TypeDescription result;
     switch (type.typeId()) {
       case BOOLEAN:
         result = TypeDescription.createBoolean();
         break;
       case INTEGER:
+      case TIME:
         result = TypeDescription.createInt();
         break;
       case LONG:
@@ -62,9 +66,6 @@ public class TypeConversion {
       case DATE:
         result = TypeDescription.createDate();
         break;
-      case TIME:
-        result = TypeDescription.createInt();
-        break;
       case TIMESTAMP:
         result = TypeDescription.createTimestamp();
         break;
@@ -72,11 +73,7 @@ public class TypeConversion {
         result = TypeDescription.createString();
         break;
       case UUID:
-        result = TypeDescription.createBinary();
-        break;
       case FIXED:
-        result = TypeDescription.createBinary();
-        break;
       case BINARY:
         result = TypeDescription.createBinary();
         break;
@@ -90,28 +87,29 @@ public class TypeConversion {
       case STRUCT: {
         result = TypeDescription.createStruct();
         for (Types.NestedField field : type.asStructType().fields()) {
-          result.addField(field.name(), toOrc(field.fieldId(), field.type(), columnIds));
+          result.addField(field.name(),
+              toOrc(field.fieldId(), field.type(), field.isRequired(), columnIds));
         }
         break;
       }
       case LIST: {
         Types.ListType list = (Types.ListType) type;
-        result = TypeDescription.createList(toOrc(list.elementId(), list.elementType(),
-            columnIds));
+        result = TypeDescription.createList(
+            toOrc(list.elementId(), list.elementType(), list.isElementRequired(), columnIds));
         break;
       }
       case MAP: {
         Types.MapType map = (Types.MapType) type;
-        TypeDescription key = toOrc(map.keyId(), map.keyType(), columnIds);
+        TypeDescription key = toOrc(map.keyId(), map.keyType(), true, columnIds);
         result = TypeDescription.createMap(key,
-            toOrc(map.valueId(), map.valueType(), columnIds));
+            toOrc(map.valueId(), map.valueType(), map.isValueRequired(), columnIds));
         break;
       }
       default:
         throw new IllegalArgumentException("Unhandled type " + type.typeId());
     }
     if (fieldId != null) {
-      columnIds.put(result, fieldId);
+      columnIds.put(result, ColumnMap.newIcebergColumn(fieldId, isRequired));
     }
     return result;
   }
@@ -122,11 +120,11 @@ public class TypeConversion {
    * @param columnIds the column ids
    * @return the Iceberg schema
    */
-  public Schema fromOrc(TypeDescription schema, ColumnIdMap columnIds) {
+  public static Schema fromOrc(TypeDescription schema, ColumnMap columnIds) {
     return new Schema(convertOrcToType(schema, columnIds).asStructType().fields());
   }
 
-  Type convertOrcToType(TypeDescription schema, ColumnIdMap columnIds) {
+  private static Type convertOrcToType(TypeDescription schema, ColumnMap columnIds) {
     switch (schema.getCategory()) {
       case BOOLEAN:
         return Types.BooleanType.get();
@@ -159,21 +157,45 @@ public class TypeConversion {
         for (int c = 0; c < fieldNames.size(); ++c) {
           String name = fieldNames.get(c);
           TypeDescription type = fieldTypes.get(c);
-          fields.add(Types.NestedField.optional(columnIds.get(type), name,
-              convertOrcToType(type, columnIds)));
+          ColumnMap.IcebergColumn col = columnIds.get(type);
+          final Types.NestedField field;
+          if (col != null) {
+            field = col.isRequired() ?
+                Types.NestedField.required(col.getId(), name, convertOrcToType(type, columnIds)) :
+                Types.NestedField.optional(col.getId(), name, convertOrcToType(type, columnIds));
+          } else {
+            field = Types.NestedField.optional(type.getId(), name, convertOrcToType(type, columnIds));
+          }
+          fields.add(field);
         }
         return Types.StructType.of(fields);
       }
       case LIST: {
         TypeDescription child = schema.getChildren().get(0);
-        return Types.ListType.ofOptional(columnIds.get(child),
-            convertOrcToType(child, columnIds));
+        ColumnMap.IcebergColumn col = columnIds.get(child);
+        if (col != null) {
+          return col.isRequired() ?
+              Types.ListType.ofRequired(col.getId(), convertOrcToType(child, columnIds)) :
+              Types.ListType.ofOptional(col.getId(), convertOrcToType(child, columnIds));
+        } else {
+          return Types.ListType.ofOptional(child.getId(), convertOrcToType(child, columnIds));
+        }
       }
       case MAP: {
         TypeDescription key = schema.getChildren().get(0);
         TypeDescription value = schema.getChildren().get(1);
-        return Types.MapType.ofOptional(columnIds.get(key), columnIds.get(value),
-            convertOrcToType(key, columnIds), convertOrcToType(value, columnIds));
+        ColumnMap.IcebergColumn keyCol = columnIds.get(key);
+        ColumnMap.IcebergColumn valueCol = columnIds.get(value);
+        if (keyCol != null && valueCol != null) {
+          return valueCol.isRequired() ?
+              Types.MapType.ofRequired(keyCol.getId(), valueCol.getId(),
+                convertOrcToType(key, columnIds), convertOrcToType(value, columnIds)) :
+              Types.MapType.ofOptional(keyCol.getId(), valueCol.getId(),
+                convertOrcToType(key, columnIds), convertOrcToType(value, columnIds));
+        } else {
+          return Types.MapType.ofOptional(key.getId(), value.getId(),
+              convertOrcToType(key, columnIds), convertOrcToType(value, columnIds));
+        }
       }
       default:
         // We don't have an answer for union types.

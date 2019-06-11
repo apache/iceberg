@@ -59,8 +59,14 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   @SuppressWarnings("unchecked")
   @Override
   public Iterator<T> iterator() {
+    final Reader orcFileReader = newFileReader(file, config);
+    final TypeDescription orcSchema = TypeConversion.toOrc(schema, new ColumnMap());
+    final ColumnMap colMapping = orcFileReader.hasMetadataValue(ORC.COLUMN_NUMBERS_ATTRIBUTE) ?
+        ColumnMap.deserialize(orcSchema,
+            orcFileReader.getMetadataValue(ORC.COLUMN_NUMBERS_ATTRIBUTE)) : new ColumnMap();
+
     return new OrcIterator(
-        newOrcIterator(file, TypeConversion.toOrc(schema, new ColumnIdMap()),
+        newOrcIterator(file, TypeConversion.toOrc(schema, colMapping),
             start, length, newFileReader(file, config)),
         readerFunction.apply(schema));
   }

@@ -19,12 +19,14 @@
 
 package org.apache.iceberg.orc;
 
+import com.google.common.base.Objects;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.orc.TypeDescription;
 
 /**
@@ -33,10 +35,47 @@ import org.apache.orc.TypeDescription;
  * Keep the API limited to Map rather than a concrete type so that we can
  * change it later.
  */
-public class ColumnIdMap implements Map<TypeDescription, Integer> {
+public final class ColumnMap implements Map<TypeDescription, ColumnMap.IcebergColumn> {
 
-  private final IdentityHashMap<TypeDescription, Integer> idMap =
+  private final IdentityHashMap<TypeDescription, ColumnMap.IcebergColumn> idMap =
       new IdentityHashMap<>();
+
+  static class IcebergColumn {
+
+    private final int id;
+    private final boolean required;
+
+    private IcebergColumn(int id, boolean isRequired) {
+      this.id = id;
+      this.required = isRequired;
+    }
+
+    public boolean isRequired() {
+      return required;
+    }
+
+    public int getId() {
+      return id;
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hashCode(this.id, this.required);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+      if (obj == this) {
+        return true;
+      }
+      if (obj instanceof IcebergColumn) {
+        IcebergColumn other = (IcebergColumn) obj;
+        return Objects.equal(this.id, other.getId()) &&
+            Objects.equal(this.isRequired(), other.isRequired());
+      }
+      return false;
+    }
+  }
 
   @Override
   public int size() {
@@ -59,22 +98,22 @@ public class ColumnIdMap implements Map<TypeDescription, Integer> {
   }
 
   @Override
-  public Integer get(Object key) {
+  public ColumnMap.IcebergColumn get(Object key) {
     return idMap.get(key);
   }
 
   @Override
-  public Integer put(TypeDescription key, Integer value) {
+  public ColumnMap.IcebergColumn put(TypeDescription key, ColumnMap.IcebergColumn value) {
     return idMap.put(key, value);
   }
 
   @Override
-  public Integer remove(Object key) {
+  public ColumnMap.IcebergColumn remove(Object key) {
     return idMap.remove(key);
   }
 
   @Override
-  public void putAll(Map<? extends TypeDescription, ? extends Integer> map) {
+  public void putAll(Map<? extends TypeDescription, ? extends ColumnMap.IcebergColumn> map) {
     idMap.putAll(map);
   }
 
@@ -89,16 +128,22 @@ public class ColumnIdMap implements Map<TypeDescription, Integer> {
   }
 
   @Override
-  public Collection<Integer> values() {
+  public Collection<ColumnMap.IcebergColumn> values() {
     return idMap.values();
   }
 
   @Override
-  public Set<Entry<TypeDescription, Integer>> entrySet() {
+  public Set<Entry<TypeDescription, ColumnMap.IcebergColumn>> entrySet() {
     return idMap.entrySet();
   }
 
-  public ByteBuffer serialize() {
+  public Map<ColumnMap.IcebergColumn, TypeDescription> inverse() {
+    return idMap.entrySet()
+        .stream()
+        .collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey));
+  }
+
+  ByteBuffer serialize() {
     StringBuilder buffer = new StringBuilder();
     boolean needComma = false;
     for (TypeDescription key : idMap.keySet()) {
@@ -109,20 +154,27 @@ public class ColumnIdMap implements Map<TypeDescription, Integer> {
       }
       buffer.append(key.getId());
       buffer.append(':');
-      buffer.append(idMap.get(key).intValue());
+      buffer.append(idMap.get(key).getId());
+      buffer.append(':');
+      buffer.append(idMap.get(key).isRequired());
     }
     return ByteBuffer.wrap(buffer.toString().getBytes(StandardCharsets.UTF_8));
   }
 
-  public static ColumnIdMap deserialize(TypeDescription schema,
-                                        ByteBuffer serial) {
-    ColumnIdMap result = new ColumnIdMap();
+  static ColumnMap deserialize(TypeDescription schema,
+                                      ByteBuffer serial) {
+    ColumnMap result = new ColumnMap();
     String[] parts = StandardCharsets.UTF_8.decode(serial).toString().split(",");
     for (int i = 0; i < parts.length; ++i) {
       String[] subparts = parts[i].split(":");
+      boolean isRequired = (subparts.length == 3) && Boolean.parseBoolean(subparts[2]);
       result.put(schema.findSubtype(Integer.parseInt(subparts[0])),
-          Integer.parseInt(subparts[1]));
+          new IcebergColumn(Integer.parseInt(subparts[1]), isRequired));
     }
     return result;
+  }
+
+  static IcebergColumn newIcebergColumn(int id, boolean isRequired) {
+    return new IcebergColumn(id, isRequired);
   }
 }

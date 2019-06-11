@@ -40,6 +40,7 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 public class ORC {
 
   private static final String VECTOR_ROW_BATCH_SIZE = "iceberg.orc.vectorbatch.size";
+  static final String COLUMN_NUMBERS_ATTRIBUTE = "iceberg.column.ids";
 
   private ORC() {
   }
@@ -100,7 +101,7 @@ public class ORC {
 
     public <D> FileAppender<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
-      return new OrcFileAppender<>(TypeConversion.toOrc(schema, new ColumnIdMap()),
+      return new OrcFileAppender<>(schema,
           this.file, createWriterFunc, conf, metadata,
           conf.getInt(VECTOR_ROW_BATCH_SIZE, VectorizedRowBatch.DEFAULT_SIZE));
     }
