@@ -209,7 +209,7 @@ public class Projections {
       Collection<PartitionField> parts = spec().getFieldsBySourceId(pred.ref().fieldId());
       if (parts == null) {
         // the predicate has no partition column
-        return alwaysTrue();
+        return Expressions.alwaysTrue();
       }
 
       Expression result = Expressions.alwaysTrue();
@@ -226,12 +226,7 @@ public class Projections {
             ((Transform<T, ?>) part.transform()).project(part.name(), pred));
       }
 
-      if (result != null) {
-        return result;
-      }
-
-      // if the predicate could not be projected, it always matches
-      return alwaysTrue();
+      return result;
     }
   }
 
@@ -246,7 +241,7 @@ public class Projections {
       Collection<PartitionField> parts = spec().getFieldsBySourceId(pred.ref().fieldId());
       if (parts == null) {
         // the predicate has no partition column
-        return alwaysFalse();
+        return Expressions.alwaysFalse();
       }
 
       Expression result = Expressions.alwaysFalse();
@@ -261,12 +256,7 @@ public class Projections {
             ((Transform<T, ?>) part.transform()).projectStrict(part.name(), pred));
       }
 
-      if (result != null) {
-        return result;
-      }
-
-      // if the predicate could not be projected, it never matches
-      return alwaysFalse();
+      return result;
     }
   }
 }
