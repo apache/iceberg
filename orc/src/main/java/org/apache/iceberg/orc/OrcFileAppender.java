@@ -171,8 +171,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
 
   @SuppressWarnings("unchecked")
   private static <D> OrcValueWriter<D> newOrcValueWriter(
-      TypeDescription schema,
-      Function<TypeDescription, OrcValueWriter<?>> createWriterFunc) {
+      TypeDescription schema, Function<TypeDescription, OrcValueWriter<?>> createWriterFunc) {
     return (OrcValueWriter<D>) createWriterFunc.apply(schema);
   }
 }
