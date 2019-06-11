@@ -218,9 +218,9 @@ public class Projections {
         // projections: b1 = bucket(7, '2019-01-01') = 5, b2 = bucket(5, '2019-01-01') = 0
         // any value where b1 != 5 or any value where b2 != 0 cannot be the '2019-01-01'
         //
-        // similarly, if partitioning by date(ts) and date_hour(ts), the more restrictive
-        // projection should be used. ts = 2019-01-01T01:00:00 produces date=2019-01-01 and
-        // hour=2019-01-01-01. the value can will be in 2019-01-01-01 and not in 2019-01-01-02.
+        // similarly, if partitioning by day(ts) and hour(ts), the more restrictive
+        // projection should be used. ts = 2019-01-01T01:00:00 produces day=2019-01-01 and
+        // hour=2019-01-01-01. the value will be in 2019-01-01-01 and not in 2019-01-01-02.
         result = Expressions.and(
             result,
             ((Transform<T, ?>) part.transform()).project(part.name(), pred));
@@ -251,7 +251,7 @@ public class Projections {
 
       Expression result = Expressions.alwaysFalse();
       for (PartitionField part : parts) {
-        // consider (ts > 2019-01-01T01:00:00) with date(ts) and hour(ts)
+        // consider (ts > 2019-01-01T01:00:00) with day(ts) and hour(ts)
         // projections: d >= 2019-01-02 and h >= 2019-01-01-02 (note the inclusive bounds).
         // any timestamp where either projection predicate is true must match the original
         // predicate. For example, ts = 2019-01-01T03:00:00 matches the hour projection but not

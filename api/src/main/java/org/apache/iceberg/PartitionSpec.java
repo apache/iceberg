@@ -329,7 +329,7 @@ public class PartitionSpec implements Serializable {
 
     private Types.NestedField findSourceColumn(String sourceName) {
       Types.NestedField sourceColumn = schema.findField(sourceName);
-      Preconditions.checkNotNull(sourceColumn, "Cannot find source column: %s", sourceName);
+      Preconditions.checkArgument(sourceColumn != null, "Cannot find source column: %s", sourceName);
       return sourceColumn;
     }
 
