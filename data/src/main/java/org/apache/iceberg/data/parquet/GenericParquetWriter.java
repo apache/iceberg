@@ -32,6 +32,7 @@ import java.util.List;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.parquet.ParquetTypeVisitor;
 import org.apache.iceberg.parquet.ParquetValueWriter;
+import org.apache.iceberg.parquet.ParquetValueWriters;
 import org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
 import org.apache.parquet.column.ColumnDescriptor;
@@ -41,16 +42,6 @@ import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
-
-import static org.apache.iceberg.parquet.ParquetValueWriters.byteBuffers;
-import static org.apache.iceberg.parquet.ParquetValueWriters.collections;
-import static org.apache.iceberg.parquet.ParquetValueWriters.decimalAsFixed;
-import static org.apache.iceberg.parquet.ParquetValueWriters.decimalAsInteger;
-import static org.apache.iceberg.parquet.ParquetValueWriters.decimalAsLong;
-import static org.apache.iceberg.parquet.ParquetValueWriters.maps;
-import static org.apache.iceberg.parquet.ParquetValueWriters.option;
-import static org.apache.iceberg.parquet.ParquetValueWriters.strings;
-import static org.apache.iceberg.parquet.ParquetValueWriters.unboxed;
 
 public class GenericParquetWriter {
   private GenericParquetWriter() {
@@ -82,7 +73,7 @@ public class GenericParquetWriter {
       for (int i = 0; i < fields.size(); i += 1) {
         Type fieldType = struct.getType(i);
         int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName()));
-        writers.add(option(fieldType, fieldD, fieldWriters.get(i)));
+        writers.add(ParquetValueWriters.option(fieldType, fieldD, fieldWriters.get(i)));
       }
 
       return new RecordWriter(writers);
@@ -99,7 +90,8 @@ public class GenericParquetWriter {
       org.apache.parquet.schema.Type elementType = repeated.getType(0);
       int elementD = type.getMaxDefinitionLevel(path(elementType.getName()));
 
-      return collections(repeatedD, repeatedR, option(elementType, elementD, elementWriter));
+      return ParquetValueWriters.collections(repeatedD, repeatedR,
+          ParquetValueWriters.option(elementType, elementD, elementWriter));
     }
 
     @Override
@@ -117,8 +109,9 @@ public class GenericParquetWriter {
       org.apache.parquet.schema.Type valueType = repeatedKeyValue.getType(1);
       int valueD = type.getMaxDefinitionLevel(path(valueType.getName()));
 
-      return maps(repeatedD, repeatedR,
-          option(keyType, keyD, keyWriter), option(valueType, valueD, valueWriter));
+      return ParquetValueWriters.maps(repeatedD, repeatedR,
+          ParquetValueWriters.option(keyType, keyD, keyWriter),
+          ParquetValueWriters.option(valueType, valueD, valueWriter));
     }
 
     @Override
@@ -130,12 +123,12 @@ public class GenericParquetWriter {
           case ENUM:
           case JSON:
           case UTF8:
-            return strings(desc);
+            return ParquetValueWriters.strings(desc);
           case INT_8:
           case INT_16:
           case INT_32:
           case INT_64:
-            return unboxed(desc);
+            return ParquetValueWriters.unboxed(desc);
           case DATE:
             return new DateWriter(desc);
           case TIME_MICROS:
@@ -146,18 +139,18 @@ public class GenericParquetWriter {
             DecimalMetadata decimal = primitive.getDecimalMetadata();
             switch (primitive.getPrimitiveTypeName()) {
               case INT32:
-                return decimalAsInteger(desc, decimal.getPrecision(), decimal.getScale());
+                return ParquetValueWriters.decimalAsInteger(desc, decimal.getPrecision(), decimal.getScale());
               case INT64:
-                return decimalAsLong(desc, decimal.getPrecision(), decimal.getScale());
+                return ParquetValueWriters.decimalAsLong(desc, decimal.getPrecision(), decimal.getScale());
               case BINARY:
               case FIXED_LEN_BYTE_ARRAY:
-                return decimalAsFixed(desc, decimal.getPrecision(), decimal.getScale());
+                return ParquetValueWriters.decimalAsFixed(desc, decimal.getPrecision(), decimal.getScale());
               default:
                 throw new UnsupportedOperationException(
                     "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
             }
           case BSON:
-            return byteBuffers(desc);
+            return ParquetValueWriters.byteBuffers(desc);
           default:
             throw new UnsupportedOperationException(
                 "Unsupported logical type: " + primitive.getOriginalType());
@@ -168,13 +161,13 @@ public class GenericParquetWriter {
         case FIXED_LEN_BYTE_ARRAY:
           return new FixedWriter(desc);
         case BINARY:
-          return byteBuffers(desc);
+          return ParquetValueWriters.byteBuffers(desc);
         case BOOLEAN:
         case INT32:
         case INT64:
         case FLOAT:
         case DOUBLE:
-          return unboxed(desc);
+          return ParquetValueWriters.unboxed(desc);
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }

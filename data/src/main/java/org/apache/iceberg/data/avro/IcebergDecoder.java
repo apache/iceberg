@@ -190,6 +190,7 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
    * @return true if the buffer is complete, false otherwise (stream ended)
    * @throws IOException if there is an error while reading
    */
+  @SuppressWarnings("checkstyle:InnerAssignment")
   private boolean readFully(InputStream stream, byte[] bytes)
       throws IOException {
     int pos = 0;
@@ -198,6 +199,6 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
         (bytesRead = stream.read(bytes, pos, bytes.length - pos)) > 0) {
       pos += bytesRead;
     }
-    return (pos == bytes.length);
+    return pos == bytes.length;
   }
 }

@@ -19,11 +19,10 @@
 
 package org.apache.iceberg.data;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
 import com.google.common.collect.Maps;
 import java.util.Arrays;
 import java.util.List;
@@ -35,18 +34,15 @@ import org.apache.iceberg.types.Types.StructType;
 
 public class GenericRecord implements Record, StructLike {
   private static final LoadingCache<StructType, Map<String, Integer>> NAME_MAP_CACHE =
-      CacheBuilder.newBuilder()
+      Caffeine.newBuilder()
       .weakKeys()
-      .build(new CacheLoader<StructType, Map<String, Integer>>() {
-        @Override
-        public Map<String, Integer> load(StructType struct) {
-          Map<String, Integer> idToPos = Maps.newHashMap();
-          List<Types.NestedField> fields = struct.fields();
-          for (int i = 0; i < fields.size(); i += 1) {
-            idToPos.put(fields.get(i).name(), i);
-          }
-          return idToPos;
+      .build(struct -> {
+        Map<String, Integer> idToPos = Maps.newHashMap();
+        List<Types.NestedField> fields = struct.fields();
+        for (int i = 0; i < fields.size(); i += 1) {
+          idToPos.put(fields.get(i).name(), i);
         }
+        return idToPos;
       });
 
   public static GenericRecord create(Schema schema) {
@@ -66,7 +62,7 @@ public class GenericRecord implements Record, StructLike {
     this.struct = struct;
     this.size = struct.fields().size();
     this.values = new Object[size];
-    this.nameToPos = NAME_MAP_CACHE.getUnchecked(struct);
+    this.nameToPos = NAME_MAP_CACHE.get(struct);
   }
 
   private GenericRecord(GenericRecord toCopy) {
@@ -104,7 +100,7 @@ public class GenericRecord implements Record, StructLike {
   @Override
   public void setField(String name, Object value) {
     Integer pos = nameToPos.get(name);
-    Preconditions.checkArgument(pos != null, "Cannot set unknown field named: " + name);
+    Preconditions.checkArgument(pos != null, "Cannot set unknown field named: %s", name);
     values[pos] = value;
   }
 
