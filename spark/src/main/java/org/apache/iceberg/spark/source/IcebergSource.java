@@ -83,7 +83,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
       throw new IllegalArgumentException(sb.toString());
     }
 
-    Optional<String> formatOption = options.get("iceberg.write.format");
+    Optional<String> formatOption = options.get("write-format");
     FileFormat format;
     if (formatOption.isPresent()) {
       format = FileFormat.valueOf(formatOption.get().toUpperCase(Locale.ENGLISH));
