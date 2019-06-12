@@ -20,6 +20,7 @@
 package org.apache.iceberg.orc;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -27,7 +28,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import com.google.common.collect.Lists;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Metrics;
@@ -96,18 +96,18 @@ class OrcFileAppender<D> implements FileAppender<D> {
       Map<Integer, Long> valueCounts = new HashMap<>();
       Map<Integer, Long> nullCounts = new HashMap<>();
       Integer[] icebergIds = new Integer[orcSchema.getMaximumId() + 1];
-      for(TypeDescription type: columnIds.keySet()) {
+      for (TypeDescription type : columnIds.keySet()) {
         icebergIds[type.getId()] = columnIds.get(type);
       }
-      for(int c=1; c < stats.length; ++c) {
+      for (int c = 1; c < stats.length; ++c) {
         if (icebergIds[c] != null) {
           valueCounts.put(icebergIds[c], stats[c].getNumberOfValues());
         }
       }
-      for(TypeDescription child: orcSchema.getChildren()) {
-        int c = child.getId();
-        if (icebergIds[c] != null) {
-          nullCounts.put(icebergIds[c], rows - stats[c].getNumberOfValues());
+      for (TypeDescription child : orcSchema.getChildren()) {
+        int childId = child.getId();
+        if (icebergIds[childId] != null) {
+          nullCounts.put(icebergIds[childId], rows - stats[childId].getNumberOfValues());
         }
       }
       return new Metrics(rows, null, valueCounts, nullCounts);
@@ -164,14 +164,14 @@ class OrcFileAppender<D> implements FileAppender<D> {
     }
 
     writer.addUserMetadata(COLUMN_NUMBERS_ATTRIBUTE, columnIds.serialize());
-    metadata.forEach((key,value) -> writer.addUserMetadata(key, ByteBuffer.wrap(value)));
+    metadata.forEach((key, value) -> writer.addUserMetadata(key, ByteBuffer.wrap(value)));
 
     return writer;
   }
 
   @SuppressWarnings("unchecked")
-  private static <D> OrcValueWriter<D> newOrcValueWriter(TypeDescription schema,
-                                                         Function<TypeDescription, OrcValueWriter<?>> createWriterFunc) {
+  private static <D> OrcValueWriter<D> newOrcValueWriter(
+      TypeDescription schema, Function<TypeDescription, OrcValueWriter<?>> createWriterFunc) {
     return (OrcValueWriter<D>) createWriterFunc.apply(schema);
   }
 }

@@ -35,9 +35,8 @@ public class OrcMetrics {
   private OrcMetrics() {}
 
   public static Metrics fromInputFile(InputFile file) {
-    final Configuration config = (file instanceof HadoopInputFile)
-        ? ((HadoopInputFile)file).getConf()
-        : new Configuration();
+    final Configuration config = (file instanceof HadoopInputFile) ?
+        ((HadoopInputFile) file).getConf() : new Configuration();
     return fromInputFile(file, config);
   }
 
