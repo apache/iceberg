@@ -59,6 +59,11 @@ public class PartitionField implements Serializable {
   }
 
   @Override
+  public String toString() {
+    return name + ": " + transform + "(" + sourceId + ")";
+  }
+
+  @Override
   public boolean equals(Object other) {
     if (this == other) {
       return true;
