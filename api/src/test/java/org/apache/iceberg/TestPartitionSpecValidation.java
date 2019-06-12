@@ -24,7 +24,7 @@ import org.apache.iceberg.types.Types.NestedField;
 import org.junit.Test;
 
 public class TestPartitionSpecValidation {
-  private final Schema SCHEMA = new Schema(
+  private static final Schema SCHEMA = new Schema(
       NestedField.required(1, "id", Types.LongType.get()),
       NestedField.required(2, "ts", Types.TimestampType.withZone()),
       NestedField.required(3, "another_ts", Types.TimestampType.withZone()),
