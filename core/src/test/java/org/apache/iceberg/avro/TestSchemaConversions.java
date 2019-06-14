@@ -20,11 +20,14 @@
 package org.apache.iceberg.avro;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import java.util.List;
+import java.util.Set;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
@@ -277,4 +280,18 @@ public class TestSchemaConversions {
     AvroSchemaUtil.convert(schema, "newTableName").toString(true);
   }
 
+  @Test
+  public void testSpecialChars() {
+    org.apache.iceberg.Schema schema = new org.apache.iceberg.Schema(
+        required(1, "9x", Types.IntegerType.get()),
+        required(2, "x_", Types.StringType.get()),
+        required(1, "a.b", Types.IntegerType.get()),
+        required(1, "a#b", Types.IntegerType.get()));
+
+    Set<String> expected = Sets.newHashSet("__NINE__x", "x_", "a__DOT__b", "a__HASH__b");
+
+    Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    Set<String> actual = TypeUtil.indexByName(AvroSchemaUtil.convert(avroSchema).asStructType()).keySet();
+    Assert.assertEquals(expected, actual);
+  }
 }
