@@ -22,7 +22,14 @@ package org.apache.iceberg.orc;
 import com.google.common.collect.Maps;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
+import java.util.Date;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.hadoop.conf.Configuration;
@@ -44,6 +51,7 @@ import org.apache.orc.Reader;
 import org.apache.orc.StringColumnStatistics;
 import org.apache.orc.TimestampColumnStatistics;
 import org.apache.orc.Writer;
+import org.apache.orc.storage.common.type.HiveDecimal;
 
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
 
@@ -51,6 +59,9 @@ public class OrcMetrics {
 
   private OrcMetrics() {
   }
+
+  static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
+  static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
   public static Metrics fromInputFile(InputFile file) {
     final Configuration config = (file instanceof HadoopInputFile) ?
@@ -74,7 +85,7 @@ public class OrcMetrics {
       Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
       Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
 
-      for(Types.NestedField col : schema.columns()) {
+      for (Types.NestedField col : schema.columns()) {
         final int i = col.fieldId();
         columSizes.put(i, colStats[i].getBytesOnDisk());
         valueCounts.put(i, colStats[i].getNumberOfValues());
@@ -103,20 +114,33 @@ public class OrcMetrics {
     if (columnStats instanceof IntegerColumnStatistics) {
       IntegerColumnStatistics intColStats = (IntegerColumnStatistics) columnStats;
       if (column.type().typeId() == Type.TypeID.INTEGER) {
-        min = toByteBuffer(column.type(), (int) intColStats.getMinimum());
+        min = Conversions.toByteBuffer(column.type(), (int) intColStats.getMinimum());
       } else {
-        min = toByteBuffer(column.type(), intColStats.getMinimum());
+        min = Conversions.toByteBuffer(column.type(), intColStats.getMinimum());
       }
     } else if (columnStats instanceof DoubleColumnStatistics) {
-      min = toByteBuffer(column.type(), ((DoubleColumnStatistics) columnStats).getMinimum());
+      min = Conversions.toByteBuffer(column.type(), ((DoubleColumnStatistics) columnStats).getMinimum());
     } else if (columnStats instanceof StringColumnStatistics) {
-      min = toByteBuffer(column.type(), ((StringColumnStatistics) columnStats).getMinimum());
+      String minStats = ((StringColumnStatistics) columnStats).getMinimum();
+      if (minStats != null) {
+        min = Conversions.toByteBuffer(column.type(), minStats);
+      }
     } else if (columnStats instanceof DecimalColumnStatistics) {
-      min = toByteBuffer(column.type(), ((DecimalColumnStatistics) columnStats).getMinimum());
+      HiveDecimal minStats = ((DecimalColumnStatistics) columnStats).getMinimum();
+      if (minStats != null) {
+        min = Conversions.toByteBuffer(column.type(), minStats.bigDecimalValue());
+      }
     } else if (columnStats instanceof DateColumnStatistics) {
-      min = toByteBuffer(column.type(), ((DateColumnStatistics) columnStats).getMinimum());
+      Date minStats = ((DateColumnStatistics) columnStats).getMinimum();
+      if (minStats != null) {
+        min = Conversions.toByteBuffer(column.type(), (int) ChronoUnit.DAYS.between(
+            EPOCH_DAY, EPOCH.plus(minStats.getTime(), ChronoUnit.MILLIS).toLocalDate()));
+      }
     } else if (columnStats instanceof TimestampColumnStatistics) {
-      min = toByteBuffer(column.type(), ((TimestampColumnStatistics) columnStats).getMinimum());
+      Timestamp minStats = ((TimestampColumnStatistics) columnStats).getMinimum();
+      if (minStats != null) {
+        min = Conversions.toByteBuffer(column.type(), minStats.getTime());
+      }
     }
     return Optional.ofNullable(min);
   }
@@ -127,20 +151,33 @@ public class OrcMetrics {
     if (columnStats instanceof IntegerColumnStatistics) {
       IntegerColumnStatistics intColStats = (IntegerColumnStatistics) columnStats;
       if (column.type().typeId() == Type.TypeID.INTEGER) {
-        max = toByteBuffer(column.type(), (int) intColStats.getMaximum());
+        max = Conversions.toByteBuffer(column.type(), (int) intColStats.getMaximum());
       } else {
-        max = toByteBuffer(column.type(), intColStats.getMaximum());
+        max = Conversions.toByteBuffer(column.type(), intColStats.getMaximum());
       }
     } else if (columnStats instanceof DoubleColumnStatistics) {
-      max = toByteBuffer(column.type(), ((DoubleColumnStatistics) columnStats).getMaximum());
+      max = Conversions.toByteBuffer(column.type(), ((DoubleColumnStatistics) columnStats).getMaximum());
     } else if (columnStats instanceof StringColumnStatistics) {
-      max = toByteBuffer(column.type(), ((StringColumnStatistics) columnStats).getMaximum());
+      String minStats = ((StringColumnStatistics) columnStats).getMaximum();
+      if (minStats != null) {
+        max = Conversions.toByteBuffer(column.type(), minStats);
+      }
     } else if (columnStats instanceof DecimalColumnStatistics) {
-      max = toByteBuffer(column.type(), ((DecimalColumnStatistics) columnStats).getMaximum());
+      HiveDecimal maxStats = ((DecimalColumnStatistics) columnStats).getMaximum();
+      if (maxStats != null) {
+        max = Conversions.toByteBuffer(column.type(), maxStats.bigDecimalValue());
+      }
     } else if (columnStats instanceof DateColumnStatistics) {
-      max = toByteBuffer(column.type(), ((DateColumnStatistics) columnStats).getMaximum());
+      Date maxStats = ((DateColumnStatistics) columnStats).getMaximum();
+      if (maxStats != null) {
+        max = Conversions.toByteBuffer(column.type(), (int) ChronoUnit.DAYS.between(
+            EPOCH_DAY, EPOCH.plus(maxStats.getTime(), ChronoUnit.MILLIS).toLocalDate()));
+      }
     } else if (columnStats instanceof TimestampColumnStatistics) {
-      max = toByteBuffer(column.type(), ((TimestampColumnStatistics) columnStats).getMaximum());
+      Timestamp maxStats = ((TimestampColumnStatistics) columnStats).getMaximum();
+      if (maxStats != null) {
+        max = Conversions.toByteBuffer(column.type(), maxStats.getTime());
+      }
     }
     return Optional.ofNullable(max);
   }
