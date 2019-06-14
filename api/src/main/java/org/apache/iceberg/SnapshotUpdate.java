@@ -19,6 +19,8 @@
 
 package org.apache.iceberg;
 
+import java.util.function.Consumer;
+
 /**
  * API for table changes that produce snapshots. This interface contains common methods for all
  * updates that create a new table {@link Snapshot}.
@@ -34,5 +36,13 @@ public interface SnapshotUpdate<ThisT> extends PendingUpdate<Snapshot> {
    * @return this for method chaining
    */
   ThisT set(String property, String value);
+
+  /**
+   * Set a callback to delete files instead of the table's default.
+   *
+   * @param deleteFunc a String consumer used to delete locations.
+   * @return this for method chaining
+   */
+  ThisT deleteWith(Consumer<String> deleteFunc);
 
 }

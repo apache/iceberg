@@ -19,11 +19,14 @@
 
 package org.apache.iceberg;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import java.io.File;
 import java.util.Set;
+import java.util.UUID;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.io.OutputFile;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -457,5 +460,89 @@ public class TestTransaction extends TableTestBase {
         previousManifests.contains(table.currentSnapshot().manifests().get(0)));
 
     Assert.assertFalse("Append manifest should be deleted", new File(appendManifest.path()).exists());
+  }
+
+  @Test
+  public void testTransactionRetryAndAppendManifests() throws Exception {
+    // use only one retry and aggressively merge manifests
+    table.updateProperties()
+        .set(TableProperties.COMMIT_NUM_RETRIES, "1")
+        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "0")
+        .commit();
+
+    Assert.assertEquals("Table should be on version 1", 1, (int) version());
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    Assert.assertEquals("Table should be on version 2 after append", 2, (int) version());
+    Assert.assertEquals("Append should create one manifest", 1, table.currentSnapshot().manifests().size());
+    ManifestFile v1manifest = table.currentSnapshot().manifests().get(0);
+
+    TableMetadata base = readMetadata();
+
+    // create a manifest append
+    OutputFile manifestLocation = Files.localOutput("/tmp/" + UUID.randomUUID().toString() + ".avro");
+    ManifestWriter writer = ManifestWriter.write(table.spec(), manifestLocation);
+    try {
+      writer.add(FILE_D);
+    } finally {
+      writer.close();
+    }
+
+    Transaction t = table.newTransaction();
+
+    t.newAppend()
+        .appendManifest(writer.toManifestFile())
+        .commit();
+
+    Assert.assertSame("Base metadata should not change when commit is created", base, readMetadata());
+    Assert.assertEquals("Table should be on version 2 after txn create", 2, (int) version());
+
+    Assert.assertEquals("Append should have one merged manifest", 1, t.table().currentSnapshot().manifests().size());
+    ManifestFile mergedManifest = t.table().currentSnapshot().manifests().get(0);
+
+    // find the initial copy of the appended manifest
+    String copiedAppendManifest = Iterables.getOnlyElement(Iterables.filter(
+        Iterables.transform(listManifestFiles(), File::getPath),
+        path -> !v1manifest.path().contains(path) && !mergedManifest.path().contains(path)));
+
+    Assert.assertTrue("Transaction should hijack the delete of the original copied manifest",
+        ((BaseTransaction) t).deletedFiles.contains(copiedAppendManifest));
+    Assert.assertTrue("Copied append manifest should not be deleted yet", new File(copiedAppendManifest).exists());
+
+    // cause the transaction commit to fail and retry
+    table.newAppend()
+        .appendFile(FILE_C)
+        .commit();
+
+    Assert.assertEquals("Table should be on version 3 after real append", 3, (int) version());
+
+    t.commitTransaction();
+
+    Assert.assertEquals("Table should be on version 4 after commit", 4, (int) version());
+
+    Assert.assertTrue("Transaction should hijack the delete of the original copied manifest",
+        ((BaseTransaction) t).deletedFiles.contains(copiedAppendManifest));
+    Assert.assertFalse("Append manifest should be deleted", new File(copiedAppendManifest).exists());
+    Assert.assertTrue("Transaction should hijack the delete of the first merged manifest",
+        ((BaseTransaction) t).deletedFiles.contains(mergedManifest.path()));
+    Assert.assertFalse("Append manifest should be deleted", new File(mergedManifest.path()).exists());
+
+    Assert.assertEquals("Should merge all commit manifests into a single manifest",
+        1, table.currentSnapshot().manifests().size());
+  }
+
+  @Test
+  public void testTransactionNoCustomDeleteFunc() {
+    AssertHelpers.assertThrows("Should fail setting a custom delete function with a transaction",
+        IllegalArgumentException.class, "Cannot set delete callback more than once",
+        () -> table.newTransaction()
+            .newAppend()
+            .appendFile(FILE_A)
+            .appendFile(FILE_B)
+            .deleteWith(file -> {}));
   }
 }
