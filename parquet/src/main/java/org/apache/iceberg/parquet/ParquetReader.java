@@ -40,6 +40,8 @@ import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.StructType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.parquet.ParquetSchemaUtil.addFallbackIds;
 import static org.apache.iceberg.parquet.ParquetSchemaUtil.hasIds;
@@ -56,6 +58,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   private final boolean caseSensitive;
   private final StructType sparkSchema;
   private final int maxRecordsPerBatch;
+  private static final Logger LOG = LoggerFactory.getLogger(ParquetReader.class);
 
   public ParquetReader(InputFile input, Schema expectedSchema, ParquetReadOptions options,
                        Function<MessageType, ParquetValueReader<?>> readerFunc,
@@ -198,8 +201,15 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     FileIterator<T> iter = new FileIterator<>(init());
     addCloseable(iter);
 
-    // return iter;
-    return arrowBatchAsInternalRow((Iterator<InternalRow>) iter);
+    if(maxRecordsPerBatch == 0) {
+      LOG.info("[ParquetReader] => Return regular iterator. No batching.");
+      System.out.println("[ParquetReader] => Return regular iterator. No batching.");
+      return iter;
+    } else {
+      LOG.info("[ParquetReader] => Read into Arrow batches of " + maxRecordsPerBatch + " rows.");
+      // System.out.println("[ParquetReader] => Read into Arrow batches of " + maxRecordsPerBatch + " rows.");
+      return arrowBatchAsInternalRow((Iterator<InternalRow>) iter);
+    }
   }
 
   private Iterator<T> arrowBatchAsInternalRow(Iterator<InternalRow> iter) {

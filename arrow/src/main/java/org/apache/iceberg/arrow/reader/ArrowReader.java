@@ -22,6 +22,8 @@ import org.apache.spark.sql.vectorized.ArrowColumnVector;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.util.TaskCompletionListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /***
  * This is a helper class for Arrow reading. It provides two main converter methods.
@@ -32,6 +34,8 @@ import org.apache.spark.util.TaskCompletionListener;
  * take the second iterator out and just return the first one.
  */
 public class ArrowReader {
+
+  private static final Logger LOG = LoggerFactory.getLogger(ArrowReader.class);
 
   /***
    * Accepts an iterator over ArrowRecordBatches and copies into ColumnarBatches.
@@ -102,6 +106,8 @@ public class ArrowReader {
 
     private Iterator<InternalRow> nextBatch() {
       ArrowRecordBatch arrowRecordBatch = arrowBatchIter.next();
+      long start = System.currentTimeMillis();
+      root.setRowCount(0);
       VectorLoader vectorLoader = new VectorLoader(root);
       vectorLoader.load(arrowRecordBatch);
       arrowRecordBatch.close();
@@ -115,6 +121,8 @@ public class ArrowReader {
       ColumnarBatch batch = new ColumnarBatch(columns);
       batch.setNumRows(root.getRowCount());
 
+      LOG.info("[InternalRowOverArrowIterator] => Created Columnar Batch with "+root.getRowCount()+ " rows" +
+          ". Took " + (System.currentTimeMillis() - start) + " milliseconds.");
       return batch.rowIterator();
     }
 
@@ -154,13 +162,15 @@ public class ArrowReader {
         Long.MAX_VALUE);
     VectorSchemaRoot root = VectorSchemaRoot.create(arrowSchema, allocator);
 
-    context.addTaskCompletionListener(new TaskCompletionListener() {
-      @Override
-      public void onTaskCompletion(TaskContext context) {
-        root.close();
-        allocator.close();
-      }
-    });
+    if (context!=null) {
+      context.addTaskCompletionListener(new TaskCompletionListener() {
+        @Override
+        public void onTaskCompletion(TaskContext context) {
+          root.close();
+          allocator.close();
+        }
+      });
+    }
 
     return new ArrowRecordBatchIterator(rowIter, root, allocator, maxRecordsPerBatch);
   }
@@ -209,12 +219,15 @@ public class ArrowReader {
 
       int rowCount = 0;
 
+      long start = System.currentTimeMillis();
       while (rowIterator.hasNext() && (maxRecordsPerBatch <= 0 || rowCount < maxRecordsPerBatch)) {
         InternalRow row = rowIterator.next();
         arrowWriter.write(row);
         rowCount += 1;
       }
       arrowWriter.finish();
+      LOG.info("[ArrowRecordBatchIterator] => Created batch with "+rowCount+ " rows. " +
+          "Took "+(System.currentTimeMillis() - start) + " milliseconds.");
       ArrowRecordBatch batch = unloader.getRecordBatch();
       return batch;
     }

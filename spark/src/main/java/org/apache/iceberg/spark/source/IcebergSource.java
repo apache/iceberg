@@ -39,17 +39,22 @@ import org.apache.spark.sql.sources.v2.DataSourceV2;
 import org.apache.spark.sql.sources.v2.ReadSupport;
 import org.apache.spark.sql.sources.v2.WriteSupport;
 import org.apache.spark.sql.sources.v2.reader.DataSourceReader;
+import org.apache.spark.sql.sources.v2.reader.SupportsScanColumnarBatch;
 import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
 import org.apache.spark.sql.types.StructType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 
-public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, DataSourceRegister {
+public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport,
+    DataSourceRegister {
 
   private SparkSession lazySpark = null;
   private Configuration lazyConf = null;
   private static final int DEFAULT_NUM_RECORDS_PER_BATCH = 1000;
+  private static final Logger LOG = LoggerFactory.getLogger(IcebergSource.class);
 
   @Override
   public String shortName() {
@@ -67,6 +72,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     if(numRecordsPerBatchOpt.isPresent()) {
       numRecordsPerBatch = Integer.parseInt(numRecordsPerBatchOpt.get());
     }
+    LOG.info("[IcebergSource] => Reading numRecordsPerBatch = "+numRecordsPerBatch);
 
     return new Reader(table, Boolean.valueOf(caseSensitive), numRecordsPerBatch);
   }

@@ -186,7 +186,7 @@ class BaseTableScan implements TableScan {
             );
           });
 
-      if (PLAN_SCANS_WITH_WORKER_POOL && snapshot.manifests().size() > 1) {
+      if (PLAN_SCANS_WITH_WORKER_POOL && snapshot.manifests().size() > 30) {
         return new ParallelIterable<>(readers, ThreadPools.getWorkerPool());
       } else {
         return CloseableIterable.concat(readers);

@@ -75,6 +75,7 @@ import org.apache.spark.sql.sources.v2.reader.Statistics;
 import org.apache.spark.sql.sources.v2.reader.SupportsPushDownFilters;
 import org.apache.spark.sql.sources.v2.reader.SupportsPushDownRequiredColumns;
 import org.apache.spark.sql.sources.v2.reader.SupportsReportStatistics;
+import org.apache.spark.sql.sources.v2.reader.SupportsScanColumnarBatch;
 import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
@@ -82,6 +83,7 @@ import org.apache.spark.sql.types.DecimalType;
 import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,7 +94,10 @@ import static org.apache.iceberg.spark.SparkSchemaUtil.prune;
 import static scala.collection.JavaConverters.asScalaBufferConverter;
 import static scala.collection.JavaConverters.seqAsJavaListConverter;
 
-class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushDownRequiredColumns,
+class Reader implements DataSourceReader,
+    SupportsScanColumnarBatch,
+    SupportsPushDownFilters,
+    SupportsPushDownRequiredColumns,
     SupportsReportStatistics {
   private static final Logger LOG = LoggerFactory.getLogger(Reader.class);
 
@@ -142,6 +147,11 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
   @Override
   public StructType readSchema() {
     return lazyType();
+  }
+
+  @Override
+  public List<InputPartition<ColumnarBatch>> planBatchInputPartitions() {
+
   }
 
   @Override
@@ -433,8 +443,10 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       InputFile location = inputFiles.get(task.file().path().toString());
       Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
       CloseableIterable<InternalRow> iter;
+      LOG.info("[Reader] File format "+task.file().format());
       switch (task.file().format()) {
         case PARQUET:
+          LOG.info("[Reader] Returning Parquet Iterable ..");
           iter = newParquetIterable(location, task, readSchema);
           break;
 
