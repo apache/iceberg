@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.Function;
@@ -62,8 +61,6 @@ class AvroFileAppender<D> implements FileAppender<D> {
 
   @Override
   public long length() {
-    Preconditions.checkState(writer == null,
-        "Cannot return length while appending to an open file.");
     if (stream != null) {
       try {
         return stream.getPos();
