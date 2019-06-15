@@ -55,10 +55,10 @@ public class PartitionSpec implements Serializable {
   // this is ordered so that DataFile has a consistent schema
   private final int specId;
   private final PartitionField[] fields;
-  private transient ListMultimap<Integer, PartitionField> fieldsBySourceId = null;
-  private transient Map<String, PartitionField> fieldsByName = null;
-  private transient Class<?>[] lazyJavaClasses = null;
-  private transient List<PartitionField> fieldList = null;
+  private volatile transient ListMultimap<Integer, PartitionField> fieldsBySourceId = null;
+  private volatile transient Map<String, PartitionField> fieldsByName = null;
+  private volatile transient Class<?>[] lazyJavaClasses = null;
+  private volatile transient List<PartitionField> fieldList = null;
 
   private PartitionSpec(Schema schema, int specId, List<PartitionField> fields) {
     this.schema = schema;
