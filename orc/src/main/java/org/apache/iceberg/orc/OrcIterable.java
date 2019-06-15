@@ -43,11 +43,11 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private final InputFile file;
   private final Long start;
   private final Long length;
-  private final Function<Schema, OrcValueReader<?>> readerFunction;
+  private final Function<TypeDescription, OrcValueReader<?>> readerFunction;
 
   OrcIterable(InputFile file, Configuration config, Schema schema,
                      Long start, Long length,
-                     Function<Schema, OrcValueReader<?>> readerFunction) {
+                     Function<TypeDescription, OrcValueReader<?>> readerFunction) {
     this.schema = schema;
     this.readerFunction = readerFunction;
     this.file = file;
@@ -60,15 +60,16 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   @Override
   public Iterator<T> iterator() {
     final Reader orcFileReader = newFileReader(file, config);
-    final TypeDescription orcSchema = TypeConversion.toOrc(schema, new ColumnMap());
     final ColumnMap colMapping = orcFileReader.hasMetadataValue(ORC.COLUMN_NUMBERS_ATTRIBUTE) ?
-        ColumnMap.deserialize(orcSchema,
+        ColumnMap.deserialize(orcFileReader.getSchema(),
             orcFileReader.getMetadataValue(ORC.COLUMN_NUMBERS_ATTRIBUTE)) : new ColumnMap();
+    // Get the ORC schema to read based on the Icebert to ORC mapping
+    final TypeDescription readOrcSchema = TypeConversion.toOrc(schema, colMapping);
 
     return new OrcIterator(
         newOrcIterator(file, TypeConversion.toOrc(schema, colMapping),
             start, length, newFileReader(file, config)),
-        readerFunction.apply(schema));
+        readerFunction.apply(readOrcSchema));
   }
 
   private static VectorizedRowBatchIterator newOrcIterator(InputFile file,

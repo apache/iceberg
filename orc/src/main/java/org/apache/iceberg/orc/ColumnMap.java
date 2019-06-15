@@ -37,7 +37,7 @@ import org.apache.orc.TypeDescription;
  */
 public final class ColumnMap implements Map<TypeDescription, ColumnMap.IcebergColumn> {
 
-  private final IdentityHashMap<TypeDescription, ColumnMap.IcebergColumn> idMap =
+  private final IdentityHashMap<TypeDescription, IcebergColumn> idMap =
       new IdentityHashMap<>();
 
   static class IcebergColumn {
@@ -71,7 +71,7 @@ public final class ColumnMap implements Map<TypeDescription, ColumnMap.IcebergCo
       if (obj instanceof IcebergColumn) {
         IcebergColumn other = (IcebergColumn) obj;
         return Objects.equal(this.id, other.getId()) &&
-            Objects.equal(this.isRequired(), other.isRequired());
+            Objects.equal(this.required, other.isRequired());
       }
       return false;
     }
@@ -98,22 +98,22 @@ public final class ColumnMap implements Map<TypeDescription, ColumnMap.IcebergCo
   }
 
   @Override
-  public ColumnMap.IcebergColumn get(Object key) {
+  public IcebergColumn get(Object key) {
     return idMap.get(key);
   }
 
   @Override
-  public ColumnMap.IcebergColumn put(TypeDescription key, ColumnMap.IcebergColumn value) {
+  public IcebergColumn put(TypeDescription key, IcebergColumn value) {
     return idMap.put(key, value);
   }
 
   @Override
-  public ColumnMap.IcebergColumn remove(Object key) {
+  public IcebergColumn remove(Object key) {
     return idMap.remove(key);
   }
 
   @Override
-  public void putAll(Map<? extends TypeDescription, ? extends ColumnMap.IcebergColumn> map) {
+  public void putAll(Map<? extends TypeDescription, ? extends IcebergColumn> map) {
     idMap.putAll(map);
   }
 
@@ -128,16 +128,16 @@ public final class ColumnMap implements Map<TypeDescription, ColumnMap.IcebergCo
   }
 
   @Override
-  public Collection<ColumnMap.IcebergColumn> values() {
+  public Collection<IcebergColumn> values() {
     return idMap.values();
   }
 
   @Override
-  public Set<Entry<TypeDescription, ColumnMap.IcebergColumn>> entrySet() {
+  public Set<Entry<TypeDescription, IcebergColumn>> entrySet() {
     return idMap.entrySet();
   }
 
-  public Map<ColumnMap.IcebergColumn, TypeDescription> inverse() {
+  public Map<IcebergColumn, TypeDescription> inverse() {
     return idMap.entrySet()
         .stream()
         .collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey));
@@ -169,7 +169,7 @@ public final class ColumnMap implements Map<TypeDescription, ColumnMap.IcebergCo
       String[] subparts = parts[i].split(":");
       boolean isRequired = (subparts.length == 3) && Boolean.parseBoolean(subparts[2]);
       result.put(schema.findSubtype(Integer.parseInt(subparts[0])),
-          new IcebergColumn(Integer.parseInt(subparts[1]), isRequired));
+          newIcebergColumn(Integer.parseInt(subparts[1]), isRequired));
     }
     return result;
   }
