@@ -492,17 +492,17 @@ public class TestTransaction extends TableTestBase {
       writer.close();
     }
 
-    Transaction t = table.newTransaction();
+    Transaction txn = table.newTransaction();
 
-    t.newAppend()
+    txn.newAppend()
         .appendManifest(writer.toManifestFile())
         .commit();
 
     Assert.assertSame("Base metadata should not change when commit is created", base, readMetadata());
     Assert.assertEquals("Table should be on version 2 after txn create", 2, (int) version());
 
-    Assert.assertEquals("Append should have one merged manifest", 1, t.table().currentSnapshot().manifests().size());
-    ManifestFile mergedManifest = t.table().currentSnapshot().manifests().get(0);
+    Assert.assertEquals("Append should have one merged manifest", 1, txn.table().currentSnapshot().manifests().size());
+    ManifestFile mergedManifest = txn.table().currentSnapshot().manifests().get(0);
 
     // find the initial copy of the appended manifest
     String copiedAppendManifest = Iterables.getOnlyElement(Iterables.filter(
@@ -510,7 +510,7 @@ public class TestTransaction extends TableTestBase {
         path -> !v1manifest.path().contains(path) && !mergedManifest.path().contains(path)));
 
     Assert.assertTrue("Transaction should hijack the delete of the original copied manifest",
-        ((BaseTransaction) t).deletedFiles.contains(copiedAppendManifest));
+        ((BaseTransaction) txn).deletedFiles().contains(copiedAppendManifest));
     Assert.assertTrue("Copied append manifest should not be deleted yet", new File(copiedAppendManifest).exists());
 
     // cause the transaction commit to fail and retry
@@ -520,15 +520,15 @@ public class TestTransaction extends TableTestBase {
 
     Assert.assertEquals("Table should be on version 3 after real append", 3, (int) version());
 
-    t.commitTransaction();
+    txn.commitTransaction();
 
     Assert.assertEquals("Table should be on version 4 after commit", 4, (int) version());
 
     Assert.assertTrue("Transaction should hijack the delete of the original copied manifest",
-        ((BaseTransaction) t).deletedFiles.contains(copiedAppendManifest));
+        ((BaseTransaction) txn).deletedFiles().contains(copiedAppendManifest));
     Assert.assertFalse("Append manifest should be deleted", new File(copiedAppendManifest).exists());
     Assert.assertTrue("Transaction should hijack the delete of the first merged manifest",
-        ((BaseTransaction) t).deletedFiles.contains(mergedManifest.path()));
+        ((BaseTransaction) txn).deletedFiles().contains(mergedManifest.path()));
     Assert.assertFalse("Append manifest should be deleted", new File(mergedManifest.path()).exists());
 
     Assert.assertEquals("Should merge all commit manifests into a single manifest",
@@ -543,6 +543,6 @@ public class TestTransaction extends TableTestBase {
             .newAppend()
             .appendFile(FILE_A)
             .appendFile(FILE_B)
-            .deleteWith(file -> {}));
+            .deleteWith(file -> { }));
   }
 }

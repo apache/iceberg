@@ -63,14 +63,12 @@ class BaseTransaction implements Transaction {
     return new BaseTransaction(ops, ops.refresh());
   }
 
-  // exposed for testing
   private final TableOperations ops;
   private final TransactionTable transactionTable;
   private final TableOperations transactionOps;
   private final List<PendingUpdate> updates;
   private final Set<Long> intermediateSnapshotIds;
-  // exposed for testing
-  final Set<String> deletedFiles = Sets.newHashSet(); // keep track of files deleted in the most recent commit
+  private final Set<String> deletedFiles = Sets.newHashSet(); // keep track of files deleted in the most recent commit
   private final Consumer<String> enqueueDelete = deletedFiles::add;
   private TransactionType type;
   private TableMetadata base;
@@ -448,5 +446,10 @@ class BaseTransaction implements Transaction {
   @VisibleForTesting
   TableOperations ops() {
     return ops;
+  }
+
+  @VisibleForTesting
+  Set<String> deletedFiles() {
+    return deletedFiles;
   }
 }

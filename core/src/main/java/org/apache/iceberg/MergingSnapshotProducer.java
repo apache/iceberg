@@ -116,8 +116,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         .propertyAsInt(MANIFEST_MIN_MERGE_COUNT, MANIFEST_MIN_MERGE_COUNT_DEFAULT);
   }
 
-  protected abstract ThisT self();
-
   @Override
   public ThisT set(String property, String value) {
     summaryBuilder.set(property, value);

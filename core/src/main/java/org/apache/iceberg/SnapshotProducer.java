@@ -31,9 +31,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Consumer;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.OutputFile;
@@ -94,10 +94,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       });
   }
 
+  protected abstract ThisT self();
+
   @Override
-  public THIS deleteWith(Consumer<String> deleteFunc) {
+  public ThisT deleteWith(Consumer<String> deleteCallback) {
     Preconditions.checkArgument(this.deleteFunc == defaultDelete, "Cannot set delete callback more than once");
-    this.deleteFunc = deleteFunc;
+    this.deleteFunc = deleteCallback;
     return self();
   }
 

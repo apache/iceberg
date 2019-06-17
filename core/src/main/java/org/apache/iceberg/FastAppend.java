@@ -51,6 +51,11 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   }
 
   @Override
+  protected AppendFiles self() {
+    return this;
+  }
+
+  @Override
   public AppendFiles set(String property, String value) {
     summaryBuilder.set(property, value);
     return this;
