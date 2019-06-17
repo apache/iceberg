@@ -79,6 +79,11 @@ public class BaseTable implements Table, HasTableOperations {
   }
 
   @Override
+  public Snapshot snapshot(long snapshotId) {
+    return ops.current().snapshot(snapshotId);
+  }
+
+  @Override
   public Iterable<Snapshot> snapshots() {
     return ops.current().snapshots();
   }

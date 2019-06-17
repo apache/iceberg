@@ -350,6 +350,11 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
+    public Snapshot snapshot(long snapshotId) {
+      return current.snapshot(snapshotId);
+    }
+
+    @Override
     public Iterable<Snapshot> snapshots() {
       return current.snapshots();
     }
