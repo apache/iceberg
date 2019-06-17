@@ -37,6 +37,8 @@ public class AvroSchemaUtil {
 
   private AvroSchemaUtil() {}
 
+  // Original Iceberg field name corresponding to a sanitized Avro name
+  public static final String ORIGINAL_FIELD_NAME_PROP = "original-field-name";
   public static final String FIELD_ID_PROP = "field-id";
   public static final String KEY_ID_PROP = "key-id";
   public static final String VALUE_ID_PROP = "value-id";

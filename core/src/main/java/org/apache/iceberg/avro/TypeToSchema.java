@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.util.List;
@@ -88,9 +86,15 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
     List<Schema.Field> fields = Lists.newArrayListWithExpectedSize(fieldSchemas.size());
     for (int i = 0; i < structFields.size(); i += 1) {
       Types.NestedField structField = structFields.get(i);
+      String origFieldName = structField.name();
+      boolean validName = validAvroName(origFieldName);
+      String fieldName =  validName ? origFieldName : sanitize(origFieldName);
       Schema.Field field = new Schema.Field(
-          sanitize(structField.name()), fieldSchemas.get(i), null,
+          sanitize(fieldName), fieldSchemas.get(i), null,
           structField.isOptional() ? JsonProperties.NULL_VALUE : null);
+      if (!validName) {
+        field.addProp(AvroSchemaUtil.ORIGINAL_FIELD_NAME_PROP, fieldName);
+      }
       field.addProp(AvroSchemaUtil.FIELD_ID_PROP, structField.fieldId());
       fields.add(field);
     }
@@ -218,21 +222,18 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   }
 
   private static String sanitize(String name) {
-    if (validAvroName(name)) {
-      return name;
-    }
     int length = name.length();
     StringBuilder sb = new StringBuilder(name.length());
     char first = name.charAt(0);
     if (!(Character.isLetter(first) || first == '_')) {
-      sb.append(sanitizedValue(first));
+      sb.append(sanitize(first));
     } else {
       sb.append(first);
     }
     for (int i = 1; i < length; i++) {
       char character = name.charAt(i);
       if (!(Character.isLetterOrDigit(character) || character == '_')) {
-        sb.append(sanitizedValue(character));
+        sb.append(sanitize(character));
       } else {
         sb.append(character);
       }
@@ -240,17 +241,8 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
     return sb.toString();
   }
 
-  private static final Map<Character, String> SANITIZE_MAP = new ImmutableMap
-      .Builder<Character, String>()
-      .put('.', "__DOT__").put('#', "__HASH__")
-      .put('0', "__ZERO__").put('1', "__ONE__").put('2', "__TWO__").put('3', "__THREE__").put('4', "__FOUR__")
-      .put('5', "__FIVE__").put('6', "__SIX__").put('7', "__SEVEN__").put('8', "__EIGHT__").put('9', "__NINE__")
-      .build();
-
-  private static String sanitizedValue(Character character) {
-    String value = SANITIZE_MAP.get(character);
-    Preconditions.checkState(value != null, "Special character %s not yet supported", character);
-    return value;
+  private static String sanitize(char character) {
+    return "_x" + Integer.toHexString(character).toUpperCase();
   }
 
   private static boolean validAvroName(String name) {

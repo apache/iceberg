@@ -285,12 +285,14 @@ public class TestSchemaConversions {
     org.apache.iceberg.Schema schema = new org.apache.iceberg.Schema(
         required(1, "9x", Types.IntegerType.get()),
         required(2, "x_", Types.StringType.get()),
-        required(1, "a.b", Types.IntegerType.get()),
-        required(1, "a#b", Types.IntegerType.get()));
+        required(3, "a.b", Types.IntegerType.get()),
+        required(4, "☃", Types.IntegerType.get()),
+        required(5, "a#b", Types.IntegerType.get()));
 
-    Set<String> expected = Sets.newHashSet("__NINE__x", "x_", "a__DOT__b", "a__HASH__b");
+    Set<String> expected = Sets.newHashSet("_x39x", "x_", "a_x2Eb", "_x2603", "a_x23b");
 
     Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    System.out.println(avroSchema);
     Set<String> actual = TypeUtil.indexByName(AvroSchemaUtil.convert(avroSchema).asStructType()).keySet();
     Assert.assertEquals(expected, actual);
   }
