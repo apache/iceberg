@@ -135,7 +135,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
   private static void mergeIcebergHadoopConfs(
       Configuration baseConf, Map<String, String> options) {
     options.keySet().stream()
-        .filter(key -> key.startsWith("iceberg.hadoop"))
-        .forEach(key -> baseConf.set(key.replaceFirst("iceberg.hadoop", ""), options.get(key)));
+        .filter(key -> key.startsWith("hadoop."))
+        .forEach(key -> baseConf.set(key.replaceFirst("hadoop.", ""), options.get(key)));
   }
 }

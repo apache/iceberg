@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.ConfigProperties;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
@@ -35,6 +36,7 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.junit.AfterClass;
@@ -116,7 +118,10 @@ public class TestDataSourceOptions {
         new SimpleRecord(3, "c")
     );
     Dataset<Row> df = spark.createDataFrame(expectedRecords, SimpleRecord.class);
-    df.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
+    df.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
 
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       tasks.forEach(task -> {
@@ -124,5 +129,39 @@ public class TestDataSourceOptions {
         Assert.assertEquals(FileFormat.AVRO, fileFormat);
       });
     }
+  }
+
+  @Test
+  public void testHadoopOptions() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+
+    Configuration customHadoopConf = new Configuration(CONF);
+    customHadoopConf.set(ConfigProperties.COMPRESS_METADATA, "true");
+
+    HadoopTables tables = new HadoopTables(customHadoopConf);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Map<String, String> options = Maps.newHashMap();
+    tables.create(SCHEMA, spec, options, tableLocation);
+
+    List<SimpleRecord> expectedRecords = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b")
+    );
+    Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
+    originalDf.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .option("hadoop.iceberg.compress.metadata", "true")
+        .save(tableLocation);
+
+    Dataset<Row> resultDf = spark.read()
+        .format("iceberg")
+        .option("hadoop.iceberg.compress.metadata", "true")
+        .load(tableLocation);
+    List<SimpleRecord> resultRecords = resultDf.orderBy("id")
+        .as(Encoders.bean(SimpleRecord.class))
+        .collectAsList();
+
+    Assert.assertEquals("Records should match", expectedRecords, resultRecords);
   }
 }
