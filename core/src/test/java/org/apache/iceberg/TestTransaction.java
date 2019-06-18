@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import com.google.common.collect.Sets;
 import java.io.File;
+import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -457,5 +458,27 @@ public class TestTransaction extends TableTestBase {
         previousManifests.contains(table.currentSnapshot().manifests().get(0)));
 
     Assert.assertFalse("Append manifest should be deleted", new File(appendManifest.path()).exists());
+  }
+
+  @Test
+  public void testTransactionFastAppends() {
+    table.updateProperties()
+        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "0")
+        .commit();
+
+    Transaction txn = table.newTransaction();
+
+    txn.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    txn.newFastAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    txn.commitTransaction();
+
+    List<ManifestFile> manifests = table.currentSnapshot().manifests();
+    Assert.assertEquals("Expected 2 manifests", 2, manifests.size());
   }
 }
