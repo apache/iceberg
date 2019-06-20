@@ -19,7 +19,7 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Objects;
+import com.google.common.base.MoreObjects;
 import java.util.Collection;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
@@ -176,7 +176,7 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
 
   @Override
   public String toString() {
-    return Objects.toStringHelper(this)
+    return MoreObjects.toStringHelper(this)
         .add("status", status)
         .add("snapshot_id", snapshotId)
         .add("file", file)

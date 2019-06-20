@@ -20,7 +20,7 @@
 package org.apache.iceberg;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Objects;
+import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -86,7 +86,7 @@ class BaseFileScanTask implements FileScanTask {
 
   @Override
   public String toString() {
-    return Objects.toStringHelper(this)
+    return MoreObjects.toStringHelper(this)
         .add("file", file.path())
         .add("partition_data", file.partition())
         .add("residual", residual())
