@@ -292,14 +292,14 @@ public class TestSchemaConversions {
         required(5, names.get(4), Types.IntegerType.get()));
 
     Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
-    Set<String> sanitizedNames = TypeUtil.indexByName(AvroSchemaUtil.convert(avroSchema).asStructType()).keySet();
-    Set<String> expectedSanitizedNames = Sets.newHashSet("_x39x", "x_", "a_x2Eb", "_x2603", "a_x23b");
+    List<String> sanitizedNames = Lists.newArrayList(Iterables.transform(avroSchema.getFields(), Schema.Field::name));
+    List<String> expectedSanitizedNames = Lists.newArrayList("_9x", "x_", "a_x2Eb", "_x2603", "a_x23b");
     Assert.assertEquals(expectedSanitizedNames, sanitizedNames);
 
     List<String> origNames = Lists.newArrayList(
-        Iterables.transform(avroSchema.getFields(), f -> f.getProp(AvroSchemaUtil.ORIGINAL_FIELD_NAME_PROP)));
+        Iterables.transform(avroSchema.getFields(), f -> f.getProp(AvroSchemaUtil.ICEBERG_FIELD_NAME_PROP)));
     List<String> expectedOrigNames = Lists.newArrayList(names);
-    expectedOrigNames.set(1, null);  // Name at pos 1 is valid so ORIGINAL_FIELD_NAME_PROP is not set
+    expectedOrigNames.set(1, null);  // Name at pos 1 is valid so ICEBERG_FIELD_NAME_PROP is not set
     Assert.assertEquals(expectedOrigNames, origNames);
   }
 }

@@ -38,7 +38,7 @@ public class AvroSchemaUtil {
   private AvroSchemaUtil() {}
 
   // Original Iceberg field name corresponding to a sanitized Avro name
-  public static final String ORIGINAL_FIELD_NAME_PROP = "original-field-name";
+  public static final String ICEBERG_FIELD_NAME_PROP = "iceberg-field-name";
   public static final String FIELD_ID_PROP = "field-id";
   public static final String KEY_ID_PROP = "key-id";
   public static final String VALUE_ID_PROP = "value-id";
@@ -275,5 +275,50 @@ public class AvroSchemaUtil {
     }
 
     return copy;
+  }
+
+  static boolean validAvroName(String name) {
+    int length = name.length();
+    Preconditions.checkArgument(length > 0, "Empty name");
+    char first = name.charAt(0);
+    if (!(Character.isLetter(first) || first == '_')) {
+      return false;
+    }
+
+    for (int i = 1; i < length; i++) {
+      char character = name.charAt(i);
+      if (!(Character.isLetterOrDigit(character) || character == '_')) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  static String sanitize(String name) {
+    int length = name.length();
+    StringBuilder sb = new StringBuilder(name.length());
+    char first = name.charAt(0);
+    if (!(Character.isLetter(first) || first == '_')) {
+      sb.append(sanitize(first));
+    } else {
+      sb.append(first);
+    }
+
+    for (int i = 1; i < length; i++) {
+      char character = name.charAt(i);
+      if (!(Character.isLetterOrDigit(character) || character == '_')) {
+        sb.append(sanitize(character));
+      } else {
+        sb.append(character);
+      }
+    }
+    return sb.toString();
+  }
+
+  private static String sanitize(char character) {
+    if (Character.isDigit(character)) {
+      return "_" + character;
+    }
+    return "_x" + Integer.toHexString(character).toUpperCase();
   }
 }
