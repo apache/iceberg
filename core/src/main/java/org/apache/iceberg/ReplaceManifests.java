@@ -173,14 +173,11 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
               keptManifests.add(manifest);
             } else {
               replacedManifests.add(manifest);
-              long entryNum = manifest.addedFilesCount() + manifest.existingFilesCount() + manifest.deletedFilesCount();
-              long avgEntryLen = manifest.length() / entryNum;
-
               try (ManifestReader reader =
                      ManifestReader.read(ops.io().newInputFile(manifest.path()), ops.current()::spec)) {
                 FilteredManifest filteredManifest = reader.select(Arrays.asList("*"));
                 filteredManifest.liveEntries().forEach(
-                    entry -> appendEntry(entry, avgEntryLen, clusterByFunc.apply(entry.file()))
+                    entry -> appendEntry(entry, clusterByFunc.apply(entry.file()))
                 );
 
               } catch (IOException x) {
@@ -193,12 +190,12 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
     }
   }
 
-  private void appendEntry(ManifestEntry entry, long avgEntryLen, Object key) {
+  private void appendEntry(ManifestEntry entry, Object key) {
     Preconditions.checkNotNull(entry, "Manifest entry cannot be null");
     Preconditions.checkNotNull(key, "Key cannot be null");
 
     WriterWrapper writer = getWriter(key);
-    writer.addEntry(entry, avgEntryLen);
+    writer.addEntry(entry);
     entryCount.incrementAndGet();
   }
 
@@ -231,22 +228,18 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
 
   class WriterWrapper {
     private ManifestWriter writer;
-    private long estimatedSize;
 
-    synchronized void addEntry(ManifestEntry entry, long len) {
+    synchronized void addEntry(ManifestEntry entry) {
       if (writer == null) {
         writer = newWriter();
-      } else if (estimatedSize >= getManifestTargetSizeBytes()) {
+      } else if (writer.length() >= getManifestTargetSizeBytes()) {
         close();
         writer = newWriter();
       }
-
       writer.existing(entry);
-      estimatedSize += len;
     }
 
     private ManifestWriter newWriter() {
-      estimatedSize = 0;
       return new ManifestWriter(spec, manifestPath(manifestCount.getAndIncrement()), snapshotId());
     }
 

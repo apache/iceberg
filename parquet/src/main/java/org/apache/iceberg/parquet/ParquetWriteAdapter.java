@@ -53,8 +53,6 @@ public class ParquetWriteAdapter<D> implements FileAppender<D> {
 
   @Override
   public long length() {
-    Preconditions.checkState(writer == null,
-        "Cannot return length while appending to an open file.");
     return writer.getDataSize();
   }
 

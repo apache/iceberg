@@ -79,6 +79,14 @@ public interface Table {
   Snapshot currentSnapshot();
 
   /**
+   * Get the {@link Snapshot snapshot} of this table with the given id, or null if there is no
+   * matching snapshot.
+   *
+   * @return the {@link Snapshot} with the given id.
+   */
+  Snapshot snapshot(long snapshotId);
+
+  /**
    * Get the {@link Snapshot snapshots} of this table.
    *
    * @return an Iterable of snapshots of this table.

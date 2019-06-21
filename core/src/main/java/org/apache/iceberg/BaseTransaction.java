@@ -138,6 +138,14 @@ class BaseTransaction implements Transaction {
   }
 
   @Override
+  public AppendFiles newFastAppend() {
+    checkLastOperationCommitted("AppendFiles");
+    AppendFiles append = new FastAppend(transactionOps);
+    updates.add(append);
+    return append;
+  }
+
+  @Override
   public RewriteFiles newRewrite() {
     checkLastOperationCommitted("RewriteFiles");
     RewriteFiles rewrite = new ReplaceFiles(transactionOps);
@@ -363,6 +371,11 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
+    public Snapshot snapshot(long snapshotId) {
+      return current.snapshot(snapshotId);
+    }
+
+    @Override
     public Iterable<Snapshot> snapshots() {
       return current.snapshots();
     }
@@ -385,6 +398,11 @@ class BaseTransaction implements Transaction {
     @Override
     public AppendFiles newAppend() {
       return BaseTransaction.this.newAppend();
+    }
+
+    @Override
+    public AppendFiles newFastAppend() {
+      return BaseTransaction.this.newFastAppend();
     }
 
     @Override

@@ -19,17 +19,28 @@
 
 package org.apache.iceberg;
 
-import org.apache.hadoop.conf.Configuration;
+import com.google.common.collect.Iterables;
+import org.junit.Assert;
+import org.junit.Test;
 
-public class ConfigProperties {
+public class TestSnapshotSelection extends TableTestBase {
 
-  private ConfigProperties() {}
+  @Test
+  public void testSnapshotSelectionById() {
+    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
 
-  public static final String COMPRESS_METADATA = "iceberg.compress.metadata";
-  public static final boolean COMPRESS_METADATA_DEFAULT = false;
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
 
-  public static final boolean shouldCompress(Configuration configuration) {
-    return configuration.getBoolean(COMPRESS_METADATA, COMPRESS_METADATA_DEFAULT);
+    table.newFastAppend()
+        .appendFile(FILE_B)
+        .commit();
+    Snapshot secondSnapshot = table.currentSnapshot();
+
+    Assert.assertEquals("Table should have two snapshots", 2, Iterables.size(table.snapshots()));
+    validateSnapshot(null, table.snapshot(firstSnapshot.snapshotId()), FILE_A);
+    validateSnapshot(firstSnapshot, table.snapshot(secondSnapshot.snapshotId()), FILE_B);
   }
-
 }

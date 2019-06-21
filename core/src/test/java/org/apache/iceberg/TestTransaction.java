@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import java.io.File;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.ManifestEntry.Status;
@@ -544,5 +545,27 @@ public class TestTransaction extends TableTestBase {
             .appendFile(FILE_A)
             .appendFile(FILE_B)
             .deleteWith(file -> { }));
+  }
+
+  @Test
+  public void testTransactionFastAppends() {
+    table.updateProperties()
+        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "0")
+        .commit();
+
+    Transaction txn = table.newTransaction();
+
+    txn.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    txn.newFastAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    txn.commitTransaction();
+
+    List<ManifestFile> manifests = table.currentSnapshot().manifests();
+    Assert.assertEquals("Expected 2 manifests", 2, manifests.size());
   }
 }
