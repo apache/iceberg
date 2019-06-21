@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.avro;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import java.util.List;
@@ -282,18 +283,23 @@ public class TestSchemaConversions {
 
   @Test
   public void testSpecialChars() {
+    List<String> names = Lists.newArrayList("9x", "x_", "a.b", "☃", "a#b");
     org.apache.iceberg.Schema schema = new org.apache.iceberg.Schema(
-        required(1, "9x", Types.IntegerType.get()),
-        required(2, "x_", Types.StringType.get()),
-        required(3, "a.b", Types.IntegerType.get()),
-        required(4, "☃", Types.IntegerType.get()),
-        required(5, "a#b", Types.IntegerType.get()));
-
-    Set<String> expected = Sets.newHashSet("_x39x", "x_", "a_x2Eb", "_x2603", "a_x23b");
+        required(1, names.get(0), Types.IntegerType.get()),
+        required(2, names.get(1), Types.StringType.get()),
+        required(3, names.get(2), Types.IntegerType.get()),
+        required(4, names.get(3), Types.IntegerType.get()),
+        required(5, names.get(4), Types.IntegerType.get()));
 
     Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
-    System.out.println(avroSchema);
-    Set<String> actual = TypeUtil.indexByName(AvroSchemaUtil.convert(avroSchema).asStructType()).keySet();
-    Assert.assertEquals(expected, actual);
+    Set<String> sanitizedNames = TypeUtil.indexByName(AvroSchemaUtil.convert(avroSchema).asStructType()).keySet();
+    Set<String> expectedSanitizedNames = Sets.newHashSet("_x39x", "x_", "a_x2Eb", "_x2603", "a_x23b");
+    Assert.assertEquals(expectedSanitizedNames, sanitizedNames);
+
+    List<String> origNames = Lists.newArrayList(
+        Iterables.transform(avroSchema.getFields(), f -> f.getProp(AvroSchemaUtil.ORIGINAL_FIELD_NAME_PROP)));
+    List<String> expectedOrigNames = Lists.newArrayList(names);
+    expectedOrigNames.set(1, null);  // Name at pos 1 is valid so ORIGINAL_FIELD_NAME_PROP is not set
+    Assert.assertEquals(expectedOrigNames, origNames);
   }
 }
