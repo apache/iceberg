@@ -22,9 +22,9 @@ package org.apache.iceberg.parquet;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.function.Function;
-import org.apache.commons.io.Charsets;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Type;
 import org.apache.parquet.io.api.Binary;
@@ -73,7 +73,7 @@ class ParquetConversions {
       switch (type.getOriginalType()) {
         case UTF8:
           // decode to CharSequence to avoid copying into a new String
-          return binary -> Charsets.UTF_8.decode(((Binary) binary).toByteBuffer());
+          return binary -> StandardCharsets.UTF_8.decode(((Binary) binary).toByteBuffer());
         case DECIMAL:
           int scale = type.getDecimalMetadata().getScale();
           switch (type.getPrimitiveTypeName()) {

@@ -23,11 +23,11 @@ import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericFixed;
 import org.apache.avro.generic.GenericRecordBuilder;
-import org.apache.commons.io.Charsets;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Literal;
@@ -111,7 +111,7 @@ public class TestMetricsRowGroupFilterTypes {
       .to(TimestampType.withoutZone()).value();
   private static final GenericFixed fixed = new GenericData.Fixed(
       org.apache.avro.Schema.createFixed("_fixed", null, null, 4),
-      "abcd".getBytes(Charsets.UTF_8));
+      "abcd".getBytes(StandardCharsets.UTF_8));
 
   @BeforeClass
   public static void createInputFile() throws IOException {
@@ -138,7 +138,7 @@ public class TestMetricsRowGroupFilterTypes {
         builder.set("_string", "tapir");
         builder.set("_uuid", uuid);
         builder.set("_fixed", fixed);
-        builder.set("_binary", ByteBuffer.wrap("xyz".getBytes(Charsets.UTF_8)));
+        builder.set("_binary", ByteBuffer.wrap("xyz".getBytes(StandardCharsets.UTF_8)));
         builder.set("_int_decimal", new BigDecimal("77.77"));
         builder.set("_long_decimal", new BigDecimal("88.88"));
         builder.set("_fixed_decimal", new BigDecimal("99.99"));
@@ -178,8 +178,8 @@ public class TestMetricsRowGroupFilterTypes {
             "2018-06-29T10:02:34.000000-07:00" },
         new Object[] { "string", "tapir", "monthly" },
         // new Object[] { "uuid", uuid, UUID.randomUUID() }, // not supported yet
-        new Object[] { "fixed", "abcd".getBytes(Charsets.UTF_8), new byte[] { 0, 1, 2, 3 } },
-        new Object[] { "binary", "xyz".getBytes(Charsets.UTF_8), new byte[] { 0, 1, 2, 3, 4, 5 } },
+        new Object[] { "fixed", "abcd".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3 } },
+        new Object[] { "binary", "xyz".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3, 4, 5 } },
         new Object[] { "int_decimal", "77.77", "12.34" },
         new Object[] { "long_decimal", "88.88", "12.34" },
         new Object[] { "fixed_decimal", "99.99", "12.34" },
