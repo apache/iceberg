@@ -95,7 +95,7 @@ subprojects {
 
   dependencies {
     compileOnly 'org.slf4j:slf4j-api:1.7.5'
-    compileOnly 'com.google.guava:guava:16.0.1'
+    compileOnly 'com.google.guava:guava:28.0-jre'
 
     testCompile 'junit:junit:4.12'
     testCompile 'org.slf4j:slf4j-simple:1.7.5'
@@ -115,7 +115,7 @@ subprojects {
 
 // We enable baseline-idea everywhere so that everyone can use IntelliJ to build code against the
 // Baseline style guide.
-def baselineProjects = [ project("iceberg-api"), project("iceberg-common"), project("iceberg-core"), 
+def baselineProjects = [ project("iceberg-api"), project("iceberg-common"), project("iceberg-core"),
                          project("iceberg-data"), project("iceberg-orc") ]
 
 
@@ -134,7 +134,7 @@ configure(baselineProjects) {
   // to be applied to ALL projects. And we are not prepared to address all of the build errors that
   // occur as a result at this time. Furthermore, baseline-format will not work out of the box for
   // us - see below.
-  
+
   // Thus we concede to applying all of the Baseline plugins individually on all the projects we are
   // ready to enforce linting on.
   apply plugin: 'org.inferred.processors'
@@ -145,10 +145,10 @@ configure(baselineProjects) {
   apply plugin: 'com.palantir.baseline-reproducibility'
   apply plugin: 'com.palantir.baseline-exact-dependencies'
   apply plugin: 'com.palantir.baseline-release-compatibility'
-  
+
   // Can't use the built-in Baseline spotless format because it's opinionated about the import
   // order of having static imports after non-static imports, and this cannot be overridden.
-  
+
   // So we apply Spotless manually to get a similar effect to baseline-format, but change the
   // import order.
   pluginManager.withPlugin('com.diffplug.gradle.spotless') {
@@ -235,7 +235,11 @@ project(':iceberg-hive') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
-    testCompile("org.apache.hive:hive-exec:$hiveVersion") {
+    // By default, hive-exec is a fat/uber jar and it exports a guava library
+    // that's really old. We use the core classifier to be able to override our guava
+    // version. Luckily, hive-exec seems to work okay so far with this version of guava
+    // See: https://github.com/apache/hive/blob/master/ql/pom.xml#L911 for more context.
+    testCompile("org.apache.hive:hive-exec:$hiveVersion:core") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency

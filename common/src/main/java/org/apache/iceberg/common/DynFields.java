@@ -20,7 +20,7 @@
 package org.apache.iceberg.common;
 
 import com.google.common.base.Joiner;
-import com.google.common.base.Objects;
+import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import com.google.common.collect.Sets;
@@ -69,7 +69,7 @@ public class DynFields {
 
     @Override
     public String toString() {
-      return Objects.toStringHelper(this)
+      return MoreObjects.toStringHelper(this)
           .add("class", field.getDeclaringClass().toString())
           .add("name", name)
           .add("type", field.getType())

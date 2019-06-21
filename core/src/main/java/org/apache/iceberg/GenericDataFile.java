@@ -19,7 +19,7 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Objects;
+import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import java.io.IOException;
@@ -406,7 +406,7 @@ class GenericDataFile
 
   @Override
   public String toString() {
-    return Objects.toStringHelper(this)
+    return MoreObjects.toStringHelper(this)
         .add("file_path", filePath)
         .add("file_format", format)
         .add("partition", partitionData)
