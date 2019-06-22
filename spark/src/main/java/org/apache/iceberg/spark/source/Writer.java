@@ -125,7 +125,11 @@ class Writer implements DataSourceWriter {
         });
   }
 
-  private Iterable<DataFile> files(WriterCommitMessage[] messages) {
+  protected Table table() {
+    return table;
+  }
+
+  protected Iterable<DataFile> files(WriterCommitMessage[] messages) {
     if (messages.length > 0) {
       return concat(transform(Arrays.asList(messages), message -> message != null
           ? ImmutableList.copyOf(((TaskCommit) message).files())

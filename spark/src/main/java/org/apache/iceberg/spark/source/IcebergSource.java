@@ -33,19 +33,23 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.CheckCompatibility;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.execution.streaming.StreamExecution;
 import org.apache.spark.sql.sources.DataSourceRegister;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
 import org.apache.spark.sql.sources.v2.DataSourceV2;
 import org.apache.spark.sql.sources.v2.ReadSupport;
+import org.apache.spark.sql.sources.v2.StreamWriteSupport;
 import org.apache.spark.sql.sources.v2.WriteSupport;
 import org.apache.spark.sql.sources.v2.reader.DataSourceReader;
 import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
+import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter;
+import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.types.StructType;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 
-public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, DataSourceRegister {
+public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, DataSourceRegister, StreamWriteSupport {
 
   private SparkSession lazySpark = null;
   private Configuration lazyConf = null;
@@ -65,35 +69,30 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
   }
 
   @Override
-  public Optional<DataSourceWriter> createWriter(String jobId, StructType dfStruct, SaveMode mode,
-                                                   DataSourceOptions options) {
+  public Optional<DataSourceWriter> createWriter(String jobId, StructType dsStruct, SaveMode mode,
+                                                 DataSourceOptions options) {
     Preconditions.checkArgument(mode == SaveMode.Append, "Save mode %s is not supported", mode);
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
-
-    Schema dfSchema = SparkSchemaUtil.convert(table.schema(), dfStruct);
-    List<String> errors = CheckCompatibility.writeCompatibilityErrors(table.schema(), dfSchema);
-    if (!errors.isEmpty()) {
-      StringBuilder sb = new StringBuilder();
-      sb.append("Cannot write incompatible dataframe to table with schema:\n")
-          .append(table.schema()).append("\nProblems:");
-      for (String error : errors) {
-        sb.append("\n* ").append(error);
-      }
-      throw new IllegalArgumentException(sb.toString());
-    }
-
-    Optional<String> formatOption = options.get("write-format");
-    FileFormat format;
-    if (formatOption.isPresent()) {
-      format = FileFormat.valueOf(formatOption.get().toUpperCase(Locale.ENGLISH));
-    } else {
-      format = FileFormat.valueOf(table.properties()
-          .getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT)
-          .toUpperCase(Locale.ENGLISH));
-    }
-
+    validateWriteSchema(table.schema(), dsStruct);
+    FileFormat format = getFileFormat(table.properties(), options);
     return Optional.of(new Writer(table, format));
+  }
+
+  @Override
+  public StreamWriter createStreamWriter(String runId, StructType dsStruct,
+                                         OutputMode mode, DataSourceOptions options) {
+    Preconditions.checkArgument(
+        mode == OutputMode.Append() || mode == OutputMode.Complete(),
+        "Output mode %s is not supported", mode);
+    Configuration conf = new Configuration(lazyBaseConf());
+    Table table = getTableAndResolveHadoopConfiguration(options, conf);
+    validateWriteSchema(table.schema(), dsStruct);
+    FileFormat format = getFileFormat(table.properties(), options);
+    // Spark 2.4.x passes runId to createStreamWriter instead of real queryId,
+    // so we fetch it directly from sparkContext to make writes idempotent
+    String queryId = lazySparkSession().sparkContext().getLocalProperty(StreamExecution.QUERY_ID_KEY());
+    return new StreamingWriter(table, format, queryId, mode);
   }
 
   protected Table findTable(DataSourceOptions options, Configuration conf) {
@@ -137,5 +136,26 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     options.keySet().stream()
         .filter(key -> key.startsWith("hadoop."))
         .forEach(key -> baseConf.set(key.replaceFirst("hadoop.", ""), options.get(key)));
+  }
+
+  private FileFormat getFileFormat(Map<String, String> tableProperties, DataSourceOptions options) {
+    Optional<String> formatOption = options.get("write-format");
+    String format = formatOption.orElse(tableProperties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT));
+    return FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
+  }
+
+  private void validateWriteSchema(Schema tableSchema, StructType dsStruct) {
+    Schema dsSchema = SparkSchemaUtil.convert(tableSchema, dsStruct);
+    List<String> errors = CheckCompatibility.writeCompatibilityErrors(tableSchema, dsSchema);
+    if (!errors.isEmpty()) {
+      StringBuilder sb = new StringBuilder();
+      sb.append("Cannot write incompatible dataset to table with schema:\n")
+          .append(tableSchema)
+          .append("\nProblems:");
+      for (String error : errors) {
+        sb.append("\n* ").append(error);
+      }
+      throw new IllegalArgumentException(sb.toString());
+    }
   }
 }
