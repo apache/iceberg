@@ -158,7 +158,7 @@ public class AvroSchemaUtil {
                           int valueId, Schema valueSchema) {
     String keyValueName = "k" + keyId + "_v" + valueId;
 
-    Schema.Field keyField = new Schema.Field("key", keySchema, null, null);
+    Schema.Field keyField = new Schema.Field("key", keySchema, null, (Object) null);
     keyField.addProp(FIELD_ID_PROP, keyId);
 
     Schema.Field valueField = new Schema.Field("value", valueSchema, null,
@@ -174,7 +174,7 @@ public class AvroSchemaUtil {
                           int valueId, String valueName, Schema valueSchema) {
     String keyValueName = "k" + keyId + "_v" + valueId;
 
-    Schema.Field keyField = new Schema.Field("key", keySchema, null, null);
+    Schema.Field keyField = new Schema.Field("key", keySchema, null, (Object) null);
     if (!"key".equals(keyName)) {
       keyField.addAlias(keyName);
     }

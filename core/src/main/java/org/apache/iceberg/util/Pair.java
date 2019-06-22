@@ -44,8 +44,8 @@ public class Pair<X, Y> implements IndexedRecord, SpecificData.SchemaConstructab
           Schema xSchema = ReflectData.get().getSchema(key.first);
           Schema ySchema = ReflectData.get().getSchema(key.second);
           return Schema.createRecord("pair", null, null, false, Lists.newArrayList(
-              new Schema.Field("x", xSchema, null, null),
-              new Schema.Field("y", ySchema, null, null)
+              new Schema.Field("x", xSchema, null, (Object) null),
+              new Schema.Field("y", ySchema, null, (Object) null)
           ));
         }
       });
