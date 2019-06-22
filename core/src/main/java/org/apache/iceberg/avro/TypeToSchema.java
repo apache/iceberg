@@ -86,9 +86,15 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
     List<Schema.Field> fields = Lists.newArrayListWithExpectedSize(fieldSchemas.size());
     for (int i = 0; i < structFields.size(); i += 1) {
       Types.NestedField structField = structFields.get(i);
+      String origFieldName = structField.name();
+      boolean isValidFieldName = AvroSchemaUtil.validAvroName(origFieldName);
+      String fieldName =  isValidFieldName ? origFieldName : AvroSchemaUtil.sanitize(origFieldName);
       Schema.Field field = new Schema.Field(
-          structField.name(), fieldSchemas.get(i), null,
+          fieldName, fieldSchemas.get(i), null,
           structField.isOptional() ? JsonProperties.NULL_VALUE : null);
+      if (!isValidFieldName) {
+        field.addProp(AvroSchemaUtil.ICEBERG_FIELD_NAME_PROP, origFieldName);
+      }
       field.addProp(AvroSchemaUtil.FIELD_ID_PROP, structField.fieldId());
       fields.add(field);
     }
