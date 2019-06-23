@@ -24,7 +24,7 @@ Data files in snapshots are tracked by one or more manifest files that contain a
 
 The manifests that make up a snapshot are stored in a manifest list file. Each manifest list stores metadata about manifests, including partition stats and data file counts. These stats are used to avoid reading manifests that are not required for an operation.
 
-### MVCC and Optimistic Concurrency
+#### MVCC and Optimistic Concurrency
 
 An atomic swap of one table metadata file for another provides serializable isolation. Readers use the snapshot that was current when they load the table metadata and are not affected by changes until they refresh and pick up a new metadata location.
 
@@ -32,7 +32,7 @@ Writers create table metadata files optimistically, assuming that the current ve
 
 If the snapshot on which an update is based is no longer current, the writer must retry the update based on the new current version. Some operations support retry by re-applying metadata changes and committing, under well-defined conditions. For example, a change that rewrites files can be applied to a new table snapshot if all of the rewritten files are still in the table.
 
-### File System Operations
+#### File System Operations
 
 Iceberg only requires that file systems support the following operations:
 
@@ -48,7 +48,7 @@ Tables do not require rename, except fo rtables that use atomic rename to implem
 
 ## Specification
 
-### Terms
+#### Terms
 
 * **Schema** -- names and types of fields in a table
 * **Partition spec** -- a definition of how partition values are derived from data fields
@@ -100,7 +100,7 @@ Timestamps _without time zone_ represent a date and time of day regardless of zo
 For details on how to serialize a schema to JSON, see Appendix C.
 
 
-### Schema Evolution
+#### Schema Evolution
 
 Schema evolution is limited to type promotion and adding, deleting, and renaming fields in structs (both nested structs and the top-level schema’s struct).
 
@@ -115,7 +115,7 @@ Any struct, including a top-level schema, can evolve through deleting fields, ad
 Grouping a subset of a struct’s fields into a nested struct is **not** allowed, nor is moving fields from a nested struct into its immediate parent struct (`struct<a, b, c> ↔ struct<a, struct<b, c>>`). Evolving primitive types to structs is **not** allowed, nor is evolving a single-field struct to a primitive (`map<string, int> ↔ map<string, struct<int>>`).
 
 
-## Partitioning
+### Partitioning
 
 Data files are stored in manifests with a tuple of partition values that are used in scans to filter out files that cannot contain records that match the scan’s filter predicate. Partition values for a data file must be the same for all records stored in the data file. (Manifests store data files from any partition, as long as the partition spec is the same for the data files.)
 
@@ -130,7 +130,7 @@ The source column, selected by id, must be a primitive type and cannot be contai
 Partition specs capture the transform from table data to partition values. This is used to transform predicates to partition predicates, in addition to transforming data values. Deriving partition predicates from column predicates on the table data is used to separate the logical queries from physical storage: the partitioning can change and the correct partition filters are always derived from column predicates. This simplifies queries because users don’t have to supply both logical predicates and partition predicates. For more information, see Scan Planning below.
 
 
-### Partition Transforms
+#### Partition Transforms
 
 | Transform         | Description                                                  | Source types                                                                                              | Result type |
 |-------------------|--------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|-------------|
@@ -145,7 +145,7 @@ Partition specs capture the transform from table data to partition values. This 
 All transforms must return `null` for a `null` input value.
 
 
-### Bucket Transform Details
+#### Bucket Transform Details
 
 Bucket partition transforms use a 32-bit hash of the source value. The 32-bit hash implementation is the 32-bit Murmur3 hash, x86 variant, seeded with 0.
 
@@ -160,7 +160,7 @@ Transforms are parameterized by a number of buckets[^3], `N`. The hash mod `N` m
 For hash function details by type, see Appendix B.
 
 
-### Truncate Transform Details
+#### Truncate Transform Details
 
 | **Type**      | **Config**            | **Truncate specification**                                       | **Examples**                     |
 |---------------|-----------------------|------------------------------------------------------------------|----------------------------------|
@@ -175,7 +175,7 @@ Notes:
 2. The width, `W`, used to truncate decimal values is applied using the scale of the decimal column to avoid additional (and potentially conflicting) parameters.
 
 
-## Manifests
+### Manifests
 
 A manifest is an immutable Avro file that lists a set of data files, along with each file’s partition data tuple, metrics, and tracking information. One or more manifest files are used to store a snapshot, which tracks all of the files in a table at some point in time.
 
@@ -223,7 +223,7 @@ The `partition` struct stores the tuple of partition values for each file. Its t
 Each manifest file must store its partition spec and the current table schema in the Avro file’s key-value metadata. The partition spec is used to transform predicates on the table’s data rows into predicates on the manifest’s partition values during job planning.
 
 
-### Manifest Entry Fields
+#### Manifest Entry Fields
 
 The manifest entry fields are used to keep track of the snapshot in which files were added or logically deleted. The `data_file` struct is nested inside of the manifest entry so that it can be easily passed to job planning without the manifest entry fields.
 
@@ -232,7 +232,7 @@ When a data file is added to the dataset, it’s manifest entry should store the
 When a data file is replaced or deleted from the dataset, it’s manifest entry fields store the snapshot ID in which the file was deleted and status 2 (deleted). The file may be deleted from the file system when the snapshot in which it was deleted is garbage collected, assuming that older snapshots have also been garbage collected[^4].
 
 
-## Snapshots
+### Snapshots
 
 A snapshot consists of the following fields:
 
@@ -256,7 +256,7 @@ Snapshots can be split across more than one manifest. This enables:
 Valid snapshots are stored as a list in table metadata. For serialization, see Appendix C.
 
 
-### Scan Planning
+#### Scan Planning
 
 Scans are planned by reading the manifest files for the current snapshot listed in the table metadata. Deleted entries in a manifest are not included in the scan.
 
@@ -267,7 +267,7 @@ Scan predicates are converted to partition predicates using an inclusive project
 For example, an `events` table with a timestamp column named `ts` that is partitioned by `ts_day=day(ts)` is queried by users with ranges over the timestamp column: `ts > X`. The inclusive projection is `ts_day >= day(X)`, which is used to select files that may have matching rows. Note that, in most cases, timestamps just before `X` will be included in the scan because the file contains rows that match the predicate and rows that do not match the predicate.
 
 
-### Manifest Lists
+#### Manifest Lists
 
 Snapshots are embedded in table metadata, but the list of manifests for a snapshot can be stored in a separate manifest list file.
 
@@ -299,14 +299,14 @@ Notes:
 1. Lower and upper bounds are serialized to bytes using the single-object serialization in Appendix D. The type of used to encode the value is the type of the partition field data.
 
 
-## Table Metadata
+### Table Metadata
 
 Table metadata is stored as JSON. Each table metadata change creates a new table metadata file that is committed by an atomic operation. This operation is used to ensure that a new version of table metadata replaces the version on which it was based. This produces a linear history of table versions and ensures that concurrent writes are not lost.
 
 The atomic operation used to commit metadata depends on how tables are tracked and is not standardized by this spec. See the sections below for examples.
 
 
-### Commit Conflict Resolution and Retry
+#### Commit Conflict Resolution and Retry
 
 When two commits happen at the same time and are based on the same version, only one commit will succeed. In most cases, the failed commit can be applied to the new current version of table metadata and retried. Updates verify the conditions under which they can be applied to a new version and retry if those conditions are met.
 
@@ -316,7 +316,7 @@ When two commits happen at the same time and are based on the same version, only
 *   Table schema updates and partition spec changes must validate that the schema has not changed between the base version and the current version.
 
 
-### Table Metadata Fields
+#### Table Metadata Fields
 
 Table metadata consists of the following fields:
 
@@ -338,7 +338,7 @@ Table metadata consists of the following fields:
 For serialization details, see Appendix C.
 
 
-### File System Tables
+#### File System Tables
 
 An atomic swap can be implemented using atomic rename in file systems that support it, like HDFS or most local file systems[^6].
 
@@ -351,7 +351,7 @@ Each version of table metadata is stored in a metadata folder under the table’
     1. If the rename succeeds, the commit succeeded and `V+1` is the table’s current version
     2. If the rename fails, go back to step 1.
 
-### Metastore Tables
+#### Metastore Tables
 
 The atomic swap needed to commit new versions of table metadata can be implemented by storing a pointer in a metastore or database that is updated with a check-and-put operation[^7]. The check-and-put validates that the version of the table that a write is based on is still current and then makes the new metadata from the write the current version.
 
@@ -364,13 +364,12 @@ Each version of table metadata is stored in a metadata folder under the table’
     2. If the swap fails, another writer has already created `V+1`. The current writer goes back to step 1.
 
 
-# Appendix A: Format-specific Requirements
+## Appendix A: Format-specific Requirements
 
 
-## Avro
+### Avro
 
-
-### Data Type Mappings
+**Data Type Mappings**
 
 Values should be stored in Avro using the Avro types and logical type annotations in the table below.
 
@@ -401,7 +400,7 @@ Maps with non-string keys must use an array representation with the `map` logica
 |**`map`**|`array` of key-value records, or `map` when keys are strings (optional)|Array storage must use logical type name `map` and must store elements that are 2-field records. The first field is a non-null key and the second field is the value.|
 
 
-### Field IDs
+**Field IDs**
 
 Iceberg struct, list, and map types identify nested types by ID. When writing data to Avro files, these IDs must be stored in the Avro schema to support ID-based column pruning.
 
@@ -418,10 +417,9 @@ IDs are stored as JSON integers in the following locations:
 Note that the string map case is for maps where the key type is a string. Using Avro’s map type in this case is optional. Maps with string keys may be stored as arrays.
 
 
-## Parquet
+### Parquet
 
-
-### Data Type Mappings
+**Data Type Mappings**
 
 Values should be stored in Parquet using the types and logical type annotations in the table below. Column IDs are required.
 
@@ -448,7 +446,9 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | **`map`**          | `3-level map`                                                      | `MAP`                                       | See Parquet docs for 3-level representation                    |
 
 
-## ORC
+### ORC
+
+**Data Type Mappings**
 
 | Type               | ORC type    | Notes                                                                                   |
 |--------------------|-------------|-----------------------------------------------------------------------------------------|
@@ -482,7 +482,7 @@ Iceberg would build the desired reader schema with their schema evolution rules 
 |`struct<a (1): int, b (2): string>`|`struct<a: int, b: string>`|`struct<a (2): string, c (3): date>`|`struct<b: string, c: date>`|
 |`struct<a (1): struct<b (2): string, c (3): date>>`|`struct<a: struct<b:string, c:date>>`|`struct<aa (1): struct<cc (3): date, bb (2): string>>`|`struct<a: struct<c:date, b:string>>`|
 
-# Appendix B: 32-bit Hash Requirements by Type
+## Appendix B: 32-bit Hash Requirements
 
 The 32-bit hash implementation is 32-bit Murmur3 hash, x86 variant, seeded with 0.
 
@@ -513,10 +513,10 @@ Hash results are not dependent on decimal scale, which is part of the type, not 
 `F7 9C 3E 09 67 7C 4B BD A4 79 3F 34 9C B7 85 E7`
 
 
-# Appendix C: JSON serialization
+## Appendix C: JSON serialization
 
 
-## Schemas
+### Schemas
 
 Schemas are serialized to JSON as a struct. Types are serialized according to this table:
 
@@ -541,7 +541,7 @@ Schemas are serialized to JSON as a struct. Types are serialized according to th
 |**`map`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": <key id int>,`<br />&nbsp;&nbsp;`"key": <type JSON>,`<br />&nbsp;&nbsp;`"value-id": <val id int>,`<br />&nbsp;&nbsp;`"value-required": <bool>`<br />&nbsp;&nbsp;`"value": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": 4,`<br />&nbsp;&nbsp;`"key": "string",`<br />&nbsp;&nbsp;`"value-id": 5,`<br />&nbsp;&nbsp;`"value-required": false,`<br />&nbsp;&nbsp;`"value": "double"`<br />`}`|
 
 
-## Partition Specs
+### Partition Specs
 
 Partition specs are serialized as a JSON object with the following fields:
 
@@ -566,7 +566,7 @@ Each partition field in the fields list is stored as an object. See the table fo
 In some cases partition specs are stored using only the field list instead of the object format that includes the spec ID, like the deprecated `partition-spec` field in table metadata. The object format should be used unless otherwise noted in this spec.
 
 
-## Table Metadata and Snapshots
+### Table Metadata and Snapshots
 
 Table metadata is serialized as a JSON object according to the following table. Snapshots are not serialized separately. Instead, they are stored in the table metadata JSON.
 
@@ -586,7 +586,7 @@ Table metadata is serialized as a JSON object according to the following table. 
 |**`snapshot-log`**|`JSON list of objects: [`<br />&nbsp;&nbsp;`{`<br />&nbsp;&nbsp;`"snapshot-id": ,`<br />&nbsp;&nbsp;`"timestamp-ms": `<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 30517296...,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100...`<br />`} ]`|
 
 
-# Appendix D: Single-value serialization
+## Appendix D: Single-value serialization
 
 This serialization scheme is for storing single values as individual binary values in the lower and upper bounds maps of manifest files.
 
