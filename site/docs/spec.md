@@ -70,7 +70,7 @@ A **`list`** is a collection of values with some element type. The element field
 
 A **`map`** is a collection of key-value pairs with a key type and a value type. Both the key field and value field each have an integer id that is unique in the table schema. Map keys are required and map values can be either optional or required. Both map keys and map values may be any type, including nested types.
 
-### Primitive Types
+#### Primitive Types
 
 | Primitive type     | Description                                                              | Requirements                                     |
 |--------------------|--------------------------------------------------------------------------|--------------------------------------------------|
