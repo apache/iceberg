@@ -26,6 +26,7 @@ import com.google.common.collect.Sets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.io.FileIO;
@@ -62,12 +63,13 @@ class BaseTransaction implements Transaction {
     return new BaseTransaction(ops, ops.refresh());
   }
 
-  // exposed for testing
   private final TableOperations ops;
   private final TransactionTable transactionTable;
   private final TableOperations transactionOps;
   private final List<PendingUpdate> updates;
   private final Set<Long> intermediateSnapshotIds;
+  private final Set<String> deletedFiles = Sets.newHashSet(); // keep track of files deleted in the most recent commit
+  private final Consumer<String> enqueueDelete = deletedFiles::add;
   private TransactionType type;
   private TableMetadata base;
   private TableMetadata lastBase;
@@ -130,6 +132,7 @@ class BaseTransaction implements Transaction {
   public AppendFiles newAppend() {
     checkLastOperationCommitted("AppendFiles");
     AppendFiles append = new MergeAppend(transactionOps);
+    append.deleteWith(enqueueDelete);
     updates.add(append);
     return append;
   }
@@ -146,6 +149,7 @@ class BaseTransaction implements Transaction {
   public RewriteFiles newRewrite() {
     checkLastOperationCommitted("RewriteFiles");
     RewriteFiles rewrite = new ReplaceFiles(transactionOps);
+    rewrite.deleteWith(enqueueDelete);
     updates.add(rewrite);
     return rewrite;
   }
@@ -154,6 +158,7 @@ class BaseTransaction implements Transaction {
   public RewriteManifests rewriteManifests() {
     checkLastOperationCommitted("RewriteManifests");
     RewriteManifests rewrite = new ReplaceManifests(transactionOps);
+    rewrite.deleteWith(enqueueDelete);
     updates.add(rewrite);
     return rewrite;
   }
@@ -162,6 +167,7 @@ class BaseTransaction implements Transaction {
   public OverwriteFiles newOverwrite() {
     checkLastOperationCommitted("OverwriteFiles");
     OverwriteFiles overwrite = new OverwriteData(transactionOps);
+    overwrite.deleteWith(enqueueDelete);
     updates.add(overwrite);
     return overwrite;
   }
@@ -170,6 +176,7 @@ class BaseTransaction implements Transaction {
   public ReplacePartitions newReplacePartitions() {
     checkLastOperationCommitted("ReplacePartitions");
     ReplacePartitionsOperation replacePartitions = new ReplacePartitionsOperation(transactionOps);
+    replacePartitions.deleteWith(enqueueDelete);
     updates.add(replacePartitions);
     return replacePartitions;
   }
@@ -178,6 +185,7 @@ class BaseTransaction implements Transaction {
   public DeleteFiles newDelete() {
     checkLastOperationCommitted("DeleteFiles");
     DeleteFiles delete = new StreamingDelete(transactionOps);
+    delete.deleteWith(enqueueDelete);
     updates.add(delete);
     return delete;
   }
@@ -186,6 +194,7 @@ class BaseTransaction implements Transaction {
   public ExpireSnapshots expireSnapshots() {
     checkLastOperationCommitted("ExpireSnapshots");
     ExpireSnapshots expire = new RemoveSnapshots(transactionOps);
+    expire.deleteWith(enqueueDelete);
     updates.add(expire);
     return expire;
   }
@@ -246,6 +255,7 @@ class BaseTransaction implements Transaction {
               if (base != underlyingOps.refresh()) {
                 this.base = underlyingOps.current(); // just refreshed
                 this.current = base;
+                this.deletedFiles.clear(); // clear deletes from the last set of operation commits
                 for (PendingUpdate update : updates) {
                   // re-commit each update in the chain to apply it and update current
                   update.commit();
@@ -255,6 +265,9 @@ class BaseTransaction implements Transaction {
               // fix up the snapshot log, which should not contain intermediate snapshots
               underlyingOps.commit(base, current.removeSnapshotLogEntries(intermediateSnapshotIds));
             });
+
+        // delete all of the files that were deleted in the most recent set of operation commits
+        deletedFiles.forEach(ops.io()::deleteFile);
         break;
     }
   }
@@ -451,5 +464,10 @@ class BaseTransaction implements Transaction {
   @VisibleForTesting
   TableOperations ops() {
     return ops;
+  }
+
+  @VisibleForTesting
+  Set<String> deletedFiles() {
+    return deletedFiles;
   }
 }
