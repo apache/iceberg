@@ -26,7 +26,6 @@ buildscript {
   }
   dependencies {
     classpath 'com.github.jengelman.gradle.plugins:shadow:5.0.0'
-    classpath 'com.netflix.nebula:gradle-aggregate-javadocs-plugin:2.2.+'
     classpath 'com.netflix.nebula:nebula-publishing-plugin:5.1.5'
     classpath 'com.palantir.baseline:gradle-baseline-java:0.55.0'
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:3.14.0'
@@ -50,7 +49,6 @@ allprojects {
   version = gitVersion()
 }
 
-apply plugin: 'nebula-aggregate-javadocs'
 apply plugin: 'com.palantir.baseline-config'
 
 subprojects {
@@ -109,6 +107,32 @@ subprojects {
       }
     }
   }
+}
+
+task aggregateJavadoc(type: Javadoc) {
+  // use the branch name in place of version in Javadoc
+  project.rootProject.version = versionDetails().branchName
+
+  dependsOn subprojects.javadoc
+  source subprojects.javadoc.source
+  destinationDir project.rootProject.file("site/docs/javadoc/${versionDetails().branchName}")
+  classpath = project.rootProject.files(subprojects.javadoc.classpath)
+}
+
+task removeJavadoc(type: Exec) {
+  commandLine 'rm', '-rf', "site/docs/javadoc/${versionDetails().branchName}"
+}
+
+task refreshJavadoc(type: Exec) {
+  dependsOn aggregateJavadoc
+  dependsOn removeJavadoc
+  aggregateJavadoc.mustRunAfter removeJavadoc
+  commandLine 'git', 'add', "site/docs/javadoc/${versionDetails().branchName}"
+}
+
+task deploySite(type: Exec) {
+  workingDir 'site'
+  commandLine 'mkdocs', 'gh-deploy'
 }
 
 // The following code is temporary to allow for incrementally migrating projects to use Baseline.
