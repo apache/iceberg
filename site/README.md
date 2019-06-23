@@ -32,6 +32,7 @@ The site is built using mkdocs. To install mkdocs and the theme, run:
 ```
 pip install mkdocs
 pip install mkdocs-cinder
+pip install pymdown-extensions
 ```
 
 ### Local Changes

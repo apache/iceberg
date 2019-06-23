@@ -27,3 +27,7 @@
   margin-left: -1.6em;
   float: left;
 }
+
+.floating {
+  float: right;
+}

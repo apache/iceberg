@@ -30,9 +30,13 @@ extra_css:
 markdown_extensions:
   - smarty
   - sane_lists
+  - extra
+  - tables
+  - pymdownx.tilde
 nav:
   - About: index.md
   - Community: community.md
   - Docs:
     - Partitioning: partitioning.md
     - Javadoc: /javadoc/
+    - Spec: spec.md
