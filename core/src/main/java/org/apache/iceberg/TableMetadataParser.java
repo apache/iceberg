@@ -34,8 +34,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
-import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
-import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -66,7 +66,7 @@ public class TableMetadataParser {
   public static void write(TableMetadata metadata, OutputFile outputFile) {
     try (OutputStreamWriter writer = new OutputStreamWriter(
             outputFile.location().endsWith(".gz") ?
-                    new GzipCompressorOutputStream(outputFile.create()) :
+                    new GZIPOutputStream(outputFile.create()) :
                     outputFile.create())) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
       generator.useDefaultPrettyPrinter();
@@ -146,7 +146,7 @@ public class TableMetadataParser {
   public static TableMetadata read(TableOperations ops, InputFile file) {
     try {
       InputStream is =
-          file.location().endsWith("gz") ? new GzipCompressorInputStream(file.newStream()) : file.newStream();
+          file.location().endsWith("gz") ? new GZIPInputStream(file.newStream()) : file.newStream();
       return fromJson(ops, file, JsonUtil.mapper().readValue(is, JsonNode.class));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read file: %s", file);

@@ -25,7 +25,8 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Paths;
-import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.ZipException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.types.Types.BooleanType;
@@ -78,10 +79,10 @@ public class TableMetadataParserTest {
   }
 
   private boolean isCompressed(String path) throws IOException {
-    try (InputStream ignored = new GzipCompressorInputStream(new FileInputStream(new File(path)))) {
+    try (InputStream ignored = new GZIPInputStream(new FileInputStream(new File(path)))) {
       return true;
-    } catch (IOException e) {
-      if (e.getMessage().equals("Input is not in the .gz format")) {
+    } catch (ZipException e) {
+      if (e.getMessage().equals("Not in GZIP format")) {
         return false;
       } else {
         throw e;
