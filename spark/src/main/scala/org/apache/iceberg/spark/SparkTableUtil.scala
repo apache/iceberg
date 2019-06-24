@@ -19,21 +19,20 @@
 
 package org.apache.iceberg.spark
 
+import com.google.common.collect.Maps
 import java.nio.ByteBuffer
 import java.util
-import com.google.common.collect.Maps
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{Path, PathFilter}
-import org.apache.iceberg.parquet.ParquetUtil
 import org.apache.iceberg.{DataFile, DataFiles, Metrics, PartitionSpec}
+import org.apache.iceberg.hadoop.HadoopInputFile
+import org.apache.iceberg.orc.OrcMetrics
+import org.apache.iceberg.parquet.ParquetUtil
 import org.apache.iceberg.spark.hacks.Hive
 import org.apache.parquet.hadoop.ParquetFileReader
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.catalyst.catalog.CatalogTablePartition
 import scala.collection.JavaConverters._
-
-import org.apache.iceberg.hadoop.HadoopInputFile
-import org.apache.iceberg.orc.OrcMetrics
 
 object SparkTableUtil {
   /**

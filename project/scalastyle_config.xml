@@ -142,4 +142,15 @@
             <parameter name="ignoreRegex"><![CDATA[^""$]]></parameter>
         </parameters>
     </check>
+    <check level="error" class="org.scalastyle.scalariform.ImportOrderChecker" enabled="true">
+        <parameters>
+            <parameter name="groups">all</parameter>
+            <parameter name="group.all">.+</parameter>
+        </parameters>
+    </check>
+    <check level="error" class="org.scalastyle.scalariform.DisallowSpaceBeforeTokenChecker" enabled="true">
+        <parameters>
+            <parameter name="tokens">COMMA</parameter>
+        </parameters>
+    </check>
 </scalastyle>
