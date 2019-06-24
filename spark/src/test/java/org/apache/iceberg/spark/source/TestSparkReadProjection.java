@@ -81,9 +81,9 @@ public class TestSparkReadProjection extends TestReadProjection {
 
   @AfterClass
   public static void stopSpark() {
-    SparkSession spark = TestSparkReadProjection.spark;
+    SparkSession currentSpark = TestSparkReadProjection.spark;
     TestSparkReadProjection.spark = null;
-    spark.stop();
+    currentSpark.stop();
   }
 
   @Override
@@ -214,16 +214,17 @@ public class TestSparkReadProjection extends TestReadProjection {
   }
 
   private Record convert(org.apache.avro.Schema schema, Row row) {
+    org.apache.avro.Schema schemaToConvert = schema;
     if (schema.getType() == UNION) {
       if (schema.getTypes().get(0).getType() != NULL) {
-        schema = schema.getTypes().get(0);
+        schemaToConvert = schema.getTypes().get(0);
       } else {
-        schema = schema.getTypes().get(1);
+        schemaToConvert = schema.getTypes().get(1);
       }
     }
 
-    Record record = new Record(schema);
-    List<org.apache.avro.Schema.Field> fields = schema.getFields();
+    Record record = new Record(schemaToConvert);
+    List<org.apache.avro.Schema.Field> fields = schemaToConvert.getFields();
     for (int i = 0; i < fields.size(); i += 1) {
       org.apache.avro.Schema.Field field = fields.get(i);
 
@@ -280,7 +281,7 @@ public class TestSparkReadProjection extends TestReadProjection {
 
   private Schema reassignIds(Schema schema, Map<Integer, Integer> idMapping) {
     return new Schema(TypeUtil.visit(schema, new TypeUtil.SchemaVisitor<Type>() {
-      private int map(int id) {
+      private int mapId(int id) {
         if (idMapping.containsKey(id)) {
           return idMapping.get(id);
         }
@@ -299,9 +300,9 @@ public class TestSparkReadProjection extends TestReadProjection {
         for (int i = 0; i < fields.size(); i += 1) {
           Types.NestedField field = fields.get(i);
           if (field.isOptional()) {
-            newFields.add(optional(map(field.fieldId()), field.name(), fieldResults.get(i)));
+            newFields.add(optional(mapId(field.fieldId()), field.name(), fieldResults.get(i)));
           } else {
-            newFields.add(required(map(field.fieldId()), field.name(), fieldResults.get(i)));
+            newFields.add(required(mapId(field.fieldId()), field.name(), fieldResults.get(i)));
           }
         }
         return Types.StructType.of(newFields);
@@ -315,9 +316,9 @@ public class TestSparkReadProjection extends TestReadProjection {
       @Override
       public Type list(Types.ListType list, Type elementResult) {
         if (list.isElementOptional()) {
-          return Types.ListType.ofOptional(map(list.elementId()), elementResult);
+          return Types.ListType.ofOptional(mapId(list.elementId()), elementResult);
         } else {
-          return Types.ListType.ofRequired(map(list.elementId()), elementResult);
+          return Types.ListType.ofRequired(mapId(list.elementId()), elementResult);
         }
       }
 
@@ -325,10 +326,10 @@ public class TestSparkReadProjection extends TestReadProjection {
       public Type map(Types.MapType map, Type keyResult, Type valueResult) {
         if (map.isValueOptional()) {
           return Types.MapType.ofOptional(
-              map(map.keyId()), map(map.valueId()), keyResult, valueResult);
+              mapId(map.keyId()), mapId(map.valueId()), keyResult, valueResult);
         } else {
           return Types.MapType.ofRequired(
-              map(map.keyId()), map(map.valueId()), keyResult, valueResult);
+              mapId(map.keyId()), mapId(map.valueId()), keyResult, valueResult);
         }
       }
 

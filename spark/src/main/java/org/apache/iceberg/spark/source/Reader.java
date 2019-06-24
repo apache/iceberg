@@ -22,6 +22,7 @@ package org.apache.iceberg.spark.source;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import java.io.Closeable;
 import java.io.IOException;
@@ -56,11 +57,11 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkAvroReader;
+import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
-import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Attribute;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
@@ -86,12 +87,7 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static com.google.common.collect.Iterators.transform;
-import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
-import static org.apache.iceberg.spark.SparkSchemaUtil.prune;
-import static scala.collection.JavaConverters.asScalaBufferConverter;
-import static scala.collection.JavaConverters.seqAsJavaListConverter;
+import scala.collection.JavaConverters;
 
 class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushDownRequiredColumns,
     SupportsReportStatistics {
@@ -131,7 +127,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
   private Schema lazySchema() {
     if (schema == null) {
       if (requestedSchema != null) {
-        this.schema = prune(table.schema(), requestedSchema);
+        this.schema = SparkSchemaUtil.prune(table.schema(), requestedSchema);
       } else {
         this.schema = table.schema();
       }
@@ -141,7 +137,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
 
   private StructType lazyType() {
     if (type == null) {
-      this.type = convert(lazySchema());
+      this.type = SparkSchemaUtil.convert(lazySchema());
     }
     return type;
   }
@@ -159,7 +155,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     List<InputPartition<InternalRow>> readTasks = Lists.newArrayList();
     for (CombinedScanTask task : tasks()) {
       readTasks.add(
-        new ReadTask(task, tableSchemaString, expectedSchemaString, fileIo, encryptionManager, caseSensitive));
+          new ReadTask(task, tableSchemaString, expectedSchemaString, fileIo, encryptionManager, caseSensitive));
     }
 
     return readTasks;
@@ -198,8 +194,8 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
   }
 
   @Override
-  public void pruneColumns(StructType requestedSchema) {
-    this.requestedSchema = requestedSchema;
+  public void pruneColumns(StructType newRequestedSchema) {
+    this.requestedSchema = newRequestedSchema;
 
     // invalidate the schema that will be projected
     this.schema = null;
@@ -319,8 +315,8 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     private Closeable currentCloseable = null;
     private InternalRow current = null;
 
-    public TaskDataReader(CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
-                          EncryptionManager encryptionManager, boolean caseSensitive) {
+    TaskDataReader(CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
+                   EncryptionManager encryptionManager, boolean caseSensitive) {
       this.fileIo = fileIo;
       this.tasks = task.files().iterator();
       this.tableSchema = tableSchema;
@@ -380,7 +376,8 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       Set<Integer> idColumns = spec.identitySourceIds();
 
       // schema needed for the projection and filtering
-      Schema requiredSchema = prune(tableSchema, convert(finalSchema), task.residual(), caseSensitive);
+      StructType sparkType = SparkSchemaUtil.convert(finalSchema);
+      Schema requiredSchema = SparkSchemaUtil.prune(tableSchema, sparkType, task.residual(), caseSensitive);
       boolean hasJoinedPartitionColumns = !idColumns.isEmpty();
       boolean hasExtraFilterColumns = requiredSchema.columns().size() != finalSchema.columns().size();
 
@@ -399,7 +396,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
 
         // create joined rows and project from the joined schema to the final schema
         iterSchema = TypeUtil.join(readSchema, partitionSchema);
-        iter = transform(open(task, readSchema), joined::withLeft);
+        iter = Iterators.transform(open(task, readSchema), joined::withLeft);
 
       } else if (hasExtraFilterColumns) {
         // add projection to the final schema
@@ -413,30 +410,8 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       }
 
       // TODO: remove the projection by reporting the iterator's schema back to Spark
-      return transform(iter,
+      return Iterators.transform(iter,
           APPLY_PROJECTION.bind(projection(finalSchema, iterSchema))::invoke);
-    }
-
-    private static UnsafeProjection projection(Schema finalSchema, Schema readSchema) {
-      StructType struct = convert(readSchema);
-
-      List<AttributeReference> refs = seqAsJavaListConverter(struct.toAttributes()).asJava();
-      List<Attribute> attrs = Lists.newArrayListWithExpectedSize(struct.fields().length);
-      List<org.apache.spark.sql.catalyst.expressions.Expression> exprs =
-          Lists.newArrayListWithExpectedSize(struct.fields().length);
-
-      for (AttributeReference ref : refs) {
-        attrs.add(ref.toAttribute());
-      }
-
-      for (Types.NestedField field : finalSchema.columns()) {
-        int indexInReadSchema = struct.fieldIndex(field.name());
-        exprs.add(refs.get(indexInReadSchema));
-      }
-
-      return UnsafeProjection.create(
-          asScalaBufferConverter(exprs).asScala().toSeq(),
-          asScalaBufferConverter(attrs).asScala().toSeq());
     }
 
     private Iterator<InternalRow> open(FileScanTask task, Schema readSchema) {
@@ -464,6 +439,28 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       this.currentCloseable = iter;
 
       return iter.iterator();
+    }
+
+    private static UnsafeProjection projection(Schema finalSchema, Schema readSchema) {
+      StructType struct = SparkSchemaUtil.convert(readSchema);
+
+      List<AttributeReference> refs = JavaConverters.seqAsJavaListConverter(struct.toAttributes()).asJava();
+      List<Attribute> attrs = Lists.newArrayListWithExpectedSize(struct.fields().length);
+      List<org.apache.spark.sql.catalyst.expressions.Expression> exprs =
+          Lists.newArrayListWithExpectedSize(struct.fields().length);
+
+      for (AttributeReference ref : refs) {
+        attrs.add(ref.toAttribute());
+      }
+
+      for (Types.NestedField field : finalSchema.columns()) {
+        int indexInReadSchema = struct.fieldIndex(field.name());
+        exprs.add(refs.get(indexInReadSchema));
+      }
+
+      return UnsafeProjection.create(
+          JavaConverters.asScalaBufferConverter(exprs).asScala().toSeq(),
+          JavaConverters.asScalaBufferConverter(attrs).asScala().toSeq());
     }
 
     private CloseableIterable<InternalRow> newAvroIterable(InputFile location,
