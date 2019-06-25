@@ -64,7 +64,7 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
 
   private Converter[] buildConverters() {
     final Converter[] newConverters = new Converter[columns.size()];
-    for (int c = 0; c < columns.size(); ++c) {
+    for (int c = 0; c < newConverters.length; ++c) {
       newConverters[c] = buildConverter(columns.get(c));
     }
     return newConverters;

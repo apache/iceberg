@@ -40,7 +40,6 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 public class ORC {
 
   private static final String VECTOR_ROW_BATCH_SIZE = "iceberg.orc.vectorbatch.size";
-  static final String COLUMN_NUMBERS_ATTRIBUTE = "iceberg.column.ids";
 
   private ORC() {
   }

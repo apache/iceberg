@@ -33,6 +33,7 @@ import org.apache.orc.OrcFile;
 import org.apache.orc.Reader;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Iterable used to read rows from ORC.
@@ -46,8 +47,8 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private final Function<TypeDescription, OrcValueReader<?>> readerFunction;
 
   OrcIterable(InputFile file, Configuration config, Schema schema,
-                     Long start, Long length,
-                     Function<TypeDescription, OrcValueReader<?>> readerFunction) {
+              Long start, Long length,
+              Function<TypeDescription, OrcValueReader<?>> readerFunction) {
     this.schema = schema;
     this.readerFunction = readerFunction;
     this.file = file;
@@ -56,19 +57,15 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
     this.config = config;
   }
 
+  @NotNull
   @SuppressWarnings("unchecked")
   @Override
   public Iterator<T> iterator() {
-    final Reader orcFileReader = newFileReader(file, config);
-    final ColumnMap colMapping = orcFileReader.hasMetadataValue(ORC.COLUMN_NUMBERS_ATTRIBUTE) ?
-        ColumnMap.deserialize(orcFileReader.getSchema(),
-            orcFileReader.getMetadataValue(ORC.COLUMN_NUMBERS_ATTRIBUTE)) : new ColumnMap();
-    // Get the ORC schema to read based on the Icebert to ORC mapping
-    final TypeDescription readOrcSchema = TypeConversion.toOrc(schema, colMapping);
+    Reader orcFileReader = newFileReader(file, config);
+    TypeDescription readOrcSchema = ORCSchemaUtil.toOrc(schema, orcFileReader.getSchema());
 
     return new OrcIterator(
-        newOrcIterator(file, TypeConversion.toOrc(schema, colMapping),
-            start, length, newFileReader(file, config)),
+        newOrcIterator(file, readOrcSchema, start, length, newFileReader(file, config)),
         readerFunction.apply(readOrcSchema));
   }
 
