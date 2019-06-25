@@ -150,7 +150,7 @@ public class BaseTable implements Table, HasTableOperations {
 
   @Override
   public Transaction newTransaction() {
-    return BaseTransaction.newTransaction(ops);
+    return Transactions.newTransaction(ops);
   }
 
   @Override
