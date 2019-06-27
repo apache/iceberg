@@ -245,6 +245,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       }
 
       nextRowGroupStart += pages.getRowCount();
+      nextRowGroup += 1;
 
       model.setPageSource(pages);
     }
