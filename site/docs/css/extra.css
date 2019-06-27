@@ -37,11 +37,6 @@
   opacity: 0;
 }
 
-h1:target .headerlink {
-  color: #008cba;
-  opacity: 1;
-}
-
 h2:target .headerlink {
   color: #008cba;
   opacity: 1;
