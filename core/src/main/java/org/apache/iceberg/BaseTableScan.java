@@ -27,10 +27,12 @@ import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
@@ -56,7 +58,7 @@ import org.slf4j.LoggerFactory;
 class BaseTableScan implements TableScan {
   private static final Logger LOG = LoggerFactory.getLogger(TableScan.class);
 
-  private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+  private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
   private static final List<String> SCAN_COLUMNS = ImmutableList.of(
       "snapshot_id", "file_path", "file_ordinal", "file_format", "block_size_in_bytes",
       "file_size_in_bytes", "record_count", "partition"
@@ -128,7 +130,7 @@ class BaseTableScan implements TableScan {
     // the snapshot ID could be null if no entries were older than the requested time. in that case,
     // there is no valid snapshot to read.
     Preconditions.checkArgument(lastSnapshotId != null,
-        "Cannot find a snapshot older than %s", DATE_FORMAT.format(new Date(timestampMillis)));
+        "Cannot find a snapshot older than %s", formatTimestampMillis(timestampMillis));
 
     return useSnapshot(lastSnapshotId);
   }
@@ -173,7 +175,7 @@ class BaseTableScan implements TableScan {
 
     if (snapshot != null) {
       LOG.info("Scanning table {} snapshot {} created at {} with filter {}", table,
-          snapshot.snapshotId(), DATE_FORMAT.format(new Date(snapshot.timestampMillis())),
+          snapshot.snapshotId(), formatTimestampMillis(snapshot.timestampMillis()),
           rowFilter);
 
       Listeners.notifyAll(
@@ -285,5 +287,9 @@ class BaseTableScan implements TableScan {
     }
 
     return schema;
+  }
+
+  private static String formatTimestampMillis(long millis) {
+    return DATE_FORMAT.format(LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.systemDefault()));
   }
 }
