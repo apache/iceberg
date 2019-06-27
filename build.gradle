@@ -275,6 +275,19 @@ project(':iceberg-hive') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
   }
+
+  task testJar(type: Jar){
+    archiveClassifier = 'tests'
+    from sourceSets.test.output
+  }
+
+  configurations {
+    testArtifacts
+  }
+
+  artifacts {
+    testArtifacts testJar
+  }
 }
 
 project(':iceberg-orc') {
@@ -317,6 +330,7 @@ project(':iceberg-spark') {
     compile project(':iceberg-core')
     compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
+    compile project(':iceberg-hive')
 
     compileOnly "org.apache.avro:avro:$avroVersion"
     compileOnly("org.apache.spark:spark-hive_$scalaVersion:$sparkVersion") {
@@ -328,6 +342,7 @@ project(':iceberg-spark') {
     testCompile("org.apache.hadoop:hadoop-minicluster:$hadoopVersion") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
+    testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
   }
 }
 

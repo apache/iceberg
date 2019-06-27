@@ -28,7 +28,10 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.hive.HiveCatalog;
+import org.apache.iceberg.hive.HiveCatalogs;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.CheckCompatibility;
 import org.apache.spark.sql.SaveMode;
@@ -96,13 +99,17 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
   }
 
   protected Table findTable(DataSourceOptions options, Configuration conf) {
-    Optional<String> location = options.get("path");
-    Preconditions.checkArgument(location.isPresent(),
-        "Cannot open table without a location: path is not set");
+    Optional<String> path = options.get("path");
+    Preconditions.checkArgument(path.isPresent(), "Cannot open table: path is not set");
 
-    HadoopTables tables = new HadoopTables(conf);
-
-    return tables.load(location.get());
+    if (path.get().contains("/")) {
+      HadoopTables tables = new HadoopTables(conf);
+      return tables.load(path.get());
+    } else {
+      HiveCatalog hiveCatalog = HiveCatalogs.loadCatalog(conf);
+      TableIdentifier tableIdentifier = TableIdentifier.parse(path.get());
+      return hiveCatalog.loadTable(tableIdentifier);
+    }
   }
 
   private SparkSession lazySparkSession() {
