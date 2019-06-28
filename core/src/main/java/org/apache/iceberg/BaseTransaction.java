@@ -49,20 +49,6 @@ class BaseTransaction implements Transaction {
     SIMPLE
   }
 
-  static Transaction replaceTableTransaction(TableOperations ops, TableMetadata start) {
-    return new BaseTransaction(ops, start);
-  }
-
-  static Transaction createTableTransaction(TableOperations ops, TableMetadata start) {
-    Preconditions.checkArgument(ops.current() == null,
-        "Cannot start create table transaction: table already exists");
-    return new BaseTransaction(ops, start);
-  }
-
-  static Transaction newTransaction(TableOperations ops) {
-    return new BaseTransaction(ops, ops.refresh());
-  }
-
   private final TableOperations ops;
   private final TransactionTable transactionTable;
   private final TableOperations transactionOps;
@@ -75,7 +61,7 @@ class BaseTransaction implements Transaction {
   private TableMetadata lastBase;
   private TableMetadata current;
 
-  private BaseTransaction(TableOperations ops, TableMetadata start) {
+  BaseTransaction(TableOperations ops, TableMetadata start) {
     this.ops = ops;
     this.transactionTable = new TransactionTable();
     this.transactionOps = new TransactionTableOperations();
