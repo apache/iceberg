@@ -46,7 +46,6 @@ import org.apache.hadoop.hive.metastore.TSetIpAddressProcessor;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.protocol.TBinaryProtocol;
@@ -131,7 +130,7 @@ public class HiveTableBaseTest {
 
   @Before
   public void createTestTable() {
-    this.tableLocation = new Path(catalog.createTable(TABLE_IDENTIFIER, schema, partitionSpec, null).location());
+    this.tableLocation = new Path(catalog.createTable(TABLE_IDENTIFIER, schema, partitionSpec).location());
   }
 
   @After

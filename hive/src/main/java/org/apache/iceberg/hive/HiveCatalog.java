@@ -24,10 +24,10 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
 
   @Override
   public org.apache.iceberg.Table createTable(
-      TableIdentifier identifier, Schema schema, PartitionSpec spec, Map<String, String> properties) {
+      TableIdentifier identifier, Schema schema, PartitionSpec spec, String location, Map<String, String> properties) {
     Preconditions.checkArgument(identifier.namespace().levels().length == 1,
         "Missing database in table identifier: %s", identifier);
-    return super.createTable(identifier, schema, spec, properties);
+    return super.createTable(identifier, schema, spec, location, properties);
   }
 
   @Override
@@ -94,8 +94,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
   }
 
   @Override
-  public TableOperations newTableOps(
-      Configuration configuration, TableIdentifier tableIdentifier) {
+  public TableOperations newTableOps(Configuration configuration, TableIdentifier tableIdentifier) {
     String dbName = tableIdentifier.namespace().level(0);
     String tableName = tableIdentifier.name();
     return new HiveTableOperations(configuration, clients, dbName, tableName);

@@ -30,6 +30,25 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
  * A Catalog API for table create, drop, and load operations.
  */
 public interface Catalog {
+
+  /**
+   * Create a table.
+   *
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @param spec a partition spec
+   * @param location a location for the table; leave null if unspecified
+   * @param properties a string map of table properties
+   * @return a Table instance
+   * @throws AlreadyExistsException if the table already exists
+   */
+  Table createTable(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec,
+      String location,
+      Map<String, String> properties);
+
   /**
    * Create a table.
    *
@@ -40,11 +59,43 @@ public interface Catalog {
    * @return a Table instance
    * @throws AlreadyExistsException if the table already exists
    */
-  Table createTable(
+  default Table createTable(
       TableIdentifier identifier,
       Schema schema,
       PartitionSpec spec,
-      Map<String, String> properties);
+      Map<String, String> properties) {
+    return createTable(identifier, schema, spec, null, properties);
+  }
+
+  /**
+   * Create a table.
+   *
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @param spec a partition spec
+   * @return a Table instance
+   * @throws AlreadyExistsException if the table already exists
+   */
+  default Table createTable(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec) {
+    return createTable(identifier, schema, spec, null, null);
+  }
+
+  /**
+   * Create an unpartitioned table.
+   *
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @return a Table instance
+   * @throws AlreadyExistsException if the table already exists
+   */
+  default Table createTable(
+      TableIdentifier identifier,
+      Schema schema) {
+    return createTable(identifier, schema, PartitionSpec.unpartitioned(), null, null);
+  }
 
   /**
    * Check whether table exists.

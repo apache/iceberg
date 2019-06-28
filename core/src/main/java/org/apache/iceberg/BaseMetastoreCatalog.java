@@ -19,8 +19,8 @@
 
 package org.apache.iceberg;
 
-import java.util.HashMap;
 import java.util.Map;
+import com.google.common.collect.Maps;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -39,18 +39,23 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       TableIdentifier identifier,
       Schema schema,
       PartitionSpec spec,
+      String location,
       Map<String, String> properties) {
     TableOperations ops = newTableOps(conf, identifier);
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table already exists: " + identifier);
     }
 
-    String location = defaultWarehouseLocation(conf, identifier);
-    TableMetadata metadata = TableMetadata.newTableMetadata(ops,
-        schema,
-        spec,
-        location,
-        properties == null ? new HashMap<>() : properties);
+    String baseLocation;
+    if (location != null) {
+      baseLocation = location;
+    } else {
+      baseLocation = defaultWarehouseLocation(conf, identifier);
+    }
+
+    TableMetadata metadata = TableMetadata.newTableMetadata(
+        ops, schema, spec, baseLocation, properties == null ? Maps.newHashMap() : properties);
+
     ops.commit(null, metadata);
 
     return new BaseTable(ops, identifier.toString());
