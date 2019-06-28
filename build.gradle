@@ -332,7 +332,9 @@ project(':iceberg-pig') {
     compile project(':iceberg-core')
     compile project(':iceberg-parquet')
 
-    compileOnly("org.apache.pig:pig")
+    compileOnly("org.apache.pig:pig") {
+      exclude group: "junit", module: "junit"
+    }
     compileOnly("org.apache.hadoop:hadoop-mapreduce-client-core")
     compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
