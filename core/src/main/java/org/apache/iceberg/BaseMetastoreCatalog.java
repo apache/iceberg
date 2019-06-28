@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
@@ -36,62 +36,37 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
   @Override
   public Table createTable(
-      TableIdentifier tableIdentifier,
+      TableIdentifier identifier,
       Schema schema,
       PartitionSpec spec,
-      Map<String, String> tableProperties) {
-    validateTableIdentifier(tableIdentifier);
-
-    TableOperations ops = newTableOps(conf, tableIdentifier);
+      Map<String, String> properties) {
+    TableOperations ops = newTableOps(conf, identifier);
     if (ops.current() != null) {
-      throw new AlreadyExistsException("Table already exists: " + tableIdentifier);
+      throw new AlreadyExistsException("Table already exists: " + identifier);
     }
 
-    String location = defaultWarehouseLocation(conf, tableIdentifier);
+    String location = defaultWarehouseLocation(conf, identifier);
     TableMetadata metadata = TableMetadata.newTableMetadata(ops,
         schema,
         spec,
         location,
-        tableProperties == null ? new HashMap<>() : tableProperties);
+        properties == null ? new HashMap<>() : properties);
     ops.commit(null, metadata);
 
-    return new BaseTable(ops, tableIdentifier.toString());
+    return new BaseTable(ops, identifier.toString());
   }
 
   @Override
-  public Table getTable(TableIdentifier tableIdentifier) {
-    validateTableIdentifier(tableIdentifier);
-
-    TableOperations ops = newTableOps(conf, tableIdentifier);
+  public Table loadTable(TableIdentifier identifier) {
+    TableOperations ops = newTableOps(conf, identifier);
     if (ops.current() == null) {
-      throw new NoSuchTableException("Table does not exist: " + tableIdentifier.toString());
+      throw new NoSuchTableException("Table does not exist: " + identifier.toString());
     }
 
-    return new BaseTable(ops, tableIdentifier.toString());
+    return new BaseTable(ops, identifier.toString());
   }
 
-  public abstract TableOperations newTableOps(Configuration newConf, TableIdentifier tableIdentifier);
+  protected abstract TableOperations newTableOps(Configuration newConf, TableIdentifier tableIdentifier);
 
-  protected String defaultWarehouseLocation(Configuration hadoopConf, TableIdentifier tableIdentifier) {
-    String warehouseLocation = hadoopConf.get("hive.metastore.warehouse.dir");
-    Preconditions.checkNotNull(
-        warehouseLocation,
-        "Warehouse location is not set: hive.metastore.warehouse.dir=null");
-    return String.format(
-        "%s/%s.db/%s",
-        warehouseLocation,
-        tableIdentifier.namespace().levels()[0],
-        tableIdentifier.name());
-  }
-
-  protected static final void validateTableIdentifier(TableIdentifier tableIdentifier) {
-    Preconditions.checkArgument(tableIdentifier.hasNamespace(), "metastore tables should have schema as namespace");
-    Preconditions.checkArgument(tableIdentifier.namespace().levels().length == 1, "metastore tables should only have " +
-        "schema name as namespace");
-    String schemaName = tableIdentifier.namespace().levels()[0];
-    Preconditions.checkArgument(schemaName != null && !schemaName.isEmpty(), "schema name can't be null or " +
-        "empty");
-    String tableName = tableIdentifier.name();
-    Preconditions.checkArgument(tableName != null && !tableName.isEmpty(), "tableName can't be null or empty");
-  }
+  protected abstract String defaultWarehouseLocation(Configuration hadoopConf, TableIdentifier tableIdentifier);
 }

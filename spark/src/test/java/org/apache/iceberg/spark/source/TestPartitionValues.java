@@ -30,10 +30,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.TestHelpers;
@@ -120,9 +117,8 @@ public class TestPartitionValues {
     File dataFolder = new File(location, "data");
     Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
 
-    Catalog catalog= new HadoopCatalog(spark.sparkContext().hadoopConfiguration());
-    Table table = catalog.createTable(new TableIdentifier(Namespace.empty(), location.toString()), SIMPLE_SCHEMA,
-        SPEC, null);
+    HadoopTables tables = new HadoopTables(spark.sparkContext().hadoopConfiguration());
+    Table table = tables.create(SIMPLE_SCHEMA, SPEC, location.toString());
     table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
 
     List<SimpleRecord> expected = Lists.newArrayList(
@@ -164,15 +160,11 @@ public class TestPartitionValues {
         "b", "i", "l", "f", "d", "date", "ts", "s", "bytes", "dec_9_0", "dec_11_2", "dec_38_10"
     };
 
-    Catalog catalog= new HadoopCatalog(spark.sparkContext().hadoopConfiguration());
+    HadoopTables tables = new HadoopTables(spark.sparkContext().hadoopConfiguration());
 
     // create a table around the source data
     String sourceLocation = temp.newFolder("source_table").toString();
-    Table source = catalog.createTable(
-        new TableIdentifier(Namespace.empty(), sourceLocation),
-        SUPPORTED_PRIMITIVES,
-        PartitionSpec.unpartitioned(),
-        null);
+    Table source = tables.create(SUPPORTED_PRIMITIVES, sourceLocation);
 
     // write out an Avro data file with all of the data types for source data
     List<GenericData.Record> expected = RandomData.generateList(source.schema(), 2, 128735L);
@@ -202,11 +194,7 @@ public class TestPartitionValues {
 
         PartitionSpec spec = PartitionSpec.builderFor(SUPPORTED_PRIMITIVES).identity(column).build();
 
-        Table table = catalog.createTable(
-            new TableIdentifier(Namespace.empty(), location.toString()),
-            SUPPORTED_PRIMITIVES,
-            spec,
-            null);
+        Table table = tables.create(SUPPORTED_PRIMITIVES, spec, location.toString());
         table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
 
         sourceDF.write()

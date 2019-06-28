@@ -33,10 +33,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
-import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.spark.data.AvroDataTest;
 import org.apache.iceberg.spark.data.RandomData;
@@ -119,11 +116,8 @@ public class TestDataFrameWrites extends AvroDataTest {
   }
 
   private Table createTable(Schema schema, File location) {
-    Catalog catalog = new HadoopCatalog(CONF);
-    return catalog.createTable(new TableIdentifier(Namespace.empty(), location.toString()),
-        schema,
-        PartitionSpec.unpartitioned(),
-        null);
+    HadoopTables tables = new HadoopTables(CONF);
+    return tables.create(schema, PartitionSpec.unpartitioned(), location.toString());
   }
 
   private void writeAndValidateWithLocations(Table table, File location, File expectedDataDir) throws IOException {

@@ -34,8 +34,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TestTables;
-import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types;
 import org.junit.Before;
 import org.junit.Rule;
@@ -70,7 +68,7 @@ public class HadoopTableTestBase {
       .bucket("data", 16)
       .build();
 
-  static final HadoopCatalog HADOOP_CATALOG = new HadoopCatalog(new Configuration());
+  static final HadoopTables TABLES = new HadoopTables(new Configuration());
 
   static final DataFile FILE_A = DataFiles.builder(SPEC)
       .withPath("/path/to/data-a.parquet")
@@ -105,7 +103,6 @@ public class HadoopTableTestBase {
   File metadataDir = null;
   File versionHintFile = null;
   Table table = null;
-  TableIdentifier tableIdentifier = null;
 
   @Before
   public void setupTable() throws Exception {
@@ -113,10 +110,9 @@ public class HadoopTableTestBase {
     tableDir.delete(); // created by table create
 
     this.tableLocation = tableDir.toURI().toString();
-    this.tableIdentifier = new TableIdentifier(Namespace.empty(), tableLocation);
     this.metadataDir = new File(tableDir, "metadata");
     this.versionHintFile = new File(metadataDir, "version-hint.text");
-    this.table = HADOOP_CATALOG.createTable(tableIdentifier, SCHEMA, SPEC, null);
+    this.table = TABLES.create(SCHEMA, SPEC, tableLocation);
   }
 
   List<File> listManifestFiles() {

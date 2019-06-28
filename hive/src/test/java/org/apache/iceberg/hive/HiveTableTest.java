@@ -29,14 +29,12 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
-import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Tasks;
 import org.apache.thrift.TException;
@@ -47,53 +45,20 @@ import static org.apache.iceberg.BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE
 import static org.apache.iceberg.BaseMetastoreTableOperations.METADATA_LOCATION_PROP;
 import static org.apache.iceberg.BaseMetastoreTableOperations.TABLE_TYPE_PROP;
 
-public class HiveCatalogTest extends HiveCatalogBaseTest {
-  private HiveCatalog hiveCatalog = new HiveCatalog(hiveConf);
-
+public class HiveTableTest extends HiveTableBaseTest {
   @Test
   public void testCreate() throws TException {
     // Table should be created in hive metastore
-    varifyTable(TABLE_IDENTIFIER);
-  }
-
-  @Test
-  public void testRename() throws TException {
-    varifyTable(TABLE_IDENTIFIER);
-
-    String renamedTableName = "rename_table_name";
-    TableIdentifier renameTableIdentifier = new TableIdentifier(TABLE_IDENTIFIER.namespace(), renamedTableName);
-    hiveCatalog.renameTable(this.TABLE_IDENTIFIER, renameTableIdentifier);
-
-    try {
-      hiveCatalog.getTable(TABLE_IDENTIFIER);
-      Assert.fail("Should have thrown NoSuchTableException");
-    } catch (NoSuchTableException expected) {
-
-    }
-    varifyTable(renameTableIdentifier);
-    hiveCatalog.dropTable(renameTableIdentifier);
-  }
-
-  @Test(expected = NoSuchObjectException.class)
-  public void testDrop() throws TException {
-    // verify the table actually exists
-    metastoreClient.getTable(DB_NAME, TABLE_NAME);
-
-    hiveCatalog.dropTable(TABLE_IDENTIFIER);
-
-    metastoreClient.getTable(DB_NAME, TABLE_NAME);
-  }
-
-  private void varifyTable(TableIdentifier tableIdentifier) throws TException {
     // Table should be renamed in hive metastore
-    String tableName = tableIdentifier.name();
-    final org.apache.hadoop.hive.metastore.api.Table table = metastoreClient.getTable(DB_NAME, tableName);
+    String tableName = TABLE_IDENTIFIER.name();
+    org.apache.hadoop.hive.metastore.api.Table table =
+        metastoreClient.getTable(TABLE_IDENTIFIER.namespace().level(0), tableName);
 
     // check parameters are in expected state
-    final Map<String, String> parameters = table.getParameters();
+    Map<String, String> parameters = table.getParameters();
     Assert.assertNotNull(parameters);
     Assert.assertTrue(ICEBERG_TABLE_TYPE_VALUE.equalsIgnoreCase(parameters.get(TABLE_TYPE_PROP)));
-    Assert.assertTrue(ICEBERG_TABLE_TYPE_VALUE.equalsIgnoreCase(table.getTableType()));
+    Assert.assertTrue("EXTERNAL_TABLE".equalsIgnoreCase(table.getTableType()));
 
     // Ensure the table is pointing to empty location
     Assert.assertEquals(getTableLocation(tableName), table.getSd().getLocation());
@@ -105,18 +70,45 @@ public class HiveCatalogTest extends HiveCatalogBaseTest {
     Assert.assertEquals(1, metadataVersionFiles(tableName).size());
     Assert.assertEquals(0, manifestFiles(tableName).size());
 
-    final Table icebergTable = hiveCatalog.getTable(tableIdentifier);
+    final Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
     // Iceberg schema should match the loaded table
     Assert.assertEquals(schema.asStruct(), icebergTable.schema().asStruct());
   }
 
   @Test
+  public void testRename() {
+    String renamedTableName = "rename_table_name";
+    TableIdentifier renameTableIdentifier = TableIdentifier.of(TABLE_IDENTIFIER.namespace(), renamedTableName);
+    Table original = catalog.loadTable(TABLE_IDENTIFIER);
+
+    catalog.renameTable(TABLE_IDENTIFIER, renameTableIdentifier);
+    Assert.assertFalse(catalog.tableExists(TABLE_IDENTIFIER));
+    Assert.assertTrue(catalog.tableExists(renameTableIdentifier));
+
+    Table renamed = catalog.loadTable(renameTableIdentifier);
+
+    Assert.assertEquals(original.schema().asStruct(), renamed.schema().asStruct());
+    Assert.assertEquals(original.spec(), renamed.spec());
+    Assert.assertEquals(original.location(), renamed.location());
+    Assert.assertEquals(original.currentSnapshot(), renamed.currentSnapshot());
+
+    Assert.assertTrue(catalog.dropTable(renameTableIdentifier));
+  }
+
+  @Test
+  public void testDrop() {
+    Assert.assertTrue("Table should exist", catalog.tableExists(TABLE_IDENTIFIER));
+    Assert.assertTrue("Drop should return true and drop the table", catalog.dropTable(TABLE_IDENTIFIER));
+    Assert.assertFalse("Table should not exist", catalog.tableExists(TABLE_IDENTIFIER));
+  }
+
+  @Test
   public void testExistingTableUpdate() throws TException {
-    Table icebergTable = catalog.getTable(TABLE_IDENTIFIER);
+    Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
     // add a column
     icebergTable.updateSchema().addColumn("data", Types.LongType.get()).commit();
 
-    icebergTable = catalog.getTable(TABLE_IDENTIFIER);;
+    icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
 
     // Only 2 snapshotFile Should exist and no manifests should exist
     Assert.assertEquals(2, metadataVersionFiles(TABLE_NAME).size());
@@ -135,7 +127,7 @@ public class HiveCatalogTest extends HiveCatalogBaseTest {
 
   @Test(expected = CommitFailedException.class)
   public void testFailure() throws TException {
-    Table icebergTable = catalog.getTable(TABLE_IDENTIFIER);;
+    Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
     org.apache.hadoop.hive.metastore.api.Table table = metastoreClient.getTable(DB_NAME, TABLE_NAME);
     String dummyLocation = "dummylocation";
     table.getParameters().put(METADATA_LOCATION_PROP, dummyLocation);
@@ -147,8 +139,8 @@ public class HiveCatalogTest extends HiveCatalogBaseTest {
 
   @Test
   public void testConcurrentFastAppends() {
-    Table icebergTable = catalog.getTable(TABLE_IDENTIFIER);;
-    Table anotherIcebergTable = catalog.getTable(TABLE_IDENTIFIER);;
+    Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
+    Table anotherIcebergTable = catalog.loadTable(TABLE_IDENTIFIER);
 
     String fileName = UUID.randomUUID().toString();
     DataFile file = DataFiles.builder(icebergTable.spec())

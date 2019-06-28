@@ -41,15 +41,13 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.Tables;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopInputFile;
+import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.Parquet;
@@ -79,7 +77,7 @@ public class TestLocalScan {
       optional(2, "data", Types.StringType.get()));
 
   private static final Configuration CONF = new Configuration();
-  private static final Catalog CATALOG = new HadoopCatalog(CONF);
+  private static final Tables TABLES = new HadoopTables(CONF);
 
   @Rule
   public final TemporaryFolder temp = new TemporaryFolder();
@@ -109,10 +107,10 @@ public class TestLocalScan {
     File location = temp.newFolder("shared");
     Assert.assertTrue(location.delete());
     this.sharedTableLocation = location.toString();
-    this.sharedTable = CATALOG.createTable(
-        new TableIdentifier(Namespace.empty(), sharedTableLocation),
+    this.sharedTable = TABLES.create(
         SCHEMA, PartitionSpec.unpartitioned(),
-        ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()));
+        ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()),
+        sharedTableLocation);
 
     Record record = GenericRecord.create(SCHEMA);
 
@@ -179,11 +177,9 @@ public class TestLocalScan {
 
     File location = temp.newFolder(format.name());
     Assert.assertTrue(location.delete());
-    Table table = CATALOG.createTable(
-        new TableIdentifier(Namespace.empty(), location.toString()),
-        SCHEMA, PartitionSpec.unpartitioned(),
-        ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name())
-    );
+    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(),
+        ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()),
+        location.toString());
 
     AppendFiles append = table.newAppend();
 

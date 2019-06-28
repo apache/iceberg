@@ -30,7 +30,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import com.google.common.collect.Maps;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.LockComponent;
 import org.apache.hadoop.hive.metastore.api.LockLevel;
@@ -141,7 +143,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
             new HashMap<>(),
             null,
             null,
-            ICEBERG_TABLE_TYPE_VALUE);
+            TableType.EXTERNAL_TABLE.toString());
+        tbl.getParameters().put("EXTERNAL", "TRUE"); // using the external table type also requires this
       }
 
       tbl.setSd(storageDescriptor(metadata)); // set to pickup any schema changes

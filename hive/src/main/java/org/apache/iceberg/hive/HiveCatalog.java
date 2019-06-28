@@ -1,79 +1,120 @@
 package org.apache.iceberg.hive;
 
-import java.io.IOException;
+import java.io.Closeable;
+import java.util.Map;
+import com.google.common.base.Preconditions;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
+import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.BaseMetastoreCatalog;
-import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.thrift.TException;
 
-import static org.apache.iceberg.BaseMetastoreTableOperations.METADATA_LOCATION_PROP;
-
-public class HiveCatalog extends BaseMetastoreCatalog {
+public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
 
   private final HiveClientPool clients;
-  private final Configuration conf;
 
   public HiveCatalog(Configuration conf) {
     super(conf);
-    this.conf = conf;
     this.clients = new HiveClientPool(2, conf);
   }
 
   @Override
-  public void dropTable(TableIdentifier tableIdentifier) {
-    validateTableIdentifier(tableIdentifier);
-    HiveMetaStoreClient hiveMetaStoreClient = this.clients.newClient();
+  public org.apache.iceberg.Table createTable(
+      TableIdentifier identifier, Schema schema, PartitionSpec spec, Map<String, String> properties) {
+    Preconditions.checkArgument(identifier.namespace().levels().length == 1,
+        "Missing database in table identifier: %s", identifier);
+    return super.createTable(identifier, schema, spec, properties);
+  }
+
+  @Override
+  public org.apache.iceberg.Table loadTable(TableIdentifier identifier) {
+    Preconditions.checkArgument(identifier.namespace().levels().length == 1,
+        "Missing database in table identifier: %s", identifier);
+    return super.loadTable(identifier);
+  }
+
+  @Override
+  public boolean dropTable(TableIdentifier identifier) {
+    Preconditions.checkArgument(identifier.namespace().levels().length == 1,
+        "Missing database in table identifier: %s", identifier);
+    String database = identifier.namespace().level(0);
+
     try {
-      hiveMetaStoreClient.dropTable(tableIdentifier.namespace().levels()[0], tableIdentifier.name());
+      clients.run(client -> {
+        client.dropTable(database, identifier.name());
+        return null;
+      });
+
+      return true;
+
+    } catch (NoSuchObjectException e) {
+      return false;
+
     } catch (TException e) {
-      throw new RuntimeException("Failed to drop " + tableIdentifier.toString(), e);
+      throw new RuntimeException("Failed to drop " + identifier.toString(), e);
+
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException("Interrupted in call to dropTable", e);
     }
   }
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
-    validateTableIdentifier(from);
-    validateTableIdentifier(to);
+    Preconditions.checkArgument(from.namespace().levels().length == 1,
+        "Missing database in table identifier: %s", from);
+    Preconditions.checkArgument(to.namespace().levels().length == 1,
+        "Missing database in table identifier: %s", to);
 
-    HiveMetaStoreClient hiveMetaStoreClient = this.clients.newClient();
-    String location = ((BaseTable) getTable(from)).operations().current().file().location();
-    String newDBName = to.namespace().levels()[0];
-    String oldDBName = from.namespace().levels()[0];
-    String newTableName = to.name();
-    String oldTableName = from.name();
+    String toDatabase = to.namespace().level(0);
+    String fromDatabase = from.namespace().level(0);
+    String fromName = from.name();
 
-    String newLocation = location.replaceFirst(oldDBName, newDBName)
-        .replaceFirst(oldTableName, newTableName);
     try {
-      Table table = hiveMetaStoreClient.getTable(oldDBName, oldTableName);
-
-      // hive metastore renames the table's directory as part of renaming the table.
-      // To ensure that the newly renamed table's METADATA_LOCATION_PROP is pointing
-      // at the correct location we are updating it in the same alter call.
-      table.getParameters().put(METADATA_LOCATION_PROP, newLocation);
-
-      table.setDbName(to.namespace().levels()[0]);
+      Table table = clients.run(client -> client.getTable(fromDatabase, fromName));
+      table.setDbName(toDatabase);
       table.setTableName(to.name());
-      hiveMetaStoreClient.alter_table(oldDBName, oldTableName, table);
+
+      clients.run(client -> {
+        client.alter_table(fromDatabase, fromName, table);
+        return null;
+      });
+
     } catch (TException e) {
       throw new RuntimeException("Failed to rename " + from.toString() + " to " + to.toString(), e);
+
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException("Interrupted in call to rename", e);
     }
   }
 
   @Override
   public TableOperations newTableOps(
       Configuration configuration, TableIdentifier tableIdentifier) {
-    String dbName = tableIdentifier.namespace().levels()[0];
+    String dbName = tableIdentifier.namespace().level(0);
     String tableName = tableIdentifier.name();
     return new HiveTableOperations(configuration, clients, dbName, tableName);
   }
 
+  protected String defaultWarehouseLocation(Configuration hadoopConf, TableIdentifier tableIdentifier) {
+    String warehouseLocation = hadoopConf.get("hive.metastore.warehouse.dir");
+    Preconditions.checkNotNull(
+        warehouseLocation,
+        "Warehouse location is not set: hive.metastore.warehouse.dir=null");
+    return String.format(
+        "%s/%s.db/%s",
+        warehouseLocation,
+        tableIdentifier.namespace().levels()[0],
+        tableIdentifier.name());
+  }
+
   @Override
-  public void close() throws IOException {
+  public void close() {
     clients.close();
   }
 }
