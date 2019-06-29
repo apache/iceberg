@@ -19,7 +19,10 @@
 
 package org.apache.iceberg.hive;
 
+import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.MoreExecutors;
+import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -28,13 +31,19 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Tasks;
 import org.apache.thrift.TException;
@@ -100,6 +109,46 @@ public class HiveTableTest extends HiveTableBaseTest {
     Assert.assertTrue("Table should exist", catalog.tableExists(TABLE_IDENTIFIER));
     Assert.assertTrue("Drop should return true and drop the table", catalog.dropTable(TABLE_IDENTIFIER));
     Assert.assertFalse("Table should not exist", catalog.tableExists(TABLE_IDENTIFIER));
+  }
+
+  @Test
+  public void testDropLeavesTableData() throws IOException {
+    Table table = catalog.loadTable(TABLE_IDENTIFIER);
+
+    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(AvroSchemaUtil.convert(schema, "test"));
+    List<GenericData.Record> records = Lists.newArrayList(
+        recordBuilder.set("id", 1L).build(),
+        recordBuilder.set("id", 2L).build(),
+        recordBuilder.set("id", 3L).build()
+    );
+
+    String fileLocation = table.location().replace("file:", "") + "/data/file.avro";
+    try (FileAppender<GenericData.Record> writer = Avro.write(Files.localOutput(fileLocation))
+        .schema(schema)
+        .named("test")
+        .build()) {
+      for (GenericData.Record rec : records) {
+        writer.add(rec);
+      }
+    }
+
+    DataFile file = DataFiles.builder(table.spec())
+        .withRecordCount(3)
+        .withPath(fileLocation)
+        .withFileSizeInBytes(Files.localInput(fileLocation).getLength())
+        .build();
+
+    table.newAppend().appendFile(file).commit();
+
+    String manifestListLocation = table.currentSnapshot().manifestListLocation().replace("file:", "");
+
+    Assert.assertTrue("Drop should return true and drop the table", catalog.dropTable(TABLE_IDENTIFIER));
+    Assert.assertFalse("Table should not exist", catalog.tableExists(TABLE_IDENTIFIER));
+
+    Assert.assertTrue("Table data files should exist",
+        new File(fileLocation).exists());
+    Assert.assertTrue("Table metadata files should exist",
+        new File(manifestListLocation).exists());
   }
 
   @Test

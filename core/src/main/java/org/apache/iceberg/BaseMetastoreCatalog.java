@@ -19,12 +19,13 @@
 
 package org.apache.iceberg;
 
-import java.util.Map;
 import com.google.common.collect.Maps;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 
 public abstract class BaseMetastoreCatalog implements Catalog {
@@ -58,14 +59,18 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
     ops.commit(null, metadata);
 
-    return new BaseTable(ops, identifier.toString());
+    try {
+      return new BaseTable(ops, identifier.toString());
+    } catch (CommitFailedException ignored) {
+      throw new AlreadyExistsException("Table was created concurrently: " + identifier);
+    }
   }
 
   @Override
   public Table loadTable(TableIdentifier identifier) {
     TableOperations ops = newTableOps(conf, identifier);
     if (ops.current() == null) {
-      throw new NoSuchTableException("Table does not exist: " + identifier.toString());
+      throw new NoSuchTableException("Table does not exist: " + identifier);
     }
 
     return new BaseTable(ops, identifier.toString());
