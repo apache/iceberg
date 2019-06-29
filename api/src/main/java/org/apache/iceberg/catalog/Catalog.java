@@ -27,49 +27,114 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 
 /**
- * Top level Catalog APIs that supports table DDLs and namespace listing.
+ * A Catalog API for table create, drop, and load operations.
  */
 public interface Catalog {
+
   /**
-   * creates the table or throws {@link AlreadyExistsException}.
+   * Create a table.
    *
-   * @param tableIdentifier an identifier to identify this table in a namespace.
-   * @param schema the schema for this table, can not be null.
-   * @param spec the partition spec for this table, can not be null.
-   * @param tableProperties can be null or empty
-   * @return Table instance that was created
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @param spec a partition spec
+   * @param location a location for the table; leave null if unspecified
+   * @param properties a string map of table properties
+   * @return a Table instance
+   * @throws AlreadyExistsException if the table already exists
    */
   Table createTable(
-      TableIdentifier tableIdentifier,
+      TableIdentifier identifier,
       Schema schema,
       PartitionSpec spec,
-      Map<String, String> tableProperties);
+      String location,
+      Map<String, String> properties);
 
   /**
-   * Check if table exists or not.
+   * Create a table.
    *
-   * @param tableIdentifier an identifier to identify this table in a namespace.
-   * @return true if table exists, false if it doesn't.
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @param spec a partition spec
+   * @param properties a string map of table properties
+   * @return a Table instance
+   * @throws AlreadyExistsException if the table already exists
    */
-  boolean tableExists(TableIdentifier tableIdentifier);
+  default Table createTable(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec,
+      Map<String, String> properties) {
+    return createTable(identifier, schema, spec, null, properties);
+  }
 
   /**
-   * Drops the table if it exists, otherwise throws {@link NoSuchTableException}
-   * The implementation should not delete the underlying data but ensure that a
-   * subsequent call to {@link Catalog#tableExists(TableIdentifier)} returns false.
-   * <p>
-   * If the table does not exists it will throw {@link NoSuchTableException}
+   * Create a table.
    *
-   * @param tableIdentifier an identifier to identify this table in a namespace.
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @param spec a partition spec
+   * @return a Table instance
+   * @throws AlreadyExistsException if the table already exists
    */
-  void dropTable(TableIdentifier tableIdentifier);
+  default Table createTable(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec) {
+    return createTable(identifier, schema, spec, null, null);
+  }
 
   /**
-   * Renames a table. If {@code from} does not exists throws {@link NoSuchTableException}
-   * If {@code to} exists than throws {@link AlreadyExistsException}.
+   * Create an unpartitioned table.
    *
-   * @param from original name of the table.
-   * @param to expected new name of the table.
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @return a Table instance
+   * @throws AlreadyExistsException if the table already exists
+   */
+  default Table createTable(
+      TableIdentifier identifier,
+      Schema schema) {
+    return createTable(identifier, schema, PartitionSpec.unpartitioned(), null, null);
+  }
+
+  /**
+   * Check whether table exists.
+   *
+   * @param identifier a table identifier
+   * @return true if the table exists, false otherwise
+   */
+  default boolean tableExists(TableIdentifier identifier) {
+    try {
+      loadTable(identifier);
+      return true;
+    } catch (NoSuchTableException e) {
+      return false;
+    }
+  }
+
+  /**
+   * Drop a table.
+   *
+   * @param identifier a table identifier
+   * @return true if the table was dropped, false if the table did not exist
+   */
+  boolean dropTable(TableIdentifier identifier);
+
+  /**
+   * Rename a table.
+   *
+   * @param from identifier of the table to rename
+   * @param to new table name
+   * @throws NoSuchTableException if the table does not exist
    */
   void renameTable(TableIdentifier from, TableIdentifier to);
+
+  /**
+   * Load a table.
+   *
+   * @param identifier a table identifier
+   * @return instance of {@link Table} implementation referred by {@code tableIdentifier}
+   * @throws NoSuchTableException if the table does not exist
+   */
+  Table loadTable(TableIdentifier identifier);
 }

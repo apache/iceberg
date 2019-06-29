@@ -19,12 +19,28 @@
 
 package org.apache.iceberg.catalog;
 
+import com.google.common.base.Joiner;
+
 /**
- * Identifies a namespace in iceberg catalog
+ * A namespace in a {@link Catalog}.
  */
 public class Namespace {
+  private static final Namespace EMPTY_NAMESPACE = new Namespace(new String[] {});
+  private static final Joiner DOT = Joiner.on('.');
+
+  public static Namespace empty() {
+    return EMPTY_NAMESPACE;
+  }
+
+  public static Namespace of(String... levels) {
+    if (levels.length == 0) {
+      return empty();
+    }
+
+    return new Namespace(levels);
+  }
+
   private final String[] levels;
-  private static final Namespace EMPTY = new Namespace(new String[] {});
 
   private Namespace(String[] levels) {
     this.levels = levels;
@@ -34,19 +50,16 @@ public class Namespace {
     return levels;
   }
 
+  public String level(int pos) {
+    return levels[pos];
+  }
+
   public boolean isEmpty() {
-    return this.equals(Namespace.EMPTY);
+    return levels.length == 0;
   }
 
-  public static Namespace namespace(String[] levels) {
-    if (levels == null || levels.length == 0) {
-      return Namespace.EMPTY;
-    }
-
-    return new Namespace(levels);
-  }
-
-  public static Namespace empty() {
-    return EMPTY;
+  @Override
+  public String toString() {
+    return DOT.join(levels);
   }
 }

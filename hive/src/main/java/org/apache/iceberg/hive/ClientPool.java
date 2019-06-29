@@ -31,13 +31,13 @@ abstract class ClientPool<C, E extends Exception> implements Closeable {
 
   private final int poolSize;
   private final Deque<C> clients;
-  private final Class<E> reconnectExc;
+  private final Class<? extends E> reconnectExc;
   private final Object signal = new Object();
   private volatile int currentSize;
   private boolean closed;
   private int runs = 0;
 
-  ClientPool(int poolSize, Class<E> reconnectExc) {
+  ClientPool(int poolSize, Class<? extends E> reconnectExc) {
     this.poolSize = poolSize;
     this.reconnectExc = reconnectExc;
     this.clients = new ArrayDeque<>(poolSize);

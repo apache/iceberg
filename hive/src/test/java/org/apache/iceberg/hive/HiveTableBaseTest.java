@@ -46,6 +46,7 @@ import org.apache.hadoop.hive.metastore.TSetIpAddressProcessor;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.server.TServer;
@@ -70,6 +71,7 @@ public class HiveTableBaseTest {
 
   static final String DB_NAME = "hivedb";
   static final String TABLE_NAME =  "tbl";
+  static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(DB_NAME, TABLE_NAME);
 
   static final Schema schema = new Schema(Types.StructType.of(
       required(1, "id", Types.LongType.get())).fields());
@@ -86,7 +88,8 @@ public class HiveTableBaseTest {
   private static ExecutorService executorService;
   private static TServer server;
 
-  static HiveMetaStoreClient metastoreClient;
+  protected static HiveMetaStoreClient metastoreClient;
+  protected static HiveCatalog catalog;
 
   @BeforeClass
   public static void startMetastore() throws Exception {
@@ -101,10 +104,14 @@ public class HiveTableBaseTest {
 
     HiveTableBaseTest.metastoreClient = new HiveMetaStoreClient(hiveConf);
     metastoreClient.createDatabase(new Database(DB_NAME, "description", getDBPath(), new HashMap<>()));
+
+    HiveTableBaseTest.catalog = new HiveCatalog(hiveConf);
   }
 
   @AfterClass
   public static void stopMetastore() {
+    HiveTableBaseTest.catalog.close();
+
     metastoreClient.close();
     HiveTableBaseTest.metastoreClient = null;
 
@@ -119,19 +126,18 @@ public class HiveTableBaseTest {
     }
   }
 
-  HiveTables tables;
+  private Path tableLocation;
 
   @Before
-  public void createTestTable() throws Exception {
-    this.tables = new HiveTables(hiveConf);
-    tables.create(schema, partitionSpec, DB_NAME, TABLE_NAME);
+  public void createTestTable() {
+    this.tableLocation = new Path(catalog.createTable(TABLE_IDENTIFIER, schema, partitionSpec).location());
   }
 
   @After
   public void dropTestTable() throws Exception {
-    metastoreClient.dropTable(DB_NAME, TABLE_NAME);
-    tables.close();
-    this.tables = null;
+    // drop the table data
+    tableLocation.getFileSystem(hiveConf).delete(tableLocation, true);
+    catalog.dropTable(TABLE_IDENTIFIER);
   }
 
   private static HiveConf hiveConf(Configuration conf, int port) {
