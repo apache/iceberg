@@ -19,28 +19,44 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.collect.Maps;
-import java.io.Closeable;
+import com.google.common.base.Joiner;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import org.apache.avro.Schema;
 import org.apache.avro.file.DataFileReader;
-import org.apache.avro.file.FileReader;
+import org.apache.avro.file.SeekableInput;
 import org.apache.avro.io.DatumReader;
 import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class AvroIterable<D> extends CloseableGroup implements CloseableIterable<D> {
+import static com.google.common.base.Preconditions.checkState;
+
+public class AvroIterable<D> implements CloseableIterable<D> {
+
+  private static final Logger logger = LoggerFactory.getLogger(AvroIterable.class);
+
+  private enum State {
+    NEW,
+    OPEN,
+    CLOSED
+  }
+
   private final InputFile file;
   private final DatumReader<D> reader;
   private final Long start;
   private final Long end;
   private final boolean reuseContainers;
   private Map<String, String> metadata = null;
+  private DataFileReader<D> fileReader = null;
+  private State state = State.NEW;
+  private final StackTraceElement[] createStack = Thread.currentThread().getStackTrace();
 
   AvroIterable(InputFile file, DatumReader<D> reader,
                Long start, Long length, boolean reuseContainers) {
@@ -51,22 +67,16 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
     this.reuseContainers = reuseContainers;
   }
 
-  private DataFileReader<D> initMetadata(DataFileReader<D> metadataReader) {
-    if (metadata == null) {
-      this.metadata = Maps.newHashMap();
-      for (String key : metadataReader.getMetaKeys()) {
-        metadata.put(key, metadataReader.getMetaString(key));
-      }
-    }
-    return metadataReader;
-  }
-
   public Map<String, String> getMetadata() {
+    checkState(state != State.CLOSED,  "%s is closed", this);
     if (metadata == null) {
-      try (DataFileReader<D> reader = newFileReader()) {
-        initMetadata(reader);
-      } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to read metadata for file: %s", file);
+      if (fileReader == null) {
+        fileReader = newFileReader();
+      }
+      List<String> keys = fileReader.getMetaKeys();
+      metadata = new HashMap<>(keys.size());
+      for (String key : keys) {
+        metadata.put(key, fileReader.getMetaString(key));
       }
     }
     return metadata;
@@ -74,116 +84,78 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
 
   @Override
   public Iterator<D> iterator() {
-    FileReader<D> fileReader = initMetadata(newFileReader());
-
-    if (start != null) {
-      fileReader = new AvroRangeIterator<>(fileReader, start, end);
+    checkState(state == State.NEW, "%s is already consumed or closed", this);
+    state = State.OPEN;
+    if (fileReader == null) {
+      fileReader = newFileReader();
     }
+    return reuseContainers ? new AvroReuseIterator() : fileReader;
+  }
 
-    addCloseable(fileReader);
-
-    if (reuseContainers) {
-      return new AvroReuseIterator<>(fileReader);
+  @Override
+  public void close() throws IOException {
+    state = State.CLOSED;
+    if (fileReader != null) {
+      fileReader.close();
     }
+  }
 
-    return fileReader;
+  @Override
+  public String toString() {
+    return getClass().getSimpleName() + '@' + System.identityHashCode(this) +
+        ", file " + file.toString();
+  }
+
+  @SuppressWarnings("checkstyle:NoFinalizer")
+  @Override
+  protected void finalize() throws Throwable {
+    super.finalize();
+    if (state != State.CLOSED) {
+      close();
+      logger.warn("Unclosed {} created by:\n\t{}", this, new Object() {
+        @Override
+        public String toString() {
+          return Joiner.on("\n\t").join(
+              Arrays.copyOfRange(createStack, 2, createStack.length));
+        }
+      });
+    }
   }
 
   private DataFileReader<D> newFileReader() {
     try {
-      return (DataFileReader<D>) DataFileReader.openReader(
-          AvroIO.stream(file.newStream(), file.getLength()), reader);
+      SeekableInput stream = AvroIO.stream(file.newStream(), file.getLength());
+      return (start != null) ? new RangeDataFileReader(stream, reader, start, end) : new DataFileReader(stream, reader);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to open file: %s", file);
     }
   }
 
-  private static class AvroRangeIterator<D> implements FileReader<D> {
-    private final FileReader<D> reader;
+  private static class RangeDataFileReader<D> extends DataFileReader<D> {
     private final long end;
 
-    AvroRangeIterator(FileReader<D> reader, long start, long end) {
-      this.reader = reader;
+    RangeDataFileReader(SeekableInput sin, DatumReader<D> reader, long start, long end) throws IOException {
+      super(sin, reader);
       this.end = end;
-
-      try {
-        reader.sync(start);
-      } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to find sync past position %d", start);
-      }
-    }
-
-    @Override
-    public Schema getSchema() {
-      return reader.getSchema();
+      sync(start);
     }
 
     @Override
     public boolean hasNext() {
       try {
-        return reader.hasNext() && !reader.pastSync(end);
+        return super.hasNext() && !pastSync(end);
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to check range end: %d", end);
       }
     }
-
-    @Override
-    public D next() {
-      if (!hasNext()) {
-        throw new NoSuchElementException();
-      }
-      return reader.next();
-    }
-
-    @Override
-    public D next(D reuse) {
-      if (!hasNext()) {
-        throw new NoSuchElementException();
-      }
-      try {
-        return reader.next(reuse);
-      } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to read next record");
-      }
-    }
-
-    @Override
-    public void sync(long position) throws IOException {
-      reader.sync(position);
-    }
-
-    @Override
-    public boolean pastSync(long position) throws IOException {
-      return reader.pastSync(position);
-    }
-
-    @Override
-    public long tell() throws IOException {
-      return reader.tell();
-    }
-
-    @Override
-    public void close() throws IOException {
-      reader.close();
-    }
-
-    @Override
-    public Iterator<D> iterator() {
-      return this;
-    }
   }
 
-  private static class AvroReuseIterator<D> implements Iterator<D>, Closeable {
-    private final FileReader<D> reader;
+  private class AvroReuseIterator implements Iterator<D> {
     private D reused = null;
-
-    AvroReuseIterator(FileReader<D> reader) {
-      this.reader = reader;
-    }
 
     @Override
     public boolean hasNext() {
-      return reader.hasNext();
+      return fileReader.hasNext();
     }
 
     @Override
@@ -193,16 +165,11 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
       }
 
       try {
-        this.reused = reader.next(reused);
+        reused = fileReader.next(reused);
         return reused;
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to read next record");
       }
-    }
-
-    @Override
-    public void close() throws IOException {
-      reader.close();
     }
   }
 }
