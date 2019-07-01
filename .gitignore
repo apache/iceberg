@@ -9,3 +9,4 @@ build
 out
 # web site build
 site/site
+.DS_Store

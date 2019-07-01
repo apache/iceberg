@@ -25,13 +25,22 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 
 public class TypeUtil {
@@ -375,6 +384,324 @@ public class TypeUtil {
 
       default:
         return visitor.primitive(type.asPrimitiveType());
+    }
+  }
+
+  public static class WrappedStruct extends WrappedType {
+    private Iterable<WrappedType> fields;
+
+    public WrappedStruct(Type type, Iterable<WrappedType> fields) {
+      super(type);
+      this.fields = fields;
+    }
+
+    public Iterable<WrappedType> getFields() {
+      return fields;
+    }
+  }
+
+  public static class WrappedMap extends WrappedType {
+    private WrappedType key;
+    private WrappedType value;
+
+    public WrappedMap(Type type, WrappedType key, WrappedType value) {
+      super(type);
+      this.key = key;
+      this.value = value;
+    }
+
+    public WrappedType getKey() {
+      return key;
+    }
+
+    public WrappedType getValue() {
+      return value;
+    }
+  }
+
+  public static class WrappedList extends WrappedType {
+
+    private WrappedType list;
+
+    public WrappedList(Type type, WrappedType list) {
+      super(type);
+      this.list = list;
+    }
+
+    public WrappedType getList() {
+      return list;
+    }
+  }
+
+  /**
+   * POJO used to model an object describing a type alongside with a String representation of its name
+   * and a String representation of the nested structure of fields.
+   * The nested structure of fields is flattened and we use a dot delimited order for indicating precedence.
+   */
+  public static class WrappedType {
+
+    private String predecessor;
+    private String name;
+    private Type type;
+
+    public WrappedType(Type type) {
+      this.type = type;
+    }
+
+    public WrappedType setPredecessor(String predecessor) {
+      this.predecessor = predecessor;
+      return this;
+    }
+
+    public WrappedType setName(String name) {
+      this.name = name;
+      return this;
+    }
+
+    public String getPredecessor() {
+      return predecessor;
+    }
+
+    public String getName() {
+      return name;
+    }
+
+    public Type getType() {
+      return type;
+    }
+  }
+
+  /**
+   * Visitor for traversing two Iceberg schemas
+   *
+   * @param <T> the Java class returned by the visitor
+   */
+  public static class CompanionSchemaVisitor<T extends WrappedType> {
+    protected LinkedList<String> fields = Lists.newLinkedList();
+    protected LinkedList<Integer> fieldIds = Lists.newLinkedList();
+
+    public static <T extends WrappedType> List<T> schema(Schema schema, Schema companion, CompanionSchemaVisitor<T> visitor) {
+      return visitFields(schema.asStruct(), companion.asStruct(), visitor)
+          .stream()
+          .filter(Objects::nonNull)
+          .collect(Collectors.toList());
+    }
+
+    public static <T extends WrappedType> List<T> visit(Type left, Type right, CompanionSchemaVisitor<T> visitor,
+        Ownership ownership) {
+      switch (left.typeId()) {
+        case LIST:
+          Types.ListType listType = left.asListType();
+          if(right != null) {
+            // Handle case of commons list elements
+            return Collections.emptyList();
+          }
+          return ImmutableList.of(visitor.list(listType,
+              visit(listType.elementType(), null, visitor, ownership).get(0),
+              ownership));
+        case STRUCT:
+          if (right != null) {
+            return visitor.struct(left.asStructType(), right.asStructType(),
+                visitFields(left.asStructType(), right.asStructType(), visitor));
+          }
+          return ImmutableList.of(visitor.struct(left.asStructType(), ownership,
+              visitFields(left.asStructType(), visitor, ownership)));
+        case MAP:
+          if(right != null) {
+            // Handle case of commons map keys
+            return Collections.emptyList();
+          }
+          Types.MapType map = left.asNestedType().asMapType();
+          T keyResult;
+          T valueResult;
+          visitor.fieldIds.push(map.keyId());
+          try {
+            keyResult = visit(map.keyType(),  null, visitor, ownership).get(0);
+          } finally {
+            visitor.fieldIds.pop();
+          }
+          visitor.fieldIds.push(map.valueId());
+          try {
+            valueResult = visit(map.valueType(), null, visitor, ownership).get(0);
+          } finally {
+            visitor.fieldIds.pop();
+          }
+          return ImmutableList.of(visitor.map(map, keyResult, valueResult, ownership));
+        default:
+          List<T> primitives = Lists.newArrayList();
+          primitives.add(visitor.primitive(left.asPrimitiveType(), ownership));
+          if (right != null) {
+            // No way of telling whether it's the left-side or right-side element we're visiting in the case of a
+            // common primitive field.
+            // This makes the visitor.primitive API rather vague, so need more explicit API contract for this one.
+            primitives.add(visitor.primitive(right.asPrimitiveType(), ownership));
+          }
+          return primitives;
+      }
+    }
+
+    private static <T extends WrappedType> List<T> visitField(
+        Types.NestedField head,
+        Types.NestedField companion,
+        CompanionSchemaVisitor<T> visitor,
+        Ownership ownership) {
+      visitor.fields.push(head.name());
+      try {
+        return visit(head.type(), (companion != null) ? companion.type() : null, visitor, ownership);
+      } finally {
+        visitor.fields.pop();
+      }
+    }
+
+    private static <T extends WrappedType> List<T> visitFields(
+        Types.StructType head,
+        CompanionSchemaVisitor<T> visitor,
+        Ownership ownership) {
+      List<T> results = Lists.newArrayListWithExpectedSize(head.fields().size());
+      for (Types.NestedField field : head.fields()) {
+        results.addAll(visitField(field, null, visitor, ownership));
+      }
+      return results;
+    }
+
+    private static <T extends WrappedType> List<T> visitFields(
+        Types.StructType head,
+        Types.StructType companion,
+        CompanionSchemaVisitor<T> visitor) {
+
+      // Used to compute the intersection of fields based on fields matching type id, field name and required option.
+      Comparator<Types.NestedField> matchingFieldComparator = Comparator.comparing(Types.NestedField::name)
+          .thenComparing(Types.NestedField::isOptional)
+          .thenComparing(t -> t.type().typeId());
+
+      TreeSet<Types.NestedField> l = Sets.newTreeSet(matchingFieldComparator);
+      l.addAll(head.fields());
+      TreeSet<Types.NestedField> r = Sets.newTreeSet(matchingFieldComparator);
+      r.addAll(companion.fields());
+
+      HashSet<Types.NestedField> intersection = Sets.intersection(l, r).copyInto(new HashSet<>());
+
+      // Collect the intersection ids so we can later filter out intersection elements from the respective original
+      // collections leaving out left-side and right-side only fields left to visit.
+      List<Integer> collectLeftSideIntersectIds = Lists.newArrayListWithCapacity(intersection.size());
+      List<Integer> collectRightSideIntersectIds = Lists.newArrayListWithCapacity(intersection.size());
+      List<T> results = Lists.newArrayListWithExpectedSize(l.size() + r.size() - intersection.size());
+
+      // Having established the intersection fields we will proceed to look-up each in their respective original
+      // collections (complexity/cost is very high, needs improvement) finding matching elements and visiting them as
+      for (Types.NestedField nestedField : intersection) {
+        Types.NestedField leftSideIntersect =
+            l.stream().filter(f -> f.type().typeId().equals(nestedField.type().typeId()))
+                .filter(f -> f.name().equalsIgnoreCase(nestedField.name()))
+                .findFirst().orElseThrow(() -> new IllegalArgumentException("Expected a left-side match."));
+
+        Types.NestedField rightSideIntersect =
+            r.stream().filter(f -> f.type().typeId().equals(nestedField.type().typeId()))
+                .filter(f -> f.name().equalsIgnoreCase(nestedField.name()))
+                .findFirst().orElseThrow(() -> new IllegalArgumentException("Expected a right-side match."));
+
+        results.addAll(visitField(leftSideIntersect, rightSideIntersect, visitor, Ownership.BOTH));
+
+        l.remove(leftSideIntersect);
+        r.remove(rightSideIntersect);
+
+        collectLeftSideIntersectIds.add(leftSideIntersect.fieldId());
+        collectRightSideIntersectIds.add(rightSideIntersect.fieldId());
+      }
+
+      List<Types.NestedField> leftSideOnlyFields = head.fields();
+      if(!collectLeftSideIntersectIds.isEmpty()) {
+        leftSideOnlyFields =
+            head.fields()
+                .stream()
+                .filter(f -> !collectLeftSideIntersectIds.contains(f.fieldId()))
+                .collect(Collectors.toList());
+      }
+
+      List<Types.NestedField> rightSideOnlyFields = companion.fields();
+      if(!collectRightSideIntersectIds.isEmpty()) {
+        rightSideOnlyFields = companion.fields()
+            .stream()
+            .filter(f -> !collectRightSideIntersectIds.contains(f.fieldId()))
+            .collect(Collectors.toList());
+      }
+
+      for (Types.NestedField nestedField : leftSideOnlyFields) {
+        results.addAll(visitField(nestedField, null, visitor, Ownership.L));
+      }
+
+      for (Types.NestedField nestedField : rightSideOnlyFields) {
+        results.addAll(visitField(nestedField, null, visitor, Ownership.R));
+      }
+
+      return results
+          .stream()
+          .filter(Objects::nonNull)
+          .collect(Collectors.toList());
+    }
+
+    public T schema(Type left, Type right, T result) {return null;}
+
+    public T struct(Types.StructType type, Ownership ownership, Iterable<T> fields) {
+      return null;
+    }
+
+    public List<T> struct(Types.StructType typeLeft, Types.StructType typeRight, Iterable<T> fields) {
+      return null;
+    }
+
+    public T list(Types.ListType list, T element, Ownership ownership) {
+      return null;
+    }
+
+    public T map(Types.MapType map, T key, T value, Ownership ownership) {
+      return null;
+    }
+
+    public T field(Types.NestedField field, T fieldResult) {
+      return null;
+    }
+
+    public T primitive(Type.PrimitiveType type, Ownership ownership) {
+      return null;
+    }
+
+    protected String predecessor() {
+      return String.join(".", currentPath(1));
+    }
+
+    protected String fieldName() {
+      if (!fields.isEmpty()) {
+        return fields.iterator().next();
+      }
+      throw new IllegalArgumentException("Failed to resolve field name from null fields.");
+    }
+
+    private List<String> currentPath(int descendent) {
+      LinkedList<String> local = new LinkedList<>(fields);
+      while (descendent > 0) {
+        descendent--;
+        local.removeFirst();
+      }
+      List<String> path = Lists.newArrayList();
+      local.descendingIterator().forEachRemaining(path::add);
+      return path;
+    }
+
+    public enum Ownership {
+      L("LEFT"),
+      R("RIGHT"),
+      BOTH("BOTH");
+
+      private String label;
+
+      Ownership(String label) {
+        this.label = label;
+      }
+
+      public String getLabel() {
+        return label;
+      }
     }
   }
 

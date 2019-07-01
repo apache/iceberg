@@ -196,4 +196,12 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    */
   UpdateSchema deleteColumn(String name);
 
+  /**
+   * Adds all new columns identified in the provided schema
+   * @param schema schema to look for new fields
+   * @return this for method chaining
+   * @throws IllegalArgumentException If this change conflicts with other additions, renames, or updates.
+   */
+  UpdateSchema equateNewFields(Schema schema);
+
 }

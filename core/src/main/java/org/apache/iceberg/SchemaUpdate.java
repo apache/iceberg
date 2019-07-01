@@ -24,6 +24,8 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
+import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -184,6 +186,88 @@ class SchemaUpdate implements UpdateSchema {
     }
 
     return this;
+  }
+
+  @Override
+  public UpdateSchema equateNewFields(Schema schema) {
+    Preconditions.checkArgument(schema != null, "Cannot add new fields off of a null schema");
+    List<TypeUtil.WrappedType> wrappedTypes = TypeUtil.CompanionSchemaVisitor.schema(this.schema, schema,
+        new CompanionSchemaNewFieldsCollector());
+
+    // With Iceberg we can only add to pre-existing fields so we need to "hydrate" all nested types.
+    wrappedTypes.forEach(
+        wrappedType -> {
+          Map.Entry<String, Types.NestedField> entry = inflate(wrappedType);
+          // Based on being top-level or nested we use the corresponding API for adding new columns to the schema
+          Preconditions.checkArgument(entry != null, "Cannot inflate types of null predecessor");
+          if (entry.getKey().isEmpty()) {
+            addColumn(entry.getValue().name(), entry.getValue().type(), entry.getValue().doc());
+          } else {
+            addColumn(entry.getKey(), entry.getValue().name(), entry.getValue().type(), entry.getValue().doc());
+          }
+        }
+    );
+
+    return this;
+  }
+
+  /**
+   * Given a nested type structure this will provide a fully hydrated {@link Types.NestedField} accompanied by
+   * predecessor name as dot separated string.
+   * TODO - any suggestions for modelling a tuple other than java.util.Map.Entry?
+   *
+   * @param wrappedType the nested type we want to inflate (will use method recursively for non-primitive structures)
+   * @return a tuple having a String representation of the type predecessor as key and the nested field as value
+   */
+  private <T extends TypeUtil.WrappedType> Map.Entry<String, Types.NestedField> inflate(T wrappedType) {
+      switch (wrappedType.getType().typeId()) {
+        case LIST:
+          if(wrappedType instanceof TypeUtil.WrappedList) {
+            TypeUtil.WrappedList list = (TypeUtil.WrappedList) wrappedType;
+            return new AbstractMap.SimpleEntry<>(
+                wrappedType.getPredecessor(), optional(0, list.getName(), Types.ListType.ofOptional(0,
+                Objects.requireNonNull(inflate(list.getList())).getValue().type())));
+          }
+          throw new IllegalArgumentException(String.format("Invalid type, expected list but got %s ",
+              wrappedType.getClass().getCanonicalName()));
+        case STRUCT:
+          ArrayList<Types.NestedField> fields = new ArrayList<>();
+          if(wrappedType instanceof TypeUtil.WrappedStruct) {
+            TypeUtil.WrappedStruct struct = (TypeUtil.WrappedStruct) wrappedType;
+            struct.getFields().forEach(f -> fields.add(Objects.requireNonNull(inflate(f)).getValue()));
+            return new AbstractMap.SimpleEntry<>(
+                struct.getPredecessor(), optional(0, struct.getName(), Types.StructType.of(fields)));
+          }
+          throw new IllegalArgumentException(String.format("Invalid type, expected struct but got %s ",
+              wrappedType.getClass().getCanonicalName()));
+        case MAP:
+          if(wrappedType instanceof TypeUtil.WrappedMap) {
+            TypeUtil.WrappedMap map = (TypeUtil.WrappedMap) wrappedType;
+            return new AbstractMap.SimpleEntry<>(map.getPredecessor(),
+                optional(0, map.getName(),
+                Types.MapType.ofOptional(0,0,
+                    Objects.requireNonNull(inflate(map.getKey())).getValue().type(),
+                    Objects.requireNonNull(inflate(map.getValue())).getValue().type())));
+          }
+          throw new IllegalArgumentException(String.format("Invalid type, expected map but got %s ",
+              wrappedType.getClass().getCanonicalName()));
+        case INTEGER:
+        case LONG:
+        case DECIMAL:
+        case DOUBLE:
+        case FLOAT:
+        case FIXED:
+        case DATE:
+        case BINARY:
+        case BOOLEAN:
+        case TIMESTAMP:
+        case STRING:
+        case TIME:
+        case UUID:
+          return new AbstractMap.SimpleEntry<>(wrappedType.getPredecessor(), optional(0, wrappedType.getName(), wrappedType.getType()));
+        default:
+          return null;
+    }
   }
 
   /**
@@ -370,5 +454,55 @@ class SchemaUpdate implements UpdateSchema {
     List<Types.NestedField> newFields = Lists.newArrayList(struct.fields());
     newFields.addAll(adds);
     return Types.StructType.of(newFields);
+  }
+
+  private static class CompanionSchemaNewFieldsCollector extends TypeUtil.CompanionSchemaVisitor<TypeUtil.WrappedType> {
+    @Override
+    public TypeUtil.WrappedType primitive(Type.PrimitiveType type, Ownership ownership) {
+      if(Ownership.R.equals(ownership)) {
+        return new TypeUtil.WrappedType(type)
+            .setPredecessor(predecessor())
+            .setName(fieldName());
+      }
+      return null;
+    }
+
+    @Override
+    public TypeUtil.WrappedType struct(Types.StructType type, Ownership ownership, Iterable<TypeUtil.WrappedType> fields) {
+      if(Ownership.R.equals(ownership)) {
+        return new TypeUtil.WrappedStruct(type, fields)
+            .setPredecessor(predecessor())
+            .setName(fieldName());
+      }
+      return null;
+    }
+
+    @Override
+    public List<TypeUtil.WrappedType> struct(Types.StructType typeLeft, Types.StructType typeRight,
+        Iterable<TypeUtil.WrappedType> fields) {
+      return Lists.newArrayList(fields);
+    }
+
+    @Override
+    public TypeUtil.WrappedType map(Types.MapType map, TypeUtil.WrappedType key, TypeUtil.WrappedType value, Ownership
+         ownership) {
+      if(Ownership.R.equals(ownership)) {
+        return new TypeUtil.WrappedMap(map, key, value)
+            .setPredecessor(predecessor())
+            .setName(fieldName());
+      }
+      return null;
+    }
+
+    @Override
+    public TypeUtil.WrappedType list(
+        Types.ListType list, TypeUtil.WrappedType element, Ownership ownership) {
+      if(Ownership.R.equals(ownership)) {
+        return new TypeUtil.WrappedList(list, element)
+            .setPredecessor(predecessor())
+            .setName(fieldName());
+      }
+      return null;
+    }
   }
 }
