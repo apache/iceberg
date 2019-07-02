@@ -28,8 +28,8 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.UUID;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 
 public class Conversions {
@@ -38,38 +38,11 @@ public class Conversions {
 
   private static final String HIVE_NULL = "__HIVE_DEFAULT_PARTITION__";
 
-  public static Object fromPartitionString(Type type, String asString) {
+  public static Object fromPartitionString(PartitionField field, String asString) {
     if (asString == null || HIVE_NULL.equals(asString)) {
       return null;
     }
-
-    switch (type.typeId()) {
-      case BOOLEAN:
-        return Boolean.valueOf(asString);
-      case INTEGER:
-        return Integer.valueOf(asString);
-      case LONG:
-        return Long.valueOf(asString);
-      case FLOAT:
-        return Long.valueOf(asString);
-      case DOUBLE:
-        return Double.valueOf(asString);
-      case STRING:
-        return asString;
-      case UUID:
-        return UUID.fromString(asString);
-      case FIXED:
-        Types.FixedType fixed = (Types.FixedType) type;
-        return Arrays.copyOf(
-            asString.getBytes(StandardCharsets.UTF_8), fixed.length());
-      case BINARY:
-        return asString.getBytes(StandardCharsets.UTF_8);
-      case DECIMAL:
-        return new BigDecimal(asString);
-      default:
-        throw new UnsupportedOperationException(
-            "Unsupported type for fromPartitionString: " + type);
-    }
+    return field.transform().fromHumanString(asString);
   }
 
   private static final ThreadLocal<CharsetEncoder> ENCODER =

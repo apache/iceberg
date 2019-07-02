@@ -154,6 +154,11 @@ abstract class Bucket<T> implements Transform<T, Integer> {
     public boolean canTransform(Type type) {
       return type.typeId() == TypeID.INTEGER || type.typeId() == TypeID.DATE;
     }
+
+    @Override
+    public Integer fromHumanString(String value) {
+      return Integer.valueOf(value);
+    }
   }
 
   private static class BucketLong extends Bucket<Long> {
@@ -173,6 +178,11 @@ abstract class Bucket<T> implements Transform<T, Integer> {
           type.typeId() == TypeID.TIMESTAMP;
 
     }
+
+    @Override
+    public Integer fromHumanString(String value) {
+      return Integer.valueOf(value);
+    }
   }
 
   // bucketing by Double is not allowed by the spec, but this has the float hash implementation
@@ -190,6 +200,11 @@ abstract class Bucket<T> implements Transform<T, Integer> {
     @Override
     public boolean canTransform(Type type) {
       return type.typeId() == TypeID.FLOAT;
+    }
+
+    @Override
+    public Integer fromHumanString(String value) {
+      return Integer.valueOf(value);
     }
   }
 
@@ -209,6 +224,11 @@ abstract class Bucket<T> implements Transform<T, Integer> {
     public boolean canTransform(Type type) {
       return type.typeId() == TypeID.DOUBLE;
     }
+
+    @Override
+    public Integer fromHumanString(String value) {
+      return Integer.valueOf(value);
+    }
   }
 
   private static class BucketString extends Bucket<CharSequence> {
@@ -224,6 +244,11 @@ abstract class Bucket<T> implements Transform<T, Integer> {
     @Override
     public boolean canTransform(Type type) {
       return type.typeId() == TypeID.STRING;
+    }
+
+    @Override
+    public Integer fromHumanString(String value) {
+      return Integer.valueOf(value);
     }
   }
 
@@ -243,6 +268,11 @@ abstract class Bucket<T> implements Transform<T, Integer> {
     @Override
     public boolean canTransform(Type type) {
       return SUPPORTED_TYPES.contains(type.typeId());
+    }
+
+    @Override
+    public Integer fromHumanString(String value) {
+      return Integer.valueOf(value);
     }
   }
 
@@ -277,6 +307,11 @@ abstract class Bucket<T> implements Transform<T, Integer> {
     public boolean canTransform(Type type) {
       return SUPPORTED_TYPES.contains(type.typeId());
     }
+
+    @Override
+    public Integer fromHumanString(String value) {
+      return Integer.valueOf(value);
+    }
   }
 
   private static class BucketUUID extends Bucket<UUID> {
@@ -303,6 +338,11 @@ abstract class Bucket<T> implements Transform<T, Integer> {
     public boolean canTransform(Type type) {
       return type.typeId() == TypeID.UUID;
     }
+
+    @Override
+    public Integer fromHumanString(String value) {
+      return Integer.valueOf(value);
+    }
   }
 
   private static class BucketDecimal extends Bucket<BigDecimal> {
@@ -318,6 +358,11 @@ abstract class Bucket<T> implements Transform<T, Integer> {
     @Override
     public boolean canTransform(Type type) {
       return type.typeId() == TypeID.DECIMAL;
+    }
+
+    @Override
+    public Integer fromHumanString(String value) {
+      return Integer.valueOf(value);
     }
   }
 }

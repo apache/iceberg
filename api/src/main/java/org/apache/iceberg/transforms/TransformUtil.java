@@ -22,18 +22,19 @@ package org.apache.iceberg.transforms;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 
 class TransformUtil {
-
-  private TransformUtil() {}
-
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private static final int EPOCH_YEAR = EPOCH.getYear();
+
+  private TransformUtil() {}
 
   static String humanYear(int yearOrdinal) {
     return String.format("%04d", EPOCH_YEAR + yearOrdinal);
@@ -67,8 +68,33 @@ class TransformUtil {
         time.getYear(), time.getMonth().getValue(), time.getDayOfMonth(), time.getHour());
   }
 
+  static Long fromHumanYearToEpochSecond(String value) {
+    return LocalDate.parse(String.format("%s-01-01", value), DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+        .atTime(0, 0, 0).toEpochSecond(ZoneOffset.UTC);
+  }
+
+  static Long fromHumanMonthToEpochSecond(String value) {
+    return LocalDate.parse(String.format("%s-01", value), DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+        .atTime(0, 0, 0).toEpochSecond(ZoneOffset.UTC);
+  }
+
+  static Long fromHumanDayToEpochSecond(String value) {
+    return LocalDate.parse(value, DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+        .atTime(0, 0, 0).toEpochSecond(ZoneOffset.UTC);
+  }
+
+  static Long fromHumanHourToEpochSecond(String value) {
+    int pos = value.lastIndexOf("-");
+    return LocalDate.parse(value.substring(0, pos), DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+        .atTime(Integer.valueOf(value.substring(pos + 1)), 0, 0).toEpochSecond(ZoneOffset.UTC);
+  }
+
   static String base64encode(ByteBuffer buffer) {
     // use direct encoding because all of the encoded bytes are in ASCII
     return StandardCharsets.ISO_8859_1.decode(Base64.getEncoder().encode(buffer)).toString();
+  }
+
+  static byte[] base64decode(byte[] value) {
+    return Base64.getDecoder().decode(value);
   }
 }

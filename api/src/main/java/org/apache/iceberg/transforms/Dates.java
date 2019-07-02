@@ -96,6 +96,11 @@ enum Dates implements Transform<Integer, Integer> {
   }
 
   @Override
+  public Integer fromHumanString(String value) {
+    return Integer.valueOf(value);
+  }
+
+  @Override
   public String toString() {
     return name;
   }

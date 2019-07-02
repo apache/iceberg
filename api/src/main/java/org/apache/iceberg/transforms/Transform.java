@@ -93,4 +93,6 @@ public interface Transform<S, T> extends Serializable {
   default String toHumanString(T value) {
     return String.valueOf(value);
   }
+
+  T fromHumanString(String value);
 }

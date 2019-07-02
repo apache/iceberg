@@ -23,6 +23,7 @@ import com.google.common.base.Objects;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
@@ -137,6 +138,11 @@ abstract class Truncate<T> implements Transform<T, T> {
     }
 
     @Override
+    public Integer fromHumanString(String value) {
+      return Integer.valueOf(value);
+    }
+
+    @Override
     public boolean equals(Object o) {
       if (this == o) {
         return true;
@@ -217,6 +223,11 @@ abstract class Truncate<T> implements Transform<T, T> {
     public String toString() {
       return "truncate[" + width + "]";
     }
+
+    @Override
+    public Long fromHumanString(String value) {
+      return Long.valueOf(value);
+    }
   }
 
   private static class TruncateString extends Truncate<CharSequence> {
@@ -254,6 +265,11 @@ abstract class Truncate<T> implements Transform<T, T> {
     public UnboundPredicate<CharSequence> projectStrict(String name,
                                                         BoundPredicate<CharSequence> predicate) {
       return null;
+    }
+
+    @Override
+    public CharSequence fromHumanString(String value) {
+      return value;
     }
 
     @Override
@@ -343,6 +359,12 @@ abstract class Truncate<T> implements Transform<T, T> {
     }
 
     @Override
+    public ByteBuffer fromHumanString(String value) {
+      return ByteBuffer.wrap(
+          TransformUtil.base64decode(value.getBytes(StandardCharsets.ISO_8859_1)));
+    }
+
+    @Override
     public String toString() {
       return "truncate[" + length + "]";
     }
@@ -412,6 +434,11 @@ abstract class Truncate<T> implements Transform<T, T> {
     @Override
     public String toString() {
       return "truncate[" + unscaledWidth + "]";
+    }
+
+    @Override
+    public BigDecimal fromHumanString(String value) {
+      return new BigDecimal(value);
     }
   }
 }

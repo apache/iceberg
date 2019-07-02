@@ -41,6 +41,7 @@ enum Timestamps implements Transform<Long, Integer> {
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private final ChronoUnit granularity;
   private final String name;
+  private static final Long A_MILLI = 1000 * 1000L;
 
   Timestamps(ChronoUnit granularity, String name) {
     this.granularity = granularity;
@@ -95,6 +96,26 @@ enum Timestamps implements Transform<Long, Integer> {
         return TransformUtil.humanDay(value);
       case HOURS:
         return TransformUtil.humanHour(value);
+      default:
+        throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
+    }
+  }
+
+  @Override
+  public Integer fromHumanString(String value) {
+    if (value == null) {
+      return null;
+    }
+
+    switch (granularity) {
+      case YEARS:
+        return apply(TransformUtil.fromHumanYearToEpochSecond(value) * A_MILLI);
+      case MONTHS:
+        return apply(TransformUtil.fromHumanMonthToEpochSecond(value) * A_MILLI);
+      case DAYS:
+        return apply(TransformUtil.fromHumanDayToEpochSecond(value) * A_MILLI);
+      case HOURS:
+        return apply(TransformUtil.fromHumanHourToEpochSecond(value) * A_MILLI);
       default:
         throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
     }

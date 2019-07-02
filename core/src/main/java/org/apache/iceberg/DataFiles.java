@@ -80,7 +80,7 @@ public class DataFiles {
           "Invalid partition: %s",
           partitions[i]);
 
-      data.set(i, Conversions.fromPartitionString(data.getType(i), parts[1]));
+      data.set(i, Conversions.fromPartitionString(field, parts[1]));
     }
 
     return data;
