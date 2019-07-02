@@ -20,12 +20,17 @@
 package org.apache.iceberg.catalog;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Splitter;
+import com.google.common.collect.Iterables;
 import java.util.Arrays;
 
 /**
  * Identifies a table in iceberg catalog.
  */
 public class TableIdentifier {
+
+  private static final Splitter DOT = Splitter.on('.');
+
   private final Namespace namespace;
   private final String name;
 
@@ -36,6 +41,11 @@ public class TableIdentifier {
 
   public static TableIdentifier of(Namespace namespace, String name) {
     return new TableIdentifier(namespace, name);
+  }
+
+  public static TableIdentifier parse(String identifier) {
+    Iterable<String> parts = DOT.split(identifier);
+    return TableIdentifier.of(Iterables.toArray(parts, String.class));
   }
 
   private TableIdentifier(Namespace namespace, String name) {
