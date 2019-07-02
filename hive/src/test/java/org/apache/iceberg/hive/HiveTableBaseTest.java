@@ -46,7 +46,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class HiveTableBaseTest {
 
-  static final String DB_NAME = "hivedb";
+  protected static final String DB_NAME = "hivedb";
   static final String TABLE_NAME =  "tbl";
   static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(DB_NAME, TABLE_NAME);
 
@@ -59,11 +59,11 @@ public class HiveTableBaseTest {
 
   private static final PartitionSpec partitionSpec = builderFor(schema).identity("id").build();
 
-  private static HiveConf hiveConf;
   private static TestHiveMetastore metastore;
 
   protected static HiveMetaStoreClient metastoreClient;
   protected static HiveCatalog catalog;
+  protected static HiveConf hiveConf;
 
   @BeforeClass
   public static void startMetastore() throws Exception {
@@ -101,14 +101,17 @@ public class HiveTableBaseTest {
     tableLocation.getFileSystem(hiveConf).delete(tableLocation, true);
     catalog.dropTable(TABLE_IDENTIFIER);
   }
-
   private static String getTableBasePath(String tableName) {
     String databasePath = metastore.getDatabasePath(DB_NAME);
     return Paths.get(databasePath, tableName).toAbsolutePath().toString();
   }
 
+  protected static Path getTableLocationPath(String tableName) {
+    return new Path("file", null, Paths.get(getTableBasePath(tableName)).toString());
+  }
+
   protected static String getTableLocation(String tableName) {
-    return new Path("file", null, Paths.get(getTableBasePath(tableName)).toString()).toString();
+    return getTableLocationPath(tableName).toString();
   }
 
   private static String metadataLocation(String tableName) {
