@@ -92,8 +92,8 @@ subprojects {
   targetCompatibility = '1.8'
 
   dependencies {
-    compileOnly 'org.slf4j:slf4j-api:1.7.5'
-    compileOnly 'com.google.guava:guava:28.0-jre'
+    compile 'org.slf4j:slf4j-api:1.7.5'
+    compile 'com.google.guava:guava:28.0-jre'
 
     testCompile 'junit:junit:4.12'
     testCompile 'org.slf4j:slf4j-simple:1.7.5'
@@ -218,7 +218,6 @@ project(':iceberg-core') {
   dependencies {
     compile project(':iceberg-api')
     compile project(':iceberg-common')
-    compile 'com.google.guava:guava:28.0-jre'
 
     compile("org.apache.avro:avro:$avroVersion") {
       exclude group: 'org.tukaani' // xz compression is not supported
