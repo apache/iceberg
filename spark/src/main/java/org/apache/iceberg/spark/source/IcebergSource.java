@@ -21,11 +21,9 @@ package org.apache.iceberg.spark.source;
 
 import com.google.common.base.Preconditions;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -49,9 +47,6 @@ import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter;
 import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.types.StructType;
 
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
-
 public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, DataSourceRegister, StreamWriteSupport {
 
   private SparkSession lazySpark = null;
@@ -74,12 +69,12 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
   @Override
   public Optional<DataSourceWriter> createWriter(String jobId, StructType dsStruct, SaveMode mode,
                                                  DataSourceOptions options) {
-    Preconditions.checkArgument(mode == SaveMode.Append, "Save mode %s is not supported", mode);
+    Preconditions.checkArgument(mode == SaveMode.Append || mode == SaveMode.Overwrite,
+        "Save mode %s is not supported", mode);
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
     validateWriteSchema(table.schema(), dsStruct);
-    FileFormat format = getFileFormat(table.properties(), options);
-    return Optional.of(new Writer(table, format));
+    return Optional.of(new Writer(table, options, mode == SaveMode.Overwrite));
   }
 
   @Override
@@ -91,11 +86,10 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
     validateWriteSchema(table.schema(), dsStruct);
-    FileFormat format = getFileFormat(table.properties(), options);
     // Spark 2.4.x passes runId to createStreamWriter instead of real queryId,
     // so we fetch it directly from sparkContext to make writes idempotent
     String queryId = lazySparkSession().sparkContext().getLocalProperty(StreamExecution.QUERY_ID_KEY());
-    return new StreamingWriter(table, format, queryId, mode);
+    return new StreamingWriter(table, options, queryId, mode);
   }
 
   protected Table findTable(DataSourceOptions options, Configuration conf) {
@@ -143,12 +137,6 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     options.keySet().stream()
         .filter(key -> key.startsWith("hadoop."))
         .forEach(key -> baseConf.set(key.replaceFirst("hadoop.", ""), options.get(key)));
-  }
-
-  private FileFormat getFileFormat(Map<String, String> tableProperties, DataSourceOptions options) {
-    Optional<String> formatOption = options.get("write-format");
-    String format = formatOption.orElse(tableProperties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT));
-    return FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
   }
 
   private void validateWriteSchema(Schema tableSchema, StructType dsStruct) {
