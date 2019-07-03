@@ -84,7 +84,7 @@ subprojects {
 
     testCompile 'junit:junit'
     testCompile 'org.slf4j:slf4j-simple'
-    testCompile 'org.mockito:mockito-all'
+    testCompile 'org.mockito:mockito-core'
   }
 
   publishing {
