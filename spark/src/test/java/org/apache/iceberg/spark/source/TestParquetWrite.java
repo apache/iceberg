@@ -168,24 +168,32 @@ public class TestParquetWrite {
     File location = new File(parent, "test");
 
     HadoopTables tables = new HadoopTables(CONF);
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
     Table table = tables.create(SCHEMA, spec, location.toString());
 
-    List<SimpleRecord> expected = Lists.newArrayList(
+    List<SimpleRecord> records = Lists.newArrayList(
         new SimpleRecord(1, "a"),
         new SimpleRecord(2, "b"),
         new SimpleRecord(3, "c")
     );
 
-    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
+    List<SimpleRecord> expected = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "a"),
+        new SimpleRecord(3, "c"),
+        new SimpleRecord(4, "b"),
+        new SimpleRecord(6, "c")
+    );
+
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
 
     df.select("id", "data").write()
         .format("iceberg")
         .mode("append")
         .save(location.toString());
 
-    // overwrite with the same data; should not produce two copies
-    df.select("id", "data").write()
+    // overwrite with 2*id to replace record 2, append 4 and 6
+    df.withColumn("id", df.col("id").multiply(2)).select("id", "data").write()
         .format("iceberg")
         .mode("overwrite")
         .save(location.toString());
