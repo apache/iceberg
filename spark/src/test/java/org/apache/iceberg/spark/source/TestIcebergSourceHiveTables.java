@@ -20,16 +20,23 @@
 package org.apache.iceberg.spark.source;
 
 import com.google.common.collect.Lists;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
+import org.apache.avro.generic.GenericData;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -110,6 +117,43 @@ public class TestIcebergSourceHiveTables {
           .collectAsList();
 
       Assert.assertEquals("Records should match", expectedRecords, actualRecords);
+    } finally {
+      metastoreClient.dropTable(DB_NAME, TABLE_NAME);
+    }
+  }
+
+  @Test
+  public void testHiveEntriesTable() throws TException, IOException {
+    try (HiveCatalog catalog = new HiveCatalog(hiveConf)) {
+      Table table = catalog.createTable(TABLE_IDENTIFIER, SCHEMA, PartitionSpec.unpartitioned());
+      Table entriesTable = catalog.loadTable(TableIdentifier.of(DB_NAME, TABLE_NAME, "entries"));
+
+      List<SimpleRecord> records = Lists.newArrayList(new SimpleRecord(1, "1"));
+
+      Dataset<Row> inputDf = spark.createDataFrame(records, SimpleRecord.class);
+      inputDf.select("id", "data").write()
+          .format("iceberg")
+          .mode(SaveMode.Append)
+          .save(TABLE_IDENTIFIER.toString());
+
+      table.refresh();
+
+      List<Row> actual = spark.read()
+          .format("iceberg")
+          .load(DB_NAME + "." + TABLE_NAME + ".entries")
+          .collectAsList();
+
+      Assert.assertEquals("Should only contain one manifest", 1, table.currentSnapshot().manifests().size());
+      InputFile manifest = table.io().newInputFile(table.currentSnapshot().manifests().get(0).path());
+      List<GenericData.Record> expected;
+      try (CloseableIterable<GenericData.Record> rows = Avro.read(manifest).project(entriesTable.schema()).build()) {
+        expected = Lists.newArrayList(rows);
+      }
+
+      Assert.assertEquals("Entries table should have one row", 1, expected.size());
+      Assert.assertEquals("Actual results should have one row", 1, actual.size());
+      TestHelpers.assertEqualsSafe(entriesTable.schema().asStruct(), expected.get(0), actual.get(0));
+
     } finally {
       metastoreClient.dropTable(DB_NAME, TABLE_NAME);
     }
