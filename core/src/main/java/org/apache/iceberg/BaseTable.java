@@ -50,7 +50,7 @@ public class BaseTable implements Table, HasTableOperations {
 
   @Override
   public TableScan newScan() {
-    return new BaseTableScan(ops, this);
+    return new DataTableScan(ops, this);
   }
 
   @Override

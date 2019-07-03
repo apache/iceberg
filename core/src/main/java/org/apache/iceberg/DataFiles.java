@@ -150,6 +150,17 @@ public class DataFiles {
         location, format, partition, file.getLength(), metrics, keyMetadata.buffer(), splitOffsets);
   }
 
+  public static DataFile fromManifest(ManifestFile manifest) {
+    Preconditions.checkArgument(
+        manifest.addedFilesCount() != null && manifest.existingFilesCount() != null,
+        "Cannot create data file from manifest: data file counts are missing.");
+
+    return new GenericDataFile(manifest.path(),
+        FileFormat.AVRO,
+        manifest.addedFilesCount() + manifest.existingFilesCount(),
+        manifest.length());
+  }
+
   public static Builder builder(PartitionSpec spec) {
     return new Builder(spec);
   }

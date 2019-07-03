@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import com.google.common.collect.Maps;
+import java.util.Locale;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.catalog.Catalog;
@@ -29,6 +30,22 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 
 public abstract class BaseMetastoreCatalog implements Catalog {
+  enum TableType {
+    ENTRIES,
+    HISTORY,
+    SNAPSHOTS,
+    MANIFESTS,
+    PARTITIONS;
+
+    static TableType from(String name) {
+      try {
+        return TableType.valueOf(name.toUpperCase(Locale.ROOT));
+      } catch (IllegalArgumentException ignored) {
+        return null;
+      }
+    }
+  }
+
   private final Configuration conf;
 
   protected BaseMetastoreCatalog(Configuration conf) {
@@ -70,10 +87,34 @@ public abstract class BaseMetastoreCatalog implements Catalog {
   public Table loadTable(TableIdentifier identifier) {
     TableOperations ops = newTableOps(conf, identifier);
     if (ops.current() == null) {
-      throw new NoSuchTableException("Table does not exist: " + identifier);
+      String name = identifier.name();
+      TableType type = TableType.from(name);
+      if (type != null) {
+        return loadMetadataTable(TableIdentifier.of(identifier.namespace().levels()), type);
+      } else {
+        throw new NoSuchTableException("Table does not exist: " + identifier);
+      }
     }
 
     return new BaseTable(ops, identifier.toString());
+  }
+
+  private Table loadMetadataTable(TableIdentifier identifier, TableType type) {
+    TableOperations ops = newTableOps(conf, identifier);
+    if (ops.current() == null) {
+      throw new NoSuchTableException("Table does not exist: " + identifier);
+    }
+
+    switch (type) {
+      case ENTRIES:
+        return new ManifestEntriesTable(ops, new BaseTable(ops, identifier.toString()));
+      case HISTORY:
+      case SNAPSHOTS:
+      case MANIFESTS:
+      case PARTITIONS:
+      default:
+        throw new NoSuchTableException(String.format("Unknown metadata table type: %s for %s", type, identifier));
+    }
   }
 
   protected abstract TableOperations newTableOps(Configuration newConf, TableIdentifier tableIdentifier);

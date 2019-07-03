@@ -31,7 +31,7 @@ import org.junit.rules.TemporaryFolder;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.junit.Assert.assertEquals;
 
-public class TestBaseTableScan {
+public class TestDataTableScan {
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();

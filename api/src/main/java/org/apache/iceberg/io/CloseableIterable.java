@@ -20,11 +20,13 @@
 package org.apache.iceberg.io;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterables;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 
 public interface CloseableIterable<T> extends Iterable<T>, Closeable {
@@ -57,6 +59,10 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
         return iterable.iterator();
       }
     };
+  }
+
+  static <E> CloseableIterable<E> filter(CloseableIterable<E> iterable, Predicate<E> pred) {
+    return combine(Iterables.filter(iterable, pred::test), iterable);
   }
 
   static <I, O> CloseableIterable<O> transform(CloseableIterable<I> iterable, Function<I, O> transform) {
