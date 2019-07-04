@@ -32,6 +32,7 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 public abstract class BaseMetastoreCatalog implements Catalog {
   enum TableType {
     ENTRIES,
+    FILES,
     HISTORY,
     SNAPSHOTS,
     MANIFESTS;
@@ -109,6 +110,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     switch (type) {
       case ENTRIES:
         return new ManifestEntriesTable(ops, baseTable);
+      case FILES:
+        return new DataFilesTable(ops, baseTable);
       case HISTORY:
         return new HistoryTable(ops, baseTable);
       case SNAPSHOTS:

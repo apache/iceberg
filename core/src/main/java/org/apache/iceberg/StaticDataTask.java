@@ -24,10 +24,10 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import java.io.Serializable;
 import java.util.Arrays;
-import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 
 class StaticDataTask implements DataTask {
@@ -50,8 +50,8 @@ class StaticDataTask implements DataTask {
   }
 
   @Override
-  public List<StructLike> rows() {
-    return Arrays.asList(rows);
+  public CloseableIterable<StructLike> rows() {
+    return CloseableIterable.withNoopClose(Arrays.asList(rows));
   }
 
   @Override

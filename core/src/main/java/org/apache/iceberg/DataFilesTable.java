@@ -19,17 +19,19 @@
 
 package org.apache.iceberg;
 
+import com.google.common.collect.ImmutableList;
 import java.util.Collection;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 
-class ManifestEntriesTable extends BaseMetadataTable {
+class DataFilesTable extends BaseMetadataTable {
   private final TableOperations ops;
   private final Table table;
 
-  ManifestEntriesTable(TableOperations ops, Table table) {
+  DataFilesTable(TableOperations ops, Table table) {
     this.ops = ops;
     this.table = table;
   }
@@ -41,17 +43,17 @@ class ManifestEntriesTable extends BaseMetadataTable {
 
   @Override
   String metadataTableName() {
-    return "entries";
+    return "files";
   }
 
   @Override
   public TableScan newScan() {
-    return new EntriesTableScan(ops, table);
+    return new FilesTableScan(ops, table);
   }
 
   @Override
   public Schema schema() {
-    return ManifestEntry.getSchema(table.spec().partitionType());
+    return new Schema(DataFile.getType(table.spec().partitionType()).fields());
   }
 
   @Override
@@ -59,14 +61,14 @@ class ManifestEntriesTable extends BaseMetadataTable {
     return table.currentSnapshot().manifestListLocation();
   }
 
-  private static class EntriesTableScan extends BaseTableScan {
+  public static class FilesTableScan extends BaseTableScan {
     private static final long TARGET_SPLIT_SIZE = 32 * 1024 * 1024; // 32 MB
 
-    EntriesTableScan(TableOperations ops, Table table) {
+    FilesTableScan(TableOperations ops, Table table) {
       super(ops, table, ManifestEntry.getSchema(table.spec().partitionType()));
     }
 
-    private EntriesTableScan(
+    private FilesTableScan(
         TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
         boolean caseSensitive, boolean colStats, Collection<String> selectedColumns) {
       super(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns);
@@ -76,7 +78,7 @@ class ManifestEntriesTable extends BaseMetadataTable {
     protected TableScan newRefinedScan(
         TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
         boolean caseSensitive, boolean colStats, Collection<String> selectedColumns) {
-      return new EntriesTableScan(
+      return new FilesTableScan(
           ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns);
     }
 
@@ -101,8 +103,56 @@ class ManifestEntriesTable extends BaseMetadataTable {
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
 
-      return CloseableIterable.transform(manifests, manifest -> new BaseFileScanTask(
-          DataFiles.fromManifest(manifest), schemaString, specString, ResidualEvaluator.unpartitioned(rowFilter)));
+      return CloseableIterable.transform(manifests, manifest ->
+          new ManifestReadTask(ops.io(), new BaseFileScanTask(
+              DataFiles.fromManifest(manifest), schemaString, specString, ResidualEvaluator.unpartitioned(rowFilter))));
+    }
+  }
+
+  private static class ManifestReadTask implements DataTask {
+    private final FileIO io;
+    private final FileScanTask manifestTask;
+
+    private ManifestReadTask(FileIO io, FileScanTask manifestTask) {
+      this.io = io;
+      this.manifestTask = manifestTask;
+    }
+
+    @Override
+    public CloseableIterable<StructLike> rows() {
+      return CloseableIterable.transform(
+          ManifestReader.read(io.newInputFile(manifestTask.file().path().toString())),
+          file -> (GenericDataFile) file);
+    }
+
+    @Override
+    public DataFile file() {
+      return manifestTask.file();
+    }
+
+    @Override
+    public PartitionSpec spec() {
+      return manifestTask.spec();
+    }
+
+    @Override
+    public long start() {
+      return 0;
+    }
+
+    @Override
+    public long length() {
+      return manifestTask.length();
+    }
+
+    @Override
+    public Expression residual() {
+      return manifestTask.residual();
+    }
+
+    @Override
+    public Iterable<FileScanTask> split(long splitSize) {
+      return ImmutableList.of(this); // don't split
     }
   }
 }

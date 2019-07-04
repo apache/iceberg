@@ -19,6 +19,8 @@
 
 package org.apache.iceberg;
 
+import org.apache.iceberg.io.CloseableIterable;
+
 /**
  * A task that returns data as {@link StructLike rows} instead of where to read data.
  */
@@ -36,5 +38,5 @@ public interface DataTask extends FileScanTask {
   /**
    * @return an iterable of {@link StructLike} rows
    */
-  Iterable<StructLike> rows();
+  CloseableIterable<StructLike> rows();
 }

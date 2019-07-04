@@ -30,6 +30,7 @@ import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.Database;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -158,6 +159,57 @@ public class TestIcebergSourceHiveTables {
       Assert.assertEquals("Entries table should have one row", 1, expected.size());
       Assert.assertEquals("Actual results should have one row", 1, actual.size());
       TestHelpers.assertEqualsSafe(entriesTable.schema().asStruct(), expected.get(0), actual.get(0));
+
+    } finally {
+      metastoreClient.dropTable(DB_NAME, TABLE_NAME);
+    }
+  }
+
+  @Test
+  public void testHiveFilesTable() throws TException, IOException {
+    try (HiveCatalog catalog = new HiveCatalog(hiveConf)) {
+      Table table = catalog.createTable(TABLE_IDENTIFIER, SCHEMA,
+          PartitionSpec.builderFor(SCHEMA).identity("id").build());
+      Table entriesTable = catalog.loadTable(TableIdentifier.of(DB_NAME, TABLE_NAME, "entries"));
+      Table filesTable = catalog.loadTable(TableIdentifier.of(DB_NAME, TABLE_NAME, "files"));
+
+      Dataset<Row> df1 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
+      Dataset<Row> df2 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(2, "b")), SimpleRecord.class);
+
+      df1.select("id", "data").write()
+          .format("iceberg")
+          .mode("append")
+          .save(TABLE_IDENTIFIER.toString());
+
+      // add a second file
+      df2.select("id", "data").write()
+          .format("iceberg")
+          .mode("append")
+          .save(TABLE_IDENTIFIER.toString());
+
+      // delete the first file to test that only live files are listed
+      table.newDelete().deleteFromRowFilter(Expressions.equal("id", 1)).commit();
+
+      List<Row> actual = spark.read()
+          .format("iceberg")
+          .load(DB_NAME + "." + TABLE_NAME + ".files")
+          .collectAsList();
+
+      List<GenericData.Record> expected = Lists.newArrayList();
+      for (ManifestFile manifest : table.currentSnapshot().manifests()) {
+        InputFile in = table.io().newInputFile(manifest.path());
+        try (CloseableIterable<GenericData.Record> rows = Avro.read(in).project(entriesTable.schema()).build()) {
+          for (GenericData.Record record : rows) {
+            if ((Integer) record.get("status") < 2 /* added or existing */) {
+              expected.add((GenericData.Record) record.get("data_file"));
+            }
+          }
+        }
+      }
+
+      Assert.assertEquals("Files table should have one row", 1, expected.size());
+      Assert.assertEquals("Actual results should have one row", 1, actual.size());
+      TestHelpers.assertEqualsSafe(filesTable.schema().asStruct(), expected.get(0), actual.get(0));
 
     } finally {
       metastoreClient.dropTable(DB_NAME, TABLE_NAME);
