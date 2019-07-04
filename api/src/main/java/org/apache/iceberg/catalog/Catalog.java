@@ -341,6 +341,17 @@ public interface Catalog {
   Table loadTable(TableIdentifier identifier);
 
   /**
+   * Register a table.
+   *
+   * @param identifier a table identifier
+   * @param metadataFileLocation the location of a metadata file
+   * @return a Table instance
+   */
+  default Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
+    throw new UnsupportedOperationException("Registering tables is not supported");
+  }
+
+  /**
    * Instantiate a builder to either create a table or start a create/replace transaction.
    *
    * @param identifier a table identifier
