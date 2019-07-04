@@ -73,38 +73,37 @@ public class HadoopTableOperations implements TableOperations {
   @Override
   public TableMetadata refresh() {
     int ver = version != null ? version : readVersionHint();
-    Path metadataFile = metadataFile(ver);
-    FileSystem fs = getFileSystem(metadataFile, conf);
     try {
-      // don't check if the file exists if version is non-null because it was already checked
-      if (version == null && !fs.exists(metadataFile)) {
-        if (ver == 0) {
-          // no v0 metadata means the table doesn't exist yet
-          return null;
-        }
-        throw new ValidationException("Metadata file is missing: %s", metadataFile);
+      Path metadataFile = getMetadataFile(ver);
+      if (version == null && metadataFile == null && ver == 0) {
+        // no v0 metadata means the table doesn't exist yet
+        return null;
+      } else if (metadataFile == null) {
+        throw new ValidationException("Metadata file for version %d is missing", ver);
       }
 
-      while (fs.exists(metadataFile(ver + 1))) {
+      Path nextMetadataFile = getMetadataFile(ver + 1);
+      while (nextMetadataFile != null) {
         ver += 1;
-        metadataFile = metadataFile(ver);
+        metadataFile = nextMetadataFile;
+        nextMetadataFile = getMetadataFile(ver + 1);
       }
 
+      this.version = ver;
+
+      TableMetadata newMetadata = TableMetadataParser.read(this, io().newInputFile(metadataFile.toString()));
+      String newUUID = newMetadata.uuid();
+      if (currentMetadata != null) {
+        Preconditions.checkState(newUUID == null || newUUID.equals(currentMetadata.uuid()),
+            "Table UUID does not match: current=%s != refreshed=%s", currentMetadata.uuid(), newUUID);
+      }
+
+      this.currentMetadata = newMetadata;
+      this.shouldRefresh = false;
+      return currentMetadata;
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to get file system for path: %s", metadataFile);
+      throw new RuntimeIOException(e, "Failed to refresh the table");
     }
-    this.version = ver;
-
-    TableMetadata newMetadata = TableMetadataParser.read(this, io().newInputFile(metadataFile.toString()));
-    String newUUID = newMetadata.uuid();
-    if (currentMetadata != null) {
-      Preconditions.checkState(newUUID == null || newUUID.equals(currentMetadata.uuid()),
-          "Table UUID does not match: current=%s != refreshed=%s", currentMetadata.uuid(), newUUID);
-    }
-
-    this.currentMetadata = newMetadata;
-    this.shouldRefresh = false;
-    return currentMetadata;
   }
 
   @Override
@@ -124,11 +123,15 @@ public class HadoopTableOperations implements TableOperations {
         !metadata.properties().containsKey(TableProperties.WRITE_METADATA_LOCATION),
         "Hadoop path-based tables cannot relocate metadata");
 
-    Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + TableMetadataParser.getFileExtension(conf));
+    String codecName = metadata.property(
+        TableProperties.METADATA_COMPRESSION, TableProperties.METADATA_COMPRESSION_DEFAULT);
+    TableMetadataParser.Codec codec = TableMetadataParser.Codec.fromName(codecName);
+    String fileExtension = TableMetadataParser.getFileExtension(codec);
+    Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + fileExtension);
     TableMetadataParser.write(metadata, io().newOutputFile(tempMetadataFile.toString()));
 
     int nextVersion = (version != null ? version : 0) + 1;
-    Path finalMetadataFile = metadataFile(nextVersion);
+    Path finalMetadataFile = metadataFilePath(nextVersion, codec);
     FileSystem fs = getFileSystem(tempMetadataFile, conf);
 
     try {
@@ -168,8 +171,19 @@ public class HadoopTableOperations implements TableOperations {
     return metadataPath(fileName).toString();
   }
 
-  private Path metadataFile(int metadataVersion) {
-    return metadataPath("v" + metadataVersion + TableMetadataParser.getFileExtension(conf));
+  private Path getMetadataFile(int metadataVersion) throws IOException {
+    for (TableMetadataParser.Codec codec : TableMetadataParser.Codec.values()) {
+      Path metadataFile = metadataFilePath(metadataVersion, codec);
+      FileSystem fs = getFileSystem(metadataFile, conf);
+      if (fs.exists(metadataFile)) {
+        return metadataFile;
+      }
+    }
+    return null;
+  }
+
+  private Path metadataFilePath(int metadataVersion, TableMetadataParser.Codec codec) {
+    return metadataPath("v" + metadataVersion + TableMetadataParser.getFileExtension(codec));
   }
 
   private Path metadataPath(String filename) {

@@ -32,11 +32,11 @@ import java.io.StringWriter;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.SortedSet;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
@@ -44,6 +44,37 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.JsonUtil;
 
 public class TableMetadataParser {
+
+  public enum Codec {
+    NONE(""),
+    GZIP(".gz");
+
+    private final String extension;
+
+    Codec(String extension) {
+      this.extension = extension;
+    }
+
+    public static Codec fromName(String codecName) {
+      Preconditions.checkArgument(codecName != null, "Codec name is null");
+      return Codec.valueOf(codecName.toUpperCase(Locale.ENGLISH));
+    }
+
+    public static Codec fromFileName(String fileName) {
+      Preconditions.checkArgument(fileName.contains(".metadata.json"),
+          "%s is not a valid metadata file", fileName);
+      // we have to be backward-compatible with .metadata.json.gz files
+      if (fileName.endsWith(".metadata.json.gz")) {
+        return Codec.GZIP;
+      }
+      String fileNameWithoutSuffix = fileName.substring(0, fileName.lastIndexOf(".metadata.json"));
+      if (fileNameWithoutSuffix.endsWith(Codec.GZIP.extension)) {
+        return Codec.GZIP;
+      } else {
+        return Codec.NONE;
+      }
+    }
+  }
 
   private TableMetadataParser() {}
 
@@ -65,10 +96,9 @@ public class TableMetadataParser {
   static final String SNAPSHOT_LOG = "snapshot-log";
 
   public static void write(TableMetadata metadata, OutputFile outputFile) {
+    Codec codec = Codec.fromFileName(outputFile.location());
     try (OutputStreamWriter writer = new OutputStreamWriter(
-        outputFile.location().endsWith(".gz") ?
-            new GZIPOutputStream(outputFile.create()) :
-            outputFile.create())) {
+        codec == Codec.GZIP ? new GZIPOutputStream(outputFile.create()) : outputFile.create())) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
       generator.useDefaultPrettyPrinter();
       toJson(metadata, generator);
@@ -78,8 +108,12 @@ public class TableMetadataParser {
     }
   }
 
-  public static String getFileExtension(Configuration configuration) {
-    return ConfigProperties.shouldCompress(configuration) ? ".metadata.json.gz" : ".metadata.json";
+  public static String getFileExtension(String codecName) {
+    return getFileExtension(Codec.fromName(codecName));
+  }
+
+  public static String getFileExtension(Codec codec) {
+    return codec.extension + ".metadata.json";
   }
 
   public static String toJson(TableMetadata metadata) {
@@ -146,9 +180,8 @@ public class TableMetadataParser {
   }
 
   public static TableMetadata read(TableOperations ops, InputFile file) {
-    try {
-      InputStream is =
-          file.location().endsWith("gz") ? new GZIPInputStream(file.newStream()) : file.newStream();
+    Codec codec = Codec.fromFileName(file.location());
+    try (InputStream is = codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
       return fromJson(ops, file, JsonUtil.mapper().readValue(is, JsonNode.class));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read file: %s", file);

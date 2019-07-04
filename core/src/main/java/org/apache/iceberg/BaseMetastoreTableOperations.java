@@ -142,8 +142,10 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   }
 
   private String newTableMetadataFilePath(TableMetadata meta, int newVersion) {
-    return metadataFileLocation(meta,
-        String.format("%05d-%s%s", newVersion, UUID.randomUUID(), TableMetadataParser.getFileExtension(this.conf)));
+    String codecName = meta.property(
+        TableProperties.METADATA_COMPRESSION, TableProperties.METADATA_COMPRESSION_DEFAULT);
+    String fileExtension = TableMetadataParser.getFileExtension(codecName);
+    return metadataFileLocation(meta, String.format("%05d-%s%s", newVersion, UUID.randomUUID(), fileExtension));
   }
 
   private static int parseVersion(String metadataLocation) {

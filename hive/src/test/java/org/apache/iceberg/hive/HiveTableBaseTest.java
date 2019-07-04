@@ -31,6 +31,7 @@ import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
@@ -122,7 +123,7 @@ public class HiveTableBaseTest {
   }
 
   protected static List<String> metadataVersionFiles(String tableName) {
-    return filterByExtension(tableName, getFileExtension(hiveConf));
+    return filterByExtension(tableName, getFileExtension(TableMetadataParser.Codec.NONE));
   }
 
   protected static List<String> manifestFiles(String tableName) {

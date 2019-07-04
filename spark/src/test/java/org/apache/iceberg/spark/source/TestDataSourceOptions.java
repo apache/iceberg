@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.ConfigProperties;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
@@ -134,34 +133,41 @@ public class TestDataSourceOptions {
   @Test
   public void testHadoopOptions() throws IOException {
     String tableLocation = temp.newFolder("iceberg-table").toString();
+    Configuration sparkHadoopConf = spark.sparkContext().hadoopConfiguration();
+    String originalDefaultFS = sparkHadoopConf.get("fs.default.name");
 
-    Configuration customHadoopConf = new Configuration(CONF);
-    customHadoopConf.set(ConfigProperties.COMPRESS_METADATA, "true");
+    try {
+      HadoopTables tables = new HadoopTables(CONF);
+      PartitionSpec spec = PartitionSpec.unpartitioned();
+      Map<String, String> options = Maps.newHashMap();
+      tables.create(SCHEMA, spec, options, tableLocation);
 
-    HadoopTables tables = new HadoopTables(customHadoopConf);
-    PartitionSpec spec = PartitionSpec.unpartitioned();
-    Map<String, String> options = Maps.newHashMap();
-    tables.create(SCHEMA, spec, options, tableLocation);
+      // set an invalid value for 'fs.default.name' in Spark Hadoop config
+      // to verify that 'hadoop.' data source options are propagated correctly
+      sparkHadoopConf.set("fs.default.name", "hdfs://localhost:9000");
 
-    List<SimpleRecord> expectedRecords = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b")
-    );
-    Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
-    originalDf.select("id", "data").write()
-        .format("iceberg")
-        .mode("append")
-        .option("hadoop.iceberg.compress.metadata", "true")
-        .save(tableLocation);
+      List<SimpleRecord> expectedRecords = Lists.newArrayList(
+          new SimpleRecord(1, "a"),
+          new SimpleRecord(2, "b")
+      );
+      Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
+      originalDf.select("id", "data").write()
+          .format("iceberg")
+          .mode("append")
+          .option("hadoop.fs.default.name", "file:///")
+          .save(tableLocation);
 
-    Dataset<Row> resultDf = spark.read()
-        .format("iceberg")
-        .option("hadoop.iceberg.compress.metadata", "true")
-        .load(tableLocation);
-    List<SimpleRecord> resultRecords = resultDf.orderBy("id")
-        .as(Encoders.bean(SimpleRecord.class))
-        .collectAsList();
+      Dataset<Row> resultDf = spark.read()
+          .format("iceberg")
+          .option("hadoop.fs.default.name", "file:///")
+          .load(tableLocation);
+      List<SimpleRecord> resultRecords = resultDf.orderBy("id")
+          .as(Encoders.bean(SimpleRecord.class))
+          .collectAsList();
 
-    Assert.assertEquals("Records should match", expectedRecords, resultRecords);
+      Assert.assertEquals("Records should match", expectedRecords, resultRecords);
+    } finally {
+      sparkHadoopConf.set("fs.default.name", originalDefaultFS);
+    }
   }
 }
