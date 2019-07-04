@@ -21,7 +21,6 @@ package org.apache.iceberg;
 
 import com.google.common.collect.Maps;
 import java.util.Map;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -29,11 +28,6 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 
 public abstract class BaseMetastoreCatalog implements Catalog {
-  private final Configuration conf;
-
-  protected BaseMetastoreCatalog(Configuration conf) {
-    this.conf = conf;
-  }
 
   @Override
   public Table createTable(
@@ -42,7 +36,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       PartitionSpec spec,
       String location,
       Map<String, String> properties) {
-    TableOperations ops = newTableOps(conf, identifier);
+    TableOperations ops = newTableOps(identifier);
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table already exists: " + identifier);
     }
@@ -51,7 +45,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     if (location != null) {
       baseLocation = location;
     } else {
-      baseLocation = defaultWarehouseLocation(conf, identifier);
+      baseLocation = defaultWarehouseLocation(identifier);
     }
 
     TableMetadata metadata = TableMetadata.newTableMetadata(
@@ -68,7 +62,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
   @Override
   public Table loadTable(TableIdentifier identifier) {
-    TableOperations ops = newTableOps(conf, identifier);
+    TableOperations ops = newTableOps(identifier);
     if (ops.current() == null) {
       throw new NoSuchTableException("Table does not exist: " + identifier);
     }
@@ -76,7 +70,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     return new BaseTable(ops, identifier.toString());
   }
 
-  protected abstract TableOperations newTableOps(Configuration newConf, TableIdentifier tableIdentifier);
+  protected abstract TableOperations newTableOps(TableIdentifier tableIdentifier);
 
-  protected abstract String defaultWarehouseLocation(Configuration hadoopConf, TableIdentifier tableIdentifier);
+  protected abstract String defaultWarehouseLocation(TableIdentifier tableIdentifier);
 }

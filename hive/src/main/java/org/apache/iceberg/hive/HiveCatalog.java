@@ -26,18 +26,23 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.BaseMetastoreCatalog;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.thrift.TException;
 
 public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
 
+  private final Configuration conf;
   private final HiveClientPool clients;
 
   public HiveCatalog(Configuration conf) {
-    super(conf);
+    this.conf = conf;
     this.clients = new HiveClientPool(2, conf);
   }
 
@@ -113,14 +118,23 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
   }
 
   @Override
-  public TableOperations newTableOps(Configuration configuration, TableIdentifier tableIdentifier) {
-    String dbName = tableIdentifier.namespace().level(0);
-    String tableName = tableIdentifier.name();
-    return new HiveTableOperations(configuration, clients, dbName, tableName);
+  public org.apache.iceberg.Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
+    TableOperations ops = newTableOps(identifier);
+    HadoopInputFile metadataFile = HadoopInputFile.fromLocation(metadataFileLocation, conf);
+    TableMetadata metadata = TableMetadataParser.read(ops, metadataFile);
+    ops.commit(null, metadata);
+    return new BaseTable(ops, identifier.toString());
   }
 
-  protected String defaultWarehouseLocation(Configuration hadoopConf, TableIdentifier tableIdentifier) {
-    String warehouseLocation = hadoopConf.get("hive.metastore.warehouse.dir");
+  @Override
+  public TableOperations newTableOps(TableIdentifier tableIdentifier) {
+    String dbName = tableIdentifier.namespace().level(0);
+    String tableName = tableIdentifier.name();
+    return new HiveTableOperations(conf, clients, dbName, tableName);
+  }
+
+  protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
+    String warehouseLocation = conf.get("hive.metastore.warehouse.dir");
     Preconditions.checkNotNull(
         warehouseLocation,
         "Warehouse location is not set: hive.metastore.warehouse.dir=null");

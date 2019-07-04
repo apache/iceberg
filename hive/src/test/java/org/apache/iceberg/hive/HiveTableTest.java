@@ -52,6 +52,7 @@ import org.junit.Test;
 
 import static org.apache.iceberg.BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE;
 import static org.apache.iceberg.BaseMetastoreTableOperations.METADATA_LOCATION_PROP;
+import static org.apache.iceberg.BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP;
 import static org.apache.iceberg.BaseMetastoreTableOperations.TABLE_TYPE_PROP;
 
 public class HiveTableTest extends HiveTableBaseTest {
@@ -222,5 +223,84 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     icebergTable.refresh();
     Assert.assertEquals(20, icebergTable.currentSnapshot().manifests().size());
+  }
+
+  @Test
+  public void testRegisterTable() throws TException {
+    org.apache.hadoop.hive.metastore.api.Table originalTable = metastoreClient.getTable(DB_NAME, TABLE_NAME);
+
+    Map<String, String> originalParams = originalTable.getParameters();
+    Assert.assertNotNull(originalParams);
+    Assert.assertTrue(ICEBERG_TABLE_TYPE_VALUE.equalsIgnoreCase(originalParams.get(TABLE_TYPE_PROP)));
+    Assert.assertTrue("EXTERNAL_TABLE".equalsIgnoreCase(originalTable.getTableType()));
+
+    catalog.dropTable(TABLE_IDENTIFIER);
+    Assert.assertFalse(catalog.tableExists(TABLE_IDENTIFIER));
+
+    List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
+    Assert.assertEquals(1, metadataVersionFiles.size());
+
+    catalog.registerTable(TABLE_IDENTIFIER, "file:" + metadataVersionFiles.get(0));
+
+    org.apache.hadoop.hive.metastore.api.Table newTable = metastoreClient.getTable(DB_NAME, TABLE_NAME);
+
+    Map<String, String> newTableParameters = newTable.getParameters();
+    Assert.assertNull(newTableParameters.get(PREVIOUS_METADATA_LOCATION_PROP));
+    Assert.assertEquals(originalParams.get(TABLE_TYPE_PROP), newTableParameters.get(TABLE_TYPE_PROP));
+    Assert.assertEquals(originalParams.get(METADATA_LOCATION_PROP), newTableParameters.get(METADATA_LOCATION_PROP));
+    Assert.assertEquals(originalTable.getSd(), newTable.getSd());
+  }
+
+  @Test
+  public void testCloneTable() throws IOException {
+    Table table = catalog.loadTable(TABLE_IDENTIFIER);
+
+    List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
+    Assert.assertEquals(1, metadataVersionFiles.size());
+
+    TableIdentifier anotherTableIdentifier = TableIdentifier.of(DB_NAME, TABLE_NAME + "_new");
+    Table anotherTable = catalog.registerTable(anotherTableIdentifier, metadataVersionFiles.get(0));
+
+    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(AvroSchemaUtil.convert(schema, "test"));
+    List<GenericData.Record> records = Lists.newArrayList(
+        recordBuilder.set("id", 1L).build(),
+        recordBuilder.set("id", 2L).build(),
+        recordBuilder.set("id", 3L).build()
+    );
+
+    String fileLocation = table.location().replace("file:", "") + "/data/file-1.avro";
+    try (FileAppender<GenericData.Record> writer = Avro.write(Files.localOutput(fileLocation))
+        .schema(schema)
+        .named("test")
+        .build()) {
+      for (GenericData.Record rec : records) {
+        writer.add(rec);
+      }
+    }
+    DataFile file = DataFiles.builder(table.spec())
+        .withRecordCount(3)
+        .withPath(fileLocation)
+        .withFileSizeInBytes(Files.localInput(fileLocation).getLength())
+        .build();
+    table.newAppend().appendFile(file).commit();
+
+    String anotherFileLocation = anotherTable.location().replace("file:", "") + "/data/file-2.avro";
+    try (FileAppender<GenericData.Record> writer = Avro.write(Files.localOutput(anotherFileLocation))
+        .schema(schema)
+        .named("test")
+        .build()) {
+      for (GenericData.Record rec : records) {
+        writer.add(rec);
+      }
+    }
+    DataFile anotherFile = DataFiles.builder(anotherTable.spec())
+        .withRecordCount(3)
+        .withPath(anotherFileLocation)
+        .withFileSizeInBytes(Files.localInput(anotherFileLocation).getLength())
+        .build();
+    anotherTable.newAppend().appendFile(anotherFile).commit();
+
+    // verify that both tables continue to function independently
+    Assert.assertNotEquals(table.currentSnapshot().manifests(), anotherTable.currentSnapshot().manifests());
   }
 }
