@@ -210,7 +210,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
-    String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
+    String newMetadataLocation = base == null && metadata.metadataFileLocation() != null ?
+        metadata.metadataFileLocation() : writeNewMetadata(metadata, currentVersion() + 1);
     boolean hiveEngineEnabled = hiveEngineEnabled(metadata, conf);
     boolean keepHiveStats = conf.getBoolean(ConfigProperties.KEEP_HIVE_STATS, false);
 
