@@ -19,9 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.ImmutableMap;
-import java.util.Map;
-
 class ManifestEntriesTable extends BaseMetadataTable {
   private final TableOperations ops;
   private final Table table;
@@ -49,16 +46,6 @@ class ManifestEntriesTable extends BaseMetadataTable {
   @Override
   public Schema schema() {
     return ManifestEntry.getSchema(table.spec().partitionType());
-  }
-
-  @Override
-  public PartitionSpec spec() {
-    return PartitionSpec.unpartitioned();
-  }
-
-  @Override
-  public Map<String, String> properties() {
-    return ImmutableMap.of();
   }
 
   @Override

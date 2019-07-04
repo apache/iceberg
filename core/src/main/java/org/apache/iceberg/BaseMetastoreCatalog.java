@@ -34,8 +34,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     ENTRIES,
     HISTORY,
     SNAPSHOTS,
-    MANIFESTS,
-    PARTITIONS;
+    MANIFESTS;
 
     static TableType from(String name) {
       try {
@@ -105,13 +104,17 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       throw new NoSuchTableException("Table does not exist: " + identifier);
     }
 
+    Table baseTable = new BaseTable(ops, identifier.toString());
+
     switch (type) {
       case ENTRIES:
-        return new ManifestEntriesTable(ops, new BaseTable(ops, identifier.toString()));
+        return new ManifestEntriesTable(ops, baseTable);
       case HISTORY:
+        return new HistoryTable(ops, baseTable);
       case SNAPSHOTS:
+        return new SnapshotsTable(ops, baseTable);
       case MANIFESTS:
-      case PARTITIONS:
+        return new ManifestsTable(ops, baseTable);
       default:
         throw new NoSuchTableException(String.format("Unknown metadata table type: %s for %s", type, identifier));
     }

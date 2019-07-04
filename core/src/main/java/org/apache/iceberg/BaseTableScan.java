@@ -31,7 +31,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
 import java.util.function.Function;
-import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.Binder;
@@ -110,7 +109,7 @@ abstract class BaseTableScan implements TableScan {
         "Cannot override snapshot, already set to id=%s", snapshotId);
 
     Long lastSnapshotId = null;
-    for (SnapshotLogEntry logEntry : ops.current().snapshotLog()) {
+    for (HistoryEntry logEntry : ops.current().snapshotLog()) {
       if (logEntry.timestampMillis() <= timestampMillis) {
         lastSnapshotId = logEntry.snapshotId();
       }
@@ -158,10 +157,7 @@ abstract class BaseTableScan implements TableScan {
 
   @Override
   public CloseableIterable<FileScanTask> planFiles() {
-    Snapshot snapshot = snapshotId != null ?
-        ops.current().snapshot(snapshotId) :
-        ops.current().currentSnapshot();
-
+    Snapshot snapshot = snapshot();
     if (snapshot != null) {
       LOG.info("Scanning table {} snapshot {} created at {} with filter {}", table,
           snapshot.snapshotId(), formatTimestampMillis(snapshot.timestampMillis()),
@@ -199,6 +195,13 @@ abstract class BaseTableScan implements TableScan {
   @Override
   public Schema schema() {
     return lazyColumnProjection();
+  }
+
+  @Override
+  public Snapshot snapshot() {
+    return snapshotId != null ?
+        ops.current().snapshot(snapshotId) :
+        ops.current().currentSnapshot();
   }
 
   @Override

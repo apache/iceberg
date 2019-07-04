@@ -19,6 +19,9 @@
 
 package org.apache.iceberg;
 
+import com.google.common.collect.ImmutableMap;
+import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -48,6 +51,16 @@ abstract class BaseMetadataTable implements Table {
   }
 
   @Override
+  public PartitionSpec spec() {
+    return PartitionSpec.unpartitioned();
+  }
+
+  @Override
+  public Map<String, String> properties() {
+    return ImmutableMap.of();
+  }
+
+  @Override
   public Snapshot currentSnapshot() {
     return table().currentSnapshot();
   }
@@ -60,6 +73,11 @@ abstract class BaseMetadataTable implements Table {
   @Override
   public Snapshot snapshot(long snapshotId) {
     return table().snapshot(snapshotId);
+  }
+
+  @Override
+  public List<HistoryEntry> history() {
+    return table().history();
   }
 
   @Override

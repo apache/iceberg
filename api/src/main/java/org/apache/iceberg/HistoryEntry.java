@@ -20,21 +20,19 @@
 package org.apache.iceberg;
 
 /**
- * A task that returns data as {@link StructLike rows} instead of where to read data.
+ * Table history entry.
+ * <p>
+ * An entry contains a change to the table state. At the given timestamp, the current snapshot was
+ * set to the given snapshot ID.
  */
-public interface DataTask extends FileScanTask {
-  @Override
-  default boolean isDataTask() {
-    return true;
-  }
-
-  @Override
-  default DataTask asDataTask() {
-    return this;
-  }
+public interface HistoryEntry {
+  /**
+   * @return the timestamp in milliseconds of the change
+   */
+  long timestampMillis();
 
   /**
-   * @return an iterable of {@link StructLike} rows
+   * @return ID of the new current snapshot
    */
-  Iterable<StructLike> rows();
+  long snapshotId();
 }

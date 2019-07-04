@@ -20,6 +20,7 @@
 package org.apache.iceberg.io;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import java.io.Closeable;
 import java.io.IOException;
@@ -30,6 +31,10 @@ import java.util.function.Predicate;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 
 public interface CloseableIterable<T> extends Iterable<T>, Closeable {
+  static <E> CloseableIterable<E> withNoopClose(E entry) {
+    return withNoopClose(ImmutableList.of(entry));
+  }
+
   static <E> CloseableIterable<E> withNoopClose(Iterable<E> iterable) {
     return new CloseableIterable<E>() {
       @Override

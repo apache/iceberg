@@ -156,6 +156,16 @@ public interface TableScan {
   Schema schema();
 
   /**
+   * Returns the {@link Snapshot} that will be used by this scan.
+   * <p>
+   * If the snapshot was not configured using {@link #asOfTime(long)} or {@link #useSnapshot(long)}, the current table
+   * snapshot will be used.
+   *
+   * @return the Snapshot this scan will use
+   */
+  Snapshot snapshot();
+
+  /**
    * Returns whether this scan should apply column name case sensitiveness as per {@link #caseSensitive(boolean)}.
    * @return true if case sensitive, false otherwise.
    */

@@ -27,7 +27,8 @@ import org.apache.iceberg.types.Comparators;
 public enum FileFormat {
   ORC("orc", true),
   PARQUET("parquet", true),
-  AVRO("avro", true);
+  AVRO("avro", true),
+  METADATA("metadata.json", false);
 
   private final String ext;
   private final boolean splittable;
@@ -55,28 +56,13 @@ public enum FileFormat {
   }
 
   public static FileFormat fromFileName(CharSequence filename) {
-    int lastIndex = lastIndexOf('.', filename);
-    if (lastIndex < 0) {
-      return null;
-    }
-
-    CharSequence ext = filename.subSequence(lastIndex, filename.length());
-
     for (FileFormat format : FileFormat.values()) {
-      if (Comparators.charSequences().compare(format.ext, ext) == 0) {
+      int extStart = filename.length() - format.ext.length();
+      if (Comparators.charSequences().compare(format.ext, filename.subSequence(extStart, filename.length())) == 0) {
         return format;
       }
     }
 
     return null;
-  }
-
-  private static int lastIndexOf(char ch, CharSequence seq) {
-    for (int i = seq.length() - 1; i >= 0; i -= 1) {
-      if (seq.charAt(i) == ch) {
-        return i;
-      }
-    }
-    return -1;
   }
 }

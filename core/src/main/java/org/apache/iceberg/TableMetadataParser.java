@@ -168,7 +168,7 @@ public class TableMetadataParser {
     generator.writeEndArray();
 
     generator.writeArrayFieldStart(SNAPSHOT_LOG);
-    for (SnapshotLogEntry logEntry : metadata.snapshotLog()) {
+    for (HistoryEntry logEntry : metadata.snapshotLog()) {
       generator.writeStartObject();
       generator.writeNumberField(TIMESTAMP_MS, logEntry.timestampMillis());
       generator.writeNumberField(SNAPSHOT_ID, logEntry.snapshotId());
