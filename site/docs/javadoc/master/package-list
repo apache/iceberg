@@ -1,4 +1,3 @@
-com.netflix.iceberg.spark.data
 org.apache.iceberg
 org.apache.iceberg.avro
 org.apache.iceberg.catalog
