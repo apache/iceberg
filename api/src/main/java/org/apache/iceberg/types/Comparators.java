@@ -183,13 +183,6 @@ public class Comparators {
     private CharSeqComparator() {
     }
 
-    private boolean isCharInUTF16HighSurrogateRange(char c1) {
-      if (c1 >= '\uD800' && c1 <= '\uDBFF') { // High surrogate pair range is U+D800—U+DBFF
-        return true;
-      }
-      return false;
-    }
-
     /**
      * Java character supports only upto 3 byte UTF-8 characters. 4 byte UTF-8 character is represented using two Java
      * characters (using UTF-16 surrogate pairs). Character by character comparison may yield incorrect results
@@ -198,7 +191,6 @@ public class Comparators {
      * isCharInUTF16HighSurrogateRange method detects a 4-byte character and considers that character to be
      * lexicographically greater than any 3 byte or lower UTF-8 character.
      */
-
     @Override
     public int compare(CharSequence s1, CharSequence s2) {
       int len = Math.min(s1.length(), s2.length());
