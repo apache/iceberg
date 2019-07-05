@@ -22,12 +22,12 @@ package org.apache.iceberg.spark.source;
 import java.util.Map;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.spark.sql.sources.v2.DataSourceOptions;
 import org.apache.spark.sql.sources.v2.writer.WriterCommitMessage;
 import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter;
 import org.apache.spark.sql.streaming.OutputMode;
@@ -43,8 +43,8 @@ public class StreamingWriter extends Writer implements StreamWriter {
   private final String queryId;
   private final OutputMode mode;
 
-  StreamingWriter(Table table, FileFormat format, String queryId, OutputMode mode) {
-    super(table, format);
+  StreamingWriter(Table table, DataSourceOptions options, String queryId, OutputMode mode) {
+    super(table, options, false);
     this.queryId = queryId;
     this.mode = mode;
   }
@@ -68,8 +68,7 @@ public class StreamingWriter extends Writer implements StreamWriter {
         overwriteFiles.addFile(file);
         numFiles++;
       }
-      LOG.info("Overwriting files in {} with {} new files", table(), numFiles);
-      commit(overwriteFiles, epochId);
+      commit(overwriteFiles, epochId, numFiles, "streaming complete overwrite");
     } else {
       AppendFiles append = table().newFastAppend();
       int numFiles = 0;
@@ -77,18 +76,14 @@ public class StreamingWriter extends Writer implements StreamWriter {
         append.appendFile(file);
         numFiles++;
       }
-      LOG.info("Appending {} files to {}", numFiles, table());
-      commit(append, epochId);
+      commit(append, epochId, numFiles, "streaming append");
     }
   }
 
-  private <T> void commit(SnapshotUpdate<T> snapshotUpdate, long epochId) {
+  private <T> void commit(SnapshotUpdate<T> snapshotUpdate, long epochId, int numFiles, String description) {
     snapshotUpdate.set(QUERY_ID_PROPERTY, queryId);
     snapshotUpdate.set(EPOCH_ID_PROPERTY, Long.toString(epochId));
-    long start = System.currentTimeMillis();
-    snapshotUpdate.commit();
-    long duration = System.currentTimeMillis() - start;
-    LOG.info("Committed in {} ms", duration);
+    commitOperation(snapshotUpdate, numFiles, description);
   }
 
   @Override
