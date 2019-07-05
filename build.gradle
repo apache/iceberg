@@ -79,8 +79,8 @@ subprojects {
   targetCompatibility = '1.8'
 
   dependencies {
-    compileOnly 'org.slf4j:slf4j-api'
-    compileOnly 'com.google.guava:guava'
+    compile 'org.slf4j:slf4j-api'
+    compile 'com.google.guava:guava'
 
     testCompile 'junit:junit'
     testCompile 'org.slf4j:slf4j-simple'
@@ -206,7 +206,9 @@ project(':iceberg-core') {
     compile project(':iceberg-api')
     compile project(':iceberg-common')
 
-    compile "org.apache.avro:avro"
+    compile("org.apache.avro:avro") {
+      exclude group: 'org.tukaani' // xz compression is not supported
+    }
 
     compile "com.fasterxml.jackson.core:jackson-databind"
     compile "com.fasterxml.jackson.core:jackson-core"
@@ -290,9 +292,9 @@ project(':iceberg-orc') {
     compile project(':iceberg-core')
 
     compile("org.apache.orc:orc-core::nohive") {
-      exclude group: 'org.apache.hadoop', module: 'hadoop-common'
+      exclude group: 'org.apache.hadoop'
+      exclude group: 'commons-lang'
     }
-
 
     compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -306,7 +308,12 @@ project(':iceberg-parquet') {
     compile project(':iceberg-api')
     compile project(':iceberg-core')
 
-    compile "org.apache.parquet:parquet-avro"
+    compile("org.apache.parquet:parquet-avro") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      // already shaded by Parquet
+      exclude group: 'it.unimi.dsi'
+      exclude group: 'org.codehaus.jackson'
+    }
 
     compileOnly "org.apache.avro:avro"
     compileOnly("org.apache.hadoop:hadoop-client") {
@@ -364,16 +371,10 @@ project(':iceberg-pig') {
 }
 
 // the runtime jar is a self-contained artifact for testing in a notebook
-project(':iceberg-runtime') {
+project(':iceberg-spark-runtime') {
   apply plugin: 'com.github.johnrengelman.shadow'
 
-  configurations {
-    shadow
-    compileOnly.extendsFrom shadow
-  }
-
   shadowJar {
-    configurations = [project.configurations.shadow]
     from(project.sourceSets.main.output)
   }
 
@@ -381,39 +382,43 @@ project(':iceberg-runtime') {
   tasks.install.dependsOn tasks.shadowJar
   tasks.javadocJar.dependsOn tasks.shadowJar
 
-  dependencies {
-    shadow project(':iceberg-api')
-    shadow project(':iceberg-common')
-    shadow project(':iceberg-core')
-    shadow project(':iceberg-parquet')
-    shadow project(':iceberg-spark')
-    shadow project(':iceberg-pig')
-    shadow project(':iceberg-hive')
-
-    shadow "org.apache.avro:avro"
-    shadow "org.apache.parquet:parquet-avro"
+  configurations {
+    compile {
+      // included in Spark
+      exclude group: 'org.slf4j'
+      exclude group: 'org.apache.commons'
+      exclude group: 'commons-pool'
+      exclude group: 'commons-codec'
+      exclude group: 'org.xerial.snappy'
+      exclude group: 'javax.xml.bind'
+    }
   }
 
-  publishing {
-    publications {
-      withType(IvyPublication) {
-        configurations {
-          'shadow' { extend 'runtime' }
-        }
-      }
-    }
+  dependencies {
+    compile project(':iceberg-spark')
   }
 
   shadowJar {
     zip64 true
 
     // Relocate dependencies to avoid conflicts
-    // relocate 'com.google.common', 'com.netflix.bdp.shaded.com.google.common'
+    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
     relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
+    relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
+    relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'
     relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
-    relocate 'org.apache.parquet.avro', 'org.apache.iceberg.shaded.org.apache.parquet.avro'
+    relocate 'avro.shaded', 'org.apache.iceberg.shaded.org.apache.avro.shaded'
+    relocate 'com.thoughtworks.paranamer', 'org.apache.iceberg.shaded.com.thoughtworks.paranamer'
+    relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
+    relocate 'shaded.parquet', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
+    // relocate Avro's jackson dependency to share parquet-jackson locations
+    relocate 'org.codehaus.jackson', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
+    relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
+    relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
+    relocate 'org.apache.hive', 'org.apache.iceberg.shaded.org.apache.hive'
+    relocate 'org.apache.hadoop.hive', 'org.apache.iceberg.shaded.org.apache.hadoop.hive'
 
-    archiveName = "iceberg-runtime-${version}.${extension}"
+    archiveName = "iceberg-spark-runtime-${version}.${extension}"
   }
 }
 

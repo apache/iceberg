@@ -38,7 +38,7 @@ project(':orc').name = 'iceberg-orc'
 project(':parquet').name = 'iceberg-parquet'
 project(':spark').name = 'iceberg-spark'
 project(':pig').name = 'iceberg-pig'
-project(':runtime').name = 'iceberg-runtime'
+project(':runtime').name = 'iceberg-spark-runtime'
 project(':hive').name = 'iceberg-hive'
 project(':presto-runtime').name = 'iceberg-presto-runtime'
 
