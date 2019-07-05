@@ -36,6 +36,7 @@ markdown_extensions:
   - sane_lists
   - extra
   - tables
+  - admonition
   - pymdownx.tilde
 nav:
   - About: index.md
@@ -48,10 +49,12 @@ nav:
     - Reliability: reliability.md
     - Table evolution: evolution.md
     - Time travel: spark#time-travel
+    - Quickstart: api-quickstart.md
     - Spark: spark.md
     - Presto: presto.md
   - Java:
     - Git Repo: https://github.com/apache/incubator-iceberg
+    - Quickstart: api-quickstart.md
     - API intro: api.md
     - Javadoc: /javadoc/
   - Python:
