@@ -207,7 +207,10 @@ project(':iceberg-core') {
     compile project(':iceberg-common')
 
     compile "org.apache.avro:avro"
-    compile "org.apache.arrow:arrow-vector"
+    compile("org.apache.arrow:arrow-vector") {
+      exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'io.netty', module: 'netty-common'
+    }
 
     compile "com.fasterxml.jackson.core:jackson-databind"
     compile "com.fasterxml.jackson.core:jackson-core"
