@@ -56,3 +56,7 @@ h5:target .headerlink {
   color: #008cba;
   opacity: 1;
 }
+
+code {
+  color: #458;
+}

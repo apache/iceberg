@@ -2,7 +2,7 @@
 
 ## Create a table
 
-Tables are created using either a `Catalog` or an implementation of the `Tables` interface.
+Tables are created using either a [`Catalog`](/javadoc/master/index.html?org/apache/iceberg/catalog/Catalog.html) or an implementation of the [`Tables`](/javadoc/master/index.html?org/apache/iceberg/Tables.html) interface.
 
 ### Using a Hive catalog
 
@@ -25,7 +25,7 @@ val table = catalog.createTable(name, schema, spec)
 // write into the new logs table with Spark 2.4
 logsDF.write
     .format("iceberg")
-    .save("db.table")
+    .save("logging.logs")
 ```
 
 The logs [schema](#create-a-schema) and [partition spec](#create-a-partition-spec) are created below.
