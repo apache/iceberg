@@ -74,9 +74,11 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private long nextRowGroupSize = 0;
   private long recordCount = 0;
   private long nextCheckRecordCount = 10;
+  private int statsTruncateLength;
 
   @SuppressWarnings("unchecked")
   ParquetWriter(Configuration conf, OutputFile output, Schema schema, long rowGroupSize,
+                int statsTruncateLength,
                 Map<String, String> metadata,
                 Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
                 CompressionCodecName codec,
@@ -84,6 +86,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.output = output;
     this.targetRowGroupSize = rowGroupSize;
     this.props = properties;
+    this.statsTruncateLength = statsTruncateLength;
     this.metadata = ImmutableMap.copyOf(metadata);
     this.compressor = new CodecFactory(conf, props.getPageSizeThreshold()).getCompressor(codec);
     this.parquetSchema = convert(schema, "table");
@@ -115,7 +118,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   @Override
   public Metrics metrics() {
-    return ParquetUtil.footerMetrics(writer.getFooter());
+    return ParquetUtil.footerMetrics(writer.getFooter(), statsTruncateLength);
   }
 
   @Override

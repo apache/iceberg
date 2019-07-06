@@ -63,6 +63,9 @@ import static org.apache.iceberg.TableProperties.PARQUET_PAGE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_PAGE_SIZE_BYTES_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.WRITE_METADATA_TRUNCATE_BYTES;
+import static org.apache.iceberg.TableProperties.WRITE_METADATA_TRUNCATE_BYTES_DEFAULT;
+
 
 public class Parquet {
   private Parquet() {
@@ -165,6 +168,9 @@ public class Parquet {
           PARQUET_PAGE_SIZE_BYTES, PARQUET_PAGE_SIZE_BYTES_DEFAULT));
       int dictionaryPageSize = Integer.parseInt(config.getOrDefault(
           PARQUET_DICT_SIZE_BYTES, PARQUET_DICT_SIZE_BYTES_DEFAULT));
+      int statsTruncateLength = Integer.parseInt(config.getOrDefault(
+          WRITE_METADATA_TRUNCATE_BYTES, String.valueOf(WRITE_METADATA_TRUNCATE_BYTES_DEFAULT)));
+
 
       WriterVersion writerVersion = WriterVersion.PARQUET_1_0;
 
@@ -192,7 +198,8 @@ public class Parquet {
             .build();
 
         return new org.apache.iceberg.parquet.ParquetWriter<>(
-            conf, file, schema, rowGroupSize, metadata, createWriterFunc, codec(), parquetProperties);
+            conf, file, schema, rowGroupSize, statsTruncateLength, metadata,
+                createWriterFunc, codec(), parquetProperties);
       } else {
         return new ParquetWriteAdapter<>(new ParquetWriteBuilder<D>(ParquetIO.file(file))
             .withWriterVersion(writerVersion)
@@ -205,7 +212,7 @@ public class Parquet {
             .withRowGroupSize(rowGroupSize)
             .withPageSize(pageSize)
             .withDictionaryPageSize(dictionaryPageSize)
-            .build());
+            .build(), statsTruncateLength);
       }
     }
   }

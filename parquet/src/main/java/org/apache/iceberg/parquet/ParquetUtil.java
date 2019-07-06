@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.InputFile;
@@ -47,21 +48,30 @@ import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.schema.MessageType;
 
 import static org.apache.iceberg.parquet.ParquetConversions.fromParquetPrimitive;
+import static org.apache.iceberg.util.BinaryUtil.truncateBinaryMax;
+import static org.apache.iceberg.util.BinaryUtil.truncateBinaryMin;
+import static org.apache.iceberg.util.UnicodeUtil.truncateStringMax;
+import static org.apache.iceberg.util.UnicodeUtil.truncateStringMin;
 
 public class ParquetUtil {
   // not meant to be instantiated
   private ParquetUtil() {
   }
 
-  public static Metrics fileMetrics(InputFile file) {
+  // Access modifier is package-private, to only allow use from existing tests
+  static Metrics fileMetrics(InputFile file) {
+    return fileMetrics(file, TableProperties.WRITE_METADATA_TRUNCATE_BYTES_DEFAULT);
+  }
+
+  public static Metrics fileMetrics(InputFile file, int statsTruncateLength) {
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file))) {
-      return footerMetrics(reader.getFooter());
+      return footerMetrics(reader.getFooter(), statsTruncateLength);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read footer of file: %s", file);
     }
   }
 
-  public static Metrics footerMetrics(ParquetMetadata metadata) {
+  public static Metrics footerMetrics(ParquetMetadata metadata, int statsTruncateLength) {
     long rowCount = 0;
     Map<Integer, Long> columnSizes = Maps.newHashMap();
     Map<Integer, Long> valueCounts = Maps.newHashMap();
@@ -89,11 +99,14 @@ public class ParquetUtil {
           increment(nullValueCounts, fieldId, stats.getNumNulls());
 
           Types.NestedField field = fileSchema.findField(fieldId);
-          if (field != null && stats.hasNonNullValue() && shouldStoreBounds(path, fileSchema)) {
-            updateMin(lowerBounds, fieldId,
-                fromParquetPrimitive(field.type(), column.getPrimitiveType(), stats.genericGetMin()));
-            updateMax(upperBounds, fieldId,
-                fromParquetPrimitive(field.type(), column.getPrimitiveType(), stats.genericGetMax()));
+          if (field != null && stats.hasNonNullValue() && shouldStoreBounds(path, fileSchema)
+              && statsTruncateLength > 0) {
+            updateMin(lowerBounds, fieldId, field.type(),
+                fromParquetPrimitive(field.type(), column.getPrimitiveType(),
+                        stats.genericGetMin()), statsTruncateLength);
+            updateMax(upperBounds, fieldId, field.type(),
+                fromParquetPrimitive(field.type(), column.getPrimitiveType(),
+                        stats.genericGetMax()), statsTruncateLength);
           }
         }
       }
@@ -151,18 +164,40 @@ public class ParquetUtil {
   }
 
   @SuppressWarnings("unchecked")
-  private static <T> void updateMin(Map<Integer, Literal<?>> lowerBounds, int id, Literal<T> min) {
+  private static <T> void updateMin(Map<Integer, Literal<?>> lowerBounds, int id, Type type,
+                                    Literal<T> min, int truncateLength) {
     Literal<T> currentMin = (Literal<T>) lowerBounds.get(id);
     if (currentMin == null || min.comparator().compare(min.value(), currentMin.value()) < 0) {
-      lowerBounds.put(id, min);
+      switch (type.typeId()) {
+        case STRING:
+          lowerBounds.put(id, truncateStringMin((Literal<CharSequence>) min, truncateLength));
+          break;
+        case FIXED:
+        case BINARY:
+          lowerBounds.put(id, truncateBinaryMin((Literal<ByteBuffer>) min, truncateLength));
+          break;
+        default:
+          lowerBounds.put(id, min);
+      }
     }
   }
 
   @SuppressWarnings("unchecked")
-  private static <T> void updateMax(Map<Integer, Literal<?>> upperBounds, int id, Literal<T> max) {
+  private static <T> void updateMax(Map<Integer, Literal<?>> upperBounds, int id, Type type,
+                                    Literal<T> max, int truncateLength) {
     Literal<T> currentMax = (Literal<T>) upperBounds.get(id);
     if (currentMax == null || max.comparator().compare(max.value(), currentMax.value()) > 0) {
-      upperBounds.put(id, max);
+      switch (type.typeId()) {
+        case STRING:
+          upperBounds.put(id, truncateStringMax((Literal<CharSequence>) max, truncateLength));
+          break;
+        case FIXED:
+        case BINARY:
+          upperBounds.put(id, truncateBinaryMax((Literal<ByteBuffer>) max, truncateLength));
+          break;
+        default:
+          upperBounds.put(id, max);
+      }
     }
   }
 

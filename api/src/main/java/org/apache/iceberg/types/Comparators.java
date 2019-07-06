@@ -22,6 +22,7 @@ package org.apache.iceberg.types;
 import com.google.common.collect.ImmutableMap;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
+import org.apache.iceberg.util.UnicodeUtil;
 
 public class Comparators {
 
@@ -182,13 +183,31 @@ public class Comparators {
     private CharSeqComparator() {
     }
 
+    /**
+     * Java character supports only upto 3 byte UTF-8 characters. 4 byte UTF-8 character is represented using two Java
+     * characters (using UTF-16 surrogate pairs). Character by character comparison may yield incorrect results
+     * while comparing a 4 byte UTF-8 character to a java char. Character by character comparison works as expected
+     * if both characters are <= 3 byte UTF-8 character or  both characters are 4 byte UTF-8 characters.
+     * isCharInUTF16HighSurrogateRange method detects a 4-byte character and considers that character to be
+     * lexicographically greater than any 3 byte or lower UTF-8 character.
+     */
     @Override
     public int compare(CharSequence s1, CharSequence s2) {
       int len = Math.min(s1.length(), s2.length());
 
       // find the first difference and return
       for (int i = 0; i < len; i += 1) {
-        int cmp = Character.compare(s1.charAt(i), s2.charAt(i));
+        char c1 = s1.charAt(i);
+        char c2 = s2.charAt(i);
+        boolean isC1HighSurrogate = UnicodeUtil.isCharHighSurrogate(c1);
+        boolean isC2HighSurrogate = UnicodeUtil.isCharHighSurrogate(c2);
+        if (isC1HighSurrogate && !isC2HighSurrogate) {
+          return 1;
+        }
+        if (!isC1HighSurrogate && isC2HighSurrogate) {
+          return -1;
+        }
+        int cmp = Character.compare(c1, c2);
         if (cmp != 0) {
           return cmp;
         }
