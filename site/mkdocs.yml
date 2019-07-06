@@ -37,7 +37,6 @@ markdown_extensions:
   - extra
   - tables
   - pymdownx.tilde
-  - footnotes
 nav:
   - About: index.md
   - Community: community.md
