@@ -149,13 +149,15 @@ All transforms must return `null` for a `null` input value.
 
 Bucket partition transforms use a 32-bit hash of the source value. The 32-bit hash implementation is the 32-bit Murmur3 hash, x86 variant, seeded with 0.
 
-Transforms are parameterized by a number of buckets[^3], `N`. The hash mod `N` must produce a positive value by first discarding the sign bit of the hash value. In pseudo-code, the function is:
-
+Transforms are parameterized by a number of buckets [1], `N`. The hash mod `N` must produce a positive value by first discarding the sign bit of the hash value. In pseudo-code, the function is:
 
 ```
   def bucket_N(x) = (murmur3_x86_32_hash(x) & Integer.MAX_VALUE) % N
 ```
 
+Notes:
+
+1. Changing the number of buckets as a table grows is possible by evolving the partition spec.
 
 For hash function details by type, see Appendix B.
 
@@ -229,8 +231,11 @@ The manifest entry fields are used to keep track of the snapshot in which files 
 
 When a data file is added to the dataset, it’s manifest entry should store the snapshot ID in which the file was added and set status to 1 (added).
 
-When a data file is replaced or deleted from the dataset, it’s manifest entry fields store the snapshot ID in which the file was deleted and status 2 (deleted). The file may be deleted from the file system when the snapshot in which it was deleted is garbage collected, assuming that older snapshots have also been garbage collected[^4].
+When a data file is replaced or deleted from the dataset, it’s manifest entry fields store the snapshot ID in which the file was deleted and status 2 (deleted). The file may be deleted from the file system when the snapshot in which it was deleted is garbage collected, assuming that older snapshots have also been garbage collected [1].
 
+Notes:
+
+1. Technically, data files can be deleted when the last snapshot that contains the file as “live” data is garbage collected. But this is harder to detect and requires finding the diff of multiple snapshots. It is easier to track what files are deleted in a snapshot and delete them when that snapshot expires.
 
 ### Snapshots
 
@@ -262,10 +267,13 @@ Scans are planned by reading the manifest files for the current snapshot listed 
 
 For each manifest, scan predicates, that filter data rows, are converted to partition predicates, that filter data files, and used to select the data files in the manifest. This conversion uses the partition spec used to write the manifest file.
 
-Scan predicates are converted to partition predicates using an inclusive projection: if a scan predicate matches a row, then the partition predicate must match that row’s partition. This is an _inclusive projection_[^5] because rows that do not match the scan predicate may be included in the scan by the partition predicate.
+Scan predicates are converted to partition predicates using an inclusive projection: if a scan predicate matches a row, then the partition predicate must match that row’s partition. This is an _inclusive projection_ [1] because rows that do not match the scan predicate may be included in the scan by the partition predicate.
 
 For example, an `events` table with a timestamp column named `ts` that is partitioned by `ts_day=day(ts)` is queried by users with ranges over the timestamp column: `ts > X`. The inclusive projection is `ts_day >= day(X)`, which is used to select files that may have matching rows. Note that, in most cases, timestamps just before `X` will be included in the scan because the file contains rows that match the predicate and rows that do not match the predicate.
 
+Notes:
+
+1. An alternative, *strict projection*, creates a partition predicate that will match a file if all of the rows in the file must match the scan predicate. These projections are used to calculate the residual predicates for each file in a scan.
 
 #### Manifest Lists
 
@@ -340,7 +348,7 @@ For serialization details, see Appendix C.
 
 #### File System Tables
 
-An atomic swap can be implemented using atomic rename in file systems that support it, like HDFS or most local file systems[^6].
+An atomic swap can be implemented using atomic rename in file systems that support it, like HDFS or most local file systems [1].
 
 Each version of table metadata is stored in a metadata folder under the table’s base location using a file naming scheme that includes a version number, `V`: `v<V>.metadata.json`. To commit a new metadata version, `V+1`, the writer performs the following steps:
 
@@ -351,9 +359,13 @@ Each version of table metadata is stored in a metadata folder under the table’
     1. If the rename succeeds, the commit succeeded and `V+1` is the table’s current version
     2. If the rename fails, go back to step 1.
 
+Notes:
+
+1. The file system table scheme is implemented in [HadoopTableOperations](https://github.com/Netflix/iceberg/blob/master/core/src/main/java/com/netflix/iceberg/hadoop/HadoopTableOperations.java#L91).
+
 #### Metastore Tables
 
-The atomic swap needed to commit new versions of table metadata can be implemented by storing a pointer in a metastore or database that is updated with a check-and-put operation[^7]. The check-and-put validates that the version of the table that a write is based on is still current and then makes the new metadata from the write the current version.
+The atomic swap needed to commit new versions of table metadata can be implemented by storing a pointer in a metastore or database that is updated with a check-and-put operation [1]. The check-and-put validates that the version of the table that a write is based on is still current and then makes the new metadata from the write the current version.
 
 Each version of table metadata is stored in a metadata folder under the table’s base location using a naming scheme that includes a version and UUID: `<V>-<uuid>.metadata.json`. To commit a new metadata version, `V+1`, the writer performs the following steps:
 
@@ -363,6 +375,9 @@ Each version of table metadata is stored in a metadata folder under the table’
     1. If the swap succeeds, the commit succeeded. `V` was still the latest metadata version and the metadata file for `V+1` is now the current metadata.
     2. If the swap fails, another writer has already created `V+1`. The current writer goes back to step 1.
 
+Notes:
+
+1. The metastore table scheme is partly implemented in [BaseMetastoreTableOperations](https://github.com/Netflix/iceberg/blob/master/core/src/main/java/com/netflix/iceberg/BaseMetastoreTableOperations.java).
 
 ## Appendix A: Format-specific Requirements
 
