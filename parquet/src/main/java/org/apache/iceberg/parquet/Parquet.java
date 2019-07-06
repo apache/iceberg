@@ -212,7 +212,7 @@ public class Parquet {
             .withRowGroupSize(rowGroupSize)
             .withPageSize(pageSize)
             .withDictionaryPageSize(dictionaryPageSize)
-            .build());
+            .build(), statsTruncateLength);
       }
     }
   }

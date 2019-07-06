@@ -58,7 +58,8 @@ public class ParquetUtil {
   private ParquetUtil() {
   }
 
-  public static Metrics fileMetrics(InputFile file) {
+  // Access modifier is package-private, to only allow use from existing tests
+  static Metrics fileMetrics(InputFile file) {
     return fileMetrics(file, TableProperties.WRITE_METADATA_TRUNCATE_BYTES_DEFAULT);
   }
 
@@ -68,10 +69,6 @@ public class ParquetUtil {
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read footer of file: %s", file);
     }
-  }
-
-  public static Metrics footerMetrics(ParquetMetadata metadata) {
-    return footerMetrics(metadata, TableProperties.WRITE_METADATA_TRUNCATE_BYTES_DEFAULT);
   }
 
   public static Metrics footerMetrics(ParquetMetadata metadata, int statsTruncateLength) {

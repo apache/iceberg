@@ -31,9 +31,11 @@ import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 public class ParquetWriteAdapter<D> implements FileAppender<D> {
   private ParquetWriter<D> writer = null;
   private ParquetMetadata footer = null;
+  private int statsTruncateLength;
 
-  public ParquetWriteAdapter(ParquetWriter<D> writer) {
+  public ParquetWriteAdapter(ParquetWriter<D> writer, int statsTruncateLength) {
     this.writer = writer;
+    this.statsTruncateLength = statsTruncateLength;
   }
 
   @Override
@@ -48,7 +50,7 @@ public class ParquetWriteAdapter<D> implements FileAppender<D> {
   @Override
   public Metrics metrics() {
     Preconditions.checkState(footer != null, "Cannot produce metrics until closed");
-    return ParquetUtil.footerMetrics(footer);
+    return ParquetUtil.footerMetrics(footer, statsTruncateLength);
   }
 
   @Override
