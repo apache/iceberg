@@ -49,6 +49,7 @@ public class TableMetadataParser {
 
   // visible for testing
   static final String FORMAT_VERSION = "format-version";
+  static final String TABLE_UUID = "table-uuid";
   static final String LOCATION = "location";
   static final String LAST_UPDATED_MILLIS = "last-updated-ms";
   static final String LAST_COLUMN_ID = "last-column-id";
@@ -65,9 +66,9 @@ public class TableMetadataParser {
 
   public static void write(TableMetadata metadata, OutputFile outputFile) {
     try (OutputStreamWriter writer = new OutputStreamWriter(
-            outputFile.location().endsWith(".gz") ?
-                    new GZIPOutputStream(outputFile.create()) :
-                    outputFile.create())) {
+        outputFile.location().endsWith(".gz") ?
+            new GZIPOutputStream(outputFile.create()) :
+            outputFile.create())) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
       generator.useDefaultPrettyPrinter();
       toJson(metadata, generator);
@@ -97,6 +98,7 @@ public class TableMetadataParser {
     generator.writeStartObject();
 
     generator.writeNumberField(FORMAT_VERSION, TableMetadata.TABLE_FORMAT_VERSION);
+    generator.writeStringField(TABLE_UUID, metadata.uuid());
     generator.writeStringField(LOCATION, metadata.location());
     generator.writeNumberField(LAST_UPDATED_MILLIS, metadata.lastUpdatedMillis());
     generator.writeNumberField(LAST_COLUMN_ID, metadata.lastColumnId());
@@ -161,6 +163,7 @@ public class TableMetadataParser {
     Preconditions.checkArgument(formatVersion == TableMetadata.TABLE_FORMAT_VERSION,
         "Cannot read unsupported version %d", formatVersion);
 
+    String uuid = JsonUtil.getStringOrNull(TABLE_UUID, node);
     String location = JsonUtil.getString(LOCATION, node);
     int lastAssignedColumnId = JsonUtil.getInt(LAST_COLUMN_ID, node);
     Schema schema = SchemaParser.fromJson(node.get(SCHEMA));
@@ -215,7 +218,7 @@ public class TableMetadataParser {
       }
     }
 
-    return new TableMetadata(ops, file, location,
+    return new TableMetadata(ops, file, uuid, location,
         lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs, properties,
         currentVersionId, snapshots, ImmutableList.copyOf(entries.iterator()));
   }
