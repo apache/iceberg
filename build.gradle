@@ -294,6 +294,9 @@ project(':iceberg-orc') {
     compile("org.apache.orc:orc-core::nohive") {
       exclude group: 'org.apache.hadoop'
       exclude group: 'commons-lang'
+      // These artifacts are shaded and included in the orc-core fat jar
+      exclude group: 'com.google.protobuf', module: 'protobuf-java'
+      exclude group: 'org.apache.hive', module: 'hive-storage-api'
     }
 
     compileOnly("org.apache.hadoop:hadoop-client") {
@@ -415,8 +418,6 @@ project(':iceberg-spark-runtime') {
     relocate 'org.codehaus.jackson', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
     relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
     relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
-    relocate 'org.apache.hive', 'org.apache.iceberg.shaded.org.apache.hive'
-    relocate 'org.apache.hadoop.hive', 'org.apache.iceberg.shaded.org.apache.hadoop.hive'
 
     archiveName = "iceberg-spark-runtime-${version}.${extension}"
   }
