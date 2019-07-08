@@ -91,6 +91,11 @@ subprojects {
     publications {
       nebula(MavenPublication) {
         from components.java
+        versionMapping {
+          allVariants {
+            fromResolutionResult()
+          }
+        }
       }
     }
   }
