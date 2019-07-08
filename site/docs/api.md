@@ -184,5 +184,4 @@ This project Iceberg also has modules for adding Iceberg support to processing e
 * `iceberg-data` is a client library used to read Iceberg tables from JVM applications
 * `iceberg-pig` is an implementation of Pig's LoadFunc API for Iceberg
 * `iceberg-runtime` generates a shaded runtime jar for Spark to integrate with iceberg tables
-* `iceberg-presto-runtime` generates a shaded runtime jar that is used by presto to integrate with iceberg tables
 
