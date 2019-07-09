@@ -330,7 +330,8 @@ Table metadata consists of the following fields:
 
 | Field | Description |
 | ----- | ----------- |
-| **`format-version`** | An integer version number for the format. Currently, this is always 1. |
+| **`format-version`** | An integer version number for the format. Currently, this is always 1. Implementations must throw an exception if a table's version is higher than the supported version. |
+| **`table-uuid`** | A UUID that identifies the table, generated when the table is created. Implementations must throw an exception if a table's UUID does not match the expected UUID after refreshing metadata. |
 | **`location`**| The table’s base location. This is used by writers to determine where to store data files, manifest files, and table metadata files. |
 | **`last-updated-ms`**| Timestamp in milliseconds from the unix epoch when the table was last updated. Each table metadata file should update this field just before writing. |
 | **`last-column-id`**| An integer; the highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas. |
@@ -588,6 +589,7 @@ Table metadata is serialized as a JSON object according to the following table. 
 |Metadata field|JSON representation|Example|
 |--- |--- |--- |
 |**`format-version`**|`JSON int`|`1`|
+|**`table-uuid`**|`JSON string`|`"fb072c92-a02b-11e9-ae9c-1bb7bc9eca94"`|
 |**`location`**|`JSON string`|`"s3://b/wh/data.db/table"`|
 |**`last-updated-ms`**|`JSON long`|`1515100955770`|
 |**`last-column-id`**|`JSON int`|`22`|

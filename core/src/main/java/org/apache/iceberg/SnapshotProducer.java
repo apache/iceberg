@@ -231,7 +231,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             Snapshot newSnapshot = apply();
             newSnapshotId.set(newSnapshot.snapshotId());
             TableMetadata updated = base.replaceCurrentSnapshot(newSnapshot);
-            taskOps.commit(base, updated);
+            // if the table UUID is missing, add it here. the UUID will be re-created each time this operation retries
+            // to ensure that if a concurrent operation assigns the UUID, this operation will not fail.
+            taskOps.commit(base, updated.withUUID());
           });
 
     } catch (RuntimeException e) {
