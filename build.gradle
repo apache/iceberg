@@ -21,21 +21,23 @@ buildscript {
   repositories {
     jcenter()
     gradlePluginPortal()
-    maven { url  "http://palantir.bintray.com/releases" }
+    maven { url "http://palantir.bintray.com/releases" }
+    maven { url "https://plugins.gradle.org/m2/" }
   }
   dependencies {
     classpath 'com.github.jengelman.gradle.plugins:shadow:5.0.0'
-    classpath 'com.netflix.nebula:gradle-aggregate-javadocs-plugin:2.2.+'
-    classpath 'com.netflix.nebula:nebula-publishing-plugin:5.1.5'
     classpath 'com.palantir.baseline:gradle-baseline-java:0.55.0'
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:3.14.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:2.1.0'
+    classpath 'me.champeau.gradle:jmh-gradle-plugin:0.4.8'
+    classpath 'com.netflix.nebula:nebula-publishing-plugin:9.5.0'
   }
 }
 
 plugins {
   id 'nebula.netflixoss' version '4.1.0'
   id 'com.palantir.git-version' version '0.9.1'
+  id 'com.palantir.consistent-versions' version '1.9.2'
 }
 
 if (JavaVersion.current() != JavaVersion.VERSION_1_8) {
@@ -46,9 +48,13 @@ allprojects {
   group = "org.apache.iceberg"
   apply plugin: 'com.palantir.baseline-idea'
   version = gitVersion()
+  repositories {
+    maven { url  "http://palantir.bintray.com/releases" }
+    mavenCentral()
+    mavenLocal()
+  }
 }
 
-apply plugin: 'nebula-aggregate-javadocs'
 apply plugin: 'com.palantir.baseline-config'
 
 subprojects {
@@ -57,62 +63,86 @@ subprojects {
   apply plugin: 'java'
   apply plugin: 'maven' // make pom files for deployment
   apply plugin: 'nebula.maven-base-publish'
-  repositories {
-    mavenCentral()
-    mavenLocal()
-    maven { url  "http://palantir.bintray.com/releases" }
+
+  compileJava {
+    options.encoding = "UTF-8"
+  }
+
+  compileTestJava {
+    options.encoding = "UTF-8"
   }
 
   configurations {
     testCompile.extendsFrom compileOnly
     all {
-      resolutionStrategy {
-        force 'org.apache.httpcomponents:httpclient:4.4.1'
-      }
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
   }
 
   ext {
-    hadoopVersion = '2.7.3'
-    avroVersion = '1.8.2'
-    orcVersion = '1.5.5'
-    parquetVersion = '1.10.0'
-    hiveVersion = '1.2.1'
-
-    jacksonVersion = '2.6.7'
-
-    scalaVersion = '2.11'
-    sparkVersion = '2.4.0'
-    caffeineVersion = "2.7.0"
+    jmhVersion = '1.21'
   }
 
   sourceCompatibility = '1.8'
   targetCompatibility = '1.8'
 
   dependencies {
-    compileOnly 'org.slf4j:slf4j-api:1.7.5'
-    compileOnly 'com.google.guava:guava:16.0.1'
+    compile 'org.slf4j:slf4j-api'
+    compile 'com.google.guava:guava'
 
-    testCompile 'junit:junit:4.12'
-    testCompile 'org.slf4j:slf4j-simple:1.7.5'
-    testCompile 'org.mockito:mockito-all:1.10.19'
+    testCompile 'junit:junit'
+    testCompile 'org.slf4j:slf4j-simple'
+    testCompile 'org.mockito:mockito-core'
   }
 
   publishing {
     publications {
       nebula(MavenPublication) {
         from components.java
+        versionMapping {
+          allVariants {
+            fromResolutionResult()
+          }
+        }
       }
     }
   }
+}
+
+task aggregateJavadoc(type: Javadoc) {
+  // use the branch name in place of version in Javadoc
+  project.rootProject.version = versionDetails().branchName
+
+  dependsOn subprojects.javadoc
+  source subprojects.javadoc.source
+  destinationDir project.rootProject.file("site/docs/javadoc/${versionDetails().branchName}")
+  classpath = project.rootProject.files(subprojects.javadoc.classpath)
+}
+
+task removeJavadoc(type: Exec) {
+  commandLine 'rm', '-rf', "site/docs/javadoc/${versionDetails().branchName}"
+}
+
+task refreshJavadoc(type: Exec) {
+  dependsOn aggregateJavadoc
+  dependsOn removeJavadoc
+  aggregateJavadoc.mustRunAfter removeJavadoc
+  commandLine 'git', 'add', "site/docs/javadoc/${versionDetails().branchName}"
+}
+
+task deploySite(type: Exec) {
+  workingDir 'site'
+  commandLine 'mkdocs', 'gh-deploy'
 }
 
 // The following code is temporary to allow for incrementally migrating projects to use Baseline.
 
 // We enable baseline-idea everywhere so that everyone can use IntelliJ to build code against the
 // Baseline style guide.
-def baselineProjects = [ project("iceberg-api"), project("iceberg-common"), project("iceberg-core")]
+def baselineProjects = [ project("iceberg-api"), project("iceberg-common"), project("iceberg-core"),
+                         project("iceberg-data"), project("iceberg-orc"), project("iceberg-spark"),
+                         project("iceberg-hive") ]
+
 
 configure(subprojects - baselineProjects) {
   // error-prone is brought in with baseline-idea, but we're not prepared to handle error-prone
@@ -129,7 +159,7 @@ configure(baselineProjects) {
   // to be applied to ALL projects. And we are not prepared to address all of the build errors that
   // occur as a result at this time. Furthermore, baseline-format will not work out of the box for
   // us - see below.
-  
+
   // Thus we concede to applying all of the Baseline plugins individually on all the projects we are
   // ready to enforce linting on.
   apply plugin: 'org.inferred.processors'
@@ -140,10 +170,10 @@ configure(baselineProjects) {
   apply plugin: 'com.palantir.baseline-reproducibility'
   apply plugin: 'com.palantir.baseline-exact-dependencies'
   apply plugin: 'com.palantir.baseline-release-compatibility'
-  
+
   // Can't use the built-in Baseline spotless format because it's opinionated about the import
   // order of having static imports after non-static imports, and this cannot be overridden.
-  
+
   // So we apply Spotless manually to get a similar effect to baseline-format, but change the
   // import order.
   pluginManager.withPlugin('com.diffplug.gradle.spotless') {
@@ -160,10 +190,25 @@ configure(baselineProjects) {
   }
 }
 
+def jmhProjects = [ project("iceberg-spark") ]
+
+configure(jmhProjects) {
+  apply plugin: 'me.champeau.gradle.jmh'
+
+  jmh {
+    jmhVersion = jmhVersion
+    failOnError = true
+    forceGC = true
+    includeTests = true
+    humanOutputFile = file(jmhOutputPath)
+    include = [jmhIncludeRegex]
+  }
+}
+
 project(':iceberg-api') {
   dependencies {
-    testCompile "org.apache.avro:avro:$avroVersion"
-    testCompile 'joda-time:joda-time:2.9.9'
+    testCompile "org.apache.avro:avro"
+    testCompile 'joda-time:joda-time'
   }
 }
 
@@ -174,12 +219,14 @@ project(':iceberg-core') {
     compile project(':iceberg-api')
     compile project(':iceberg-common')
 
-    compile "org.apache.avro:avro:$avroVersion"
+    compile("org.apache.avro:avro") {
+      exclude group: 'org.tukaani' // xz compression is not supported
+    }
 
-    compile "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
-    compile "com.fasterxml.jackson.core:jackson-core:$jacksonVersion"
-    compile "com.github.ben-manes.caffeine:caffeine:$caffeineVersion"
-    compileOnly("org.apache.hadoop:hadoop-client:$hadoopVersion") {
+    compile "com.fasterxml.jackson.core:jackson-databind"
+    compile "com.fasterxml.jackson.core:jackson-core"
+    compile "com.github.ben-manes.caffeine:caffeine"
+    compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
@@ -192,11 +239,11 @@ project(':iceberg-data') {
     compile project(':iceberg-core')
     compileOnly project(':iceberg-spark')
     compileOnly project(':iceberg-parquet')
-    compileOnly("org.apache.spark:spark-hive_$scalaVersion:$sparkVersion") {
+    compileOnly("org.apache.spark:spark-hive_2.11") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
-    testCompile("org.apache.hadoop:hadoop-client:$hadoopVersion") {
+    testCompile("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
@@ -212,23 +259,47 @@ project(':iceberg-hive') {
   dependencies {
     compile project(':iceberg-core')
 
-    compileOnly "org.apache.avro:avro:$avroVersion"
+    compileOnly "org.apache.avro:avro"
 
-    compileOnly("org.apache.hive:hive-metastore:$hiveVersion") {
-      exclude group: 'org.apache.avro', module: 'avro'
-      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-    }
-
-    testCompile("org.apache.hive:hive-exec:$hiveVersion") {
+    compileOnly("org.apache.hive:hive-metastore") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency
     }
 
-    compileOnly("org.apache.hadoop:hadoop-client:$hadoopVersion") {
+    // By default, hive-exec is a fat/uber jar and it exports a guava library
+    // that's really old. We use the core classifier to be able to override our guava
+    // version. Luckily, hive-exec seems to work okay so far with this version of guava
+    // See: https://github.com/apache/hive/blob/master/ql/pom.xml#L911 for more context.
+    testCompile("org.apache.hive:hive-exec::core") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'org.pentaho' // missing dependency
+    }
+
+    testCompile("org.apache.hive:hive-metastore") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'org.pentaho' // missing dependency
+    }
+
+    compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
+  }
+
+  task testJar(type: Jar){
+    archiveClassifier = 'tests'
+    from sourceSets.test.output
+  }
+
+  configurations {
+    testArtifacts
+  }
+
+  artifacts {
+    testArtifacts testJar
   }
 }
 
@@ -237,12 +308,15 @@ project(':iceberg-orc') {
     compile project(':iceberg-api')
     compile project(':iceberg-core')
 
-    compile("org.apache.orc:orc-core:$orcVersion:nohive") {
-      exclude group: 'org.apache.hadoop', module: 'hadoop-common'
+    compile("org.apache.orc:orc-core::nohive") {
+      exclude group: 'org.apache.hadoop'
+      exclude group: 'commons-lang'
+      // These artifacts are shaded and included in the orc-core fat jar
+      exclude group: 'com.google.protobuf', module: 'protobuf-java'
+      exclude group: 'org.apache.hive', module: 'hive-storage-api'
     }
 
-
-    compileOnly("org.apache.hadoop:hadoop-client:$hadoopVersion") {
+    compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
@@ -255,13 +329,12 @@ project(':iceberg-parquet') {
     compile project(':iceberg-core')
     compile project(':iceberg-arrow')
 
-    compileOnly("org.apache.spark:spark-hive_$scalaVersion:$sparkVersion") {
+    compileOnly("org.apache.spark:spark-hive_2.11") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
-    compile "org.apache.parquet:parquet-avro:$parquetVersion"
-
-    compileOnly "org.apache.avro:avro:$avroVersion"
-    compileOnly("org.apache.hadoop:hadoop-client:$hadoopVersion") {
+    compile "org.apache.parquet:parquet-avro"
+    compileOnly "org.apache.avro:avro"
+    compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
   }
@@ -276,17 +349,19 @@ project(':iceberg-spark') {
     compile project(':iceberg-core')
     compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
+    compile project(':iceberg-hive')
 
-    compileOnly "org.apache.avro:avro:$avroVersion"
-    compileOnly("org.apache.spark:spark-hive_$scalaVersion:$sparkVersion") {
+    compileOnly "org.apache.avro:avro"
+    compileOnly("org.apache.spark:spark-hive_2.11") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
-    testCompile "org.apache.hadoop:hadoop-hdfs:$hadoopVersion:tests"
-    testCompile "org.apache.hadoop:hadoop-common:$hadoopVersion:tests"
-    testCompile("org.apache.hadoop:hadoop-minicluster:$hadoopVersion") {
+    testCompile "org.apache.hadoop:hadoop-hdfs::tests"
+    testCompile "org.apache.hadoop:hadoop-common::tests"
+    testCompile("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
+    testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
   }
 }
 
@@ -295,7 +370,7 @@ project(':iceberg-arrow') {
 //    compile project(':iceberg-spark')
     compile project(':iceberg-api')
 
-    compileOnly("org.apache.spark:spark-hive_$scalaVersion:$sparkVersion") {
+    compileOnly("org.apache.spark:spark-hive_2.11") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
   }
@@ -308,31 +383,27 @@ project(':iceberg-pig') {
     compile project(':iceberg-core')
     compile project(':iceberg-parquet')
 
-    compileOnly("org.apache.pig:pig:0.14.0")
-    compileOnly("org.apache.hadoop:hadoop-mapreduce-client-core:$hadoopVersion")
-    compileOnly("org.apache.hadoop:hadoop-client:$hadoopVersion") {
+    compileOnly("org.apache.pig:pig") {
+      exclude group: "junit", module: "junit"
+    }
+    compileOnly("org.apache.hadoop:hadoop-mapreduce-client-core")
+    compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
-    testCompile "org.apache.hadoop:hadoop-hdfs:$hadoopVersion:tests"
-    testCompile "org.apache.hadoop:hadoop-common:$hadoopVersion:tests"
-    testCompile("org.apache.hadoop:hadoop-minicluster:$hadoopVersion") {
+    testCompile "org.apache.hadoop:hadoop-hdfs::tests"
+    testCompile "org.apache.hadoop:hadoop-common::tests"
+    testCompile("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
   }
 }
 
 // the runtime jar is a self-contained artifact for testing in a notebook
-project(':iceberg-runtime') {
+project(':iceberg-spark-runtime') {
   apply plugin: 'com.github.johnrengelman.shadow'
 
-  configurations {
-    shadow
-    compileOnly.extendsFrom shadow
-  }
-
   shadowJar {
-    configurations = [project.configurations.shadow]
     from(project.sourceSets.main.output)
   }
 
@@ -340,39 +411,41 @@ project(':iceberg-runtime') {
   tasks.install.dependsOn tasks.shadowJar
   tasks.javadocJar.dependsOn tasks.shadowJar
 
-  dependencies {
-    shadow project(':iceberg-api')
-    shadow project(':iceberg-common')
-    shadow project(':iceberg-core')
-    shadow project(':iceberg-parquet')
-    shadow project(':iceberg-spark')
-    shadow project(':iceberg-pig')
-    shadow project(':iceberg-hive')
-
-    shadow "org.apache.avro:avro:$avroVersion"
-    shadow "org.apache.parquet:parquet-avro:$parquetVersion"
+  configurations {
+    compile {
+      // included in Spark
+      exclude group: 'org.slf4j'
+      exclude group: 'org.apache.commons'
+      exclude group: 'commons-pool'
+      exclude group: 'commons-codec'
+      exclude group: 'org.xerial.snappy'
+      exclude group: 'javax.xml.bind'
+    }
   }
 
-  publishing {
-    publications {
-      withType(IvyPublication) {
-        configurations {
-          'shadow' { extend 'runtime' }
-        }
-      }
-    }
+  dependencies {
+    compile project(':iceberg-spark')
   }
 
   shadowJar {
     zip64 true
 
     // Relocate dependencies to avoid conflicts
-    // relocate 'com.google.common', 'com.netflix.bdp.shaded.com.google.common'
+    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
     relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
+    relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
+    relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'
     relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
-    relocate 'org.apache.parquet.avro', 'org.apache.iceberg.shaded.org.apache.parquet.avro'
+    relocate 'avro.shaded', 'org.apache.iceberg.shaded.org.apache.avro.shaded'
+    relocate 'com.thoughtworks.paranamer', 'org.apache.iceberg.shaded.com.thoughtworks.paranamer'
+    relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
+    relocate 'shaded.parquet', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
+    // relocate Avro's jackson dependency to share parquet-jackson locations
+    relocate 'org.codehaus.jackson', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
+    relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
+    relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
 
-    archiveName = "iceberg-runtime-${version}.${extension}"
+    archiveName = "iceberg-spark-runtime-${version}.${extension}"
   }
 }
 
@@ -393,10 +466,10 @@ project(':iceberg-presto-runtime') {
         shadow project(':iceberg-parquet')
         shadow project(':iceberg-hive')
 
-        shadow "org.apache.parquet:parquet-avro:$parquetVersion"
-        shadow "org.apache.avro:avro:$avroVersion"
-        shadow "org.apache.orc:orc-core:$orcVersion:nohive"
-        shadow ("org.apache.hive:hive-metastore:$hiveVersion") {
+        shadow "org.apache.orc:orc-core::nohive"
+        shadow "org.apache.parquet:parquet-avro"
+        shadow "org.apache.avro:avro"
+        shadow ("org.apache.hive:hive-metastore") {
             exclude group: 'org.apache.hadoop', module: 'hadoop-common'
 //            exclude group: 'org.apache.orc', module: 'orc-core'
         }

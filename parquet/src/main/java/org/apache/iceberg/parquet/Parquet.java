@@ -22,9 +22,11 @@ package org.apache.iceberg.parquet;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
+import com.google.common.collect.Sets;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
@@ -62,10 +64,16 @@ import static org.apache.iceberg.TableProperties.PARQUET_PAGE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_PAGE_SIZE_BYTES_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.WRITE_METADATA_TRUNCATE_BYTES;
+import static org.apache.iceberg.TableProperties.WRITE_METADATA_TRUNCATE_BYTES_DEFAULT;
+
 
 public class Parquet {
   private Parquet() {
   }
+
+  private static Collection<String> READ_PROPERTIES_TO_REMOVE = Sets.newHashSet(
+      "parquet.read.filter", "parquet.private.read.filter.predicate", "parquet.read.support.class");
 
   public static WriteBuilder write(OutputFile file) {
     return new WriteBuilder(file);
@@ -161,6 +169,9 @@ public class Parquet {
           PARQUET_PAGE_SIZE_BYTES, PARQUET_PAGE_SIZE_BYTES_DEFAULT));
       int dictionaryPageSize = Integer.parseInt(config.getOrDefault(
           PARQUET_DICT_SIZE_BYTES, PARQUET_DICT_SIZE_BYTES_DEFAULT));
+      int statsTruncateLength = Integer.parseInt(config.getOrDefault(
+          WRITE_METADATA_TRUNCATE_BYTES, String.valueOf(WRITE_METADATA_TRUNCATE_BYTES_DEFAULT)));
+
 
       WriterVersion writerVersion = WriterVersion.PARQUET_1_0;
 
@@ -188,7 +199,8 @@ public class Parquet {
             .build();
 
         return new org.apache.iceberg.parquet.ParquetWriter<>(
-            conf, file, schema, rowGroupSize, metadata, createWriterFunc, codec(), parquetProperties);
+            conf, file, schema, rowGroupSize, statsTruncateLength, metadata,
+                createWriterFunc, codec(), parquetProperties);
       } else {
         return new ParquetWriteAdapter<>(new ParquetWriteBuilder<D>(ParquetIO.file(file))
             .withWriterVersion(writerVersion)
@@ -201,7 +213,7 @@ public class Parquet {
             .withRowGroupSize(rowGroupSize)
             .withPageSize(pageSize)
             .withDictionaryPageSize(dictionaryPageSize)
-            .build());
+            .build(), statsTruncateLength);
       }
     }
   }
@@ -353,7 +365,12 @@ public class Parquet {
       if (readerFunc != null) {
         ParquetReadOptions.Builder optionsBuilder;
         if (file instanceof HadoopInputFile) {
-          optionsBuilder = HadoopReadOptions.builder(((HadoopInputFile) file).getConf());
+          // remove read properties already set that may conflict with this read
+          Configuration conf = new Configuration(((HadoopInputFile) file).getConf());
+          for (String property : READ_PROPERTIES_TO_REMOVE) {
+            conf.unset(property);
+          }
+          optionsBuilder = HadoopReadOptions.builder(conf);
         } else {
           optionsBuilder = ParquetReadOptions.builder();
         }

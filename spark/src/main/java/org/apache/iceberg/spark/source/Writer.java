@@ -28,7 +28,9 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -38,6 +40,8 @@ import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PendingUpdate;
+import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
@@ -53,6 +57,7 @@ import org.apache.iceberg.spark.data.SparkAvroWriter;
 import org.apache.iceberg.spark.data.SparkParquetWriters;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.sources.v2.DataSourceOptions;
 import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
 import org.apache.spark.sql.sources.v2.writer.DataWriter;
 import org.apache.spark.sql.sources.v2.writer.DataWriterFactory;
@@ -60,8 +65,6 @@ import org.apache.spark.sql.sources.v2.writer.WriterCommitMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static com.google.common.collect.Iterables.concat;
-import static com.google.common.collect.Iterables.transform;
 import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
@@ -70,6 +73,8 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 
 // TODO: parameterize DataSourceWriter with subclass of WriterCommitMessage
 class Writer implements DataSourceWriter {
@@ -79,12 +84,21 @@ class Writer implements DataSourceWriter {
   private final FileFormat format;
   private final FileIO fileIo;
   private final EncryptionManager encryptionManager;
+  private final boolean replacePartitions;
 
-  Writer(Table table, FileFormat format) {
+  Writer(Table table, DataSourceOptions options, boolean replacePartitions) {
     this.table = table;
-    this.format = format;
+    this.format = getFileFormat(table.properties(), options);
     this.fileIo = table.io();
     this.encryptionManager = table.encryption();
+    this.replacePartitions = replacePartitions;
+  }
+
+  private FileFormat getFileFormat(Map<String, String> tableProperties, DataSourceOptions options) {
+    Optional<String> formatOption = options.get("write-format");
+    String formatString = formatOption
+        .orElse(tableProperties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT));
+    return FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
   }
 
   @Override
@@ -95,6 +109,22 @@ class Writer implements DataSourceWriter {
 
   @Override
   public void commit(WriterCommitMessage[] messages) {
+    if (replacePartitions) {
+      replacePartitions(messages);
+    } else {
+      append(messages);
+    }
+  }
+
+  protected void commitOperation(PendingUpdate<?> operation, int numFiles, String description) {
+    LOG.info("Committing {} with {} files to table {}", description, numFiles, table);
+    long start = System.currentTimeMillis();
+    operation.commit(); // abort is automatically called if this fails
+    long duration = System.currentTimeMillis() - start;
+    LOG.info("Committed in {} ms", duration);
+  }
+
+  private void append(WriterCommitMessage[] messages) {
     AppendFiles append = table.newAppend();
 
     int numFiles = 0;
@@ -103,11 +133,19 @@ class Writer implements DataSourceWriter {
       append.appendFile(file);
     }
 
-    LOG.info("Appending {} files to {}", numFiles, table);
-    long start = System.currentTimeMillis();
-    append.commit(); // abort is automatically called if this fails
-    long duration = System.currentTimeMillis() - start;
-    LOG.info("Committed in {} ms", duration);
+    commitOperation(append, numFiles, "append");
+  }
+
+  private void replacePartitions(WriterCommitMessage[] messages) {
+    ReplacePartitions dynamicOverwrite = table.newReplacePartitions();
+
+    int numFiles = 0;
+    for (DataFile file : files(messages)) {
+      numFiles += 1;
+      dynamicOverwrite.addFile(file);
+    }
+
+    commitOperation(dynamicOverwrite, numFiles, "dynamic partition overwrite");
   }
 
   @Override
@@ -118,18 +156,22 @@ class Writer implements DataSourceWriter {
             propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
             propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
             propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-            2.0 /* exponential */ )
+            2.0 /* exponential */)
         .throwFailureWhenFinished()
         .run(file -> {
           fileIo.deleteFile(file.path().toString());
         });
   }
 
-  private Iterable<DataFile> files(WriterCommitMessage[] messages) {
+  protected Table table() {
+    return table;
+  }
+
+  protected Iterable<DataFile> files(WriterCommitMessage[] messages) {
     if (messages.length > 0) {
-      return concat(transform(Arrays.asList(messages), message -> message != null
-          ? ImmutableList.copyOf(((TaskCommit) message).files())
-          : ImmutableList.of()));
+      return Iterables.concat(Iterables.transform(Arrays.asList(messages), message -> message != null ?
+          ImmutableList.copyOf(((TaskCommit) message).files()) :
+          ImmutableList.of()));
     }
     return ImmutableList.of();
   }
@@ -145,8 +187,7 @@ class Writer implements DataSourceWriter {
 
   @Override
   public String toString() {
-    return String.format("IcebergWrite(table=%s, type=%s, format=%s)",
-        table, table.schema().asStruct(), format);
+    return String.format("IcebergWrite(table=%s, format=%s)", table, format);
   }
 
 
@@ -208,10 +249,10 @@ class Writer implements DataSourceWriter {
 
     private class SparkAppenderFactory implements AppenderFactory<InternalRow> {
       @Override
-      public FileAppender<InternalRow> newAppender(OutputFile file, FileFormat format) {
+      public FileAppender<InternalRow> newAppender(OutputFile file, FileFormat fileFormat) {
         Schema schema = spec.schema();
         try {
-          switch (format) {
+          switch (fileFormat) {
             case PARQUET:
               return Parquet.write(file)
                   .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(schema, msgType))
@@ -227,7 +268,7 @@ class Writer implements DataSourceWriter {
                   .build();
 
             default:
-              throw new UnsupportedOperationException("Cannot write unknown format: " + format);
+              throw new UnsupportedOperationException("Cannot write unknown format: " + fileFormat);
           }
         } catch (IOException e) {
           throw new RuntimeIOException(e);

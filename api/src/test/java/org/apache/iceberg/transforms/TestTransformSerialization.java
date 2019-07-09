@@ -43,41 +43,43 @@ public class TestTransformSerialization {
     );
 
     // a spec with all of the allowed transform/type pairs
-    PartitionSpec spec = PartitionSpec.builderFor(schema)
-        .identity("i")
-        .identity("l")
-        .identity("d")
-        .identity("t")
-        .identity("ts")
-        .identity("dec")
-        .identity("s")
-        .identity("u")
-        .identity("f")
-        .identity("b")
-        .bucket("i", 128)
-        .bucket("l", 128)
-        .bucket("d", 128)
-        .bucket("t", 128)
-        .bucket("ts", 128)
-        .bucket("dec", 128)
-        .bucket("s", 128)
-        .bucket("u", 128)
-        .bucket("f", 128)
-        .bucket("b", 128)
-        .year("d")
-        .month("d")
-        .day("d")
-        .year("ts")
-        .month("ts")
-        .day("ts")
-        .hour("ts")
-        .truncate("i", 10)
-        .truncate("l", 10)
-        .truncate("dec", 10)
-        .truncate("s", 10)
-        .build();
+    PartitionSpec[] specs = new PartitionSpec[] {
+        PartitionSpec.builderFor(schema).identity("i").build(),
+        PartitionSpec.builderFor(schema).identity("l").build(),
+        PartitionSpec.builderFor(schema).identity("d").build(),
+        PartitionSpec.builderFor(schema).identity("t").build(),
+        PartitionSpec.builderFor(schema).identity("ts").build(),
+        PartitionSpec.builderFor(schema).identity("dec").build(),
+        PartitionSpec.builderFor(schema).identity("s").build(),
+        PartitionSpec.builderFor(schema).identity("u").build(),
+        PartitionSpec.builderFor(schema).identity("f").build(),
+        PartitionSpec.builderFor(schema).identity("b").build(),
+        PartitionSpec.builderFor(schema).bucket("i", 128).build(),
+        PartitionSpec.builderFor(schema).bucket("l", 128).build(),
+        PartitionSpec.builderFor(schema).bucket("d", 128).build(),
+        PartitionSpec.builderFor(schema).bucket("t", 128).build(),
+        PartitionSpec.builderFor(schema).bucket("ts", 128).build(),
+        PartitionSpec.builderFor(schema).bucket("dec", 128).build(),
+        PartitionSpec.builderFor(schema).bucket("s", 128).build(),
+        PartitionSpec.builderFor(schema).bucket("u", 128).build(),
+        PartitionSpec.builderFor(schema).bucket("f", 128).build(),
+        PartitionSpec.builderFor(schema).bucket("b", 128).build(),
+        PartitionSpec.builderFor(schema).year("d").build(),
+        PartitionSpec.builderFor(schema).month("d").build(),
+        PartitionSpec.builderFor(schema).day("d").build(),
+        PartitionSpec.builderFor(schema).year("ts").build(),
+        PartitionSpec.builderFor(schema).month("ts").build(),
+        PartitionSpec.builderFor(schema).day("ts").build(),
+        PartitionSpec.builderFor(schema).hour("ts").build(),
+        PartitionSpec.builderFor(schema).truncate("i", 10).build(),
+        PartitionSpec.builderFor(schema).truncate("l", 10).build(),
+        PartitionSpec.builderFor(schema).truncate("dec", 10).build(),
+        PartitionSpec.builderFor(schema).truncate("s", 10).build(),
+    };
 
-    Assert.assertEquals("Deserialization should produce equal partition spec",
-        spec, TestHelpers.roundTripSerialize(spec));
+    for (PartitionSpec spec : specs) {
+      Assert.assertEquals("Deserialization should produce equal partition spec",
+          spec, TestHelpers.roundTripSerialize(spec));
+    }
   }
 }

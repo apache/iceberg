@@ -81,7 +81,7 @@ public abstract class BaseMetastoreTables implements Tables {
     String location = defaultWarehouseLocation(conf, database, table);
     TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, location, properties);
 
-    return BaseTransaction.createTableTransaction(ops, metadata);
+    return Transactions.createTableTransaction(ops, metadata);
   }
 
   public Transaction beginReplace(Schema schema, PartitionSpec spec,
@@ -97,11 +97,11 @@ public abstract class BaseMetastoreTables implements Tables {
     TableMetadata metadata;
     if (current != null) {
       metadata = current.buildReplacement(schema, spec, properties);
-      return BaseTransaction.replaceTableTransaction(ops, metadata);
+      return Transactions.replaceTableTransaction(ops, metadata);
     } else {
       String location = defaultWarehouseLocation(conf, database, table);
       metadata = TableMetadata.newTableMetadata(ops, schema, spec, location, properties);
-      return BaseTransaction.createTableTransaction(ops, metadata);
+      return Transactions.createTableTransaction(ops, metadata);
     }
   }
 

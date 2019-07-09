@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import threading
+
 from .expressions import Expressions, ExpressionVisitors
 from ..expressions.binder import Binder
 from ..types import Conversions
@@ -22,20 +24,21 @@ from ..types import Conversions
 
 class InclusiveMetricsEvaluator(object):
 
-    def __init__(self, schema, unbound):
+    def visitor(self):
+        if not hasattr(self.thread_local_data, "visitors"):
+            self.thread_local_data.visitors = MetricsEvalVisitor(self.expr, self.schema, self.struct)
+
+        return self.thread_local_data.visitors
+
+    def __init__(self, schema, unbound, case_sensitive=True):
         self.schema = schema
         self.struct = schema.as_struct()
-        self.expr = Binder.bind(self.struct, Expressions.rewrite_not(unbound))
-        self._visitors = None
-
-    def _visitor(self):
-        if self._visitors is None:
-            self._visitors = MetricsEvalVisitor(self.expr, self.schema, self.struct)
-
-        return self._visitors
+        self.case_sensitive = case_sensitive
+        self.expr = Binder.bind(self.struct, Expressions.rewrite_not(unbound), case_sensitive)
+        self.thread_local_data = threading.local()
 
     def eval(self, file):
-        return self._visitor().eval(file)
+        return self.visitor().eval(file)
 
 
 class MetricsEvalVisitor(ExpressionVisitors.BoundExpressionVisitor):
@@ -52,13 +55,13 @@ class MetricsEvalVisitor(ExpressionVisitors.BoundExpressionVisitor):
         self.struct = struct
 
     def eval(self, file):
-        if file.record_count <= 0:
+        if file.record_count() <= 0:
             return MetricsEvalVisitor.ROWS_CANNOT_MATCH
 
-        self.value_counts = file.value_counts
-        self.null_counts = file.null_value_counts
-        self.lower_bounds = file.lower_bounds
-        self.upper_bounds = file.upper_bounds
+        self.value_counts = file.value_counts()
+        self.null_counts = file.null_value_counts()
+        self.lower_bounds = file.lower_bounds()
+        self.upper_bounds = file.upper_bounds()
 
         return ExpressionVisitors.visit(self.expr, self)
 

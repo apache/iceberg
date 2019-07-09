@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -32,6 +33,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.OutputFile;
@@ -57,6 +59,16 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   static final Set<ManifestFile> EMPTY_SET = Sets.newHashSet();
 
   /**
+   * Default callback used to delete files.
+   */
+  private final Consumer<String> defaultDelete = new Consumer<String>() {
+    @Override
+    public void accept(String file) {
+      ops.io().deleteFile(file);
+    }
+  };
+
+  /**
    * Cache used to enrich ManifestFile instances that are written to a ManifestListWriter.
    */
   private final LoadingCache<ManifestFile, ManifestFile> manifestsWithMetadata;
@@ -67,6 +79,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private final List<String> manifestLists = Lists.newArrayList();
   private Long snapshotId = null;
   private TableMetadata base = null;
+  private Consumer<String> deleteFunc = defaultDelete;
 
   protected SnapshotProducer(TableOperations ops) {
     this.ops = ops;
@@ -79,6 +92,15 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         }
         return addMetadata(ops, file);
       });
+  }
+
+  protected abstract ThisT self();
+
+  @Override
+  public ThisT deleteWith(Consumer<String> deleteCallback) {
+    Preconditions.checkArgument(this.deleteFunc == defaultDelete, "Cannot set delete callback more than once");
+    this.deleteFunc = deleteCallback;
+    return self();
   }
 
   /**
@@ -209,7 +231,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             Snapshot newSnapshot = apply();
             newSnapshotId.set(newSnapshot.snapshotId());
             TableMetadata updated = base.replaceCurrentSnapshot(newSnapshot);
-            taskOps.commit(base, updated);
+            // if the table UUID is missing, add it here. the UUID will be re-created each time this operation retries
+            // to ensure that if a concurrent operation assigns the UUID, this operation will not fail.
+            taskOps.commit(base, updated.withUUID());
           });
 
     } catch (RuntimeException e) {
@@ -227,7 +251,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         // also clean up unused manifest lists created by multiple attempts
         for (String manifestList : manifestLists) {
           if (!saved.manifestListLocation().equals(manifestList)) {
-            ops.io().deleteFile(manifestList);
+            deleteFile(manifestList);
           }
         }
       } else {
@@ -243,14 +267,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   protected void cleanAll() {
     for (String manifestList : manifestLists) {
-      ops.io().deleteFile(manifestList);
+      deleteFile(manifestList);
     }
     manifestLists.clear();
     cleanUncommitted(EMPTY_SET);
   }
 
   protected void deleteFile(String path) {
-    ops.io().deleteFile(path);
+    deleteFunc.accept(path);
   }
 
   protected OutputFile manifestListPath() {

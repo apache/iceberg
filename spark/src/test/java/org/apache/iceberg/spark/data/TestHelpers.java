@@ -47,12 +47,12 @@ import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.types.ArrayType;
+import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.Assert;
 import scala.collection.Seq;
@@ -61,7 +61,10 @@ import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
 import static scala.collection.JavaConverters.mapAsJavaMapConverter;
 import static scala.collection.JavaConverters.seqAsJavaListConverter;
 
+@SuppressWarnings("checkstyle:OverloadMethodsDeclarationOrder")
 public class TestHelpers {
+
+  private TestHelpers() {}
 
   public static void assertEqualsSafe(Types.StructType struct, Record rec, Row row) {
     List<Types.NestedField> fields = struct.fields();
@@ -127,8 +130,8 @@ public class TestHelpers {
       case DATE:
         Assert.assertTrue("Should be an int", expected instanceof Integer);
         Assert.assertTrue("Should be a Date", actual instanceof Date);
-        int daysFrom1970_01_01 = (Integer) expected;
-        LocalDate date = ChronoUnit.DAYS.addTo(EPOCH_DAY, daysFrom1970_01_01);
+        int daysFromEpoch = (Integer) expected;
+        LocalDate date = ChronoUnit.DAYS.addTo(EPOCH_DAY, daysFromEpoch);
         Assert.assertEquals("ISO-8601 date should be equal", date.toString(), actual.toString());
         break;
       case TIMESTAMP:

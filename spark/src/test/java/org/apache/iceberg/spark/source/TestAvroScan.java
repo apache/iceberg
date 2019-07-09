@@ -63,9 +63,9 @@ public class TestAvroScan extends AvroDataTest {
 
   @AfterClass
   public static void stopSpark() {
-    SparkSession spark = TestAvroScan.spark;
+    SparkSession currentSpark = TestAvroScan.spark;
     TestAvroScan.spark = null;
-    spark.stop();
+    currentSpark.stop();
   }
 
   @Override

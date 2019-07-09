@@ -34,6 +34,7 @@ import org.apache.iceberg.parquet.ParquetValueWriters;
 import org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.RepeatedKeyValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.RepeatedWriter;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
@@ -48,9 +49,6 @@ import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
-
-import static org.apache.iceberg.parquet.ParquetValueWriters.option;
-import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
 
 public class SparkParquetWriters {
   private SparkParquetWriters() {
@@ -85,8 +83,8 @@ public class SparkParquetWriters {
       for (int i = 0; i < fields.size(); i += 1) {
         Type fieldType = struct.getType(i);
         int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName()));
-        writers.add(option(fieldType, fieldD, fieldWriters.get(i)));
-        sparkTypes.add(convert(schema.findType(fieldType.getId().intValue())));
+        writers.add(ParquetValueWriters.option(fieldType, fieldD, fieldWriters.get(i)));
+        sparkTypes.add(SparkSchemaUtil.convert(schema.findType(fieldType.getId().intValue())));
       }
 
       return new InternalRowWriter(writers, sparkTypes);
@@ -103,10 +101,10 @@ public class SparkParquetWriters {
       org.apache.parquet.schema.Type elementType = repeated.getType(0);
       int elementD = type.getMaxDefinitionLevel(path(elementType.getName()));
 
-      DataType elementSparkType = convert(schema.findType(elementType.getId().intValue()));
+      DataType elementSparkType = SparkSchemaUtil.convert(schema.findType(elementType.getId().intValue()));
 
       return new ArrayDataWriter<>(repeatedD, repeatedR,
-          option(elementType, elementD, elementWriter),
+          ParquetValueWriters.option(elementType, elementD, elementWriter),
           elementSparkType);
     }
 
@@ -122,13 +120,14 @@ public class SparkParquetWriters {
 
       org.apache.parquet.schema.Type keyType = repeatedKeyValue.getType(0);
       int keyD = type.getMaxDefinitionLevel(path(keyType.getName()));
-      DataType keySparkType = convert(schema.findType(keyType.getId().intValue()));
+      DataType keySparkType = SparkSchemaUtil.convert(schema.findType(keyType.getId().intValue()));
       org.apache.parquet.schema.Type valueType = repeatedKeyValue.getType(1);
       int valueD = type.getMaxDefinitionLevel(path(valueType.getName()));
-      DataType valueSparkType = convert(schema.findType(valueType.getId().intValue()));
+      DataType valueSparkType = SparkSchemaUtil.convert(schema.findType(valueType.getId().intValue()));
 
       return new MapDataWriter<>(repeatedD, repeatedR,
-          option(keyType, keyD, keyWriter), option(valueType, valueD, valueWriter),
+          ParquetValueWriters.option(keyType, keyD, keyWriter),
+          ParquetValueWriters.option(valueType, valueD, valueWriter),
           keySparkType, valueSparkType);
     }
 

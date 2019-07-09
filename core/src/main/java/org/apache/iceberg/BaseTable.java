@@ -79,6 +79,11 @@ public class BaseTable implements Table, HasTableOperations {
   }
 
   @Override
+  public Snapshot snapshot(long snapshotId) {
+    return ops.current().snapshot(snapshotId);
+  }
+
+  @Override
   public Iterable<Snapshot> snapshots() {
     return ops.current().snapshots();
   }
@@ -114,6 +119,11 @@ public class BaseTable implements Table, HasTableOperations {
   }
 
   @Override
+  public RewriteManifests rewriteManifests() {
+    return new ReplaceManifests(ops);
+  }
+
+  @Override
   public OverwriteFiles newOverwrite() {
     return new OverwriteData(ops);
   }
@@ -140,7 +150,7 @@ public class BaseTable implements Table, HasTableOperations {
 
   @Override
   public Transaction newTransaction() {
-    return BaseTransaction.newTransaction(ops);
+    return Transactions.newTransaction(ops);
   }
 
   @Override

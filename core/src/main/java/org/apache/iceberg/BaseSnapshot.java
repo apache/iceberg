@@ -19,7 +19,7 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Objects;
+import com.google.common.base.MoreObjects;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import java.io.IOException;
@@ -163,12 +163,12 @@ class BaseSnapshot implements Snapshot {
           ops.current()::spec)) {
         for (ManifestEntry add : reader.addedFiles()) {
           if (add.snapshotId() == snapshotId) {
-            adds.add(add.file().copy());
+            adds.add(add.file().copyWithoutStats());
           }
         }
         for (ManifestEntry delete : reader.deletedFiles()) {
           if (delete.snapshotId() == snapshotId) {
-            deletes.add(delete.file().copy());
+            deletes.add(delete.file().copyWithoutStats());
           }
         }
       } catch (IOException e) {
@@ -182,7 +182,7 @@ class BaseSnapshot implements Snapshot {
 
   @Override
   public String toString() {
-    return Objects.toStringHelper(this)
+    return MoreObjects.toStringHelper(this)
         .add("id", snapshotId)
         .add("timestamp_ms", timestampMillis)
         .add("operation", operation)

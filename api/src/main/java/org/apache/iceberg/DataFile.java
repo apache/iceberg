@@ -139,6 +139,14 @@ public interface DataFile {
   DataFile copy();
 
   /**
+   * Copies this {@link DataFile data file} without file stats. Manifest readers can reuse data file instances; use
+   * this method to copy data without stats when collecting files.
+   *
+   * @return a copy of this data file, without lower bounds, upper bounds, value counts, or null value counts
+   */
+  DataFile copyWithoutStats();
+
+  /**
    * @return List of recommended split locations, if applicable, null otherwise.
    * When available, this information is used for planning scan tasks whose boundaries
    * are determined by these offsets. The returned list must be sorted in ascending order.

@@ -39,6 +39,9 @@ import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkValueWriters {
+
+  private SparkValueWriters() {}
+
   static ValueWriter<UTF8String> strings() {
     return StringWriter.INSTANCE;
   }
@@ -56,7 +59,7 @@ public class SparkValueWriters {
   }
 
   static <K, V> ValueWriter<MapData> arrayMap(
-    ValueWriter<K> keyWriter, DataType keyType, ValueWriter<V> valueWriter, DataType valueType) {
+      ValueWriter<K> keyWriter, DataType keyType, ValueWriter<V> valueWriter, DataType valueType) {
     return new ArrayMapWriter<>(keyWriter, keyType, valueWriter, valueType);
   }
 
@@ -70,7 +73,7 @@ public class SparkValueWriters {
   }
 
   private static class StringWriter implements ValueWriter<UTF8String> {
-    private static StringWriter INSTANCE = new StringWriter();
+    private static final StringWriter INSTANCE = new StringWriter();
 
     private StringWriter() {
     }
@@ -91,7 +94,7 @@ public class SparkValueWriters {
       return buffer;
     });
 
-    private static UUIDWriter INSTANCE = new UUIDWriter();
+    private static final UUIDWriter INSTANCE = new UUIDWriter();
 
     private UUIDWriter() {
     }
@@ -233,7 +236,7 @@ public class SparkValueWriters {
   }
 
   static class StructWriter implements ValueWriter<InternalRow> {
-    final ValueWriter<?>[] writers;
+    private final ValueWriter<?>[] writers;
     private final DataType[] types;
 
     @SuppressWarnings("unchecked")
@@ -244,6 +247,10 @@ public class SparkValueWriters {
         this.writers[i] = writers.get(i);
         this.types[i] = types.get(i);
       }
+    }
+
+    ValueWriter<?>[] writers() {
+      return writers;
     }
 
     @Override

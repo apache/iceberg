@@ -182,7 +182,7 @@ class TestTables {
       return nextSnapshotId;
     }
   }
-  
+
   static class LocalFileIO implements FileIO {
 
     @Override

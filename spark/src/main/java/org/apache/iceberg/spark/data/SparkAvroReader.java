@@ -54,8 +54,8 @@ public class SparkAvroReader implements DatumReader<InternalRow> {
   }
 
   @Override
-  public void setSchema(Schema fileSchema) {
-    this.fileSchema = Schema.applyAliases(fileSchema, readSchema);
+  public void setSchema(Schema newFileSchema) {
+    this.fileSchema = Schema.applyAliases(newFileSchema, readSchema);
   }
 
   @Override
@@ -108,7 +108,7 @@ public class SparkAvroReader implements DatumReader<InternalRow> {
     public ValueReader<?> array(Schema array, ValueReader<?> elementReader) {
       LogicalType logical = array.getLogicalType();
       if (logical != null && "map".equals(logical.getName())) {
-        ValueReader<?>[] keyValueReaders = ((SparkValueReaders.StructReader) elementReader).readers;
+        ValueReader<?>[] keyValueReaders = ((SparkValueReaders.StructReader) elementReader).readers();
         return SparkValueReaders.arrayMap(keyValueReaders[0], keyValueReaders[1]);
       }
 

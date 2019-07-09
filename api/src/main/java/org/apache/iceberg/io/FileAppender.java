@@ -43,7 +43,7 @@ public interface FileAppender<D> extends Closeable {
   Metrics metrics();
 
   /**
-   * @return the length of this file. Only valid after the file is closed.
+   * @return the length of this file.
    */
   long length();
 

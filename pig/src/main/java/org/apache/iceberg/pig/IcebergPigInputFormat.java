@@ -106,6 +106,8 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
   }
 
   private static class IcebergSplit extends InputSplit implements Writable {
+    private static final String[] ANYWHERE = new String[] { "*" };
+
     private CombinedScanTask task;
 
     IcebergSplit(CombinedScanTask task) {
@@ -123,7 +125,7 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
 
     @Override
     public String[] getLocations() {
-      return new String[0];
+      return ANYWHERE;
     }
 
     @Override
@@ -164,7 +166,7 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
 
     @SuppressWarnings("unchecked")
     private boolean advance() throws IOException {
-      if(reader != null) {
+      if (reader != null) {
         reader.close();
       }
 
@@ -242,11 +244,18 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
 
     @Override
     public boolean nextKeyValue() throws IOException {
-      if (recordIterator.hasNext() || advance()) {
+      if (recordIterator.hasNext()) {
         currentRecord = recordIterator.next();
         return true;
       }
-      
+
+      while (advance()) {
+        if (recordIterator.hasNext()) {
+          currentRecord = recordIterator.next();
+          return true;
+        }
+      }
+
       return false;
     }
 

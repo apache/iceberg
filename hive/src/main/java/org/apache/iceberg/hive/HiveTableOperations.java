@@ -1,18 +1,22 @@
 /*
- * Copyright 2017 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
+
 package org.apache.iceberg.hive;
 
 import com.google.common.collect.Lists;
@@ -27,6 +31,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.LockComponent;
 import org.apache.hadoop.hive.metastore.api.LockLevel;
@@ -46,8 +51,6 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static java.lang.String.format;
 
 /**
  * TODO we should be able to extract some more commonalities to BaseMetastoreTableOperations to
@@ -75,21 +78,23 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       String tableType = table.getParameters().get(TABLE_TYPE_PROP);
 
       if (tableType == null || !tableType.equalsIgnoreCase(ICEBERG_TABLE_TYPE_VALUE)) {
-        throw new IllegalArgumentException(format("Invalid tableName, not Iceberg: %s.%s", database, table));
+        throw new IllegalArgumentException(String.format("Invalid tableName, not Iceberg: %s.%s", database, table));
       }
 
       metadataLocation = table.getParameters().get(METADATA_LOCATION_PROP);
       if (metadataLocation == null) {
-        throw new IllegalArgumentException(format("%s.%s is missing %s property", database, tableName, METADATA_LOCATION_PROP));
+        String errMsg = String.format("%s.%s is missing %s property", database, tableName, METADATA_LOCATION_PROP);
+        throw new IllegalArgumentException(errMsg);
       }
 
     } catch (NoSuchObjectException e) {
       if (currentMetadataLocation() != null) {
-        throw new NoSuchTableException(format("No such table: %s.%s", database, tableName));
+        throw new NoSuchTableException(String.format("No such table: %s.%s", database, tableName));
       }
 
     } catch (TException e) {
-      throw new RuntimeException(format("Failed to get table info from metastore %s.%s", database, tableName), e);
+      String errMsg = String.format("Failed to get table info from metastore %s.%s", database, tableName);
+      throw new RuntimeException(errMsg, e);
 
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
@@ -127,24 +132,26 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       } else {
         final long currentTimeMillis = System.currentTimeMillis();
         tbl = new Table(tableName,
-                database,
-                System.getProperty("user.name"),
-                (int) currentTimeMillis / 1000,
-                (int) currentTimeMillis / 1000,
-                Integer.MAX_VALUE,
-                storageDescriptor(metadata),
-                Collections.emptyList(),
-                new HashMap<>(),
-                null,
-                null,
-                ICEBERG_TABLE_TYPE_VALUE);
+            database,
+            System.getProperty("user.name"),
+            (int) currentTimeMillis / 1000,
+            (int) currentTimeMillis / 1000,
+            Integer.MAX_VALUE,
+            storageDescriptor(metadata),
+            Collections.emptyList(),
+            new HashMap<>(),
+            null,
+            null,
+            TableType.EXTERNAL_TABLE.toString());
+        tbl.getParameters().put("EXTERNAL", "TRUE"); // using the external table type also requires this
       }
 
       tbl.setSd(storageDescriptor(metadata)); // set to pickup any schema changes
       final String metadataLocation = tbl.getParameters().get(METADATA_LOCATION_PROP);
       if (!Objects.equals(currentMetadataLocation(), metadataLocation)) {
-        throw new CommitFailedException(format("metadataLocation = %s is not same as table metadataLocation %s for %s.%s",
-                currentMetadataLocation(), metadataLocation, database, tableName));
+        String errMsg = String.format("metadataLocation = %s is not same as table metadataLocation %s for %s.%s",
+            currentMetadataLocation(), metadataLocation, database, tableName);
+        throw new CommitFailedException(errMsg);
       }
 
       setParameters(newMetadataLocation, tbl);
@@ -162,7 +169,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       }
       threw = false;
     } catch (TException | UnknownHostException e) {
-      throw new RuntimeException(format("Metastore operation failed for %s.%s", database, tableName), e);
+      throw new RuntimeException(String.format("Metastore operation failed for %s.%s", database, tableName), e);
 
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
@@ -209,16 +216,18 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     return storageDescriptor;
   }
 
-  private final List<FieldSchema> columns(Schema schema) {
-    return schema.columns().stream().map(col -> new FieldSchema(col.name(), HiveTypeConverter.convert(col.type()), "")).collect(Collectors.toList());
+  private List<FieldSchema> columns(Schema schema) {
+    return schema.columns().stream()
+        .map(col -> new FieldSchema(col.name(), HiveTypeConverter.convert(col.type()), ""))
+        .collect(Collectors.toList());
   }
 
   private long acquireLock() throws UnknownHostException, TException, InterruptedException {
     final LockComponent lockComponent = new LockComponent(LockType.EXCLUSIVE, LockLevel.TABLE, database);
     lockComponent.setTablename(tableName);
     final LockRequest lockRequest = new LockRequest(Lists.newArrayList(lockComponent),
-            System.getProperty("user.name"),
-            InetAddress.getLocalHost().getHostName());
+        System.getProperty("user.name"),
+        InetAddress.getLocalHost().getHostName());
     LockResponse lockResponse = metaClients.run(client -> client.lock(lockRequest));
     LockState state = lockResponse.getState();
     long lockId = lockResponse.getLockid();
@@ -229,8 +238,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     }
 
     if (!state.equals(LockState.ACQUIRED)) {
-      throw new CommitFailedException(format("Could not acquire the lock on %s.%s, " +
-              "lock request ended in state %s", database, tableName, state));
+      throw new CommitFailedException(String.format("Could not acquire the lock on %s.%s, " +
+          "lock request ended in state %s", database, tableName, state));
     }
     return lockId;
   }
@@ -243,7 +252,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
           return null;
         });
       } catch (Exception e) {
-        throw new RuntimeException(format("Failed to unlock %s.%s", database, tableName) , e);
+        throw new RuntimeException(String.format("Failed to unlock %s.%s", database, tableName), e);
       }
     }
   }

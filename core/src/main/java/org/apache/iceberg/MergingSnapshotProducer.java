@@ -28,6 +28,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.lang.reflect.Array;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -82,6 +83,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   // update data
   private final AtomicInteger manifestCount = new AtomicInteger(0);
   private final List<DataFile> newFiles = Lists.newArrayList();
+  private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final Set<CharSequenceWrapper> deletePaths = Sets.newHashSet();
   private final Set<StructLikeWrapper> dropPartitions = Sets.newHashSet();
   private Expression deleteExpression = Expressions.alwaysFalse();
@@ -113,8 +115,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     this.minManifestsCountToMerge = ops.current()
         .propertyAsInt(MANIFEST_MIN_MERGE_COUNT, MANIFEST_MIN_MERGE_COUNT_DEFAULT);
   }
-
-  protected abstract ThisT self();
 
   @Override
   public ThisT set(String property, String value) {
@@ -179,6 +179,20 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     newFiles.add(file);
   }
 
+  /**
+   * Add all files in a manifest to the new snapshot.
+   */
+  protected void add(ManifestFile manifest) {
+    // the manifest must be rewritten with this update's snapshot ID
+    try (ManifestReader reader = ManifestReader.read(
+        ops.io().newInputFile(manifest.path()), ops.current()::spec)) {
+      appendManifests.add(ManifestWriter.copyAppendManifest(
+          reader, manifestPath(manifestCount.getAndIncrement()), snapshotId(), summaryBuilder));
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest);
+    }
+  }
+
   @Override
   protected Map<String, String> summary() {
     return summaryBuilder.build();
@@ -216,12 +230,16 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
       Set<CharSequenceWrapper> deletedFiles = Sets.newHashSet();
 
-      // group manifests by compatible partition specs to be merged
+      // filter any existing manifests
+      List<ManifestFile> filtered;
       if (current != null) {
         List<ManifestFile> manifests = current.manifests();
-        ManifestFile[] filtered = filterManifests(metricsEvaluator, manifests);
-        groupManifestsByPartitionSpec(groups, deletedFiles, filtered);
+        filtered = Arrays.asList(filterManifests(metricsEvaluator, manifests));
+      } else {
+        filtered = ImmutableList.of();
       }
+
+      groupManifestsByPartitionSpec(groups, deletedFiles, Iterables.concat(appendManifests, filtered));
 
       List<ManifestFile> manifests = Lists.newArrayList();
       for (Map.Entry<Integer, List<ManifestFile>> entry : groups.entrySet()) {
@@ -261,7 +279,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   private void groupManifestsByPartitionSpec(
       Map<Integer, List<ManifestFile>> groups,
-      Set<CharSequenceWrapper> deletedFiles, ManifestFile[] filtered) {
+      Set<CharSequenceWrapper> deletedFiles, Iterable<ManifestFile> filtered) {
     for (ManifestFile manifest : filtered) {
       PartitionSpec manifestSpec = ops.current().spec(manifest.partitionSpecId());
       Iterable<DataFile> manifestDeletes = filteredManifestToDeletedFiles.get(manifest);
@@ -320,14 +338,24 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
   }
 
-  @Override
-  protected void cleanUncommitted(Set<ManifestFile> committed) {
+  private void cleanUncommittedAppends(Set<ManifestFile> committed) {
     if (cachedNewManifest != null && !committed.contains(cachedNewManifest)) {
       deleteFile(cachedNewManifest.path());
       this.cachedNewManifest = null;
     }
+
+    for (ManifestFile manifest : appendManifests) {
+      if (!committed.contains(manifest)) {
+        deleteFile(manifest.path());
+      }
+    }
+  }
+
+  @Override
+  protected void cleanUncommitted(Set<ManifestFile> committed) {
     cleanUncommittedMerges(committed);
     cleanUncommittedFilters(committed);
+    cleanUncommittedAppends(committed);
   }
 
   private boolean nothingToFilter() {
@@ -434,12 +462,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             } else {
               // only add the file to deletes if it is a new delete
               // this keeps the snapshot summary accurate for non-duplicate data
-              deletedFiles.add(entry.file().copy());
+              deletedFiles.add(entry.file().copyWithoutStats());
             }
             deletedPaths.add(wrapper);
 
           } else {
-            writer.addExisting(entry);
+            writer.existing(entry);
           }
         }
       });
@@ -534,14 +562,14 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
               // suppress deletes from previous snapshots. only files deleted by this snapshot
               // should be added to the new manifest
               if (entry.snapshotId() == snapshotId()) {
-                writer.add(entry);
+                writer.addEntry(entry);
               }
             } else if (entry.status() == Status.ADDED && entry.snapshotId() == snapshotId()) {
               // adds from this snapshot are still adds, otherwise they should be existing
-              writer.add(entry);
+              writer.addEntry(entry);
             } else {
               // add all files from the old manifest as existing files
-              writer.addExisting(entry);
+              writer.existing(entry);
             }
           }
         }

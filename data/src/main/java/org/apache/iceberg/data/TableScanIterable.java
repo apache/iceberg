@@ -24,6 +24,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import org.apache.iceberg.CombinedScanTask;
@@ -34,6 +35,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expressions;
@@ -42,10 +44,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-
-import static com.google.common.collect.Iterables.filter;
-import static java.util.Collections.emptyIterator;
-import static org.apache.iceberg.data.parquet.GenericParquetReaders.buildReader;
 
 class TableScanIterable extends CloseableGroup implements CloseableIterable<Record> {
   private final TableOperations ops;
@@ -93,7 +91,7 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
       case PARQUET:
         Parquet.ReadBuilder parquet = Parquet.read(input)
             .project(projection, SparkSchemaUtil.convert(projection))
-            .createReaderFunc(fileSchema -> buildReader(projection, fileSchema))
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(projection, fileSchema))
             .split(task.start(), task.length());
 
         if (reuseContainers) {
@@ -118,7 +116,7 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
     private final Iterator<FileScanTask> tasks;
     private final boolean caseSensitive;
     private Closeable currentCloseable = null;
-    private Iterator<Record> currentIterator = emptyIterator();
+    private Iterator<Record> currentIterator = Collections.emptyIterator();
 
     private ScanIterator(CloseableIterable<CombinedScanTask> tasks, boolean caseSensitive) {
       this.tasks = Lists.newArrayList(Iterables.concat(
@@ -147,7 +145,7 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
 
           if (task.residual() != null && task.residual() != Expressions.alwaysTrue()) {
             Evaluator filter = new Evaluator(projection.asStruct(), task.residual(), caseSensitive);
-            this.currentIterator = filter(reader, filter::eval).iterator();
+            this.currentIterator = Iterables.filter(reader, filter::eval).iterator();
           } else {
             this.currentIterator = reader.iterator();
           }

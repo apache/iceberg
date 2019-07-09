@@ -19,8 +19,12 @@
 
 package org.apache.iceberg.expressions;
 
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import java.io.Serializable;
 import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
@@ -163,25 +167,36 @@ public class ResidualEvaluator implements Serializable {
       // strict projection evaluates to true.
       //
       // If there is no strict projection or if it evaluates to false, then return the predicate.
-      PartitionField part = spec.getFieldBySourceId(pred.ref().fieldId());
-      if (part == null) {
+      List<PartitionField> parts = spec.getFieldsBySourceId(pred.ref().fieldId());
+      if (parts == null) {
         return pred; // not associated inclusive a partition field, can't be evaluated
       }
 
-      UnboundPredicate<?> strictProjection = ((Transform<T, ?>) part.transform())
-          .projectStrict(part.name(), pred);
+      List<UnboundPredicate<?>> strictProjections = Lists.transform(parts,
+          part -> ((Transform<T, ?>) part.transform()).projectStrict(part.name(), pred));
 
-      if (strictProjection != null) {
-        Expression bound = strictProjection.bind(spec.partitionType(), caseSensitive);
-        if (bound instanceof BoundPredicate) {
-          // the predicate methods will evaluate and return alwaysTrue or alwaysFalse
-          return super.predicate((BoundPredicate<?>) bound);
-        }
-        return bound; // use the non-predicate residual (e.g. alwaysTrue)
+      if (Iterables.all(strictProjections, Objects::isNull)) {
+        // if there are no strict projections, the predicate must be in the residual
+        return pred;
       }
 
-      // if the predicate could not be projected, it must be in the residual
-      return pred;
+      Expression result = Expressions.alwaysFalse();
+      for (UnboundPredicate<?> strictProjection : strictProjections) {
+        if (strictProjection == null) {
+          continue;
+        }
+
+        Expression bound = strictProjection.bind(spec.partitionType(), caseSensitive);
+        if (bound instanceof BoundPredicate) {
+          // evaluate the bound predicate, which will return alwaysTrue or alwaysFalse
+          result = Expressions.or(result, super.predicate((BoundPredicate<?>) bound));
+        } else {
+          // update the result expression with the non-predicate residual (e.g. alwaysTrue)
+          result = Expressions.or(result, bound);
+        }
+      }
+
+      return result;
     }
 
     @Override

@@ -19,13 +19,15 @@
 
 package org.apache.iceberg.spark
 
+import com.google.common.collect.Maps
 import java.nio.ByteBuffer
 import java.util
-import com.google.common.collect.Maps
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{Path, PathFilter}
+import org.apache.iceberg.{DataFile, DataFiles, Metrics, PartitionSpec, TableProperties}
+import org.apache.iceberg.hadoop.HadoopInputFile
+import org.apache.iceberg.orc.OrcMetrics
 import org.apache.iceberg.parquet.ParquetUtil
-import org.apache.iceberg.{DataFile, DataFiles, Metrics, PartitionSpec}
 import org.apache.iceberg.spark.hacks.Hive
 import org.apache.parquet.hadoop.ParquetFileReader
 import org.apache.spark.sql.{DataFrame, SparkSession}
@@ -73,6 +75,8 @@ object SparkTableUtil {
       listAvroPartition(partition, uri)
     } else if (format.contains("parquet")) {
       listParquetPartition(partition, uri)
+    } else if (format.contains("orc")) {
+      listOrcPartition(partition, uri)
     } else {
       throw new UnsupportedOperationException(s"Unknown partition format: $format")
     }
@@ -234,7 +238,8 @@ object SparkTableUtil {
     val fs = partition.getFileSystem(conf)
 
     fs.listStatus(partition, HiddenPathFilter).filter(_.isFile).map { stat =>
-      val metrics = ParquetUtil.footerMetrics(ParquetFileReader.readFooter(conf, stat))
+      val metrics = ParquetUtil.footerMetrics(ParquetFileReader.readFooter(conf, stat),
+        TableProperties.WRITE_METADATA_TRUNCATE_BYTES_DEFAULT)
 
       SparkDataFile(
         stat.getPath.toString,
@@ -246,6 +251,30 @@ object SparkTableUtil {
         mapToArray(metrics.nullValueCounts),
         bytesMapToArray(metrics.lowerBounds),
         bytesMapToArray(metrics.upperBounds))
+    }
+  }
+
+  private def listOrcPartition(
+      partitionPath: Map[String, String],
+      partitionUri: String): Seq[SparkDataFile] = {
+    val conf = new Configuration()
+    val partition = new Path(partitionUri)
+    val fs = partition.getFileSystem(conf)
+
+    fs.listStatus(partition, HiddenPathFilter).filter(_.isFile).map { stat =>
+      val metrics = OrcMetrics.fromInputFile(HadoopInputFile.fromPath(stat.getPath, conf))
+
+      SparkDataFile(
+        stat.getPath.toString,
+        partitionPath, "orc", stat.getLen,
+        stat.getBlockSize,
+        metrics.recordCount,
+        mapToArray(metrics.columnSizes),
+        mapToArray(metrics.valueCounts),
+        mapToArray(metrics.nullValueCounts),
+        bytesMapToArray(metrics.lowerBounds()),
+        bytesMapToArray(metrics.upperBounds())
+      )
     }
   }
 }

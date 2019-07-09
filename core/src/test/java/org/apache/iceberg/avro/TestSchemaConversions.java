@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.avro;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import java.util.List;
 import org.apache.avro.LogicalTypes;
@@ -277,4 +278,25 @@ public class TestSchemaConversions {
     AvroSchemaUtil.convert(schema, "newTableName").toString(true);
   }
 
+  @Test
+  public void testSpecialChars() {
+    List<String> names = Lists.newArrayList("9x", "x_", "a.b", "☃", "a#b");
+    org.apache.iceberg.Schema schema = new org.apache.iceberg.Schema(
+        required(1, names.get(0), Types.IntegerType.get()),
+        required(2, names.get(1), Types.StringType.get()),
+        required(3, names.get(2), Types.IntegerType.get()),
+        required(4, names.get(3), Types.IntegerType.get()),
+        required(5, names.get(4), Types.IntegerType.get()));
+
+    Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    List<String> sanitizedNames = Lists.newArrayList(Iterables.transform(avroSchema.getFields(), Schema.Field::name));
+    List<String> expectedSanitizedNames = Lists.newArrayList("_9x", "x_", "a_x2Eb", "_x2603", "a_x23b");
+    Assert.assertEquals(expectedSanitizedNames, sanitizedNames);
+
+    List<String> origNames = Lists.newArrayList(
+        Iterables.transform(avroSchema.getFields(), f -> f.getProp(AvroSchemaUtil.ICEBERG_FIELD_NAME_PROP)));
+    List<String> expectedOrigNames = Lists.newArrayList(names);
+    expectedOrigNames.set(1, null);  // Name at pos 1 is valid so ICEBERG_FIELD_NAME_PROP is not set
+    Assert.assertEquals(expectedOrigNames, origNames);
+  }
 }

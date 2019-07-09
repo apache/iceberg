@@ -94,8 +94,15 @@ public class HadoopTableOperations implements TableOperations {
       throw new RuntimeIOException(e, "Failed to get file system for path: %s", metadataFile);
     }
     this.version = ver;
-    this.currentMetadata = TableMetadataParser.read(this,
-        io().newInputFile(metadataFile.toString()));
+
+    TableMetadata newMetadata = TableMetadataParser.read(this, io().newInputFile(metadataFile.toString()));
+    String newUUID = newMetadata.uuid();
+    if (currentMetadata != null) {
+      Preconditions.checkState(newUUID == null || newUUID.equals(currentMetadata.uuid()),
+          "Table UUID does not match: current=%s != refreshed=%s", currentMetadata.uuid(), newUUID);
+    }
+
+    this.currentMetadata = newMetadata;
     this.shouldRefresh = false;
     return currentMetadata;
   }

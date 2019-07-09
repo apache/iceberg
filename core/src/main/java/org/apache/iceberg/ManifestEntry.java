@@ -19,7 +19,7 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Objects;
+import com.google.common.base.MoreObjects;
 import java.util.Collection;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
@@ -60,11 +60,15 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
     this.schema = AvroSchemaUtil.convert(getSchema(partitionType), "manifest_entry");
   }
 
-  private ManifestEntry(ManifestEntry toCopy) {
+  private ManifestEntry(ManifestEntry toCopy, boolean fullCopy) {
     this.schema = toCopy.schema;
     this.status = toCopy.status;
     this.snapshotId = toCopy.snapshotId;
-    this.file = toCopy.file().copy();
+    if (fullCopy) {
+      this.file = toCopy.file().copy();
+    } else {
+      this.file = toCopy.file().copyWithoutStats();
+    }
   }
 
   ManifestEntry wrapExisting(long newSnapshotId, DataFile newFile) {
@@ -110,7 +114,11 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
   }
 
   public ManifestEntry copy() {
-    return new ManifestEntry(this);
+    return new ManifestEntry(this, true /* full copy */);
+  }
+
+  public ManifestEntry copyWithoutStats() {
+    return new ManifestEntry(this, false /* drop stats */);
   }
 
   @Override
@@ -168,7 +176,7 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
 
   @Override
   public String toString() {
-    return Objects.toStringHelper(this)
+    return MoreObjects.toStringHelper(this)
         .add("status", status)
         .add("snapshot_id", snapshotId)
         .add("file", file)
