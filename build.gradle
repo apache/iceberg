@@ -64,6 +64,14 @@ subprojects {
   apply plugin: 'maven' // make pom files for deployment
   apply plugin: 'nebula.maven-base-publish'
 
+  compileJava {
+    options.encoding = "UTF-8"
+  }
+
+  compileTestJava {
+    options.encoding = "UTF-8"
+  }
+
   configurations {
     testCompile.extendsFrom compileOnly
     all {
