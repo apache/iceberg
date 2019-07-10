@@ -38,7 +38,7 @@ The [Iceberg format specification][iceberg-spec] is being actively updated and i
 [Java API javadocs][iceberg-javadocs] are available for the 0.6.0 tag.
 
 [iceberg-javadocs]: https://iceberg.apache.org/javadoc/0.6.0/index.html?com/netflix/iceberg/package-summary.html
-[iceberg-spec]: https://docs.google.com/document/d/1Q-zL5lSCle6NEEdyfiYsXYzX_Q8Qf0ctMyGBKslOswA/edit?usp=sharing 
+[iceberg-spec]: https://iceberg.apache.org/spec
 
 
 ## Collaboration
