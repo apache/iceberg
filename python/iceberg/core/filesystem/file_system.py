@@ -17,12 +17,33 @@
 
 import gzip
 
-from iceberg.api.io import InputFile
+from iceberg.api.io import InputFile, OutputFile
 
 from .util import get_fs
 
 
-class HadoopInputFile(InputFile):
+class FileSystem(object):
+
+    def open(self, path, mode='rb'):
+        raise NotImplementedError()
+
+    def create(self, path, overwrite=False):
+        raise NotImplementedError()
+
+    def exists(self, path):
+        raise NotImplementedError()
+
+    def delete(self, path):
+        raise NotImplementedError()
+
+    def stat(self, path):
+        raise NotImplementedError()
+
+    def rename(self, src, dest):
+        raise NotImplementedError()
+
+
+class FileSystemInputFile(InputFile):
 
     def __init__(self, fs, path, conf, length=None, stat=None):
         self.fs = fs
@@ -34,7 +55,7 @@ class HadoopInputFile(InputFile):
     @staticmethod
     def from_location(location, conf):
         fs = get_fs(location, conf)
-        return HadoopInputFile(fs, location, conf)
+        return FileSystemInputFile(fs, location, conf)
 
     def location(self):
         return self.path
@@ -57,5 +78,43 @@ class HadoopInputFile(InputFile):
             for line in fo:
                 yield line
 
-    def new_fo(self):
-        return self.fs.open(self.location())
+    def new_fo(self, mode="rb"):
+        return self.fs.open(self.location(), mode=mode)
+
+    def __repr__(self):
+        return "FileSystemInputFile({})".format(self.path)
+
+    def __str__(self):
+        return self.__repr__()
+
+
+class FileSystemOutputFile(OutputFile):
+
+    @staticmethod
+    def from_path(path, conf):
+        return FileSystemOutputFile(path, conf)
+
+    def __init__(self, path, conf):
+        self.path = path
+        self.conf = conf
+
+    def create(self, mode="w"):
+        fs = get_fs(self.path, self.conf)
+        if fs.exists(self.path):
+            raise RuntimeError("File %s already exists" % self.path)
+
+        return fs.open(self.path, mode=mode)
+
+    def create_or_overwrite(self):
+        fs = get_fs(self.path, self.conf)
+
+        return fs.open(self.path, "wb")
+
+    def location(self):
+        return str(self.path)
+
+    def __repr__(self):
+        return "FileSystemOutputFile({})".format(self.path)
+
+    def __str__(self):
+        return self.__repr__()

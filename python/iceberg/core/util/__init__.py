@@ -15,6 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-__all__ = ["AtomicInteger"]
+__all__ = ["AtomicInteger", "PackingIterator", "str_as_bool"]
 
 from .atomic_integer import AtomicInteger
+from .bin_packing import PackingIterator
+
+
+def str_as_bool(str_var):
+    return str_var is not None and str_var.lower() == "true"

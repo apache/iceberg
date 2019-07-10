@@ -17,18 +17,17 @@
 
 import binascii
 
-from iceberg.api import Files
 from iceberg.core import ConfigProperties, TableMetadataParser
-from iceberg.core.hadoop import HadoopInputFile
+from iceberg.core.filesystem import FileSystemInputFile, FileSystemOutputFile
 
 
 def test_compression_property(expected, prop):
     config = {ConfigProperties.COMPRESS_METADATA: prop}
-    output_file = Files.local_output(TableMetadataParser.get_file_extension(config))
+    output_file = FileSystemOutputFile.from_path(TableMetadataParser.get_file_extension(config), dict)
     TableMetadataParser.write(expected, output_file)
     assert prop == is_compressed(TableMetadataParser.get_file_extension(config))
     read = TableMetadataParser.read(None,
-                                    HadoopInputFile.from_location(TableMetadataParser.get_file_extension(config), None))
+                                    FileSystemInputFile.from_location(TableMetadataParser.get_file_extension(config), None))
     verify_metadata(read, expected)
 
 
