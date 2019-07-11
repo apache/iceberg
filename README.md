@@ -68,7 +68,6 @@ This project Iceberg also has modules for adding Iceberg support to processing e
 * `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg (use iceberg-runtime for a shaded version)
 * `iceberg-data` is a client library used to read Iceberg tables from JVM applications
 * `iceberg-pig` is an implementation of Pig's LoadFunc API for Iceberg
-* `iceberg-presto-runtime` generates a shaded runtime jar that is used by presto to integrate with iceberg tables
 
 ### Compatibility
 
