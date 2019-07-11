@@ -58,9 +58,9 @@ Spark uses both `HiveCatalog` and `HadoopTables` to load tables. Hive is used wh
 
 To read and write to tables from Spark see:
 
-* [Reading a table in Spark](../spark#reading-an-iceberg-table)
-* [Appending to a table in Spark](../spark#appending-data)
-* [Overwriting data in a table in Spark](../spark#overwriting-data)
+* [Reading a table in Spark](./spark.md#reading-an-iceberg-table)
+* [Appending to a table in Spark](./spark.md#appending-data)
+* [Overwriting data in a table in Spark](./spark.md#overwriting-data)
 
 
 ## Schemas
