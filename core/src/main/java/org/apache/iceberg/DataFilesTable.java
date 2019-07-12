@@ -27,6 +27,9 @@ import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 
+/**
+ * A {@link Table} implementation that exposes a table's data files as rows.
+ */
 class DataFilesTable extends BaseMetadataTable {
   private final TableOperations ops;
   private final Table table;

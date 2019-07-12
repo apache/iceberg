@@ -24,6 +24,9 @@ import java.util.List;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 
+/**
+ * A {@link Table} implementation that exposes a table's manifest files as rows.
+ */
 class ManifestsTable extends BaseMetadataTable {
   private static final Schema SNAPSHOT_SCHEMA = new Schema(
       Types.NestedField.required(1, "path", Types.StringType.get()),

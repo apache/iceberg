@@ -25,6 +25,12 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 
+/**
+ * A {@link Table} implementation that exposes a table's manifest entries as rows.
+ * <p>
+ * WARNING: this table exposes internal details, like files that have been deleted. For a table of the live data files,
+ * use {@link DataFilesTable}.
+ */
 class ManifestEntriesTable extends BaseMetadataTable {
   private final TableOperations ops;
   private final Table table;

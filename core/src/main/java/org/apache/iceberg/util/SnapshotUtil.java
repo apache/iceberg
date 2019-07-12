@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.util;
 
-import com.google.common.collect.Sets;
-import java.util.Set;
+import com.google.common.collect.Lists;
+import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -30,17 +30,20 @@ public class SnapshotUtil {
   }
 
   /**
-   * Return the set of snapshot IDs for the known ancestors of the current table state.
+   * Return the snapshot IDs for the ancestors of the current table state.
+   * <p>
+   * Ancestor IDs are ordered by commit time, descending. The first ID is the current snapshot, followed by its parent,
+   * and so on.
    *
    * @param table a {@link Table}
    * @return a set of snapshot IDs of the known ancestor snapshots, including the current ID
    */
-  public static Set<Long> currentAncestors(Table table) {
+  public static List<Long> currentAncestors(Table table) {
     return ancestorIds(table.currentSnapshot(), table::snapshot);
   }
 
-  public static Set<Long> ancestorIds(Snapshot snapshot, Function<Long, Snapshot> lookup) {
-    Set<Long> ancestorIds = Sets.newHashSet();
+  public static List<Long> ancestorIds(Snapshot snapshot, Function<Long, Snapshot> lookup) {
+    List<Long> ancestorIds = Lists.newArrayList();
     Snapshot current = snapshot;
     while (current != null) {
       ancestorIds.add(current.snapshotId());

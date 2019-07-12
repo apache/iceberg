@@ -26,6 +26,11 @@ import java.util.function.Function;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 
+/**
+ * A {@link Table} implementation that exposes a table's history as rows.
+ * <p>
+ * History is based on the table's snapshot log, which logs each update to the table's current snapshot.
+ */
 class HistoryTable extends BaseMetadataTable {
   private static final Schema HISTORY_SCHEMA = new Schema(
       Types.NestedField.required(1, "made_current_at", Types.TimestampType.withZone()),

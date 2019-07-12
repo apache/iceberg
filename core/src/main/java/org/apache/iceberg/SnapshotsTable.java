@@ -21,6 +21,11 @@ package org.apache.iceberg;
 
 import org.apache.iceberg.types.Types;
 
+/**
+ * A {@link Table} implementation that exposes a table's known snapshots as rows.
+ * <p>
+ * This does not include snapshots that have been expired using {@link ExpireSnapshots}.
+ */
 class SnapshotsTable extends BaseMetadataTable {
   private static final Schema SNAPSHOT_SCHEMA = new Schema(
       Types.NestedField.required(1, "committed_at", Types.TimestampType.withZone()),
