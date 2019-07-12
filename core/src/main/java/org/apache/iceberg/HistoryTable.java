@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -88,7 +89,7 @@ class HistoryTable extends BaseMetadataTable {
       snapshots.put(snap.snapshotId(), snap);
     }
 
-    Set<Long> ancestorIds = SnapshotUtil.currentAncestors(table);
+    Set<Long> ancestorIds = Sets.newHashSet(SnapshotUtil.currentAncestors(table));
 
     return historyEntry -> {
       long snapshotId = historyEntry.snapshotId();
