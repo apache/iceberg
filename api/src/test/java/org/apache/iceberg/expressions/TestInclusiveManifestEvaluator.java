@@ -79,25 +79,25 @@ public class TestInclusiveManifestEvaluator {
 
   @Test
   public void testAllNulls() {
-    boolean shouldRead = new InclusiveManifestEvaluator(SPEC, notNull("all_nulls")).eval(FILE);
+    boolean shouldRead = ManifestEvaluator.forRowFilter(notNull("all_nulls"), SPEC, true).eval(FILE);
     Assert.assertFalse("Should skip: no non-null value in all null column", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, notNull("some_nulls")).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(notNull("some_nulls"), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: column with some nulls contains a non-null value", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, notNull("no_nulls")).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(notNull("no_nulls"), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: non-null column contains a non-null value", shouldRead);
   }
 
   @Test
   public void testNoNulls() {
-    boolean shouldRead = new InclusiveManifestEvaluator(SPEC, isNull("all_nulls")).eval(FILE);
+    boolean shouldRead = ManifestEvaluator.forRowFilter(isNull("all_nulls"), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: at least one null value in all null column", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, isNull("some_nulls")).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(isNull("some_nulls"), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: column with some nulls contains a null value", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, isNull("no_nulls")).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(isNull("no_nulls"), SPEC, true).eval(FILE);
     Assert.assertFalse("Should skip: non-null column contains no null values", shouldRead);
   }
 
@@ -105,7 +105,7 @@ public class TestInclusiveManifestEvaluator {
   public void testMissingColumn() {
     TestHelpers.assertThrows("Should complain about missing column in expression",
         ValidationException.class, "Cannot find field 'missing'",
-        () -> new InclusiveManifestEvaluator(SPEC, lessThan("missing", 5)).eval(FILE));
+        () -> ManifestEvaluator.forRowFilter(lessThan("missing", 5), SPEC, true).eval(FILE));
   }
 
   @Test
@@ -117,7 +117,7 @@ public class TestInclusiveManifestEvaluator {
     };
 
     for (Expression expr : exprs) {
-      boolean shouldRead = new InclusiveManifestEvaluator(SPEC, expr).eval(NO_STATS);
+      boolean shouldRead = ManifestEvaluator.forRowFilter(expr, SPEC, true).eval(NO_STATS);
       Assert.assertTrue("Should read when missing stats for expr: " + expr, shouldRead);
     }
   }
@@ -125,194 +125,190 @@ public class TestInclusiveManifestEvaluator {
   @Test
   public void testNot() {
     // this test case must use a real predicate, not alwaysTrue(), or binding will simplify it out
-    boolean shouldRead = new InclusiveManifestEvaluator(SPEC, not(lessThan("id", 5))).eval(FILE);
+    boolean shouldRead = ManifestEvaluator.forRowFilter(not(lessThan("id", 5)), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: not(false)", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, not(greaterThan("id", 5))).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(not(greaterThan("id", 5)), SPEC, true).eval(FILE);
     Assert.assertFalse("Should skip: not(true)", shouldRead);
   }
 
   @Test
   public void testAnd() {
     // this test case must use a real predicate, not alwaysTrue(), or binding will simplify it out
-    boolean shouldRead = new InclusiveManifestEvaluator(
-        SPEC, and(lessThan("id", 5), greaterThanOrEqual("id", 0))).eval(FILE);
+    boolean shouldRead = ManifestEvaluator.forRowFilter(
+        and(lessThan("id", 5), greaterThanOrEqual("id", 0)), SPEC, true).eval(FILE);
     Assert.assertFalse("Should skip: and(false, false)", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(
-        SPEC, and(greaterThan("id", 5), lessThanOrEqual("id", 30))).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(
+        and(greaterThan("id", 5), lessThanOrEqual("id", 30)), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: and(true, true)", shouldRead);
   }
 
   @Test
   public void testOr() {
     // this test case must use a real predicate, not alwaysTrue(), or binding will simplify it out
-    boolean shouldRead = new InclusiveManifestEvaluator(
-        SPEC, or(lessThan("id", 5), greaterThanOrEqual("id", 80))).eval(FILE);
+    boolean shouldRead = ManifestEvaluator.forRowFilter(
+        or(lessThan("id", 5), greaterThanOrEqual("id", 80)), SPEC, true).eval(FILE);
     Assert.assertFalse("Should skip: or(false, false)", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(
-        SPEC, or(lessThan("id", 5), greaterThanOrEqual("id", 60))).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(
+        or(lessThan("id", 5), greaterThanOrEqual("id", 60)), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: or(false, true)", shouldRead);
   }
 
   @Test
   public void testIntegerLt() {
-    boolean shouldRead = new InclusiveManifestEvaluator(SPEC, lessThan("id", 5)).eval(FILE);
+    boolean shouldRead = ManifestEvaluator.forRowFilter(lessThan("id", 5), SPEC, true).eval(FILE);
     Assert.assertFalse("Should not read: id range below lower bound (5 < 30)", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, lessThan("id", 30)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(lessThan("id", 30), SPEC, true).eval(FILE);
     Assert.assertFalse("Should not read: id range below lower bound (30 is not < 30)", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, lessThan("id", 31)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(lessThan("id", 31), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: one possible id", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, lessThan("id", 79)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(lessThan("id", 79), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: may possible ids", shouldRead);
   }
 
   @Test
   public void testIntegerLtEq() {
-    boolean shouldRead = new InclusiveManifestEvaluator(SPEC, lessThanOrEqual("id", 5)).eval(FILE);
+    boolean shouldRead = ManifestEvaluator.forRowFilter(lessThanOrEqual("id", 5), SPEC, true).eval(FILE);
     Assert.assertFalse("Should not read: id range below lower bound (5 < 30)", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, lessThanOrEqual("id", 29)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(lessThanOrEqual("id", 29), SPEC, true).eval(FILE);
     Assert.assertFalse("Should not read: id range below lower bound (29 < 30)", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, lessThanOrEqual("id", 30)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(lessThanOrEqual("id", 30), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: one possible id", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, lessThanOrEqual("id", 79)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(lessThanOrEqual("id", 79), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: many possible ids", shouldRead);
   }
 
   @Test
   public void testIntegerGt() {
-    boolean shouldRead = new InclusiveManifestEvaluator(SPEC, greaterThan("id", 85)).eval(FILE);
+    boolean shouldRead = ManifestEvaluator.forRowFilter(greaterThan("id", 85), SPEC, true).eval(FILE);
     Assert.assertFalse("Should not read: id range above upper bound (85 < 79)", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, greaterThan("id", 79)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(greaterThan("id", 79), SPEC, true).eval(FILE);
     Assert.assertFalse("Should not read: id range above upper bound (79 is not > 79)", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, greaterThan("id", 78)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(greaterThan("id", 78), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: one possible id", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, greaterThan("id", 75)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(greaterThan("id", 75), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: may possible ids", shouldRead);
   }
 
   @Test
   public void testIntegerGtEq() {
-    boolean shouldRead = new InclusiveManifestEvaluator(
-        SPEC, greaterThanOrEqual("id", 85)).eval(FILE);
+    boolean shouldRead = ManifestEvaluator.forRowFilter(greaterThanOrEqual("id", 85), SPEC, true).eval(FILE);
     Assert.assertFalse("Should not read: id range above upper bound (85 < 79)", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(
-        SPEC, greaterThanOrEqual("id", 80)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(greaterThanOrEqual("id", 80), SPEC, true).eval(FILE);
     Assert.assertFalse("Should not read: id range above upper bound (80 > 79)", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(
-        SPEC, greaterThanOrEqual("id", 79)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(greaterThanOrEqual("id", 79), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: one possible id", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(
-        SPEC, greaterThanOrEqual("id", 75)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(greaterThanOrEqual("id", 75), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: may possible ids", shouldRead);
   }
 
   @Test
   public void testIntegerEq() {
-    boolean shouldRead = new InclusiveManifestEvaluator(SPEC, equal("id", 5)).eval(FILE);
+    boolean shouldRead = ManifestEvaluator.forRowFilter(equal("id", 5), SPEC, true).eval(FILE);
     Assert.assertFalse("Should not read: id below lower bound", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, equal("id", 29)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(equal("id", 29), SPEC, true).eval(FILE);
     Assert.assertFalse("Should not read: id below lower bound", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, equal("id", 30)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(equal("id", 30), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, equal("id", 75)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(equal("id", 75), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, equal("id", 79)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(equal("id", 79), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, equal("id", 80)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(equal("id", 80), SPEC, true).eval(FILE);
     Assert.assertFalse("Should not read: id above upper bound", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, equal("id", 85)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(equal("id", 85), SPEC, true).eval(FILE);
     Assert.assertFalse("Should not read: id above upper bound", shouldRead);
   }
 
   @Test
   public void testIntegerNotEq() {
-    boolean shouldRead = new InclusiveManifestEvaluator(SPEC, notEqual("id", 5)).eval(FILE);
+    boolean shouldRead = ManifestEvaluator.forRowFilter(notEqual("id", 5), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: id below lower bound", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, notEqual("id", 29)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(notEqual("id", 29), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: id below lower bound", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, notEqual("id", 30)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(notEqual("id", 30), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, notEqual("id", 75)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(notEqual("id", 75), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, notEqual("id", 79)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(notEqual("id", 79), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, notEqual("id", 80)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(notEqual("id", 80), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: id above upper bound", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, notEqual("id", 85)).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(notEqual("id", 85), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: id above upper bound", shouldRead);
   }
 
   @Test
   public void testIntegerNotEqRewritten() {
-    boolean shouldRead = new InclusiveManifestEvaluator(SPEC, not(equal("id", 5))).eval(FILE);
+    boolean shouldRead = ManifestEvaluator.forRowFilter(not(equal("id", 5)), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: id below lower bound", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, not(equal("id", 29))).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(not(equal("id", 29)), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: id below lower bound", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, not(equal("id", 30))).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(not(equal("id", 30)), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, not(equal("id", 75))).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(not(equal("id", 75)), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, not(equal("id", 79))).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(not(equal("id", 79)), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, not(equal("id", 80))).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(not(equal("id", 80)), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: id above upper bound", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, not(equal("id", 85))).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(not(equal("id", 85)), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: id above upper bound", shouldRead);
   }
 
   @Test
   public void testCaseInsensitiveIntegerNotEqRewritten() {
-    boolean shouldRead = new InclusiveManifestEvaluator(SPEC, not(equal("ID", 5)), false).eval(FILE);
+    boolean shouldRead = ManifestEvaluator.forRowFilter(not(equal("ID", 5)), SPEC, false).eval(FILE);
     Assert.assertTrue("Should read: id below lower bound", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, not(equal("ID", 29)), false).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(not(equal("ID", 29)), SPEC, false).eval(FILE);
     Assert.assertTrue("Should read: id below lower bound", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, not(equal("ID", 30)), false).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(not(equal("ID", 30)), SPEC, false).eval(FILE);
     Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, not(equal("ID", 75)), false).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(not(equal("ID", 75)), SPEC, false).eval(FILE);
     Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, not(equal("ID", 79)), false).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(not(equal("ID", 79)), SPEC, false).eval(FILE);
     Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, not(equal("ID", 80)), false).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(not(equal("ID", 80)), SPEC, false).eval(FILE);
     Assert.assertTrue("Should read: id above upper bound", shouldRead);
 
-    shouldRead = new InclusiveManifestEvaluator(SPEC, not(equal("ID", 85)), false).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(not(equal("ID", 85)), SPEC, false).eval(FILE);
     Assert.assertTrue("Should read: id above upper bound", shouldRead);
   }
 
@@ -320,6 +316,6 @@ public class TestInclusiveManifestEvaluator {
   public void testCaseSensitiveIntegerNotEqRewritten() {
     TestHelpers.assertThrows("Should complain about missing column in expression",
         ValidationException.class, "Cannot find field 'ID'",
-        () -> new InclusiveManifestEvaluator(SPEC, not(equal("ID", 5)), true).eval(FILE));
+        () -> ManifestEvaluator.forRowFilter(not(equal("ID", 5)), SPEC, true).eval(FILE));
   }
 }

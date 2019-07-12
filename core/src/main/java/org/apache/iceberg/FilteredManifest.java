@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -35,6 +34,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.Projections;
+import org.apache.iceberg.io.CloseableIterable;
 
 public class FilteredManifest implements Filterable<FilteredManifest> {
   private static final Set<String> STATS_COLUMNS = Sets.newHashSet(
@@ -84,13 +84,13 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
         caseSensitive);
   }
 
-  Iterable<ManifestEntry> allEntries() {
+  CloseableIterable<ManifestEntry> allEntries() {
     if ((rowFilter != null && rowFilter != Expressions.alwaysTrue()) ||
         (partFilter != null && partFilter != Expressions.alwaysTrue())) {
       Evaluator evaluator = evaluator();
       InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
 
-      return Iterables.filter(reader.entries(columns),
+      return CloseableIterable.filter(reader.entries(columns),
           entry -> entry != null &&
               evaluator.eval(entry.file().partition()) &&
               metricsEvaluator.eval(entry.file()));
@@ -100,20 +100,20 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
     }
   }
 
-  Iterable<ManifestEntry> liveEntries() {
+  CloseableIterable<ManifestEntry> liveEntries() {
     if ((rowFilter != null && rowFilter != Expressions.alwaysTrue()) ||
         (partFilter != null && partFilter != Expressions.alwaysTrue())) {
       Evaluator evaluator = evaluator();
       InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
 
-      return Iterables.filter(reader.entries(columns),
+      return CloseableIterable.filter(reader.entries(columns),
           entry -> entry != null &&
               entry.status() != Status.DELETED &&
               evaluator.eval(entry.file().partition()) &&
               metricsEvaluator.eval(entry.file()));
 
     } else {
-      return Iterables.filter(reader.entries(columns),
+      return CloseableIterable.filter(reader.entries(columns),
           entry -> entry != null && entry.status() != Status.DELETED);
     }
   }

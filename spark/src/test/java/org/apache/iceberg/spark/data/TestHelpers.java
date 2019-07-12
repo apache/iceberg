@@ -144,7 +144,7 @@ public class TestHelpers {
         break;
       case STRING:
         Assert.assertTrue("Should be a String", actual instanceof String);
-        Assert.assertEquals("Strings should be equal", expected, actual);
+        Assert.assertEquals("Strings should be equal", String.valueOf(expected), actual);
         break;
       case UUID:
         Assert.assertTrue("Should expect a UUID", expected instanceof UUID);

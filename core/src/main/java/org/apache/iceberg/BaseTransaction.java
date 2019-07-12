@@ -367,6 +367,11 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
+    public List<HistoryEntry> history() {
+      return current.snapshotLog();
+    }
+
+    @Override
     public UpdateSchema updateSchema() {
       return BaseTransaction.this.updateSchema();
     }

@@ -51,7 +51,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
 
   @Override
   public org.apache.iceberg.Table loadTable(TableIdentifier identifier) {
-    Preconditions.checkArgument(identifier.namespace().levels().length == 1,
+    Preconditions.checkArgument(identifier.namespace().levels().length >= 1,
         "Missing database in table identifier: %s", identifier);
     return super.loadTable(identifier);
   }
