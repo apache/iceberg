@@ -20,11 +20,12 @@
 package org.apache.iceberg.spark.source;
 
 import com.google.common.collect.Maps;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.ConfigProperties;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.types.Types;
 
@@ -35,9 +36,7 @@ public abstract class IcebergSourceFlatDataBenchmark extends IcebergSourceBenchm
 
   @Override
   protected Configuration initHadoopConf() {
-    Configuration conf = new Configuration();
-    conf.set(ConfigProperties.COMPRESS_METADATA, "true");
-    return conf;
+    return new Configuration();
   }
 
   @Override
@@ -53,6 +52,8 @@ public abstract class IcebergSourceFlatDataBenchmark extends IcebergSourceBenchm
         optional(8, "stringCol", Types.StringType.get()));
     PartitionSpec partitionSpec = PartitionSpec.unpartitioned();
     HadoopTables tables = new HadoopTables(hadoopConf());
-    return tables.create(schema, partitionSpec, Maps.newHashMap(), newTableLocation());
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(TableProperties.METADATA_COMPRESSION, "gzip");
+    return tables.create(schema, partitionSpec, properties, newTableLocation());
   }
 }

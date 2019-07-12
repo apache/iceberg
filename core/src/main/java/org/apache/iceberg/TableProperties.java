@@ -86,6 +86,9 @@ public class TableProperties {
   public static final String MANIFEST_LISTS_ENABLED = "write.manifest-lists.enabled";
   public static final boolean MANIFEST_LISTS_ENABLED_DEFAULT = true;
 
+  public static final String METADATA_COMPRESSION = "write.metadata.compression-codec";
+  public static final String METADATA_COMPRESSION_DEFAULT = "none";
+
   public static final String WRITE_METADATA_TRUNCATE_BYTES = "write.metadata.truncate-length";
   public static final int WRITE_METADATA_TRUNCATE_BYTES_DEFAULT = 16;
 }

@@ -231,6 +231,10 @@ public class TableMetadata {
     return properties;
   }
 
+  public String property(String property, String defaultValue) {
+    return properties.getOrDefault(property, defaultValue);
+  }
+
   public boolean propertyAsBoolean(String property, boolean defaultValue) {
     return PropertyUtil.propertyAsBoolean(properties, property, defaultValue);
   }
