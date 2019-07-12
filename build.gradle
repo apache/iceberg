@@ -390,10 +390,6 @@ project(':iceberg-pig') {
 project(':iceberg-spark-runtime') {
   apply plugin: 'com.github.johnrengelman.shadow'
 
-  shadowJar {
-    from(project.sourceSets.main.output)
-  }
-
   tasks.build.dependsOn tasks.shadowJar
   tasks.install.dependsOn tasks.shadowJar
   tasks.javadocJar.dependsOn tasks.shadowJar
@@ -411,10 +407,13 @@ project(':iceberg-spark-runtime') {
   }
 
   dependencies {
-    compile project(':iceberg-spark')
+    compileOnly project(':iceberg-spark')
   }
 
   shadowJar {
+    // shade compileOnly dependencies to avoid including in transitive dependencies
+    configurations = [project.configurations.compileOnly]
+
     zip64 true
 
     // Relocate dependencies to avoid conflicts
@@ -428,7 +427,7 @@ project(':iceberg-spark-runtime') {
     relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
     relocate 'shaded.parquet', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
     // relocate Avro's jackson dependency to share parquet-jackson locations
-    relocate 'org.codehaus.jackson', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
+    relocate 'org.codehaus.jackson', 'org.apache.iceberg.shaded.org.apache.parquet.shaded.org.codehaus.jackson'
     relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
     relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
 
