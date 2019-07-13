@@ -74,7 +74,8 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
     validateWriteSchema(table.schema(), dsStruct);
-    return Optional.of(new Writer(table, options, mode == SaveMode.Overwrite));
+    String appId = lazySparkSession().sparkContext().applicationId();
+    return Optional.of(new Writer(table, options, mode == SaveMode.Overwrite, appId));
   }
 
   @Override
@@ -89,7 +90,8 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     // Spark 2.4.x passes runId to createStreamWriter instead of real queryId,
     // so we fetch it directly from sparkContext to make writes idempotent
     String queryId = lazySparkSession().sparkContext().getLocalProperty(StreamExecution.QUERY_ID_KEY());
-    return new StreamingWriter(table, options, queryId, mode);
+    String appId = lazySparkSession().sparkContext().applicationId();
+    return new StreamingWriter(table, options, queryId, mode, appId);
   }
 
   protected Table findTable(DataSourceOptions options, Configuration conf) {
