@@ -20,6 +20,7 @@
 package org.apache.iceberg.avro;
 
 import com.google.common.base.Joiner;
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -84,12 +85,12 @@ public class AvroIterable<D> implements CloseableIterable<D> {
 
   @Override
   public Iterator<D> iterator() {
-    checkState(state == State.NEW, "%s is already consumed or closed", this);
+    checkState(state == State.NEW, "%s is closed or has existing unclosed iterator", this);
     state = State.OPEN;
     if (fileReader == null) {
       fileReader = newFileReader();
     }
-    return reuseContainers ? new AvroReuseIterator() : fileReader;
+    return reuseContainers ? new AvroReuseIterator() : new AvroIterator();
   }
 
   @Override
@@ -150,13 +151,38 @@ public class AvroIterable<D> implements CloseableIterable<D> {
     }
   }
 
-  private class AvroReuseIterator implements Iterator<D> {
-    private D reused = null;
-
+  private class AvroIterator implements Iterator<D>, Closeable {
     @Override
     public boolean hasNext() {
-      return fileReader.hasNext();
+      boolean hasNext = fileReader.hasNext();
+      if (!hasNext) {
+        try {
+          close();
+        } catch (IOException e) {
+          throw new RuntimeIOException(e);
+        }
+      }
+      return hasNext;
     }
+
+    @Override
+    public D next() {
+      if (!hasNext()) {
+        throw new NoSuchElementException();
+      }
+      return fileReader.next();
+    }
+
+    @Override
+    public void close() throws IOException {
+      fileReader.close();
+      fileReader = null;
+      state = State.NEW;
+    }
+  }
+
+  private class AvroReuseIterator extends AvroIterator {
+    private D reused = null;
 
     @Override
     public D next() {

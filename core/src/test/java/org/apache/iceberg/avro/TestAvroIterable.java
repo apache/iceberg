@@ -19,7 +19,9 @@
 
 package org.apache.iceberg.avro;
 
+import java.io.Closeable;
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -105,6 +107,17 @@ public class TestAvroIterable {
 
   @Test
   public void iterator() throws Exception {
+    List<Record> actual = new ArrayList<>(expected.size());
+    for (Record record : avroIterable) {
+      actual.add(shouldReuse ? new Record(record, true) : record);
+      try {
+        avroIterable.iterator();
+        fail("Expecting " + IllegalStateException.class.getSimpleName());
+      } catch (IllegalStateException e) {
+        logger.debug("{}", avroIterable, e);
+      }
+    }
+    assertEquals(expected, actual);
     Iterator<Record> iterator = avroIterable.iterator();
     try {
       avroIterable.iterator();
@@ -112,6 +125,8 @@ public class TestAvroIterable {
     } catch (IllegalStateException e) {
       logger.debug("{}", avroIterable, e);
     }
+    ((Closeable) iterator).close();
+    iterator = avroIterable.iterator();
     avroIterable.close();
     // possible bug in DataFileReader as hasNext() and next() do not fail after it was closed
     assertTrue(iterator.hasNext());
