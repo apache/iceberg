@@ -52,6 +52,23 @@ class ProjectionUtil {
     }
   }
 
+  static <T> UnboundPredicate<Integer> truncateStrictToInteger(
+      String name, BoundPredicate<T> pred, Transform<T, Integer> transform) {
+    T boundary = pred.literal().value();
+    switch (pred.op()) {
+      case LT:
+      case LT_EQ:
+        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary) - 1);
+      case GT:
+      case GT_EQ:
+        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary) + 1);
+      case NOT_EQ:
+        return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
+      default:
+        return null;
+    }
+  }
+
   static <T> UnboundPredicate<T> truncateLong(
       String name, BoundPredicate<Long> pred, Transform<Long, T> transform) {
     long boundary = pred.literal().value();
