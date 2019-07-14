@@ -19,11 +19,13 @@
 
 package org.apache.iceberg;
 
+import com.google.common.collect.Sets;
 import java.util.Collection;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.types.TypeUtil;
 
 /**
  * A {@link Table} implementation that exposes a table's manifest entries as rows.
@@ -52,12 +54,18 @@ class ManifestEntriesTable extends BaseMetadataTable {
 
   @Override
   public TableScan newScan() {
-    return new EntriesTableScan(ops, table);
+    return new EntriesTableScan(ops, table, schema());
   }
 
   @Override
   public Schema schema() {
-    return ManifestEntry.getSchema(table.spec().partitionType());
+    Schema schema = ManifestEntry.getSchema(table.spec().partitionType());
+    if (table.spec().fields().size() < 1) {
+      // avoid returning an empty struct, which is not always supported. instead, drop the partition field (id 102)
+      return TypeUtil.selectNot(schema, Sets.newHashSet(102));
+    } else {
+      return schema;
+    }
   }
 
   @Override
@@ -68,8 +76,8 @@ class ManifestEntriesTable extends BaseMetadataTable {
   private static class EntriesTableScan extends BaseTableScan {
     private static final long TARGET_SPLIT_SIZE = 32 * 1024 * 1024; // 32 MB
 
-    EntriesTableScan(TableOperations ops, Table table) {
-      super(ops, table, ManifestEntry.getSchema(table.spec().partitionType()));
+    EntriesTableScan(TableOperations ops, Table table, Schema schema) {
+      super(ops, table, schema);
     }
 
     private EntriesTableScan(

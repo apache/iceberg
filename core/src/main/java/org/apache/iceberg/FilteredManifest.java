@@ -43,6 +43,7 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
   private final ManifestReader reader;
   private final Expression partFilter;
   private final Expression rowFilter;
+  private final Schema fileSchema;
   private final Collection<String> columns;
   private final boolean caseSensitive;
 
@@ -51,37 +52,41 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
   private InclusiveMetricsEvaluator lazyMetricsEvaluator = null;
 
   FilteredManifest(ManifestReader reader, Expression partFilter, Expression rowFilter,
-                   Collection<String> columns, boolean caseSensitive) {
+                   Schema fileSchema, Collection<String> columns, boolean caseSensitive) {
     Preconditions.checkNotNull(reader, "ManifestReader cannot be null");
     this.reader = reader;
     this.partFilter = partFilter;
     this.rowFilter = rowFilter;
+    this.fileSchema = fileSchema;
     this.columns = columns;
     this.caseSensitive = caseSensitive;
   }
 
   @Override
   public FilteredManifest select(Collection<String> selectedColumns) {
-    return new FilteredManifest(reader, partFilter, rowFilter, selectedColumns, caseSensitive);
+    return new FilteredManifest(reader, partFilter, rowFilter, fileSchema, selectedColumns, caseSensitive);
+  }
+
+  @Override
+  public FilteredManifest project(Schema fileProjection) {
+    return new FilteredManifest(reader, partFilter, rowFilter, fileProjection, columns, caseSensitive);
   }
 
   @Override
   public FilteredManifest filterPartitions(Expression expr) {
-    return new FilteredManifest(reader,
-        Expressions.and(partFilter, expr),
-        rowFilter,
-        columns,
-        caseSensitive);
+    return new FilteredManifest(
+        reader, Expressions.and(partFilter, expr), rowFilter, fileSchema, columns, caseSensitive);
   }
 
   @Override
   public FilteredManifest filterRows(Expression expr) {
-    Expression projected = Projections.inclusive(reader.spec(), caseSensitive).project(expr);
-    return new FilteredManifest(reader,
-        Expressions.and(partFilter, projected),
-        Expressions.and(rowFilter, expr),
-        columns,
-        caseSensitive);
+    return new FilteredManifest(
+        reader, partFilter, Expressions.and(rowFilter, expr), fileSchema, columns, caseSensitive);
+  }
+
+  @Override
+  public FilteredManifest caseSensitive(boolean isCaseSensitive) {
+    return new FilteredManifest(reader, partFilter, rowFilter, fileSchema, columns, isCaseSensitive);
   }
 
   CloseableIterable<ManifestEntry> allEntries() {
@@ -90,13 +95,13 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
       Evaluator evaluator = evaluator();
       InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
 
-      return CloseableIterable.filter(reader.entries(columns),
+      return CloseableIterable.filter(reader.entries(projection(fileSchema, columns, caseSensitive)),
           entry -> entry != null &&
               evaluator.eval(entry.file().partition()) &&
               metricsEvaluator.eval(entry.file()));
 
     } else {
-      return reader.entries(columns);
+      return reader.entries(projection(fileSchema, columns, caseSensitive));
     }
   }
 
@@ -106,14 +111,14 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
       Evaluator evaluator = evaluator();
       InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
 
-      return CloseableIterable.filter(reader.entries(columns),
+      return CloseableIterable.filter(reader.entries(projection(fileSchema, columns, caseSensitive)),
           entry -> entry != null &&
               entry.status() != Status.DELETED &&
               evaluator.eval(entry.file().partition()) &&
               metricsEvaluator.eval(entry.file()));
 
     } else {
-      return CloseableIterable.filter(reader.entries(columns),
+      return CloseableIterable.filter(reader.entries(projection(fileSchema, columns, caseSensitive)),
           entry -> entry != null && entry.status() != Status.DELETED);
     }
   }
@@ -133,14 +138,16 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
       boolean dropStats = Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS).isEmpty();
 
       return Iterators.transform(
-          Iterators.filter(reader.iterator(partFilter, projectColumns),
+          Iterators.filter(reader.iterator(partFilter, projection(fileSchema, projectColumns, caseSensitive)),
               input -> input != null &&
                   evaluator.eval(input.partition()) &&
                   metricsEvaluator.eval(input)),
           dropStats ? DataFile::copyWithoutStats : DataFile::copy);
 
     } else {
-      return Iterators.transform(reader.iterator(partFilter, columns), DataFile::copy);
+      return Iterators.transform(
+          reader.iterator(partFilter, projection(fileSchema, columns, caseSensitive)),
+          DataFile::copy);
     }
   }
 
@@ -149,10 +156,24 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
     reader.close();
   }
 
+  private static Schema projection(Schema fileSchema, Collection<String> columns, boolean caseSensitive) {
+    if (columns != null) {
+      if (caseSensitive) {
+        return fileSchema.select(columns);
+      } else {
+        return fileSchema.caseInsensitiveSelect(columns);
+      }
+    }
+
+    return fileSchema;
+  }
+
   private Evaluator evaluator() {
     if (lazyEvaluator == null) {
-      if (partFilter != null) {
-        this.lazyEvaluator = new Evaluator(reader.spec().partitionType(), partFilter, caseSensitive);
+      Expression projected = Projections.inclusive(reader.spec(), caseSensitive).project(rowFilter);
+      Expression finalPartFilter = Expressions.and(projected, partFilter);
+      if (finalPartFilter != null) {
+        this.lazyEvaluator = new Evaluator(reader.spec().partitionType(), finalPartFilter, caseSensitive);
       } else {
         this.lazyEvaluator = new Evaluator(reader.spec().partitionType(), Expressions.alwaysTrue(), caseSensitive);
       }

@@ -20,12 +20,14 @@
 package org.apache.iceberg;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Sets;
 import java.util.Collection;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.types.TypeUtil;
 
 /**
  * A {@link Table} implementation that exposes a table's data files as rows.
@@ -51,12 +53,18 @@ class DataFilesTable extends BaseMetadataTable {
 
   @Override
   public TableScan newScan() {
-    return new FilesTableScan(ops, table);
+    return new FilesTableScan(ops, table, schema());
   }
 
   @Override
   public Schema schema() {
-    return new Schema(DataFile.getType(table.spec().partitionType()).fields());
+    Schema schema = new Schema(DataFile.getType(table.spec().partitionType()).fields());
+    if (table.spec().fields().size() < 1) {
+      // avoid returning an empty struct, which is not always supported. instead, drop the partition field (id 102)
+      return TypeUtil.selectNot(schema, Sets.newHashSet(102));
+    } else {
+      return schema;
+    }
   }
 
   @Override
@@ -66,15 +74,18 @@ class DataFilesTable extends BaseMetadataTable {
 
   public static class FilesTableScan extends BaseTableScan {
     private static final long TARGET_SPLIT_SIZE = 32 * 1024 * 1024; // 32 MB
+    private final Schema fileSchema;
 
-    FilesTableScan(TableOperations ops, Table table) {
-      super(ops, table, ManifestEntry.getSchema(table.spec().partitionType()));
+    FilesTableScan(TableOperations ops, Table table, Schema fileSchema) {
+      super(ops, table, fileSchema);
+      this.fileSchema = fileSchema;
     }
 
     private FilesTableScan(
         TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns) {
+        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns, Schema fileSchema) {
       super(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+      this.fileSchema = fileSchema;
     }
 
     @Override
@@ -82,7 +93,7 @@ class DataFilesTable extends BaseMetadataTable {
         TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
         boolean caseSensitive, boolean colStats, Collection<String> selectedColumns) {
       return new FilesTableScan(
-          ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+          ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, fileSchema);
     }
 
     @Override
@@ -106,25 +117,32 @@ class DataFilesTable extends BaseMetadataTable {
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
 
+      // Data tasks produce the table schema, not the projection schema and projection is done by processing engines.
+      // This data task needs to use the table schema, which may not include a partition schema to avoid having an
+      // empty struct in the schema for unpartitioned tables. Some engines, like Spark, can't handle empty structs in
+      // all cases.
       return CloseableIterable.transform(manifests, manifest ->
           new ManifestReadTask(ops.io(), new BaseFileScanTask(
-              DataFiles.fromManifest(manifest), schemaString, specString, ResidualEvaluator.unpartitioned(rowFilter))));
+              DataFiles.fromManifest(manifest), schemaString, specString, ResidualEvaluator.unpartitioned(rowFilter)),
+              fileSchema));
     }
   }
 
   private static class ManifestReadTask implements DataTask {
     private final FileIO io;
     private final FileScanTask manifestTask;
+    private final Schema schema;
 
-    private ManifestReadTask(FileIO io, FileScanTask manifestTask) {
+    private ManifestReadTask(FileIO io, FileScanTask manifestTask, Schema schema) {
       this.io = io;
       this.manifestTask = manifestTask;
+      this.schema = schema;
     }
 
     @Override
     public CloseableIterable<StructLike> rows() {
       return CloseableIterable.transform(
-          ManifestReader.read(io.newInputFile(manifestTask.file().path().toString())),
+          ManifestReader.read(io.newInputFile(manifestTask.file().path().toString())).project(schema),
           file -> (GenericDataFile) file);
     }
 
