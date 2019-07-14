@@ -80,7 +80,7 @@ enum Timestamps implements Transform<Long, Integer> {
     if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
       return Expressions.predicate(pred.op(), fieldName);
     }
-    return ProjectionUtil.truncateStrictToInteger(fieldName, pred, this);
+    return ProjectionUtil.truncateLongStrictToInteger(fieldName, pred, this);
   }
 
   @Override

@@ -52,16 +52,57 @@ class ProjectionUtil {
     }
   }
 
-  static <T> UnboundPredicate<Integer> truncateStrictToInteger(
-      String name, BoundPredicate<T> pred, Transform<T, Integer> transform) {
-    T boundary = pred.literal().value();
+  static UnboundPredicate<Integer> truncateIntegerStrictToInteger(
+      String name, BoundPredicate<Integer> pred, Transform<Integer, Integer> transform) {
+    Integer boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
-      case LT_EQ:
         return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary) - 1);
+      case LT_EQ:
+        // Checking if the timestamp is at the date boundary
+        if (transform.apply(boundary + 1).equals(transform.apply(boundary))) {
+          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary) - 1);
+        } else {
+          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
+        }
       case GT:
-      case GT_EQ:
         return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary) + 1);
+      case GT_EQ:
+        // Checking if the timestamp is at the date boundary
+        if (transform.apply(boundary - 1).equals(transform.apply(boundary))) {
+          return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary) + 1);
+        } else {
+          return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
+        }
+      case NOT_EQ:
+        return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
+      default:
+        return null;
+    }
+  }
+
+  static UnboundPredicate<Integer> truncateLongStrictToInteger(
+      String name, BoundPredicate<Long> pred, Transform<Long, Integer> transform) {
+    Long boundary = pred.literal().value();
+    switch (pred.op()) {
+      case LT:
+        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary) - 1);
+      case LT_EQ:
+        // Checking if the timestamp is at the date boundary
+        if (transform.apply(boundary + 1L).equals(transform.apply(boundary))) {
+          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary) - 1);
+        } else {
+          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
+        }
+      case GT:
+        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary) + 1);
+      case GT_EQ:
+        // Checking if the timestamp is at the date boundary
+        if (transform.apply(boundary - 1L).equals(transform.apply(boundary))) {
+          return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary) + 1);
+        } else {
+          return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
+        }
       case NOT_EQ:
         return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
       default:

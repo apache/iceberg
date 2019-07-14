@@ -76,7 +76,7 @@ public class TestTimestampsProjection {
 
   @Test
   public void testMonthStrictUpperBound() {
-    Long date = (long) Literal.of("2017-12-31T23:59:59.99999").to(TYPE).value();
+    Long date = (long) Literal.of("2017-12-31T23:59:59.999999").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).month("timestamp").build();
 
     assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT_EQ, "2017-11");
@@ -130,11 +130,11 @@ public class TestTimestampsProjection {
 
   @Test
   public void testDayStrictUpperBound() {
-    Long date = (long) Literal.of("2017-12-01T23:59:59.99999").to(TYPE).value();
+    Long date = (long) Literal.of("2017-12-01T23:59:59.999999").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("timestamp").build();
 
     assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT_EQ, "2017-11-30");
-    // bound should include the same day for lower bound
+    // bound should include the same day for upper bound
     assertProjectionStrict(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT_EQ, "2017-12-01");
     assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2017-12-02");
     assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2017-12-02");
@@ -184,7 +184,7 @@ public class TestTimestampsProjection {
 
   @Test
   public void testYearStrictUpperBound() {
-    Long date = (long) Literal.of("2017-12-31T23:59:59.99999").to(TYPE).value();
+    Long date = (long) Literal.of("2017-12-31T23:59:59.999999").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).year("timestamp").build();
 
     assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT_EQ, "2016");
@@ -232,14 +232,14 @@ public class TestTimestampsProjection {
     assertProjectionStrict(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT_EQ, "2017-12-01-09");
     assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2017-12-01-11");
     // bound should include the same hour for lower bound
-    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2017-12-01-11");
+    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2017-12-01-10");
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017-12-01-10");
 
   }
 
   @Test
   public void testHourStrictUpperBound() {
-    Long date = (long) Literal.of("2017-12-01T10:59:59.99999").to(TYPE).value();
+    Long date = (long) Literal.of("2017-12-01T10:59:59.999999").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).hour("timestamp").build();
 
     assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT_EQ, "2017-12-01-09");
