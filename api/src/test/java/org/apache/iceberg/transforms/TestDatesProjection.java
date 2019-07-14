@@ -29,7 +29,7 @@ public class TestDatesProjection {
     Literal literal = predicate.literal();
     Dates transform = (Dates) spec.getFieldsBySourceId(1).get(0).transform();
     String output = transform.toHumanString((int) literal.value());
-    Assert.assertEquals(output, expectedLiteral);
+    Assert.assertEquals(expectedLiteral, output);
 
   }
 
@@ -42,7 +42,7 @@ public class TestDatesProjection {
     Literal literal = predicate.literal();
     Dates transform = (Dates) spec.getFieldsBySourceId(1).get(0).transform();
     String output = transform.toHumanString((int) literal.value());
-    Assert.assertEquals(output, expectedLiteral);
+    Assert.assertEquals(expectedLiteral, output);
 
   }
 
