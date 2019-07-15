@@ -57,22 +57,32 @@ class ProjectionUtil {
     Integer boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
-        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary) - 1);
-      case LT_EQ:
-        // Checking if the timestamp is at the date boundary
-        if (transform.apply(boundary + 1).equals(transform.apply(boundary))) {
+        // Checking if the date is at the lower boundary
+        if (!transform.apply(boundary - 1).equals(transform.apply(boundary))) {
           return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary) - 1);
         } else {
+          return null;
+        }
+      case LT_EQ:
+        // Checking if the date is at the upper boundary
+        if (!transform.apply(boundary + 1).equals(transform.apply(boundary))) {
           return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
+        } else {
+          return null;
         }
       case GT:
-        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary) + 1);
-      case GT_EQ:
-        // Checking if the timestamp is at the date boundary
-        if (transform.apply(boundary - 1).equals(transform.apply(boundary))) {
+        // Checking if the date is at the upper boundary
+        if (!transform.apply(boundary + 1).equals(transform.apply(boundary))) {
           return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary) + 1);
         } else {
+          return null;
+        }
+      case GT_EQ:
+        // Checking if the date is at the lower boundary
+        if (!transform.apply(boundary - 1).equals(transform.apply(boundary))) {
           return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
+        } else {
+          return null;
         }
       case NOT_EQ:
         return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
@@ -86,22 +96,32 @@ class ProjectionUtil {
     Long boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
-        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary) - 1);
-      case LT_EQ:
-        // Checking if the timestamp is at the date boundary
-        if (transform.apply(boundary + 1L).equals(transform.apply(boundary))) {
+        // Checking if the timestamp is at the lower boundary
+        if (!transform.apply(boundary - 1L).equals(transform.apply(boundary))) {
           return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary) - 1);
         } else {
+          return null;
+        }
+      case LT_EQ:
+        // Checking if the timestamp is at the upper boundary
+        if (!transform.apply(boundary + 1L).equals(transform.apply(boundary))) {
           return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
+        } else {
+          return null;
         }
       case GT:
-        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary) + 1);
-      case GT_EQ:
-        // Checking if the timestamp is at the date boundary
-        if (transform.apply(boundary - 1L).equals(transform.apply(boundary))) {
+        // Checking if the timestamp is at the upper boundary
+        if (!transform.apply(boundary + 1L).equals(transform.apply(boundary))) {
           return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary) + 1);
         } else {
+          return null;
+        }
+      case GT_EQ:
+        // Checking if the timestamp is at the lower boundary
+        if (!transform.apply(boundary - 1L).equals(transform.apply(boundary))) {
           return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
+        } else {
+          return null;
         }
       case NOT_EQ:
         return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
