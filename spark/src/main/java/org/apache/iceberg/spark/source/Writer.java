@@ -39,6 +39,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Metrics;
+import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PendingUpdate;
 import org.apache.iceberg.ReplacePartitions;
@@ -251,12 +252,14 @@ class Writer implements DataSourceWriter {
       @Override
       public FileAppender<InternalRow> newAppender(OutputFile file, FileFormat fileFormat) {
         Schema schema = spec.schema();
+        MetricsConfig metricsConfig = MetricsConfig.fromProperties(properties);
         try {
           switch (fileFormat) {
             case PARQUET:
               return Parquet.write(file)
                   .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(schema, msgType))
                   .setAll(properties)
+                  .metricsConfig(metricsConfig)
                   .schema(schema)
                   .build();
 

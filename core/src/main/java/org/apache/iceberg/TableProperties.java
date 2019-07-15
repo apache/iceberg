@@ -89,6 +89,6 @@ public class TableProperties {
   public static final String METADATA_COMPRESSION = "write.metadata.compression-codec";
   public static final String METADATA_COMPRESSION_DEFAULT = "none";
 
-  public static final String WRITE_METADATA_TRUNCATE_BYTES = "write.metadata.truncate-length";
-  public static final int WRITE_METADATA_TRUNCATE_BYTES_DEFAULT = 16;
+  public static final String DEFAULT_WRITE_METRICS_MODE = "write.metadata.metrics.default";
+  public static final String DEFAULT_WRITE_METRICS_MODE_DEFAULT = "truncate(16)";
 }
