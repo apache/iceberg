@@ -97,7 +97,7 @@ public class TestDatesProjection {
   }
 
   @Test
-  public void testDayStrictLowerBound() {
+  public void testDayStrict() {
     Integer date = (Integer) Literal.of("2017-01-01").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("date").build();
 
@@ -108,21 +108,6 @@ public class TestDatesProjection {
     // should be the same date for >=
     assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017-01-01");
     assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_EQ, "2017-01-01");
-
-  }
-
-  @Test
-  public void testDayStrictUpperBound() {
-    Integer date = (Integer) Literal.of("2017-12-31").to(TYPE).value();
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("date").build();
-
-    assertProjectionStrict(spec, lessThan("date", date), Expression.Operation.LT_EQ, "2017-12-30");
-    // should be the same date for <=
-    assertProjectionStrict(spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "2017-12-31");
-    assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "2018-01-01");
-    // should be the same date for >=
-    assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017-12-31");
-    assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_EQ, "2017-12-31");
 
   }
 
