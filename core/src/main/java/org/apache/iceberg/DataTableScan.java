@@ -81,15 +81,15 @@ public class DataTableScan extends BaseTableScan {
     Iterable<CloseableIterable<FileScanTask>> readers = Iterables.transform(
         matchingManifests,
         manifest -> {
-          ManifestReader reader = ManifestReader
-              .read(ops.io().newInputFile(manifest.path()), ops.current()::spec)
-              .caseSensitive(caseSensitive);
+          ManifestReader reader = ManifestReader.read(ops.io().newInputFile(manifest.path()), ops.current()::spec);
           PartitionSpec spec = ops.current().spec(manifest.partitionSpecId());
           String schemaString = SchemaParser.toJson(spec.schema());
           String specString = PartitionSpecParser.toJson(spec);
           ResidualEvaluator residuals = ResidualEvaluator.of(spec, rowFilter, caseSensitive);
           return CloseableIterable.transform(
-              reader.filterRows(rowFilter).select(colStats ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS),
+              reader.filterRows(rowFilter)
+                  .caseSensitive(caseSensitive)
+                  .select(colStats ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS),
               file -> new BaseFileScanTask(file, schemaString, specString, residuals)
           );
         });

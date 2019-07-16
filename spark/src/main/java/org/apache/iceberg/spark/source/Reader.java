@@ -506,9 +506,10 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
 
     private CloseableIterable<InternalRow> newDataIterable(DataTask task, Schema readSchema) {
       StructInternalRow row = new StructInternalRow(tableSchema.asStruct());
-      Iterable<InternalRow> asSparkRows = Iterables.transform(task.asDataTask().rows(), row::setStruct);
-      return CloseableIterable.withNoopClose(
-          Iterables.transform(asSparkRows, APPLY_PROJECTION.bind(projection(readSchema, tableSchema))::invoke));
+      CloseableIterable<InternalRow> asSparkRows = CloseableIterable.transform(
+          task.asDataTask().rows(), row::setStruct);
+      return CloseableIterable.transform(
+          asSparkRows, APPLY_PROJECTION.bind(projection(readSchema, tableSchema))::invoke);
     }
   }
 
