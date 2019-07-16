@@ -70,7 +70,7 @@ public class SparkSchemaUtil {
    *
    * @param spark a Spark session
    * @param name a table name and (optional) database
-   * @return a PartitionSpec for the table, if found
+   * @return a PartitionSpec for the table
    * @throws AnalysisException if thrown by the Spark catalog
    */
   public static PartitionSpec specForTable(SparkSession spark, String name) throws AnalysisException {
@@ -78,9 +78,10 @@ public class SparkSchemaUtil {
     String db = parts.size() == 1 ? "default" : parts.get(0);
     String table = parts.get(parts.size() == 1 ? 0 : 1);
 
-    return identitySpec(
+    PartitionSpec spec = identitySpec(
         schemaForTable(spark, name),
         spark.catalog().listColumns(db, table).collectAsList());
+    return spec == null ? PartitionSpec.unpartitioned() : spec;
   }
 
   /**
