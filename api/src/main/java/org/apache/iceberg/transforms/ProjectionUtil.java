@@ -52,25 +52,35 @@ class ProjectionUtil {
     }
   }
 
-  static UnboundPredicate<Integer> truncateIntegerStrictToInteger(
-      String name, BoundPredicate<Integer> pred, Transform<Integer, Integer> transform) {
-    Integer boundary = pred.literal().value();
+  static <T> UnboundPredicate<T> truncateIntegerStrict(
+      String name, BoundPredicate<Integer> pred, Transform<Integer, T> transform) {
+    int boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
-        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary) - 1);
+        // Checking if the literal is at the lower partition boundary
+        if (transform.apply(boundary - 1).equals(transform.apply(boundary))) {
+          return predicate(Expression.Operation.LT, name, transform.apply(boundary - 1));
+        } else {
+          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary - 1));
+        }
       case LT_EQ:
-        // Checking if the timestamp is at the date boundary
+        // Checking if the literal is at the upper partition boundary
         if (transform.apply(boundary + 1).equals(transform.apply(boundary))) {
-          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary) - 1);
+          return predicate(Expression.Operation.LT, name, transform.apply(boundary));
         } else {
           return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
         }
       case GT:
-        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary) + 1);
+        // Checking if the literal is at the upper partition boundary
+        if (transform.apply(boundary + 1).equals(transform.apply(boundary))) {
+          return predicate(Expression.Operation.GT, name, transform.apply(boundary + 1));
+        } else {
+          return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary + 1));
+        }
       case GT_EQ:
-        // Checking if the timestamp is at the date boundary
+        // Checking if the literal is at the lower partition boundary
         if (transform.apply(boundary - 1).equals(transform.apply(boundary))) {
-          return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary) + 1);
+          return predicate(Expression.Operation.GT, name, transform.apply(boundary));
         } else {
           return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
         }
@@ -81,25 +91,35 @@ class ProjectionUtil {
     }
   }
 
-  static UnboundPredicate<Integer> truncateLongStrictToInteger(
-      String name, BoundPredicate<Long> pred, Transform<Long, Integer> transform) {
-    Long boundary = pred.literal().value();
+  static <T> UnboundPredicate<T> truncateLongStrict(
+      String name, BoundPredicate<Long> pred, Transform<Long, T> transform) {
+    long boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
-        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary) - 1);
+        // Checking if the literal is at the lower partition boundary
+        if (transform.apply(boundary - 1L).equals(transform.apply(boundary))) {
+          return predicate(Expression.Operation.LT, name, transform.apply(boundary - 1L));
+        } else {
+          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary - 1L));
+        }
       case LT_EQ:
-        // Checking if the timestamp is at the date boundary
+        // Checking if the literal is at the upper partition boundary
         if (transform.apply(boundary + 1L).equals(transform.apply(boundary))) {
-          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary) - 1);
+          return predicate(Expression.Operation.LT, name, transform.apply(boundary));
         } else {
           return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
         }
       case GT:
-        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary) + 1);
+        // Checking if the literal is at the upper partition boundary
+        if (transform.apply(boundary + 1L).equals(transform.apply(boundary))) {
+          return predicate(Expression.Operation.GT, name, transform.apply(boundary + 1L));
+        } else {
+          return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary + 1L));
+        }
       case GT_EQ:
-        // Checking if the timestamp is at the date boundary
+        // Checking if the literal is at the lower partition boundary
         if (transform.apply(boundary - 1L).equals(transform.apply(boundary))) {
-          return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary) + 1);
+          return predicate(Expression.Operation.GT, name, transform.apply(boundary));
         } else {
           return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
         }
