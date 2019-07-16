@@ -41,9 +41,9 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.PendingUpdate;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -86,13 +86,15 @@ class Writer implements DataSourceWriter {
   private final FileIO fileIo;
   private final EncryptionManager encryptionManager;
   private final boolean replacePartitions;
+  private final String applicationId;
 
-  Writer(Table table, DataSourceOptions options, boolean replacePartitions) {
+  Writer(Table table, DataSourceOptions options, boolean replacePartitions, String applicationId) {
     this.table = table;
     this.format = getFileFormat(table.properties(), options);
     this.fileIo = table.io();
     this.encryptionManager = table.encryption();
     this.replacePartitions = replacePartitions;
+    this.applicationId = applicationId;
   }
 
   private FileFormat getFileFormat(Map<String, String> tableProperties, DataSourceOptions options) {
@@ -117,8 +119,11 @@ class Writer implements DataSourceWriter {
     }
   }
 
-  protected void commitOperation(PendingUpdate<?> operation, int numFiles, String description) {
+  protected void commitOperation(SnapshotUpdate<?> operation, int numFiles, String description) {
     LOG.info("Committing {} with {} files to table {}", description, numFiles, table);
+    if (applicationId != null) {
+      operation.set("spark.app.id", applicationId);
+    }
     long start = System.currentTimeMillis();
     operation.commit(); // abort is automatically called if this fails
     long duration = System.currentTimeMillis() - start;
