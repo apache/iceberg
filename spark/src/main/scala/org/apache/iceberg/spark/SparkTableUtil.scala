@@ -57,6 +57,26 @@ object SparkTableUtil {
   }
 
   /**
+    * Returns a DataFrame with a row for each partition that matches the specified 'expression'.
+    *
+    * @param spark a Spark session.
+    * @param table name of the table.
+    * @param expression The expression whose matching partitions are returned.
+    * @return a DataFrame of the table partitions.
+    */
+  def partitionDFByFilter(spark: SparkSession, table: String, expression: String): DataFrame = {
+    import spark.implicits._
+
+    val expr = spark.sessionState.sqlParser.parseExpression(expression)
+    val partitions: Seq[(Map[String, String], Option[String], Option[String])] =
+      Hive.partitionsByFilter(spark, table, expr).map { p: CatalogTablePartition =>
+        (p.spec, p.storage.locationUri.map(String.valueOf(_)), p.storage.serde)
+      }
+
+    partitions.toDF("partition", "uri", "format")
+  }
+
+  /**
    * Returns the data files in a partition by listing the partition location.
    *
    * For Parquet partitions, this will read metrics from the file footer. For Avro partitions,
