@@ -19,17 +19,24 @@
 
 package org.apache.iceberg;
 
-import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.io.CloseableIterable;
 
-public class ConfigProperties {
-
-  private ConfigProperties() {}
-
-  public static final String COMPRESS_METADATA = "iceberg.compress.metadata";
-  public static final boolean COMPRESS_METADATA_DEFAULT = false;
-
-  public static final boolean shouldCompress(Configuration configuration) {
-    return configuration.getBoolean(COMPRESS_METADATA, COMPRESS_METADATA_DEFAULT);
+/**
+ * A task that returns data as {@link StructLike rows} instead of where to read data.
+ */
+public interface DataTask extends FileScanTask {
+  @Override
+  default boolean isDataTask() {
+    return true;
   }
 
+  @Override
+  default DataTask asDataTask() {
+    return this;
+  }
+
+  /**
+   * @return an iterable of {@link StructLike} rows
+   */
+  CloseableIterable<StructLike> rows();
 }

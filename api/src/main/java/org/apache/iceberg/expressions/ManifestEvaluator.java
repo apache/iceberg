@@ -25,7 +25,6 @@ import org.apache.iceberg.Accessors;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
@@ -36,15 +35,14 @@ import static org.apache.iceberg.expressions.Expressions.rewriteNot;
  * Evaluates an {@link Expression} on a {@link ManifestFile} to test whether the file contains
  * matching partitions.
  * <p>
- * This evaluation is inclusive: it returns true if a file may match and false if it cannot match.
+ * For row expressions, evaluation is inclusive: it returns true if a file may match and false if it cannot match.
  * <p>
  * Files are passed to {@link #eval(ManifestFile)}, which returns true if the manifest may contain
  * data files that match the partition expression. Manifest files may be skipped if and only if the
  * return value of {@code eval} is false.
  */
-public class InclusiveManifestEvaluator {
+public class ManifestEvaluator {
   private final StructType struct;
-  private final Schema schema;
   private final Expression expr;
   private transient ThreadLocal<ManifestEvalVisitor> visitors = null;
 
@@ -55,17 +53,18 @@ public class InclusiveManifestEvaluator {
     return visitors.get();
   }
 
-  public InclusiveManifestEvaluator(PartitionSpec spec, Expression rowFilter) {
-    this(spec, rowFilter, true);
+  public static ManifestEvaluator forRowFilter(Expression rowFilter, PartitionSpec spec, boolean caseSensitive) {
+    return new ManifestEvaluator(spec, Projections.inclusive(spec, caseSensitive).project(rowFilter), caseSensitive);
   }
 
-  public InclusiveManifestEvaluator(PartitionSpec spec, Expression rowFilter, boolean caseSensitive) {
+  public static ManifestEvaluator forPartitionFilter(
+      Expression partitionFilter, PartitionSpec spec, boolean caseSensitive) {
+    return new ManifestEvaluator(spec, partitionFilter, caseSensitive);
+  }
+
+  private ManifestEvaluator(PartitionSpec spec, Expression partitionFilter, boolean caseSensitive) {
     this.struct = spec.partitionType();
-    this.expr = Binder.bind(
-      struct,
-      rewriteNot(Projections.inclusive(spec, caseSensitive).project(rowFilter)),
-      caseSensitive);
-    this.schema = new Schema(struct.fields());
+    this.expr = Binder.bind(struct, rewriteNot(partitionFilter), caseSensitive);
   }
 
   /**

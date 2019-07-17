@@ -43,8 +43,8 @@ public class StreamingWriter extends Writer implements StreamWriter {
   private final String queryId;
   private final OutputMode mode;
 
-  StreamingWriter(Table table, DataSourceOptions options, String queryId, OutputMode mode) {
-    super(table, options, false);
+  StreamingWriter(Table table, DataSourceOptions options, String queryId, OutputMode mode, String applicationId) {
+    super(table, options, false, applicationId);
     this.queryId = queryId;
     this.mode = mode;
   }

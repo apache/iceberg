@@ -166,7 +166,7 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
         new Schema(DataFile.getType(partitionType).fields()).select(columns).asStruct());
   }
 
-  private static Schema wrapFileSchema(StructType fileStruct) {
+  static Schema wrapFileSchema(StructType fileStruct) {
     // ids for top-level columns are assigned from 1000
     return new Schema(
         required(0, "status", IntegerType.get()),

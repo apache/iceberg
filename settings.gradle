@@ -29,7 +29,6 @@ include 'arrow'
 include 'pig'
 include 'runtime'
 include 'hive'
-include 'presto-runtime'
 
 project(':api').name = 'iceberg-api'
 project(':common').name = 'iceberg-common'
@@ -42,6 +41,4 @@ project(':arrow').name = 'iceberg-arrow'
 project(':pig').name = 'iceberg-pig'
 project(':runtime').name = 'iceberg-spark-runtime'
 project(':hive').name = 'iceberg-hive'
-project(':presto-runtime').name = 'iceberg-presto-runtime'
-
 

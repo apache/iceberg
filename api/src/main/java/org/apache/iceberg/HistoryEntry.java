@@ -17,65 +17,22 @@
  * under the License.
  */
 
-.navbar-brand:before {
-  content: '';
-  display: block;
-  background: url("/img/favicon-96x96.png") no-repeat;
-  background-size: cover;
-  width: 1.3em;
-  height: 1.3em;
-  margin-left: -1.6em;
-  float: left;
-}
+package org.apache.iceberg;
 
-.floating {
-  float: right;
-}
+/**
+ * Table history entry.
+ * <p>
+ * An entry contains a change to the table state. At the given timestamp, the current snapshot was
+ * set to the given snapshot ID.
+ */
+public interface HistoryEntry {
+  /**
+   * @return the timestamp in milliseconds of the change
+   */
+  long timestampMillis();
 
-.headerlink {
-  padding-left: 1em;
-  opacity: 0;
-}
-
-h2:target .headerlink {
-  color: #008cba;
-  opacity: 1;
-}
-
-h3:target .headerlink {
-  color: #008cba;
-  opacity: 1;
-}
-
-h4 {
-  font-weight: 500;
-  font-size: 22px;
-}
-
-h4:target .headerlink {
-  color: #008cba;
-  opacity: 1;
-}
-
-h5:target .headerlink {
-  color: #008cba;
-  opacity: 1;
-}
-
-code {
-  color: #458;
-}
-
-pre {
-  width: max-content;
-  min-width: 60em;
-  margin-top: 0.5em;
-  margin-bottom: 0.5em;
-}
-
-.admonition {
-  margin: 0.5em;
-  margin-left: 0em;
-  padding: 0.5em;
-  padding-left: 1em;
+  /**
+   * @return ID of the new current snapshot
+   */
+  long snapshotId();
 }

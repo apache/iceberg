@@ -312,7 +312,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
   @Test
   public void testRenameReturnFalse() throws Exception {
     FileSystem mockFs = mock(FileSystem.class);
-    when(mockFs.exists(any())).thenReturn(false);
+    when(mockFs.exists(any())).thenReturn(true, false);
     when(mockFs.rename(any(), any())).thenReturn(false);
     testRenameWithFileSystem(mockFs);
   }
@@ -320,7 +320,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
   @Test
   public void testRenameThrow() throws Exception {
     FileSystem mockFs = mock(FileSystem.class);
-    when(mockFs.exists(any())).thenReturn(false);
+    when(mockFs.exists(any())).thenReturn(true, false);
     when(mockFs.rename(any(), any())).thenThrow(new IOException("test injected"));
     testRenameWithFileSystem(mockFs);
   }

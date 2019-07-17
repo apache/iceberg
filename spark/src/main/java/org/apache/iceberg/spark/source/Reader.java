@@ -36,6 +36,7 @@ import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
@@ -438,27 +439,31 @@ class Reader implements DataSourceReader,
     }
 
     private Iterator<InternalRow> open(FileScanTask task, Schema readSchema) {
-      InputFile location = inputFiles.get(task.file().path().toString());
-      Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
       CloseableIterable<InternalRow> iter;
-      // LOG.info("[Reader] File format "+task.file().format());
-      switch (task.file().format()) {
-        case PARQUET:
-          // LOG.info("[Reader] Returning Parquet Iterable ..");
-          iter = newParquetIterable(location, task, readSchema);
-          break;
+      if (task.isDataTask()) {
+        iter = newDataIterable(task.asDataTask(), readSchema);
 
-        case AVRO:
-          iter = newAvroIterable(location, task, readSchema);
-          break;
+      } else {
+        InputFile location = inputFiles.get(task.file().path().toString());
+        Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
 
-        case ORC:
-          iter = newOrcIterable(location, task, readSchema);
-          break;
+        switch (task.file().format()) {
+          case PARQUET:
+            iter = newParquetIterable(location, task, readSchema);
+            break;
 
-        default:
-          throw new UnsupportedOperationException(
-              "Cannot read unknown format: " + task.file().format());
+          case AVRO:
+            iter = newAvroIterable(location, task, readSchema);
+            break;
+
+          case ORC:
+            iter = newOrcIterable(location, task, readSchema);
+            break;
+
+          default:
+            throw new UnsupportedOperationException(
+                "Cannot read unknown format: " + task.file().format());
+        }
       }
 
       this.currentCloseable = iter;
@@ -521,6 +526,14 @@ class Reader implements DataSourceReader,
           .createReaderFunc(SparkOrcReader::new)
           .caseSensitive(caseSensitive)
           .build();
+    }
+
+    private CloseableIterable<InternalRow> newDataIterable(DataTask task, Schema readSchema) {
+      StructInternalRow row = new StructInternalRow(tableSchema.asStruct());
+      CloseableIterable<InternalRow> asSparkRows = CloseableIterable.transform(
+          task.asDataTask().rows(), row::setStruct);
+      return CloseableIterable.transform(
+          asSparkRows, APPLY_PROJECTION.bind(projection(readSchema, tableSchema))::invoke);
     }
   }
 
