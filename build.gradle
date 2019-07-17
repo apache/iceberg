@@ -222,6 +222,14 @@ project(':iceberg-core') {
     compile("org.apache.avro:avro") {
       exclude group: 'org.tukaani' // xz compression is not supported
     }
+    compile("org.apache.arrow:arrow-vector") {
+      exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'io.netty', module: 'netty-common'
+    }
+    compileOnly("org.apache.spark:spark-hive_2.11") {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
+
 
     compile "com.fasterxml.jackson.core:jackson-databind"
     compile "com.fasterxml.jackson.core:jackson-core"
