@@ -53,11 +53,6 @@
             <property name="onCommentFormat" value="CHECKSTYLE.ON\: ([\w\|]+)"/>
             <property name="checkFormat" value="$1"/>
         </module>
-        <module name="AbbreviationAsWordInName"> <!-- Java Style Guide: Camel case : defined -->
-            <property name="ignoreFinal" value="false"/>
-            <property name="allowedAbbreviationLength" value="1"/>
-            <property name="allowedAbbreviations" value="ID,UUID,UTC,IO"/>
-        </module>
         <module name="AnnotationLocation"> <!-- Java Style Guide: Annotations -->
             <property name="tokens" value="CLASS_DEF, INTERFACE_DEF, ENUM_DEF, METHOD_DEF, CTOR_DEF"/>
         </module>
@@ -90,7 +85,8 @@
                 org.apache.iceberg.types.Types.NestedField.*,
                 org.apache.iceberg.TableProperties.*,
                 org.apache.iceberg.types.Type.*,
-                org.junit.Assert.*"/>
+                org.junit.Assert.*,
+                org.apache.spark.sql.functions.*"/>
         </module>
         <module name="ClassTypeParameterName"> <!-- Java Style Guide: Type variable names -->
             <property name="format" value="(^[A-Z][0-9]?)$|([A-Z][a-zA-Z0-9]*[T]$)"/>
@@ -106,7 +102,7 @@
         </module>
         <module name="EmptyForInitializerPad"/> <!-- Java Style Guide: Horizontal whitespace -->
         <module name="EmptyLineSeparator"> <!-- Java Style Guide: Source file structure -->
-            <property name="tokens" value="IMPORT, CLASS_DEF, ENUM_DEF, INTERFACE_DEF, CTOR_DEF, STATIC_INIT, INSTANCE_INIT, VARIABLE_DEF"/>
+            <property name="tokens" value="PACKAGE_DEF, IMPORT, CLASS_DEF, ENUM_DEF, INTERFACE_DEF, CTOR_DEF, STATIC_INIT, INSTANCE_INIT, VARIABLE_DEF"/>
             <property name="allowNoEmptyLineBetweenFields" value="true"/>
         </module>
         <module name="EmptyStatement"/> <!-- Java Style Guide: One statement per line -->

@@ -32,7 +32,6 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
@@ -96,9 +95,9 @@ public class TestPartitionValues {
 
   @AfterClass
   public static void stopSpark() {
-    SparkSession spark = TestPartitionValues.spark;
+    SparkSession currentSpark = TestPartitionValues.spark;
     TestPartitionValues.spark = null;
-    spark.stop();
+    currentSpark.stop();
   }
 
   @Rule

@@ -55,10 +55,10 @@ public class PartitionSpec implements Serializable {
   // this is ordered so that DataFile has a consistent schema
   private final int specId;
   private final PartitionField[] fields;
-  private transient ListMultimap<Integer, PartitionField> fieldsBySourceId = null;
-  private transient Map<String, PartitionField> fieldsByName = null;
-  private transient Class<?>[] lazyJavaClasses = null;
-  private transient List<PartitionField> fieldList = null;
+  private transient volatile ListMultimap<Integer, PartitionField> fieldsBySourceId = null;
+  private transient volatile Map<String, PartitionField> fieldsByName = null;
+  private transient volatile Class<?>[] lazyJavaClasses = null;
+  private transient volatile List<PartitionField> fieldList = null;
 
   private PartitionSpec(Schema schema, int specId, List<PartitionField> fields) {
     this.schema = schema;
@@ -118,12 +118,18 @@ public class PartitionSpec implements Serializable {
 
   public Class<?>[] javaClasses() {
     if (lazyJavaClasses == null) {
-      this.lazyJavaClasses = new Class<?>[fields.length];
-      for (int i = 0; i < fields.length; i += 1) {
-        PartitionField field = fields[i];
-        Type sourceType = schema.findType(field.sourceId());
-        Type result = field.transform().getResultType(sourceType);
-        lazyJavaClasses[i] = result.typeId().javaClass();
+      synchronized (this) {
+        if (lazyJavaClasses == null) {
+          Class<?>[] classes = new Class<?>[fields.length];
+          for (int i = 0; i < fields.length; i += 1) {
+            PartitionField field = fields[i];
+            Type sourceType = schema.findType(field.sourceId());
+            Type result = field.transform().getResultType(sourceType);
+            classes[i] = result.typeId().javaClass();
+          }
+
+          this.lazyJavaClasses = classes;
+        }
       }
     }
 
@@ -209,18 +215,26 @@ public class PartitionSpec implements Serializable {
 
   private List<PartitionField> lazyFieldList() {
     if (fieldList == null) {
-      this.fieldList = ImmutableList.copyOf(fields);
+      synchronized (this) {
+        if (fieldList == null) {
+          this.fieldList = ImmutableList.copyOf(fields);
+        }
+      }
     }
     return fieldList;
   }
 
   private Map<String, PartitionField> lazyFieldsByName() {
     if (fieldsByName == null) {
-      ImmutableMap.Builder<String, PartitionField> builder = ImmutableMap.builder();
-      for (PartitionField field : fields) {
-        builder.put(field.name(), field);
+      synchronized (this) {
+        if (fieldsByName == null) {
+          ImmutableMap.Builder<String, PartitionField> builder = ImmutableMap.builder();
+          for (PartitionField field : fields) {
+            builder.put(field.name(), field);
+          }
+          this.fieldsByName = builder.build();
+        }
       }
-      this.fieldsByName = builder.build();
     }
 
     return fieldsByName;
@@ -228,10 +242,15 @@ public class PartitionSpec implements Serializable {
 
   private ListMultimap<Integer, PartitionField> lazyFieldsBySourceId() {
     if (fieldsBySourceId == null) {
-      this.fieldsBySourceId = Multimaps
-          .newListMultimap(Maps.newHashMap(), () -> Lists.newArrayListWithCapacity(fields.length));
-      for (PartitionField field : fields) {
-        fieldsBySourceId.put(field.sourceId(), field);
+      synchronized (this) {
+        if (fieldsBySourceId == null) {
+          ListMultimap<Integer, PartitionField> multiMap = Multimaps
+              .newListMultimap(Maps.newHashMap(), () -> Lists.newArrayListWithCapacity(fields.length));
+          for (PartitionField field : fields) {
+            multiMap.put(field.sourceId(), field);
+          }
+          this.fieldsBySourceId = multiMap;
+        }
       }
     }
 

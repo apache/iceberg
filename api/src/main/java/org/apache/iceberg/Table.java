@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
@@ -79,11 +80,26 @@ public interface Table {
   Snapshot currentSnapshot();
 
   /**
+   * Get the {@link Snapshot snapshot} of this table with the given id, or null if there is no
+   * matching snapshot.
+   *
+   * @return the {@link Snapshot} with the given id.
+   */
+  Snapshot snapshot(long snapshotId);
+
+  /**
    * Get the {@link Snapshot snapshots} of this table.
    *
    * @return an Iterable of snapshots of this table.
    */
   Iterable<Snapshot> snapshots();
+
+  /**
+   * Get the snapshot history of this table.
+   *
+   * @return a list of {@link HistoryEntry history entries}
+   */
+  List<HistoryEntry> history();
 
   /**
    * Create a new {@link UpdateSchema} to alter the columns of this table and commit the change.

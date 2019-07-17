@@ -20,10 +20,11 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Objects;
+import com.google.common.base.Preconditions;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.hadoop.HadoopFileIO;
-import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
@@ -94,15 +95,22 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     if (!Objects.equal(currentMetadataLocation, newLocation)) {
       LOG.info("Refreshing table metadata from new version: {}", newLocation);
 
+      AtomicReference<TableMetadata> newMetadata = new AtomicReference<>();
       Tasks.foreach(newLocation)
           .retry(numRetries).exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */)
           .suppressFailureWhenFinished()
-          .run(metadataLocation -> {
-            this.currentMetadata = TableMetadataParser.read(
-                this, HadoopInputFile.fromLocation(metadataLocation, conf));
-            this.currentMetadataLocation = metadataLocation;
-            this.version = parseVersion(metadataLocation);
-          });
+          .run(metadataLocation -> newMetadata.set(
+              TableMetadataParser.read(this, io().newInputFile(metadataLocation))));
+
+      String newUUID = newMetadata.get().uuid();
+      if (currentMetadata != null) {
+        Preconditions.checkState(newUUID == null || newUUID.equals(currentMetadata.uuid()),
+            "Table UUID does not match: current=%s != refreshed=%s", currentMetadata.uuid(), newUUID);
+      }
+
+      this.currentMetadata = newMetadata.get();
+      this.currentMetadataLocation = newLocation;
+      this.version = parseVersion(newLocation);
     }
     this.shouldRefresh = false;
   }
@@ -134,8 +142,10 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   }
 
   private String newTableMetadataFilePath(TableMetadata meta, int newVersion) {
-    return metadataFileLocation(meta,
-        String.format("%05d-%s%s", newVersion, UUID.randomUUID(), TableMetadataParser.getFileExtension(this.conf)));
+    String codecName = meta.property(
+        TableProperties.METADATA_COMPRESSION, TableProperties.METADATA_COMPRESSION_DEFAULT);
+    String fileExtension = TableMetadataParser.getFileExtension(codecName);
+    return metadataFileLocation(meta, String.format("%05d-%s%s", newVersion, UUID.randomUUID(), fileExtension));
   }
 
   private static int parseVersion(String metadataLocation) {

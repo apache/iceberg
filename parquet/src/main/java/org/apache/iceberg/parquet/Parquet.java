@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.function.Function;
 import com.google.common.collect.Sets;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
@@ -83,6 +84,7 @@ public class Parquet {
     private Map<String, String> metadata = Maps.newLinkedHashMap();
     private Map<String, String> config = Maps.newLinkedHashMap();
     private Function<MessageType, ParquetValueWriter<?>> createWriterFunc = null;
+    private MetricsConfig metricsConfig = MetricsConfig.getDefault();
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
@@ -91,6 +93,7 @@ public class Parquet {
     public WriteBuilder forTable(Table table) {
       schema(table.schema());
       setAll(table.properties());
+      metricsConfig(MetricsConfig.fromProperties(table.properties()));
       return this;
     }
 
@@ -127,6 +130,11 @@ public class Parquet {
     public WriteBuilder createWriterFunc(
         Function<MessageType, ParquetValueWriter<?>> createWriterFunc) {
       this.createWriterFunc = createWriterFunc;
+      return this;
+    }
+
+    public WriteBuilder metricsConfig(MetricsConfig newMetricsConfig) {
+      this.metricsConfig = newMetricsConfig;
       return this;
     }
 
@@ -187,12 +195,13 @@ public class Parquet {
 
         ParquetProperties parquetProperties = ParquetProperties.builder()
             .withWriterVersion(writerVersion)
-            .withDictionaryPageSize(pageSize)
+            .withPageSize(pageSize)
             .withDictionaryPageSize(dictionaryPageSize)
             .build();
 
         return new org.apache.iceberg.parquet.ParquetWriter<>(
-            conf, file, schema, rowGroupSize, metadata, createWriterFunc, codec(), parquetProperties);
+            conf, file, schema, rowGroupSize, metadata, createWriterFunc, codec(),
+            parquetProperties, metricsConfig);
       } else {
         return new ParquetWriteAdapter<>(new ParquetWriteBuilder<D>(ParquetIO.file(file))
             .withWriterVersion(writerVersion)
@@ -205,7 +214,8 @@ public class Parquet {
             .withRowGroupSize(rowGroupSize)
             .withPageSize(pageSize)
             .withDictionaryPageSize(dictionaryPageSize)
-            .build());
+            .build(),
+            metricsConfig);
       }
     }
   }

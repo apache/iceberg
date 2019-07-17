@@ -39,9 +39,6 @@ import org.apache.spark.sql.catalog.Column;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.StructType;
 
-import static org.apache.iceberg.spark.SparkTypeVisitor.visit;
-import static org.apache.iceberg.types.TypeUtil.visit;
-
 /**
  * Helper methods for working with Spark/Hive metadata.
  */
@@ -61,8 +58,7 @@ public class SparkSchemaUtil {
    */
   public static Schema schemaForTable(SparkSession spark, String name) {
     StructType sparkType = spark.table(name).schema();
-    Type converted = visit(sparkType,
-        new SparkTypeToType(sparkType));
+    Type converted = SparkTypeVisitor.visit(sparkType, new SparkTypeToType(sparkType));
     return new Schema(converted.asNestedType().asStructType().fields());
   }
 
@@ -74,7 +70,7 @@ public class SparkSchemaUtil {
    *
    * @param spark a Spark session
    * @param name a table name and (optional) database
-   * @return a PartitionSpec for the table, if found
+   * @return a PartitionSpec for the table
    * @throws AnalysisException if thrown by the Spark catalog
    */
   public static PartitionSpec specForTable(SparkSession spark, String name) throws AnalysisException {
@@ -82,9 +78,10 @@ public class SparkSchemaUtil {
     String db = parts.size() == 1 ? "default" : parts.get(0);
     String table = parts.get(parts.size() == 1 ? 0 : 1);
 
-    return identitySpec(
+    PartitionSpec spec = identitySpec(
         schemaForTable(spark, name),
         spark.catalog().listColumns(db, table).collectAsList());
+    return spec == null ? PartitionSpec.unpartitioned() : spec;
   }
 
   /**
@@ -95,7 +92,7 @@ public class SparkSchemaUtil {
    * @throws IllegalArgumentException if the type cannot be converted to Spark
    */
   public static StructType convert(Schema schema) {
-    return (StructType) visit(schema, new TypeToSparkType());
+    return (StructType) TypeUtil.visit(schema, new TypeToSparkType());
   }
 
   /**
@@ -106,7 +103,7 @@ public class SparkSchemaUtil {
    * @throws IllegalArgumentException if the type cannot be converted to Spark
    */
   public static DataType convert(Type type) {
-    return visit(type, new TypeToSparkType());
+    return TypeUtil.visit(type, new TypeToSparkType());
   }
 
   /**
@@ -124,7 +121,7 @@ public class SparkSchemaUtil {
    * @throws IllegalArgumentException if the type cannot be converted
    */
   public static Schema convert(StructType sparkType) {
-    Type converted = visit(sparkType, new SparkTypeToType(sparkType));
+    Type converted = SparkTypeVisitor.visit(sparkType, new SparkTypeToType(sparkType));
     return new Schema(converted.asNestedType().asStructType().fields());
   }
 
@@ -143,7 +140,7 @@ public class SparkSchemaUtil {
    * @throws IllegalArgumentException if the type cannot be converted
    */
   public static Type convert(DataType sparkType) {
-    return visit(sparkType, new SparkTypeToType());
+    return SparkTypeVisitor.visit(sparkType, new SparkTypeToType());
   }
 
   /**
@@ -161,7 +158,7 @@ public class SparkSchemaUtil {
    */
   public static Schema convert(Schema baseSchema, StructType sparkType) {
     // convert to a type with fresh ids
-    Types.StructType struct = visit(sparkType, new SparkTypeToType(sparkType)).asStructType();
+    Types.StructType struct = SparkTypeVisitor.visit(sparkType, new SparkTypeToType(sparkType)).asStructType();
     // reassign ids to match the base schema
     Schema schema = TypeUtil.reassignIds(new Schema(struct.fields()), baseSchema);
     // fix types that can't be represented in Spark (UUID and Fixed)
@@ -180,7 +177,7 @@ public class SparkSchemaUtil {
    * @throws IllegalArgumentException if the Spark type does not match the Schema
    */
   public static Schema prune(Schema schema, StructType requestedType) {
-    return new Schema(visit(schema, new PruneColumnsWithoutReordering(requestedType, ImmutableSet.of()))
+    return new Schema(TypeUtil.visit(schema, new PruneColumnsWithoutReordering(requestedType, ImmutableSet.of()))
         .asNestedType()
         .asStructType()
         .fields());
@@ -203,7 +200,7 @@ public class SparkSchemaUtil {
    */
   public static Schema prune(Schema schema, StructType requestedType, List<Expression> filters) {
     Set<Integer> filterRefs = Binder.boundReferences(schema.asStruct(), filters, true);
-    return new Schema(visit(schema, new PruneColumnsWithoutReordering(requestedType, filterRefs))
+    return new Schema(TypeUtil.visit(schema, new PruneColumnsWithoutReordering(requestedType, filterRefs))
         .asNestedType()
         .asStructType()
         .fields());
@@ -228,7 +225,7 @@ public class SparkSchemaUtil {
     Set<Integer> filterRefs =
         Binder.boundReferences(schema.asStruct(), Collections.singletonList(filter), caseSensitive);
 
-    return new Schema(visit(schema, new PruneColumnsWithoutReordering(requestedType, filterRefs))
+    return new Schema(TypeUtil.visit(schema, new PruneColumnsWithoutReordering(requestedType, filterRefs))
         .asNestedType()
         .asStructType()
         .fields());

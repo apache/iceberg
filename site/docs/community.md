@@ -17,24 +17,14 @@
   - under the License.
   -->
 
-## Welcome!
+# Welcome!
 
 Apache Iceberg tracks issues in GitHub and prefers to receive contributions as pull requests.
 
 Community discussions happen primarily on the dev mailing list or on specific issues.
 
-### Issues
 
-Issues are tracked in GitHub:
-
-* [View open issues][open-issues]
-* [Open a new issue][new-issue]
-
-[open-issues]: https://github.com/apache/incubator-iceberg/issues
-[new-issue]: https://github.com/apache/incubator-iceberg/issues/new
-
-
-### Contributing
+## Contributing
 
 Iceberg uses Apache's GitHub integration. The code is available at <https://github.com/apache/incubator-iceberg>
 
@@ -47,7 +37,18 @@ The Iceberg community prefers to receive contributions as [Github pull requests]
 [github-pr-docs]: https://help.github.com/articles/about-pull-requests/
 
 
-### Mailing Lists
+## Issues
+
+Issues are tracked in GitHub:
+
+* [View open issues][open-issues]
+* [Open a new issue][new-issue]
+
+[open-issues]: https://github.com/apache/incubator-iceberg/issues
+[new-issue]: https://github.com/apache/incubator-iceberg/issues/new
+
+
+## Mailing Lists
 
 Iceberg has three mailing lists:
 

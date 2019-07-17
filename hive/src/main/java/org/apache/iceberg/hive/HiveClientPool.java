@@ -24,6 +24,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.thrift.TException;
+import org.apache.thrift.transport.TTransportException;
 
 class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> {
   private final HiveConf hiveConf;
@@ -33,7 +34,7 @@ class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> {
   }
 
   HiveClientPool(int poolSize, Configuration conf) {
-    super(poolSize, TException.class);
+    super(poolSize, TTransportException.class);
     this.hiveConf = new HiveConf(conf, HiveClientPool.class);
   }
 
@@ -49,6 +50,7 @@ class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> {
   @Override
   protected HiveMetaStoreClient reconnect(HiveMetaStoreClient client) {
     try {
+      client.close();
       client.reconnect();
     } catch (MetaException e) {
       throw new RuntimeMetaException(e, "Failed to reconnect to Hive Metastore");

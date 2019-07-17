@@ -30,6 +30,9 @@ import scala.Option;
 import scala.collection.Seq;
 
 public class Hive {
+
+  private Hive() {}
+
   public static Seq<CatalogTablePartition> partitions(SparkSession spark, String name) {
     List<String> parts = Lists.newArrayList(Splitter.on('.').limit(2).split(name));
     String db = parts.size() == 1 ? "default" : parts.get(0);

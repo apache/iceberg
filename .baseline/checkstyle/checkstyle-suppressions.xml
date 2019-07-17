@@ -26,4 +26,6 @@
 
     <!-- Generated code should not be subjected to checkstyle. -->
     <suppress files="[/\\].*[/\\]generated.*[/\\]" checks="." />
+
+    <suppress files="org.apache.iceberg.hive.ScriptRunner.java" checks="RegexpHeader"/>
 </suppressions>

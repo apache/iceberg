@@ -107,7 +107,7 @@ public class SparkFilters {
             EqualTo eq = (EqualTo) filter;
             // comparison with null in normal equality is always null. this is probably a mistake.
             Preconditions.checkNotNull(eq.value(),
-                "Expression is always false (eq is not null-safe): " + filter);
+                "Expression is always false (eq is not null-safe): %s", filter);
             return equal(eq.attribute(), convertLiteral(eq.value()));
           } else {
             EqualNullSafe eq = (EqualNullSafe) filter;

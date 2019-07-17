@@ -51,6 +51,45 @@ import org.apache.iceberg.transforms.Transform;
  * This class is thread-safe.
  */
 public class ResidualEvaluator implements Serializable {
+  private static class UnpartitionedResidualEvaluator extends ResidualEvaluator {
+    private final Expression expr;
+
+    UnpartitionedResidualEvaluator(Expression expr) {
+      super(PartitionSpec.unpartitioned(), expr, false);
+      this.expr = expr;
+    }
+
+    @Override
+    public Expression residualFor(StructLike ignored) {
+      return expr;
+    }
+  }
+
+  /**
+   * Return a residual evaluator for an unpartitioned {@link PartitionSpec spec}.
+   *
+   * @param expr an expression
+   * @return a residual evaluator that always returns the expression
+   */
+  public static ResidualEvaluator unpartitioned(Expression expr) {
+    return new UnpartitionedResidualEvaluator(expr);
+  }
+
+  /**
+   * Return a residual evaluator for a {@link PartitionSpec spec} and {@link Expression expression}.
+   *
+   * @param spec a partition spec
+   * @param expr an expression
+   * @return a residual evaluator for the expression
+   */
+  public static ResidualEvaluator of(PartitionSpec spec, Expression expr, boolean caseSensitive) {
+    if (spec.fields().size() > 0) {
+      return new ResidualEvaluator(spec, expr, caseSensitive);
+    } else {
+      return unpartitioned(expr);
+    }
+  }
+
   private final PartitionSpec spec;
   private final Expression expr;
   private final boolean caseSensitive;
@@ -63,7 +102,7 @@ public class ResidualEvaluator implements Serializable {
     return visitors.get();
   }
 
-  public ResidualEvaluator(PartitionSpec spec, Expression expr, boolean caseSensitive) {
+  private ResidualEvaluator(PartitionSpec spec, Expression expr, boolean caseSensitive) {
     this.spec = spec;
     this.expr = expr;
     this.caseSensitive = caseSensitive;
@@ -82,8 +121,8 @@ public class ResidualEvaluator implements Serializable {
   private class ResidualVisitor extends ExpressionVisitors.BoundExpressionVisitor<Expression> {
     private StructLike struct;
 
-    private Expression eval(StructLike structLike) {
-      this.struct = structLike;
+    private Expression eval(StructLike dataStruct) {
+      this.struct = dataStruct;
       return ExpressionVisitors.visit(expr, this);
     }
 

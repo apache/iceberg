@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
@@ -50,7 +51,7 @@ public class BaseTable implements Table, HasTableOperations {
 
   @Override
   public TableScan newScan() {
-    return new BaseTableScan(ops, this);
+    return new DataTableScan(ops, this);
   }
 
   @Override
@@ -79,8 +80,18 @@ public class BaseTable implements Table, HasTableOperations {
   }
 
   @Override
+  public Snapshot snapshot(long snapshotId) {
+    return ops.current().snapshot(snapshotId);
+  }
+
+  @Override
   public Iterable<Snapshot> snapshots() {
     return ops.current().snapshots();
+  }
+
+  @Override
+  public List<HistoryEntry> history() {
+    return ops.current().snapshotLog();
   }
 
   @Override
@@ -145,7 +156,7 @@ public class BaseTable implements Table, HasTableOperations {
 
   @Override
   public Transaction newTransaction() {
-    return BaseTransaction.newTransaction(ops);
+    return Transactions.newTransaction(ops);
   }
 
   @Override

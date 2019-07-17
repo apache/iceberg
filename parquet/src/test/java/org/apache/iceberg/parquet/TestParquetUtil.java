@@ -26,12 +26,12 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericFixed;
-import org.apache.commons.io.Charsets;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -64,7 +64,7 @@ public class TestParquetUtil extends BaseParquetWritingTest {
   private final UUID uuid = UUID.randomUUID();
   private final GenericFixed fixed = new GenericData.Fixed(
       org.apache.avro.Schema.createFixed("fixedCol", null, null, 4),
-      "abcd".getBytes(Charsets.UTF_8));
+      "abcd".getBytes(StandardCharsets.UTF_8));
 
   @Test
   public void testMetricsForTopLevelFields() throws IOException {

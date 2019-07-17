@@ -94,12 +94,12 @@ public class TestParquetAvroWriter {
         .createReaderFunc(
             fileSchema -> ParquetAvroValueReaders.buildReader(COMPLEX_SCHEMA, readSchema))
         .build()) {
-      int i = 0;
+      int recordNum = 0;
       Iterator<Record> iter = records.iterator();
       for (Record actual : reader) {
         Record expected = iter.next();
-        Assert.assertEquals("Record " + i + " should match expected", expected, actual);
-        i += 1;
+        Assert.assertEquals("Record " + recordNum + " should match expected", expected, actual);
+        recordNum += 1;
       }
     }
   }

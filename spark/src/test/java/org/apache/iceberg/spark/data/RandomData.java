@@ -48,6 +48,9 @@ import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
 
 public class RandomData {
+
+  private RandomData() {}
+
   public static List<Record> generateList(Schema schema, int numRecords, long seed) {
     RandomDataGenerator generator = new RandomDataGenerator(schema, seed);
     List<Record> records = Lists.newArrayListWithExpectedSize(numRecords);
@@ -289,6 +292,7 @@ public class RandomData {
     }
   }
 
+  @SuppressWarnings("RandomModInteger")
   private static Object generatePrimitive(Type.PrimitiveType primitive,
                                          Random random) {
     int choice = random.nextInt(20);
@@ -424,6 +428,7 @@ public class RandomData {
   }
 
   private static final String DIGITS = "0123456789";
+
   private static BigInteger randomUnscaled(int precision, Random random) {
     int length = random.nextInt(precision);
     if (length == 0) {

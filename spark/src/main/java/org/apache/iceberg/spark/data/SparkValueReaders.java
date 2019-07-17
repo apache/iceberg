@@ -41,6 +41,9 @@ import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkValueReaders {
+
+  private SparkValueReaders() {}
+
   static ValueReader<UTF8String> strings() {
     return StringReader.INSTANCE;
   }
@@ -71,7 +74,7 @@ public class SparkValueReaders {
   }
 
   private static class StringReader implements ValueReader<UTF8String> {
-    private static StringReader INSTANCE = new StringReader();
+    private static final StringReader INSTANCE = new StringReader();
 
     private StringReader() {
     }
@@ -100,7 +103,7 @@ public class SparkValueReaders {
       return buffer;
     });
 
-    private static UUIDReader INSTANCE = new UUIDReader();
+    private static final UUIDReader INSTANCE = new UUIDReader();
 
     private UUIDReader() {
     }
@@ -229,13 +232,17 @@ public class SparkValueReaders {
   }
 
   static class StructReader implements ValueReader<InternalRow> {
-    final ValueReader<?>[] readers;
+    private final ValueReader<?>[] readers;
 
     private StructReader(List<ValueReader<?>> readers) {
       this.readers = new ValueReader[readers.size()];
       for (int i = 0; i < this.readers.length; i += 1) {
         this.readers[i] = readers.get(i);
       }
+    }
+
+    ValueReader<?>[] readers() {
+      return readers;
     }
 
     @Override

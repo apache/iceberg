@@ -26,7 +26,6 @@ import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.UUID;
@@ -280,23 +279,16 @@ abstract class Bucket<T> implements Transform<T, Integer> {
   }
 
   private static class BucketUUID extends Bucket<UUID> {
-    private static final ThreadLocal<ByteBuffer> BUFFER = ThreadLocal.withInitial(() -> {
-      ByteBuffer buffer = ByteBuffer.allocate(16);
-      buffer.order(ByteOrder.BIG_ENDIAN);
-      return buffer;
-    });
-
     private BucketUUID(int numBuckets) {
       super(numBuckets);
     }
 
     @Override
     public int hash(UUID value) {
-      ByteBuffer buffer = BUFFER.get();
-      buffer.rewind();
-      buffer.putLong(value.getMostSignificantBits());
-      buffer.putLong(value.getLeastSignificantBits());
-      return MURMUR3.hashBytes(buffer.array()).asInt();
+      return MURMUR3.newHasher(16)
+              .putLong(Long.reverseBytes(value.getMostSignificantBits()))
+              .putLong(Long.reverseBytes(value.getLeastSignificantBits()))
+              .hash().asInt();
     }
 
     @Override

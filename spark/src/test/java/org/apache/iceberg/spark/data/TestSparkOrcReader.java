@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.spark.data;
 
-import static org.apache.iceberg.spark.data.TestHelpers.assertEquals;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
@@ -31,6 +29,8 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.orc.ORC;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.Assert;
+
+import static org.apache.iceberg.spark.data.TestHelpers.assertEquals;
 
 public class TestSparkOrcReader extends AvroDataTest {
   @Override

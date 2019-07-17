@@ -24,6 +24,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Types;
@@ -53,7 +54,7 @@ public class TestResiduals {
         .identity("dateint")
         .build();
 
-    ResidualEvaluator resEval = new ResidualEvaluator(spec, or(or(
+    ResidualEvaluator resEval = ResidualEvaluator.of(spec, or(or(
         and(lessThan("dateint", 20170815), greaterThan("dateint", 20170801)),
         and(equal("dateint", 20170815), lessThan("hour", 12))),
         and(equal("dateint", 20170801), greaterThan("hour", 11))),
@@ -93,7 +94,7 @@ public class TestResiduals {
         .identity("dateint")
         .build();
 
-    ResidualEvaluator resEval = new ResidualEvaluator(spec, or(or(
+    ResidualEvaluator resEval = ResidualEvaluator.of(spec, or(or(
         and(lessThan("DATEINT", 20170815), greaterThan("dateint", 20170801)),
         and(equal("dateint", 20170815), lessThan("HOUR", 12))),
         and(equal("DateInt", 20170801), greaterThan("hOUr", 11))),
@@ -133,8 +134,26 @@ public class TestResiduals {
         .identity("dateint")
         .build();
 
-    ResidualEvaluator resEval = new ResidualEvaluator(spec, lessThan("DATEINT", 20170815), true);
+    ResidualEvaluator resEval = ResidualEvaluator.of(spec, lessThan("DATEINT", 20170815), true);
 
     resEval.residualFor(Row.of(20170815));
+  }
+
+  @Test
+  public void testUnpartitionedResiduals() {
+    Expression[] expressions = new Expression[] {
+        Expressions.alwaysTrue(),
+        Expressions.alwaysFalse(),
+        Expressions.lessThan("a", 5),
+        Expressions.greaterThanOrEqual("b", 16),
+        Expressions.notNull("c"),
+        Expressions.isNull("d")
+    };
+
+    for (Expression expr : expressions) {
+      ResidualEvaluator residualEvaluator = ResidualEvaluator.of(PartitionSpec.unpartitioned(), expr, true);
+      Assert.assertEquals("Should return expression",
+          expr, residualEvaluator.residualFor(Row.of()));
+    }
   }
 }

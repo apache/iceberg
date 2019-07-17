@@ -32,13 +32,11 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.avro.AvroSchemaVisitor;
 import org.apache.iceberg.avro.ValueWriter;
 import org.apache.iceberg.avro.ValueWriters;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.DataType;
-
-import static org.apache.iceberg.avro.AvroSchemaUtil.getFieldId;
-import static org.apache.iceberg.avro.AvroSchemaVisitor.visit;
-import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
+import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkAvroWriter implements DatumWriter<InternalRow> {
   private final org.apache.iceberg.Schema schema;
@@ -51,7 +49,7 @@ public class SparkAvroWriter implements DatumWriter<InternalRow> {
   @Override
   @SuppressWarnings("unchecked")
   public void setSchema(Schema schema) {
-    this.writer = (ValueWriter<InternalRow>) visit(schema, new WriteBuilder(this.schema));
+    this.writer = (ValueWriter<InternalRow>) AvroSchemaVisitor.visit(schema, new WriteBuilder(this.schema));
   }
 
   @Override
@@ -70,7 +68,9 @@ public class SparkAvroWriter implements DatumWriter<InternalRow> {
     public ValueWriter<?> record(Schema record, List<String> names, List<ValueWriter<?>> fields) {
       List<DataType> types = Lists.newArrayList();
       for (Schema.Field field : record.getFields()) {
-        types.add(convert(schema.findType(getFieldId(field))));
+        int fieldId = AvroSchemaUtil.getFieldId(field);
+        Type fieldType = schema.findType(fieldId);
+        types.add(SparkSchemaUtil.convert(fieldType));
       }
       return SparkValueWriters.struct(fields, types);
     }
@@ -78,9 +78,9 @@ public class SparkAvroWriter implements DatumWriter<InternalRow> {
     @Override
     public ValueWriter<?> union(Schema union, List<ValueWriter<?>> options) {
       Preconditions.checkArgument(options.contains(ValueWriters.nulls()),
-          "Cannot create writer for non-option union: " + union);
+          "Cannot create writer for non-option union: %s", union);
       Preconditions.checkArgument(options.size() == 2,
-          "Cannot create writer for non-option union: " + union);
+          "Cannot create writer for non-option union: %s", union);
       if (union.getTypes().get(0).getType() == Schema.Type.NULL) {
         return ValueWriters.option(0, options.get(1));
       } else {
@@ -92,23 +92,26 @@ public class SparkAvroWriter implements DatumWriter<InternalRow> {
     public ValueWriter<?> array(Schema array, ValueWriter<?> elementWriter) {
       LogicalType logical = array.getLogicalType();
       if (logical != null && "map".equals(logical.getName())) {
-        Type keyType = schema.findType(getFieldId(array.getElementType().getField("key")));
-        Type valueType = schema.findType(getFieldId(array.getElementType().getField("value")));
-        ValueWriter<?>[] writers = ((SparkValueWriters.StructWriter) elementWriter).writers;
+        int keyFieldId = AvroSchemaUtil.getFieldId(array.getElementType().getField("key"));
+        Type keyType = schema.findType(keyFieldId);
+        int valueFieldId = AvroSchemaUtil.getFieldId(array.getElementType().getField("value"));
+        Type valueType = schema.findType(valueFieldId);
+        ValueWriter<?>[] writers = ((SparkValueWriters.StructWriter) elementWriter).writers();
         return SparkValueWriters.arrayMap(
-            writers[0], convert(keyType), writers[1], convert(valueType));
+            writers[0], SparkSchemaUtil.convert(keyType), writers[1], SparkSchemaUtil.convert(valueType));
       }
 
       Type elementType = schema.findType(AvroSchemaUtil.getElementId(array));
-      return SparkValueWriters.array(elementWriter, convert(elementType));
+      return SparkValueWriters.array(elementWriter, SparkSchemaUtil.convert(elementType));
     }
 
     @Override
     public ValueWriter<?> map(Schema map, ValueWriter<?> valueReader) {
       Type keyType = schema.findType(AvroSchemaUtil.getKeyId(map));
       Type valueType = schema.findType(AvroSchemaUtil.getValueId(map));
+      ValueWriter<UTF8String> writer = SparkValueWriters.strings();
       return SparkValueWriters.map(
-          SparkValueWriters.strings(), convert(keyType), valueReader, convert(valueType));
+          writer, SparkSchemaUtil.convert(keyType), valueReader, SparkSchemaUtil.convert(valueType));
     }
 
     @Override

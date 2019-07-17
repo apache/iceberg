@@ -85,10 +85,10 @@ public class TestDataFrameWrites extends AvroDataTest {
 
   @AfterClass
   public static void stopSpark() {
-    SparkSession spark = TestDataFrameWrites.spark;
+    SparkSession currentSpark = TestDataFrameWrites.spark;
     TestDataFrameWrites.spark = null;
     TestDataFrameWrites.sc = null;
-    spark.stop();
+    currentSpark.stop();
   }
 
   @Override

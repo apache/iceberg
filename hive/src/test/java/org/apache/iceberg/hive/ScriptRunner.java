@@ -18,6 +18,7 @@
  *  from the iBATIS Apache project. Only removed dependency on Resource class
  *  and a constructor.
  */
+
 package org.apache.iceberg.hive;
 
 import java.io.IOException;
@@ -58,9 +59,9 @@ public class ScriptRunner {
     this.stopOnError = stopOnError;
   }
 
-  public void setDelimiter(String delimiter, boolean fullLineDelimiter) {
-    this.delimiter = delimiter;
-    this.fullLineDelimiter = fullLineDelimiter;
+  public void setDelimiter(String newDelimiter, boolean newFullLineDelimiter) {
+    this.delimiter = newDelimiter;
+    this.fullLineDelimiter = newFullLineDelimiter;
   }
 
   /**
@@ -122,8 +123,8 @@ public class ScriptRunner {
    * @throws IOException
    *             if there is an error reading from the Reader
    */
-  private void runScript(Connection conn, Reader reader) throws IOException,
-          SQLException {
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  private void runScript(Connection conn, Reader reader) throws IOException, SQLException {
     StringBuffer command = null;
     try {
       LineNumberReader lineReader = new LineNumberReader(reader);
@@ -135,16 +136,12 @@ public class ScriptRunner {
         String trimmedLine = line.trim();
         if (trimmedLine.startsWith("--")) {
           println(trimmedLine);
-        } else if (trimmedLine.length() < 1
-                || trimmedLine.startsWith("//")) {
+        } else if (trimmedLine.length() < 1 || trimmedLine.startsWith("//")) {
           // Do nothing
-        } else if (trimmedLine.length() < 1
-                || trimmedLine.startsWith("--")) {
+        } else if (trimmedLine.length() < 1 || trimmedLine.startsWith("--")) {
           // Do nothing
-        } else if (!fullLineDelimiter
-                && trimmedLine.endsWith(getDelimiter())
-                || fullLineDelimiter
-                && trimmedLine.equals(getDelimiter())) {
+        } else if (!fullLineDelimiter && trimmedLine.endsWith(getDelimiter()) ||
+            fullLineDelimiter && trimmedLine.equals(getDelimiter())) {
           command.append(line.substring(0, line
                   .lastIndexOf(getDelimiter())));
           command.append(" ");
@@ -222,21 +219,21 @@ public class ScriptRunner {
     return delimiter;
   }
 
-  private void print(Object o) {
+  private void print(Object obj) {
     if (logWriter != null) {
-      System.out.print(o);
+      System.out.print(obj);
     }
   }
 
-  private void println(Object o) {
+  private void println(Object obj) {
     if (logWriter != null) {
-      logWriter.println(o);
+      logWriter.println(obj);
     }
   }
 
-  private void printlnError(Object o) {
+  private void printlnError(Object obj) {
     if (errorLogWriter != null) {
-      errorLogWriter.println(o);
+      errorLogWriter.println(obj);
     }
   }
 

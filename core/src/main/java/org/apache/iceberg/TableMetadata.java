@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -30,6 +31,7 @@ import com.google.common.collect.Sets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -73,13 +75,13 @@ public class TableMetadata {
     }
     PartitionSpec freshSpec = specBuilder.build();
 
-    return new TableMetadata(ops, null, location,
+    return new TableMetadata(ops, null, UUID.randomUUID().toString(), location,
         System.currentTimeMillis(),
         lastColumnId.get(), freshSchema, INITIAL_SPEC_ID, ImmutableList.of(freshSpec),
         ImmutableMap.copyOf(properties), -1, ImmutableList.of(), ImmutableList.of());
   }
 
-  public static class SnapshotLogEntry {
+  public static class SnapshotLogEntry implements HistoryEntry {
     private final long timestampMillis;
     private final long snapshotId;
 
@@ -88,10 +90,12 @@ public class TableMetadata {
       this.snapshotId = snapshotId;
     }
 
+    @Override
     public long timestampMillis() {
       return timestampMillis;
     }
 
+    @Override
     public long snapshotId() {
       return snapshotId;
     }
@@ -115,7 +119,7 @@ public class TableMetadata {
 
     @Override
     public String toString() {
-      return Objects.toStringHelper(this)
+      return MoreObjects.toStringHelper(this)
           .add("timestampMillis", timestampMillis)
           .add("snapshotId", snapshotId)
           .toString();
@@ -126,6 +130,7 @@ public class TableMetadata {
   private final InputFile file;
 
   // stored metadata
+  private final String uuid;
   private final String location;
   private final long lastUpdatedMillis;
   private final int lastColumnId;
@@ -137,10 +142,11 @@ public class TableMetadata {
   private final List<Snapshot> snapshots;
   private final Map<Long, Snapshot> snapshotsById;
   private final Map<Integer, PartitionSpec> specsById;
-  private final List<SnapshotLogEntry> snapshotLog;
+  private final List<HistoryEntry> snapshotLog;
 
   TableMetadata(TableOperations ops,
                 InputFile file,
+                String uuid,
                 String location,
                 long lastUpdatedMillis,
                 int lastColumnId,
@@ -150,9 +156,10 @@ public class TableMetadata {
                 Map<String, String> properties,
                 long currentSnapshotId,
                 List<Snapshot> snapshots,
-                List<SnapshotLogEntry> snapshotLog) {
+                List<HistoryEntry> snapshotLog) {
     this.ops = ops;
     this.file = file;
+    this.uuid = uuid;
     this.location = location;
     this.lastUpdatedMillis = lastUpdatedMillis;
     this.lastColumnId = lastColumnId;
@@ -167,8 +174,8 @@ public class TableMetadata {
     this.snapshotsById = indexSnapshots(snapshots);
     this.specsById = indexSpecs(specs);
 
-    SnapshotLogEntry last = null;
-    for (SnapshotLogEntry logEntry : snapshotLog) {
+    HistoryEntry last = null;
+    for (HistoryEntry logEntry : snapshotLog) {
       if (last != null) {
         Preconditions.checkArgument(
             (logEntry.timestampMillis() - last.timestampMillis()) >= 0,
@@ -184,6 +191,10 @@ public class TableMetadata {
 
   public InputFile file() {
     return file;
+  }
+
+  public String uuid() {
+    return uuid;
   }
 
   public long lastUpdatedMillis() {
@@ -222,6 +233,10 @@ public class TableMetadata {
     return properties;
   }
 
+  public String property(String property, String defaultValue) {
+    return properties.getOrDefault(property, defaultValue);
+  }
+
   public boolean propertyAsBoolean(String property, boolean defaultValue) {
     return PropertyUtil.propertyAsBoolean(properties, property, defaultValue);
   }
@@ -246,12 +261,22 @@ public class TableMetadata {
     return snapshots;
   }
 
-  public List<SnapshotLogEntry> snapshotLog() {
+  public List<HistoryEntry> snapshotLog() {
     return snapshotLog;
   }
 
+  public TableMetadata withUUID() {
+    if (uuid != null) {
+      return this;
+    } else {
+      return new TableMetadata(ops, null, UUID.randomUUID().toString(), location,
+          lastUpdatedMillis, lastColumnId, schema, defaultSpecId, specs, properties,
+          currentSnapshotId, snapshots, snapshotLog);
+    }
+  }
+
   public TableMetadata updateTableLocation(String newLocation) {
-    return new TableMetadata(ops, null, newLocation,
+    return new TableMetadata(ops, null, uuid, newLocation,
         System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
         currentSnapshotId, snapshots, snapshotLog);
   }
@@ -261,7 +286,7 @@ public class TableMetadata {
     // rebuild all of the partition specs for the new current schema
     List<PartitionSpec> updatedSpecs = Lists.transform(specs,
         spec -> updateSpecSchema(newSchema, spec));
-    return new TableMetadata(ops, null, location,
+    return new TableMetadata(ops, null, uuid, location,
         System.currentTimeMillis(), newLastColumnId, newSchema, defaultSpecId, updatedSpecs, properties,
         currentSnapshotId, snapshots, snapshotLog);
   }
@@ -290,7 +315,7 @@ public class TableMetadata {
       builder.add(freshSpec(newDefaultSpecId, schema, newPartitionSpec));
     }
 
-    return new TableMetadata(ops, null, location,
+    return new TableMetadata(ops, null, uuid, location,
         System.currentTimeMillis(), lastColumnId, schema, newDefaultSpecId,
         builder.build(), properties,
         currentSnapshotId, snapshots, snapshotLog);
@@ -301,11 +326,11 @@ public class TableMetadata {
         .addAll(snapshots)
         .add(snapshot)
         .build();
-    List<SnapshotLogEntry> newSnapshotLog = ImmutableList.<SnapshotLogEntry>builder()
+    List<HistoryEntry> newSnapshotLog = ImmutableList.<HistoryEntry>builder()
         .addAll(snapshotLog)
         .add(new SnapshotLogEntry(snapshot.timestampMillis(), snapshot.snapshotId()))
         .build();
-    return new TableMetadata(ops, null, location,
+    return new TableMetadata(ops, null, uuid, location,
         snapshot.timestampMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
         snapshot.snapshotId(), newSnapshots, newSnapshotLog);
   }
@@ -321,8 +346,8 @@ public class TableMetadata {
 
     // update the snapshot log
     Set<Long> validIds = Sets.newHashSet(Iterables.transform(filtered, Snapshot::snapshotId));
-    List<SnapshotLogEntry> newSnapshotLog = Lists.newArrayList();
-    for (SnapshotLogEntry logEntry : snapshotLog) {
+    List<HistoryEntry> newSnapshotLog = Lists.newArrayList();
+    for (HistoryEntry logEntry : snapshotLog) {
       if (validIds.contains(logEntry.snapshotId())) {
         // copy the log entries that are still valid
         newSnapshotLog.add(logEntry);
@@ -336,7 +361,7 @@ public class TableMetadata {
       }
     }
 
-    return new TableMetadata(ops, null, location,
+    return new TableMetadata(ops, null, uuid, location,
         System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
         currentSnapshotId, filtered, ImmutableList.copyOf(newSnapshotLog));
   }
@@ -346,26 +371,26 @@ public class TableMetadata {
         "Cannot set current snapshot to unknown: %s", snapshot.snapshotId());
 
     long nowMillis = System.currentTimeMillis();
-    List<SnapshotLogEntry> newSnapshotLog = ImmutableList.<SnapshotLogEntry>builder()
+    List<HistoryEntry> newSnapshotLog = ImmutableList.<HistoryEntry>builder()
         .addAll(snapshotLog)
         .add(new SnapshotLogEntry(nowMillis, snapshot.snapshotId()))
         .build();
 
-    return new TableMetadata(ops, null, location,
+    return new TableMetadata(ops, null, uuid, location,
         nowMillis, lastColumnId, schema, defaultSpecId, specs, properties,
         snapshot.snapshotId(), snapshots, newSnapshotLog);
   }
 
   public TableMetadata replaceProperties(Map<String, String> newProperties) {
     ValidationException.check(newProperties != null, "Cannot set properties to null");
-    return new TableMetadata(ops, null, location,
+    return new TableMetadata(ops, null, uuid, location,
         System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, newProperties,
         currentSnapshotId, snapshots, snapshotLog);
   }
 
   public TableMetadata removeSnapshotLogEntries(Set<Long> snapshotIds) {
-    List<SnapshotLogEntry> newSnapshotLog = Lists.newArrayList();
-    for (SnapshotLogEntry logEntry : snapshotLog) {
+    List<HistoryEntry> newSnapshotLog = Lists.newArrayList();
+    for (HistoryEntry logEntry : snapshotLog) {
       if (!snapshotIds.contains(logEntry.snapshotId())) {
         // copy the log entries that are still valid
         newSnapshotLog.add(logEntry);
@@ -375,7 +400,7 @@ public class TableMetadata {
     ValidationException.check(currentSnapshotId < 0 || // not set
             Iterables.getLast(newSnapshotLog).snapshotId() == currentSnapshotId,
         "Cannot set invalid snapshot log: latest entry is not the current snapshot");
-    return new TableMetadata(ops, null, location,
+    return new TableMetadata(ops, null, uuid, location,
         System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
         currentSnapshotId, snapshots, newSnapshotLog);
   }
@@ -414,14 +439,14 @@ public class TableMetadata {
     newProperties.putAll(this.properties);
     newProperties.putAll(updatedProperties);
 
-    return new TableMetadata(ops, null, location,
+    return new TableMetadata(ops, null, uuid, location,
         System.currentTimeMillis(), nextLastColumnId.get(), freshSchema,
         specId, builder.build(), ImmutableMap.copyOf(newProperties),
         -1, snapshots, ImmutableList.of());
   }
 
   public TableMetadata updateLocation(String newLocation) {
-    return new TableMetadata(ops, null, newLocation,
+    return new TableMetadata(ops, null, uuid, newLocation,
         System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
         currentSnapshotId, snapshots, snapshotLog);
   }

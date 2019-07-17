@@ -27,12 +27,41 @@ use_directory_urls: true
 theme: cinder
 extra_css:
   - css/extra.css
+plugins:
+  - redirects
 markdown_extensions:
+  - toc:
+      permalink: True
   - smarty
   - sane_lists
+  - extra
+  - tables
+  - admonition
+  - pymdownx.tilde
 nav:
   - About: index.md
   - Community: community.md
-  - Docs:
+  - User docs:
+    - Schemas: schemas.md
     - Partitioning: partitioning.md
-    - Javadoc: http://iceberg.apache.org/javadoc/0.6.0/
+    - Configuration: configuration.md
+    - Performance: performance.md
+    - Reliability: reliability.md
+    - Table evolution: evolution.md
+    - Time travel: spark#time-travel
+    - Quickstart: api-quickstart.md
+    - Spark: spark.md
+    - Presto: presto.md
+  - Java:
+    - Git Repo: https://github.com/apache/incubator-iceberg
+    - Quickstart: api-quickstart.md
+    - API intro: api.md
+    - Javadoc: /javadoc/
+  - Python:
+    - Git Repo: https://github.com/apache/incubator-iceberg/tree/master/python
+  - Format:
+    - Definitions: terms.md
+    - Spec: spec.md
+  - Iceberg on GitHub: https://github.com/apache/incubator-iceberg
+redirects:
+  time-travel/index: snapshots/index

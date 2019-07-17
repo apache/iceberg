@@ -122,9 +122,9 @@ public class TestFilteredScan {
 
   @AfterClass
   public static void stopSpark() {
-    SparkSession spark = TestFilteredScan.spark;
+    SparkSession currentSpark = TestFilteredScan.spark;
     TestFilteredScan.spark = null;
-    spark.stop();
+    currentSpark.stop();
   }
 
   @Rule
@@ -261,7 +261,7 @@ public class TestFilteredScan {
     List<InputPartition<InternalRow>> tasks = reader.planInputPartitions();
     Assert.assertEquals("Should only create one task for a small file", 1, tasks.size());
 
-    assertEqualsSafe(SCHEMA.asStruct(), expected(5,6,7,8,9),
+    assertEqualsSafe(SCHEMA.asStruct(), expected(5, 6, 7, 8, 9),
         read(unpartitioned.toString(), "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
   }
 
@@ -293,6 +293,7 @@ public class TestFilteredScan {
     }
   }
 
+  @SuppressWarnings("checkstyle:AvoidNestedBlocks")
   @Test
   public void testDayPartitionedTimestampFilters() {
     File location = buildPartitionedTable("partitioned_by_day", PARTITION_BY_DAY, "ts_day", "ts");
@@ -334,6 +335,7 @@ public class TestFilteredScan {
     }
   }
 
+  @SuppressWarnings("checkstyle:AvoidNestedBlocks")
   @Test
   public void testHourPartitionedTimestampFilters() {
     File location = buildPartitionedTable("partitioned_by_hour", PARTITION_BY_HOUR, "ts_hour", "ts");
@@ -375,12 +377,13 @@ public class TestFilteredScan {
     }
   }
 
+  @SuppressWarnings("checkstyle:AvoidNestedBlocks")
   @Test
   public void testFilterByNonProjectedColumn() {
     {
       Schema actualProjection = SCHEMA.select("id", "data");
       List<Record> expected = Lists.newArrayList();
-      for (Record rec : expected(5, 6 ,7, 8, 9)) {
+      for (Record rec : expected(5, 6, 7, 8, 9)) {
         expected.add(projectFlat(actualProjection, rec));
       }
 

@@ -31,6 +31,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.Metrics;
+import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.MetricsModes;
+import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Literal;
@@ -47,21 +50,30 @@ import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.schema.MessageType;
 
 import static org.apache.iceberg.parquet.ParquetConversions.fromParquetPrimitive;
+import static org.apache.iceberg.util.BinaryUtil.truncateBinaryMax;
+import static org.apache.iceberg.util.BinaryUtil.truncateBinaryMin;
+import static org.apache.iceberg.util.UnicodeUtil.truncateStringMax;
+import static org.apache.iceberg.util.UnicodeUtil.truncateStringMin;
 
 public class ParquetUtil {
   // not meant to be instantiated
   private ParquetUtil() {
   }
 
-  public static Metrics fileMetrics(InputFile file) {
+  // Access modifier is package-private, to only allow use from existing tests
+  static Metrics fileMetrics(InputFile file) {
+    return fileMetrics(file, MetricsConfig.getDefault());
+  }
+
+  public static Metrics fileMetrics(InputFile file, MetricsConfig metricsConfig) {
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file))) {
-      return footerMetrics(reader.getFooter());
+      return footerMetrics(reader.getFooter(), metricsConfig);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read footer of file: %s", file);
     }
   }
 
-  public static Metrics footerMetrics(ParquetMetadata metadata) {
+  public static Metrics footerMetrics(ParquetMetadata metadata, MetricsConfig metricsConfig) {
     long rowCount = 0;
     Map<Integer, Long> columnSizes = Maps.newHashMap();
     Map<Integer, Long> valueCounts = Maps.newHashMap();
@@ -80,6 +92,12 @@ public class ParquetUtil {
         ColumnPath path = column.getPath();
         int fieldId = fileSchema.aliasToId(path.toDotString());
         increment(columnSizes, fieldId, column.getTotalSize());
+
+        String columnName = fileSchema.findColumnName(fieldId);
+        MetricsMode metricsMode = metricsConfig.columnMode(columnName);
+        if (metricsMode == MetricsModes.None.get()) {
+          continue;
+        }
         increment(valueCounts, fieldId, column.getValueCount());
 
         Statistics stats = column.getStatistics();
@@ -88,12 +106,14 @@ public class ParquetUtil {
         } else if (!stats.isEmpty()) {
           increment(nullValueCounts, fieldId, stats.getNumNulls());
 
-          Types.NestedField field = fileSchema.findField(fieldId);
-          if (field != null && stats.hasNonNullValue() && shouldStoreBounds(path, fileSchema)) {
-            updateMin(lowerBounds, fieldId,
-                fromParquetPrimitive(field.type(), column.getPrimitiveType(), stats.genericGetMin()));
-            updateMax(upperBounds, fieldId,
-                fromParquetPrimitive(field.type(), column.getPrimitiveType(), stats.genericGetMax()));
+          if (metricsMode != MetricsModes.Counts.get()) {
+            Types.NestedField field = fileSchema.findField(fieldId);
+            if (field != null && stats.hasNonNullValue() && shouldStoreBounds(path, fileSchema)) {
+              Literal<?> min = fromParquetPrimitive(field.type(), column.getPrimitiveType(), stats.genericGetMin());
+              updateMin(lowerBounds, fieldId, field.type(), min, metricsMode);
+              Literal<?> max = fromParquetPrimitive(field.type(), column.getPrimitiveType(), stats.genericGetMax());
+              updateMax(upperBounds, fieldId, field.type(), max, metricsMode);
+            }
           }
         }
       }
@@ -151,18 +171,52 @@ public class ParquetUtil {
   }
 
   @SuppressWarnings("unchecked")
-  private static <T> void updateMin(Map<Integer, Literal<?>> lowerBounds, int id, Literal<T> min) {
+  private static <T> void updateMin(Map<Integer, Literal<?>> lowerBounds, int id, Type type,
+                                    Literal<T> min, MetricsMode metricsMode) {
     Literal<T> currentMin = (Literal<T>) lowerBounds.get(id);
     if (currentMin == null || min.comparator().compare(min.value(), currentMin.value()) < 0) {
-      lowerBounds.put(id, min);
+      if (metricsMode == MetricsModes.Full.get()) {
+        lowerBounds.put(id, min);
+      } else {
+        MetricsModes.Truncate truncateMode = (MetricsModes.Truncate) metricsMode;
+        int truncateLength = truncateMode.length();
+        switch (type.typeId()) {
+          case STRING:
+            lowerBounds.put(id, truncateStringMin((Literal<CharSequence>) min, truncateLength));
+            break;
+          case FIXED:
+          case BINARY:
+            lowerBounds.put(id, truncateBinaryMin((Literal<ByteBuffer>) min, truncateLength));
+            break;
+          default:
+            lowerBounds.put(id, min);
+        }
+      }
     }
   }
 
   @SuppressWarnings("unchecked")
-  private static <T> void updateMax(Map<Integer, Literal<?>> upperBounds, int id, Literal<T> max) {
+  private static <T> void updateMax(Map<Integer, Literal<?>> upperBounds, int id, Type type,
+                                    Literal<T> max, MetricsMode metricsMode) {
     Literal<T> currentMax = (Literal<T>) upperBounds.get(id);
     if (currentMax == null || max.comparator().compare(max.value(), currentMax.value()) > 0) {
-      upperBounds.put(id, max);
+      if (metricsMode == MetricsModes.Full.get()) {
+        upperBounds.put(id, max);
+      } else {
+        MetricsModes.Truncate truncateMode = (MetricsModes.Truncate) metricsMode;
+        int truncateLength = truncateMode.length();
+        switch (type.typeId()) {
+          case STRING:
+            upperBounds.put(id, truncateStringMax((Literal<CharSequence>) max, truncateLength));
+            break;
+          case FIXED:
+          case BINARY:
+            upperBounds.put(id, truncateBinaryMax((Literal<ByteBuffer>) max, truncateLength));
+            break;
+          default:
+            upperBounds.put(id, max);
+        }
+      }
     }
   }
 

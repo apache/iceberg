@@ -19,7 +19,7 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Objects;
+import com.google.common.base.MoreObjects;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -182,7 +182,7 @@ public class GenericPartitionFieldSummary
 
   @Override
   public String toString() {
-    return Objects.toStringHelper(this)
+    return MoreObjects.toStringHelper(this)
         .add("contains_null", containsNull)
         .add("lower_bound", lowerBound)
         .add("upper_bound", upperBound)

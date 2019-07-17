@@ -20,24 +20,24 @@
 package org.apache.iceberg.hive;
 
 import com.google.common.base.Preconditions;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import java.io.Closeable;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 abstract class ClientPool<C, E extends Exception> implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(ClientPool.class);
 
   private final int poolSize;
   private final Deque<C> clients;
-  private final Class<E> reconnectExc;
+  private final Class<? extends E> reconnectExc;
   private final Object signal = new Object();
   private volatile int currentSize;
   private boolean closed;
   private int runs = 0;
 
-  ClientPool(int poolSize, Class<E> reconnectExc) {
+  ClientPool(int poolSize, Class<? extends E> reconnectExc) {
     this.poolSize = poolSize;
     this.reconnectExc = reconnectExc;
     this.clients = new ArrayDeque<>(poolSize);
@@ -80,6 +80,34 @@ abstract class ClientPool<C, E extends Exception> implements Closeable {
 
   protected abstract void close(C client);
 
+  @Override
+  public void close() {
+    this.closed = true;
+    try {
+      while (currentSize > 0) {
+        if (!clients.isEmpty()) {
+          synchronized (this) {
+            if (!clients.isEmpty()) {
+              C client = clients.removeFirst();
+              close(client);
+              currentSize -= 1;
+            }
+          }
+        }
+        if (clients.isEmpty() && currentSize > 0) {
+          // wake every second in case this missed the signal
+          synchronized (signal) {
+            signal.wait(1000);
+          }
+        }
+      }
+
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      LOG.warn("Interrupted while shutting down pool. Some clients may not be closed.", e);
+    }
+  }
+
   private C get() throws InterruptedException {
     Preconditions.checkState(!closed, "Cannot get a client from a closed pool");
     while (true) {
@@ -106,34 +134,6 @@ abstract class ClientPool<C, E extends Exception> implements Closeable {
     }
     synchronized (signal) {
       signal.notify();
-    }
-  }
-
-  @Override
-  public void close() {
-    this.closed = true;
-    try {
-      while (currentSize > 0) {
-        if (!clients.isEmpty()) {
-          synchronized (this) {
-            if (!clients.isEmpty()) {
-              C client = clients.removeFirst();
-              close(client);
-              currentSize -= 1;
-            }
-          }
-        }
-        if (clients.isEmpty() && currentSize > 0) {
-          // wake every second in case this missed the signal
-          synchronized (signal) {
-            signal.wait(1000);
-          }
-        }
-      }
-
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      LOG.warn("Interrupted while shutting down pool. Some clients may not be closed.");
     }
   }
 }
