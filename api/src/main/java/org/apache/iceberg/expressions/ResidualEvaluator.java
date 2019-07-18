@@ -19,12 +19,9 @@
 
 package org.apache.iceberg.expressions;
 
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import java.io.Serializable;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
@@ -213,62 +210,48 @@ public class ResidualEvaluator implements Serializable {
         return pred; // not associated inclusive a partition field, can't be evaluated
       }
 
-      List<UnboundPredicate<?>> strictProjections = Lists.transform(parts,
-          part -> ((Transform<T, ?>) part.transform()).projectStrict(part.name(), pred));
-
-      if (Iterables.all(strictProjections, Objects::isNull)) {
-        // if there are no strict projections, the predicate must be in the residual
-        return pred;
-      }
-
-      Expression result = Expressions.alwaysFalse();
       for (PartitionField part : parts) {
+
+        // checking the strict projection
         UnboundPredicate<?> strictProjection = ((Transform<T, ?>) part.transform()).projectStrict(part.name(), pred);
+        Expression strictResult = null;
 
-        if (strictProjection == null) {
-          continue;
-        }
-
-        Expression bound = strictProjection.bind(spec.partitionType(), caseSensitive);
-
-        if (bound instanceof BoundPredicate) {
-          // evaluate the bound predicate, which will return alwaysTrue, alwaysFalse, or null
-          Expression strictResult = super.predicate((BoundPredicate<?>) bound);
-
-          if (strictResult != null) {
-            result = Expressions.or(result, strictResult);
+        if (strictProjection != null) {
+          Expression bound = strictProjection.bind(spec.partitionType(), caseSensitive);
+          if (bound instanceof BoundPredicate) {
+            strictResult = super.predicate((BoundPredicate<?>) bound);
           } else {
-
-            // strict result is null i.e. inconclusive. Getting inclusive projection
-            UnboundPredicate<?> inclusiveProjection = ((Transform<T, ?>) part.transform()).project(part.name(), pred);
-            Expression boundInclusive = inclusiveProjection.bind(spec.partitionType(), caseSensitive);
-
-            if (boundInclusive instanceof BoundPredicate) {
-              Expression inclusiveResult = predicateInclusive((BoundPredicate<?>) boundInclusive);
-
-              if (inclusiveResult != null) {
-                // strict projection is null, but inclusive projection is not
-                // AND-ing the expression because it's inclusive
-                result = Expressions.and(result, inclusiveResult);
-              } else {
-                // if both strict and inclusive projections are null, then the strict projection did
-                // not guarantee a result for all values, nor the inclusive projection so the
-                // predicate must be included in the residual
-                result = Expressions.or(result, pred);
-              }
-            } else {
-              // update the result expression with the non-predicate residual (e.g. alwaysTrue)
-              // AND-ing the expression because it's inclusive
-              result = Expressions.and(result, boundInclusive);
-            }
+            strictResult = bound;
           }
-        } else {
-          // update the result expression with the non-predicate residual (e.g. alwaysTrue)
-          result = Expressions.or(result, bound);
         }
+
+        if (strictResult != null && strictResult.equals(Expressions.alwaysTrue())) {
+          // If strict is true, returning true
+          return Expressions.alwaysTrue();
+        }
+
+        // checking the inclusive projection
+        UnboundPredicate<?> inclusiveProjection = ((Transform<T, ?>) part.transform()).project(part.name(), pred);
+        Expression inclusiveResult = null;
+        if (inclusiveProjection != null) {
+          Expression boundInclusive = inclusiveProjection.bind(spec.partitionType(), caseSensitive);
+          if (boundInclusive instanceof BoundPredicate) {
+            // using predicate method specific to inclusive
+            inclusiveResult = predicateInclusive((BoundPredicate<?>) boundInclusive);
+          } else {
+            inclusiveResult = boundInclusive;
+          }
+        }
+
+        if (inclusiveResult != null && inclusiveResult.equals(Expressions.alwaysFalse())) {
+          // If inclusive is false, returning false
+          return Expressions.alwaysFalse();
+        }
+
       }
 
-      return result;
+      // neither strict not inclusive predicate was conclusive, returning the original pred
+      return pred;
     }
 
     @Override
