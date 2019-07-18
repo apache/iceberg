@@ -20,6 +20,7 @@
 package org.apache.iceberg.expressions;
 
 import com.google.common.base.Preconditions;
+import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression.Operation;
 
 /**
@@ -40,6 +41,11 @@ public class Expressions {
       return left;
     }
     return new And(left, right);
+  }
+
+  public static Expression and(Expression left, Expression right, Expression... expressions) {
+    return Stream.of(expressions)
+      .reduce(and(left, right), Expressions::and);
   }
 
   public static Expression or(Expression left, Expression right) {
