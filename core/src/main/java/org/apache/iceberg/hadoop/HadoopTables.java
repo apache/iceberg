@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.hadoop;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import java.util.Map;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
@@ -70,18 +72,23 @@ public class HadoopTables implements Tables, Configurable {
    *
    * @param schema iceberg schema used to create the table
    * @param spec partition specification
+   * @param properties properties of the table to be created
    * @param location a path URI (e.g. hdfs:///warehouse/my_table)
    * @return newly created table implementation
    */
   @Override
   public Table create(Schema schema, PartitionSpec spec, Map<String, String> properties,
                       String location) {
+    Preconditions.checkNotNull(schema, "A table schema is required");
+    Preconditions.checkNotNull(spec, "A partition spec is required");
+
     TableOperations ops = newTableOps(location);
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table already exists at location: " + location);
     }
 
-    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, location, properties);
+    Map<String, String> tableProps = properties == null ? ImmutableMap.of() : properties;
+    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, location, tableProps);
     ops.commit(null, metadata);
 
     return new BaseTable(ops, location);
