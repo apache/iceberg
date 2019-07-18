@@ -52,7 +52,7 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
   private final Set<ManifestFile> replacedManifests = Collections.synchronizedSet(new HashSet<>());
   private final Map<Object, WriterWrapper> writers = Collections.synchronizedMap(new HashMap<>());
 
-  private final AtomicInteger manifestCount = new AtomicInteger(0);
+  private final AtomicInteger manifestSuffix = new AtomicInteger(0);
   private final AtomicLong entryCount = new AtomicLong(0);
 
   private final Map<String, String> summaryProps = new HashMap<>();
@@ -155,7 +155,6 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
   private void reset() {
     cleanAll();
     entryCount.set(0);
-    manifestCount.set(0);
     keptManifests.clear();
     replacedManifests.clear();
     newManifests.clear();
@@ -240,7 +239,7 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
     }
 
     private ManifestWriter newWriter() {
-      return new ManifestWriter(spec, manifestPath(manifestCount.getAndIncrement()), snapshotId());
+      return new ManifestWriter(spec, manifestPath(manifestSuffix.getAndIncrement()), snapshotId());
     }
 
     synchronized void close() {
