@@ -22,12 +22,15 @@ package org.apache.iceberg;
 import com.google.common.collect.Maps;
 import java.util.Map;
 import org.apache.iceberg.MetricsModes.MetricsMode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_WRITE_METRICS_MODE;
 import static org.apache.iceberg.TableProperties.DEFAULT_WRITE_METRICS_MODE_DEFAULT;
 
 public class MetricsConfig {
 
+  private static final Logger LOG = LoggerFactory.getLogger(MetricsConfig.class);
   private static final String COLUMN_CONF_PREFIX = "write.metadata.metrics.column.";
 
   private Map<String, MetricsMode> columnModes = Maps.newHashMap();
@@ -43,15 +46,24 @@ public class MetricsConfig {
 
   public static MetricsConfig fromProperties(Map<String, String> props) {
     MetricsConfig spec = new MetricsConfig();
+    String defaultModeAsString = props.getOrDefault(DEFAULT_WRITE_METRICS_MODE, DEFAULT_WRITE_METRICS_MODE_DEFAULT);
+    spec.defaultMode = MetricsModes.fromString(defaultModeAsString);
+
     props.keySet().stream()
         .filter(key -> key.startsWith(COLUMN_CONF_PREFIX))
         .forEach(key -> {
-          MetricsMode mode = MetricsModes.fromString(props.get(key));
           String columnAlias = key.replaceFirst(COLUMN_CONF_PREFIX, "");
+          MetricsMode mode;
+          try {
+            mode = MetricsModes.fromString(props.get(key));
+          } catch (IllegalArgumentException e) {
+            // Mode was invalid, log the error and use the default
+            LOG.warn("Ignoring invalid metrics mode for column %s: %s", columnAlias, key);
+            mode = spec.defaultMode;
+          }
           spec.columnModes.put(columnAlias, mode);
         });
-    String defaultModeAsString = props.getOrDefault(DEFAULT_WRITE_METRICS_MODE, DEFAULT_WRITE_METRICS_MODE_DEFAULT);
-    spec.defaultMode = MetricsModes.fromString(defaultModeAsString);
+
     return spec;
   }
 
