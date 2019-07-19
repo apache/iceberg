@@ -208,8 +208,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     final StorageDescriptor storageDescriptor = new StorageDescriptor();
     storageDescriptor.setCols(columns(metadata.schema()));
     storageDescriptor.setLocation(metadata.location());
-    storageDescriptor.setOutputFormat("org.apache.hadoop.mapred.FileInputFormat");
-    storageDescriptor.setInputFormat("org.apache.hadoop.mapred.FileOutputFormat");
+    storageDescriptor.setOutputFormat("org.apache.hadoop.mapred.FileOutputFormat");
+    storageDescriptor.setInputFormat("org.apache.hadoop.mapred.FileInputFormat");
     SerDeInfo serDeInfo = new SerDeInfo();
     serDeInfo.setSerializationLib("org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe");
     storageDescriptor.setSerdeInfo(serDeInfo);
