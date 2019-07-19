@@ -80,7 +80,7 @@ public class TableProperties {
 
   // This only applies to files written after this property is set. Files previously written aren't
   // relocated to reflect this parameter.
-  // If not set, defaults to a "meatdata" folder underneath the root path of the table.
+  // If not set, defaults to a "metadata" folder underneath the root path of the table.
   public static final String WRITE_METADATA_LOCATION = "write.metadata.path";
 
   public static final String MANIFEST_LISTS_ENABLED = "write.manifest-lists.enabled";
