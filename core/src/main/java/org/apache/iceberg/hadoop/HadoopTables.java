@@ -71,8 +71,8 @@ public class HadoopTables implements Tables, Configurable {
    * location.
    *
    * @param schema iceberg schema used to create the table
-   * @param spec partition specification
-   * @param properties properties of the table to be created
+   * @param spec partition specification. It can be null in case of unpartitioned table
+   * @param properties properties of the table to be created, it can be null
    * @param location a path URI (e.g. hdfs:///warehouse/my_table)
    * @return newly created table implementation
    */
@@ -80,7 +80,6 @@ public class HadoopTables implements Tables, Configurable {
   public Table create(Schema schema, PartitionSpec spec, Map<String, String> properties,
                       String location) {
     Preconditions.checkNotNull(schema, "A table schema is required");
-    Preconditions.checkNotNull(spec, "A partition spec is required");
 
     TableOperations ops = newTableOps(location);
     if (ops.current() != null) {
@@ -88,6 +87,7 @@ public class HadoopTables implements Tables, Configurable {
     }
 
     Map<String, String> tableProps = properties == null ? ImmutableMap.of() : properties;
+    PartitionSpec partitionSpec = spec == null ? PartitionSpec.unpartitioned() : spec;
     TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, location, tableProps);
     ops.commit(null, metadata);
 
