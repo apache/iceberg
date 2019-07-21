@@ -56,8 +56,14 @@ public class TableProperties {
   public static final String PARQUET_COMPRESSION = "write.parquet.compression-codec";
   public static final String PARQUET_COMPRESSION_DEFAULT = "gzip";
 
+  public static final String PARQUET_WRITE_MODE = "write.parquet.write-mode";
+  public static final String PARQUET_WRITE_MODE_DEFAULT = "overwrite";
+
   public static final String AVRO_COMPRESSION = "write.avro.compression-codec";
   public static final String AVRO_COMPRESSION_DEFAULT = "gzip";
+
+  public static final String AVRO_WRITE_MODE = "write.avro.write-mode";
+  public static final String AVRO_WRITE_MODE_DEFAULT = "overwrite";
 
   public static final String SPLIT_SIZE = "read.split.target-size";
   public static final long SPLIT_SIZE_DEFAULT = 134217728; // 128 MB

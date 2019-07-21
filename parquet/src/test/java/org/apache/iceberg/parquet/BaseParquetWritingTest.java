@@ -45,23 +45,28 @@ public abstract class BaseParquetWritingTest {
   public TemporaryFolder temp = new TemporaryFolder();
 
   File writeRecords(Schema schema, GenericData.Record... records) throws IOException {
-    return writeRecords(schema, Collections.emptyMap(), null, records);
+    return writeRecords(schema, Collections.emptyMap(), null, null, records);
   }
 
-  File writeRecords(
-      Schema schema, Map<String, String> properties,
-      Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
-      GenericData.Record... records) throws IOException {
-    File tmpFolder = temp.newFolder("parquet");
-    String filename = UUID.randomUUID().toString();
-    File file = new File(tmpFolder, FileFormat.PARQUET.addExtension(filename));
-    try (FileAppender<GenericData.Record> writer = Parquet.write(localOutput(file))
+  File writeRecords(Schema schema,
+                    Map<String, String> properties,
+                    Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
+                    File file,
+                    GenericData.Record... records) throws IOException {
+    File outputFile = file;
+    if (outputFile == null) {
+      File tmpFolder = temp.newFolder("parquet");
+      String filename = UUID.randomUUID().toString();
+      outputFile = new File(tmpFolder, FileFormat.PARQUET.addExtension(filename));
+    }
+
+    try (FileAppender<GenericData.Record> writer = Parquet.write(localOutput(outputFile))
         .schema(schema)
         .setAll(properties)
         .createWriterFunc(createWriterFunc)
         .build()) {
       writer.addAll(Lists.newArrayList(records));
     }
-    return file;
+    return outputFile;
   }
 }

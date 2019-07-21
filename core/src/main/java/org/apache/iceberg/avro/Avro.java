@@ -34,12 +34,15 @@ import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_DEFAULT;
+import static org.apache.iceberg.TableProperties.AVRO_WRITE_MODE;
+import static org.apache.iceberg.TableProperties.AVRO_WRITE_MODE_DEFAULT;
 
 public class Avro {
   private Avro() {
@@ -73,6 +76,11 @@ public class Avro {
     DEFAULT_MODEL.addLogicalTypeConversion(new UUIDConversion());
   }
 
+  public enum WriteMode {
+    CREATE,
+    OVERWRITE
+  }
+
   public static WriteBuilder write(OutputFile file) {
     return new WriteBuilder(file);
   }
@@ -87,6 +95,12 @@ public class Avro {
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
+    }
+
+    public WriteBuilder forTable(Table table) {
+      schema(table.schema());
+      setAll(table.properties());
+      return this;
     }
 
     public WriteBuilder schema(org.apache.iceberg.Schema newSchema) {
@@ -133,6 +147,15 @@ public class Avro {
       }
     }
 
+    private WriteMode writeMode() {
+      String writeMode = config.getOrDefault(AVRO_WRITE_MODE, AVRO_WRITE_MODE_DEFAULT);
+      try {
+        return WriteMode.valueOf(writeMode.toUpperCase(Locale.ENGLISH));
+      } catch (IllegalArgumentException e) {
+        throw new IllegalArgumentException("Unsupported write mode: " + writeMode);
+      }
+    }
+
     public <D> FileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(name, "Table name is required and cannot be null");
@@ -141,7 +164,7 @@ public class Avro {
       meta("iceberg.schema", SchemaParser.toJson(schema));
 
       return new AvroFileAppender<>(
-          AvroSchemaUtil.convert(schema, name), file, createWriterFunc, codec(), metadata);
+          AvroSchemaUtil.convert(schema, name), file, createWriterFunc, codec(), metadata, writeMode());
     }
   }
 

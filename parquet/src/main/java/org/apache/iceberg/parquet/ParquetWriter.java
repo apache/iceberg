@@ -83,7 +83,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
                 Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
                 CompressionCodecName codec,
                 ParquetProperties properties,
-                MetricsConfig metricsConfig) {
+                MetricsConfig metricsConfig,
+                ParquetFileWriter.Mode writeMode) {
     this.output = output;
     this.targetRowGroupSize = rowGroupSize;
     this.props = properties;
@@ -95,7 +96,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
     try {
       this.writer = new ParquetFileWriter(ParquetIO.file(output, conf), parquetSchema,
-          ParquetFileWriter.Mode.OVERWRITE, rowGroupSize, 0);
+          writeMode, rowGroupSize, 0);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to create Parquet file");
     }

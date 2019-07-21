@@ -64,6 +64,8 @@ import static org.apache.iceberg.TableProperties.PARQUET_PAGE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_PAGE_SIZE_BYTES_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_WRITE_MODE;
+import static org.apache.iceberg.TableProperties.PARQUET_WRITE_MODE_DEFAULT;
 
 public class Parquet {
   private Parquet() {
@@ -159,6 +161,15 @@ public class Parquet {
       }
     }
 
+    private ParquetFileWriter.Mode writeMode() {
+      String writeMode = config.getOrDefault(PARQUET_WRITE_MODE, PARQUET_WRITE_MODE_DEFAULT);
+      try {
+        return ParquetFileWriter.Mode.valueOf(writeMode.toUpperCase(Locale.ENGLISH));
+      } catch (IllegalArgumentException e) {
+        throw new IllegalArgumentException("Unsupported write mode: " + writeMode);
+      }
+    }
+
     public <D> FileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(name, "Table name is required and cannot be null");
@@ -201,7 +212,7 @@ public class Parquet {
 
         return new org.apache.iceberg.parquet.ParquetWriter<>(
             conf, file, schema, rowGroupSize, metadata, createWriterFunc, codec(),
-            parquetProperties, metricsConfig);
+            parquetProperties, metricsConfig, writeMode());
       } else {
         return new ParquetWriteAdapter<>(new ParquetWriteBuilder<D>(ParquetIO.file(file))
             .withWriterVersion(writerVersion)
@@ -210,7 +221,7 @@ public class Parquet {
             .setKeyValueMetadata(metadata)
             .setWriteSupport(getWriteSupport(type))
             .withCompressionCodec(codec())
-            .withWriteMode(ParquetFileWriter.Mode.OVERWRITE) // TODO: support modes
+            .withWriteMode(writeMode())
             .withRowGroupSize(rowGroupSize)
             .withPageSize(pageSize)
             .withDictionaryPageSize(dictionaryPageSize)
