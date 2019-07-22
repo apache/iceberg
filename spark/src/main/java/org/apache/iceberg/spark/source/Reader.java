@@ -22,7 +22,6 @@ package org.apache.iceberg.spark.source;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import java.io.Closeable;
 import java.io.IOException;
@@ -60,15 +59,13 @@ import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkAvroReader;
 import org.apache.iceberg.spark.data.SparkOrcReader;
-import org.apache.iceberg.spark.data.SparkParquetReaders;
-import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.spark.data.vector.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Attribute;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
-import org.apache.spark.sql.catalyst.expressions.JoinedRow;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
@@ -163,15 +160,10 @@ class Reader implements DataSourceReader,
 
   @Override
   public List<InputPartition<ColumnarBatch>> planBatchInputPartitions() {
-    return null;
-  }
-
-  @Override
-  public List<InputPartition<InternalRow>> planInputPartitions() {
     String tableSchemaString = SchemaParser.toJson(table.schema());
     String expectedSchemaString = SchemaParser.toJson(lazySchema());
 
-    List<InputPartition<InternalRow>> readTasks = Lists.newArrayList();
+    List<InputPartition<ColumnarBatch>> readTasks = Lists.newArrayList();
     for (CombinedScanTask task : tasks()) {
       readTasks.add(
           new ReadTask(task, tableSchemaString, expectedSchemaString, fileIo, encryptionManager,
@@ -179,6 +171,22 @@ class Reader implements DataSourceReader,
     }
 
     return readTasks;
+  }
+
+  @Override
+  public List<InputPartition<InternalRow>> planInputPartitions() {
+    return null;
+    // String tableSchemaString = SchemaParser.toJson(table.schema());
+    // String expectedSchemaString = SchemaParser.toJson(lazySchema());
+    //
+    // List<InputPartition<InternalRow>> readTasks = Lists.newArrayList();
+    // for (CombinedScanTask task : tasks()) {
+    //   readTasks.add(
+    //       new ReadTask(task, tableSchemaString, expectedSchemaString, fileIo, encryptionManager,
+    //           caseSensitive, numRecordsPerBatch));
+    // }
+    //
+    // return readTasks;
   }
 
   @Override
@@ -275,7 +283,7 @@ class Reader implements DataSourceReader,
         table, lazySchema().asStruct(), filterExpressions, caseSensitive);
   }
 
-  private static class ReadTask implements InputPartition<InternalRow>, Serializable {
+  private static class ReadTask implements InputPartition<ColumnarBatch>, Serializable {
     private final CombinedScanTask task;
     private final String tableSchemaString;
     private final String expectedSchemaString;
@@ -300,7 +308,7 @@ class Reader implements DataSourceReader,
     }
 
     @Override
-    public InputPartitionReader<InternalRow> createPartitionReader() {
+    public InputPartitionReader<ColumnarBatch> createPartitionReader() {
       return new TaskDataReader(task, lazyTableSchema(), lazyExpectedSchema(), fileIo,
         encryptionManager, caseSensitive, numRecordsPerBatch);
     }
@@ -320,7 +328,7 @@ class Reader implements DataSourceReader,
     }
   }
 
-  private static class TaskDataReader implements InputPartitionReader<InternalRow> {
+  private static class TaskDataReader implements InputPartitionReader<ColumnarBatch> {
     // for some reason, the apply method can't be called from Java without reflection
     private static final DynMethods.UnboundMethod APPLY_PROJECTION = DynMethods.builder("apply")
         .impl(UnsafeProjection.class, InternalRow.class)
@@ -334,9 +342,9 @@ class Reader implements DataSourceReader,
     private final boolean caseSensitive;
     private final int numRecordsPerBatch;
 
-    private Iterator<InternalRow> currentIterator;
+    private Iterator<ColumnarBatch> currentIterator;
     private Closeable currentCloseable = null;
-    private InternalRow current = null;
+    private ColumnarBatch current = null;
 
     TaskDataReader(CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
                           EncryptionManager encryptionManager, boolean caseSensitive, int numRecordsPerBatch) {
@@ -376,7 +384,7 @@ class Reader implements DataSourceReader,
     }
 
     @Override
-    public InternalRow get() {
+    public ColumnarBatch get() {
       return current;
     }
 
@@ -391,7 +399,7 @@ class Reader implements DataSourceReader,
       }
     }
 
-    private Iterator<InternalRow> open(FileScanTask task) {
+    private Iterator<ColumnarBatch> open(FileScanTask task) {
       DataFile file = task.file();
 
       // schema or rows returned by readers
@@ -406,23 +414,24 @@ class Reader implements DataSourceReader,
       boolean hasExtraFilterColumns = requiredSchema.columns().size() != finalSchema.columns().size();
 
       Schema iterSchema;
-      Iterator<InternalRow> iter;
+      Iterator<ColumnarBatch> iter;
 
-      if (hasJoinedPartitionColumns) {
-        // schema used to read data files
-        Schema readSchema = TypeUtil.selectNot(requiredSchema, idColumns);
-        Schema partitionSchema = TypeUtil.select(requiredSchema, idColumns);
-        PartitionRowConverter convertToRow = new PartitionRowConverter(partitionSchema, spec);
-        JoinedRow joined = new JoinedRow();
-
-        InternalRow partition = convertToRow.apply(file.partition());
-        joined.withRight(partition);
-
-        // create joined rows and project from the joined schema to the final schema
-        iterSchema = TypeUtil.join(readSchema, partitionSchema);
-        iter = Iterators.transform(open(task, readSchema), joined::withLeft);
-
-      } else if (hasExtraFilterColumns) {
+      // if (hasJoinedPartitionColumns) {
+        // // schema used to read data files
+        // Schema readSchema = TypeUtil.selectNot(requiredSchema, idColumns);
+        // Schema partitionSchema = TypeUtil.select(requiredSchema, idColumns);
+        // PartitionRowConverter convertToRow = new PartitionRowConverter(partitionSchema, spec);
+        // JoinedRow joined = new JoinedRow();
+        //
+        // InternalRow partition = convertToRow.apply(file.partition());
+        // joined.withRight(partition);
+        //
+        // // create joined rows and project from the joined schema to the final schema
+        // iterSchema = TypeUtil.join(readSchema, partitionSchema);
+        // iter = Iterators.transform(open(task, readSchema), joined::withLeft);
+      //
+      // } else if (hasExtraFilterColumns) {
+      if (hasExtraFilterColumns) {
         // add projection to the final schema
         iterSchema = requiredSchema;
         iter = open(task, requiredSchema);
@@ -434,36 +443,37 @@ class Reader implements DataSourceReader,
       }
 
       // TODO: remove the projection by reporting the iterator's schema back to Spark
-      return Iterators.transform(iter,
-          APPLY_PROJECTION.bind(projection(finalSchema, iterSchema))::invoke);
+      // return Iterators.transform(iter,
+      //     APPLY_PROJECTION.bind(projection(finalSchema, iterSchema))::invoke);
+      return iter;
     }
 
-    private Iterator<InternalRow> open(FileScanTask task, Schema readSchema) {
-      CloseableIterable<InternalRow> iter;
-      if (task.isDataTask()) {
-        iter = newDataIterable(task.asDataTask(), readSchema);
+    private Iterator<ColumnarBatch> open(FileScanTask task, Schema readSchema) {
+      CloseableIterable<ColumnarBatch> iter;
+      // if (task.isDataTask()) {
+      //   iter = newDataIterable(task.asDataTask(), readSchema);
+      //
+      // } else {
+      InputFile location = inputFiles.get(task.file().path().toString());
+      Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
 
-      } else {
-        InputFile location = inputFiles.get(task.file().path().toString());
-        Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
-
-        switch (task.file().format()) {
-          case PARQUET:
-            iter = newParquetIterable(location, task, readSchema);
-            break;
-
-          case AVRO:
-            iter = newAvroIterable(location, task, readSchema);
-            break;
-
-          case ORC:
-            iter = newOrcIterable(location, task, readSchema);
-            break;
-
-          default:
-            throw new UnsupportedOperationException(
-                "Cannot read unknown format: " + task.file().format());
-        }
+      switch (task.file().format()) {
+        case PARQUET:
+          iter = newParquetIterable(location, task, readSchema);
+          break;
+        //
+        // case AVRO:
+        //   iter = newAvroIterable(location, task, readSchema);
+        //   break;
+        //
+        // case ORC:
+        //   iter = newOrcIterable(location, task, readSchema);
+        //   break;
+        //
+        default:
+          throw new UnsupportedOperationException(
+              "Cannot read unknown format: " + task.file().format());
+        // }
       }
 
       this.currentCloseable = iter;
@@ -504,13 +514,14 @@ class Reader implements DataSourceReader,
           .build();
     }
 
-    private CloseableIterable<InternalRow> newParquetIterable(InputFile location,
+    private CloseableIterable<ColumnarBatch> newParquetIterable(InputFile location,
                                                             FileScanTask task,
                                                             Schema readSchema) {
       return Parquet.read(location)
           .project(readSchema, SparkSchemaUtil.convert(readSchema))
           .split(task.start(), task.length())
-          .createReaderFunc(fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema))
+          .createReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(tableSchema, readSchema,
+              fileSchema))
           .filter(task.residual())
           .caseSensitive(caseSensitive)
           .recordsPerBatch(numRecordsPerBatch)

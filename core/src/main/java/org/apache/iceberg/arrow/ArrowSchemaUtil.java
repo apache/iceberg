@@ -65,7 +65,7 @@ public class ArrowSchemaUtil {
     return new Schema(fields.build());
   }
 
-  private static Field convert(final NestedField field) {
+  public static Field convert(final NestedField field) {
     final ArrowType arrowType;
 
     final List<Field> children = Lists.newArrayList();

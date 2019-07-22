@@ -101,14 +101,14 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Optional<String> path = options.get("path");
     Preconditions.checkArgument(path.isPresent(), "Cannot open table: path is not set");
 
-    if (path.get().contains("/")) {
-      HadoopTables tables = new HadoopTables(conf);
-      return tables.load(path.get());
-    } else {
-      HiveCatalog hiveCatalog = HiveCatalogs.loadCatalog(conf);
-      TableIdentifier tableIdentifier = TableIdentifier.parse(path.get());
-      return hiveCatalog.loadTable(tableIdentifier);
-    }
+    // if (path.get().contains("/")) {
+    HadoopTables tables = new HadoopTables(conf);
+    return tables.load(path.get());
+    // } else {
+    //   HiveCatalog hiveCatalog = HiveCatalogs.loadCatalog(conf);
+    //   TableIdentifier tableIdentifier = TableIdentifier.parse(path.get());
+    //   return hiveCatalog.loadTable(tableIdentifier);
+    // }
   }
 
   protected SparkSession lazySparkSession() {

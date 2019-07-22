@@ -40,6 +40,7 @@ import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -201,15 +202,15 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     FileIterator<T> iter = new FileIterator<>(init());
     addCloseable(iter);
 
-    if(maxRecordsPerBatch == 0) {
-      LOG.info("[ParquetReader] => Return regular iterator. No batching.");
-      System.out.println("[ParquetReader] => Return regular iterator. No batching.");
-      return iter;
-    } else {
-      LOG.info("[ParquetReader] => Read into Arrow batches of " + maxRecordsPerBatch + " rows.");
+    // if(maxRecordsPerBatch == 0) {
+    LOG.info("[ParquetReader] => Return regular iterator. No batching.");
+    System.out.println("[ParquetReader] => Return regular iterator. No batching.");
+    return iter;
+    // } else {
+    //   LOG.info("[ParquetReader] => Read into Arrow batches of " + maxRecordsPerBatch + " rows.");
       // System.out.println("[ParquetReader] => Read into Arrow batches of " + maxRecordsPerBatch + " rows.");
-      return arrowBatchAsInternalRow((Iterator<InternalRow>) iter);
-    }
+      // return arrowBatchAsInternalRow((Iterator<InternalRow>) iter);
+    // }
   }
 
   private Iterator<T> arrowBatchAsInternalRow(Iterator<InternalRow> iter) {
@@ -266,7 +267,11 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       } else {
         this.last = model.read(null);
       }
-      valuesRead += 1;
+      if (last instanceof ColumnarBatch) {
+        valuesRead += ((ColumnarBatch)last).numRows();
+      } else {
+        valuesRead += 1;
+      }
 
       return last;
     }
