@@ -183,7 +183,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(Float value) {
-      return MURMUR3.hashLong(Double.doubleToRawLongBits((double) value)).asInt();
+      return MURMUR3.hashLong(Double.doubleToLongBits((double) value)).asInt();
     }
 
     @Override
@@ -201,7 +201,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(Double value) {
-      return MURMUR3.hashLong(Double.doubleToRawLongBits(value)).asInt();
+      return MURMUR3.hashLong(Double.doubleToLongBits(value)).asInt();
     }
 
     @Override
