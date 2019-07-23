@@ -36,25 +36,25 @@ If the snapshot on which an update is based is no longer current, the writer mus
 
 Iceberg only requires that file systems support the following operations:
 
-* **In-place write**: files are not moved or altered once they are written
-* **Seekable reads**: data file formats require seek support
-* **Deletes**: tables delete files that are no longer used
+* **In-place write** -- Files are not moved or altered once they are written.
+* **Seekable reads** -- Data file formats require seek support.
+* **Deletes** -- Tables delete files that are no longer used.
 
 These requirements are compatible with object stores, like S3.
 
 Tables do not require random-access writes. Once written, data and metadata files are immutable until they are deleted.
 
-Tables do not require rename, except fo rtables that use atomic rename to implement the commit operation for new metadata files.
+Tables do not require rename, except for tables that use atomic rename to implement the commit operation for new metadata files.
 
 ## Specification
 
 #### Terms
 
-* **Schema** -- names and types of fields in a table
-* **Partition spec** -- a definition of how partition values are derived from data fields
-* **Snapshot** -- the state of a table at some point in time, including the set of all data files
-* **Manifest** -- a file that lists data files; a subset of a snapshot
-* **Manifest list** -- a file that lists manifest files; one per snapshot
+* **Schema** -- Names and types of fields in a table.
+* **Partition spec** -- A definition of how partition values are derived from data fields.
+* **Snapshot** -- The state of a table at some point in time, including the set of all data files.
+* **Manifest** -- A file that lists data files; a subset of a snapshot.
+* **Manifest list** -- A file that lists manifest files; one per snapshot.
 
 ### Schemas and Data Types
 
@@ -241,16 +241,16 @@ Notes:
 
 A snapshot consists of the following fields:
 
-*   **`snapshot-id`**: a unique long ID.
-*   **`parent-snapshot-id`**: (optional) the snapshot ID of the snapshot’s parent. This field is not present for snapshots that have no parent snapshot, such as snapshots created before this field was added or the first snapshot of a table.
-*   **`timestamp-ms`**: a timestamp when the snapshot was created. This is used when garbage collecting snapshots.
-*   **`manifests`**: a list of manifest file locations. The data files in a snapshot are the union of all data files listed in these manifests. (Deprecated in favor of `manifest-list`)
-*   **`manifest-list`**: (optional) the location of a manifest list file for this snapshot, which contains a list of manifest files with additional metadata. If present, the manifests field must be omitted.
-*   **`summary`**: (optional) a summary that encodes the `operation` that produced the snapshot and other relevant information specific to that operation. This allows some operations like snapshot expiration to skip processing some snapshots. Possible values of `operation` are:
-    *   `append`: data files were added and no files were removed.
-    *   `replace`: data files were rewritten with the same data; i.e., compaction, changing the data file format, or relocating data files.
-    *   `overwrite`: data files were deleted and added in a logical overwrite operation.
-    *   `delete`: data files were removed and their contents logically deleted.
+*   **`snapshot-id`** -- A unique long ID.
+*   **`parent-snapshot-id`** -- (Optional) The snapshot ID of the snapshot’s parent. This field is not present for snapshots that have no parent snapshot, such as snapshots created before this field was added or the first snapshot of a table.
+*   **`timestamp-ms`** -- A timestamp when the snapshot was created. This is used when garbage collecting snapshots.
+*   **`manifests`** -- A list of manifest file locations. The data files in a snapshot are the union of all data files listed in these manifests. (Deprecated in favor of `manifest-list`)
+*   **`manifest-list`** -- (Optional) The location of a manifest list file for this snapshot, which contains a list of manifest files with additional metadata. If present, the manifests field must be omitted.
+*   **`summary`** -- (Optional) A summary that encodes the `operation` that produced the snapshot and other relevant information specific to that operation. This allows some operations like snapshot expiration to skip processing some snapshots. Possible values of `operation` are:
+    *   `append` -- Data files were added and no files were removed.
+    *   `replace` -- Data files were rewritten with the same data; i.e., compaction, changing the data file format, or relocating data files.
+    *   `overwrite` -- Data files were deleted and added in a logical overwrite operation.
+    *   `delete` -- Data files were removed and their contents logically deleted.
 
 Snapshots can be split across more than one manifest. This enables:
 
@@ -265,7 +265,7 @@ Valid snapshots are stored as a list in table metadata. For serialization, see A
 
 Scans are planned by reading the manifest files for the current snapshot listed in the table metadata. Deleted entries in a manifest are not included in the scan.
 
-For each manifest, scan predicates, that filter data rows, are converted to partition predicates, that filter data files, and used to select the data files in the manifest. This conversion uses the partition spec used to write the manifest file.
+For each manifest, scan predicates, which filter data rows, are converted to partition predicates, which filter data files. These partition predicates are used select the data files in the manifest. This conversion uses the partition spec used to write the manifest file.
 
 Scan predicates are converted to partition predicates using an inclusive projection: if a scan predicate matches a row, then the partition predicate must match that row’s partition. This is an _inclusive projection_ [1] because rows that do not match the scan predicate may be included in the scan by the partition predicate.
 
@@ -298,7 +298,7 @@ Manifest list files store `manifest_file`, a struct with the following fields:
 
 | Field id, name          | Type                    | Description                                                                                 |
 |-------------------------|-------------------------|---------------------------------------------------------------------------------------------|
-| **`509 contains_null`** | `boolean`               | Whether the manifest contains at least one partition with a null value for the field        |
+| **`509 contains_null`** | `boolean`               | Whether the manifest contains at least one partition with a null value for the field.       |
 | **`510 lower_bound`**   | `optional bytes`    [1] | Lower bound for the non-null values in the partition field, or null if all values are null. |
 | **`511 upper_bound`**   | `optional bytes`    [1] | Upper bound for the non-null values in the partition field, or null if all values are null. |
 
@@ -403,17 +403,17 @@ Maps with non-string keys must use an array representation with the `map` logica
 |**`float`**|`float`||
 |**`double`**|`double`||
 |**`decimal(P,S)`**|`{ "type": "fixed",`<br />&nbsp;&nbsp;`"size": minBytesRequired(P),`<br />&nbsp;&nbsp;`"logicalType": "decimal",`<br />&nbsp;&nbsp;`"precision": P,`<br />&nbsp;&nbsp;`"scale": S }`|Stored as fixed using the minimum number of bytes for the given precision.|
-|**`date`**|`{ "type": "int",`<br />&nbsp;&nbsp;`"logicalType": "date" }`|Stores days from the 1970-01-01|
-|**`time`**|`{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "time-micros" }`|Stores microseconds from midnight|
-|**`timestamp`**|`{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "timestamp-micros",`<br />&nbsp;&nbsp;`"adjust-to-utc": false }`|Stores microseconds from 1970-01-01 00:00:00.000000|
-|**`timestamptz`**|`{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "timestamp-micros",`<br />&nbsp;&nbsp;`"adjust-to-utc": true }`|Stores microseconds from 1970-01-01 00:00:00.000000 UTC|
+|**`date`**|`{ "type": "int",`<br />&nbsp;&nbsp;`"logicalType": "date" }`|Stores days from the 1970-01-01.|
+|**`time`**|`{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "time-micros" }`|Stores microseconds from midnight.|
+|**`timestamp`**|`{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "timestamp-micros",`<br />&nbsp;&nbsp;`"adjust-to-utc": false }`|Stores microseconds from 1970-01-01 00:00:00.000000.|
+|**`timestamptz`**|`{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "timestamp-micros",`<br />&nbsp;&nbsp;`"adjust-to-utc": true }`|Stores microseconds from 1970-01-01 00:00:00.000000 UTC.|
 |**`string`**|`string`||
 |**`uuid`**|`{ "type": "fixed",`<br />&nbsp;&nbsp;`"size": 16,`<br />&nbsp;&nbsp;`"logicalType": "uuid" }`||
 |**`fixed(L)`**|`{ "type": "fixed",`<br />&nbsp;&nbsp;`"size": L }`||
 |**`binary`**|`bytes`||
 |**`struct`**|`record`||
 |**`list`**|`array`||
-|**`map`**|`array` of key-value records, or `map` when keys are strings (optional)|Array storage must use logical type name `map` and must store elements that are 2-field records. The first field is a non-null key and the second field is the value.|
+|**`map`**|`array` of key-value records, or `map` when keys are strings (optional).|Array storage must use logical type name `map` and must store elements that are 2-field records. The first field is a non-null key and the second field is the value.|
 
 
 **Field IDs**
@@ -449,17 +449,17 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | **`float`**        | `float`                                                            |                                             |                                                                |
 | **`double`**       | `double`                                                           |                                             |                                                                |
 | **`decimal(P,S)`** | `P <= 9`: `int32`,<br />`P <= 18`: `int64`,<br />`fixed` otherwise | `DECIMAL(P,S)`                              | Fixed must use the minimum number of bytes that can store `P`. |
-| **`date`**         | `int32`                                                            | `DATE`                                      | Stores days from the 1970-01-01                                |
-| **`time`**         | `int64`                                                            | `TIME_MICROS` with `adjustToUtc=false`      | Stores microseconds from midnight                              |
-| **`timestamp`**    | `int64`                                                            | `TIMESTAMP_MICROS` with `adjustToUtc=false` | Stores microseconds from 1970-01-01 00:00:00.000000            |
-| **`timestamptz`**  | `int64`                                                            | `TIMESTAMP_MICROS` with `adjustToUtc=true`  | Stores microseconds from 1970-01-01 00:00:00.000000 UTC        |
-| **`string`**       | `binary`                                                           | `UTF8`                                      | Encoding must be UTF-8                                         |
+| **`date`**         | `int32`                                                            | `DATE`                                      | Stores days from the 1970-01-01.                               |
+| **`time`**         | `int64`                                                            | `TIME_MICROS` with `adjustToUtc=false`      | Stores microseconds from midnight.                             |
+| **`timestamp`**    | `int64`                                                            | `TIMESTAMP_MICROS` with `adjustToUtc=false` | Stores microseconds from 1970-01-01 00:00:00.000000.           |
+| **`timestamptz`**  | `int64`                                                            | `TIMESTAMP_MICROS` with `adjustToUtc=true`  | Stores microseconds from 1970-01-01 00:00:00.000000 UTC.       |
+| **`string`**       | `binary`                                                           | `UTF8`                                      | Encoding must be UTF-8.                                        |
 | **`uuid`**         | `fixed_len_byte_array[16]`                                         | `UUID`                                      |                                                                |
 | **`fixed(L)`**     | `fixed_len_byte_array[L]`                                          |                                             |                                                                |
 | **`binary`**       | `binary`                                                           |                                             |                                                                |
 | **`struct`**       | `group`                                                            |                                             |                                                                |
-| **`list`**         | `3-level list`                                                     | `LIST`                                      | See Parquet docs for 3-level representation                    |
-| **`map`**          | `3-level map`                                                      | `MAP`                                       | See Parquet docs for 3-level representation                    |
+| **`list`**         | `3-level list`                                                     | `LIST`                                      | See Parquet docs for 3-level representation.                   |
+| **`map`**          | `3-level map`                                                      | `MAP`                                       | See Parquet docs for 3-level representation.                   |
 
 
 ### ORC
@@ -469,27 +469,27 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | Type               | ORC type    | Notes                                                                                   |
 |--------------------|-------------|-----------------------------------------------------------------------------------------|
 | **`boolean`**      | `boolean`   |                                                                                         |
-| **`int`**          | `int`       | ORC tinyint and smallint would map to int also.                                         |
+| **`int`**          | `int`       | ORC `tinyint` and `smallint` would also map to **`int`**.                               |
 | **`long`**         | `long`      |                                                                                         |
 | **`float`**        | `float`     |                                                                                         |
 | **`double`**       | `double`    |                                                                                         |
 | **`decimal(P,S)`** | `decimal`   |                                                                                         |
 | **`date`**         | `date`      |                                                                                         |
-| **`time`**         | `int`       | Stores microseconds from midnight                                                       |
+| **`time`**         | `int`       | Stores microseconds from midnight.                                                      |
 | **`timestamp`**    | `timestamp` |                                                                                         |
-| **`timestamptz`**  | `struct`    | We should add this to ORC’s type model. (ORC-294)                                       |
-| **`string`**       | `string`    | ORC varchar and char would map to Iceberg string too.                                   |
+| **`timestamptz`**  | `struct`    | We should add this to ORC’s type model (ORC-294).                                       |
+| **`string`**       | `string`    | ORC `varchar` and `char` would also map to **`string`**.                                |
 | **`uuid`**         | `binary`    |                                                                                         |
-| **`fixed(L)`**     | `binary`    | The length would not be checked by the ORC reader and should be checked by the adaptor. |
+| **`fixed(L)`**     | `binary`    | The length would not be checked by the ORC reader and should be checked by the adapter. |
 | **`binary`**       | `binary`    |                                                                                         |
-| **`struct`**       | `struct`    | ORC uniontype would map to struct also.                                                 |
+| **`struct`**       | `struct`    | ORC `uniontype` would also map to **`struct`**.                                         |
 | **`list`**         | `array`     |                                                                                         |
 | **`map`**          | `map`       |                                                                                         |
 
 
-One of the interesting challenges with this is how to map Iceberg’s schema evolution (id based) on to ORC’s (name based). In theory we could use Iceberg’s column ids as the column and field names, but that would suck from a user’s point of view. 
+One of the interesting challenges with this is how to map Iceberg’s schema evolution (id based) on to ORC’s (name based). In theory, we could use Iceberg’s column ids as the column and field names, but that would suck from a user’s point of view. 
 
-The column ids would be stored in ORC’s user metadata as “iceberg.column.id” with a comma separated list of the ids.
+The column ids would be stored in ORC’s user metadata as `iceberg.column.id` with a comma separated list of the ids.
 
 Iceberg would build the desired reader schema with their schema evolution rules and pass that down to the ORC reader, which would then use its schema evolution to map that to the writer’s schema. Basically, Iceberg would need to change the names of columns and fields to get the desired mapping.
 
