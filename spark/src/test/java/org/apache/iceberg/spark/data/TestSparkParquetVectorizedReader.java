@@ -2,6 +2,7 @@ package org.apache.iceberg.spark.data;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
@@ -18,6 +19,7 @@ import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
 
+import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 
 public class TestSparkParquetVectorizedReader extends AvroDataTest {
 
@@ -49,11 +51,24 @@ public class TestSparkParquetVectorizedReader extends AvroDataTest {
 
       Iterator<ColumnarBatch> batches = batchReader.iterator();
       int numRowsRead = 0;
+      int numExpectedRead = 0;
       while(batches.hasNext()) {
 
         ColumnarBatch batch = batches.next();
         numRowsRead += batch.numRows();
-        System.out.println("Batch read with "+batch.numRows()+" rows. Read "+numRowsRead+" till now.");
+
+        List<GenericData.Record> expectedBatch = new ArrayList<>(batch.numRows());
+        for(int i = numExpectedRead; i < numExpectedRead+batch.numRows(); i++) {
+          expectedBatch.add(expected.get(i));
+        }
+
+        System.out.println("-> Check "+numExpectedRead+" - "+ (numExpectedRead+batch.numRows()));
+        assertEqualsUnsafe(schema.asStruct(), expectedBatch, batch);
+
+        System.out.println("Batch read with "+batch.numRows()+" rows. Read "+numRowsRead+" till now. " +
+            "Expected batch "+expectedBatch.size());
+
+        numExpectedRead += batch.numRows();
       }
 
       Assert.assertEquals(expected.size(), numRowsRead);

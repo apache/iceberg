@@ -202,15 +202,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     FileIterator<T> iter = new FileIterator<>(init());
     addCloseable(iter);
 
-    // if(maxRecordsPerBatch == 0) {
-    LOG.info("[ParquetReader] => Return regular iterator. No batching.");
-    System.out.println("[ParquetReader] => Return regular iterator. No batching.");
     return iter;
-    // } else {
-    //   LOG.info("[ParquetReader] => Read into Arrow batches of " + maxRecordsPerBatch + " rows.");
-      // System.out.println("[ParquetReader] => Read into Arrow batches of " + maxRecordsPerBatch + " rows.");
-      // return arrowBatchAsInternalRow((Iterator<InternalRow>) iter);
-    // }
   }
 
   private Iterator<T> arrowBatchAsInternalRow(Iterator<InternalRow> iter) {

@@ -111,6 +111,7 @@ public class VectorizedSparkParquetReaders {
       int parquetFieldId = primitive.getId().intValue();
       ColumnDescriptor desc = parquetSchema.getColumnDescription(currentPath());
       Types.NestedField icebergField = tableIcebergSchema.findField(parquetFieldId);
+      // int fieldD = parquetSchema.getMaxDefinitionLevel(path(primitive.getName())) - 1;
       // Field field = ArrowSchemaUtil.convert(projectedIcebergSchema.findField(parquetFieldId));
       // FieldVector vec = field.createVector(rootAllocator);
 

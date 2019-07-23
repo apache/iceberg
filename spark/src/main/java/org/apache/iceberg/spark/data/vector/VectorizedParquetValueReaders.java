@@ -19,6 +19,7 @@ import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.types.Decimal;
 
 /***
@@ -47,15 +48,16 @@ public class VectorizedParquetValueReaders {
   public abstract static class VectorReader extends ParquetValueReaders.PrimitiveReader<FieldVector> {
 
     protected FieldVector vec;
+    protected boolean isOptional;
 
     VectorReader(ColumnDescriptor desc,
         Types.NestedField icebergField,
         RootAllocator rootAlloc) {
 
       super(desc);
-
       this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
-      System.out.println("=> icebergField : "+icebergField.type().typeId().name()+" ,  Field Vector Type : "+vec.getClass().getName());
+      this.isOptional = desc.getPrimitiveType().isRepetition(Type.Repetition.OPTIONAL);
+      // System.out.println("=> icebergField : "+icebergField.type().typeId().name()+" ,  Field Vector Type : "+vec.getClass().getName());
     }
 
     @Override
@@ -67,7 +69,7 @@ public class VectorizedParquetValueReaders {
       while(column.hasNext()) {
         // Todo: this check works for flat schemas only
         // need to get max definition level to do proper check
-        if(column.currentDefinitionLevel() == 0) {
+        if(isOptional && column.currentDefinitionLevel() == 0) {
           // handle null
           column.nextNull();
           nextNullAt(i);
