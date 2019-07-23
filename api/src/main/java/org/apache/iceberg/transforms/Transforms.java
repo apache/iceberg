@@ -131,7 +131,7 @@ public class Transforms {
         return (Transform<T, Integer>) Timestamps.DAY;
       default:
         throw new IllegalArgumentException(
-            "Cannot partition type " + type + " by month");
+            "Cannot partition type " + type + " by day");
     }
   }
 
