@@ -19,16 +19,6 @@
 
 package org.apache.iceberg.arrow;
 
-
-import java.util.List;
-import org.apache.arrow.memory.RootAllocator;
-import org.apache.arrow.vector.BitVector;
-import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.Float8Vector;
-import org.apache.arrow.vector.IntVector;
-import org.apache.arrow.vector.ValueVector;
-import org.apache.arrow.vector.VectorLoader;
-import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.iceberg.Schema;
@@ -42,14 +32,6 @@ import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.TimestampType;
-import org.apache.spark.sql.execution.arrow.ArrowUtils;
-import org.apache.spark.sql.execution.arrow.ArrowWriter;
-import org.apache.spark.sql.execution.arrow.BooleanWriter;
-import org.apache.spark.sql.types.DataType;
-import org.apache.spark.sql.types.*;
-import org.apache.spark.sql.vectorized.ArrowColumnVector;
-import org.apache.spark.sql.vectorized.ColumnVector;
-import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.Test;
 
 import static org.apache.arrow.vector.types.pojo.ArrowType.ArrowTypeID.Bool;

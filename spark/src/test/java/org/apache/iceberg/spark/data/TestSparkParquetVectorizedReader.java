@@ -62,7 +62,7 @@ public class TestSparkParquetVectorizedReader extends AvroDataTest {
           expectedBatch.add(expected.get(i));
         }
 
-        System.out.println("-> Check "+numExpectedRead+" - "+ (numExpectedRead+batch.numRows()));
+        // System.out.println("-> Check "+numExpectedRead+" - "+ (numExpectedRead+batch.numRows()));
         assertEqualsUnsafe(schema.asStruct(), expectedBatch, batch);
 
         System.out.println("Batch read with "+batch.numRows()+" rows. Read "+numRowsRead+" till now. " +
