@@ -88,7 +88,7 @@ public class HadoopTables implements Tables, Configurable {
 
     Map<String, String> tableProps = properties == null ? ImmutableMap.of() : properties;
     PartitionSpec partitionSpec = spec == null ? PartitionSpec.unpartitioned() : spec;
-    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, location, tableProps);
+    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, partitionSpec, location, tableProps);
     ops.commit(null, metadata);
 
     return new BaseTable(ops, location);
