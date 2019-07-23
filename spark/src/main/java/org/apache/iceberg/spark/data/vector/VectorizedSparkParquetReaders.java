@@ -15,6 +15,7 @@ import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -136,22 +137,28 @@ public class VectorizedSparkParquetReaders {
             return new VectorizedParquetValueReaders.TimestampMicroReader(desc, icebergField, rootAllocator);
           case TIMESTAMP_MILLIS:
             return new VectorizedParquetValueReaders.TimestampMillisReader(desc, icebergField, rootAllocator);
-          // case DECIMAL:
-          //   DecimalMetadata decimal = primitive.getDecimalMetadata();
-          //   switch (primitive.getPrimitiveTypeName()) {
-          //     case BINARY:
-          //     case FIXED_LEN_BYTE_ARRAY:
-          //       return new SparkParquetReaders.BinaryDecimalReader(desc, decimal.getScale());
-          //     case INT64:
-          //       return new SparkParquetReaders.LongDecimalReader(desc, decimal.getPrecision(), decimal.getScale());
-          //     case INT32:
-          //       return new SparkParquetReaders.IntegerDecimalReader(desc, decimal.getPrecision(), decimal.getScale());
-          //     default:
-          //       throw new UnsupportedOperationException(
-          //           "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
-          //   }
-          // case BSON:
-          //   return new SparkParquetReaders.BytesReader(desc);
+          case DECIMAL:
+            DecimalMetadata decimal = primitive.getDecimalMetadata();
+            switch (primitive.getPrimitiveTypeName()) {
+              case BINARY:
+              case FIXED_LEN_BYTE_ARRAY:
+                return new VectorizedParquetValueReaders.BinaryDecimalReader(desc, icebergField, rootAllocator,
+                    decimal.getPrecision(),
+                    decimal.getScale());
+              case INT64:
+                return new VectorizedParquetValueReaders.LongDecimalReader(desc, icebergField, rootAllocator,
+                    decimal.getPrecision(),
+                    decimal.getScale());
+              case INT32:
+                return new VectorizedParquetValueReaders.IntegerDecimalReader(desc, icebergField, rootAllocator,
+                    decimal.getPrecision(),
+                    decimal.getScale());
+              default:
+                throw new UnsupportedOperationException(
+                    "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
+            }
+          case BSON:
+            return new VectorizedParquetValueReaders.BinaryReader(desc, icebergField, rootAllocator);
           default:
             throw new UnsupportedOperationException(
                 "Unsupported logical type: " + primitive.getOriginalType());
