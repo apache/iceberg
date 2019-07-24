@@ -71,8 +71,8 @@ public class HadoopTables implements Tables, Configurable {
    * location.
    *
    * @param schema iceberg schema used to create the table
-   * @param spec partition specification. It can be null in case of unpartitioned table
-   * @param properties properties of the table to be created, it can be null
+   * @param spec partitioning spec, if null the table will be unpartitioned
+   * @param properties a string map of table properties, initialized to empty if null
    * @param location a path URI (e.g. hdfs:///warehouse/my_table)
    * @return newly created table implementation
    */
