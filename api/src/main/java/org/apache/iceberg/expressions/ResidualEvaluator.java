@@ -150,59 +150,62 @@ public class ResidualEvaluator implements Serializable {
 
     @Override
     public <T> Expression isNull(BoundReference<T> ref) {
-      // return alwaysTrue or alwaysFalse because the strict projection always gives correct answers for isNull
       return (ref.get(struct) == null) ? Expressions.alwaysTrue() : Expressions.alwaysFalse();
     }
 
     @Override
     public <T> Expression notNull(BoundReference<T> ref) {
-      // return alwaysTrue or alwaysFalse because the strict projection always gives correct answers for notNull
       return (ref.get(struct) != null) ? Expressions.alwaysTrue() : Expressions.alwaysFalse();
     }
 
     @Override
     public <T> Expression lt(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.get(struct), lit.value()) < 0) ? Expressions.alwaysTrue() : null;
+      return (cmp.compare(ref.get(struct), lit.value()) < 0) ? Expressions.alwaysTrue() : Expressions.alwaysFalse();
     }
 
     @Override
     public <T> Expression ltEq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.get(struct), lit.value()) <= 0) ? Expressions.alwaysTrue() : null;
+      return (cmp.compare(ref.get(struct), lit.value()) <= 0) ? Expressions.alwaysTrue() : Expressions.alwaysFalse();
     }
 
     @Override
     public <T> Expression gt(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.get(struct), lit.value()) > 0) ? Expressions.alwaysTrue() : null;
+      return (cmp.compare(ref.get(struct), lit.value()) > 0) ? Expressions.alwaysTrue() : Expressions.alwaysFalse();
     }
 
     @Override
     public <T> Expression gtEq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.get(struct), lit.value()) >= 0) ? Expressions.alwaysTrue() : null;
+      return (cmp.compare(ref.get(struct), lit.value()) >= 0) ? Expressions.alwaysTrue() : Expressions.alwaysFalse();
     }
 
     @Override
     public <T> Expression eq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.get(struct), lit.value()) == 0) ? Expressions.alwaysTrue() : null;
+      return (cmp.compare(ref.get(struct), lit.value()) == 0) ? Expressions.alwaysTrue() : Expressions.alwaysFalse();
     }
 
     @Override
     public <T> Expression notEq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.get(struct), lit.value()) != 0) ? Expressions.alwaysTrue() : null;
+      return (cmp.compare(ref.get(struct), lit.value()) != 0) ? Expressions.alwaysTrue() : Expressions.alwaysFalse();
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public <T> Expression predicate(BoundPredicate<T> pred) {
-      // Get the strict projection of this predicate in partition data, then use it to determine
-      // whether to return the original predicate. The strict projection returns true iff the
-      // original predicate would have returned true, so the predicate can be eliminated if the
-      // strict projection evaluates to true.
+      /**
+       * Get the strict projection and inclusive projection of this predicate in partition data,
+       * then use them to determine whether to return the original predicate. The strict projection
+       * returns true iff the original predicate would have returned true, so the predicate can be
+       * eliminated if the strict projection evaluates to true. Similarly the inclusive projection
+       * returns false iff the original predicate would have returned false, so the predicate can
+       * also be eliminated if the inclusive projection evaluates to false.
+       */
+
       //
       // If there is no strict projection or if it evaluates to false, then return the predicate.
       List<PartitionField> parts = spec.getFieldsBySourceId(pred.ref().fieldId());
@@ -221,11 +224,12 @@ public class ResidualEvaluator implements Serializable {
           if (bound instanceof BoundPredicate) {
             strictResult = super.predicate((BoundPredicate<?>) bound);
           } else {
+            // if the result is not a predicate, then it must be a constant like alwaysTrue or alwaysFalse
             strictResult = bound;
           }
         }
 
-        if (strictResult != null && strictResult.equals(Expressions.alwaysTrue())) {
+        if (strictResult != null && strictResult.op() == Expression.Operation.TRUE) {
           // If strict is true, returning true
           return Expressions.alwaysTrue();
         }
@@ -237,13 +241,14 @@ public class ResidualEvaluator implements Serializable {
           Expression boundInclusive = inclusiveProjection.bind(spec.partitionType(), caseSensitive);
           if (boundInclusive instanceof BoundPredicate) {
             // using predicate method specific to inclusive
-            inclusiveResult = predicateInclusive((BoundPredicate<?>) boundInclusive);
+            inclusiveResult = super.predicate((BoundPredicate<?>) boundInclusive);
           } else {
+            // if the result is not a predicate, then it must be a constant like alwaysTrue or alwaysFalse
             inclusiveResult = boundInclusive;
           }
         }
 
-        if (inclusiveResult != null && inclusiveResult.equals(Expressions.alwaysFalse())) {
+        if (inclusiveResult != null && inclusiveResult.op() == Expression.Operation.FALSE) {
           // If inclusive is false, returning false
           return Expressions.alwaysFalse();
         }
@@ -268,33 +273,6 @@ public class ResidualEvaluator implements Serializable {
 
       // if binding didn't result in a Predicate, return the expression
       return bound;
-    }
-
-    // Overriding some behaviour for inclusive projections
-    public <T> Expression predicateInclusive(BoundPredicate<T> pred) {
-      Comparator<T> cmp = null;
-      switch (pred.op()) {
-        case LT:
-          cmp = pred.literal().comparator();
-          return (cmp.compare(pred.ref().get(struct), pred.literal().value()) < 0) ? null : Expressions.alwaysFalse();
-        case LT_EQ:
-          cmp = pred.literal().comparator();
-          return (cmp.compare(pred.ref().get(struct), pred.literal().value()) <= 0) ? null : Expressions.alwaysFalse();
-        case GT:
-          cmp = pred.literal().comparator();
-          return (cmp.compare(pred.ref().get(struct), pred.literal().value()) > 0) ? null : Expressions.alwaysFalse();
-        case GT_EQ:
-          cmp = pred.literal().comparator();
-          return (cmp.compare(pred.ref().get(struct), pred.literal().value()) >= 0) ? null : Expressions.alwaysFalse();
-        case EQ:
-          cmp = pred.literal().comparator();
-          return (cmp.compare(pred.ref().get(struct), pred.literal().value()) == 0) ? null : Expressions.alwaysFalse();
-        case NOT_EQ:
-          cmp = pred.literal().comparator();
-          return (cmp.compare(pred.ref().get(struct), pred.literal().value()) != 0) ? null : Expressions.alwaysFalse();
-        default:
-          return super.predicate(pred);
-      }
     }
   }
 }
