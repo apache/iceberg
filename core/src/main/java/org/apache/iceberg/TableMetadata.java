@@ -127,7 +127,7 @@ public class TableMetadata {
   }
 
   private final TableOperations ops;
-  private final InputFile file;
+  private final TableMetadataFile metadataFile;
 
   // stored metadata
   private final String uuid;
@@ -145,7 +145,7 @@ public class TableMetadata {
   private final List<HistoryEntry> snapshotLog;
 
   TableMetadata(TableOperations ops,
-                InputFile file,
+                TableMetadataFile metadataFile,
                 String uuid,
                 String location,
                 long lastUpdatedMillis,
@@ -158,7 +158,7 @@ public class TableMetadata {
                 List<Snapshot> snapshots,
                 List<HistoryEntry> snapshotLog) {
     this.ops = ops;
-    this.file = file;
+    this.metadataFile = metadataFile;
     this.uuid = uuid;
     this.location = location;
     this.lastUpdatedMillis = lastUpdatedMillis;
@@ -189,8 +189,12 @@ public class TableMetadata {
         "Invalid table metadata: Cannot find current version");
   }
 
+  public TableMetadataFile metadataFile() {
+    return metadataFile;
+  }
+
   public InputFile file() {
-    return file;
+    return metadataFile.file();
   }
 
   public String uuid() {

@@ -20,17 +20,25 @@
 package org.apache.iceberg.hadoop;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.BaseTableMetadataFile;
 import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataFile;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
@@ -49,6 +57,8 @@ import org.slf4j.LoggerFactory;
  */
 public class HadoopTableOperations implements TableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HadoopTableOperations.class);
+
+  private static final Pattern METADATA_VERSION_PATTERN = Pattern.compile("^v([0-9]+)\\..*");
 
   private final Configuration conf;
   private final Path location;
@@ -91,7 +101,9 @@ public class HadoopTableOperations implements TableOperations {
 
       this.version = ver;
 
-      TableMetadata newMetadata = TableMetadataParser.read(this, io().newInputFile(metadataFile.toString()));
+      TableMetadataFile tableMetadataFile = new BaseTableMetadataFile(
+          io().newInputFile(metadataFile.toString()), version);
+      TableMetadata newMetadata = TableMetadataParser.read(this, tableMetadataFile);
       String newUUID = newMetadata.uuid();
       if (currentMetadata != null) {
         Preconditions.checkState(newUUID == null || newUUID.equals(currentMetadata.uuid()),
@@ -171,6 +183,28 @@ public class HadoopTableOperations implements TableOperations {
     return metadataPath(fileName).toString();
   }
 
+  @Override
+  public Iterable<TableMetadataFile> tableMetadataFiles() {
+    Path metadataLocation = metadataLocation();
+    FileSystem fs = getFileSystem(metadataLocation(), conf);
+
+    FileStatus[] fileStatuses;
+    try {
+      fileStatuses = fs.listStatus(metadataLocation,
+        path -> path.getName().endsWith(TableMetadataParser.fileSuffix()));
+    } catch (IOException e) {
+      LOG.warn("Unable to list table metadata files", e);
+      return ImmutableList.of();
+    }
+    return Stream.of(fileStatuses)
+      .map(FileStatus::getPath)
+      .map(path -> new BaseTableMetadataFile(
+          io().newInputFile(path.toString()),
+          parseVersion(path)))
+      .filter(file -> file.version() != -1)
+      .collect(Collectors.toList());
+  }
+
   private Path getMetadataFile(int metadataVersion) throws IOException {
     for (TableMetadataParser.Codec codec : TableMetadataParser.Codec.values()) {
       Path metadataFile = metadataFilePath(metadataVersion, codec);
@@ -186,8 +220,12 @@ public class HadoopTableOperations implements TableOperations {
     return metadataPath("v" + metadataVersion + TableMetadataParser.getFileExtension(codec));
   }
 
+  private Path metadataLocation() {
+    return new Path(location, "metadata");
+  }
+
   private Path metadataPath(String filename) {
-    return new Path(new Path(location, "metadata"), filename);
+    return new Path(metadataLocation(), filename);
   }
 
   private Path versionHintFile() {
@@ -270,5 +308,18 @@ public class HadoopTableOperations implements TableOperations {
 
   protected FileSystem getFileSystem(Path path, Configuration hadoopConf) {
     return Util.getFs(path, hadoopConf);
+  }
+
+  private int parseVersion(Path path) {
+    Matcher matcher = METADATA_VERSION_PATTERN.matcher(path.getName());
+    int result = -1;
+    try {
+      if (matcher.find() && matcher.groupCount() == 1) {
+        result = Integer.parseInt(matcher.group(1));
+      }
+    } catch (NumberFormatException e) {
+      LOG.warn("Unable to parse metadata version for: {}", path.toString(), e);
+    }
+    return result;
   }
 }

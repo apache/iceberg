@@ -38,7 +38,9 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadataFile;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -222,5 +224,97 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     icebergTable.refresh();
     Assert.assertEquals(20, icebergTable.currentSnapshot().manifests().size());
+  }
+
+  @Test
+  public void testCurrentTableMetadataFile() {
+    Table table = catalog.loadTable(TABLE_IDENTIFIER);
+    Assert.assertEquals("Should have version 0",
+        0, table.currentTableMetadataFile().version());
+
+    DataFile dummyFile = dummyDataFile(table.spec());
+
+    table.newAppend()
+      .appendFile(dummyFile)
+      .commit();
+
+    Assert.assertEquals("Should have version 1",
+        1, table.currentTableMetadataFile().version());
+  }
+
+  @Test
+  public void testTableMetadataFiles() {
+    Table table = catalog.loadTable(TABLE_IDENTIFIER);
+
+    Assert.assertEquals("Should have 1 table metadata file",
+        1, Lists.newArrayList(table.tableMetadataFiles()).size());
+
+    DataFile dummyFile = dummyDataFile(table.spec());
+
+    table.newAppend()
+      .appendFile(dummyFile)
+      .commit();
+
+    table.newAppend()
+      .appendFile(dummyFile)
+      .commit();
+
+    Assert.assertEquals("Should have 3 table metadata files",
+        3, Lists.newArrayList(table.tableMetadataFiles()).size());
+  }
+
+  @Test
+  public void testExpireTableMetadata() {
+    Table table = catalog.loadTable(TABLE_IDENTIFIER);
+
+    Assert.assertEquals("Should have 1 table metadata file",
+        1, Lists.newArrayList(table.tableMetadataFiles()).size());
+
+    DataFile dummyFile = dummyDataFile(table.spec());
+
+    table.newAppend()
+      .appendFile(dummyFile)
+      .commit();
+
+    table.newAppend()
+      .appendFile(dummyFile)
+      .commit();
+
+    Assert.assertEquals("Should have 3 table metadata files",
+        3, Lists.newArrayList(table.tableMetadataFiles()).size());
+
+    table.expireTableMetadata()
+      .expireVersion(0)
+      .commit();
+
+    Assert.assertEquals("Should have 2 table metadata files",
+        2, Lists.newArrayList(table.tableMetadataFiles()).size());
+
+    table.expireTableMetadata()
+      .expireVersion(table.currentTableMetadataFile().version())
+      .commit();
+
+    Assert.assertEquals("Should have 2 table metadata files",
+        2, Lists.newArrayList(table.tableMetadataFiles()).size());
+
+    table.expireTableMetadata()
+      .expireOlderThan(System.currentTimeMillis())
+      .commit();
+
+    List<TableMetadataFile> metadataFiles = Lists.newArrayList(table.tableMetadataFiles());
+
+    Assert.assertEquals("Should have 1 table metadata files",
+        1, metadataFiles.size());
+
+    Assert.assertEquals("Current and existing metadata versions should match",
+        table.currentTableMetadataFile().version(), metadataFiles.get(0).version());
+  }
+
+  private DataFile dummyDataFile(PartitionSpec spec) {
+    return DataFiles.builder(spec)
+      .withPath("/path/to/dummy.parquet")
+      .withRecordCount(3)
+      .withFileSizeInBytes(10)
+      .build();
   }
 }

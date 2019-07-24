@@ -40,6 +40,7 @@ public class HadoopInputFile implements InputFile {
   private final Configuration conf;
   private FileStatus stat = null;
   private Long length = null;
+  private Long lastModified;
 
   public static HadoopInputFile fromLocation(CharSequence location, Configuration conf) {
     Path path = new Path(location.toString());
@@ -148,6 +149,14 @@ public class HadoopInputFile implements InputFile {
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to check existence for file: %s", path);
     }
+  }
+
+  @Override
+  public long lastModified() {
+    if (lastModified == null) {
+      this.lastModified = lazyStat().getModificationTime();
+    }
+    return lastModified;
   }
 
   @Override

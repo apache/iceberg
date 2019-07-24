@@ -175,6 +175,21 @@ public class BaseTable implements Table, HasTableOperations {
   }
 
   @Override
+  public TableMetadataFile currentTableMetadataFile() {
+    return ops.current().metadataFile();
+  }
+
+  @Override
+  public Iterable<TableMetadataFile> tableMetadataFiles() {
+    return ops.tableMetadataFiles();
+  }
+
+  @Override
+  public ExpireTableMetadata expireTableMetadata() {
+    return new RemoveTableMetadata(ops);
+  }
+
+  @Override
   public String toString() {
     return name;
   }

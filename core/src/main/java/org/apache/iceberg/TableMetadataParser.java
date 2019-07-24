@@ -108,12 +108,16 @@ public class TableMetadataParser {
     }
   }
 
+  public static String fileSuffix() {
+    return ".metadata.json";
+  }
+
   public static String getFileExtension(String codecName) {
     return getFileExtension(Codec.fromName(codecName));
   }
 
   public static String getFileExtension(Codec codec) {
-    return codec.extension + ".metadata.json";
+    return codec.extension + fileSuffix();
   }
 
   public static String toJson(TableMetadata metadata) {
@@ -179,16 +183,17 @@ public class TableMetadataParser {
     generator.writeEndObject();
   }
 
-  public static TableMetadata read(TableOperations ops, InputFile file) {
-    Codec codec = Codec.fromFileName(file.location());
-    try (InputStream is = codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
+  public static TableMetadata read(TableOperations ops, TableMetadataFile file) {
+    InputFile inputFile = file.file();
+    Codec codec = Codec.fromFileName(inputFile.location());
+    try (InputStream is = codec == Codec.GZIP ? new GZIPInputStream(inputFile.newStream()) : inputFile.newStream()) {
       return fromJson(ops, file, JsonUtil.mapper().readValue(is, JsonNode.class));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read file: %s", file);
     }
   }
 
-  static TableMetadata fromJson(TableOperations ops, InputFile file, JsonNode node) {
+  static TableMetadata fromJson(TableOperations ops, TableMetadataFile file, JsonNode node) {
     Preconditions.checkArgument(node.isObject(),
         "Cannot parse metadata from a non-object: %s", node);
 

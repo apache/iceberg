@@ -186,6 +186,15 @@ class BaseTransaction implements Transaction {
   }
 
   @Override
+  public ExpireTableMetadata expireTableMetadata() {
+    checkLastOperationCommitted("ExpireTableMetadata");
+    ExpireTableMetadata expire = new RemoveTableMetadata(transactionOps);
+    expire.deleteWith(enqueueDelete);
+    updates.add(expire);
+    return expire;
+  }
+
+  @Override
   public void commitTransaction() {
     Preconditions.checkState(lastBase != current,
         "Cannot commit transaction: last operation has not committed");
@@ -319,6 +328,11 @@ class BaseTransaction implements Transaction {
     public long newSnapshotId() {
       return ops.newSnapshotId();
     }
+
+    @Override
+    public Iterable<TableMetadataFile> tableMetadataFiles() {
+      return ops.tableMetadataFiles();
+    }
   }
 
   public class TransactionTable implements Table {
@@ -449,6 +463,21 @@ class BaseTransaction implements Transaction {
     @Override
     public LocationProvider locationProvider() {
       return transactionOps.locationProvider();
+    }
+
+    @Override
+    public TableMetadataFile currentTableMetadataFile() {
+      return current.metadataFile();
+    }
+
+    @Override
+    public Iterable<TableMetadataFile> tableMetadataFiles() {
+      return ops.tableMetadataFiles();
+    }
+
+    @Override
+    public ExpireTableMetadata expireTableMetadata() {
+      return BaseTransaction.this.expireTableMetadata();
     }
   }
 

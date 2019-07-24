@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import java.util.List;
 import java.util.Map;
@@ -138,6 +139,21 @@ abstract class BaseMetadataTable implements Table {
   @Override
   public Transaction newTransaction() {
     throw new UnsupportedOperationException("Cannot create transactions for a metadata table");
+  }
+
+  @Override
+  public TableMetadataFile currentTableMetadataFile() {
+    return table().currentTableMetadataFile();
+  }
+
+  @Override
+  public Iterable<TableMetadataFile> tableMetadataFiles() {
+    return ImmutableList.of();
+  }
+
+  @Override
+  public ExpireTableMetadata expireTableMetadata() {
+    throw new UnsupportedOperationException("Cannot expire table metadata from a metadata table");
   }
 
   @Override

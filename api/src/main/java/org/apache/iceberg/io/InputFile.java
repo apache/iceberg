@@ -55,4 +55,11 @@ public interface InputFile {
    * @return true if the file exists, false otherwise
    */
   boolean exists();
+
+  /**
+   * Returns file last modified time in milliseconds since January 1, 1970 UTC.
+   *
+   * @return file last modified time
+   */
+  long lastModified();
 }

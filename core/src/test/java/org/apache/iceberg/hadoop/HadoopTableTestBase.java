@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.BaseTableMetadataFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.PartitionSpec;
@@ -130,7 +131,7 @@ public class HadoopTableTestBase {
 
   TableMetadata readMetadataVersion(int version) {
     return TableMetadataParser.read(new TestTables.TestTableOperations("table", tableDir),
-        localInput(version(version)));
+        new BaseTableMetadataFile(localInput(version(version)), version));
   }
 
   int readVersionHint() throws IOException {

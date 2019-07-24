@@ -124,6 +124,13 @@ public interface Transaction {
   ExpireSnapshots expireSnapshots();
 
   /**
+   * Create a new {@link ExpireTableMetadata expire API} to manage table metadata files in this table.
+   *
+   * @return a new {@link ExpireTableMetadata}
+   */
+  ExpireTableMetadata expireTableMetadata();
+
+  /**
    * Apply the pending changes from all actions and commit.
    *
    * @throws ValidationException If any update cannot be applied to the current table metadata.

@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import com.google.common.collect.ImmutableList;
 import java.util.UUID;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
@@ -99,4 +100,12 @@ public interface TableOperations {
     return Math.abs(mostSignificantBits ^ leastSignificantBits);
   }
 
+  /**
+   * Return {@link TableMetadataFile table metadata files} that are present in the table metadata location.
+   *
+   * @return table metadata files
+   */
+  default Iterable<TableMetadataFile> tableMetadataFiles() {
+    return ImmutableList.of();
+  }
 }

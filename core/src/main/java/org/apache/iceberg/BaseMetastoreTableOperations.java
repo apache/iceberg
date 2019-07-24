@@ -21,9 +21,16 @@ package org.apache.iceberg;
 
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
+import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -94,13 +101,15 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     // use null-safe equality check because new tables have a null metadata location
     if (!Objects.equal(currentMetadataLocation, newLocation)) {
       LOG.info("Refreshing table metadata from new version: {}", newLocation);
+      int metadataVersion = parseVersion(newLocation);
 
       AtomicReference<TableMetadata> newMetadata = new AtomicReference<>();
       Tasks.foreach(newLocation)
           .retry(numRetries).exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */)
           .suppressFailureWhenFinished()
           .run(metadataLocation -> newMetadata.set(
-              TableMetadataParser.read(this, io().newInputFile(metadataLocation))));
+              TableMetadataParser.read(this,
+                new BaseTableMetadataFile(io().newInputFile(metadataLocation), metadataVersion))));
 
       String newUUID = newMetadata.get().uuid();
       if (currentMetadata != null) {
@@ -110,20 +119,20 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
       this.currentMetadata = newMetadata.get();
       this.currentMetadataLocation = newLocation;
-      this.version = parseVersion(newLocation);
+      this.version = metadataVersion;
     }
     this.shouldRefresh = false;
   }
 
-  private String metadataFileLocation(TableMetadata metadata, String filename) {
-    String metadataLocation = metadata.properties()
-        .get(TableProperties.WRITE_METADATA_LOCATION);
+  private Path metadataLocation(TableMetadata metadata) {
+    String metadataLocation = metadata.properties().get(TableProperties.WRITE_METADATA_LOCATION);
+    return metadataLocation == null ?
+        new Path(metadata.location(), METADATA_FOLDER_NAME) :
+        new Path(metadataLocation);
+  }
 
-    if (metadataLocation != null) {
-      return String.format("%s/%s", metadataLocation, filename);
-    } else {
-      return String.format("%s/%s/%s", metadata.location(), METADATA_FOLDER_NAME, filename);
-    }
+  private String metadataFileLocation(TableMetadata metadata, String filename) {
+    return new Path(metadataLocation(metadata), filename).toString();
   }
 
   @Override
@@ -139,6 +148,25 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   @Override
   public LocationProvider locationProvider() {
     return LocationProviders.locationsFor(current().location(), current().properties());
+  }
+
+  @Override
+  public Iterable<TableMetadataFile> tableMetadataFiles() {
+    Path metadataLocation = metadataLocation(current());
+    try {
+      FileSystem fs = metadataLocation.getFileSystem(conf);
+      FileStatus[] fileStatuses = fs.listStatus(metadataLocation,
+        path -> path.getName().endsWith(TableMetadataParser.fileSuffix()));
+
+      return Stream.of(fileStatuses)
+        .map(FileStatus::getPath)
+        .map(path -> new BaseTableMetadataFile(io().newInputFile(path.toString()), parseVersion(path.toString())))
+        .filter(file -> file.version() != -1)
+        .collect(Collectors.toList());
+    } catch (IOException e) {
+      LOG.warn("Unable to list table metadata files", e);
+      return ImmutableList.of();
+    }
   }
 
   private String newTableMetadataFilePath(TableMetadata meta, int newVersion) {

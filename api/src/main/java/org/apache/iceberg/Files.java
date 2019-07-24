@@ -139,6 +139,11 @@ public class Files {
     }
 
     @Override
+    public long lastModified() {
+      return file.lastModified();
+    }
+
+    @Override
     public String toString() {
       return location();
     }
