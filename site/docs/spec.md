@@ -508,7 +508,7 @@ The 32-bit hash implementation is 32-bit Murmur3 hash, x86 variant, seeded with 
 | **`int`**          | `hashLong(long(v))`			[1]          | `34` ￫ `2017239379`                        |
 | **`long`**         | `hashBytes(littleEndianBytes(v))`         | `34L` ￫ `2017239379`                       |
 | **`float`**        | `hashDouble(double(v))`		[2]          | `1.0F` ￫ `-142385009`                      |
-| **`double`**       | `hashLong(doubleToRawLongBits(v))`        | `1.0D` ￫ `-142385009`                      |
+| **`double`**       | `hashLong(doubleToLongBits(v))`           | `1.0D` ￫ `-142385009`                      |
 | **`decimal(P,S)`** | `hashBytes(minBigEndian(unscaled(v)))`[3] | `14.20` ￫ `-500754589`                     |
 | **`date`**         | `hashInt(daysFromUnixEpoch(v))`           | `2017-11-16` ￫ `-653330422`                |
 | **`time`**         | `hashLong(microsecsFromMidnight(v))`      | `22:31:08` ￫ `-662762989`                  |
