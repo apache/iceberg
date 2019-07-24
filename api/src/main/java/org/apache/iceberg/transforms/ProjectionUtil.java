@@ -86,6 +86,9 @@ class ProjectionUtil {
         }
       case NOT_EQ:
         return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
+      case EQ:
+        // there is no predicate that guarantees equality because adjacent ints transform to the same value
+        return null;
       default:
         return null;
     }
@@ -125,6 +128,9 @@ class ProjectionUtil {
         }
       case NOT_EQ:
         return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
+      case EQ:
+        // there is no predicate that guarantees equality because adjacent longs transform to the same value
+        return null;
       default:
         return null;
     }
