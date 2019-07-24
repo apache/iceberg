@@ -150,48 +150,48 @@ public class ResidualEvaluator implements Serializable {
 
     @Override
     public <T> Expression isNull(BoundReference<T> ref) {
-      return (ref.get(struct) == null) ? Expressions.alwaysTrue() : Expressions.alwaysFalse();
+      return (ref.get(struct) == null) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
     public <T> Expression notNull(BoundReference<T> ref) {
-      return (ref.get(struct) != null) ? Expressions.alwaysTrue() : Expressions.alwaysFalse();
+      return (ref.get(struct) != null) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
     public <T> Expression lt(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.get(struct), lit.value()) < 0) ? Expressions.alwaysTrue() : Expressions.alwaysFalse();
+      return (cmp.compare(ref.get(struct), lit.value()) < 0) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
     public <T> Expression ltEq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.get(struct), lit.value()) <= 0) ? Expressions.alwaysTrue() : Expressions.alwaysFalse();
+      return (cmp.compare(ref.get(struct), lit.value()) <= 0) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
     public <T> Expression gt(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.get(struct), lit.value()) > 0) ? Expressions.alwaysTrue() : Expressions.alwaysFalse();
+      return (cmp.compare(ref.get(struct), lit.value()) > 0) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
     public <T> Expression gtEq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.get(struct), lit.value()) >= 0) ? Expressions.alwaysTrue() : Expressions.alwaysFalse();
+      return (cmp.compare(ref.get(struct), lit.value()) >= 0) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
     public <T> Expression eq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.get(struct), lit.value()) == 0) ? Expressions.alwaysTrue() : Expressions.alwaysFalse();
+      return (cmp.compare(ref.get(struct), lit.value()) == 0) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
     public <T> Expression notEq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.get(struct), lit.value()) != 0) ? Expressions.alwaysTrue() : Expressions.alwaysFalse();
+      return (cmp.compare(ref.get(struct), lit.value()) != 0) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
