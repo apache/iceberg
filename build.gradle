@@ -64,6 +64,10 @@ subprojects {
   apply plugin: 'maven' // make pom files for deployment
   apply plugin: 'nebula.maven-base-publish'
 
+  artifacts {
+    archives sourceJar
+  }
+
   compileJava {
     options.encoding = "UTF-8"
   }
