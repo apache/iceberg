@@ -52,21 +52,13 @@ class ProjectionUtil {
     }
   }
 
-  static <T> UnboundPredicate<T> truncateIntegerStrict(
-      String name, BoundPredicate<Integer> pred, Transform<Integer, T> transform) {
+  static UnboundPredicate<Integer> truncateIntegerStrict(
+      String name, BoundPredicate<Integer> pred, Transform<Integer, Integer> transform) {
     int boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
-        // Checking if the literal is at the lower partition boundary
-        if (transform.apply(boundary - 1).equals(transform.apply(boundary))) {
-          // Literal is not at lower boundary, for eg: 2019-07-02T02:12:34.0000
-          // the predicate can be < 2019-07-02
-          return predicate(Expression.Operation.LT, name, transform.apply(boundary - 1));
-        } else {
-          // Literal was at the lower boundary, for eg: 2019-07-02T00:00:00.0000
-          // the predicate can be <= 2019-07-01
-          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary - 1));
-        }
+        // predicate would be <= the previous partition
+        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary) - 1);
       case LT_EQ:
         // Checking if the literal is at the upper partition boundary
         if (transform.apply(boundary + 1).equals(transform.apply(boundary))) {
@@ -79,16 +71,8 @@ class ProjectionUtil {
           return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
         }
       case GT:
-        // Checking if the literal is at the upper partition boundary
-        if (transform.apply(boundary + 1).equals(transform.apply(boundary))) {
-          // Literal is not at upper boundary, for eg: 2019-07-02T02:12:34.0000
-          // the predicate can be > 2019-07-02
-          return predicate(Expression.Operation.GT, name, transform.apply(boundary + 1));
-        } else {
-          // Literal is not at upper boundary, for eg: 2019-07-02T23:59:59.99999
-          // the predicate can be >= 2019-07-03
-          return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary + 1));
-        }
+        // predicate would be >= the next partition
+        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary) + 1);
       case GT_EQ:
         // Checking if the literal is at the lower partition boundary
         if (transform.apply(boundary - 1).equals(transform.apply(boundary))) {
@@ -110,21 +94,13 @@ class ProjectionUtil {
     }
   }
 
-  static <T> UnboundPredicate<T> truncateLongStrict(
-      String name, BoundPredicate<Long> pred, Transform<Long, T> transform) {
+  static UnboundPredicate<Integer> truncateLongStrict(
+      String name, BoundPredicate<Long> pred, Transform<Long, Integer> transform) {
     long boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
-        // Checking if the literal is at the lower partition boundary
-        if (transform.apply(boundary - 1L).equals(transform.apply(boundary))) {
-          // Literal is not at lower boundary, for eg: 2019-07-02T02:12:34.0000
-          // the predicate can be < 2019-07-02
-          return predicate(Expression.Operation.LT, name, transform.apply(boundary - 1L));
-        } else {
-          // Literal was at the lower boundary, for eg: 2019-07-02T00:00:00.0000
-          // the predicate can be <= 2019-07-01
-          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary - 1L));
-        }
+        // predicate would be <= the previous partition
+        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary) - 1);
       case LT_EQ:
         // Checking if the literal is at the upper partition boundary
         if (transform.apply(boundary + 1L).equals(transform.apply(boundary))) {
@@ -137,16 +113,8 @@ class ProjectionUtil {
           return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
         }
       case GT:
-        // Checking if the literal is at the upper partition boundary
-        if (transform.apply(boundary + 1L).equals(transform.apply(boundary))) {
-          // Literal is not at upper boundary, for eg: 2019-07-02T02:12:34.0000
-          // the predicate can be > 2019-07-02
-          return predicate(Expression.Operation.GT, name, transform.apply(boundary + 1L));
-        } else {
-          // Literal is not at upper boundary, for eg: 2019-07-02T23:59:59.99999
-          // the predicate can be >= 2019-07-03
-          return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary + 1L));
-        }
+        // predicate would be >= the next partition
+        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary) + 1);
       case GT_EQ:
         // Checking if the literal is at the lower partition boundary
         if (transform.apply(boundary - 1L).equals(transform.apply(boundary))) {

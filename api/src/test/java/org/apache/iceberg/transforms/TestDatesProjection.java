@@ -78,7 +78,7 @@ public class TestDatesProjection {
 
     assertProjectionStrict(spec, lessThan("date", date), Expression.Operation.LT_EQ, "2016-12");
     assertProjectionStrict(spec, lessThanOrEqual("date", date), Expression.Operation.LT, "2017-01");
-    assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT, "2017-01");
+    assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "2017-02");
     // bound should include the same month for lower bound
     assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017-01");
     assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_EQ, "2017-01");
@@ -90,7 +90,7 @@ public class TestDatesProjection {
     Integer date = (Integer) Literal.of("2017-12-31").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).month("date").build();
 
-    assertProjectionStrict(spec, lessThan("date", date), Expression.Operation.LT, "2017-12");
+    assertProjectionStrict(spec, lessThan("date", date), Expression.Operation.LT_EQ, "2017-11");
     // bound should include the same month for upper bound
     assertProjectionStrict(spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "2017-12");
     assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "2018-01");
@@ -160,7 +160,7 @@ public class TestDatesProjection {
 
     assertProjectionStrict(spec, lessThan("date", date), Expression.Operation.LT_EQ, "2016");
     assertProjectionStrict(spec, lessThanOrEqual("date", date), Expression.Operation.LT, "2017");
-    assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT, "2017");
+    assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "2018");
     // bound should include the same year for lower bound
     assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017");
     assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_EQ, "2017");
@@ -172,7 +172,7 @@ public class TestDatesProjection {
     Integer date = (Integer) Literal.of("2017-12-31").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).year("date").build();
 
-    assertProjectionStrict(spec, lessThan("date", date), Expression.Operation.LT, "2017");
+    assertProjectionStrict(spec, lessThan("date", date), Expression.Operation.LT_EQ, "2016");
     // bound should include the same year for upper bound
     assertProjectionStrict(spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "2017");
     assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "2018");
