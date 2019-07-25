@@ -231,6 +231,19 @@ project(':iceberg-core') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
   }
+
+  task testJar(type: Jar){
+    archiveClassifier = 'tests'
+    from sourceSets.test.output
+  }
+
+  configurations {
+    testArtifacts
+  }
+
+  artifacts {
+    testArtifacts testJar
+  }
 }
 
 project(':iceberg-data') {
@@ -335,6 +348,8 @@ project(':iceberg-parquet') {
     compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
+
+    testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 }
 

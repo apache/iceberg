@@ -32,13 +32,19 @@ import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.schema.MessageType;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.Files.localInput;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.apache.iceberg.parquet.BaseParquetWritingTest.writeRecords;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public class TestParquet extends BaseParquetWritingTest {
+public class TestParquet {
+
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
 
   @Test
   public void testRowGroupSizeConfigurable() throws IOException {
@@ -79,7 +85,7 @@ public class TestParquet extends BaseParquetWritingTest {
     // Force multiple row groups by making the byte size very small
     // Note there'a also minimumRowGroupRecordCount which cannot be configured so we have to write
     // at least that many records for a new row group to occur
-    return writeRecords(
+    return writeRecords(temp,
         schema,
         ImmutableMap.of(
             PARQUET_ROW_GROUP_SIZE_BYTES,
