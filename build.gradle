@@ -48,7 +48,7 @@ allprojects {
   group = "org.apache.iceberg"
   apply plugin: 'com.palantir.baseline-idea'
   /* TODO - this assumes that the upstream apache version is 1.0 so we need to be consistent w/ upstream changes */
-  version = "1.0-adobe-3.0-SNAPSHOT"
+  version = "1.0-adobe-3.0-vectorized-SNAPSHOT"
   repositories {
     maven { url  "http://palantir.bintray.com/releases" }
     mavenCentral()
