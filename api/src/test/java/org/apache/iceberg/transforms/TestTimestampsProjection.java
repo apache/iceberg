@@ -56,6 +56,20 @@ public class TestTimestampsProjection {
     Assert.assertEquals(expectedLiteral, output);
   }
 
+  public void assertProjectionStrictValue(PartitionSpec spec, UnboundPredicate<?> filter,
+                                          Expression.Operation expectedOp) {
+
+    Expression projection = Projections.strict(spec).project(filter);
+    Assert.assertEquals(projection.op(), expectedOp);
+  }
+
+  public void assertProjectionInclusiveValue(PartitionSpec spec, UnboundPredicate<?> filter,
+                                             Expression.Operation expectedOp) {
+
+    Expression projection = Projections.inclusive(spec).project(filter);
+    Assert.assertEquals(projection.op(), expectedOp);
+  }
+
   public void assertProjectionInclusive(PartitionSpec spec, UnboundPredicate<?> filter,
                                         Expression.Operation expectedOp, String expectedLiteral) {
     Expression projection = Projections.inclusive(spec).project(filter);
@@ -79,6 +93,7 @@ public class TestTimestampsProjection {
     assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2018-01");
     assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2017-12");
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017-12");
+    assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
   }
 
   @Test
@@ -91,6 +106,7 @@ public class TestTimestampsProjection {
     assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2018-01");
     assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2018-01");
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017-12");
+    assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
   }
 
   @Test
@@ -103,6 +119,7 @@ public class TestTimestampsProjection {
     assertProjectionInclusive(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2017-12");
     assertProjectionInclusive(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2017-12");
     assertProjectionInclusive(spec, equal("timestamp", date), Expression.Operation.EQ, "2017-12");
+    assertProjectionInclusiveValue(spec, notEqual("timestamp", date), Expression.Operation.TRUE);
   }
 
   @Test
@@ -115,6 +132,7 @@ public class TestTimestampsProjection {
     assertProjectionInclusive(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2017-12");
     assertProjectionInclusive(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2017-12");
     assertProjectionInclusive(spec, equal("timestamp", date), Expression.Operation.EQ, "2017-12");
+    assertProjectionInclusiveValue(spec, notEqual("timestamp", date), Expression.Operation.TRUE);
   }
 
   @Test
@@ -127,6 +145,7 @@ public class TestTimestampsProjection {
     assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2017-12-02");
     assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2017-12-01");
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017-12-01");
+    assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
   }
 
   @Test
@@ -139,6 +158,7 @@ public class TestTimestampsProjection {
     assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2017-12-02");
     assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2017-12-02");
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017-12-01");
+    assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
   }
 
   @Test
@@ -151,6 +171,7 @@ public class TestTimestampsProjection {
     assertProjectionInclusive(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2017-12-01");
     assertProjectionInclusive(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2017-12-01");
     assertProjectionInclusive(spec, equal("timestamp", date), Expression.Operation.EQ, "2017-12-01");
+    assertProjectionInclusiveValue(spec, notEqual("timestamp", date), Expression.Operation.TRUE);
   }
 
   @Test
@@ -163,6 +184,7 @@ public class TestTimestampsProjection {
     assertProjectionInclusive(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2017-12-02");
     assertProjectionInclusive(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2017-12-01");
     assertProjectionInclusive(spec, equal("timestamp", date), Expression.Operation.EQ, "2017-12-01");
+    assertProjectionInclusiveValue(spec, notEqual("timestamp", date), Expression.Operation.TRUE);
   }
 
   @Test
@@ -175,6 +197,7 @@ public class TestTimestampsProjection {
     assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2018");
     assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2017");
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017");
+    assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
   }
 
   @Test
@@ -187,6 +210,7 @@ public class TestTimestampsProjection {
     assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2018");
     assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2018");
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017");
+    assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
   }
 
   @Test
@@ -199,6 +223,7 @@ public class TestTimestampsProjection {
     assertProjectionInclusive(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2017");
     assertProjectionInclusive(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2017");
     assertProjectionInclusive(spec, equal("timestamp", date), Expression.Operation.EQ, "2017");
+    assertProjectionInclusiveValue(spec, notEqual("timestamp", date), Expression.Operation.TRUE);
   }
 
   @Test
@@ -211,6 +236,7 @@ public class TestTimestampsProjection {
     assertProjectionInclusive(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2018");
     assertProjectionInclusive(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2017");
     assertProjectionInclusive(spec, equal("timestamp", date), Expression.Operation.EQ, "2017");
+    assertProjectionInclusiveValue(spec, notEqual("timestamp", date), Expression.Operation.TRUE);
   }
 
   @Test
@@ -223,6 +249,7 @@ public class TestTimestampsProjection {
     assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2017-12-01-11");
     assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2017-12-01-10");
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017-12-01-10");
+    assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
   }
 
   @Test
@@ -235,6 +262,7 @@ public class TestTimestampsProjection {
     assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2017-12-01-11");
     assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2017-12-01-11");
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017-12-01-10");
+    assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
   }
 
   @Test
@@ -247,6 +275,7 @@ public class TestTimestampsProjection {
     assertProjectionInclusive(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2017-12-01-10");
     assertProjectionInclusive(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2017-12-01-10");
     assertProjectionInclusive(spec, equal("timestamp", date), Expression.Operation.EQ, "2017-12-01-10");
+    assertProjectionInclusiveValue(spec, notEqual("timestamp", date), Expression.Operation.TRUE);
   }
 
   @Test
@@ -259,5 +288,6 @@ public class TestTimestampsProjection {
     assertProjectionInclusive(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2017-12-01-11");
     assertProjectionInclusive(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2017-12-01-10");
     assertProjectionInclusive(spec, equal("timestamp", date), Expression.Operation.EQ, "2017-12-01-10");
+    assertProjectionInclusiveValue(spec, notEqual("timestamp", date), Expression.Operation.TRUE);
   }
 }

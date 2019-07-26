@@ -221,9 +221,10 @@ public class Projections {
         // similarly, if partitioning by day(ts) and hour(ts), the more restrictive
         // projection should be used. ts = 2019-01-01T01:00:00 produces day=2019-01-01 and
         // hour=2019-01-01-01. the value will be in 2019-01-01-01 and not in 2019-01-01-02.
-        result = Expressions.and(
-            result,
-            ((Transform<T, ?>) part.transform()).project(part.name(), pred));
+        UnboundPredicate<?> inclusiveProjection = ((Transform<T, ?>) part.transform()).project(part.name(), pred);
+        if (inclusiveProjection != null) {
+          result = Expressions.and(result, inclusiveProjection);
+        }
       }
 
       return result;
@@ -251,9 +252,10 @@ public class Projections {
         // any timestamp where either projection predicate is true must match the original
         // predicate. For example, ts = 2019-01-01T03:00:00 matches the hour projection but not
         // the day, but does match the original predicate.
-        result = Expressions.or(
-            result,
-            ((Transform<T, ?>) part.transform()).projectStrict(part.name(), pred));
+        UnboundPredicate<?> strictProjection = ((Transform<T, ?>) part.transform()).projectStrict(part.name(), pred);
+        if (strictProjection != null) {
+          result = Expressions.or(result, strictProjection);
+        }
       }
 
       return result;

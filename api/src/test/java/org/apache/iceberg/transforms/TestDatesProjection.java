@@ -56,6 +56,20 @@ public class TestDatesProjection {
     Assert.assertEquals(expectedLiteral, output);
   }
 
+  public void assertProjectionStrictValue(PartitionSpec spec, UnboundPredicate<?> filter,
+                                          Expression.Operation expectedOp) {
+
+    Expression projection = Projections.strict(spec).project(filter);
+    Assert.assertEquals(projection.op(), expectedOp);
+  }
+
+  public void assertProjectionInclusiveValue(PartitionSpec spec, UnboundPredicate<?> filter,
+                                             Expression.Operation expectedOp) {
+
+    Expression projection = Projections.inclusive(spec).project(filter);
+    Assert.assertEquals(projection.op(), expectedOp);
+  }
+
   public void assertProjectionInclusive(PartitionSpec spec, UnboundPredicate<?> filter,
                                         Expression.Operation expectedOp, String expectedLiteral) {
     Expression projection = Projections.inclusive(spec).project(filter);
@@ -79,6 +93,7 @@ public class TestDatesProjection {
     assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "2017-02");
     assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017-01");
     assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_EQ, "2017-01");
+    assertProjectionStrictValue(spec, equal("date", date), Expression.Operation.FALSE);
   }
 
   @Test
@@ -91,6 +106,7 @@ public class TestDatesProjection {
     assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "2018-01");
     assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2018-01");
     assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_EQ, "2017-12");
+    assertProjectionStrictValue(spec, equal("date", date), Expression.Operation.FALSE);
   }
 
   @Test
@@ -103,6 +119,7 @@ public class TestDatesProjection {
     assertProjectionInclusive(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "2017-12");
     assertProjectionInclusive(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017-12");
     assertProjectionInclusive(spec, equal("date", date), Expression.Operation.EQ, "2017-12");
+    assertProjectionInclusiveValue(spec, notEqual("date", date), Expression.Operation.TRUE);
   }
 
   @Test
@@ -115,6 +132,7 @@ public class TestDatesProjection {
     assertProjectionInclusive(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "2018-01");
     assertProjectionInclusive(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017-12");
     assertProjectionInclusive(spec, equal("date", date), Expression.Operation.EQ, "2017-12");
+    assertProjectionInclusiveValue(spec, notEqual("date", date), Expression.Operation.TRUE);
   }
 
   @Test
@@ -129,6 +147,7 @@ public class TestDatesProjection {
     // should be the same date for >=
     assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017-01-01");
     assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_EQ, "2017-01-01");
+    assertProjectionStrictValue(spec, equal("date", date), Expression.Operation.FALSE);
   }
 
   @Test
@@ -141,6 +160,7 @@ public class TestDatesProjection {
     assertProjectionInclusive(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "2017-01-02");
     assertProjectionInclusive(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017-01-01");
     assertProjectionInclusive(spec, equal("date", date), Expression.Operation.EQ, "2017-01-01");
+    assertProjectionInclusiveValue(spec, notEqual("date", date), Expression.Operation.TRUE);
   }
 
   @Test
@@ -153,6 +173,7 @@ public class TestDatesProjection {
     assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "2018");
     assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017");
     assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_EQ, "2017");
+    assertProjectionStrictValue(spec, equal("date", date), Expression.Operation.FALSE);
   }
 
   @Test
@@ -165,6 +186,7 @@ public class TestDatesProjection {
     assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "2018");
     assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2018");
     assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_EQ, "2017");
+    assertProjectionStrictValue(spec, equal("date", date), Expression.Operation.FALSE);
   }
 
   @Test
@@ -177,6 +199,7 @@ public class TestDatesProjection {
     assertProjectionInclusive(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "2017");
     assertProjectionInclusive(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017");
     assertProjectionInclusive(spec, equal("date", date), Expression.Operation.EQ, "2017");
+    assertProjectionInclusiveValue(spec, notEqual("date", date), Expression.Operation.TRUE);
   }
 
   @Test
@@ -189,5 +212,6 @@ public class TestDatesProjection {
     assertProjectionInclusive(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "2018");
     assertProjectionInclusive(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017");
     assertProjectionInclusive(spec, equal("date", date), Expression.Operation.EQ, "2017");
+    assertProjectionInclusiveValue(spec, notEqual("date", date), Expression.Operation.TRUE);
   }
 }
