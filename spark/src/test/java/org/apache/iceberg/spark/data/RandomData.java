@@ -55,7 +55,9 @@ public class RandomData {
     RandomDataGenerator generator = new RandomDataGenerator(schema, seed);
     List<Record> records = Lists.newArrayListWithExpectedSize(numRecords);
     for (int i = 0; i < numRecords; i += 1) {
-      records.add((Record) TypeUtil.visit(schema, generator));
+      Record rec = (Record) TypeUtil.visit(schema, generator);
+      // System.out.println("Add record "+rec);
+      records.add(rec);
     }
 
     return records;

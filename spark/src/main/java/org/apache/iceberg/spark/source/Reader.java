@@ -22,7 +22,6 @@ package org.apache.iceberg.spark.source;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import java.io.Closeable;
 import java.io.IOException;
@@ -31,6 +30,7 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.CombinedScanTask;
@@ -59,15 +59,13 @@ import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkAvroReader;
 import org.apache.iceberg.spark.data.SparkOrcReader;
-import org.apache.iceberg.spark.data.SparkParquetReaders;
-import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.spark.data.vector.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Attribute;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
-import org.apache.spark.sql.catalyst.expressions.JoinedRow;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
@@ -78,6 +76,7 @@ import org.apache.spark.sql.sources.v2.reader.Statistics;
 import org.apache.spark.sql.sources.v2.reader.SupportsPushDownFilters;
 import org.apache.spark.sql.sources.v2.reader.SupportsPushDownRequiredColumns;
 import org.apache.spark.sql.sources.v2.reader.SupportsReportStatistics;
+import org.apache.spark.sql.sources.v2.reader.SupportsScanColumnarBatch;
 import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
@@ -85,14 +84,15 @@ import org.apache.spark.sql.types.DecimalType;
 import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import scala.collection.JavaConverters;
 
-class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushDownRequiredColumns,
+class Reader implements DataSourceReader,
+    SupportsScanColumnarBatch,
+    SupportsPushDownFilters,
+    SupportsPushDownRequiredColumns,
     SupportsReportStatistics {
-  private static final Logger LOG = LoggerFactory.getLogger(Reader.class);
 
   private static final Filter[] NO_FILTERS = new Filter[0];
 
@@ -102,23 +102,33 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
   private final FileIO fileIo;
   private final EncryptionManager encryptionManager;
   private final boolean caseSensitive;
+  private int numRecordsPerBatch;
   private StructType requestedSchema = null;
   private List<Expression> filterExpressions = null;
   private Filter[] pushedFilters = NO_FILTERS;
 
   // lazy variables
-  private Schema schema = null;
+  private Schema schema;
   private StructType type = null; // cached because Spark accesses it multiple times
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
+  private static final int DEFAULT_NUM_RECORDS_PER_BATCH = 1000;
 
   Reader(Table table, boolean caseSensitive, DataSourceOptions options) {
     this.table = table;
     this.snapshotId = options.get("snapshot-id").map(Long::parseLong).orElse(null);
     this.asOfTimestamp = options.get("as-of-timestamp").map(Long::parseLong).orElse(null);
+    Optional<String> numRecordsPerBatchOpt = options.get("iceberg.read.numrecordsperbatch");
+    this.numRecordsPerBatch = DEFAULT_NUM_RECORDS_PER_BATCH;
+    if (numRecordsPerBatchOpt.isPresent()) {
+      this.numRecordsPerBatch = Integer.parseInt(numRecordsPerBatchOpt.get());
+    }
+    // LOG.info("[IcebergSource] => Reading numRecordsPerBatch = "+numRecordsPerBatch);
+
     if (snapshotId != null && asOfTimestamp != null) {
       throw new IllegalArgumentException(
           "Cannot scan using both snapshot-id and as-of-timestamp to select the table snapshot");
     }
+
     this.schema = table.schema();
     this.fileIo = table.io();
     this.encryptionManager = table.encryption();
@@ -149,17 +159,34 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
   }
 
   @Override
-  public List<InputPartition<InternalRow>> planInputPartitions() {
+  public List<InputPartition<ColumnarBatch>> planBatchInputPartitions() {
     String tableSchemaString = SchemaParser.toJson(table.schema());
     String expectedSchemaString = SchemaParser.toJson(lazySchema());
 
-    List<InputPartition<InternalRow>> readTasks = Lists.newArrayList();
+    List<InputPartition<ColumnarBatch>> readTasks = Lists.newArrayList();
     for (CombinedScanTask task : tasks()) {
       readTasks.add(
-          new ReadTask(task, tableSchemaString, expectedSchemaString, fileIo, encryptionManager, caseSensitive));
+          new ReadTask(task, tableSchemaString, expectedSchemaString, fileIo, encryptionManager,
+              caseSensitive, numRecordsPerBatch));
     }
 
     return readTasks;
+  }
+
+  @Override
+  public List<InputPartition<InternalRow>> planInputPartitions() {
+    return null;
+    // String tableSchemaString = SchemaParser.toJson(table.schema());
+    // String expectedSchemaString = SchemaParser.toJson(lazySchema());
+    //
+    // List<InputPartition<InternalRow>> readTasks = Lists.newArrayList();
+    // for (CombinedScanTask task : tasks()) {
+    //   readTasks.add(
+    //       new ReadTask(task, tableSchemaString, expectedSchemaString, fileIo, encryptionManager,
+    //           caseSensitive, numRecordsPerBatch));
+    // }
+    //
+    // return readTasks;
   }
 
   @Override
@@ -256,32 +283,34 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
         table, lazySchema().asStruct(), filterExpressions, caseSensitive);
   }
 
-  private static class ReadTask implements InputPartition<InternalRow>, Serializable {
+  private static class ReadTask implements InputPartition<ColumnarBatch>, Serializable {
     private final CombinedScanTask task;
     private final String tableSchemaString;
     private final String expectedSchemaString;
     private final FileIO fileIo;
     private final EncryptionManager encryptionManager;
     private final boolean caseSensitive;
+    private final int numRecordsPerBatch;
 
     private transient Schema tableSchema = null;
     private transient Schema expectedSchema = null;
 
     private ReadTask(
         CombinedScanTask task, String tableSchemaString, String expectedSchemaString, FileIO fileIo,
-        EncryptionManager encryptionManager, boolean caseSensitive) {
+        EncryptionManager encryptionManager, boolean caseSensitive, int numRecordsPerBatch) {
       this.task = task;
       this.tableSchemaString = tableSchemaString;
       this.expectedSchemaString = expectedSchemaString;
       this.fileIo = fileIo;
       this.encryptionManager = encryptionManager;
       this.caseSensitive = caseSensitive;
+      this.numRecordsPerBatch = numRecordsPerBatch;
     }
 
     @Override
-    public InputPartitionReader<InternalRow> createPartitionReader() {
+    public InputPartitionReader<ColumnarBatch> createPartitionReader() {
       return new TaskDataReader(task, lazyTableSchema(), lazyExpectedSchema(), fileIo,
-        encryptionManager, caseSensitive);
+        encryptionManager, caseSensitive, numRecordsPerBatch);
     }
 
     private Schema lazyTableSchema() {
@@ -299,7 +328,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     }
   }
 
-  private static class TaskDataReader implements InputPartitionReader<InternalRow> {
+  private static class TaskDataReader implements InputPartitionReader<ColumnarBatch> {
     // for some reason, the apply method can't be called from Java without reflection
     private static final DynMethods.UnboundMethod APPLY_PROJECTION = DynMethods.builder("apply")
         .impl(UnsafeProjection.class, InternalRow.class)
@@ -311,13 +340,14 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     private final FileIO fileIo;
     private final Map<String, InputFile> inputFiles;
     private final boolean caseSensitive;
+    private final int numRecordsPerBatch;
 
-    private Iterator<InternalRow> currentIterator = null;
+    private Iterator<ColumnarBatch> currentIterator;
     private Closeable currentCloseable = null;
-    private InternalRow current = null;
+    private ColumnarBatch current = null;
 
     TaskDataReader(CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
-                   EncryptionManager encryptionManager, boolean caseSensitive) {
+                          EncryptionManager encryptionManager, boolean caseSensitive, int numRecordsPerBatch) {
       this.fileIo = fileIo;
       this.tasks = task.files().iterator();
       this.tableSchema = tableSchema;
@@ -333,6 +363,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       // open last because the schemas and fileIo must be set
       this.currentIterator = open(tasks.next());
       this.caseSensitive = caseSensitive;
+      this.numRecordsPerBatch = numRecordsPerBatch;
     }
 
     @Override
@@ -353,7 +384,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     }
 
     @Override
-    public InternalRow get() {
+    public ColumnarBatch get() {
       return current;
     }
 
@@ -368,7 +399,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       }
     }
 
-    private Iterator<InternalRow> open(FileScanTask task) {
+    private Iterator<ColumnarBatch> open(FileScanTask task) {
       DataFile file = task.file();
 
       // schema or rows returned by readers
@@ -383,23 +414,24 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       boolean hasExtraFilterColumns = requiredSchema.columns().size() != finalSchema.columns().size();
 
       Schema iterSchema;
-      Iterator<InternalRow> iter;
+      Iterator<ColumnarBatch> iter;
 
-      if (hasJoinedPartitionColumns) {
-        // schema used to read data files
-        Schema readSchema = TypeUtil.selectNot(requiredSchema, idColumns);
-        Schema partitionSchema = TypeUtil.select(requiredSchema, idColumns);
-        PartitionRowConverter convertToRow = new PartitionRowConverter(partitionSchema, spec);
-        JoinedRow joined = new JoinedRow();
-
-        InternalRow partition = convertToRow.apply(file.partition());
-        joined.withRight(partition);
-
-        // create joined rows and project from the joined schema to the final schema
-        iterSchema = TypeUtil.join(readSchema, partitionSchema);
-        iter = Iterators.transform(open(task, readSchema), joined::withLeft);
-
-      } else if (hasExtraFilterColumns) {
+      // if (hasJoinedPartitionColumns) {
+        // // schema used to read data files
+        // Schema readSchema = TypeUtil.selectNot(requiredSchema, idColumns);
+        // Schema partitionSchema = TypeUtil.select(requiredSchema, idColumns);
+        // PartitionRowConverter convertToRow = new PartitionRowConverter(partitionSchema, spec);
+        // JoinedRow joined = new JoinedRow();
+        //
+        // InternalRow partition = convertToRow.apply(file.partition());
+        // joined.withRight(partition);
+        //
+        // // create joined rows and project from the joined schema to the final schema
+        // iterSchema = TypeUtil.join(readSchema, partitionSchema);
+        // iter = Iterators.transform(open(task, readSchema), joined::withLeft);
+      //
+      // } else if (hasExtraFilterColumns) {
+      if (hasExtraFilterColumns) {
         // add projection to the final schema
         iterSchema = requiredSchema;
         iter = open(task, requiredSchema);
@@ -411,36 +443,37 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       }
 
       // TODO: remove the projection by reporting the iterator's schema back to Spark
-      return Iterators.transform(iter,
-          APPLY_PROJECTION.bind(projection(finalSchema, iterSchema))::invoke);
+      // return Iterators.transform(iter,
+      //     APPLY_PROJECTION.bind(projection(finalSchema, iterSchema))::invoke);
+      return iter;
     }
 
-    private Iterator<InternalRow> open(FileScanTask task, Schema readSchema) {
-      CloseableIterable<InternalRow> iter;
-      if (task.isDataTask()) {
-        iter = newDataIterable(task.asDataTask(), readSchema);
+    private Iterator<ColumnarBatch> open(FileScanTask task, Schema readSchema) {
+      CloseableIterable<ColumnarBatch> iter;
+      // if (task.isDataTask()) {
+      //   iter = newDataIterable(task.asDataTask(), readSchema);
+      //
+      // } else {
+      InputFile location = inputFiles.get(task.file().path().toString());
+      Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
 
-      } else {
-        InputFile location = inputFiles.get(task.file().path().toString());
-        Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
-
-        switch (task.file().format()) {
-          case PARQUET:
-            iter = newParquetIterable(location, task, readSchema);
-            break;
-
-          case AVRO:
-            iter = newAvroIterable(location, task, readSchema);
-            break;
-
-          case ORC:
-            iter = newOrcIterable(location, task, readSchema);
-            break;
-
-          default:
-            throw new UnsupportedOperationException(
-                "Cannot read unknown format: " + task.file().format());
-        }
+      switch (task.file().format()) {
+        case PARQUET:
+          iter = newParquetIterable(location, task, readSchema);
+          break;
+        //
+        // case AVRO:
+        //   iter = newAvroIterable(location, task, readSchema);
+        //   break;
+        //
+        // case ORC:
+        //   iter = newOrcIterable(location, task, readSchema);
+        //   break;
+        //
+        default:
+          throw new UnsupportedOperationException(
+              "Cannot read unknown format: " + task.file().format());
+        // }
       }
 
       this.currentCloseable = iter;
@@ -481,15 +514,17 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
           .build();
     }
 
-    private CloseableIterable<InternalRow> newParquetIterable(InputFile location,
+    private CloseableIterable<ColumnarBatch> newParquetIterable(InputFile location,
                                                             FileScanTask task,
                                                             Schema readSchema) {
       return Parquet.read(location)
-          .project(readSchema)
+          .project(readSchema, SparkSchemaUtil.convert(readSchema))
           .split(task.start(), task.length())
-          .createReaderFunc(fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema))
+          .createReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(tableSchema, readSchema,
+              fileSchema))
           .filter(task.residual())
           .caseSensitive(caseSensitive)
+          .recordsPerBatch(numRecordsPerBatch)
           .build();
     }
 

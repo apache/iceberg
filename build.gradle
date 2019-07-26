@@ -64,6 +64,10 @@ subprojects {
   apply plugin: 'maven' // make pom files for deployment
   apply plugin: 'nebula.maven-base-publish'
 
+  artifacts {
+    archives sourceJar
+  }
+
   compileJava {
     options.encoding = "UTF-8"
   }
@@ -222,6 +226,14 @@ project(':iceberg-core') {
     compile("org.apache.avro:avro") {
       exclude group: 'org.tukaani' // xz compression is not supported
     }
+    compile("org.apache.arrow:arrow-vector") {
+      exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'io.netty', module: 'netty-common'
+    }
+    compileOnly("org.apache.spark:spark-hive_2.11") {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
+
 
     compile "com.fasterxml.jackson.core:jackson-databind"
     compile "com.fasterxml.jackson.core:jackson-core"
@@ -237,7 +249,11 @@ project(':iceberg-data') {
   dependencies {
     compile project(':iceberg-api')
     compile project(':iceberg-core')
+    compileOnly project(':iceberg-spark')
     compileOnly project(':iceberg-parquet')
+    compileOnly("org.apache.spark:spark-hive_2.11") {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
 
     testCompile("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -323,14 +339,12 @@ project(':iceberg-parquet') {
   dependencies {
     compile project(':iceberg-api')
     compile project(':iceberg-core')
+    compile project(':iceberg-arrow')
 
-    compile("org.apache.parquet:parquet-avro") {
+    compileOnly("org.apache.spark:spark-hive_2.11") {
       exclude group: 'org.apache.avro', module: 'avro'
-      // already shaded by Parquet
-      exclude group: 'it.unimi.dsi'
-      exclude group: 'org.codehaus.jackson'
     }
-
+    compile "org.apache.parquet:parquet-avro"
     compileOnly "org.apache.avro:avro"
     compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -360,6 +374,17 @@ project(':iceberg-spark') {
       exclude group: 'org.apache.avro', module: 'avro'
     }
     testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
+  }
+}
+
+project(':iceberg-arrow') {
+  dependencies {
+//    compile project(':iceberg-spark')
+    compile project(':iceberg-api')
+
+    compileOnly("org.apache.spark:spark-hive_2.11") {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
   }
 }
 

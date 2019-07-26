@@ -23,8 +23,10 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.TimeZone;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.arrow.reader.ArrowReader;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -36,6 +38,11 @@ import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.schema.MessageType;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.vectorized.ColumnarBatch;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.parquet.ParquetSchemaUtil.addFallbackIds;
 import static org.apache.iceberg.parquet.ParquetSchemaUtil.hasIds;
@@ -50,18 +57,24 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   private final Expression filter;
   private final boolean reuseContainers;
   private final boolean caseSensitive;
+  private final StructType sparkSchema;
+  private final int maxRecordsPerBatch;
+  private static final Logger LOG = LoggerFactory.getLogger(ParquetReader.class);
 
   public ParquetReader(InputFile input, Schema expectedSchema, ParquetReadOptions options,
                        Function<MessageType, ParquetValueReader<?>> readerFunc,
-                       Expression filter, boolean reuseContainers, boolean caseSensitive) {
+                       Expression filter, boolean reuseContainers, boolean caseSensitive,
+                       StructType sparkSchema, int maxRecordsPerBatch) {
     this.input = input;
     this.expectedSchema = expectedSchema;
+    this.sparkSchema = sparkSchema;
     this.options = options;
     this.readerFunc = readerFunc;
     // replace alwaysTrue with null to avoid extra work evaluating a trivial filter
     this.filter = filter == Expressions.alwaysTrue() ? null : filter;
     this.reuseContainers = reuseContainers;
     this.caseSensitive = caseSensitive;
+    this.maxRecordsPerBatch = maxRecordsPerBatch;
   }
 
   private static class ReadConf<T> {
@@ -185,9 +198,29 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
   @Override
   public Iterator<T> iterator() {
+    // create iterator over file
     FileIterator<T> iter = new FileIterator<>(init());
     addCloseable(iter);
+
     return iter;
+  }
+
+  private Iterator<T> arrowBatchAsInternalRow(Iterator<InternalRow> iter) {
+    // Convert InterRow iterator to ArrowRecordBatch Iterator
+    Iterator<InternalRow> rowIterator = iter;
+    ArrowReader.ArrowRecordBatchIterator arrowBatchIter = ArrowReader.toBatchIterator(rowIterator,
+        sparkSchema, maxRecordsPerBatch,
+        TimeZone.getDefault().getID());
+    addCloseable(arrowBatchIter);
+
+    // Overlay InternalRow iterator over ArrowRecordbatches
+    ArrowReader.InternalRowOverArrowBatchIterator
+        rowOverbatchIter = ArrowReader.fromBatchIterator(arrowBatchIter,
+        sparkSchema, TimeZone.getDefault().getID());
+
+    addCloseable(rowOverbatchIter);
+
+    return (Iterator)rowOverbatchIter;
   }
 
   private static class FileIterator<T> implements Iterator<T>, Closeable {
@@ -226,7 +259,11 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       } else {
         this.last = model.read(null);
       }
-      valuesRead += 1;
+      if (last instanceof ColumnarBatch) {
+        valuesRead += ((ColumnarBatch)last).numRows();
+      } else {
+        valuesRead += 1;
+      }
 
       return last;
     }
