@@ -50,17 +50,17 @@ import org.apache.spark.sql.types.Decimal;
  * - Creates One Vector per RowGroup. So a Batch would have as many rows as there are in the underlying RowGroup.
  * - Mapping of Iceberg type to Arrow type is done in ArrowSchemaUtil.convert()
  * - Iceberg to Arrow Type mapping :
- * 	 icebergType : LONG   		-> 		Field Vector Type : org.apache.arrow.vector.BigIntVector
- * 	 icebergType : STRING  		-> 		Field Vector Type : org.apache.arrow.vector.VarCharVector
- * 	 icebergType : BOOLEAN 		-> 		Field Vector Type : org.apache.arrow.vector.BitVector
- * 	 icebergType : INTEGER 		-> 		Field Vector Type : org.apache.arrow.vector.IntVector
- * 	 icebergType : FLOAT   		-> 		Field Vector Type : org.apache.arrow.vector.Float4Vector
- * 	 icebergType : DOUBLE  		-> 		Field Vector Type : org.apache.arrow.vector.Float8Vector
- * 	 icebergType : DATE    		-> 		Field Vector Type : org.apache.arrow.vector.DateDayVector
- * 	 icebergType : TIMESTAMP  -> 		Field Vector Type : org.apache.arrow.vector.TimeStampMicroTZVector
- * 	 icebergType : STRING  		-> 		Field Vector Type : org.apache.arrow.vector.VarCharVector
- * 	 icebergType : BINARY  		-> 		Field Vector Type : org.apache.arrow.vector.VarBinaryVector
- * 	 icebergField : DECIMAL 	->  	Field Vector Type : org.apache.arrow.vector.DecimalVector
+ * 	 icebergType : LONG   		- 		Field Vector Type : org.apache.arrow.vector.BigIntVector
+ * 	 icebergType : STRING  		- 		Field Vector Type : org.apache.arrow.vector.VarCharVector
+ * 	 icebergType : BOOLEAN 		- 		Field Vector Type : org.apache.arrow.vector.BitVector
+ * 	 icebergType : INTEGER 		- 		Field Vector Type : org.apache.arrow.vector.IntVector
+ * 	 icebergType : FLOAT   		- 		Field Vector Type : org.apache.arrow.vector.Float4Vector
+ * 	 icebergType : DOUBLE  		- 		Field Vector Type : org.apache.arrow.vector.Float8Vector
+ * 	 icebergType : DATE    		- 		Field Vector Type : org.apache.arrow.vector.DateDayVector
+ * 	 icebergType : TIMESTAMP  - 		Field Vector Type : org.apache.arrow.vector.TimeStampMicroTZVector
+ * 	 icebergType : STRING  		- 		Field Vector Type : org.apache.arrow.vector.VarCharVector
+ * 	 icebergType : BINARY  		- 		Field Vector Type : org.apache.arrow.vector.VarBinaryVector
+ * 	 icebergField : DECIMAL 	-  	Field Vector Type : org.apache.arrow.vector.DecimalVector
  */
 public class VectorizedParquetValueReaders {
 
