@@ -43,6 +43,9 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 public class VectorizedSparkParquetReaders {
 
+  private VectorizedSparkParquetReaders() {
+  }
+
   @SuppressWarnings("unchecked")
   public static ParquetValueReader<ColumnarBatch> buildReader(
       Schema tableSchema,
@@ -55,11 +58,11 @@ public class VectorizedSparkParquetReaders {
   }
 
   private static class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
-    protected final MessageType parquetSchema;
-    protected final Schema projectedIcebergSchema;
-    protected final Schema tableIcebergSchema;
-    protected final org.apache.arrow.vector.types.pojo.Schema arrowSchema;
-    protected final RootAllocator rootAllocator;
+    private final MessageType parquetSchema;
+    private final Schema projectedIcebergSchema;
+    private final Schema tableIcebergSchema;
+    private final org.apache.arrow.vector.types.pojo.Schema arrowSchema;
+    private final RootAllocator rootAllocator;
 
     ReadBuilder(Schema tableSchema, Schema projectedIcebergSchema, MessageType parquetSchema) {
       this.parquetSchema = parquetSchema;
@@ -94,7 +97,7 @@ public class VectorizedSparkParquetReaders {
         // readersById.put(id, (ParquetValueReader<FieldVector>)ParquetValueReaders.
         //     option(fieldType, fieldD, fieldReaders.get(i)));
 
-        readersById.put(id, (ParquetValueReader<FieldVector>)fieldReaders.get(i));
+        readersById.put(id, (ParquetValueReader<FieldVector>) fieldReaders.get(i));
         typesById.put(id, fieldType);
       }
 
@@ -239,8 +242,4 @@ public class VectorizedSparkParquetReaders {
       return path;
     }
   }
-
-
-
-
 }

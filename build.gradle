@@ -178,7 +178,7 @@ configure(baselineProjects) {
   // Thus we concede to applying all of the Baseline plugins individually on all the projects we are
   // ready to enforce linting on.
   apply plugin: 'org.inferred.processors'
- // apply plugin: 'com.palantir.baseline-checkstyle'
+  apply plugin: 'com.palantir.baseline-checkstyle'
   apply plugin: 'com.palantir.baseline-error-prone'
   apply plugin: 'com.palantir.baseline-scalastyle'
   apply plugin: 'com.palantir.baseline-class-uniqueness'

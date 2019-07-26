@@ -50,24 +50,24 @@ import org.apache.spark.sql.types.Decimal;
  * - Creates One Vector per RowGroup. So a Batch would have as many rows as there are in the underlying RowGroup.
  * - Mapping of Iceberg type to Arrow type is done in ArrowSchemaUtil.convert()
  * - Iceberg to Arrow Type mapping :
- * 	 icebergType : LONG   		- 		Field Vector Type : org.apache.arrow.vector.BigIntVector
- * 	 icebergType : STRING  		- 		Field Vector Type : org.apache.arrow.vector.VarCharVector
- * 	 icebergType : BOOLEAN 		- 		Field Vector Type : org.apache.arrow.vector.BitVector
- * 	 icebergType : INTEGER 		- 		Field Vector Type : org.apache.arrow.vector.IntVector
- * 	 icebergType : FLOAT   		- 		Field Vector Type : org.apache.arrow.vector.Float4Vector
- * 	 icebergType : DOUBLE  		- 		Field Vector Type : org.apache.arrow.vector.Float8Vector
- * 	 icebergType : DATE    		- 		Field Vector Type : org.apache.arrow.vector.DateDayVector
- * 	 icebergType : TIMESTAMP  - 		Field Vector Type : org.apache.arrow.vector.TimeStampMicroTZVector
- * 	 icebergType : STRING  		- 		Field Vector Type : org.apache.arrow.vector.VarCharVector
- * 	 icebergType : BINARY  		- 		Field Vector Type : org.apache.arrow.vector.VarBinaryVector
- * 	 icebergField : DECIMAL 	-  	Field Vector Type : org.apache.arrow.vector.DecimalVector
+ *   icebergType : LONG       -   Field Vector Type : org.apache.arrow.vector.BigIntVector
+ *   icebergType : STRING     -   Field Vector Type : org.apache.arrow.vector.VarCharVector
+ *   icebergType : BOOLEAN    -   Field Vector Type : org.apache.arrow.vector.BitVector
+ *   icebergType : INTEGER    -   Field Vector Type : org.apache.arrow.vector.IntVector
+ *   icebergType : FLOAT      -   Field Vector Type : org.apache.arrow.vector.Float4Vector
+ *   icebergType : DOUBLE     -   Field Vector Type : org.apache.arrow.vector.Float8Vector
+ *   icebergType : DATE       -   Field Vector Type : org.apache.arrow.vector.DateDayVector
+ *   icebergType : TIMESTAMP  -   Field Vector Type : org.apache.arrow.vector.TimeStampMicroTZVector
+ *   icebergType : STRING     -   Field Vector Type : org.apache.arrow.vector.VarCharVector
+ *   icebergType : BINARY     -   Field Vector Type : org.apache.arrow.vector.VarBinaryVector
+ *   icebergField : DECIMAL   -   Field Vector Type : org.apache.arrow.vector.DecimalVector
  */
 public class VectorizedParquetValueReaders {
 
   public abstract static class VectorReader extends ParquetValueReaders.PrimitiveReader<FieldVector> {
 
-    protected FieldVector vec;
-    protected boolean isOptional;
+    private FieldVector vec;
+    private boolean isOptional;
 
     VectorReader(ColumnDescriptor desc,
         Types.NestedField icebergField,
@@ -76,28 +76,35 @@ public class VectorizedParquetValueReaders {
       super(desc);
       this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
       this.isOptional = desc.getPrimitiveType().isRepetition(Type.Repetition.OPTIONAL);
-      // System.out.println("=> icebergField : "+icebergField.type().typeId().name()+" ,  Field Vector Type : "+vec.getClass().getName());
+    }
+
+    protected FieldVector getVector() {
+      return vec;
+    }
+
+    protected boolean isOptional() {
+      return isOptional;
     }
 
     @Override
     public FieldVector read(FieldVector ignore) {
 
       vec.reset();
-      int i=0;
+      int ordinal = 0;
 
-      while(column.hasNext()) {
+      while (column.hasNext()) {
         // Todo: this check works for flat schemas only
         // need to get max definition level to do proper check
-        if(isOptional && column.currentDefinitionLevel() == 0) {
+        if (isOptional && column.currentDefinitionLevel() == 0) {
           // handle null
           column.nextNull();
-          nextNullAt(i);
+          nextNullAt(ordinal);
         } else {
-          nextValueAt(i);
+          nextValueAt(ordinal);
         }
-        i++;
+        ordinal++;
       }
-      vec.setValueCount(i);
+      vec.setValueCount(ordinal);
       return vec;
     }
 
@@ -106,9 +113,9 @@ public class VectorizedParquetValueReaders {
       return vec.getValueCount();
     }
 
-    protected abstract void nextNullAt(int i);
+    protected abstract void nextNullAt(int ordinal);
 
-    protected abstract void nextValueAt(int i);
+    protected abstract void nextValueAt(int ordinal);
   }
 
   protected static class StringReader extends VectorReader {
@@ -118,21 +125,21 @@ public class VectorizedParquetValueReaders {
     }
 
     @Override
-    protected void nextNullAt(int i) {
-      ((VarCharVector) vec).setNull(i);
+    protected void nextNullAt(int ordinal) {
+      ((VarCharVector) getVector()).setNull(ordinal);
     }
 
     @Override
-    protected void nextValueAt(int i) {
+    protected void nextValueAt(int ordinal) {
 
       Binary binary = column.nextBinary();
       if (binary == null) {
 
-        ((VarCharVector) vec).setNull(i);
+        ((VarCharVector) getVector()).setNull(ordinal);
 
       } else {
         String utf8Str = binary.toStringUsingUTF8();
-        ((VarCharVector) vec).setSafe(i, utf8Str.getBytes());
+        ((VarCharVector) getVector()).setSafe(ordinal, utf8Str.getBytes());
       }
     }
 
@@ -148,14 +155,14 @@ public class VectorizedParquetValueReaders {
     }
 
     @Override
-    protected void nextNullAt(int i) {
-      ((IntVector) vec).setNull(i);
+    protected void nextNullAt(int ordinal) {
+      ((IntVector) getVector()).setNull(ordinal);
     }
 
-    protected void nextValueAt(int i) {
+    protected void nextValueAt(int ordinal) {
 
       int intValue = column.nextInteger();
-      ((IntVector)vec).setSafe(i, intValue);
+      ((IntVector) getVector()).setSafe(ordinal, intValue);
 
     }
   }
@@ -169,14 +176,14 @@ public class VectorizedParquetValueReaders {
       super(desc, icebergField, rootAlloc);
     }
 
-    protected void nextNullAt(int i) {
-      ((BigIntVector)vec).setNull(i);
+    protected void nextNullAt(int ordinal) {
+      ((BigIntVector) getVector()).setNull(ordinal);
     }
 
-    protected void nextValueAt(int i) {
+    protected void nextValueAt(int ordinal) {
 
       long longValue = column.nextLong();
-      ((BigIntVector)vec).setSafe(i, longValue);
+      ((BigIntVector) getVector()).setSafe(ordinal, longValue);
 
     }
   }
@@ -189,10 +196,10 @@ public class VectorizedParquetValueReaders {
       super(desc, icebergField, rootAlloc);
     }
 
-    protected void nextValueAt(int i) {
+    protected void nextValueAt(int ordinal) {
 
       long longValue = column.nextLong();
-      ((BigIntVector)vec).setSafe(i, 1000 * longValue);
+      ((BigIntVector) getVector()).setSafe(ordinal, 1000 * longValue);
 
     }
   }
@@ -205,14 +212,14 @@ public class VectorizedParquetValueReaders {
       super(desc, icebergField, rootAlloc);
     }
 
-    protected void nextNullAt(int i) {
-      ((TimeStampMicroTZVector)vec).setNull(i);
+    protected void nextNullAt(int ordinal) {
+      ((TimeStampMicroTZVector) getVector()).setNull(ordinal);
     }
 
-    protected void nextValueAt(int i) {
+    protected void nextValueAt(int ordinal) {
 
       long longValue = column.nextLong();
-      ((TimeStampMicroTZVector)vec).setSafe(i, longValue);
+      ((TimeStampMicroTZVector) getVector()).setSafe(ordinal, longValue);
 
     }
   }
@@ -225,18 +232,17 @@ public class VectorizedParquetValueReaders {
       super(desc, icebergField, rootAlloc);
     }
 
-    protected void nextNullAt(int i) {
-      ((BitVector)vec).setNull(i);
+    protected void nextNullAt(int ordinal) {
+      ((BitVector) getVector()).setNull(ordinal);
     }
 
-    protected void nextValueAt(int i) {
+    protected void nextValueAt(int ordinal) {
 
       boolean bool = column.nextBoolean();
-      ((BitVector)vec).setSafe(i, bool ? 1 : 0);
+      ((BitVector) getVector()).setSafe(ordinal, bool ? 1 : 0);
 
     }
   }
-
 
 
   protected static class FloatReader extends VectorReader {
@@ -247,14 +253,14 @@ public class VectorizedParquetValueReaders {
       super(desc, icebergField, rootAlloc);
     }
 
-    protected void nextNullAt(int i) {
-      ((Float4Vector)vec).setNull(i);
+    protected void nextNullAt(int ordinal) {
+      ((Float4Vector) getVector()).setNull(ordinal);
     }
 
-    protected void nextValueAt(int i) {
+    protected void nextValueAt(int ordinal) {
 
       float floatValue = column.nextFloat();
-      ((Float4Vector)vec).setSafe(i, floatValue);
+      ((Float4Vector) getVector()).setSafe(ordinal, floatValue);
 
     }
   }
@@ -267,14 +273,14 @@ public class VectorizedParquetValueReaders {
       super(desc, icebergField, rootAlloc);
     }
 
-    protected void nextNullAt(int i) {
-      ((Float8Vector)vec).setNull(i);
+    protected void nextNullAt(int ordinal) {
+      ((Float8Vector) getVector()).setNull(ordinal);
     }
 
-    protected void nextValueAt(int i) {
+    protected void nextValueAt(int ordinal) {
 
       double doubleValue = column.nextDouble();
-      ((Float8Vector)vec).setSafe(i, doubleValue);
+      ((Float8Vector) getVector()).setSafe(ordinal, doubleValue);
 
     }
   }
@@ -288,18 +294,17 @@ public class VectorizedParquetValueReaders {
       super(desc, icebergField, rootAlloc);
     }
 
-    protected void nextNullAt(int i) {
-      ((VarBinaryVector)vec).setNull(i);
+    protected void nextNullAt(int ordinal) {
+      ((VarBinaryVector) getVector()).setNull(ordinal);
     }
 
-    protected void nextValueAt(int i) {
+    protected void nextValueAt(int ordinal) {
 
       Binary binaryValue = column.nextBinary();
-      ((VarBinaryVector)vec).setSafe(i, binaryValue.getBytes());
+      ((VarBinaryVector) getVector()).setSafe(ordinal, binaryValue.getBytes());
 
     }
   }
-
 
 
   protected static class DateReader extends VectorReader {
@@ -310,14 +315,14 @@ public class VectorizedParquetValueReaders {
       super(desc, icebergField, rootAlloc);
     }
 
-    protected void nextNullAt(int i) {
-      ((DateDayVector)vec).setNull(i);
+    protected void nextNullAt(int ordinal) {
+      ((DateDayVector) getVector()).setNull(ordinal);
     }
 
-    protected void nextValueAt(int i) {
+    protected void nextValueAt(int ordinal) {
 
       int dateValue = column.nextInteger();
-      ((DateDayVector)vec).setSafe(i, dateValue);
+      ((DateDayVector) getVector()).setSafe(ordinal, dateValue);
 
     }
   }
@@ -337,16 +342,16 @@ public class VectorizedParquetValueReaders {
       this.scale = scale;
     }
 
-    protected void nextNullAt(int i) {
-      ((DecimalVector)vec).setNull(i);
+    protected void nextNullAt(int ordinal) {
+      ((DecimalVector) getVector()).setNull(ordinal);
     }
 
-    protected void nextValueAt(int i) {
+    protected void nextValueAt(int ordinal) {
 
       int decimalIntValue = column.nextInteger();
       Decimal decimalValue = Decimal.apply(decimalIntValue, precision, scale);
 
-      ((DecimalVector)vec).setSafe(i, decimalValue.toJavaBigDecimal());
+      ((DecimalVector) getVector()).setSafe(ordinal, decimalValue.toJavaBigDecimal());
 
     }
   }
@@ -365,21 +370,19 @@ public class VectorizedParquetValueReaders {
       this.scale = scale;
     }
 
-    protected void nextNullAt(int i) {
-      ((DecimalVector)vec).setNull(i);
+    protected void nextNullAt(int ordinal) {
+      ((DecimalVector) getVector()).setNull(ordinal);
     }
 
-    protected void nextValueAt(int i) {
+    protected void nextValueAt(int ordinal) {
 
       long decimalLongValue = column.nextLong();
       Decimal decimalValue = Decimal.apply(decimalLongValue, precision, scale);
 
-      ((DecimalVector)vec).setSafe(i, decimalValue.toJavaBigDecimal());
+      ((DecimalVector) getVector()).setSafe(ordinal, decimalValue.toJavaBigDecimal());
 
     }
   }
-
-
 
   protected static class BinaryDecimalReader extends VectorReader {
     private final int precision;
@@ -395,16 +398,16 @@ public class VectorizedParquetValueReaders {
       this.scale = scale;
     }
 
-    protected void nextNullAt(int i) {
-      ((DecimalVector)vec).setNull(i);
+    protected void nextNullAt(int ordinal) {
+      ((DecimalVector) getVector()).setNull(ordinal);
     }
 
-    protected void nextValueAt(int i) {
+    protected void nextValueAt(int ordinal) {
 
       Binary binaryValue = column.nextBinary();
       Decimal decimalValue = Decimal.fromDecimal(new BigDecimal(new BigInteger(binaryValue.getBytes()), scale));
 
-      ((DecimalVector)vec).setSafe(i, decimalValue.toJavaBigDecimal());
+      ((DecimalVector) getVector()).setSafe(ordinal, decimalValue.toJavaBigDecimal());
 
     }
   }

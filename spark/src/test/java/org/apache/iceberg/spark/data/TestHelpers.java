@@ -65,7 +65,8 @@ import static scala.collection.JavaConverters.seqAsJavaListConverter;
 @SuppressWarnings("checkstyle:OverloadMethodsDeclarationOrder")
 public class TestHelpers {
 
-  private TestHelpers() {}
+  private TestHelpers() {
+  }
 
   public static void assertEqualsSafe(Types.StructType struct, Record rec, Row row) {
     List<Types.NestedField> fields = struct.fields();
@@ -208,7 +209,7 @@ public class TestHelpers {
 
   public static void assertEqualsUnsafe(Types.StructType struct, List<Record> expected, ColumnarBatch batch) {
     List<Types.NestedField> fields = struct.fields();
-    for (int r=0; r<batch.numRows(); r++) {
+    for (int r = 0; r < batch.numRows(); r++) {
 
       Record expRec = expected.get(r);
       InternalRow actualRow = batch.getRow(r);
@@ -224,7 +225,7 @@ public class TestHelpers {
         //     + " , expected:"+expectedValue);
         if (actualRow.isNullAt(i)) {
 
-          Assert.assertTrue("Expect null", (expectedValue == null));
+          Assert.assertTrue("Expect null", expectedValue == null);
         } else {
           Object actualValue = actualRow.get(i, convert(fieldType));
           assertEqualsUnsafe(fieldType, expectedValue, actualValue);
