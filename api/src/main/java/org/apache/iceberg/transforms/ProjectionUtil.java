@@ -106,7 +106,7 @@ class ProjectionUtil {
         if (transform.apply(boundary + 1L).equals(transform.apply(boundary))) {
           // Literal is not at upper boundary, for eg: 2019-07-02T02:12:34.0000
           // the predicate can be <= 2019-07-01
-          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary) -1);
+          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary) - 1);
         } else {
           // Literal is not at upper boundary, for eg: 2019-07-02T23:59:59.99999
           // the predicate can be <= 2019-07-02
