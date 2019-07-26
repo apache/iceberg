@@ -59,6 +59,7 @@ import org.apache.spark.sql.catalyst.util.GenericArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.CalendarInterval;
 import org.apache.spark.unsafe.types.UTF8String;
 
@@ -112,7 +113,7 @@ public class SparkParquetReaders {
   }
 
   private static class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
-    private final MessageType type;
+    protected final MessageType type;
 
     ReadBuilder(MessageType type) {
       this.type = type;
@@ -360,7 +361,7 @@ public class SparkParquetReaders {
     }
   }
 
-  private static class StringReader extends PrimitiveReader<UTF8String> {
+  protected static class StringReader extends PrimitiveReader<UTF8String> {
     StringReader(ColumnDescriptor desc) {
       super(desc);
     }

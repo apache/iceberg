@@ -31,7 +31,7 @@ import org.apache.parquet.hadoop.ParquetReader;
 public class ParquetIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private final ParquetReader.Builder<T> builder;
 
-  ParquetIterable(ParquetReader.Builder<T> builder) {
+  public ParquetIterable(ParquetReader.Builder<T> builder) {
     this.builder = builder;
   }
 

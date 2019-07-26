@@ -41,12 +41,12 @@ import static org.apache.iceberg.parquet.ParquetSchemaUtil.pruneColumnsFallback;
  *
  * @param <T> Java type produced by this read support instance
  */
-class ParquetReadSupport<T> extends ReadSupport<T> {
+public class ParquetReadSupport<T> extends ReadSupport<T> {
   private final Schema expectedSchema;
   private final ReadSupport<T> wrapped;
   private final boolean callInit;
 
-  ParquetReadSupport(Schema expectedSchema, ReadSupport<T> readSupport, boolean callInit) {
+  public ParquetReadSupport(Schema expectedSchema, ReadSupport<T> readSupport, boolean callInit) {
     this.expectedSchema = expectedSchema;
     this.wrapped = readSupport;
     this.callInit = callInit;
