@@ -46,11 +46,14 @@ import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
 import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter;
 import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.types.StructType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, DataSourceRegister, StreamWriteSupport {
 
   private SparkSession lazySpark = null;
   private Configuration lazyConf = null;
+  private static final Logger LOG = LoggerFactory.getLogger(IcebergSource.class);
 
   @Override
   public String shortName() {
@@ -98,31 +101,31 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Optional<String> path = options.get("path");
     Preconditions.checkArgument(path.isPresent(), "Cannot open table: path is not set");
 
-    if (path.get().contains("/")) {
-      HadoopTables tables = new HadoopTables(conf);
-      return tables.load(path.get());
-    } else {
-      HiveCatalog hiveCatalog = HiveCatalogs.loadCatalog(conf);
-      TableIdentifier tableIdentifier = TableIdentifier.parse(path.get());
-      return hiveCatalog.loadTable(tableIdentifier);
-    }
+    // if (path.get().contains("/")) {
+    HadoopTables tables = new HadoopTables(conf);
+    return tables.load(path.get());
+    // } else {
+    //   HiveCatalog hiveCatalog = HiveCatalogs.loadCatalog(conf);
+    //   TableIdentifier tableIdentifier = TableIdentifier.parse(path.get());
+    //   return hiveCatalog.loadTable(tableIdentifier);
+    // }
   }
 
-  private SparkSession lazySparkSession() {
+  protected SparkSession lazySparkSession() {
     if (lazySpark == null) {
       this.lazySpark = SparkSession.builder().getOrCreate();
     }
     return lazySpark;
   }
 
-  private Configuration lazyBaseConf() {
+  protected Configuration lazyBaseConf() {
     if (lazyConf == null) {
       this.lazyConf = lazySparkSession().sparkContext().hadoopConfiguration();
     }
     return lazyConf;
   }
 
-  private Table getTableAndResolveHadoopConfiguration(
+  protected Table getTableAndResolveHadoopConfiguration(
       DataSourceOptions options, Configuration conf) {
     // Overwrite configurations from the Spark Context with configurations from the options.
     mergeIcebergHadoopConfs(conf, options.asMap());
@@ -134,7 +137,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     return table;
   }
 
-  private static void mergeIcebergHadoopConfs(
+  protected static void mergeIcebergHadoopConfs(
       Configuration baseConf, Map<String, String> options) {
     options.keySet().stream()
         .filter(key -> key.startsWith("hadoop."))

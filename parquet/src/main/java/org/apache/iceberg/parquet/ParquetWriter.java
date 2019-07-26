@@ -47,7 +47,7 @@ import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static org.apache.iceberg.parquet.ParquetSchemaUtil.convert;
 
-class ParquetWriter<T> implements FileAppender<T>, Closeable {
+public class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private static final DynConstructors.Ctor<PageWriteStore> pageStoreCtor = DynConstructors
       .builder(PageWriteStore.class)
       .hiddenImpl("org.apache.parquet.hadoop.ColumnChunkPageWriteStore",

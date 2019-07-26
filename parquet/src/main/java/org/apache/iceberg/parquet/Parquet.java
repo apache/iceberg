@@ -55,6 +55,7 @@ import org.apache.parquet.hadoop.api.ReadSupport;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
+import org.apache.spark.sql.types.StructType;
 
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT;
@@ -273,6 +274,7 @@ public class Parquet {
     private Long start = null;
     private Long length = null;
     private Schema schema = null;
+    private StructType sparkSchema = null;
     private Expression filter = null;
     private ReadSupport<?> readSupport = null;
     private Function<MessageType, ParquetValueReader<?>> readerFunc = null;
@@ -281,6 +283,7 @@ public class Parquet {
     private Map<String, String> properties = Maps.newHashMap();
     private boolean callInit = false;
     private boolean reuseContainers = false;
+    private int maxRecordsPerBatch = 1000;
 
     private ReadBuilder(InputFile file) {
       this.file = file;
@@ -296,6 +299,12 @@ public class Parquet {
     public ReadBuilder split(long start, long length) {
       this.start = start;
       this.length = length;
+      return this;
+    }
+
+    public ReadBuilder project(Schema schema, StructType sparkSchema) {
+      this.schema = schema;
+      this.sparkSchema = sparkSchema;
       return this;
     }
 
@@ -348,6 +357,12 @@ public class Parquet {
       return this;
     }
 
+    public ReadBuilder recordsPerBatch(int numRowsPerBatch) {
+
+      this.maxRecordsPerBatch = numRowsPerBatch;
+      return this;
+    }
+
     @SuppressWarnings("unchecked")
     public <D> CloseableIterable<D> build() {
       if (readerFunc != null) {
@@ -374,7 +389,7 @@ public class Parquet {
         ParquetReadOptions options = optionsBuilder.build();
 
         return new org.apache.iceberg.parquet.ParquetReader<>(
-            file, schema, options, readerFunc, filter, reuseContainers, caseSensitive);
+            file, schema, options, readerFunc, filter, reuseContainers, caseSensitive, sparkSchema, maxRecordsPerBatch);
       }
 
       ParquetReadBuilder<D> builder = new ParquetReadBuilder<>(ParquetIO.file(file));

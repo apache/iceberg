@@ -26,12 +26,12 @@ import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.io.api.RecordConsumer;
 import org.apache.parquet.schema.MessageType;
 
-class ParquetWriteSupport<T> extends WriteSupport<T> {
+public class ParquetWriteSupport<T> extends WriteSupport<T> {
   private final MessageType type;
   private final Map<String, String> keyValueMetadata;
   private final WriteSupport<T> wrapped;
 
-  ParquetWriteSupport(MessageType type, Map<String, String> keyValueMetadata, WriteSupport<T> writeSupport) {
+  public ParquetWriteSupport(MessageType type, Map<String, String> keyValueMetadata, WriteSupport<T> writeSupport) {
     this.type = type;
     this.keyValueMetadata = keyValueMetadata;
     this.wrapped = writeSupport;

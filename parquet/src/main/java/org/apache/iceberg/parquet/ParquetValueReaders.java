@@ -26,13 +26,18 @@ import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import org.apache.arrow.vector.FieldVector;
+import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.Type;
+import org.apache.spark.sql.vectorized.ArrowColumnVector;
+import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 import static java.util.Collections.emptyIterator;
 
@@ -574,6 +579,85 @@ public class ParquetValueReaders {
       this.value = value;
       return lastValue;
     }
+  }
+
+
+  public static class ColumnarBatchReader implements ParquetValueReader<ColumnarBatch>  {
+
+    private final int numFields;
+    private final Types.StructType iceExpectedFields;
+    private final ParquetValueReader<FieldVector>[] readers;
+    private final TripleIterator<?> column;
+    private final TripleIterator<?>[] columns;
+    private final List<TripleIterator<?>> children;
+
+    @SuppressWarnings("unchecked")
+    public ColumnarBatchReader(List<Type> types,
+        Types.StructType icebergExpectedFields,
+        List<ParquetValueReader<FieldVector>> readers) {
+
+      this.numFields = readers.size();
+      this.iceExpectedFields = icebergExpectedFields;
+      this.readers = (ParquetValueReader<FieldVector>[]) Array.newInstance(
+          ParquetValueReader.class, readers.size());
+      this.columns = (TripleIterator<?>[]) Array.newInstance(TripleIterator.class, readers.size());
+
+
+      ImmutableList.Builder<TripleIterator<?>> columnsBuilder = ImmutableList.builder();
+      for (int i = 0; i < readers.size(); i += 1) {
+        ParquetValueReader<FieldVector> reader = readers.get(i);
+        this.readers[i] = readers.get(i);
+        this.columns[i] = reader.column();
+        columnsBuilder.addAll(reader.columns());
+      }
+
+      this.children = columnsBuilder.build();
+      if (children.size() > 0) {
+        this.column = children.get(0);
+      } else {
+        this.column = NullReader.NULL_COLUMN;
+      }
+
+    }
+
+    @Override
+    public final void setPageSource(PageReadStore pageStore) {
+      for (int i = 0; i < readers.length; i += 1) {
+        readers[i].setPageSource(pageStore);
+      }
+    }
+
+    @Override
+    public final TripleIterator<?> column() {
+      return column;
+    }
+
+    @Override
+    public List<TripleIterator<?>> columns() {
+      return children;
+    }
+
+
+    @Override
+    public final ColumnarBatch read(ColumnarBatch ignore) {
+
+      ArrowColumnVector[] arrowVectorArr = (ArrowColumnVector[])Array.newInstance(ArrowColumnVector.class,
+          readers.length);
+
+      int numRows=0;
+      for (int i = 0; i < readers.length; i += 1) {
+
+        FieldVector vec = readers[i].read(null);
+        arrowVectorArr[i] = new ArrowColumnVector(vec);
+        numRows = vec.getValueCount();
+      }
+
+      ColumnarBatch batch = new ColumnarBatch(arrowVectorArr);
+      batch.setNumRows(numRows);
+
+      return  batch;
+    }
+
   }
 
   public abstract static class StructReader<T, I> implements ParquetValueReader<T> {
