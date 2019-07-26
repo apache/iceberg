@@ -63,8 +63,8 @@ class ProjectionUtil {
         // Checking if the literal is at the upper partition boundary
         if (transform.apply(boundary + 1).equals(transform.apply(boundary))) {
           // Literal is not at upper boundary, for eg: 2019-07-02T02:12:34.0000
-          // the predicate can be < 2019-07-02
-          return predicate(Expression.Operation.LT, name, transform.apply(boundary));
+          // the predicate can be < 2019-07-01
+          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary) - 1);
         } else {
           // Literal is not at upper boundary, for eg: 2019-07-02T23:59:59.99999
           // the predicate can be <= 2019-07-02
@@ -77,8 +77,8 @@ class ProjectionUtil {
         // Checking if the literal is at the lower partition boundary
         if (transform.apply(boundary - 1).equals(transform.apply(boundary))) {
           // Literal is not at lower boundary, for eg: 2019-07-02T02:12:34.0000
-          // the predicate can be > 2019-07-02
-          return predicate(Expression.Operation.GT, name, transform.apply(boundary));
+          // the predicate can be >= 2019-07-03
+          return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary) + 1);
         } else {
           // Literal was at the lower boundary, for eg: 2019-07-02T00:00:00.0000
           // the predicate can be >= 2019-07-02
@@ -105,8 +105,8 @@ class ProjectionUtil {
         // Checking if the literal is at the upper partition boundary
         if (transform.apply(boundary + 1L).equals(transform.apply(boundary))) {
           // Literal is not at upper boundary, for eg: 2019-07-02T02:12:34.0000
-          // the predicate can be < 2019-07-02
-          return predicate(Expression.Operation.LT, name, transform.apply(boundary));
+          // the predicate can be <= 2019-07-01
+          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary) -1);
         } else {
           // Literal is not at upper boundary, for eg: 2019-07-02T23:59:59.99999
           // the predicate can be <= 2019-07-02
@@ -119,8 +119,8 @@ class ProjectionUtil {
         // Checking if the literal is at the lower partition boundary
         if (transform.apply(boundary - 1L).equals(transform.apply(boundary))) {
           // Literal is not at lower boundary, for eg: 2019-07-02T02:12:34.0000
-          // the predicate can be > 2019-07-02
-          return predicate(Expression.Operation.GT, name, transform.apply(boundary));
+          // the predicate can be >= 2019-07-03
+          return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary) + 1);
         } else {
           // Literal was at the lower boundary, for eg: 2019-07-02T00:00:00.0000
           // the predicate can be >= 2019-07-02
