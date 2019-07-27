@@ -206,19 +206,22 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 | **`104  file_size_in_bytes`**     | `long`                                | Total file size in bytes                                                                                                                                                                             |
 | ~~**`105 block_size_in_bytes`**~~ | `long`                                | **Deprecated. Always write a default value and do not read.**                                                                                                                                        |
 | **`106  file_ordinal`**           | `optional int`                        | Ordinal of the file w.r.t files with the same partition tuple and snapshot id                                                                                                                        |
-| **`107  sort_columns`**           | `optional list`                       | Columns the file is sorted by                                                                                                                                                                        |
+| **`107  sort_columns`**           | `optional list`                       | Columns the file is sorted by [2].                                                                                                                                                                   |
 | **`108  column_sizes`**           | `optional map`                        | Map from column id to the total size on disk of all regions that store the column. Does not include bytes necessary to read other columns, like footers. Leave null for row-oriented formats (Avro). |
-| **`109  value_counts`**           | `optional map`                        | Map from column id to number of values in the column (including null values)                                                                                                                         |
+| **`109  value_counts`**           | `optional map`                        | Map from column id to number of values in the column (including null and NaN values)                                                                                                                 |
 | **`110  null_value_counts`**      | `optional map`                        | Map from column id to number of null values in the column                                                                                                                                            |
 | ~~**`111 distinct_counts`**~~     | `optional map`                        | **Deprecated. Do not use.**                                                                                                                                                                          |
-| **`125  lower_bounds`**           | `optional map<126: int, 127: binary>` | Map from column id to lower bound in the column serialized as binary [1]. Each value must be less than or equal to all values in the column for the file.                                            |
-| **`128  upper_bounds`**           | `optional map<129: int, 130: binary>` | Map from column id to upper bound in the column serialized as binary [1]. Each value must be greater than or equal to all values in the column for the file.                                         |
+| **`125  lower_bounds`**           | `optional map<126: int, 127: binary>` | Map from column id to lower bound in the column serialized as binary [1]. Each value must be less than or equal to all non-null, non-NaN values in the column for the file. [3]                      |
+| **`128  upper_bounds`**           | `optional map<129: int, 130: binary>` | Map from column id to upper bound in the column serialized as binary [1]. Each value must be greater than or equal to all non-null, non-NaN values in the column for the file. [3]                   |
 | **`131  key_metadata`**           | `optional binary`                     | Implementation-specific key metadata for encryption                                                                                                                                                  |
 | **`132  split_offsets`**          | `optional list`                       | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending.                                                                                     |
+| **`134  nan_value_counts`**       | `optional map`                        | Map from column id to number of NaN values in the column                                                                                                                                             |
 
 Notes:
 
 1. Single-value serialization for lower and upper bounds is detailed in Appendix D.
+2. For `float` and `double`, the value `-0.0` must precede `+0.0`, as in the IEEE 754 `totalOrder` predicate.
+3. Just as for `float` or `double` columns in `sort_columns`, `-0.0` is considered to be strictly less than `+0.0`, following IEEE 754's `totalOrder` predicate.
 
 The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec for the manifest file.
 
@@ -296,16 +299,16 @@ Manifest list files store `manifest_file`, a struct with the following fields:
 
 `field_summary` is a struct with the following fields
 
-| Field id, name          | Type                    | Description                                                                                 |
-|-------------------------|-------------------------|---------------------------------------------------------------------------------------------|
-| **`509 contains_null`** | `boolean`               | Whether the manifest contains at least one partition with a null value for the field.       |
-| **`510 lower_bound`**   | `optional bytes`    [1] | Lower bound for the non-null values in the partition field, or null if all values are null. |
-| **`511 upper_bound`**   | `optional bytes`    [1] | Upper bound for the non-null values in the partition field, or null if all values are null. |
+| Field id, name          | Type                    | Description                                                                                                                                                      |
+|-------------------------|-------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **`509 contains_null`** | `boolean`               | Whether the manifest contains at least one partition with a null value for the field.                                                                            |
+| **`510 lower_bound`**   | `optional bytes`    [1] | Lower bound for the non-null, non-NaN values in the partition field. If present, must be null if all values are null and NaN if all non-null values are NaN. [2] |
+| **`511 upper_bound`**   | `optional bytes`    [1] | Upper bound for the non-null, non-NaN values in the partition field. If present, must be null if all values are null and NaN if all non-null values are NaN. [2] |
 
 Notes:
 
 1. Lower and upper bounds are serialized to bytes using the single-object serialization in Appendix D. The type of used to encode the value is the type of the partition field data.
-
+2. If -0.0 is a value of the partition field, the `lower_bound` must not be +0.0, and if +0.0 is a value of the partition field, the `upper_bound` must not be -0.0.
 
 ### Table Metadata
 
