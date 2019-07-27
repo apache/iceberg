@@ -39,8 +39,9 @@ class AvroFileAppender<D> implements FileAppender<D> {
 
   AvroFileAppender(Schema schema, OutputFile file,
                    Function<Schema, DatumWriter<?>> createWriterFunc,
-                   CodecFactory codec, Map<String, String> metadata) throws IOException {
-    this.stream = file.createOrOverwrite();
+                   CodecFactory codec, Map<String, String> metadata,
+                   boolean overwrite) throws IOException {
+    this.stream = overwrite ? file.createOrOverwrite() : file.create();
     this.writer = newAvroWriter(schema, stream, createWriterFunc, codec, metadata);
   }
 

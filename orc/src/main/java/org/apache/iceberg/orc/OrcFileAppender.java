@@ -70,7 +70,6 @@ class OrcFileAppender<D> implements FileAppender<D> {
 
     OrcFile.WriterOptions options = OrcFile.writerOptions(conf);
     options.setSchema(orcSchema);
-    options.overwrite(true);
     writer = newOrcWriter(file, columnIds, options, metadata);
     valueWriter = newOrcValueWriter(orcSchema, createWriterFunc);
   }
