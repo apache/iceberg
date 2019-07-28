@@ -20,9 +20,13 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
+import java.util.List;
 import java.util.Set;
 
 class ReplaceFiles extends MergingSnapshotProducer<RewriteFiles> implements RewriteFiles {
+  private Snapshot queryTimeSnapshot = null;
+  private Boolean checkSnapshot = false;
+
   ReplaceFiles(TableOperations ops) {
     super(ops);
 
@@ -56,5 +60,20 @@ class ReplaceFiles extends MergingSnapshotProducer<RewriteFiles> implements Rewr
     }
 
     return this;
+  }
+
+  @Override
+  public RewriteFiles failUnlessFromSnapshot(Snapshot _queryTimeSnapshot) {
+    this.queryTimeSnapshot = _queryTimeSnapshot;
+    this.checkSnapshot = true;
+
+    return this;
+  }
+
+  @Override
+  public List<ManifestFile> apply(TableMetadata metadataToUpdate) {
+    Preconditions.checkState(!checkSnapshot || metadataToUpdate.currentSnapshot().equals(queryTimeSnapshot),
+        "Current snapshot must be the expected snapshot");
+    return super.apply(metadataToUpdate);
   }
 }

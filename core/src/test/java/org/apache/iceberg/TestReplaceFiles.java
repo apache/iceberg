@@ -154,6 +154,50 @@ public class TestReplaceFiles extends TableTestBase {
   }
 
   @Test
+  public void testSnapshotDoesNotMatch() {
+    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    TableMetadata base = readMetadata();
+    long baseSnapshotId = base.currentSnapshot().snapshotId();
+
+    ManifestFile initialManifest = base.currentSnapshot().manifests().get(0);
+
+    RewriteFiles rewrite = table.newRewrite()
+        .failUnlessFromSnapshot(base.currentSnapshot())
+        .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_C));
+
+    // This should not fail since the snapshot matches
+    Snapshot pending = rewrite
+        .apply();
+
+    long pendingId = pending.snapshotId();
+
+    validateManifestEntries(pending.manifests().get(0),
+        ids(pendingId),
+        files(FILE_C),
+        statuses(ADDED));
+
+    validateManifestEntries(pending.manifests().get(1),
+        ids(pendingId, baseSnapshotId),
+        files(FILE_A, FILE_B),
+        statuses(DELETED, EXISTING));
+
+    // The current snapshot is updated here
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    // Now the commit should fail
+    AssertHelpers.assertThrows("Should fail for incorrect snapshot",
+        IllegalStateException.class, "Current snapshot must be the expected snapshot", rewrite::commit);
+  }
+
+  @Test
   public void testFailure() {
     table.newAppend()
         .appendFile(FILE_A)

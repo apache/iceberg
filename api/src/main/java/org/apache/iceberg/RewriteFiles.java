@@ -42,4 +42,12 @@ public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
    * @return this for method chaining
    */
   RewriteFiles rewriteFiles(Set<DataFile> filesToDelete, Set<DataFile> filesToAdd);
+
+  /**
+   * Fails to rewrite unless the current snapshot on commit is the queryTimeSnapshot.
+   *
+   * @param queryTimeSnapshot the snapshot from which the set of files to replace was constructed
+   * @return this for method chaining
+   */
+  RewriteFiles failUnlessFromSnapshot(Snapshot queryTimeSnapshot);
 }
