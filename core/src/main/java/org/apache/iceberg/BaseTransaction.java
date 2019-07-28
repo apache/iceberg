@@ -466,16 +466,6 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
-    public TableMetadataFile currentTableMetadataFile() {
-      return current.metadataFile();
-    }
-
-    @Override
-    public Iterable<TableMetadataFile> tableMetadataFiles() {
-      return ops.tableMetadataFiles();
-    }
-
-    @Override
     public ExpireTableMetadata expireTableMetadata() {
       return BaseTransaction.this.expireTableMetadata();
     }

@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.ImmutableList;
 import java.util.UUID;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
@@ -105,7 +104,5 @@ public interface TableOperations {
    *
    * @return table metadata files
    */
-  default Iterable<TableMetadataFile> tableMetadataFiles() {
-    return ImmutableList.of();
-  }
+  Iterable<TableMetadataFile> tableMetadataFiles();
 }

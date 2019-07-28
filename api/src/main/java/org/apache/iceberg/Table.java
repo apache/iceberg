@@ -223,20 +223,6 @@ public interface Table {
   LocationProvider locationProvider();
 
   /**
-   * Get the current {@link TableMetadataFile} for this table, or null if there are no table metadata file.
-   *
-   * @return the current table metadata file
-   */
-  TableMetadataFile currentTableMetadataFile();
-
-  /**
-   * Get the {@link TableMetadataFile table metadata files} of this table.
-   *
-   * @return an Iterable of table metadata files of this table.
-   */
-  Iterable<TableMetadataFile> tableMetadataFiles();
-
-  /**
    * Create a new {@link ExpireTableMetadata expire API} to manage table metadata files in this table and commit.
    *
    * @return a new {@link ExpireTableMetadata}

@@ -29,6 +29,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataFile;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -166,7 +167,7 @@ class TestTables {
     @Override
     public LocationProvider locationProvider() {
       Preconditions.checkNotNull(current,
-          "Current metadata should not be null when locatinProvider is called");
+          "Current metadata should not be null when locationProvider is called");
       return LocationProviders.locationsFor(current.location(), current.properties());
     }
 
@@ -180,6 +181,11 @@ class TestTables {
       long nextSnapshotId = lastSnapshotId + 1;
       this.lastSnapshotId = nextSnapshotId;
       return nextSnapshotId;
+    }
+
+    @Override
+    public Iterable<TableMetadataFile> tableMetadataFiles() {
+      throw new UnsupportedOperationException("Not implemented for tests");
     }
   }
 

@@ -78,4 +78,9 @@ class LocalTableOperations implements TableOperations {
   public long newSnapshotId() {
     throw new UnsupportedOperationException("Not implemented for tests");
   }
+
+  @Override
+  public Iterable<TableMetadataFile> tableMetadataFiles() {
+    throw new UnsupportedOperationException("Not implemented for tests");
+  }
 }

@@ -20,7 +20,6 @@
 package org.apache.iceberg.hadoop;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -193,15 +192,13 @@ public class HadoopTableOperations implements TableOperations {
       fileStatuses = fs.listStatus(metadataLocation,
         path -> path.getName().endsWith(TableMetadataParser.fileSuffix()));
     } catch (IOException e) {
-      LOG.warn("Unable to list table metadata files", e);
-      return ImmutableList.of();
+      throw new RuntimeIOException("Unable to list table metadata files", e);
     }
     return Stream.of(fileStatuses)
       .map(FileStatus::getPath)
       .map(path -> new BaseTableMetadataFile(
           io().newInputFile(path.toString()),
           parseVersion(path)))
-      .filter(file -> file.version() != -1)
       .collect(Collectors.toList());
   }
 
@@ -312,14 +309,13 @@ public class HadoopTableOperations implements TableOperations {
 
   private int parseVersion(Path path) {
     Matcher matcher = METADATA_VERSION_PATTERN.matcher(path.getName());
-    int result = -1;
     try {
       if (matcher.find() && matcher.groupCount() == 1) {
-        result = Integer.parseInt(matcher.group(1));
+        return Integer.parseInt(matcher.group(1));
       }
     } catch (NumberFormatException e) {
-      LOG.warn("Unable to parse metadata version for: {}", path.toString(), e);
+      throw new RuntimeIOException("Unable to parse metadata version for: {}", path.toString(), e);
     }
-    return result;
+    throw new RuntimeIOException("Unable to parse metadata version for: {}", path.toString());
   }
 }

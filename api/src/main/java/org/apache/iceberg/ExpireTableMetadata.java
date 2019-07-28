@@ -34,23 +34,15 @@ import java.util.function.Consumer;
 public interface ExpireTableMetadata extends PendingUpdate<List<TableMetadataFile>> {
 
   /**
-   * Expires a specific {@link TableMetadataFile} identified by version.
+   * Expires all table metadata files except of last N.
    *
-   * @param version version of the table metadata file to expire
+   * @param number number of table metadata files to be left
    * @return this for method chaining
    */
-  ExpireTableMetadata expireVersion(int version);
+  ExpireTableMetadata expireExcept(int number);
 
   /**
-   * Expires all table metadata files which version is older than the given version.
-   *
-   * @param version table metadata file version
-   * @return this for method chaining
-   */
-  ExpireTableMetadata expireBefore(int version);
-
-  /**
-   * Expires all table metadata files which last modified time is older than the given timestamp.
+   * Expires all table metadata files where last modified time is older than the given timestamp.
    *
    * @param timestampMillis a long timestamp, as returned by {@link System#currentTimeMillis()}
    * @return this for method chaining

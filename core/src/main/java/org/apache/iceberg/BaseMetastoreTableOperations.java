@@ -21,7 +21,6 @@ package org.apache.iceberg;
 
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
 import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -31,6 +30,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -100,8 +100,8 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   protected void refreshFromMetadataLocation(String newLocation, int numRetries) {
     // use null-safe equality check because new tables have a null metadata location
     if (!Objects.equal(currentMetadataLocation, newLocation)) {
-      LOG.info("Refreshing table metadata from new version: {}", newLocation);
       int metadataVersion = parseVersion(newLocation);
+      LOG.info("Refreshing table metadata from new version: {} ({})", metadataVersion, newLocation);
 
       AtomicReference<TableMetadata> newMetadata = new AtomicReference<>();
       Tasks.foreach(newLocation)
@@ -161,11 +161,9 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
       return Stream.of(fileStatuses)
         .map(FileStatus::getPath)
         .map(path -> new BaseTableMetadataFile(io().newInputFile(path.toString()), parseVersion(path.toString())))
-        .filter(file -> file.version() != -1)
         .collect(Collectors.toList());
     } catch (IOException e) {
-      LOG.warn("Unable to list table metadata files", e);
-      return ImmutableList.of();
+      throw new RuntimeIOException("Unable to list table metadata files", e);
     }
   }
 
@@ -182,8 +180,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     try {
       return Integer.valueOf(metadataLocation.substring(versionStart, versionEnd));
     } catch (NumberFormatException e) {
-      LOG.warn("Unable to parse version from metadata location: {}", metadataLocation, e);
-      return -1;
+      throw new RuntimeIOException("Unable to parse metadata version for: {}", metadataLocation, e);
     }
   }
 }

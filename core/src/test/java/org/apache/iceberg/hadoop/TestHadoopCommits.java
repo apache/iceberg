@@ -34,7 +34,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.TableMetadataFile;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -327,106 +326,27 @@ public class TestHadoopCommits extends HadoopTableTestBase {
   }
 
   @Test
-  public void testCurrentTableMetadataFile() {
-    Assert.assertEquals("Should have version 1",
-        1, table.currentTableMetadataFile().version());
-
-    table.newAppend()
-      .appendFile(FILE_A)
-      .commit();
-
-    Assert.assertEquals("Should have version 2",
-        2, table.currentTableMetadataFile().version());
-  }
-
-  @Test
-  public void testTableMetadataFiles() {
-    Assert.assertEquals("Should have 1 table metadata file",
-        1, Lists.newArrayList(table.tableMetadataFiles()).size());
-
-    table.newAppend()
-      .appendFile(FILE_A)
-      .commit();
-
-    Assert.assertEquals("Should have 2 table metadata files",
-        2, Lists.newArrayList(table.tableMetadataFiles()).size());
-  }
-
-  @Test
   public void testExpireTableMetadataCurrent() {
     Assert.assertEquals("Should have 1 table metadata file",
-        1, Lists.newArrayList(table.tableMetadataFiles()).size());
-
-    Assert.assertEquals("Should have version 1",
-        1, table.currentTableMetadataFile().version());
+        1, listMetadataJsonFiles().size());
 
     table.expireTableMetadata()
-      .expireVersion(1)
+      .expireExcept(0)
       .commit();
 
     Assert.assertEquals("Should have 1 table metadata file",
-        1, Lists.newArrayList(table.tableMetadataFiles()).size());
-
-    table.expireTableMetadata()
-      .expireBefore(10)
-      .commit();
-
-    Assert.assertEquals("Should have 1 table metadata file",
-        1, Lists.newArrayList(table.tableMetadataFiles()).size());
+        1, listMetadataJsonFiles().size());
 
     table.expireTableMetadata()
       .expireOlderThan(System.currentTimeMillis())
       .commit();
 
     Assert.assertEquals("Should have 1 table metadata file",
-        1, Lists.newArrayList(table.tableMetadataFiles()).size());
-
-    Assert.assertEquals("Expiration should not change table metadata version",
-        1, table.currentTableMetadataFile().version());
+        1, listMetadataJsonFiles().size());
   }
 
   @Test
-  public void testExpireTableMetadataVersion() {
-    table.newAppend()
-      .appendFile(FILE_A)
-      .commit();
-
-    table.newAppend()
-      .appendFile(FILE_B)
-      .commit();
-
-    Assert.assertEquals("Should have 3 table metadata files",
-        3, Lists.newArrayList(table.tableMetadataFiles()).size());
-
-    table.expireTableMetadata()
-      .expireVersion(1)
-      .commit();
-
-    Assert.assertEquals("Should have 2 table metadata files",
-        2, Lists.newArrayList(table.tableMetadataFiles()).size());
-
-    table.newAppend()
-      .appendFile(FILE_C)
-      .commit();
-
-    Assert.assertEquals("Should have 3 table metadata files",
-        3, Lists.newArrayList(table.tableMetadataFiles()).size());
-
-    table.expireTableMetadata()
-      .expireVersion(2)
-      .expireVersion(3)
-      .commit();
-
-    List<TableMetadataFile> metadataFiles = Lists.newArrayList(table.tableMetadataFiles());
-    Assert.assertEquals("Should have 1 table metadata file",
-        1, metadataFiles.size());
-
-    Assert.assertEquals("Current and existing metadata versions should match",
-        table.currentTableMetadataFile().version(), metadataFiles.get(0).version());
-  }
-
-  @Test
-  public void testExpireTableMetadataBefore() {
+  public void testExpireTableMetadataExcept() {
     table.newAppend()
       .appendFile(FILE_A)
       .commit();
@@ -440,14 +360,14 @@ public class TestHadoopCommits extends HadoopTableTestBase {
       .commit();
 
     Assert.assertEquals("Should have 4 table metadata files",
-        4, Lists.newArrayList(table.tableMetadataFiles()).size());
+        4, listMetadataJsonFiles().size());
 
     table.expireTableMetadata()
-      .expireBefore(table.currentTableMetadataFile().version() - 1)
+      .expireExcept(2)
       .commit();
 
     Assert.assertEquals("Should have 2 table metadata files",
-        2, Lists.newArrayList(table.tableMetadataFiles()).size());
+        2, listMetadataJsonFiles().size());
   }
 
   @Test
@@ -457,14 +377,14 @@ public class TestHadoopCommits extends HadoopTableTestBase {
       .commit();
 
     Assert.assertEquals("Should have 2 table metadata files",
-        2, Lists.newArrayList(table.tableMetadataFiles()).size());
+        2, listMetadataJsonFiles().size());
 
     table.expireTableMetadata()
       .expireOlderThan(System.currentTimeMillis())
       .commit();
 
     Assert.assertEquals("Should have 1 table metadata file",
-        1, Lists.newArrayList(table.tableMetadataFiles()).size());
+        1, listMetadataJsonFiles().size());
   }
 
   /**
