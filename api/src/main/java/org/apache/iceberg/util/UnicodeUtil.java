@@ -79,12 +79,7 @@ public class UnicodeUtil {
 
     // Try incrementing the code points from the end
     for (int i = length - 1; i >= 0; i--) {
-      int currentCodePoint = truncatedStringBuffer.codePointAt(i);
-      // Skip code point if it's a low surrogate
-      if (Character.isLowSurrogate((char) currentCodePoint)) {
-        continue;
-      }
-      int nextCodePoint = currentCodePoint + 1;
+      int nextCodePoint = truncatedStringBuffer.codePointAt(i) + 1;
       // No overflow
       if (nextCodePoint != 0 && Character.isValidCodePoint(nextCodePoint)) {
         // Get the offset in the truncated string buffer where the number of unicode characters = i
