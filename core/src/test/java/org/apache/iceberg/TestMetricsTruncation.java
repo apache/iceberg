@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.parquet;
+package org.apache.iceberg;
 
 import org.apache.iceberg.expressions.Literal;
 import org.junit.Assert;
@@ -31,7 +31,7 @@ import static org.apache.iceberg.util.BinaryUtil.truncateBinaryMin;
 import static org.apache.iceberg.util.UnicodeUtil.truncateStringMax;
 import static org.apache.iceberg.util.UnicodeUtil.truncateStringMin;
 
-public class TestParquetMetricsTruncation {
+public class TestMetricsTruncation {
   @Test
   public void testTruncateBinaryMin() throws IOException {
     ByteBuffer test1 = ByteBuffer.wrap(new byte[] {1, 1, (byte) 0xFF, 2});
