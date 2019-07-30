@@ -44,6 +44,6 @@ public class TestParquetMetrics extends TestMetrics {
 
   @Override
   public File writeRecords(Schema schema, GenericData.Record... records) throws IOException {
-    return BaseParquetWritingTest.writeRecords(temp, schema, records);
+    return ParquetWritingTestUtils.writeRecords(temp, schema, records);
   }
 }

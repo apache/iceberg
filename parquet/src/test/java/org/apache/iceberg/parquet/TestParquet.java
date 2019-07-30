@@ -38,7 +38,7 @@ import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.Files.localInput;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
-import static org.apache.iceberg.parquet.BaseParquetWritingTest.writeRecords;
+import static org.apache.iceberg.parquet.ParquetWritingTestUtils.writeRecords;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TestParquet {

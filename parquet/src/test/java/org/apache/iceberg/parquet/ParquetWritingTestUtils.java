@@ -38,9 +38,9 @@ import static org.apache.iceberg.Files.localOutput;
 /**
  * Base utility test class for tests that need to write Parquet files
  */
-class BaseParquetWritingTest {
+class ParquetWritingTestUtils {
 
-  private BaseParquetWritingTest() {}
+  private ParquetWritingTestUtils() {}
 
   static File writeRecords(TemporaryFolder temp, Schema schema, GenericData.Record... records) throws IOException {
     return writeRecords(temp, schema, Collections.emptyMap(), null, records);
