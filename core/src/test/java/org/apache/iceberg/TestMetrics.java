@@ -30,10 +30,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericFixed;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.BinaryType;
 import org.apache.iceberg.types.Types.BooleanType;
@@ -54,6 +54,7 @@ import org.apache.iceberg.types.Types.UUIDType;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static org.apache.iceberg.types.Conversions.fromByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -69,7 +70,7 @@ public abstract class TestMetrics {
 
   public abstract Metrics getMetrics(InputFile file);
 
-  public abstract File writeRecords(Schema schema, GenericData.Record... records) throws IOException;
+  public abstract File writeRecords(Schema schema, Record... records) throws IOException;
 
   @Test
   public void testMetricsForTopLevelFields() throws IOException {
@@ -89,7 +90,7 @@ public abstract class TestMetrics {
         required(13, "binaryCol", BinaryType.get())
     );
 
-    GenericData.Record firstRecord = new GenericData.Record(AvroSchemaUtil.convert(schema.asStruct()));
+    Record firstRecord = new Record(AvroSchemaUtil.convert(schema.asStruct()));
     firstRecord.put("booleanCol", true);
     firstRecord.put("intCol", 3);
     firstRecord.put("longCol", 5L);
@@ -103,8 +104,7 @@ public abstract class TestMetrics {
     firstRecord.put("uuidCol", uuid);
     firstRecord.put("fixedCol", fixed);
     firstRecord.put("binaryCol", "S".getBytes());
-
-    GenericData.Record secondRecord = new GenericData.Record(AvroSchemaUtil.convert(schema.asStruct()));
+    Record secondRecord = new Record(AvroSchemaUtil.convert(schema.asStruct()));
     secondRecord.put("booleanCol", false);
     secondRecord.put("intCol", Integer.MIN_VALUE);
     secondRecord.put("longCol", null);
@@ -161,7 +161,7 @@ public abstract class TestMetrics {
         required(3, "decimalAsFixed", DecimalType.of(22, 2))
     );
 
-    GenericData.Record record = new GenericData.Record(AvroSchemaUtil.convert(schema.asStruct()));
+    Record record = new Record(AvroSchemaUtil.convert(schema.asStruct()));
     record.put("decimalAsInt32", new BigDecimal("2.55"));
     record.put("decimalAsInt64", new BigDecimal("4.75"));
     record.put("decimalAsFixed", new BigDecimal("5.80"));
@@ -193,13 +193,13 @@ public abstract class TestMetrics {
         required(2, "nestedStructCol", nestedStructType)
     );
 
-    GenericData.Record leafStruct = new GenericData.Record(AvroSchemaUtil.convert(leafStructType));
+    Record leafStruct = new Record(AvroSchemaUtil.convert(leafStructType));
     leafStruct.put("leafLongCol", 20L);
     leafStruct.put("leafBinaryCol", "A".getBytes());
-    GenericData.Record nestedStruct = new GenericData.Record(AvroSchemaUtil.convert(nestedStructType));
+    Record nestedStruct = new Record(AvroSchemaUtil.convert(nestedStructType));
     nestedStruct.put("longCol", 100L);
     nestedStruct.put("leafStructCol", leafStruct);
-    GenericData.Record record = new GenericData.Record(AvroSchemaUtil.convert(schema.asStruct()));
+    Record record = new Record(AvroSchemaUtil.convert(schema.asStruct()));
     record.put("intCol", Integer.MAX_VALUE);
     record.put("nestedStructCol", nestedStruct);
 
@@ -229,12 +229,12 @@ public abstract class TestMetrics {
         optional(5, "mapCol", MapType.ofRequired(6, 7, StringType.get(), structType))
     );
 
-    GenericData.Record record = new GenericData.Record(AvroSchemaUtil.convert(schema.asStruct()));
+    Record record = new Record(AvroSchemaUtil.convert(schema.asStruct()));
     record.put("intListCol", Lists.newArrayList(10, 11, 12));
-    GenericData.Record struct = new GenericData.Record(AvroSchemaUtil.convert(structType));
+    Record struct = new Record(AvroSchemaUtil.convert(structType));
     struct.put("leafIntCol", 1);
     struct.put("leafStringCol", "BBB");
-    Map<String, GenericData.Record> map = Maps.newHashMap();
+    Map<String, Record> map = Maps.newHashMap();
     map.put("4", struct);
     record.put(1, map);
 
@@ -257,9 +257,9 @@ public abstract class TestMetrics {
     Schema schema = new Schema(
         optional(1, "intCol", IntegerType.get())
     );
-    GenericData.Record firstRecord = new GenericData.Record(AvroSchemaUtil.convert(schema.asStruct()));
+    Record firstRecord = new Record(AvroSchemaUtil.convert(schema.asStruct()));
     firstRecord.put("intCol", null);
-    GenericData.Record secondRecord = new GenericData.Record(AvroSchemaUtil.convert(schema.asStruct()));
+    Record secondRecord = new Record(AvroSchemaUtil.convert(schema.asStruct()));
     secondRecord.put("intCol", null);
 
     File recordsFile = writeRecords(schema, firstRecord, secondRecord);
@@ -283,11 +283,10 @@ public abstract class TestMetrics {
 
     Assert.assertEquals(
         lowerBound,
-        lowerBounds.containsKey(fieldId) ?
-            Conversions.fromByteBuffer(type, lowerBounds.get(fieldId)) : null);
+        lowerBounds.containsKey(fieldId) ? fromByteBuffer(type, lowerBounds.get(fieldId)) : null);
     Assert.assertEquals(
         upperBound,
-        upperBounds.containsKey(fieldId) ?
-            Conversions.fromByteBuffer(type, upperBounds.get(fieldId)) : null);
+        upperBounds.containsKey(fieldId) ? fromByteBuffer(type, upperBounds.get(fieldId)) : null);
   }
+
 }
