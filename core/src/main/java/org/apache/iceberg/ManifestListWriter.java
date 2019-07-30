@@ -73,7 +73,7 @@ class ManifestListWriter implements FileAppender<ManifestFile> {
           .schema(ManifestFile.schema())
           .named("manifest_file")
           .meta(meta)
-          .overwrite(false)
+          .overwrite()
           .build();
 
     } catch (IOException e) {

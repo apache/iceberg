@@ -62,8 +62,6 @@ public class ORC {
       } else {
         conf = new Configuration();
       }
-      // overwrite output file by default
-      overwrite(true);
     }
 
     public WriteBuilder metadata(String property, String value) {
@@ -91,8 +89,12 @@ public class ORC {
       return this;
     }
 
-    public WriteBuilder overwrite(boolean overwrite) {
-      OrcConf.OVERWRITE_OUTPUT_FILE.setBoolean(conf, overwrite);
+    public WriteBuilder overwrite() {
+      return overwrite(true);
+    }
+
+    public WriteBuilder overwrite(boolean enabled) {
+      OrcConf.OVERWRITE_OUTPUT_FILE.setBoolean(conf, enabled);
       return this;
     }
 

@@ -84,7 +84,7 @@ public class Avro {
     private Map<String, String> config = Maps.newHashMap();
     private Map<String, String> metadata = Maps.newLinkedHashMap();
     private Function<Schema, DatumWriter<?>> createWriterFunc = GenericAvroWriter::new;
-    private boolean overwrite = true;
+    private boolean overwrite;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
@@ -125,8 +125,12 @@ public class Avro {
       return this;
     }
 
-    public WriteBuilder overwrite(boolean newOverwrite) {
-      this.overwrite = newOverwrite;
+    public WriteBuilder overwrite() {
+      return overwrite(true);
+    }
+
+    public WriteBuilder overwrite(boolean enabled) {
+      this.overwrite = enabled;
       return this;
     }
 

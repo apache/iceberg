@@ -85,7 +85,7 @@ public class Parquet {
     private Map<String, String> config = Maps.newLinkedHashMap();
     private Function<MessageType, ParquetValueWriter<?>> createWriterFunc = null;
     private MetricsConfig metricsConfig = MetricsConfig.getDefault();
-    private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.OVERWRITE;
+    private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
@@ -139,8 +139,12 @@ public class Parquet {
       return this;
     }
 
-    public WriteBuilder writeMode(ParquetFileWriter.Mode newWriteMode) {
-      this.writeMode = newWriteMode;
+    public WriteBuilder overwrite() {
+      return overwrite(true);
+    }
+
+    public WriteBuilder overwrite(boolean enabled) {
+      this.writeMode = enabled ? ParquetFileWriter.Mode.OVERWRITE : ParquetFileWriter.Mode.CREATE;
       return this;
     }
 
