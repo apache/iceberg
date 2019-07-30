@@ -89,6 +89,15 @@ public class ORC {
       return this;
     }
 
+    public WriteBuilder overwrite() {
+      return overwrite(true);
+    }
+
+    public WriteBuilder overwrite(boolean enabled) {
+      OrcConf.OVERWRITE_OUTPUT_FILE.setBoolean(conf, enabled);
+      return this;
+    }
+
     public <D> FileAppender<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
       return new OrcFileAppender<>(TypeConversion.toOrc(schema, new ColumnIdMap()),
