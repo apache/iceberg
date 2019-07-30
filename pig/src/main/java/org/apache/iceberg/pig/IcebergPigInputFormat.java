@@ -197,12 +197,16 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
           if (hasJoinedPartitionColumns) {
 
             Schema readSchema = TypeUtil.selectNot(projectedSchema, idColumns);
-            Schema partitionSchema = TypeUtil.select(tableSchema, idColumns);
             Schema projectedPartitionSchema = TypeUtil.select(projectedSchema, idColumns);
+
+            Map<String, Integer> partitionSpecFieldIndexMap = Maps.newHashMap();
+            for(int i=0; i<spec.fields().size(); i++) {
+              partitionSpecFieldIndexMap.put(spec.fields().get(i).name(), i);
+            }
 
             for (Types.NestedField field : projectedPartitionSchema.columns()) {
               int tupleIndex = projectedSchema.columns().indexOf(field);
-              int partitionIndex = partitionSchema.columns().indexOf(field);
+              int partitionIndex = partitionSpecFieldIndexMap.get(field.name());
 
               Object partitionValue = file.partition().get(partitionIndex, Object.class);
               partitionValueMap.put(tupleIndex, convertPartitionValue(field.type(), partitionValue));
