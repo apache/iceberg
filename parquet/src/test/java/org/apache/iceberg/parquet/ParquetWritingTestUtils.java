@@ -36,7 +36,7 @@ import org.junit.rules.TemporaryFolder;
 import static org.apache.iceberg.Files.localOutput;
 
 /**
- * Base utility test class for tests that need to write Parquet files
+ * Utilities for tests that need to write Parquet files.
  */
 class ParquetWritingTestUtils {
 
