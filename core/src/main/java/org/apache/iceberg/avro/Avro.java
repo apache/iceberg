@@ -34,6 +34,7 @@ import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -88,6 +89,12 @@ public class Avro {
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
+    }
+
+    public WriteBuilder forTable(Table table) {
+      schema(table.schema());
+      setAll(table.properties());
+      return this;
     }
 
     public WriteBuilder schema(org.apache.iceberg.Schema newSchema) {
