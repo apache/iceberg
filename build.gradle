@@ -77,6 +77,8 @@ subprojects {
     all {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
+
+    testArtifacts
   }
 
   ext {
@@ -93,6 +95,15 @@ subprojects {
     testCompile 'junit:junit'
     testCompile 'org.slf4j:slf4j-simple'
     testCompile 'org.mockito:mockito-core'
+  }
+
+  task testJar(type: Jar){
+    archiveClassifier = 'tests'
+    from sourceSets.test.output
+  }
+
+  artifacts {
+    testArtifacts testJar
   }
 
   publishing {
@@ -231,19 +242,6 @@ project(':iceberg-core') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
   }
-
-  task testJar(type: Jar){
-    archiveClassifier = 'tests'
-    from sourceSets.test.output
-  }
-
-  configurations {
-    testArtifacts
-  }
-
-  artifacts {
-    testArtifacts testJar
-  }
 }
 
 project(':iceberg-data') {
@@ -296,19 +294,6 @@ project(':iceberg-hive') {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
-  }
-
-  task testJar(type: Jar){
-    archiveClassifier = 'tests'
-    from sourceSets.test.output
-  }
-
-  configurations {
-    testArtifacts
-  }
-
-  artifacts {
-    testArtifacts testJar
   }
 }
 
