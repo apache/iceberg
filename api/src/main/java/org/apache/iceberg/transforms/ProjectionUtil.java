@@ -151,7 +151,7 @@ class ProjectionUtil {
   }
 
   static <T> UnboundPredicate<T> truncateLong(
-    String name, BoundPredicate<Long> pred, Transform<Long, T> transform) {
+      String name, BoundPredicate<Long> pred, Transform<Long, T> transform) {
     long boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
