@@ -25,7 +25,7 @@ Iceberg uses Spark's DataSourceV2 API for data source and catalog implementation
 
 To use Iceberg in Spark 2.4, add the `iceberg-spark-runtime` Jar to Spark's `jars` folder.
 
-Spark 2.4 is limited to reading and writing existing Iceberg tables. Use the [Iceberg API](api) to create Iceberg tables.
+Spark 2.4 is limited to reading and writing existing Iceberg tables. Use the [Iceberg API](../api) to create Iceberg tables.
 
 
 ### Reading an Iceberg table
