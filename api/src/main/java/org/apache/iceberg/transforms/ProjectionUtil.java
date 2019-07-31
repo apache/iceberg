@@ -52,7 +52,7 @@ class ProjectionUtil {
     }
   }
 
-  static UnboundPredicate<Integer> truncateIntegerStrict(
+  static UnboundPredicate<Integer> dateIntegerStrict(
       String name, BoundPredicate<Integer> pred, Transform<Integer, Integer> transform) {
     int boundary = pred.literal().value();
     switch (pred.op()) {
@@ -66,7 +66,7 @@ class ProjectionUtil {
           // the predicate can be < 2019-07-01
           return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary) - 1);
         } else {
-          // Literal is not at upper boundary, for eg: 2019-07-02T23:59:59.99999
+          // Literal is at upper boundary, for eg: 2019-07-02T23:59:59.99999
           // the predicate can be <= 2019-07-02
           return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
         }
@@ -94,7 +94,7 @@ class ProjectionUtil {
     }
   }
 
-  static UnboundPredicate<Integer> truncateLongStrict(
+  static UnboundPredicate<Integer> timestampLongStrict(
       String name, BoundPredicate<Long> pred, Transform<Long, Integer> transform) {
     long boundary = pred.literal().value();
     switch (pred.op()) {
