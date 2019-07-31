@@ -79,11 +79,11 @@ public class UnicodeUtil {
 
     // Try incrementing the code points from the end
     for (int i = length - 1; i >= 0; i--) {
-      int nextCodePoint = truncatedStringBuffer.codePointAt(i) + 1;
+      // Get the offset in the truncated string buffer where the number of unicode characters = i
+      int offsetByCodePoint = truncatedStringBuffer.offsetByCodePoints(0, i);
+      int nextCodePoint = truncatedStringBuffer.codePointAt(offsetByCodePoint) + 1;
       // No overflow
       if (nextCodePoint != 0 && Character.isValidCodePoint(nextCodePoint)) {
-        // Get the offset in the truncated string buffer where the number of unicode characters = i
-        int offsetByCodePoint = truncatedStringBuffer.offsetByCodePoints(0, i);
         truncatedStringBuffer.setLength(offsetByCodePoint);
         // Append next code point to the truncated substring
         truncatedStringBuffer.appendCodePoint(nextCodePoint);
