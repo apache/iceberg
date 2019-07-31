@@ -138,6 +138,9 @@ public class TestParquetMetricsTruncation {
     String test6 = "\uD800\uDFFF\uD800\uDFFF";
     // Increment the previous character
     String test6_2_expected = "\uD801\uDC00";
+    String test7 = "\uD83D\uDE02\uD83D\uDE02\uD83D\uDE02";
+    String test7_2_expected = "\uD83D\uDE02\uD83D\uDE03";
+    String test7_1_expected = "\uD83D\uDE03";
 
     Comparator<CharSequence> cmp = Literal.of(test1).comparator();
     Assert.assertTrue("Truncated upper bound should be greater than or equal to the actual upper bound",
@@ -175,5 +178,13 @@ public class TestParquetMetricsTruncation {
     Assert.assertTrue("Test 4 byte UTF-8 character increment. Output must have one character with " +
         "the first character incremented", cmp.compare(
         truncateStringMax(Literal.of(test6), 1).value(), test6_2_expected) == 0);
+    Assert.assertTrue("Truncated upper bound should be greater than or equal to the actual upper bound",
+        cmp.compare(truncateStringMax(Literal.of(test7), 2).value(), test7) >= 0);
+    Assert.assertTrue("Test input with multiple 4 byte UTF-8 character where the second unicode " +
+        "character should be incremented", cmp.compare(
+            truncateStringMax(Literal.of(test7), 2).value(), test7_2_expected) == 0);
+    Assert.assertTrue("Test input with multiple 4 byte UTF-8 character where the first unicode " +
+        "character should be incremented", cmp.compare(
+            truncateStringMax(Literal.of(test7), 1).value(), test7_1_expected) == 0);
   }
 }
