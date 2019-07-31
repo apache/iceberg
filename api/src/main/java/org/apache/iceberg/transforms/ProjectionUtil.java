@@ -143,7 +143,7 @@ class ProjectionUtil {
       case NOT_EQ:
         return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
       case EQ:
-        // there is no predicate that guarantees equality because adjacent ints transform to the same value
+        // there is no predicate that guarantees equality because adjacent longs transform to the same value
         return null;
       default:
         return null;
@@ -250,7 +250,7 @@ class ProjectionUtil {
       case NOT_EQ:
         return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
       case EQ:
-        // there is no predicate that guarantees equality because adjacent ints transform to the same value
+        // there is no predicate that guarantees equality because adjacent decimals transform to the same value
         return null;
       default:
         return null;
@@ -288,6 +288,9 @@ class ProjectionUtil {
         return predicate(Expression.Operation.GT, name, transform.apply(boundary));
       case NOT_EQ:
         return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
+      case EQ:
+        // there is no predicate that guarantees equality because adjacent values transform to the same partition
+        return null;
       default:
         return null;
     }
