@@ -56,9 +56,13 @@ public class ParquetMetricsRowGroupFilter {
   }
 
   public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound) {
+    this(schema, unbound, true);
+  }
+
+  public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound, boolean caseSensitive) {
     this.schema = schema;
     this.struct = schema.asStruct();
-    this.expr = Binder.bind(struct, rewriteNot(unbound), true);
+    this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
   }
 
   /**
@@ -131,8 +135,6 @@ public class ParquetMetricsRowGroupFilter {
       // no need to check whether the field is required because binding evaluates that case
       // if the column has no null values, the expression cannot match
       Integer id = ref.fieldId();
-      Preconditions.checkNotNull(struct.field(id),
-          "Cannot filter by nested column: %s", schema.findField(id));
 
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
@@ -154,8 +156,6 @@ public class ParquetMetricsRowGroupFilter {
       // no need to check whether the field is required because binding evaluates that case
       // if the column has no non-null values, the expression cannot match
       Integer id = ref.fieldId();
-      Preconditions.checkNotNull(struct.field(id),
-          "Cannot filter by nested column: %s", schema.findField(id));
 
       // When filtering nested types notNull() is implicit filter passed even though complex
       // filters aren't pushed down in Parquet. Leave all nested column type filters to be
@@ -182,8 +182,6 @@ public class ParquetMetricsRowGroupFilter {
     @Override
     public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
-      Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
@@ -210,8 +208,6 @@ public class ParquetMetricsRowGroupFilter {
     @Override
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
-      Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
@@ -238,8 +234,6 @@ public class ParquetMetricsRowGroupFilter {
     @Override
     public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
-      Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
@@ -266,8 +260,6 @@ public class ParquetMetricsRowGroupFilter {
     @Override
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
-      Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
@@ -294,8 +286,6 @@ public class ParquetMetricsRowGroupFilter {
     @Override
     public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
-      Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       // When filtering nested types notNull() is implicit filter passed even though complex
       // filters aren't pushed down in Parquet. Leave all nested column type filters to be

@@ -281,14 +281,14 @@ public class TestLocalScan {
 
   private InputFile writeFile(String location, String filename, List<Record> records) throws IOException {
     Path path = new Path(location, filename);
-    FileFormat format = FileFormat.fromFileName(filename);
-    Preconditions.checkNotNull(format, "Cannot determine format for file: %s", filename);
-    switch (format) {
+    FileFormat fileFormat = FileFormat.fromFileName(filename);
+    Preconditions.checkNotNull(fileFormat, "Cannot determine format for file: %s", filename);
+    switch (fileFormat) {
       case AVRO:
         try (FileAppender<Record> appender = Avro.write(fromPath(path, CONF))
             .schema(SCHEMA)
             .createWriterFunc(DataWriter::create)
-            .named(format.name())
+            .named(fileFormat.name())
             .build()) {
           appender.addAll(records);
         }
@@ -306,7 +306,7 @@ public class TestLocalScan {
         return HadoopInputFile.fromPath(path, CONF);
 
       default:
-        throw new UnsupportedOperationException("Cannot write format: " + format);
+        throw new UnsupportedOperationException("Cannot write format: " + fileFormat);
     }
   }
 

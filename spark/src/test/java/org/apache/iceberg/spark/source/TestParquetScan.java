@@ -49,9 +49,7 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.Files.localInput;
 import static org.apache.iceberg.Files.localOutput;
-import static org.apache.iceberg.parquet.ParquetMetrics.fromInputFile;
 
 public class TestParquetScan extends AvroDataTest {
   private static final Configuration CONF = new Configuration();
@@ -68,9 +66,9 @@ public class TestParquetScan extends AvroDataTest {
 
   @AfterClass
   public static void stopSpark() {
-    SparkSession spark = TestParquetScan.spark;
+    SparkSession currentSpark = TestParquetScan.spark;
     TestParquetScan.spark = null;
-    spark.stop();
+    currentSpark.stop();
   }
 
   @Override
@@ -106,7 +104,7 @@ public class TestParquetScan extends AvroDataTest {
     DataFile file = DataFiles.builder(PartitionSpec.unpartitioned())
         .withFileSizeInBytes(parquetFile.length())
         .withPath(parquetFile.toString())
-        .withMetrics(fromInputFile(localInput(parquetFile)))
+        .withRecordCount(100)
         .build();
 
     table.newAppend().appendFile(file).commit();

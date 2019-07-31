@@ -19,7 +19,7 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Objects;
+import com.google.common.base.MoreObjects;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import java.io.IOException;
@@ -42,8 +42,8 @@ class BaseSnapshot implements Snapshot {
 
   // lazily initialized
   private List<ManifestFile> manifests = null;
-  private List<DataFile> adds = null;
-  private List<DataFile> deletes = null;
+  private List<DataFile> cachedAdds = null;
+  private List<DataFile> cachedDeletes = null;
 
   /**
    * For testing only.
@@ -132,18 +132,18 @@ class BaseSnapshot implements Snapshot {
 
   @Override
   public List<DataFile> addedFiles() {
-    if (adds == null) {
+    if (cachedAdds == null) {
       cacheChanges();
     }
-    return adds;
+    return cachedAdds;
   }
 
   @Override
   public List<DataFile> deletedFiles() {
-    if (deletes == null) {
+    if (cachedDeletes == null) {
       cacheChanges();
     }
-    return deletes;
+    return cachedDeletes;
   }
 
   @Override
@@ -158,15 +158,17 @@ class BaseSnapshot implements Snapshot {
     // accumulate adds and deletes from all manifests.
     // because manifests can be reused in newer snapshots, filter the changes by snapshot id.
     for (String manifest : Iterables.transform(manifests(), ManifestFile::path)) {
-      try (ManifestReader reader = ManifestReader.read(ops.io().newInputFile(manifest))) {
+      try (ManifestReader reader = ManifestReader.read(
+          ops.io().newInputFile(manifest),
+          ops.current()::spec)) {
         for (ManifestEntry add : reader.addedFiles()) {
           if (add.snapshotId() == snapshotId) {
-            adds.add(add.file().copy());
+            adds.add(add.file().copyWithoutStats());
           }
         }
         for (ManifestEntry delete : reader.deletedFiles()) {
           if (delete.snapshotId() == snapshotId) {
-            deletes.add(delete.file().copy());
+            deletes.add(delete.file().copyWithoutStats());
           }
         }
       } catch (IOException e) {
@@ -174,13 +176,13 @@ class BaseSnapshot implements Snapshot {
       }
     }
 
-    this.adds = adds;
-    this.deletes = deletes;
+    this.cachedAdds = adds;
+    this.cachedDeletes = deletes;
   }
 
   @Override
   public String toString() {
-    return Objects.toStringHelper(this)
+    return MoreObjects.toStringHelper(this)
         .add("id", snapshotId)
         .add("timestamp_ms", timestampMillis)
         .add("operation", operation)

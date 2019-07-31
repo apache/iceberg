@@ -17,6 +17,7 @@
 
 from iceberg.api.expressions import (Expressions,
                                      InclusiveMetricsEvaluator)
+from iceberg.exceptions import ValidationException
 from pytest import raises
 
 
@@ -116,3 +117,14 @@ def test_integer_not_eq(schema, file, not_eq):
 
 def test_not_eq_rewritten(schema, file, not_eq_rewrite):
     assert InclusiveMetricsEvaluator(schema, Expressions.not_(not_eq_rewrite)).eval(file)
+
+
+def test_case_insensitive_int_not_eq_rewritten(schema, file, not_eq_uc):
+    assert InclusiveMetricsEvaluator(schema, Expressions.not_(not_eq_uc),
+                                     case_sensitive=False).eval(file)
+
+
+def test_case_sensitive_int_not_eq_rewritten(schema, file, not_eq_uc):
+    with raises(ValidationException):
+        assert InclusiveMetricsEvaluator(schema, Expressions.not_(not_eq_uc),
+                                         case_sensitive=True).eval(file)

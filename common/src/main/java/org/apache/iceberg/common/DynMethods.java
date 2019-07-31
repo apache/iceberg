@@ -34,6 +34,8 @@ import java.util.Arrays;
  */
 public class DynMethods {
 
+  private DynMethods() {}
+
   /**
    * Convenience wrapper class around {@link java.lang.reflect.Method}.
    *
@@ -88,10 +90,11 @@ public class DynMethods {
      */
     public BoundMethod bind(Object receiver) {
       Preconditions.checkState(!isStatic(),
-          "Cannot bind static method " + method.toGenericString());
+          "Cannot bind static method %s",  method.toGenericString());
       Preconditions.checkArgument(
           method.getDeclaringClass().isAssignableFrom(receiver.getClass()),
-          "Cannot bind " + method.toGenericString() + " to instance of " +
+          "Cannot bind %s to instance of %s",
+              method.toGenericString(),
               receiver.getClass());
 
       return new BoundMethod(this, receiver);
@@ -122,15 +125,16 @@ public class DynMethods {
       return new StaticMethod(this);
     }
 
+    @Override
     public String toString() {
-      return "DynMethods.UnboundMethod(name=" + name +" method=" +
+      return "DynMethods.UnboundMethod(name=" + name + " method=" +
           method.toGenericString() + ")";
     }
 
     /**
      * Singleton {@link UnboundMethod}, performs no operation and returns null.
      */
-    private static UnboundMethod NOOP = new UnboundMethod(null, "NOOP") {
+    private static final UnboundMethod NOOP = new UnboundMethod(null, "NOOP") {
       @Override
       public <R> R invokeChecked(Object target, Object... args) throws Exception {
         return null;
@@ -216,11 +220,11 @@ public class DynMethods {
      * <p>
      * If not set, the current thread's ClassLoader is used.
      *
-     * @param loader a ClassLoader
+     * @param newLoader a ClassLoader
      * @return this Builder for method chaining
      */
-    public Builder loader(ClassLoader loader) {
-      this.loader = loader;
+    public Builder loader(ClassLoader newLoader) {
+      this.loader = newLoader;
       return this;
     }
 
@@ -437,21 +441,6 @@ public class DynMethods {
 
     /**
      * Returns the first valid implementation as a UnboundMethod or throws a
-     * NoSuchMethodException if there is none.
-     *
-     * @return a {@link UnboundMethod} with a valid implementation
-     * @throws NoSuchMethodException if no implementation was found
-     */
-    public UnboundMethod buildChecked() throws NoSuchMethodException {
-      if (method != null) {
-        return method;
-      } else {
-        throw new NoSuchMethodException("Cannot find method: " + name);
-      }
-    }
-
-    /**
-     * Returns the first valid implementation as a UnboundMethod or throws a
      * RuntimeError if there is none.
      *
      * @return a {@link UnboundMethod} with a valid implementation
@@ -467,20 +456,6 @@ public class DynMethods {
 
     /**
      * Returns the first valid implementation as a BoundMethod or throws a
-     * NoSuchMethodException if there is none.
-     *
-     * @param receiver an Object to receive the method invocation
-     * @return a {@link BoundMethod} with a valid implementation and receiver
-     * @throws IllegalStateException if the method is static
-     * @throws IllegalArgumentException if the receiver's class is incompatible
-     * @throws NoSuchMethodException if no implementation was found
-     */
-    public BoundMethod buildChecked(Object receiver) throws NoSuchMethodException {
-      return buildChecked().bind(receiver);
-    }
-
-    /**
-     * Returns the first valid implementation as a BoundMethod or throws a
      * RuntimeError if there is none.
      *
      * @param receiver an Object to receive the method invocation
@@ -491,6 +466,35 @@ public class DynMethods {
      */
     public BoundMethod build(Object receiver) {
       return build().bind(receiver);
+    }
+
+    /**
+     * Returns the first valid implementation as a UnboundMethod or throws a
+     * NoSuchMethodException if there is none.
+     *
+     * @return a {@link UnboundMethod} with a valid implementation
+     * @throws NoSuchMethodException if no implementation was found
+     */
+    public UnboundMethod buildChecked() throws NoSuchMethodException {
+      if (method != null) {
+        return method;
+      } else {
+        throw new NoSuchMethodException("Cannot find method: " + name);
+      }
+    }
+
+    /**
+     * Returns the first valid implementation as a BoundMethod or throws a
+     * NoSuchMethodException if there is none.
+     *
+     * @param receiver an Object to receive the method invocation
+     * @return a {@link BoundMethod} with a valid implementation and receiver
+     * @throws IllegalStateException if the method is static
+     * @throws IllegalArgumentException if the receiver's class is incompatible
+     * @throws NoSuchMethodException if no implementation was found
+     */
+    public BoundMethod buildChecked(Object receiver) throws NoSuchMethodException {
+      return buildChecked().bind(receiver);
     }
 
     /**
@@ -522,7 +526,7 @@ public class DynMethods {
   private static class MakeAccessible implements PrivilegedAction<Void> {
     private Method hidden;
 
-    public MakeAccessible(Method hidden) {
+    MakeAccessible(Method hidden) {
       this.hidden = hidden;
     }
 

@@ -28,13 +28,52 @@ import org.apache.iceberg.io.OutputFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.ManifestEntry.Status.DELETED;
-
 /**
  * Writer for manifest files.
  */
-class ManifestWriter implements FileAppender<DataFile> {
+public class ManifestWriter implements FileAppender<DataFile> {
   private static final Logger LOG = LoggerFactory.getLogger(ManifestWriter.class);
+
+  static ManifestFile copyAppendManifest(ManifestReader reader, OutputFile outputFile, long snapshotId,
+                                         SnapshotSummary.Builder summaryBuilder) {
+    ManifestWriter writer = new ManifestWriter(reader.spec(), outputFile, snapshotId);
+    boolean threw = true;
+    try {
+      for (ManifestEntry entry : reader.entries()) {
+        Preconditions.checkArgument(entry.status() == ManifestEntry.Status.ADDED,
+            "Cannot append manifest: contains existing files");
+        summaryBuilder.addedFile(reader.spec(), entry.file());
+        writer.add(entry);
+      }
+
+      threw = false;
+
+    } finally {
+      try {
+        writer.close();
+      } catch (IOException e) {
+        if (!threw) {
+          throw new RuntimeIOException(e, "Failed to close manifest: %s", outputFile);
+        }
+      }
+    }
+
+    return writer.toManifestFile();
+  }
+
+  /**
+   * Create a new {@link ManifestWriter}.
+   * <p>
+   * Manifests created by this writer are not part of a snapshot and have all entry snapshot IDs
+   * set to -1.
+   *
+   * @param spec {@link PartitionSpec} used to produce {@link DataFile} partition tuples
+   * @param outputFile the destination file location
+   * @return a manifest writer
+   */
+  public static ManifestWriter write(PartitionSpec spec, OutputFile outputFile) {
+    return new ManifestWriter(spec, outputFile, -1);
+  }
 
   private final OutputFile file;
   private final int specId;
@@ -57,33 +96,7 @@ class ManifestWriter implements FileAppender<DataFile> {
     this.stats = new PartitionSummary(spec);
   }
 
-  public void addExisting(Iterable<ManifestEntry> entries) {
-    for (ManifestEntry entry : entries) {
-      if (entry.status() != DELETED) {
-        addExisting(entry);
-      }
-    }
-  }
-
-  public void addExisting(ManifestEntry entry) {
-    add(reused.wrapExisting(entry.snapshotId(), entry.file()));
-  }
-
-  public void addExisting(long snapshotId, DataFile file) {
-    add(reused.wrapExisting(snapshotId, file));
-  }
-
-  public void delete(ManifestEntry entry) {
-    // Use the current Snapshot ID for the delete. It is safe to delete the data file from disk
-    // when this Snapshot has been removed or when there are no Snapshots older than this one.
-    add(reused.wrapDelete(snapshotId, entry.file()));
-  }
-
-  public void delete(DataFile file) {
-    add(reused.wrapDelete(snapshotId, file));
-  }
-
-  public void add(ManifestEntry entry) {
+  void addEntry(ManifestEntry entry) {
     switch (entry.status()) {
       case ADDED:
         addedFiles += 1;
@@ -99,17 +112,53 @@ class ManifestWriter implements FileAppender<DataFile> {
     writer.add(entry);
   }
 
-  public void addEntries(Iterable<ManifestEntry> entries) {
-    for (ManifestEntry entry : entries) {
-      add(entry);
-    }
-  }
-
+  /**
+   * Add an added entry for a data file.
+   * <p>
+   * The entry's snapshot ID will be this manifest's snapshot ID.
+   *
+   * @param addedFile a data file
+   */
   @Override
-  public void add(DataFile file) {
+  public void add(DataFile addedFile) {
     // TODO: this assumes that file is a GenericDataFile that can be written directly to Avro
     // Eventually, this should check in case there are other DataFile implementations.
-    add(reused.wrapAppend(snapshotId, file));
+    addEntry(reused.wrapAppend(snapshotId, addedFile));
+  }
+
+  public void add(ManifestEntry entry) {
+    addEntry(reused.wrapAppend(snapshotId, entry.file()));
+  }
+
+  /**
+   * Add an existing entry for a data file.
+   *
+   * @param existingFile a data file
+   * @param fileSnapshotId snapshot ID when the data file was added to the table
+   */
+  public void existing(DataFile existingFile, long fileSnapshotId) {
+    addEntry(reused.wrapExisting(fileSnapshotId, existingFile));
+  }
+
+  void existing(ManifestEntry entry) {
+    addEntry(reused.wrapExisting(entry.snapshotId(), entry.file()));
+  }
+
+  /**
+   * Add a delete entry for a data file.
+   * <p>
+   * The entry's snapshot ID will be this manifest's snapshot ID.
+   *
+   * @param deletedFile a data file
+   */
+  public void delete(DataFile deletedFile) {
+    addEntry(reused.wrapDelete(snapshotId, deletedFile));
+  }
+
+  void delete(ManifestEntry entry) {
+    // Use the current Snapshot ID for the delete. It is safe to delete the data file from disk
+    // when this Snapshot has been removed or when there are no Snapshots older than this one.
+    addEntry(reused.wrapDelete(snapshotId, entry.file()));
   }
 
   @Override
@@ -146,6 +195,7 @@ class ManifestWriter implements FileAppender<DataFile> {
               .meta("schema", SchemaParser.toJson(spec.schema()))
               .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
               .meta("partition-spec-id", String.valueOf(spec.specId()))
+              .overwrite()
               .build();
         default:
           throw new IllegalArgumentException("Unsupported format: " + format);

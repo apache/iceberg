@@ -30,6 +30,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.UUID;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.types.Types;
@@ -75,12 +76,12 @@ public class TestTableMetadataJson {
         ops, currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
-    List<SnapshotLogEntry> snapshotLog = ImmutableList.<SnapshotLogEntry>builder()
+    List<HistoryEntry> snapshotLog = ImmutableList.<HistoryEntry>builder()
         .add(new SnapshotLogEntry(previousSnapshot.timestampMillis(), previousSnapshot.snapshotId()))
         .add(new SnapshotLogEntry(currentSnapshot.timestampMillis(), currentSnapshot.snapshotId()))
         .build();
 
-    TableMetadata expected = new TableMetadata(ops, null, "s3://bucket/test/location",
+    TableMetadata expected = new TableMetadata(ops, null, UUID.randomUUID().toString(), "s3://bucket/test/location",
         System.currentTimeMillis(), 3, schema, 5, ImmutableList.of(spec),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), snapshotLog);
@@ -89,6 +90,8 @@ public class TestTableMetadataJson {
     TableMetadata metadata = TableMetadataParser.fromJson(ops, null,
         JsonUtil.mapper().readValue(asJson, JsonNode.class));
 
+    Assert.assertEquals("Table UUID should match",
+        expected.uuid(), metadata.uuid());
     Assert.assertEquals("Table location should match",
         expected.location(), metadata.location());
     Assert.assertEquals("Last column ID should match",
@@ -137,9 +140,9 @@ public class TestTableMetadataJson {
         ops, currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
-    List<SnapshotLogEntry> reversedSnapshotLog = Lists.newArrayList();
+    List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
 
-    TableMetadata expected = new TableMetadata(ops, null, "s3://bucket/test/location",
+    TableMetadata expected = new TableMetadata(ops, null, UUID.randomUUID().toString(), "s3://bucket/test/location",
         System.currentTimeMillis(), 3, schema, 5, ImmutableList.of(spec),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog);
@@ -164,7 +167,7 @@ public class TestTableMetadataJson {
   }
 
   @Test
-  public void testBackwardCompatMissingPartitionSpecList() throws Exception {
+  public void testBackwardCompat() throws Exception {
     Schema schema = new Schema(
         Types.NestedField.required(1, "x", Types.LongType.get()),
         Types.NestedField.required(2, "y", Types.LongType.get()),
@@ -182,16 +185,16 @@ public class TestTableMetadataJson {
         ops, currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
-
-    TableMetadata expected = new TableMetadata(ops, null, "s3://bucket/test/location",
+    TableMetadata expected = new TableMetadata(ops, null, null, "s3://bucket/test/location",
         System.currentTimeMillis(), 3, schema, 6, ImmutableList.of(spec),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), ImmutableList.of());
 
     String asJson = toJsonWithoutSpecList(expected);
-    TableMetadata metadata = TableMetadataParser.fromJson(ops, null,
-        JsonUtil.mapper().readValue(asJson, JsonNode.class));
+    TableMetadata metadata = TableMetadataParser
+        .fromJson(ops, null, JsonUtil.mapper().readValue(asJson, JsonNode.class));
 
+    Assert.assertNull("Table UUID should not be assigned", metadata.uuid());
     Assert.assertEquals("Table location should match",
         expected.location(), metadata.location());
     Assert.assertEquals("Last column ID should match",

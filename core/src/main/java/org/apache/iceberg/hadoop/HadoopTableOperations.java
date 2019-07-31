@@ -42,8 +42,6 @@ import org.apache.iceberg.io.LocationProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableMetadataParser.getFileExtension;
-
 /**
  * TableOperations implementation for file systems that support atomic rename.
  * <p>
@@ -64,6 +62,7 @@ public class HadoopTableOperations implements TableOperations {
     this.location = location;
   }
 
+  @Override
   public TableMetadata current() {
     if (shouldRefresh) {
       return refresh();
@@ -74,31 +73,37 @@ public class HadoopTableOperations implements TableOperations {
   @Override
   public TableMetadata refresh() {
     int ver = version != null ? version : readVersionHint();
-    Path metadataFile = metadataFile(ver);
-    FileSystem fs = getFS(metadataFile, conf);
     try {
-      // don't check if the file exists if version is non-null because it was already checked
-      if (version == null && !fs.exists(metadataFile)) {
-        if (ver == 0) {
-          // no v0 metadata means the table doesn't exist yet
-          return null;
-        }
-        throw new ValidationException("Metadata file is missing: %s", metadataFile);
+      Path metadataFile = getMetadataFile(ver);
+      if (version == null && metadataFile == null && ver == 0) {
+        // no v0 metadata means the table doesn't exist yet
+        return null;
+      } else if (metadataFile == null) {
+        throw new ValidationException("Metadata file for version %d is missing", ver);
       }
 
-      while (fs.exists(metadataFile(ver + 1))) {
+      Path nextMetadataFile = getMetadataFile(ver + 1);
+      while (nextMetadataFile != null) {
         ver += 1;
-        metadataFile = metadataFile(ver);
+        metadataFile = nextMetadataFile;
+        nextMetadataFile = getMetadataFile(ver + 1);
       }
 
+      this.version = ver;
+
+      TableMetadata newMetadata = TableMetadataParser.read(this, io().newInputFile(metadataFile.toString()));
+      String newUUID = newMetadata.uuid();
+      if (currentMetadata != null) {
+        Preconditions.checkState(newUUID == null || newUUID.equals(currentMetadata.uuid()),
+            "Table UUID does not match: current=%s != refreshed=%s", currentMetadata.uuid(), newUUID);
+      }
+
+      this.currentMetadata = newMetadata;
+      this.shouldRefresh = false;
+      return currentMetadata;
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to get file system for path: %s", metadataFile);
+      throw new RuntimeIOException(e, "Failed to refresh the table");
     }
-    this.version = ver;
-    this.currentMetadata = TableMetadataParser.read(this,
-        io().newInputFile(metadataFile.toString()));
-    this.shouldRefresh = false;
-    return currentMetadata;
   }
 
   @Override
@@ -118,12 +123,16 @@ public class HadoopTableOperations implements TableOperations {
         !metadata.properties().containsKey(TableProperties.WRITE_METADATA_LOCATION),
         "Hadoop path-based tables cannot relocate metadata");
 
-    Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + getFileExtension(conf));
+    String codecName = metadata.property(
+        TableProperties.METADATA_COMPRESSION, TableProperties.METADATA_COMPRESSION_DEFAULT);
+    TableMetadataParser.Codec codec = TableMetadataParser.Codec.fromName(codecName);
+    String fileExtension = TableMetadataParser.getFileExtension(codec);
+    Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + fileExtension);
     TableMetadataParser.write(metadata, io().newOutputFile(tempMetadataFile.toString()));
 
     int nextVersion = (version != null ? version : 0) + 1;
-    Path finalMetadataFile = metadataFile(nextVersion);
-    FileSystem fs = getFS(tempMetadataFile, conf);
+    Path finalMetadataFile = metadataFilePath(nextVersion, codec);
+    FileSystem fs = getFileSystem(tempMetadataFile, conf);
 
     try {
       if (fs.exists(finalMetadataFile)) {
@@ -135,16 +144,8 @@ public class HadoopTableOperations implements TableOperations {
           "Failed to check if next version exists: " + finalMetadataFile);
     }
 
-    try {
-      // this rename operation is the atomic commit operation
-      if (!fs.rename(tempMetadataFile, finalMetadataFile)) {
-        throw new CommitFailedException(
-            "Failed to commit changes using rename: %s", finalMetadataFile);
-      }
-    } catch (IOException e) {
-      throw new CommitFailedException(e,
-          "Failed to commit changes using rename: %s", finalMetadataFile);
-    }
+    // this rename operation is the atomic commit operation
+    renameToFinal(fs, tempMetadataFile, finalMetadataFile);
 
     // update the best-effort version pointer
     writeVersionHint(nextVersion);
@@ -170,8 +171,19 @@ public class HadoopTableOperations implements TableOperations {
     return metadataPath(fileName).toString();
   }
 
-  private Path metadataFile(int version) {
-    return metadataPath("v" + version + getFileExtension(conf));
+  private Path getMetadataFile(int metadataVersion) throws IOException {
+    for (TableMetadataParser.Codec codec : TableMetadataParser.Codec.values()) {
+      Path metadataFile = metadataFilePath(metadataVersion, codec);
+      FileSystem fs = getFileSystem(metadataFile, conf);
+      if (fs.exists(metadataFile)) {
+        return metadataFile;
+      }
+    }
+    return null;
+  }
+
+  private Path metadataFilePath(int metadataVersion, TableMetadataParser.Codec codec) {
+    return metadataPath("v" + metadataVersion + TableMetadataParser.getFileExtension(codec));
   }
 
   private Path metadataPath(String filename) {
@@ -182,12 +194,12 @@ public class HadoopTableOperations implements TableOperations {
     return metadataPath("version-hint.text");
   }
 
-  private void writeVersionHint(int version) {
+  private void writeVersionHint(int versionToWrite) {
     Path versionHintFile = versionHintFile();
-    FileSystem fs = getFS(versionHintFile, conf);
+    FileSystem fs = getFileSystem(versionHintFile, conf);
 
-    try (FSDataOutputStream out = fs.create(versionHintFile, true /* overwrite */ )) {
-      out.write(String.valueOf(version).getBytes(StandardCharsets.UTF_8));
+    try (FSDataOutputStream out = fs.create(versionHintFile, true /* overwrite */)) {
+      out.write(String.valueOf(versionToWrite).getBytes(StandardCharsets.UTF_8));
 
     } catch (IOException e) {
       LOG.warn("Failed to update version hint", e);
@@ -197,7 +209,7 @@ public class HadoopTableOperations implements TableOperations {
   private int readVersionHint() {
     Path versionHintFile = versionHintFile();
     try {
-      FileSystem fs = Util.getFS(versionHintFile, conf);
+      FileSystem fs = Util.getFs(versionHintFile, conf);
       if (!fs.exists(versionHintFile)) {
         return 0;
       }
@@ -211,7 +223,52 @@ public class HadoopTableOperations implements TableOperations {
     }
   }
 
-  protected FileSystem getFS(Path path, Configuration conf) {
-    return Util.getFS(path, conf);
+  /**
+   * Renames the source file to destination, using the provided file system. If the rename failed,
+   * an attempt will be made to delete the source file.
+   *
+   * @param fs the filesystem used for the rename
+   * @param src the source file
+   * @param dst the destination file
+   */
+  private void renameToFinal(FileSystem fs, Path src, Path dst) {
+    try {
+      if (!fs.rename(src, dst)) {
+        CommitFailedException cfe = new CommitFailedException(
+            "Failed to commit changes using rename: %s", dst);
+        RuntimeException re = tryDelete(src);
+        if (re != null) {
+          cfe.addSuppressed(re);
+        }
+        throw cfe;
+      }
+    } catch (IOException e) {
+      CommitFailedException cfe = new CommitFailedException(e,
+          "Failed to commit changes using rename: %s", dst);
+      RuntimeException re = tryDelete(src);
+      if (re != null) {
+        cfe.addSuppressed(re);
+      }
+      throw cfe;
+    }
+  }
+
+  /**
+   * Deletes the file from the file system. Any RuntimeException will be caught and returned.
+   *
+   * @param path the file to be deleted.
+   * @return RuntimeException caught, if any. null otherwise.
+   */
+  private RuntimeException tryDelete(Path path) {
+    try {
+      io().deleteFile(path.toString());
+      return null;
+    } catch (RuntimeException re) {
+      return re;
+    }
+  }
+
+  protected FileSystem getFileSystem(Path path, Configuration hadoopConf) {
+    return Util.getFs(path, hadoopConf);
   }
 }

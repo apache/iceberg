@@ -30,6 +30,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 
 public class TestGenericReadProjection extends TestReadProjection {
+  @Override
   protected Record writeAndRead(String desc, Schema writeSchema, Schema readSchema, Record record)
       throws IOException {
     File file = temp.newFile(desc + ".parquet");

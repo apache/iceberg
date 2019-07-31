@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.avro;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import java.util.List;
 import org.apache.avro.LogicalTypes;
@@ -117,13 +118,22 @@ public class TestSchemaConversions {
         optionalField(24, "double", Schema.create(Schema.Type.DOUBLE)),
         optionalField(25, "date", LogicalTypes.date().addToSchema(Schema.create(Schema.Type.INT))),
         optionalField(27, "time", LogicalTypes.timeMicros().addToSchema(Schema.create(Schema.Type.LONG))),
-        optionalField(28, "timestamptz", addAdjustToUtc(LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)), true)),
-        optionalField(29, "timestamp", addAdjustToUtc(LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)), false)),
+        optionalField(
+            28,
+            "timestamptz",
+            addAdjustToUtc(LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)), true)),
+        optionalField(
+            29,
+            "timestamp",
+            addAdjustToUtc(LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)), false)),
         optionalField(30, "string", Schema.create(Schema.Type.STRING)),
         optionalField(31, "uuid", LogicalTypes.uuid().addToSchema(Schema.createFixed("uuid_fixed", null, null, 16))),
         optionalField(32, "fixed", Schema.createFixed("fixed_16", null, null, 16)),
         optionalField(33, "binary", Schema.create(Schema.Type.BYTES)),
-        optionalField(34, "decimal", LogicalTypes.decimal(14, 2).addToSchema(Schema.createFixed("decimal_14_2", null, null, 6)))
+        optionalField(
+            34,
+            "decimal",
+            LogicalTypes.decimal(14, 2).addToSchema(Schema.createFixed("decimal_14_2", null, null, 6)))
     );
 
     Assert.assertEquals("Test conversion from Avro schema",
@@ -234,7 +244,10 @@ public class TestSchemaConversions {
             3,
             "preferences",
             Types.StructType
-                .of(required(8, "feature1", Types.BooleanType.get()), optional(9, "feature2", Types.BooleanType.get()))),
+                .of(required(
+                    8,
+                    "feature1",
+                    Types.BooleanType.get()), optional(9, "feature2", Types.BooleanType.get()))),
         required(
             4,
             "locations",
@@ -247,7 +260,8 @@ public class TestSchemaConversions {
                     required(22, "state", Types.StringType.get()),
                     required(23, "zip", Types.IntegerType.get())
                 ),
-                Types.StructType.of(required(12, "lat", Types.FloatType.get()), required(13, "long", Types.FloatType.get()))
+                Types.StructType.of(required(
+                    12, "lat", Types.FloatType.get()), required(13, "long", Types.FloatType.get()))
             )
         ),
         optional(
@@ -255,11 +269,34 @@ public class TestSchemaConversions {
             "points",
             Types.ListType.ofOptional(
                 14,
-                Types.StructType.of(required(15, "x", Types.LongType.get()), required(16, "y", Types.LongType.get())))),
+                Types.StructType.of(required(
+                    15, "x", Types.LongType.get()), required(16, "y", Types.LongType.get())))),
         required(6, "doubles", Types.ListType.ofRequired(17, Types.DoubleType.get())),
-        optional(7, "properties", Types.MapType.ofOptional(18, 19, Types.StringType.get(), Types.StringType.get())));
+        optional(7, "properties", Types.MapType.ofOptional(
+            18, 19, Types.StringType.get(), Types.StringType.get())));
 
     AvroSchemaUtil.convert(schema, "newTableName").toString(true);
   }
 
+  @Test
+  public void testSpecialChars() {
+    List<String> names = Lists.newArrayList("9x", "x_", "a.b", "☃", "a#b");
+    org.apache.iceberg.Schema schema = new org.apache.iceberg.Schema(
+        required(1, names.get(0), Types.IntegerType.get()),
+        required(2, names.get(1), Types.StringType.get()),
+        required(3, names.get(2), Types.IntegerType.get()),
+        required(4, names.get(3), Types.IntegerType.get()),
+        required(5, names.get(4), Types.IntegerType.get()));
+
+    Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    List<String> sanitizedNames = Lists.newArrayList(Iterables.transform(avroSchema.getFields(), Schema.Field::name));
+    List<String> expectedSanitizedNames = Lists.newArrayList("_9x", "x_", "a_x2Eb", "_x2603", "a_x23b");
+    Assert.assertEquals(expectedSanitizedNames, sanitizedNames);
+
+    List<String> origNames = Lists.newArrayList(
+        Iterables.transform(avroSchema.getFields(), f -> f.getProp(AvroSchemaUtil.ICEBERG_FIELD_NAME_PROP)));
+    List<String> expectedOrigNames = Lists.newArrayList(names);
+    expectedOrigNames.set(1, null);  // Name at pos 1 is valid so ICEBERG_FIELD_NAME_PROP is not set
+    Assert.assertEquals(expectedOrigNames, origNames);
+  }
 }

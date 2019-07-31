@@ -107,10 +107,10 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
   @Override
   public Type field(Types.NestedField field, Supplier<Type> fieldResult) {
     Preconditions.checkArgument(current instanceof StructType, "Not a struct: %s", current);
-    StructType struct = (StructType) current;
+    StructType requestedStruct = (StructType) current;
 
     // fields are resolved by name because Spark only sees the current table schema.
-    if (struct.getFieldIndex(field.name()).isEmpty()) {
+    if (requestedStruct.getFieldIndex(field.name()).isEmpty()) {
       // make sure that filter fields are projected even if they aren't in the requested schema.
       if (filterRefs.contains(field.fieldId())) {
         return field.type();
@@ -118,32 +118,32 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
       return null;
     }
 
-    int fieldIndex = struct.fieldIndex(field.name());
-    StructField f = struct.fields()[fieldIndex];
+    int fieldIndex = requestedStruct.fieldIndex(field.name());
+    StructField requestedField = requestedStruct.fields()[fieldIndex];
 
-    Preconditions.checkArgument(f.nullable() || field.isRequired(),
+    Preconditions.checkArgument(requestedField.nullable() || field.isRequired(),
         "Cannot project an optional field as non-null: %s", field.name());
 
-    this.current = f.dataType();
+    this.current = requestedField.dataType();
     try {
       return fieldResult.get();
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(
           "Invalid projection for field " + field.name() + ": " + e.getMessage(), e);
     } finally {
-      this.current = struct;
+      this.current = requestedStruct;
     }
   }
 
   @Override
   public Type list(Types.ListType list, Supplier<Type> elementResult) {
     Preconditions.checkArgument(current instanceof ArrayType, "Not an array: %s", current);
-    ArrayType array = (ArrayType) current;
+    ArrayType requestedArray = (ArrayType) current;
 
-    Preconditions.checkArgument(array.containsNull() || !list.isElementOptional(),
-        "Cannot project an array of optional elements as required elements: %s", array);
+    Preconditions.checkArgument(requestedArray.containsNull() || !list.isElementOptional(),
+        "Cannot project an array of optional elements as required elements: %s", requestedArray);
 
-    this.current = array.elementType();
+    this.current = requestedArray.elementType();
     try {
       Type elementType = elementResult.get();
       if (list.elementType() == elementType) {
@@ -157,19 +157,19 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
         return Types.ListType.ofRequired(list.elementId(), elementType);
       }
     } finally {
-      this.current = array;
+      this.current = requestedArray;
     }
   }
 
   @Override
   public Type map(Types.MapType map, Supplier<Type> keyResult, Supplier<Type> valueResult) {
     Preconditions.checkArgument(current instanceof MapType, "Not a map: %s", current);
-    MapType m = (MapType) current;
+    MapType requestedMap = (MapType) current;
 
-    Preconditions.checkArgument(m.valueContainsNull() || !map.isValueOptional(),
+    Preconditions.checkArgument(requestedMap.valueContainsNull() || !map.isValueOptional(),
         "Cannot project a map of optional values as required values: %s", map);
 
-    this.current = m.valueType();
+    this.current = requestedMap.valueType();
     try {
       Type valueType = valueResult.get();
       if (map.valueType() == valueType) {
@@ -182,7 +182,7 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
         return Types.MapType.ofRequired(map.keyId(), map.valueId(), map.keyType(), valueType);
       }
     } finally {
-      this.current = m;
+      this.current = requestedMap;
     }
   }
 
@@ -196,12 +196,12 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
     switch (primitive.typeId()) {
       case DECIMAL:
         Types.DecimalType decimal = (Types.DecimalType) primitive;
-        DecimalType d = (DecimalType) current;
-        Preconditions.checkArgument(d.scale() == decimal.scale(),
-            "Cannot project decimal with incompatible scale: %s != %s", d.scale(), decimal.scale());
-        Preconditions.checkArgument(d.precision() >= decimal.precision(),
+        DecimalType requestedDecimal = (DecimalType) current;
+        Preconditions.checkArgument(requestedDecimal.scale() == decimal.scale(),
+            "Cannot project decimal with incompatible scale: %s != %s", requestedDecimal.scale(), decimal.scale());
+        Preconditions.checkArgument(requestedDecimal.precision() >= decimal.precision(),
             "Cannot project decimal with incompatible precision: %s < %s",
-            d.precision(), decimal.precision());
+            requestedDecimal.precision(), decimal.precision());
         break;
       case TIMESTAMP:
         Types.TimestampType timestamp = (Types.TimestampType) primitive;

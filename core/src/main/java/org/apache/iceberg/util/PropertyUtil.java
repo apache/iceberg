@@ -22,6 +22,9 @@ package org.apache.iceberg.util;
 import java.util.Map;
 
 public class PropertyUtil {
+
+  private PropertyUtil() {}
+
   public static boolean propertyAsBoolean(Map<String, String> properties,
                                           String property, boolean defaultValue) {
     String value = properties.get(property);

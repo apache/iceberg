@@ -32,6 +32,9 @@ import org.junit.Assert;
 import static org.apache.iceberg.avro.AvroSchemaUtil.toOption;
 
 class AvroTestHelpers {
+
+  private AvroTestHelpers() {}
+
   static Schema.Field optionalField(int id, String name, Schema schema) {
     return addId(id, new Schema.Field(name, toOption(schema), null, JsonProperties.NULL_VALUE));
 

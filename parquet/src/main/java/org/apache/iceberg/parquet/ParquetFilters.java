@@ -29,7 +29,6 @@ import org.apache.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.UnboundPredicate;
-import org.apache.iceberg.types.Types;
 import org.apache.parquet.filter2.compat.FilterCompat;
 import org.apache.parquet.filter2.predicate.FilterApi;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
@@ -40,19 +39,8 @@ import static org.apache.iceberg.expressions.ExpressionVisitors.visit;
 
 class ParquetFilters {
 
-  static FilterCompat.Filter convert(Schema schema, Expression expr) {
-    FilterPredicate pred = visit(expr, new ConvertFilterToParquet(schema));
-    // TODO: handle AlwaysFalse.INSTANCE
-    if (pred != null && pred != AlwaysTrue.INSTANCE) {
-      // FilterCompat will apply LogicalInverseRewriter
-      return FilterCompat.get(pred);
-    } else {
-      return FilterCompat.NOOP;
-    }
-  }
-
-  static FilterCompat.Filter convertColumnFilter(Schema schema, String column, Expression expr) {
-    FilterPredicate pred = visit(expr, new ConvertColumnFilterToParquet(schema, column));
+  static FilterCompat.Filter convert(Schema schema, Expression expr, boolean caseSensitive) {
+    FilterPredicate pred = visit(expr, new ConvertFilterToParquet(schema, caseSensitive));
     // TODO: handle AlwaysFalse.INSTANCE
     if (pred != null && pred != AlwaysTrue.INSTANCE) {
       // FilterCompat will apply LogicalInverseRewriter
@@ -64,9 +52,11 @@ class ParquetFilters {
 
   private static class ConvertFilterToParquet extends ExpressionVisitor<FilterPredicate> {
     private final Schema schema;
+    private final boolean caseSensitive;
 
-    private ConvertFilterToParquet(Schema schema) {
+    private ConvertFilterToParquet(Schema schema, boolean caseSensitive) {
       this.schema = schema;
+      this.caseSensitive = caseSensitive;
     }
 
     @Override
@@ -160,7 +150,7 @@ class ParquetFilters {
     }
 
     protected Expression bind(UnboundPredicate<?> pred) {
-      return pred.bind(schema.asStruct(), true);
+      return pred.bind(schema.asStruct(), caseSensitive);
     }
 
     @Override
@@ -175,20 +165,6 @@ class ParquetFilters {
         return AlwaysFalse.INSTANCE;
       }
       throw new UnsupportedOperationException("Cannot convert to Parquet filter: " + pred);
-    }
-  }
-
-  private static class ConvertColumnFilterToParquet extends ConvertFilterToParquet {
-    private final Types.StructType partitionStruct;
-
-    private ConvertColumnFilterToParquet(Schema schema, String column) {
-      super(schema);
-      this.partitionStruct = schema.findField(column).type().asNestedType().asStructType();
-    }
-
-    protected Expression bind(UnboundPredicate<?> pred) {
-      // instead of binding the predicate using the top-level schema, bind it to the partition data
-      return pred.bind(partitionStruct, true);
     }
   }
 

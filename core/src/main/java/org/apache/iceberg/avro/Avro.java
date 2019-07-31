@@ -60,12 +60,13 @@ public class Avro {
     }
 
     public CodecFactory get() {
-      Preconditions.checkArgument(avroCodec != null, "Missing implementation for codec " + this);
+      Preconditions.checkArgument(avroCodec != null, "Missing implementation for codec %s", this);
       return avroCodec;
     }
   }
 
-  private static GenericData DEFAULT_MODEL = new SpecificData();
+  private static final GenericData DEFAULT_MODEL = new SpecificData();
+
   static {
     LogicalTypes.register(LogicalMap.NAME, schema -> LogicalMap.get());
     DEFAULT_MODEL.addLogicalTypeConversion(new Conversions.DecimalConversion());
@@ -83,18 +84,19 @@ public class Avro {
     private Map<String, String> config = Maps.newHashMap();
     private Map<String, String> metadata = Maps.newLinkedHashMap();
     private Function<Schema, DatumWriter<?>> createWriterFunc = GenericAvroWriter::new;
+    private boolean overwrite;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
     }
 
-    public WriteBuilder schema(org.apache.iceberg.Schema schema) {
-      this.schema = schema;
+    public WriteBuilder schema(org.apache.iceberg.Schema newSchema) {
+      this.schema = newSchema;
       return this;
     }
 
-    public WriteBuilder named(String name) {
-      this.name = name;
+    public WriteBuilder named(String newName) {
+      this.name = newName;
       return this;
     }
 
@@ -123,6 +125,15 @@ public class Avro {
       return this;
     }
 
+    public WriteBuilder overwrite() {
+      return overwrite(true);
+    }
+
+    public WriteBuilder overwrite(boolean enabled) {
+      this.overwrite = enabled;
+      return this;
+    }
+
     private CodecFactory codec() {
       String codec = config.getOrDefault(AVRO_COMPRESSION, AVRO_COMPRESSION_DEFAULT);
       try {
@@ -140,7 +151,7 @@ public class Avro {
       meta("iceberg.schema", SchemaParser.toJson(schema));
 
       return new AvroFileAppender<>(
-          AvroSchemaUtil.convert(schema, name), file, createWriterFunc, codec(), metadata);
+          AvroSchemaUtil.convert(schema, name), file, createWriterFunc, codec(), metadata, overwrite);
     }
   }
 
@@ -154,8 +165,8 @@ public class Avro {
     private final Map<String, String> renames = Maps.newLinkedHashMap();
     private boolean reuseContainers = false;
     private org.apache.iceberg.Schema schema = null;
-    private Function<Schema, DatumReader<?>> createReaderFunc = schema -> {
-      GenericAvroReader<?> reader = new GenericAvroReader<>(schema);
+    private Function<Schema, DatumReader<?>> createReaderFunc = readSchema -> {
+      GenericAvroReader<?> reader = new GenericAvroReader<>(readSchema);
       reader.setClassLoader(defaultLoader);
       return reader;
     };
@@ -175,18 +186,18 @@ public class Avro {
     /**
      * Restricts the read to the given range: [start, end = start + length).
      *
-     * @param start the start position for this read
-     * @param length the length of the range this read should scan
+     * @param newStart the start position for this read
+     * @param newLength the length of the range this read should scan
      * @return this builder for method chaining
      */
-    public ReadBuilder split(long start, long length) {
-      this.start = start;
-      this.length = length;
+    public ReadBuilder split(long newStart, long newLength) {
+      this.start = newStart;
+      this.length = newLength;
       return this;
     }
 
-    public ReadBuilder project(org.apache.iceberg.Schema schema) {
-      this.schema = schema;
+    public ReadBuilder project(org.apache.iceberg.Schema projectedSchema) {
+      this.schema = projectedSchema;
       return this;
     }
 

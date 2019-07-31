@@ -36,6 +36,7 @@ public class TestListeners {
 
   public static class TestListener {
     private static final TestListener INSTANCE = new TestListener();
+
     public static TestListener get() {
       return INSTANCE;
     }
@@ -43,12 +44,12 @@ public class TestListeners {
     private Event1 e1 = null;
     private Event2 e2 = null;
 
-    public void event1(Event1 e) {
-      this.e1 = e;
+    public void event1(Event1 event) {
+      this.e1 = event;
     }
 
-    public void event2(Event2 e) {
-      this.e2 = e;
+    public void event2(Event2 event) {
+      this.e2 = event;
     }
   }
 

@@ -105,7 +105,7 @@ public class TestReplaceFiles extends TableTestBase {
         statuses(ADDED));
 
     validateManifestEntries(pending.manifests().get(1),
-        ids(pendingId,pendingId, baseSnapshotId),
+        ids(pendingId, pendingId, baseSnapshotId),
         files(FILE_A, FILE_A, FILE_B),
         statuses(DELETED, DELETED, EXISTING));
 

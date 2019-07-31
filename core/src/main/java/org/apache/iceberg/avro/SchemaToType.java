@@ -105,7 +105,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
   @Override
   public Type union(Schema union, List<Type> options) {
     Preconditions.checkArgument(AvroSchemaUtil.isOptionSchema(union),
-        "Unsupported type: non-option union: {}", union);
+        "Unsupported type: non-option union: %s", union);
     // records, arrays, and maps will check nullability later
     if (options.get(0) == null) {
       return options.get(1);
@@ -120,7 +120,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
       // map stored as an array
       Schema keyValueSchema = array.getElementType();
       Preconditions.checkArgument(AvroSchemaUtil.isKeyValueSchema(keyValueSchema),
-          "Invalid key-value pair schema: {}", keyValueSchema);
+          "Invalid key-value pair schema: %s", keyValueSchema);
 
       Types.StructType keyValueType = elementType.asStructType();
       Types.NestedField keyField = keyValueType.field("key");

@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 
 import com.google.common.collect.Maps;
 import java.lang.reflect.Array;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +29,7 @@ import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
@@ -36,8 +38,6 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
-
-import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
 
 class PartitionKey implements StructLike {
 
@@ -58,10 +58,10 @@ class PartitionKey implements StructLike {
     this.accessors = (Accessor<InternalRow>[]) Array.newInstance(Accessor.class, size);
 
     Schema schema = spec.schema();
-    Map<Integer, Accessor<InternalRow>> accessors = buildAccessors(schema);
+    Map<Integer, Accessor<InternalRow>> newAccessors = buildAccessors(schema);
     for (int i = 0; i < size; i += 1) {
       PartitionField field = fields.get(i);
-      Accessor<InternalRow> accessor = accessors.get(field.sourceId());
+      Accessor<InternalRow> accessor = newAccessors.get(field.sourceId());
       if (accessor == null) {
         throw new RuntimeException(
             "Cannot build accessor for field: " + schema.findField(field.sourceId()));
@@ -164,29 +164,31 @@ class PartitionKey implements StructLike {
     return TypeUtil.visit(schema, new BuildPositionAccessors());
   }
 
-  private static Accessor<InternalRow> newAccessor(int p, Type type) {
+  private static Accessor<InternalRow> newAccessor(int position, Type type) {
     switch (type.typeId()) {
       case STRING:
-        return new StringAccessor(p, convert(type));
+        return new StringAccessor(position, SparkSchemaUtil.convert(type));
       case DECIMAL:
-        return new DecimalAccessor(p, convert(type));
+        return new DecimalAccessor(position, SparkSchemaUtil.convert(type));
+      case BINARY:
+        return new BytesAccessor(position, SparkSchemaUtil.convert(type));
       default:
-        return new PositionAccessor(p, convert(type));
+        return new PositionAccessor(position, SparkSchemaUtil.convert(type));
     }
   }
 
-  private static Accessor<InternalRow> newAccessor(int p, boolean isOptional, Types.StructType type,
+  private static Accessor<InternalRow> newAccessor(int position, boolean isOptional, Types.StructType type,
                                                    Accessor<InternalRow> accessor) {
     int size = type.fields().size();
     if (isOptional) {
       // the wrapped position handles null layers
-      return new WrappedPositionAccessor(p, size, accessor);
+      return new WrappedPositionAccessor(position, size, accessor);
     } else if (accessor instanceof PositionAccessor) {
-      return new Position2Accessor(p, size, (PositionAccessor) accessor);
+      return new Position2Accessor(position, size, (PositionAccessor) accessor);
     } else if (accessor instanceof Position2Accessor) {
-      return new Position3Accessor(p, size, (Position2Accessor) accessor);
+      return new Position3Accessor(position, size, (Position2Accessor) accessor);
     } else {
-      return new WrappedPositionAccessor(p, size, accessor);
+      return new WrappedPositionAccessor(position, size, accessor);
     }
   }
 
@@ -231,48 +233,70 @@ class PartitionKey implements StructLike {
   }
 
   private static class PositionAccessor implements Accessor<InternalRow> {
-    protected final DataType type;
-    protected int p;
+    private final DataType type;
+    private int position;
 
-    private PositionAccessor(int p, DataType type) {
-      this.p = p;
+    private PositionAccessor(int position, DataType type) {
+      this.position = position;
       this.type = type;
     }
 
     @Override
     public Object get(InternalRow row) {
-      if (row.isNullAt(p)) {
+      if (row.isNullAt(position)) {
         return null;
       }
-      return row.get(p, type);
+      return row.get(position, type);
+    }
+
+    DataType type() {
+      return type;
+    }
+
+    int position() {
+      return position;
     }
   }
 
   private static class StringAccessor extends PositionAccessor {
-    private StringAccessor(int p, DataType type) {
-      super(p, type);
+    private StringAccessor(int position, DataType type) {
+      super(position, type);
     }
 
     @Override
     public Object get(InternalRow row) {
-      if (row.isNullAt(p)) {
+      if (row.isNullAt(position())) {
         return null;
       }
-      return row.get(p, type).toString();
+      return row.get(position(), type()).toString();
     }
   }
 
   private static class DecimalAccessor extends PositionAccessor {
-    private DecimalAccessor(int p, DataType type) {
-      super(p, type);
+    private DecimalAccessor(int position, DataType type) {
+      super(position, type);
     }
 
     @Override
     public Object get(InternalRow row) {
-      if (row.isNullAt(p)) {
+      if (row.isNullAt(position())) {
         return null;
       }
-      return ((Decimal) row.get(p, type)).toJavaBigDecimal();
+      return ((Decimal) row.get(position(), type())).toJavaBigDecimal();
+    }
+  }
+
+  private static class BytesAccessor extends PositionAccessor {
+    private BytesAccessor(int position, DataType type) {
+      super(position, type);
+    }
+
+    @Override
+    public Object get(InternalRow row) {
+      if (row.isNullAt(position())) {
+        return null;
+      }
+      return ByteBuffer.wrap((byte[]) row.get(position(), type()));
     }
   }
 
@@ -282,10 +306,10 @@ class PartitionKey implements StructLike {
     private final int p1;
     private final DataType type;
 
-    private Position2Accessor(int p, int size, PositionAccessor wrapped) {
-      this.p0 = p;
+    private Position2Accessor(int position, int size, PositionAccessor wrapped) {
+      this.p0 = position;
       this.size0 = size;
-      this.p1 = wrapped.p;
+      this.p1 = wrapped.position;
       this.type = wrapped.type;
     }
 
@@ -303,8 +327,8 @@ class PartitionKey implements StructLike {
     private final int p2;
     private final DataType type;
 
-    private Position3Accessor(int p, int size, Position2Accessor wrapped) {
-      this.p0 = p;
+    private Position3Accessor(int position, int size, Position2Accessor wrapped) {
+      this.p0 = position;
       this.size0 = size;
       this.p1 = wrapped.p0;
       this.size1 = wrapped.size0;
@@ -319,19 +343,19 @@ class PartitionKey implements StructLike {
   }
 
   private static class WrappedPositionAccessor implements Accessor<InternalRow> {
-    private final int p;
+    private final int position;
     private final int size;
     private final Accessor<InternalRow> accessor;
 
-    private WrappedPositionAccessor(int p, int size, Accessor<InternalRow> accessor) {
-      this.p = p;
+    private WrappedPositionAccessor(int position, int size, Accessor<InternalRow> accessor) {
+      this.position = position;
       this.size = size;
       this.accessor = accessor;
     }
 
     @Override
     public Object get(InternalRow row) {
-      InternalRow inner = row.getStruct(p, size);
+      InternalRow inner = row.getStruct(position, size);
       if (inner != null) {
         return accessor.get(inner);
       }

@@ -66,9 +66,9 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   @Override
-  public ExpireSnapshots expireSnapshotId(long snapshotId) {
-    LOG.info("Expiring snapshot with id: {}", snapshotId);
-    idsToRemove.add(snapshotId);
+  public ExpireSnapshots expireSnapshotId(long expireSnapshotId) {
+    LOG.info("Expiring snapshot with id: {}", expireSnapshotId);
+    idsToRemove.add(expireSnapshotId);
     return this;
   }
 
@@ -80,8 +80,8 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   @Override
-  public ExpireSnapshots deleteWith(Consumer<String> deleteFunc) {
-    this.deleteFunc = deleteFunc;
+  public ExpireSnapshots deleteWith(Consumer<String> newDeleteFunc) {
+    this.deleteFunc = newDeleteFunc;
     return this;
   }
 
@@ -97,10 +97,9 @@ class RemoveSnapshots implements ExpireSnapshots {
   private TableMetadata internalApply() {
     this.base = ops.refresh();
 
-    return base.removeSnapshotsIf(snapshot -> (
+    return base.removeSnapshotsIf(snapshot ->
         idsToRemove.contains(snapshot.snapshotId()) ||
-        (expireOlderThan != null && snapshot.timestampMillis() < expireOlderThan)
-    ));
+        (expireOlderThan != null && snapshot.timestampMillis() < expireOlderThan));
   }
 
   @Override
@@ -111,7 +110,7 @@ class RemoveSnapshots implements ExpireSnapshots {
             base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
             base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
             base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-            2.0 /* exponential */ )
+            2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
         .run(item -> {
           TableMetadata updated = internalApply();
@@ -162,6 +161,27 @@ class RemoveSnapshots implements ExpireSnapshots {
       }
     }
 
+    Set<String> filesToDelete = getFilesToDelete(currentIds, allManifests);
+
+    LOG.warn("Manifests to delete: {}", Joiner.on(", ").join(manifestsToDelete));
+
+    Tasks.foreach(filesToDelete)
+        .noRetry().suppressFailureWhenFinished()
+        .onFailure((file, exc) -> LOG.warn("Delete failed for data file: {}", file, exc))
+        .run(file -> deleteFunc.accept(file));
+
+    Tasks.foreach(manifestsToDelete)
+        .noRetry().suppressFailureWhenFinished()
+        .onFailure((manifest, exc) -> LOG.warn("Delete failed for manifest: {}", manifest, exc))
+        .run(deleteFunc::accept);
+
+    Tasks.foreach(manifestListsToDelete)
+        .noRetry().suppressFailureWhenFinished()
+        .onFailure((list, exc) -> LOG.warn("Delete failed for manifest list: {}", list, exc))
+        .run(deleteFunc::accept);
+  }
+
+  private Set<String> getFilesToDelete(Set<Long> currentIds, Set<ManifestFile> allManifests) {
     Set<String> filesToDelete = new ConcurrentSet<>();
     Tasks.foreach(allManifests)
         .noRetry().suppressFailureWhenFinished()
@@ -174,7 +194,8 @@ class RemoveSnapshots implements ExpireSnapshots {
           }
 
           // the manifest has deletes, scan it to find files to delete
-          try (ManifestReader reader = ManifestReader.read(ops.io().newInputFile(manifest.path()))) {
+          try (ManifestReader reader = ManifestReader.read(
+              ops.io().newInputFile(manifest.path()), ops.current()::spec)) {
             for (ManifestEntry entry : reader.entries()) {
               // if the snapshot ID of the DELETE entry is no longer valid, the data can be deleted
               if (entry.status() == ManifestEntry.Status.DELETED &&
@@ -186,23 +207,7 @@ class RemoveSnapshots implements ExpireSnapshots {
           } catch (IOException e) {
             throw new RuntimeIOException(e, "Failed to read manifest file: " + manifest.path());
           }
-    });
-
-    LOG.warn("Manifests to delete: {}", Joiner.on(", ").join(manifestsToDelete));
-
-    Tasks.foreach(filesToDelete)
-        .noRetry().suppressFailureWhenFinished()
-        .onFailure((file, exc) -> LOG.warn("Delete failed for data file: " + file, exc))
-        .run(file -> deleteFunc.accept(file));
-
-    Tasks.foreach(manifestsToDelete)
-        .noRetry().suppressFailureWhenFinished()
-        .onFailure((manifest, exc) -> LOG.warn("Delete failed for manifest: " + manifest, exc))
-        .run(deleteFunc::accept);
-
-    Tasks.foreach(manifestListsToDelete)
-        .noRetry().suppressFailureWhenFinished()
-        .onFailure((list, exc) -> LOG.warn("Delete failed for manifest list: " + list, exc))
-        .run(deleteFunc::accept);
+        });
+    return filesToDelete;
   }
 }

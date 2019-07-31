@@ -24,8 +24,10 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.io.Files;
 import java.io.File;
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
 import org.junit.Assert;
@@ -38,7 +40,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TableTestBase {
   // Schema passed to create tables
-  static final Schema SCHEMA = new Schema(
+  public static final Schema SCHEMA = new Schema(
       required(3, "id", Types.IntegerType.get()),
       required(4, "data", Types.StringType.get())
   );
@@ -78,7 +80,7 @@ public class TableTestBase {
 
   File tableDir = null;
   File metadataDir = null;
-  TestTables.TestTable table = null;
+  public TestTables.TestTable table = null;
 
   @Before
   public void setupTable() throws Exception {
@@ -98,8 +100,8 @@ public class TableTestBase {
     return listManifestFiles(tableDir);
   }
 
-  List<File> listManifestFiles(File tableDir) {
-    return Lists.newArrayList(new File(tableDir, "metadata").listFiles((dir, name) ->
+  List<File> listManifestFiles(File tableDirToList) {
+    return Lists.newArrayList(new File(tableDirToList, "metadata").listFiles((dir, name) ->
         !name.startsWith("snap") && Files.getFileExtension(name).equalsIgnoreCase("avro")));
   }
 
@@ -115,8 +117,25 @@ public class TableTestBase {
     return TestTables.metadataVersion("test");
   }
 
-  TableMetadata readMetadata() {
+  public TableMetadata readMetadata() {
     return TestTables.readMetadata("test");
+  }
+
+  ManifestFile writeManifest(DataFile... files) throws IOException {
+    File manifestFile = temp.newFile("input.m0.avro");
+    Assert.assertTrue(manifestFile.delete());
+    OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
+
+    ManifestWriter writer = ManifestWriter.write(table.spec(), outputFile);
+    try {
+      for (DataFile file : files) {
+        writer.add(file);
+      }
+    } finally {
+      writer.close();
+    }
+
+    return writer.toManifestFile();
   }
 
   void validateSnapshot(Snapshot old, Snapshot snap, DataFile... newFiles) {

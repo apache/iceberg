@@ -19,9 +19,12 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Objects;
+import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -51,7 +54,6 @@ class GenericDataFile
   private PartitionData partitionData = null;
   private Long recordCount = null;
   private long fileSizeInBytes = -1L;
-  private long blockSizeInBytes = -1L;
 
   // optional fields
   private Integer fileOrdinal = null; // boxed for nullability
@@ -61,14 +63,18 @@ class GenericDataFile
   private Map<Integer, Long> nullValueCounts = null;
   private Map<Integer, ByteBuffer> lowerBounds = null;
   private Map<Integer, ByteBuffer> upperBounds = null;
-  private ByteBuffer keyMetadata = null;
+  private List<Long> splitOffsets = null;
+  private transient ByteBuffer keyMetadata = null;
 
   // cached schema
   private transient org.apache.avro.Schema avroSchema = null;
 
+  private static final long DEFAULT_BLOCK_SIZE = 64 * 1024 * 1024;
+
   /**
    * Used by Avro reflection to instantiate this class when reading manifest files.
    */
+  @SuppressWarnings("checkstyle:RedundantModifier") // Must be public
   public GenericDataFile(org.apache.avro.Schema avroSchema) {
     this.avroSchema = avroSchema;
 
@@ -103,45 +109,27 @@ class GenericDataFile
   }
 
   GenericDataFile(String filePath, FileFormat format, long recordCount,
-                  long fileSizeInBytes, long blockSizeInBytes) {
+                  long fileSizeInBytes) {
     this.filePath = filePath;
     this.format = format;
     this.partitionData = EMPTY_PARTITION_DATA;
     this.partitionType = EMPTY_PARTITION_DATA.getPartitionType();
     this.recordCount = recordCount;
     this.fileSizeInBytes = fileSizeInBytes;
-    this.blockSizeInBytes = blockSizeInBytes;
-    this.fileOrdinal = null;
-    this.sortColumns = null;
-    this.columnSizes = null;
-    this.valueCounts = null;
-    this.nullValueCounts = null;
-    this.lowerBounds = null;
-    this.upperBounds = null;
-    this.fromProjectionPos = null;
   }
 
   GenericDataFile(String filePath, FileFormat format, PartitionData partition,
-                  long recordCount, long fileSizeInBytes, long blockSizeInBytes) {
+                  long recordCount, long fileSizeInBytes) {
     this.filePath = filePath;
     this.format = format;
     this.partitionData = partition;
     this.partitionType = partition.getPartitionType();
     this.recordCount = recordCount;
     this.fileSizeInBytes = fileSizeInBytes;
-    this.blockSizeInBytes = blockSizeInBytes;
-    this.fileOrdinal = null;
-    this.sortColumns = null;
-    this.columnSizes = null;
-    this.valueCounts = null;
-    this.nullValueCounts = null;
-    this.lowerBounds = null;
-    this.upperBounds = null;
-    this.fromProjectionPos = null;
   }
 
   GenericDataFile(String filePath, FileFormat format, PartitionData partition,
-                  long fileSizeInBytes, long blockSizeInBytes, Metrics metrics) {
+                  long fileSizeInBytes, Metrics metrics, List<Long> splitOffsets) {
     this.filePath = filePath;
     this.format = format;
 
@@ -157,21 +145,18 @@ class GenericDataFile
     // this will throw NPE if metrics.recordCount is null
     this.recordCount = metrics.recordCount();
     this.fileSizeInBytes = fileSizeInBytes;
-    this.blockSizeInBytes = blockSizeInBytes;
-    this.fileOrdinal = null;
-    this.sortColumns = null;
     this.columnSizes = metrics.columnSizes();
     this.valueCounts = metrics.valueCounts();
     this.nullValueCounts = metrics.nullValueCounts();
     this.lowerBounds = SerializableByteBufferMap.wrap(metrics.lowerBounds());
     this.upperBounds = SerializableByteBufferMap.wrap(metrics.upperBounds());
-    this.fromProjectionPos = null;
+    this.splitOffsets = copy(splitOffsets);
   }
 
   GenericDataFile(String filePath, FileFormat format, PartitionData partition,
-                  long fileSizeInBytes, long blockSizeInBytes, Metrics metrics,
-                  ByteBuffer keyMetadata) {
-    this(filePath, format, partition, fileSizeInBytes, blockSizeInBytes, metrics);
+                  long fileSizeInBytes, Metrics metrics,
+                  ByteBuffer keyMetadata, List<Long> splitOffsets) {
+    this(filePath, format, partition, fileSizeInBytes, metrics, splitOffsets);
     this.keyMetadata = keyMetadata;
   }
 
@@ -179,25 +164,34 @@ class GenericDataFile
    * Copy constructor.
    *
    * @param toCopy a generic data file to copy.
+   * @param fullCopy whether to copy all fields or to drop column-level stats
    */
-  private GenericDataFile(GenericDataFile toCopy) {
+  private GenericDataFile(GenericDataFile toCopy, boolean fullCopy) {
     this.filePath = toCopy.filePath;
     this.format = toCopy.format;
     this.partitionData = toCopy.partitionData.copy();
     this.partitionType = toCopy.partitionType;
     this.recordCount = toCopy.recordCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
-    this.blockSizeInBytes = toCopy.blockSizeInBytes;
     this.fileOrdinal = toCopy.fileOrdinal;
     this.sortColumns = copy(toCopy.sortColumns);
-    // TODO: support lazy conversion to/from map
-    this.columnSizes = copy(toCopy.columnSizes);
-    this.valueCounts = copy(toCopy.valueCounts);
-    this.nullValueCounts = copy(toCopy.nullValueCounts);
-    this.lowerBounds = SerializableByteBufferMap.wrap(copy(toCopy.lowerBounds));
-    this.upperBounds = SerializableByteBufferMap.wrap(copy(toCopy.upperBounds));
+    if (fullCopy) {
+      // TODO: support lazy conversion to/from map
+      this.columnSizes = copy(toCopy.columnSizes);
+      this.valueCounts = copy(toCopy.valueCounts);
+      this.nullValueCounts = copy(toCopy.nullValueCounts);
+      this.lowerBounds = SerializableByteBufferMap.wrap(copy(toCopy.lowerBounds));
+      this.upperBounds = SerializableByteBufferMap.wrap(copy(toCopy.upperBounds));
+    } else {
+      this.columnSizes = null;
+      this.valueCounts = null;
+      this.nullValueCounts = null;
+      this.lowerBounds = null;
+      this.upperBounds = null;
+    }
     this.fromProjectionPos = toCopy.fromProjectionPos;
     this.keyMetadata = toCopy.keyMetadata == null ? null : ByteBuffers.copy(toCopy.keyMetadata);
+    this.splitOffsets = copy(toCopy.splitOffsets);
   }
 
   /**
@@ -229,11 +223,6 @@ class GenericDataFile
   @Override
   public long fileSizeInBytes() {
     return fileSizeInBytes;
-  }
-
-  @Override
-  public long blockSizeInBytes() {
-    return blockSizeInBytes;
   }
 
   @Override
@@ -277,6 +266,11 @@ class GenericDataFile
   }
 
   @Override
+  public List<Long> splitOffsets() {
+    return splitOffsets;
+  }
+
+  @Override
   public org.apache.avro.Schema getSchema() {
     if (avroSchema == null) {
       this.avroSchema = getAvroSchema(partitionType);
@@ -310,7 +304,6 @@ class GenericDataFile
         this.fileSizeInBytes = (Long) v;
         return;
       case 5:
-        this.blockSizeInBytes = (Long) v;
         return;
       case 6:
         this.fileOrdinal = (Integer) v;
@@ -335,9 +328,18 @@ class GenericDataFile
         return;
       case 13:
         this.keyMetadata = (ByteBuffer) v;
+        return;
+      case 14:
+        this.splitOffsets = (List<Long>) v;
+        return;
       default:
         // ignore the object, it must be from a newer version of the format
     }
+  }
+
+  @Override
+  public <T> void set(int pos, T value) {
+    put(pos, value);
   }
 
   @Override
@@ -359,7 +361,9 @@ class GenericDataFile
       case 4:
         return fileSizeInBytes;
       case 5:
-        return blockSizeInBytes;
+        // block_size_in_bytes is not used. However, it is a required avro field in DataFile. So
+        // to maintain compatibility, we need to return something.
+        return DEFAULT_BLOCK_SIZE;
       case 6:
         return fileOrdinal;
       case 7:
@@ -376,9 +380,16 @@ class GenericDataFile
         return upperBounds;
       case 13:
         return keyMetadata;
+      case 14:
+        return splitOffsets;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
+  }
+
+  @Override
+  public <T> T get(int pos, Class<T> javaClass) {
+    return javaClass.cast(get(pos));
   }
 
   private static org.apache.avro.Schema getAvroSchema(Types.StructType partitionType) {
@@ -390,40 +401,35 @@ class GenericDataFile
 
   @Override
   public int size() {
-    return 14;
-  }
-
-  @Override
-  public <T> T get(int pos, Class<T> javaClass) {
-    return javaClass.cast(get(pos));
-  }
-
-  @Override
-  public <T> void set(int pos, T value) {
-    put(pos, value);
-  }
-
-  @Override
-  public DataFile copy() {
-    return new GenericDataFile(this);
+    return 15;
   }
 
   @Override
   public String toString() {
-    return Objects.toStringHelper(this)
+    return MoreObjects.toStringHelper(this)
         .add("file_path", filePath)
         .add("file_format", format)
         .add("partition", partitionData)
         .add("record_count", recordCount)
         .add("file_size_in_bytes", fileSizeInBytes)
-        .add("block_size_in_bytes", blockSizeInBytes)
         .add("column_sizes", columnSizes)
         .add("value_counts", valueCounts)
         .add("null_value_counts", nullValueCounts)
         .add("lower_bounds", lowerBounds)
         .add("upper_bounds", upperBounds)
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
+        .add("split_offsets", splitOffsets == null ? "null" : splitOffsets)
         .toString();
+  }
+
+  @Override
+  public DataFile copyWithoutStats() {
+    return new GenericDataFile(this, false /* drop stats */);
+  }
+
+  @Override
+  public DataFile copy() {
+    return new GenericDataFile(this, true /* full copy */);
   }
 
   private static <K, V> Map<K, V> copy(Map<K, V> map) {
@@ -438,5 +444,30 @@ class GenericDataFile
       return ImmutableList.copyOf(list);
     }
     return null;
+  }
+
+  private void writeObject(ObjectOutputStream output) throws IOException {
+    output.defaultWriteObject();
+    if (keyMetadata != null) {
+      output.writeBoolean(true);
+      byte[] keyMetadataArray = ByteBuffers.toByteArray(keyMetadata);
+      output.writeInt(keyMetadataArray.length);
+      output.write(keyMetadataArray);
+    } else {
+      output.writeBoolean(false);
+    }
+  }
+
+  private void readObject(ObjectInputStream input) throws IOException, ClassNotFoundException {
+    input.defaultReadObject();
+    boolean hasKeyMetadata = input.readBoolean();
+    if (hasKeyMetadata) {
+      int keyMetadataLength = input.readInt();
+      byte[] keyMetadataArray = new byte[keyMetadataLength];
+      input.read(keyMetadataArray);
+      this.keyMetadata = ByteBuffer.wrap(keyMetadataArray);
+    } else {
+      this.keyMetadata = null;
+    }
   }
 }

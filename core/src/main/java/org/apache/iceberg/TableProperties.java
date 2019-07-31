@@ -20,6 +20,9 @@
 package org.apache.iceberg;
 
 public class TableProperties {
+
+  private TableProperties() {}
+
   public static final String COMMIT_NUM_RETRIES = "commit.retry.num-retries";
   public static final int COMMIT_NUM_RETRIES_DEFAULT = 4;
 
@@ -77,9 +80,17 @@ public class TableProperties {
 
   // This only applies to files written after this property is set. Files previously written aren't
   // relocated to reflect this parameter.
-  // If not set, defaults to a "meatdata" folder underneath the root path of the table.
+  // If not set, defaults to a "metadata" folder underneath the root path of the table.
   public static final String WRITE_METADATA_LOCATION = "write.metadata.path";
 
   public static final String MANIFEST_LISTS_ENABLED = "write.manifest-lists.enabled";
   public static final boolean MANIFEST_LISTS_ENABLED_DEFAULT = true;
+
+  public static final String METADATA_COMPRESSION = "write.metadata.compression-codec";
+  public static final String METADATA_COMPRESSION_DEFAULT = "none";
+
+  public static final String DEFAULT_WRITE_METRICS_MODE = "write.metadata.metrics.default";
+  public static final String DEFAULT_WRITE_METRICS_MODE_DEFAULT = "truncate(16)";
+
+  public static final String DEFAULT_NAME_MAPPING = "schema.name-mapping.default";
 }

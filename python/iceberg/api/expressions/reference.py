@@ -29,6 +29,10 @@ class BoundReference(Reference):
         self.pos = self.find(field_id, struct)
         self._type = struct.fields[self.pos].type
 
+    @property
+    def type(self):
+        return self._type
+
     def __eq__(self, other):
         if id(self) == id(other):
             return True

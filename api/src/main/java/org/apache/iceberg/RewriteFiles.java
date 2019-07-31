@@ -33,13 +33,13 @@ import org.apache.iceberg.exceptions.ValidationException;
  * If any of the deleted files are no longer in the latest snapshot when reattempting, the commit
  * will throw a {@link ValidationException}.
  */
-public interface RewriteFiles extends PendingUpdate<Snapshot> {
-    /**
-     * Add a rewrite that replaces one set of files with another set that contains the same data.
-     *
-     * @param filesToDelete files that will be replaced (deleted), cannot be null or empty.
-     * @param filesToAdd files that will be added, cannot be null or empty.
-     * @return this for method chaining
-     */
-    RewriteFiles rewriteFiles(Set<DataFile> filesToDelete, Set<DataFile> filesToAdd);
+public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
+  /**
+   * Add a rewrite that replaces one set of files with another set that contains the same data.
+   *
+   * @param filesToDelete files that will be replaced (deleted), cannot be null or empty.
+   * @param filesToAdd files that will be added, cannot be null or empty.
+   * @return this for method chaining
+   */
+  RewriteFiles rewriteFiles(Set<DataFile> filesToDelete, Set<DataFile> filesToAdd);
 }

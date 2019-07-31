@@ -25,15 +25,12 @@ import java.util.Iterator;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetAvroValueReaders;
-import org.apache.iceberg.parquet.ParquetReader;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.schema.MessageType;
 import org.junit.Assert;
 import org.junit.Ignore;
@@ -90,21 +87,23 @@ public class TestParquetAvroReader {
     );
 
     File testFile = writeTestData(structSchema, 5_000_000, 1059);
+    // RandomData uses the root record name "test", which must match for records to be equal
     MessageType readSchema = ParquetSchemaUtil.convert(structSchema, "test");
 
     long sum = 0;
     long sumSq = 0;
     int warmups = 2;
-    int n = 10;
+    int trials = 10;
 
-    for (int i = 0; i < warmups + n; i += 1) {
+    for (int i = 0; i < warmups + trials; i += 1) {
       // clean up as much memory as possible to avoid a large GC during the timed run
       System.gc();
 
-      try (ParquetReader<Record> reader = new ParquetReader<>(
-          Files.localInput(testFile), structSchema, ParquetReadOptions.builder().build(),
-          fileSchema -> ParquetAvroValueReaders.buildReader(structSchema, readSchema),
-          Expressions.alwaysTrue(), true)) {
+      try (CloseableIterable<Record> reader = Parquet.read(Files.localInput(testFile))
+          .project(structSchema)
+          .createReaderFunc(
+              fileSchema -> ParquetAvroValueReaders.buildReader(structSchema, readSchema))
+           .build()) {
         long start = System.currentTimeMillis();
         long val = 0;
         long count = 0;
@@ -121,21 +120,22 @@ public class TestParquetAvroReader {
 
         if (i >= warmups) {
           sum += duration;
-          sumSq += (duration * duration);
+          sumSq += duration * duration;
         }
       }
     }
 
-    double mean = ((double) sum) / n;
-    double stddev = Math.sqrt((((double) sumSq) / n) - (mean * mean));
+    double mean = ((double) sum) / trials;
+    double stddev = Math.sqrt((((double) sumSq) / trials) - (mean * mean));
 
     System.err.println(String.format(
-        "Ran %d trials: mean time: %.3f ms, stddev: %.3f ms", n, mean, stddev));
+        "Ran %d trials: mean time: %.3f ms, stddev: %.3f ms", trials, mean, stddev));
   }
 
   @Ignore
   public void testWithOldReadPath() throws IOException {
     File testFile = writeTestData(COMPLEX_SCHEMA, 500_000, 1985);
+    // RandomData uses the root record name "test", which must match for records to be equal
     MessageType readSchema = ParquetSchemaUtil.convert(COMPLEX_SCHEMA, "test");
 
     for (int i = 0; i < 5; i += 1) {
@@ -162,10 +162,11 @@ public class TestParquetAvroReader {
       // clean up as much memory as possible to avoid a large GC during the timed run
       System.gc();
 
-      try (ParquetReader<Record> reader = new ParquetReader<>(
-          Files.localInput(testFile), COMPLEX_SCHEMA, ParquetReadOptions.builder().build(),
-          fileSchema -> ParquetAvroValueReaders.buildReader(COMPLEX_SCHEMA, readSchema),
-          Expressions.alwaysTrue(), true)) {
+      try (CloseableIterable<Record> reader = Parquet.read(Files.localInput(testFile))
+           .project(COMPLEX_SCHEMA)
+           .createReaderFunc(
+               fileSchema -> ParquetAvroValueReaders.buildReader(COMPLEX_SCHEMA, readSchema))
+           .build()) {
         long start = System.currentTimeMillis();
         long val = 0;
         long count = 0;
@@ -195,31 +196,34 @@ public class TestParquetAvroReader {
       writer.addAll(records);
     }
 
+    // RandomData uses the root record name "test", which must match for records to be equal
     MessageType readSchema = ParquetSchemaUtil.convert(COMPLEX_SCHEMA, "test");
 
     // verify that the new read path is correct
-    try (ParquetReader<Record> reader = new ParquetReader<>(
-        Files.localInput(testFile), COMPLEX_SCHEMA, ParquetReadOptions.builder().build(),
-        fileSchema -> ParquetAvroValueReaders.buildReader(COMPLEX_SCHEMA, readSchema),
-        Expressions.alwaysTrue(), true)) {
-      int i = 0;
+    try (CloseableIterable<Record> reader = Parquet.read(Files.localInput(testFile))
+        .project(COMPLEX_SCHEMA)
+        .createReaderFunc(
+            fileSchema -> ParquetAvroValueReaders.buildReader(COMPLEX_SCHEMA, readSchema))
+        .reuseContainers()
+        .build()) {
+      int recordNum = 0;
       Iterator<Record> iter = records.iterator();
       for (Record actual : reader) {
         Record expected = iter.next();
-        Assert.assertEquals("Record " + i + " should match expected", expected, actual);
-        i += 1;
+        Assert.assertEquals("Record " + recordNum + " should match expected", expected, actual);
+        recordNum += 1;
       }
     }
   }
 
-  private File writeTestData(Schema schema, int n, int seed) throws IOException {
+  private File writeTestData(Schema schema, int numRecords, int seed) throws IOException {
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
     try (FileAppender<Record> writer = Parquet.write(Files.localOutput(testFile))
         .schema(schema)
         .build()) {
-      writer.addAll(RandomData.generate(schema, n, seed));
+      writer.addAll(RandomData.generate(schema, numRecords, seed));
     }
 
     return testFile;

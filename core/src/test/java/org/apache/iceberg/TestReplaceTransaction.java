@@ -242,7 +242,7 @@ public class TestReplaceTransaction extends TableTestBase {
         .commit();
 
     // keep failing to trigger eventual transaction failure
-    ((TestTables.TestTableOperations) ((BaseTransaction) replace).ops).failCommits(100);
+    ((TestTables.TestTableOperations) ((BaseTransaction) replace).ops()).failCommits(100);
 
     AssertHelpers.assertThrows("Should reject commit when retries are exhausted",
         CommitFailedException.class, "Injected failure",

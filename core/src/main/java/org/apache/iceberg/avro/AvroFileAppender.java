@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.Function;
@@ -40,8 +39,9 @@ class AvroFileAppender<D> implements FileAppender<D> {
 
   AvroFileAppender(Schema schema, OutputFile file,
                    Function<Schema, DatumWriter<?>> createWriterFunc,
-                   CodecFactory codec, Map<String, String> metadata) throws IOException {
-    this.stream = file.create();
+                   CodecFactory codec, Map<String, String> metadata,
+                   boolean overwrite) throws IOException {
+    this.stream = overwrite ? file.createOrOverwrite() : file.create();
     this.writer = newAvroWriter(schema, stream, createWriterFunc, codec, metadata);
   }
 
@@ -62,8 +62,6 @@ class AvroFileAppender<D> implements FileAppender<D> {
 
   @Override
   public long length() {
-    Preconditions.checkState(writer == null,
-        "Cannot return length while appending to an open file.");
     if (stream != null) {
       try {
         return stream.getPos();
@@ -95,7 +93,6 @@ class AvroFileAppender<D> implements FileAppender<D> {
       writer.setMeta(entry.getKey(), entry.getValue());
     }
 
-    // TODO: support overwrite
     return writer.create(schema, stream);
   }
 }

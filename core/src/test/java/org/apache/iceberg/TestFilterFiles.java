@@ -43,9 +43,8 @@ public class TestFilterFiles {
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
   private final Schema schema = new Schema(
-    required(1, "id", Types.IntegerType.get()),
-    required(2, "data", Types.StringType.get())
-  );
+      required(1, "id", Types.IntegerType.get()),
+      required(2, "data", Types.StringType.get()));
   private File tableDir = null;
 
   @Before
@@ -93,13 +92,13 @@ public class TestFilterFiles {
     upperBounds.put(1, Conversions.toByteBuffer(Types.IntegerType.get(), 2));
 
     Metrics metrics = new Metrics(2L, Maps.newHashMap(), Maps.newHashMap(),
-      Maps.newHashMap(), lowerBounds, upperBounds);
+        Maps.newHashMap(), lowerBounds, upperBounds);
 
     DataFile file = DataFiles.builder(table.spec())
-      .withPath("/path/to/file.parquet")
-      .withFileSizeInBytes(0)
-      .withMetrics(metrics)
-      .build();
+        .withPath("/path/to/file.parquet")
+        .withFileSizeInBytes(0)
+        .withMetrics(metrics)
+        .build();
 
     table.newAppend().appendFile(file).commit();
 
@@ -119,13 +118,13 @@ public class TestFilterFiles {
     upperBounds.put(1, Conversions.toByteBuffer(Types.IntegerType.get(), 2));
 
     Metrics metrics = new Metrics(2L, Maps.newHashMap(), Maps.newHashMap(),
-      Maps.newHashMap(), lowerBounds, upperBounds);
+        Maps.newHashMap(), lowerBounds, upperBounds);
 
     DataFile file = DataFiles.builder(table.spec())
-      .withPath("/path/to/file.parquet")
-      .withFileSizeInBytes(0)
-      .withMetrics(metrics)
-      .build();
+        .withPath("/path/to/file.parquet")
+        .withFileSizeInBytes(0)
+        .withMetrics(metrics)
+        .build();
 
     table.newAppend().appendFile(file).commit();
 

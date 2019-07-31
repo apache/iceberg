@@ -28,7 +28,7 @@ class Schema(object):
     ALL_COLUMNS = "*"
 
     def __init__(self, *argv):
-        aliases = dict()
+        aliases = None
         if len(argv) == 1 and isinstance(argv[0], (list, tuple)):
             columns = argv[0]
         elif len(argv) == 2 and isinstance(argv[0], list) and isinstance(argv[1], dict):
@@ -46,6 +46,7 @@ class Schema(object):
 
         self._id_to_field = None
         self._name_to_id = None
+        self._lowercase_name_to_id = None
         self._id_to_name = None
 
     def as_struct(self):
@@ -66,25 +67,33 @@ class Schema(object):
         if self._name_to_id is None:
             self._name_to_id = index_by_name(self.struct)
             self._id_to_name = {v: k for k, v in self._name_to_id.items()}
+            self._lowercase_name_to_id = {k.lower(): v for k, v in self._name_to_id.items()}
+
         return self._name_to_id
+
+    def lazy_lowercase_name_to_id(self):
+        from .types import index_by_name
+        if self._lowercase_name_to_id is None:
+            self._name_to_id = index_by_name(self.struct)
+            self._id_to_name = {v: k for k, v in self._name_to_id.items()}
+            self._lowercase_name_to_id = {k.lower(): v for k, v in self._name_to_id.items()}
+
+        return self._lowercase_name_to_id
 
     def columns(self):
         return self.struct.fields
 
     def find_type(self, name):
-        if not name:
-            raise RuntimeError("Invalid Column Name (empty)")
-
         if isinstance(name, int):
             field = self.lazy_id_to_field().get(name)
             if field:
                 return field.type
-
-        id = self.lazy_name_to_id().get(name)
-        if id:
-            return self.find_type(id)
-
-        raise RuntimeError("Invalid Column (could not find): %s" % name)
+        elif isinstance(name, str):
+            id = self.lazy_name_to_id().get(name)
+            if id:
+                return self.find_type(id)
+        else:
+            raise RuntimeError("Invalid Column (could not find): %s" % name)
 
     def find_field(self, id):
         if isinstance(id, int):
@@ -109,25 +118,29 @@ class Schema(object):
         if self._id_to_alias:
             return self._id_to_alias.get(field_id)
 
-    def select(self, *argv):
+    def select(self, cols):
+        return self._internal_select(True, cols)
+
+    def case_insensitive_select(self, cols):
+        return self._internal_select(False, cols)
+
+    def _internal_select(self, case_sensitive, cols):
         from .types import select
-        if not(len(argv) == 1 and isinstance(argv[0], list)):
-            return self.select(argv)
 
-        if len(argv) == 1:
-            names = argv[0]
-            if Schema.ALL_COLUMNS in names:
-                return self
+        if Schema.ALL_COLUMNS in cols:
+            return self
+
+        selected = set()
+        for name in cols:
+            if case_sensitive:
+                field_id = self.lazy_name_to_id().get(name)
             else:
-                selected = list()
-                for name in names:
-                    id = self.lazy_name_to_id().get(name)
-                    if id:
-                        selected.append(id)
+                field_id = self.lazy_lowercase_name_to_id().get(name.lower())
 
-                return select(self, selected) # noqa
+            if field_id is not None:
+                selected.add(field_id)
 
-        raise RuntimeError("Illegal argument for select %s", argv)
+        return select(self, selected)
 
     def __repr__(self):
         return "Schema(%s)" % self.struct.fields

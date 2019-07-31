@@ -22,10 +22,12 @@ package org.apache.iceberg.parquet;
 import com.google.common.collect.ImmutableMap;
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Metrics;
+import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
@@ -44,7 +46,6 @@ import org.apache.parquet.schema.MessageType;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static org.apache.iceberg.parquet.ParquetSchemaUtil.convert;
-import static org.apache.parquet.column.ParquetProperties.WriterVersion.PARQUET_1_0;
 
 class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private static final DynConstructors.Ctor<PageWriteStore> pageStoreCtor = DynConstructors
@@ -63,13 +64,12 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private final OutputFile output;
   private final long targetRowGroupSize;
   private final Map<String, String> metadata;
-  private final ParquetProperties props = ParquetProperties.builder()
-      .withWriterVersion(PARQUET_1_0)
-      .build();
+  private final ParquetProperties props;
   private final CodecFactory.BytesCompressor compressor;
   private final MessageType parquetSchema;
   private final ParquetValueWriter<T> model;
   private final ParquetFileWriter writer;
+  private final MetricsConfig metricsConfig;
 
   private DynMethods.BoundMethod flushPageStoreToWriter;
   private ColumnWriteStore writeStore;
@@ -81,17 +81,22 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   ParquetWriter(Configuration conf, OutputFile output, Schema schema, long rowGroupSize,
                 Map<String, String> metadata,
                 Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
-                CompressionCodecName codec) {
+                CompressionCodecName codec,
+                ParquetProperties properties,
+                MetricsConfig metricsConfig,
+                ParquetFileWriter.Mode writeMode) {
     this.output = output;
     this.targetRowGroupSize = rowGroupSize;
+    this.props = properties;
     this.metadata = ImmutableMap.copyOf(metadata);
     this.compressor = new CodecFactory(conf, props.getPageSizeThreshold()).getCompressor(codec);
     this.parquetSchema = convert(schema, "table");
     this.model = (ParquetValueWriter<T>) createWriterFunc.apply(parquetSchema);
+    this.metricsConfig = metricsConfig;
 
     try {
       this.writer = new ParquetFileWriter(ParquetIO.file(output, conf), parquetSchema,
-          ParquetFileWriter.Mode.OVERWRITE, rowGroupSize, 0);
+         writeMode, rowGroupSize, 0);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to create Parquet file");
     }
@@ -115,7 +120,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   @Override
   public Metrics metrics() {
-    return ParquetMetrics.fromMetadata(writer.getFooter());
+    return ParquetUtil.footerMetrics(writer.getFooter(), metricsConfig);
   }
 
   @Override
@@ -125,6 +130,11 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to get file length");
     }
+  }
+
+  @Override
+  public List<Long> splitOffsets() {
+    return ParquetUtil.getSplitOffsets(writer.getFooter());
   }
 
   private void checkSize() {

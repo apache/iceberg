@@ -111,11 +111,11 @@ class GenericReaders {
   }
 
   private static class GenericRecordReader extends ValueReaders.StructReader<Record> {
-    private final StructType struct;
+    private final StructType structType;
 
     private GenericRecordReader(List<ValueReader<?>> readers, StructType struct) {
       super(readers);
-      this.struct = struct;
+      this.structType = struct;
     }
 
     @Override
@@ -123,7 +123,7 @@ class GenericReaders {
       if (reuse instanceof Record) {
         return (Record) reuse;
       } else {
-        return GenericRecord.create(struct);
+        return GenericRecord.create(structType);
       }
     }
 

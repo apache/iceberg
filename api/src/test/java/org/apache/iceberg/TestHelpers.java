@@ -35,6 +35,9 @@ import org.apache.iceberg.expressions.UnboundPredicate;
 import org.junit.Assert;
 
 public class TestHelpers {
+
+  private TestHelpers() {}
+
   public static <T> T assertAndUnwrap(Expression expr, Class<T> expected) {
     Assert.assertTrue("Expression should have expected type: " + expected,
         expected.isInstance(expr));
@@ -75,7 +78,7 @@ public class TestHelpers {
   private static class CheckReferencesBound extends ExpressionVisitors.ExpressionVisitor<Void> {
     private final String message;
 
-    public CheckReferencesBound(String message) {
+    CheckReferencesBound(String message) {
       this.message = message;
     }
 
@@ -330,11 +333,6 @@ public class TestHelpers {
     }
 
     @Override
-    public long blockSizeInBytes() {
-      return 0;
-    }
-
-    @Override
     public Integer fileOrdinal() {
       return null;
     }
@@ -377,6 +375,16 @@ public class TestHelpers {
     @Override
     public DataFile copy() {
       return this;
+    }
+
+    @Override
+    public DataFile copyWithoutStats() {
+      return this;
+    }
+
+    @Override
+    public List<Long> splitOffsets() {
+      return null;
     }
   }
 }

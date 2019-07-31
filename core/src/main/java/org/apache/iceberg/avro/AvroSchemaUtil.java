@@ -33,12 +33,12 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
-import static org.apache.avro.Schema.Type.ARRAY;
-import static org.apache.avro.Schema.Type.MAP;
-import static org.apache.avro.Schema.Type.RECORD;
-import static org.apache.avro.Schema.Type.UNION;
-
 public class AvroSchemaUtil {
+
+  private AvroSchemaUtil() {}
+
+  // Original Iceberg field name corresponding to a sanitized Avro name
+  public static final String ICEBERG_FIELD_NAME_PROP = "iceberg-field-name";
   public static final String FIELD_ID_PROP = "field-id";
   public static final String KEY_ID_PROP = "key-id";
   public static final String VALUE_ID_PROP = "value-id";
@@ -46,6 +46,10 @@ public class AvroSchemaUtil {
   public static final String ADJUST_TO_UTC_PROP = "adjust-to-utc";
 
   private static final Schema NULL = Schema.create(Schema.Type.NULL);
+  private static final Schema.Type MAP = Schema.Type.MAP;
+  private static final Schema.Type ARRAY = Schema.Type.ARRAY;
+  private static final Schema.Type UNION = Schema.Type.UNION;
+  private static final Schema.Type RECORD = Schema.Type.RECORD;
 
   public static Schema convert(org.apache.iceberg.Schema schema,
                                String tableName) {
@@ -117,7 +121,7 @@ public class AvroSchemaUtil {
   static Schema toOption(Schema schema) {
     if (schema.getType() == UNION) {
       Preconditions.checkArgument(isOptionSchema(schema),
-          "Union schemas are not supported: " + schema);
+          "Union schemas are not supported: %s", schema);
       return schema;
     } else {
       return Schema.createUnion(NULL, schema);
@@ -126,9 +130,9 @@ public class AvroSchemaUtil {
 
   static Schema fromOption(Schema schema) {
     Preconditions.checkArgument(schema.getType() == UNION,
-        "Expected union schema but was passed: {}", schema);
+        "Expected union schema but was passed: %s", schema);
     Preconditions.checkArgument(schema.getTypes().size() == 2,
-        "Expected optional schema, but was passed: {}", schema);
+        "Expected optional schema, but was passed: %s", schema);
     if (schema.getTypes().get(0).getType() == Schema.Type.NULL) {
       return schema.getTypes().get(1);
     } else {
@@ -138,7 +142,7 @@ public class AvroSchemaUtil {
 
   static Schema fromOptions(List<Schema> options) {
     Preconditions.checkArgument(options.size() == 2,
-        "Expected two schemas, but was passed: {} options", options.size());
+        "Expected two schemas, but was passed: %s options", options.size());
     if (options.get(0).getType() == Schema.Type.NULL) {
       return options.get(1);
     } else {
@@ -147,18 +151,18 @@ public class AvroSchemaUtil {
   }
 
   static boolean isKeyValueSchema(Schema schema) {
-    return (schema.getType() == RECORD && schema.getFields().size() == 2);
+    return schema.getType() == RECORD && schema.getFields().size() == 2;
   }
 
   static Schema createMap(int keyId, Schema keySchema,
                           int valueId, Schema valueSchema) {
     String keyValueName = "k" + keyId + "_v" + valueId;
 
-    Schema.Field keyField = new Schema.Field("key", keySchema, null, null);
+    Schema.Field keyField = new Schema.Field("key", keySchema, null, (Object) null);
     keyField.addProp(FIELD_ID_PROP, keyId);
 
     Schema.Field valueField = new Schema.Field("value", valueSchema, null,
-        isOptionSchema(valueSchema) ? JsonProperties.NULL_VALUE: null);
+        isOptionSchema(valueSchema) ? JsonProperties.NULL_VALUE : null);
     valueField.addProp(FIELD_ID_PROP, valueId);
 
     return LogicalMap.get().addToSchema(Schema.createArray(Schema.createRecord(
@@ -170,14 +174,14 @@ public class AvroSchemaUtil {
                           int valueId, String valueName, Schema valueSchema) {
     String keyValueName = "k" + keyId + "_v" + valueId;
 
-    Schema.Field keyField = new Schema.Field("key", keySchema, null, null);
+    Schema.Field keyField = new Schema.Field("key", keySchema, null, (Object) null);
     if (!"key".equals(keyName)) {
       keyField.addAlias(keyName);
     }
     keyField.addProp(FIELD_ID_PROP, keyId);
 
     Schema.Field valueField = new Schema.Field("value", valueSchema, null,
-        isOptionSchema(valueSchema) ? JsonProperties.NULL_VALUE: null);
+        isOptionSchema(valueSchema) ? JsonProperties.NULL_VALUE : null);
     valueField.addProp(FIELD_ID_PROP, valueId);
     if (!"value".equals(valueName)) {
       valueField.addAlias(valueName);
@@ -205,19 +209,19 @@ public class AvroSchemaUtil {
 
   public static int getKeyId(Schema schema) {
     Preconditions.checkArgument(schema.getType() == MAP,
-        "Cannot get map key id for non-map schema: " + schema);
+        "Cannot get map key id for non-map schema: %s", schema);
     return getId(schema, KEY_ID_PROP);
   }
 
   public static int getValueId(Schema schema) {
     Preconditions.checkArgument(schema.getType() == MAP,
-        "Cannot get map value id for non-map schema: " + schema);
+        "Cannot get map value id for non-map schema: %s", schema);
     return getId(schema, VALUE_ID_PROP);
   }
 
   public static int getElementId(Schema schema) {
     Preconditions.checkArgument(schema.getType() == ARRAY,
-        "Cannot get array element id for non-array schema: " + schema);
+        "Cannot get array element id for non-array schema: %s", schema);
     return getId(schema, ELEMENT_ID_PROP);
   }
 
@@ -271,5 +275,50 @@ public class AvroSchemaUtil {
     }
 
     return copy;
+  }
+
+  static boolean validAvroName(String name) {
+    int length = name.length();
+    Preconditions.checkArgument(length > 0, "Empty name");
+    char first = name.charAt(0);
+    if (!(Character.isLetter(first) || first == '_')) {
+      return false;
+    }
+
+    for (int i = 1; i < length; i++) {
+      char character = name.charAt(i);
+      if (!(Character.isLetterOrDigit(character) || character == '_')) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  static String sanitize(String name) {
+    int length = name.length();
+    StringBuilder sb = new StringBuilder(name.length());
+    char first = name.charAt(0);
+    if (!(Character.isLetter(first) || first == '_')) {
+      sb.append(sanitize(first));
+    } else {
+      sb.append(first);
+    }
+
+    for (int i = 1; i < length; i++) {
+      char character = name.charAt(i);
+      if (!(Character.isLetterOrDigit(character) || character == '_')) {
+        sb.append(sanitize(character));
+      } else {
+        sb.append(character);
+      }
+    }
+    return sb.toString();
+  }
+
+  private static String sanitize(char character) {
+    if (Character.isDigit(character)) {
+      return "_" + character;
+    }
+    return "_x" + Integer.toHexString(character).toUpperCase();
   }
 }

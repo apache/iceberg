@@ -30,6 +30,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.junit.Assert;
 
 public class TestGenericAvro extends AvroDataTest {
+  @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expected = RandomAvroData.generate(schema, 100, 0L);
 

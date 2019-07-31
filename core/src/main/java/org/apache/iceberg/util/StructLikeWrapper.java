@@ -26,6 +26,7 @@ import org.apache.iceberg.StructLike;
  * Wrapper to adapt StructLike for use in maps and sets by implementing equals and hashCode.
  */
 public class StructLikeWrapper {
+
   public static StructLikeWrapper wrap(StructLike struct) {
     return new StructLikeWrapper(struct);
   }
@@ -36,8 +37,8 @@ public class StructLikeWrapper {
     this.struct = struct;
   }
 
-  public StructLikeWrapper set(StructLike struct) {
-    this.struct = struct;
+  public StructLikeWrapper set(StructLike newStruct) {
+    this.struct = newStruct;
     return this;
   }
 
@@ -53,13 +54,11 @@ public class StructLikeWrapper {
 
     StructLikeWrapper that = (StructLikeWrapper) other;
 
-    if (this.struct == null) {
-      if (that.struct == null) {
-        return true;
-      } else {
-        return false;
-      }
-    } else if (that.struct == null) {
+    if (this.struct == that.struct) {
+      return true;
+    }
+
+    if (this.struct == null ^ that.struct == null) {
       return false;
     }
 

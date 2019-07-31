@@ -19,7 +19,7 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Objects;
+import com.google.common.base.MoreObjects;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -124,11 +124,6 @@ public class GenericPartitionFieldSummary
   }
 
   @Override
-  public void put(int i, Object v) {
-    set(i, v);
-  }
-
-  @Override
   public Object get(int i) {
     int pos = i;
     // if the schema was projected, map the incoming ordinal to the expected one
@@ -171,6 +166,11 @@ public class GenericPartitionFieldSummary
   }
 
   @Override
+  public void put(int i, Object v) {
+    set(i, v);
+  }
+
+  @Override
   public PartitionFieldSummary copy() {
     return new GenericPartitionFieldSummary(this);
   }
@@ -182,7 +182,7 @@ public class GenericPartitionFieldSummary
 
   @Override
   public String toString() {
-    return Objects.toStringHelper(this)
+    return MoreObjects.toStringHelper(this)
         .add("contains_null", containsNull)
         .add("lower_bound", lowerBound)
         .add("upper_bound", upperBound)

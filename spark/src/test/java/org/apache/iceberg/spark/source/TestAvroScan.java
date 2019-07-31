@@ -63,11 +63,12 @@ public class TestAvroScan extends AvroDataTest {
 
   @AfterClass
   public static void stopSpark() {
-    SparkSession spark = TestAvroScan.spark;
+    SparkSession currentSpark = TestAvroScan.spark;
     TestAvroScan.spark = null;
-    spark.stop();
+    currentSpark.stop();
   }
 
+  @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     File parent = temp.newFolder("avro");
     File location = new File(parent, "test");

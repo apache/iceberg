@@ -26,9 +26,14 @@ import org.apache.iceberg.exceptions.CommitFailedException;
  * <p>
  * This implementation will attempt to commit 5 times before throwing {@link CommitFailedException}.
  */
-class MergeAppend extends MergingSnapshotUpdate implements AppendFiles {
+class MergeAppend extends MergingSnapshotProducer<AppendFiles> implements AppendFiles {
   MergeAppend(TableOperations ops) {
     super(ops);
+  }
+
+  @Override
+  protected AppendFiles self() {
+    return this;
   }
 
   @Override
@@ -39,6 +44,12 @@ class MergeAppend extends MergingSnapshotUpdate implements AppendFiles {
   @Override
   public MergeAppend appendFile(DataFile file) {
     add(file);
+    return this;
+  }
+
+  @Override
+  public AppendFiles appendManifest(ManifestFile manifest) {
+    add(manifest);
     return this;
   }
 }

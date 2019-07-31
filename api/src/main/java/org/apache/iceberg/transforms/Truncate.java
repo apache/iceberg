@@ -53,10 +53,10 @@ abstract class Truncate<T> implements Transform<T, T> {
     }
   }
 
-  abstract public Integer width();
+  public abstract Integer width();
 
   @Override
-  abstract public T apply(T value);
+  public abstract T apply(T value);
 
   @Override
   public Type getResultType(Type sourceType) {
@@ -64,20 +64,20 @@ abstract class Truncate<T> implements Transform<T, T> {
   }
 
   private static class TruncateInteger extends Truncate<Integer> {
-    private final int W;
+    private final int width;
 
     private TruncateInteger(int width) {
-      this.W = width;
+      this.width = width;
     }
 
     @Override
     public Integer width() {
-      return W;
+      return width;
     }
 
     @Override
     public Integer apply(Integer value) {
-      return value - (((value % W) + W) % W);
+      return value - (((value % width) + width) % width);
     }
 
     @Override
@@ -146,35 +146,35 @@ abstract class Truncate<T> implements Transform<T, T> {
       }
 
       TruncateInteger that = (TruncateInteger) o;
-      return W == that.W;
+      return width == that.width;
     }
 
     @Override
     public int hashCode() {
-      return Objects.hashCode(W);
+      return Objects.hashCode(width);
     }
 
     @Override
     public String toString() {
-      return "truncate[" + W + "]";
+      return "truncate[" + width + "]";
     }
   }
 
   private static class TruncateLong extends Truncate<Long> {
-    private final int W;
+    private final int width;
 
     private TruncateLong(int width) {
-      this.W = width;
+      this.width = width;
     }
 
     @Override
     public Integer width() {
-      return W;
+      return width;
     }
 
     @Override
     public Long apply(Long value) {
-      return value - (((value % W) + W) % W);
+      return value - (((value % width) + width) % width);
     }
 
     @Override
@@ -205,35 +205,35 @@ abstract class Truncate<T> implements Transform<T, T> {
       }
 
       TruncateLong that = (TruncateLong) o;
-      return W == that.W;
+      return width == that.width;
     }
 
     @Override
     public int hashCode() {
-      return Objects.hashCode(W);
+      return Objects.hashCode(width);
     }
 
     @Override
     public String toString() {
-      return "truncate[" + W + "]";
+      return "truncate[" + width + "]";
     }
   }
 
   private static class TruncateString extends Truncate<CharSequence> {
-    private final int L;
+    private final int length;
 
     private TruncateString(int length) {
-      this.L = length;
+      this.length = length;
     }
 
     @Override
     public Integer width() {
-      return L;
+      return length;
     }
 
     @Override
     public CharSequence apply(CharSequence value) {
-      return value.subSequence(0, Math.min(value.length(), L));
+      return value.subSequence(0, Math.min(value.length(), length));
     }
 
     @Override
@@ -266,36 +266,36 @@ abstract class Truncate<T> implements Transform<T, T> {
       }
 
       TruncateString that = (TruncateString) o;
-      return L == that.L;
+      return length == that.length;
     }
 
     @Override
     public int hashCode() {
-      return Objects.hashCode(L);
+      return Objects.hashCode(length);
     }
 
     @Override
     public String toString() {
-      return "truncate[" + L + "]";
+      return "truncate[" + length + "]";
     }
   }
 
   private static class TruncateByteBuffer extends Truncate<ByteBuffer> {
-    private final int L;
+    private final int length;
 
     private TruncateByteBuffer(int length) {
-      this.L = length;
+      this.length = length;
     }
 
     @Override
     public Integer width() {
-      return L;
+      return length;
     }
 
     @Override
     public ByteBuffer apply(ByteBuffer value) {
       ByteBuffer ret = value.duplicate();
-      ret.limit(Math.min(value.limit(), value.position() + L));
+      ret.limit(Math.min(value.limit(), value.position() + length));
       return ret;
     }
 
@@ -329,12 +329,12 @@ abstract class Truncate<T> implements Transform<T, T> {
       }
 
       TruncateByteBuffer that = (TruncateByteBuffer) o;
-      return L == that.L;
+      return length == that.length;
     }
 
     @Override
     public int hashCode() {
-      return Objects.hashCode(L);
+      return Objects.hashCode(length);
     }
 
     @Override
@@ -344,7 +344,7 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public String toString() {
-      return "truncate[" + L + "]";
+      return "truncate[" + length + "]";
     }
   }
 

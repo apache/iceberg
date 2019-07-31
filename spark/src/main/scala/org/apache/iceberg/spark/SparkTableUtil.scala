@@ -19,19 +19,19 @@
 
 package org.apache.iceberg.spark
 
+import com.google.common.collect.Maps
 import java.nio.ByteBuffer
 import java.util
-
-import com.google.common.collect.Maps
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{Path, PathFilter}
-import org.apache.iceberg.{DataFile, DataFiles, Metrics, PartitionSpec}
-import org.apache.iceberg.parquet.ParquetMetrics
+import org.apache.iceberg.{DataFile, DataFiles, Metrics, MetricsConfig, PartitionSpec}
+import org.apache.iceberg.hadoop.HadoopInputFile
+import org.apache.iceberg.orc.OrcMetrics
+import org.apache.iceberg.parquet.ParquetUtil
 import org.apache.iceberg.spark.hacks.Hive
 import org.apache.parquet.hadoop.ParquetFileReader
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.catalyst.catalog.CatalogTablePartition
-
 import scala.collection.JavaConverters._
 
 object SparkTableUtil {
@@ -57,6 +57,26 @@ object SparkTableUtil {
   }
 
   /**
+    * Returns a DataFrame with a row for each partition that matches the specified 'expression'.
+    *
+    * @param spark a Spark session.
+    * @param table name of the table.
+    * @param expression The expression whose matching partitions are returned.
+    * @return a DataFrame of the table partitions.
+    */
+  def partitionDFByFilter(spark: SparkSession, table: String, expression: String): DataFrame = {
+    import spark.implicits._
+
+    val expr = spark.sessionState.sqlParser.parseExpression(expression)
+    val partitions: Seq[(Map[String, String], Option[String], Option[String])] =
+      Hive.partitionsByFilter(spark, table, expr).map { p: CatalogTablePartition =>
+        (p.spec, p.storage.locationUri.map(String.valueOf(_)), p.storage.serde)
+      }
+
+    partitions.toDF("partition", "uri", "format")
+  }
+
+  /**
    * Returns the data files in a partition by listing the partition location.
    *
    * For Parquet partitions, this will read metrics from the file footer. For Avro partitions,
@@ -75,6 +95,8 @@ object SparkTableUtil {
       listAvroPartition(partition, uri)
     } else if (format.contains("parquet")) {
       listParquetPartition(partition, uri)
+    } else if (format.contains("orc")) {
+      listOrcPartition(partition, uri)
     } else {
       throw new UnsupportedOperationException(s"Unknown partition format: $format")
     }
@@ -114,7 +136,6 @@ object SparkTableUtil {
           .withFormat(format)
           .withPartitionPath(partitionKey)
           .withFileSizeInBytes(fileSize)
-          .withBlockSizeInBytes(rowGroupSize)
           .withMetrics(new Metrics(rowCount,
             arrayToMap(columnSizes),
             arrayToMap(valueCounts),
@@ -231,13 +252,14 @@ object SparkTableUtil {
   //noinspection ScalaDeprecation
   private def listParquetPartition(
       partitionPath: Map[String, String],
-      partitionUri: String): Seq[SparkDataFile] = {
+      partitionUri: String,
+      metricsSpec: MetricsConfig = MetricsConfig.getDefault): Seq[SparkDataFile] = {
     val conf = new Configuration()
     val partition = new Path(partitionUri)
     val fs = partition.getFileSystem(conf)
 
     fs.listStatus(partition, HiddenPathFilter).filter(_.isFile).map { stat =>
-      val metrics = ParquetMetrics.fromMetadata(ParquetFileReader.readFooter(conf, stat))
+      val metrics = ParquetUtil.footerMetrics(ParquetFileReader.readFooter(conf, stat), metricsSpec)
 
       SparkDataFile(
         stat.getPath.toString,
@@ -249,6 +271,30 @@ object SparkTableUtil {
         mapToArray(metrics.nullValueCounts),
         bytesMapToArray(metrics.lowerBounds),
         bytesMapToArray(metrics.upperBounds))
+    }
+  }
+
+  private def listOrcPartition(
+      partitionPath: Map[String, String],
+      partitionUri: String): Seq[SparkDataFile] = {
+    val conf = new Configuration()
+    val partition = new Path(partitionUri)
+    val fs = partition.getFileSystem(conf)
+
+    fs.listStatus(partition, HiddenPathFilter).filter(_.isFile).map { stat =>
+      val metrics = OrcMetrics.fromInputFile(HadoopInputFile.fromPath(stat.getPath, conf))
+
+      SparkDataFile(
+        stat.getPath.toString,
+        partitionPath, "orc", stat.getLen,
+        stat.getBlockSize,
+        metrics.recordCount,
+        mapToArray(metrics.columnSizes),
+        mapToArray(metrics.valueCounts),
+        mapToArray(metrics.nullValueCounts),
+        bytesMapToArray(metrics.lowerBounds()),
+        bytesMapToArray(metrics.upperBounds())
+      )
     }
   }
 }

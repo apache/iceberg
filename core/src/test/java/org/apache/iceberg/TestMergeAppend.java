@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import java.io.File;
+import java.io.IOException;
 import java.util.Set;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -49,6 +50,70 @@ public class TestMergeAppend extends TableTestBase {
     long pendingId = pending.snapshotId();
 
     validateManifest(pending.manifests().get(0), ids(pendingId, pendingId), files(FILE_A, FILE_B));
+  }
+
+  @Test
+  public void testEmptyTableAppendManifest() throws IOException {
+    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+
+    TableMetadata base = readMetadata();
+    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
+
+    ManifestFile manifest = writeManifest(FILE_A, FILE_B);
+    Snapshot pending = table.newAppend()
+        .appendManifest(manifest)
+        .apply();
+
+    validateSnapshot(base.currentSnapshot(), pending, FILE_A, FILE_B);
+  }
+
+  @Test
+  public void testEmptyTableAppendFilesAndManifest() throws IOException {
+    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+
+    TableMetadata base = readMetadata();
+    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
+
+    ManifestFile manifest = writeManifest(FILE_A, FILE_B);
+    Snapshot pending = table.newAppend()
+        .appendFile(FILE_C)
+        .appendFile(FILE_D)
+        .appendManifest(manifest)
+        .apply();
+
+    long pendingId = pending.snapshotId();
+
+    validateManifest(pending.manifests().get(0),
+        ids(pendingId, pendingId),
+        files(FILE_C, FILE_D));
+    validateManifest(pending.manifests().get(1),
+        ids(pendingId, pendingId),
+        files(FILE_A, FILE_B));
+  }
+
+  @Test
+  public void testMergeWithAppendFilesAndManifest() throws IOException {
+    // merge all manifests for this test
+    table.updateProperties().set("commit.manifest.min-count-to-merge", "1").commit();
+
+    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+
+    TableMetadata base = readMetadata();
+    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
+
+    ManifestFile manifest = writeManifest(FILE_A, FILE_B);
+    Snapshot pending = table.newAppend()
+        .appendFile(FILE_C)
+        .appendFile(FILE_D)
+        .appendManifest(manifest)
+        .apply();
+
+    long pendingId = pending.snapshotId();
+
+    Assert.assertEquals("Should create 1 merged manifest", 1, pending.manifests().size());
+    validateManifest(pending.manifests().get(0),
+        ids(pendingId, pendingId, pendingId, pendingId),
+        files(FILE_C, FILE_D, FILE_A, FILE_B));
   }
 
   @Test
@@ -333,6 +398,24 @@ public class TestMergeAppend extends TableTestBase {
     validateManifest(newManifest,
         ids(pending.snapshotId(), baseId),
         concat(files(FILE_B), files(initialManifest)));
+
+    AssertHelpers.assertThrows("Should retry 4 times and throw last failure",
+        CommitFailedException.class, "Injected failure", append::commit);
+
+    Assert.assertFalse("Should clean up new manifest", new File(newManifest.path()).exists());
+  }
+
+  @Test
+  public void testAppendManifestCleanup() throws IOException {
+    // inject 5 failures
+    TestTables.TestTableOperations ops = table.ops();
+    ops.failCommits(5);
+
+    ManifestFile manifest = writeManifest(FILE_A, FILE_B);
+    AppendFiles append = table.newAppend().appendManifest(manifest);
+    Snapshot pending = append.apply();
+    ManifestFile newManifest = pending.manifests().get(0);
+    Assert.assertTrue("Should create new manifest", new File(newManifest.path()).exists());
 
     AssertHelpers.assertThrows("Should retry 4 times and throw last failure",
         CommitFailedException.class, "Injected failure", append::commit);

@@ -35,6 +35,7 @@ import org.apache.iceberg.parquet.Parquet;
 import org.junit.Assert;
 
 public class TestGenericData extends DataTest {
+  @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expected = RandomGenericData.generate(schema, 100, 0L);
 

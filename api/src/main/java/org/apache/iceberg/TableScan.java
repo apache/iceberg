@@ -76,6 +76,15 @@ public interface TableScan {
   TableScan caseSensitive(boolean caseSensitive);
 
   /**
+   * Create a new {@link TableScan} from this that loads the column stats with each data file.
+   * <p>
+   * Column stats include: value count, null value count, lower bounds, and upper bounds.
+   *
+   * @return a new scan based on this that loads column stats.
+   */
+  TableScan includeColumnStats();
+
+  /**
    * Create a new {@link TableScan} from this that will read the given data columns. This produces
    * an expected schema that includes all fields that are either selected or used by this scan's
    * filter expression.
@@ -104,6 +113,13 @@ public interface TableScan {
    * @return a new scan based on this with results filtered by the expression
    */
   TableScan filter(Expression expr);
+
+  /**
+   * Returns this scan's filter {@link Expression}.
+   *
+   * @return this scan's filter expression
+   */
+  Expression filter();
 
   /**
    * Plan the {@link FileScanTask files} that will be read by this scan.
@@ -140,11 +156,14 @@ public interface TableScan {
   Schema schema();
 
   /**
-   * Returns this scan's filter {@link Expression}.
+   * Returns the {@link Snapshot} that will be used by this scan.
+   * <p>
+   * If the snapshot was not configured using {@link #asOfTime(long)} or {@link #useSnapshot(long)}, the current table
+   * snapshot will be used.
    *
-   * @return this scan's filter expression
+   * @return the Snapshot this scan will use
    */
-  Expression filter();
+  Snapshot snapshot();
 
   /**
    * Returns whether this scan should apply column name case sensitiveness as per {@link #caseSensitive(boolean)}.

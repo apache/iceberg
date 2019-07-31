@@ -42,14 +42,14 @@ public class Transforms {
   private static final Pattern HAS_WIDTH = Pattern.compile("(\\w+)\\[(\\d+)\\]");
 
   public static Transform<?, ?> fromString(Type type, String transform) {
-    Matcher width = HAS_WIDTH.matcher(transform);
-    if (width.matches()) {
-      String name = width.group(1);
-      int w = Integer.parseInt(width.group(2));
+    Matcher widthMatcher = HAS_WIDTH.matcher(transform);
+    if (widthMatcher.matches()) {
+      String name = widthMatcher.group(1);
+      int parsedWidth = Integer.parseInt(widthMatcher.group(2));
       if (name.equalsIgnoreCase("truncate")) {
-        return Truncate.get(type, w);
+        return Truncate.get(type, parsedWidth);
       } else if (name.equals("bucket")) {
-        return Bucket.get(type, w);
+        return Bucket.get(type, parsedWidth);
       }
     }
 
@@ -131,7 +131,7 @@ public class Transforms {
         return (Transform<T, Integer>) Timestamps.DAY;
       default:
         throw new IllegalArgumentException(
-            "Cannot partition type " + type + " by month");
+            "Cannot partition type " + type + " by day");
     }
   }
 

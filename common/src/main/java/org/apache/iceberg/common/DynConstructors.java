@@ -34,6 +34,9 @@ import java.util.Map;
  * Copied from parquet-common
  */
 public class DynConstructors {
+
+  private DynConstructors() {}
+
   public static class Ctor<C> extends DynMethods.UnboundMethod {
     private final Constructor<C> ctor;
     private final Class<? extends C> constructed;
@@ -133,11 +136,11 @@ public class DynConstructors {
      * <p>
      * If not set, the current thread's ClassLoader is used.
      *
-     * @param loader a ClassLoader
+     * @param newLoader a ClassLoader
      * @return this Builder for method chaining
      */
-    public Builder loader(ClassLoader loader) {
-      this.loader = loader;
+    public Builder loader(ClassLoader newLoader) {
+      this.loader = newLoader;
       return this;
     }
 
@@ -236,7 +239,7 @@ public class DynConstructors {
   private static class MakeAccessible implements PrivilegedAction<Void> {
     private Constructor<?> hidden;
 
-    public MakeAccessible(Constructor<?> hidden) {
+    MakeAccessible(Constructor<?> hidden) {
       this.hidden = hidden;
     }
 

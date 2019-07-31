@@ -33,12 +33,14 @@ class IndexById extends TypeUtil.SchemaVisitor<Map<Integer, Types.NestedField>> 
   }
 
   @Override
-  public Map<Integer, Types.NestedField> struct(Types.StructType struct, List<Map<Integer, Types.NestedField>> fieldResults) {
+  public Map<Integer, Types.NestedField> struct(
+      Types.StructType struct, List<Map<Integer, Types.NestedField>> fieldResults) {
     return index;
   }
 
   @Override
-  public Map<Integer, Types.NestedField> field(Types.NestedField field, Map<Integer, Types.NestedField> fieldResult) {
+  public Map<Integer, Types.NestedField> field(
+      Types.NestedField field, Map<Integer, Types.NestedField> fieldResult) {
     index.put(field.fieldId(), field);
     return null;
   }
@@ -52,7 +54,8 @@ class IndexById extends TypeUtil.SchemaVisitor<Map<Integer, Types.NestedField>> 
   }
 
   @Override
-  public Map<Integer, Types.NestedField> map(Types.MapType map, Map<Integer, Types.NestedField> keyResult, Map<Integer, Types.NestedField> valueResult) {
+  public Map<Integer, Types.NestedField> map(
+      Types.MapType map, Map<Integer, Types.NestedField> keyResult, Map<Integer, Types.NestedField> valueResult) {
     for (Types.NestedField field : map.fields()) {
       index.put(field.fieldId(), field);
     }

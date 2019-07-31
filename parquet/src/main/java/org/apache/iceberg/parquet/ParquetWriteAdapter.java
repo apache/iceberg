@@ -21,18 +21,22 @@ package org.apache.iceberg.parquet;
 
 import com.google.common.base.Preconditions;
 import java.io.IOException;
+import java.util.List;
 import org.apache.iceberg.Metrics;
+import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 
 public class ParquetWriteAdapter<D> implements FileAppender<D> {
-  private ParquetWriter<D> writer = null;
-  private ParquetMetadata footer = null;
+  private ParquetWriter<D> writer;
+  private MetricsConfig metricsConfig;
+  private ParquetMetadata footer;
 
-  public ParquetWriteAdapter(ParquetWriter<D> writer) {
+  public ParquetWriteAdapter(ParquetWriter<D> writer, MetricsConfig metricsConfig) {
     this.writer = writer;
+    this.metricsConfig = metricsConfig;
   }
 
   @Override
@@ -47,14 +51,17 @@ public class ParquetWriteAdapter<D> implements FileAppender<D> {
   @Override
   public Metrics metrics() {
     Preconditions.checkState(footer != null, "Cannot produce metrics until closed");
-    return ParquetMetrics.fromMetadata(footer);
+    return ParquetUtil.footerMetrics(footer, metricsConfig);
   }
 
   @Override
   public long length() {
-    Preconditions.checkState(writer == null,
-        "Cannot return length while appending to an open file.");
     return writer.getDataSize();
+  }
+
+  @Override
+  public List<Long> splitOffsets() {
+    return ParquetUtil.getSplitOffsets(writer.getFooter());
   }
 
   @Override

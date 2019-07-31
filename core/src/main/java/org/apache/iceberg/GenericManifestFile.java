@@ -19,7 +19,10 @@
 
 package org.apache.iceberg;
 
+import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import java.io.Serializable;
 import java.util.List;
 import org.apache.avro.Schema;
@@ -28,9 +31,6 @@ import org.apache.avro.specific.SpecificData.SchemaConstructable;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.types.Types;
-
-import static com.google.common.collect.ImmutableList.copyOf;
-import static com.google.common.collect.Iterables.transform;
 
 public class GenericManifestFile
     implements ManifestFile, StructLike, IndexedRecord, SchemaConstructable, Serializable {
@@ -122,7 +122,7 @@ public class GenericManifestFile
     this.addedFilesCount = toCopy.addedFilesCount;
     this.existingFilesCount = toCopy.existingFilesCount;
     this.deletedFilesCount = toCopy.deletedFilesCount;
-    this.partitions = copyOf(transform(toCopy.partitions, PartitionFieldSummary::copy));
+    this.partitions = ImmutableList.copyOf(Iterables.transform(toCopy.partitions, PartitionFieldSummary::copy));
     this.fromProjectionPos = toCopy.fromProjectionPos;
   }
 
@@ -196,11 +196,6 @@ public class GenericManifestFile
   }
 
   @Override
-  public void put(int i, Object v) {
-    set(i, v);
-  }
-
-  @Override
   public Object get(int i) {
     int pos = i;
     // if the schema was projected, map the incoming ordinal to the expected one
@@ -269,6 +264,11 @@ public class GenericManifestFile
   }
 
   @Override
+  public void put(int i, Object v) {
+    set(i, v);
+  }
+
+  @Override
   public ManifestFile copy() {
     return new GenericManifestFile(this);
   }
@@ -297,7 +297,7 @@ public class GenericManifestFile
 
   @Override
   public String toString() {
-    return Objects.toStringHelper(this)
+    return MoreObjects.toStringHelper(this)
         .add("path", manifestPath)
         .add("length", length)
         .add("partition_spec_id", specId)

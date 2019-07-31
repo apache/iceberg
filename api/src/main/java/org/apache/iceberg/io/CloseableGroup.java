@@ -22,11 +22,10 @@ package org.apache.iceberg.io;
 import com.google.common.collect.Lists;
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Iterator;
-import java.util.LinkedList;
+import java.util.Deque;
 
 public abstract class CloseableGroup implements Closeable {
-  private final LinkedList<Closeable> closeables = Lists.newLinkedList();
+  private final Deque<Closeable> closeables = Lists.newLinkedList();
 
   protected void addCloseable(Closeable closeable) {
     closeables.add(closeable);
@@ -39,25 +38,6 @@ public abstract class CloseableGroup implements Closeable {
       if (toClose != null) {
         toClose.close();
       }
-    }
-  }
-
-  static class ClosingIterable<T> extends CloseableGroup implements CloseableIterable<T> {
-    private final Iterable<T> iterable;
-
-    public ClosingIterable(Iterable<T> iterable, Iterable<Closeable> closeables) {
-      this.iterable = iterable;
-      if (iterable instanceof Closeable) {
-        addCloseable((Closeable) iterable);
-      }
-      for (Closeable closeable : closeables) {
-        addCloseable(closeable);
-      }
-    }
-
-    @Override
-    public Iterator<T> iterator() {
-      return iterable.iterator();
     }
   }
 }

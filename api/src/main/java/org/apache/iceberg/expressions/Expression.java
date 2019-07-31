@@ -75,6 +75,8 @@ public interface Expression extends Serializable {
     /**
      * @return the equivalent operation when the left and right operands are exchanged
      */
+    // Allow flipLR as a name because it's a public API
+    @SuppressWarnings("checkstyle:AbbreviationAsWordInName")
     public Operation flipLR() {
       switch (this) {
         case LT:

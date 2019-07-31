@@ -27,11 +27,11 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
@@ -39,13 +39,12 @@ import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.ManifestEntry.Status.DELETED;
 import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 
 /**
  * Reader for manifest files.
  * <p>
- * Readers are created using the builder from {@link #read(InputFile)}.
+ * Readers are created using the builder from {@link #read(InputFile, Function)}.
  */
 public class ManifestReader extends CloseableGroup implements Filterable<FilteredManifest> {
   private static final Logger LOG = LoggerFactory.getLogger(ManifestReader.class);
@@ -54,40 +53,33 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
   private static final List<String> CHANGE_COLUNNS = Lists.newArrayList(
       "file_path", "file_format", "partition", "record_count", "file_size_in_bytes");
 
-  /**
-   * Returns a new {@link ManifestReader} for an {@link InputFile}.
-   *
-   * @param file an InputFile
-   * @return a manifest reader
-   */
-  public static ManifestReader read(InputFile file) {
-    return new ManifestReader(file, true);
+  // Visible for testing
+  static ManifestReader read(InputFile file) {
+    return new ManifestReader(file, null);
   }
 
   /**
    * Returns a new {@link ManifestReader} for an {@link InputFile}.
    *
    * @param file an InputFile
-   * @param caseSensitive whether column name matching should have case sensitivity
+   * @param specLookup a function to look up the manifest's partition spec by ID
    * @return a manifest reader
    */
-  public static ManifestReader read(InputFile file, boolean caseSensitive) {
-    return new ManifestReader(file, caseSensitive);
+  public static ManifestReader read(InputFile file, Function<Integer, PartitionSpec> specLookup) {
+    return new ManifestReader(file, specLookup);
   }
 
   private final InputFile file;
   private final Map<String, String> metadata;
   private final PartitionSpec spec;
-  private final Schema schema;
-  private final boolean caseSensitive;
+  private final Schema fileSchema;
 
   // lazily initialized
-  private List<ManifestEntry> adds = null;
-  private List<ManifestEntry> deletes = null;
+  private List<ManifestEntry> cachedAdds = null;
+  private List<ManifestEntry> cachedDeletes = null;
 
-  private ManifestReader(InputFile file, boolean caseSensitive) {
+  private ManifestReader(InputFile file, Function<Integer, PartitionSpec> specLookup) {
     this.file = file;
-    this.caseSensitive = caseSensitive;
 
     try {
       try (AvroIterable<ManifestEntry> headerReader = Avro.read(file)
@@ -98,34 +90,21 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     }
-    this.schema = SchemaParser.fromJson(metadata.get("schema"));
+
     int specId = TableMetadata.INITIAL_SPEC_ID;
     String specProperty = metadata.get("partition-spec-id");
     if (specProperty != null) {
       specId = Integer.parseInt(specProperty);
     }
-    this.spec = PartitionSpecParser.fromJsonFields(schema, specId, metadata.get("partition-spec"));
-  }
 
-  private ManifestReader(InputFile file, Map<String, String> metadata,
-                         PartitionSpec spec, Schema schema, boolean caseSensitive) {
-    this.file = file;
-    this.metadata = metadata;
-    this.spec = spec;
-    this.schema = schema;
-    this.caseSensitive = caseSensitive;
-  }
+    if (specLookup != null) {
+      this.spec = specLookup.apply(specId);
+    } else {
+      Schema schema = SchemaParser.fromJson(metadata.get("schema"));
+      this.spec = PartitionSpecParser.fromJsonFields(schema, specId, metadata.get("partition-spec"));
+    }
 
-  /**
-   * Returns a new {@link ManifestReader} that, if filtered via {@link #select(java.util.Collection)},
-   * {@link #filterPartitions(Expression)} or {@link #filterRows(Expression)}, will apply the specified
-   * case sensitivity for column name matching.
-   *
-   * @param caseSensitive whether column name matching should have case sensitivity
-   * @return a manifest reader with case sensitivity as stated
-   */
-  public ManifestReader caseSensitive(boolean caseSensitive) {
-    return new ManifestReader(file, metadata, spec, schema, caseSensitive);
+    this.fileSchema = new Schema(DataFile.getType(spec.partitionType()).fields());
   }
 
   public InputFile file() {
@@ -133,7 +112,7 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
   }
 
   public Schema schema() {
-    return schema;
+    return fileSchema;
   }
 
   public PartitionSpec spec() {
@@ -141,76 +120,75 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
   }
 
   @Override
-  public Iterator<DataFile> iterator() {
-    return iterator(alwaysTrue(), ALL_COLUMNS);
+  public FilteredManifest select(Collection<String> columns) {
+    return new FilteredManifest(this, alwaysTrue(), alwaysTrue(), fileSchema, columns, true);
   }
 
   @Override
-  public FilteredManifest select(Collection<String> columns) {
-    return new FilteredManifest(this, alwaysTrue(), alwaysTrue(), Lists.newArrayList(columns), caseSensitive);
+  public FilteredManifest project(Schema fileProjection) {
+    return new FilteredManifest(this, alwaysTrue(), alwaysTrue(), fileProjection, ALL_COLUMNS, true);
   }
 
   @Override
   public FilteredManifest filterPartitions(Expression expr) {
-    return new FilteredManifest(this, expr, alwaysTrue(), ALL_COLUMNS, caseSensitive);
+    return new FilteredManifest(this, expr, alwaysTrue(), fileSchema, ALL_COLUMNS, true);
   }
 
   @Override
   public FilteredManifest filterRows(Expression expr) {
-    return new FilteredManifest(this,
-      Projections.inclusive(spec, caseSensitive).project(expr),
-      expr,
-      ALL_COLUMNS,
-      caseSensitive);
+    return new FilteredManifest(this, alwaysTrue(), expr, fileSchema, ALL_COLUMNS, true);
+  }
+
+  public FilteredManifest caseSensitive(boolean caseSensitive) {
+    return new FilteredManifest(this, alwaysTrue(), alwaysTrue(), fileSchema, ALL_COLUMNS, caseSensitive);
   }
 
   public List<ManifestEntry> addedFiles() {
-    if (adds == null) {
+    if (cachedAdds == null) {
       cacheChanges();
     }
-    return adds;
+    return cachedAdds;
   }
 
   public List<ManifestEntry> deletedFiles() {
-    if (deletes == null) {
+    if (cachedDeletes == null) {
       cacheChanges();
     }
-    return deletes;
+    return cachedDeletes;
   }
 
   private void cacheChanges() {
     List<ManifestEntry> adds = Lists.newArrayList();
     List<ManifestEntry> deletes = Lists.newArrayList();
 
-    for (ManifestEntry entry : entries(CHANGE_COLUNNS)) {
+    for (ManifestEntry entry : entries(fileSchema.select(CHANGE_COLUNNS))) {
       switch (entry.status()) {
         case ADDED:
-          adds.add(entry.copy());
+          adds.add(entry.copyWithoutStats());
           break;
         case DELETED:
-          deletes.add(entry.copy());
+          deletes.add(entry.copyWithoutStats());
           break;
         default:
       }
     }
 
-    this.adds = adds;
-    this.deletes = deletes;
+    this.cachedAdds = adds;
+    this.cachedDeletes = deletes;
   }
 
   CloseableIterable<ManifestEntry> entries() {
-    return entries(ALL_COLUMNS);
+    return entries(fileSchema);
   }
 
-  CloseableIterable<ManifestEntry> entries(Collection<String> columns) {
+  CloseableIterable<ManifestEntry> entries(Schema fileProjection) {
     FileFormat format = FileFormat.fromFileName(file.location());
-    Preconditions.checkArgument(format != null, "Unable to determine format of manifest: " + file);
+    Preconditions.checkArgument(format != null, "Unable to determine format of manifest: %s", file);
 
-    Schema schema = ManifestEntry.projectSchema(spec.partitionType(), columns);
     switch (format) {
       case AVRO:
         AvroIterable<ManifestEntry> reader = Avro.read(file)
-            .project(schema)
+            .project(ManifestEntry.wrapFileSchema(fileProjection.asStruct()))
             .rename("manifest_entry", ManifestEntry.class.getName())
             .rename("partition", PartitionData.class.getName())
             .rename("r102", PartitionData.class.getName())
@@ -228,11 +206,16 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
     }
   }
 
+  @Override
+  public Iterator<DataFile> iterator() {
+    return iterator(alwaysTrue(), fileSchema);
+  }
+
   // visible for use by PartialManifest
-  Iterator<DataFile> iterator(Expression partFilter, Collection<String> columns) {
+  Iterator<DataFile> iterator(Expression partFilter, Schema fileProjection) {
     return Iterables.transform(Iterables.filter(
-        entries(columns),
-        entry -> entry.status() != DELETED),
+        entries(fileProjection),
+        entry -> entry.status() != ManifestEntry.Status.DELETED),
         ManifestEntry::file).iterator();
   }
 

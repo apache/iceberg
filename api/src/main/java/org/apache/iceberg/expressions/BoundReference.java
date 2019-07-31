@@ -19,57 +19,39 @@
 
 package org.apache.iceberg.expressions;
 
-import java.util.List;
+import org.apache.iceberg.Accessor;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 
 public class BoundReference<T> implements Reference {
   private final int fieldId;
-  private final Type type;
-  private final int pos;
+  private final Accessor<StructLike> accessor;
 
-  BoundReference(Types.StructType struct, int fieldId) {
+  BoundReference(int fieldId, Accessor<StructLike> accessor) {
     this.fieldId = fieldId;
-    this.pos = find(fieldId, struct);
-    this.type = struct.fields().get(pos).type();
-  }
-
-  private int find(int fieldId, Types.StructType struct) {
-    List<Types.NestedField> fields = struct.fields();
-    for (int i = 0; i < fields.size(); i += 1) {
-      if (fields.get(i).fieldId() == fieldId) {
-        return i;
-      }
-    }
-    throw new ValidationException(
-        "Cannot find top-level field id %d in struct: %s", fieldId, struct);
+    this.accessor = accessor;
   }
 
   public Type type() {
-    return type;
+    return accessor.type();
   }
 
   public int fieldId() {
     return fieldId;
   }
 
-  public int pos() {
-    return pos;
+  public Accessor<StructLike> accessor() {
+    return accessor;
   }
 
+  @SuppressWarnings("unchecked")
   public T get(StructLike struct) {
-    return struct.get(pos, javaType());
+    return (T) accessor.get(struct);
   }
 
   @Override
   public String toString() {
-    return String.format("ref(id=%d, pos=%d, type=%s)", fieldId, pos, type);
+    return String.format("ref(id=%d, accessor-type=%s)", fieldId, accessor.type());
   }
 
-  @SuppressWarnings("unchecked")
-  private Class<T> javaType() {
-    return (Class<T>) type.asPrimitiveType().typeId().javaClass();
-  }
 }

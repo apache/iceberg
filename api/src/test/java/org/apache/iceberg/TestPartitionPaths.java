@@ -41,8 +41,8 @@ public class TestPartitionPaths {
         .bucket("id", 10)
         .build();
 
-    Transform hour = spec.getFieldBySourceId(3).transform();
-    Transform bucket = spec.getFieldBySourceId(1).transform();
+    Transform hour = spec.getFieldsBySourceId(3).get(0).transform();
+    Transform bucket = spec.getFieldsBySourceId(1).get(0).transform();
 
     Literal<Long> ts = Literal.of("2017-12-01T10:12:55.038194").to(Types.TimestampType.withoutZone());
     Object tsHour = hour.apply(ts.value());

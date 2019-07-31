@@ -22,10 +22,13 @@ package org.apache.iceberg.parquet;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
+import com.google.common.collect.Sets;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
@@ -42,6 +45,8 @@ import org.apache.parquet.HadoopReadOptions;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.avro.AvroReadSupport;
 import org.apache.parquet.avro.AvroWriteSupport;
+import org.apache.parquet.column.ParquetProperties;
+import org.apache.parquet.column.ParquetProperties.WriterVersion;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.parquet.hadoop.ParquetReader;
@@ -64,6 +69,9 @@ public class Parquet {
   private Parquet() {
   }
 
+  private static Collection<String> READ_PROPERTIES_TO_REMOVE = Sets.newHashSet(
+      "parquet.read.filter", "parquet.private.read.filter.predicate", "parquet.read.support.class");
+
   public static WriteBuilder write(OutputFile file) {
     return new WriteBuilder(file);
   }
@@ -76,6 +84,8 @@ public class Parquet {
     private Map<String, String> metadata = Maps.newLinkedHashMap();
     private Map<String, String> config = Maps.newLinkedHashMap();
     private Function<MessageType, ParquetValueWriter<?>> createWriterFunc = null;
+    private MetricsConfig metricsConfig = MetricsConfig.getDefault();
+    private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
@@ -84,6 +94,7 @@ public class Parquet {
     public WriteBuilder forTable(Table table) {
       schema(table.schema());
       setAll(table.properties());
+      metricsConfig(MetricsConfig.fromProperties(table.properties()));
       return this;
     }
 
@@ -123,6 +134,20 @@ public class Parquet {
       return this;
     }
 
+    public WriteBuilder metricsConfig(MetricsConfig newMetricsConfig) {
+      this.metricsConfig = newMetricsConfig;
+      return this;
+    }
+
+    public WriteBuilder overwrite() {
+      return overwrite(true);
+    }
+
+    public WriteBuilder overwrite(boolean enabled) {
+      this.writeMode = enabled ? ParquetFileWriter.Mode.OVERWRITE : ParquetFileWriter.Mode.CREATE;
+      return this;
+    }
+
     @SuppressWarnings("unchecked")
     private <T> WriteSupport<T> getWriteSupport(MessageType type) {
       if (writeSupport != null) {
@@ -144,13 +169,6 @@ public class Parquet {
       }
     }
 
-    void forwardConfig(String parquetProperty, String icebergProperty, String defaultValue) {
-      String value = config.getOrDefault(icebergProperty, defaultValue);
-      if (value != null) {
-        set(parquetProperty, value);
-      }
-    }
-
     public <D> FileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(name, "Table name is required and cannot be null");
@@ -158,13 +176,15 @@ public class Parquet {
       // add the Iceberg schema to keyValueMetadata
       meta("iceberg.schema", SchemaParser.toJson(schema));
 
-      // add Parquet configuration
-      forwardConfig("parquet.block.size",
-          PARQUET_ROW_GROUP_SIZE_BYTES, PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
-      forwardConfig("parquet.page.size",
-          PARQUET_PAGE_SIZE_BYTES, PARQUET_PAGE_SIZE_BYTES_DEFAULT);
-      forwardConfig("parquet.dictionary.page.size",
-          PARQUET_DICT_SIZE_BYTES, PARQUET_DICT_SIZE_BYTES_DEFAULT);
+      // Map Iceberg properties to pass down to the Parquet writer
+      int rowGroupSize = Integer.parseInt(config.getOrDefault(
+          PARQUET_ROW_GROUP_SIZE_BYTES, PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT));
+      int pageSize = Integer.parseInt(config.getOrDefault(
+          PARQUET_PAGE_SIZE_BYTES, PARQUET_PAGE_SIZE_BYTES_DEFAULT));
+      int dictionaryPageSize = Integer.parseInt(config.getOrDefault(
+          PARQUET_DICT_SIZE_BYTES, PARQUET_DICT_SIZE_BYTES_DEFAULT));
+
+      WriterVersion writerVersion = WriterVersion.PARQUET_1_0;
 
       set("parquet.avro.write-old-list-structure", "false");
       MessageType type = ParquetSchemaUtil.convert(schema, name);
@@ -183,19 +203,29 @@ public class Parquet {
           conf.set(entry.getKey(), entry.getValue());
         }
 
-        long rowGroupSize = Long.parseLong(config.getOrDefault(
-            PARQUET_ROW_GROUP_SIZE_BYTES, PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT));
+        ParquetProperties parquetProperties = ParquetProperties.builder()
+            .withWriterVersion(writerVersion)
+            .withPageSize(pageSize)
+            .withDictionaryPageSize(dictionaryPageSize)
+            .build();
+
         return new org.apache.iceberg.parquet.ParquetWriter<>(
-            conf, file, schema, rowGroupSize, metadata, createWriterFunc, codec());
+            conf, file, schema, rowGroupSize, metadata, createWriterFunc, codec(),
+            parquetProperties, metricsConfig, writeMode);
       } else {
         return new ParquetWriteAdapter<>(new ParquetWriteBuilder<D>(ParquetIO.file(file))
+            .withWriterVersion(writerVersion)
             .setType(type)
             .setConfig(config)
             .setKeyValueMetadata(metadata)
             .setWriteSupport(getWriteSupport(type))
             .withCompressionCodec(codec())
-            .withWriteMode(ParquetFileWriter.Mode.OVERWRITE) // TODO: support modes
-            .build());
+            .withWriteMode(writeMode)
+            .withRowGroupSize(rowGroupSize)
+            .withPageSize(pageSize)
+            .withDictionaryPageSize(dictionaryPageSize)
+            .build(),
+            metricsConfig);
       }
     }
   }
@@ -257,6 +287,7 @@ public class Parquet {
     private ReadSupport<?> readSupport = null;
     private Function<MessageType, ParquetValueReader<?>> readerFunc = null;
     private boolean filterRecords = true;
+    private boolean caseSensitive = true;
     private Map<String, String> properties = Maps.newHashMap();
     private boolean callInit = false;
     private boolean reuseContainers = false;
@@ -280,6 +311,15 @@ public class Parquet {
 
     public ReadBuilder project(Schema schema) {
       this.schema = schema;
+      return this;
+    }
+
+    public ReadBuilder caseInsensitive() {
+      return caseSensitive(false);
+    }
+
+    public ReadBuilder caseSensitive(boolean caseSensitive) {
+      this.caseSensitive = caseSensitive;
       return this;
     }
 
@@ -323,7 +363,12 @@ public class Parquet {
       if (readerFunc != null) {
         ParquetReadOptions.Builder optionsBuilder;
         if (file instanceof HadoopInputFile) {
-          optionsBuilder = HadoopReadOptions.builder(((HadoopInputFile) file).getConf());
+          // remove read properties already set that may conflict with this read
+          Configuration conf = new Configuration(((HadoopInputFile) file).getConf());
+          for (String property : READ_PROPERTIES_TO_REMOVE) {
+            conf.unset(property);
+          }
+          optionsBuilder = HadoopReadOptions.builder(conf);
         } else {
           optionsBuilder = ParquetReadOptions.builder();
         }
@@ -339,7 +384,7 @@ public class Parquet {
         ParquetReadOptions options = optionsBuilder.build();
 
         return new org.apache.iceberg.parquet.ParquetReader<>(
-            file, schema, options, readerFunc, filter, reuseContainers);
+            file, schema, options, readerFunc, filter, reuseContainers, caseSensitive);
       }
 
       ParquetReadBuilder<D> builder = new ParquetReadBuilder<>(ParquetIO.file(file));
@@ -374,7 +419,7 @@ public class Parquet {
         builder.useStatsFilter()
             .useDictionaryFilter()
             .useRecordFilter(filterRecords)
-            .withFilter(ParquetFilters.convert(fileSchema, filter));
+            .withFilter(ParquetFilters.convert(fileSchema, filter, caseSensitive));
       } else {
         // turn off filtering
         builder.useStatsFilter(false)

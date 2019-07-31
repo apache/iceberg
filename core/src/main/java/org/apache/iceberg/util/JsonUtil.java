@@ -30,6 +30,9 @@ import java.util.List;
 import java.util.Map;
 
 public class JsonUtil {
+
+  private JsonUtil() {}
+
   private static final JsonFactory FACTORY = new JsonFactory();
   private static final ObjectMapper MAPPER = new ObjectMapper(FACTORY);
 
@@ -46,6 +49,16 @@ public class JsonUtil {
     JsonNode pNode = node.get(property);
     Preconditions.checkArgument(pNode != null && !pNode.isNull() && pNode.isNumber(),
         "Cannot parse %s from non-numeric value: %s", property, pNode);
+    return pNode.asInt();
+  }
+
+  public static Integer getIntOrNull(String property, JsonNode node) {
+    if (!node.has(property)) {
+      return null;
+    }
+    JsonNode pNode = node.get(property);
+    Preconditions.checkArgument(pNode != null && !pNode.isNull() && pNode.isIntegralNumber() && pNode.canConvertToInt(),
+        "Cannot parse %s from non-string value: %s", property, pNode);
     return pNode.asInt();
   }
 

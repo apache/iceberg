@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.expressions;
 
+import java.util.Collection;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
@@ -43,7 +44,7 @@ public class Projections {
    * A strict projection guarantees that if a partition matches a projected expression, then all
    * rows in that partition will match the original expression.
    */
-  public static abstract class ProjectionEvaluator extends ExpressionVisitor<Expression> {
+  public abstract static class ProjectionEvaluator extends ExpressionVisitor<Expression> {
     /**
      * Project the given row expression to a partition expression.
      *
@@ -134,8 +135,8 @@ public class Projections {
   }
 
   private static class BaseProjectionEvaluator extends ProjectionEvaluator {
-    final PartitionSpec spec;
-    final boolean caseSensitive;
+    private final PartitionSpec spec;
+    private final boolean caseSensitive;
 
     private BaseProjectionEvaluator(PartitionSpec spec, boolean caseSensitive) {
       this.spec = spec;
@@ -187,6 +188,14 @@ public class Projections {
 
       return bound;
     }
+
+    PartitionSpec spec() {
+      return spec;
+    }
+
+    boolean isCaseSensitive() {
+      return caseSensitive;
+    }
   }
 
   private static class InclusiveProjection extends BaseProjectionEvaluator {
@@ -197,20 +206,28 @@ public class Projections {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Expression predicate(BoundPredicate<T> pred) {
-      PartitionField part = spec.getFieldBySourceId(pred.ref().fieldId());
-      if (part == null) {
+      Collection<PartitionField> parts = spec().getFieldsBySourceId(pred.ref().fieldId());
+      if (parts == null) {
         // the predicate has no partition column
-        return alwaysTrue();
+        return Expressions.alwaysTrue();
       }
 
-      UnboundPredicate<?> result = ((Transform<T, ?>) part.transform()).project(part.name(), pred);
-
-      if (result != null) {
-        return result;
+      Expression result = Expressions.alwaysTrue();
+      for (PartitionField part : parts) {
+        // consider (d = 2019-01-01) with bucket(7, d) and bucket(5, d)
+        // projections: b1 = bucket(7, '2019-01-01') = 5, b2 = bucket(5, '2019-01-01') = 0
+        // any value where b1 != 5 or any value where b2 != 0 cannot be the '2019-01-01'
+        //
+        // similarly, if partitioning by day(ts) and hour(ts), the more restrictive
+        // projection should be used. ts = 2019-01-01T01:00:00 produces day=2019-01-01 and
+        // hour=2019-01-01-01. the value will be in 2019-01-01-01 and not in 2019-01-01-02.
+        UnboundPredicate<?> inclusiveProjection = ((Transform<T, ?>) part.transform()).project(part.name(), pred);
+        if (inclusiveProjection != null) {
+          result = Expressions.and(result, inclusiveProjection);
+        }
       }
 
-      // if the predicate could not be projected, it always matches
-      return alwaysTrue();
+      return result;
     }
   }
 
@@ -222,21 +239,26 @@ public class Projections {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Expression predicate(BoundPredicate<T> pred) {
-      PartitionField part = spec.getFieldBySourceId(pred.ref().fieldId());
-      if (part == null) {
+      Collection<PartitionField> parts = spec().getFieldsBySourceId(pred.ref().fieldId());
+      if (parts == null) {
         // the predicate has no partition column
-        return alwaysFalse();
+        return Expressions.alwaysFalse();
       }
 
-      UnboundPredicate<?> result = ((Transform<T, ?>) part.transform())
-          .projectStrict(part.name(), pred);
-
-      if (result != null) {
-        return result;
+      Expression result = Expressions.alwaysFalse();
+      for (PartitionField part : parts) {
+        // consider (ts > 2019-01-01T01:00:00) with day(ts) and hour(ts)
+        // projections: d >= 2019-01-02 and h >= 2019-01-01-02 (note the inclusive bounds).
+        // any timestamp where either projection predicate is true must match the original
+        // predicate. For example, ts = 2019-01-01T03:00:00 matches the hour projection but not
+        // the day, but does match the original predicate.
+        UnboundPredicate<?> strictProjection = ((Transform<T, ?>) part.transform()).projectStrict(part.name(), pred);
+        if (strictProjection != null) {
+          result = Expressions.or(result, strictProjection);
+        }
       }
 
-      // if the predicate could not be projected, it never matches
-      return alwaysFalse();
+      return result;
     }
   }
 }

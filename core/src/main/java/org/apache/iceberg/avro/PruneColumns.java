@@ -27,11 +27,6 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.avro.Schema;
 
-import static org.apache.iceberg.avro.AvroSchemaUtil.getElementId;
-import static org.apache.iceberg.avro.AvroSchemaUtil.getFieldId;
-import static org.apache.iceberg.avro.AvroSchemaUtil.getKeyId;
-import static org.apache.iceberg.avro.AvroSchemaUtil.getValueId;
-
 class PruneColumns extends AvroSchemaVisitor<Schema> {
   private final Set<Integer> selectedIds;
 
@@ -54,7 +49,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
     List<Schema.Field> filteredFields = Lists.newArrayListWithExpectedSize(fields.size());
     boolean hasChange = false;
     for (Schema.Field field : record.getFields()) {
-      int fieldId = getFieldId(field);
+      int fieldId = AvroSchemaUtil.getFieldId(field);
       Schema fieldSchema = fields.get(field.pos());
       // All primitives are selected by selecting the field, but map and list
       // types can be selected by projecting the keys, values, or elements.
@@ -84,7 +79,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
   @Override
   public Schema union(Schema union, List<Schema> options) {
     Preconditions.checkState(AvroSchemaUtil.isOptionSchema(union),
-        "Invalid schema: non-option unions are not supported: {}", union);
+        "Invalid schema: non-option unions are not supported: %s", union);
 
     // only unions with null are allowed, and a null schema results in null
     Schema pruned = null;
@@ -108,8 +103,8 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
   public Schema array(Schema array, Schema element) {
     if (array.getLogicalType() instanceof LogicalMap) {
       Schema keyValue = array.getElementType();
-      int keyId = getFieldId(keyValue.getField("key"));
-      int valueId = getFieldId(keyValue.getField("value"));
+      int keyId = AvroSchemaUtil.getFieldId(keyValue.getField("key"));
+      int valueId = AvroSchemaUtil.getFieldId(keyValue.getField("value"));
 
       // if either key or value is selected, the whole map must be projected
       if (selectedIds.contains(keyId) || selectedIds.contains(valueId)) {
@@ -126,7 +121,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       }
 
     } else {
-      int elementId = getElementId(array);
+      int elementId = AvroSchemaUtil.getElementId(array);
       if (selectedIds.contains(elementId)) {
         return array;
       } else if (element != null) {
@@ -143,8 +138,8 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
 
   @Override
   public Schema map(Schema map, Schema value) {
-    int keyId = getKeyId(map);
-    int valueId = getValueId(map);
+    int keyId = AvroSchemaUtil.getKeyId(map);
+    int valueId = AvroSchemaUtil.getValueId(map);
     // if either key or value is selected, the whole map must be projected
     if (selectedIds.contains(keyId) || selectedIds.contains(valueId)) {
       return map;

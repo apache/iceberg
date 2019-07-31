@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.expressions;
 
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 
@@ -66,15 +67,13 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
    * @throws ValidationException if literals do not match bound references, or if comparison on expression is invalid
    */
   public Expression bind(Types.StructType struct, boolean caseSensitive) {
-    Types.NestedField field;
-    if (caseSensitive) {
-      field = struct.field(ref().name());
-    } else {
-      field = struct.caseInsensitiveField(ref().name());
-    }
+    Schema schema = new Schema(struct.fields());
+    Types.NestedField field = caseSensitive ?
+        schema.findField(ref().name()) :
+        schema.caseInsensitiveFindField(ref().name());
 
     ValidationException.check(field != null,
-        "Cannot find field '%s' in struct: %s", ref().name(), struct);
+        "Cannot find field '%s' in struct: %s", ref().name(), schema.asStruct());
 
     if (literal() == null) {
       switch (op()) {
@@ -82,12 +81,14 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
           if (field.isRequired()) {
             return Expressions.alwaysFalse();
           }
-          return new BoundPredicate<>(IS_NULL, new BoundReference<>(struct, field.fieldId()));
+          return new BoundPredicate<>(IS_NULL, new BoundReference<>(field.fieldId(),
+              schema.accessorForField(field.fieldId())));
         case NOT_NULL:
           if (field.isRequired()) {
             return Expressions.alwaysTrue();
           }
-          return new BoundPredicate<>(NOT_NULL, new BoundReference<>(struct, field.fieldId()));
+          return new BoundPredicate<>(NOT_NULL, new BoundReference<>(field.fieldId(),
+              schema.accessorForField(field.fieldId())));
         default:
           throw new ValidationException("Operation must be IS_NULL or NOT_NULL");
       }
@@ -130,6 +131,7 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
 //          break;
       }
     }
-    return new BoundPredicate<>(op(), new BoundReference<>(struct, field.fieldId()), lit);
+    return new BoundPredicate<>(op(), new BoundReference<>(field.fieldId(),
+        schema.accessorForField(field.fieldId())), lit);
   }
 }
