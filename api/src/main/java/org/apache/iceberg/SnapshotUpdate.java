@@ -45,4 +45,11 @@ public interface SnapshotUpdate<ThisT> extends PendingUpdate<Snapshot> {
    */
   ThisT deleteWith(Consumer<String> deleteFunc);
 
+  /**
+   * Called to stage a snapshot in table metadata, but not update the current snapshot id.
+   *
+   * @return this for method chaining
+   */
+  ThisT stageOnly();
+
 }

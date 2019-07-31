@@ -75,7 +75,8 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
     validateWriteSchema(table.schema(), dsStruct);
     String appId = lazySparkSession().sparkContext().applicationId();
-    return Optional.of(new Writer(table, options, mode == SaveMode.Overwrite, appId));
+    String wapId = lazySparkSession().conf().get("spark.wap.id", null);
+    return Optional.of(new Writer(table, options, mode == SaveMode.Overwrite, appId, wapId));
   }
 
   @Override
