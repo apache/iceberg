@@ -21,7 +21,7 @@ package org.apache.iceberg.spark.data.vector;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.DateDayVector;
@@ -66,16 +66,32 @@ public class VectorizedParquetValueReaders {
 
   public abstract static class VectorReader extends ParquetValueReaders.PrimitiveReader<FieldVector> {
 
+    public static final int DEFAULT_NUM_ROWS_IN_BATCH = 10000;
+    // private static final Logger LOG = LoggerFactory.getLogger(VectorReader.class);
+
     private FieldVector vec;
     private boolean isOptional;
+    private int rowsInBatch = DEFAULT_NUM_ROWS_IN_BATCH;
+    private ColumnDescriptor desc;
 
     VectorReader(ColumnDescriptor desc,
         Types.NestedField icebergField,
-        RootAllocator rootAlloc) {
+        BufferAllocator rootAlloc) {
 
       super(desc);
       this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
       this.isOptional = desc.getPrimitiveType().isRepetition(Type.Repetition.OPTIONAL);
+      this.desc = desc;
+    }
+
+    VectorReader(ColumnDescriptor desc,
+        Types.NestedField icebergField,
+        BufferAllocator rootAlloc,
+        int rowsInBatch) {
+
+      this(desc, icebergField, rootAlloc);
+      this.rowsInBatch = (rowsInBatch == 0) ? DEFAULT_NUM_ROWS_IN_BATCH : rowsInBatch;
+      // LOG.info("=> [VectorReader] rowsInBatch = " + this.rowsInBatch);
     }
 
     protected FieldVector getVector() {
@@ -92,19 +108,28 @@ public class VectorizedParquetValueReaders {
       vec.reset();
       int ordinal = 0;
 
-      while (column.hasNext()) {
-        // Todo: this check works for flat schemas only
-        // need to get max definition level to do proper check
-        if (isOptional && column.currentDefinitionLevel() == 0) {
-          // handle null
-          column.nextNull();
-          nextNullAt(ordinal);
+      for (; ordinal < rowsInBatch; ordinal++) {
+        if (column.hasNext()) {
+          // while (column.hasNext()) {
+          // Todo: this check works for flat schemas only
+          // need to get max definition level to do proper check
+          if (isOptional && column.currentDefinitionLevel() == 0) {
+            // handle null
+            column.nextNull();
+            nextNullAt(ordinal);
+          } else {
+            nextValueAt(ordinal);
+          }
         } else {
-          nextValueAt(ordinal);
+          // proceed to next rowgroup Or exit.
+          // LOG.info("**** No more in RowGroup. Exiting!");
+          break;
         }
-        ordinal++;
+        // }
       }
       vec.setValueCount(ordinal);
+      // LOG.info("=> Vector col:" + desc.getPrimitiveType().getPrimitiveTypeName() +
+      //     ", for setting batch size :" + rowsInBatch + ", with " + ordinal + " values");
       return vec;
     }
 
@@ -120,8 +145,9 @@ public class VectorizedParquetValueReaders {
 
   protected static class StringReader extends VectorReader {
 
-    StringReader(ColumnDescriptor desc, Types.NestedField icebergField, RootAllocator rootAlloc) {
-      super(desc, icebergField, rootAlloc);
+    StringReader(ColumnDescriptor desc, Types.NestedField icebergField,
+        BufferAllocator rootAlloc, int recordsPerBatch) {
+      super(desc, icebergField, rootAlloc, recordsPerBatch);
     }
 
     @Override
@@ -149,9 +175,9 @@ public class VectorizedParquetValueReaders {
 
     IntegerReader(ColumnDescriptor desc,
         Types.NestedField icebergField,
-        RootAllocator rootAlloc) {
+        BufferAllocator rootAlloc, int recordsPerBatch) {
 
-      super(desc, icebergField, rootAlloc);
+      super(desc, icebergField, rootAlloc, recordsPerBatch);
     }
 
     @Override
@@ -171,9 +197,9 @@ public class VectorizedParquetValueReaders {
 
     LongReader(ColumnDescriptor desc,
         Types.NestedField icebergField,
-        RootAllocator rootAlloc) {
+        BufferAllocator rootAlloc, int recordsPerBatch) {
 
-      super(desc, icebergField, rootAlloc);
+      super(desc, icebergField, rootAlloc, recordsPerBatch);
     }
 
     protected void nextNullAt(int ordinal) {
@@ -192,8 +218,8 @@ public class VectorizedParquetValueReaders {
 
     TimestampMillisReader(ColumnDescriptor desc,
         Types.NestedField icebergField,
-        RootAllocator rootAlloc) {
-      super(desc, icebergField, rootAlloc);
+        BufferAllocator rootAlloc, int recordsPerBatch) {
+      super(desc, icebergField, rootAlloc, recordsPerBatch);
     }
 
     protected void nextValueAt(int ordinal) {
@@ -208,8 +234,8 @@ public class VectorizedParquetValueReaders {
 
     TimestampMicroReader(ColumnDescriptor desc,
         Types.NestedField icebergField,
-        RootAllocator rootAlloc) {
-      super(desc, icebergField, rootAlloc);
+        BufferAllocator rootAlloc, int recordsPerBatch) {
+      super(desc, icebergField, rootAlloc, recordsPerBatch);
     }
 
     protected void nextNullAt(int ordinal) {
@@ -228,8 +254,8 @@ public class VectorizedParquetValueReaders {
 
     BooleanReader(ColumnDescriptor desc,
         Types.NestedField icebergField,
-        RootAllocator rootAlloc) {
-      super(desc, icebergField, rootAlloc);
+        BufferAllocator rootAlloc, int recordsPerBatch) {
+      super(desc, icebergField, rootAlloc, recordsPerBatch);
     }
 
     protected void nextNullAt(int ordinal) {
@@ -249,8 +275,8 @@ public class VectorizedParquetValueReaders {
 
     FloatReader(ColumnDescriptor desc,
         Types.NestedField icebergField,
-        RootAllocator rootAlloc) {
-      super(desc, icebergField, rootAlloc);
+        BufferAllocator rootAlloc, int recordsPerBatch) {
+      super(desc, icebergField, rootAlloc, recordsPerBatch);
     }
 
     protected void nextNullAt(int ordinal) {
@@ -269,8 +295,8 @@ public class VectorizedParquetValueReaders {
 
     DoubleReader(ColumnDescriptor desc,
         Types.NestedField icebergField,
-        RootAllocator rootAlloc) {
-      super(desc, icebergField, rootAlloc);
+        BufferAllocator rootAlloc, int recordsPerBatch) {
+      super(desc, icebergField, rootAlloc, recordsPerBatch);
     }
 
     protected void nextNullAt(int ordinal) {
@@ -290,8 +316,8 @@ public class VectorizedParquetValueReaders {
 
     BinaryReader(ColumnDescriptor desc,
         Types.NestedField icebergField,
-        RootAllocator rootAlloc) {
-      super(desc, icebergField, rootAlloc);
+        BufferAllocator rootAlloc, int recordsPerBatch) {
+      super(desc, icebergField, rootAlloc, recordsPerBatch);
     }
 
     protected void nextNullAt(int ordinal) {
@@ -311,8 +337,8 @@ public class VectorizedParquetValueReaders {
 
     DateReader(ColumnDescriptor desc,
         Types.NestedField icebergField,
-        RootAllocator rootAlloc) {
-      super(desc, icebergField, rootAlloc);
+        BufferAllocator rootAlloc, int recordsPerBatch) {
+      super(desc, icebergField, rootAlloc, recordsPerBatch);
     }
 
     protected void nextNullAt(int ordinal) {
@@ -334,10 +360,10 @@ public class VectorizedParquetValueReaders {
 
     IntegerDecimalReader(ColumnDescriptor desc,
         Types.NestedField icebergField,
-        RootAllocator rootAlloc,
-        int precision, int scale) {
+        BufferAllocator rootAlloc,
+        int precision, int scale, int recordsPerBatch) {
 
-      super(desc, icebergField, rootAlloc);
+      super(desc, icebergField, rootAlloc, recordsPerBatch);
       this.precision = precision;
       this.scale = scale;
     }
@@ -362,10 +388,10 @@ public class VectorizedParquetValueReaders {
 
     LongDecimalReader(ColumnDescriptor desc,
         Types.NestedField icebergField,
-        RootAllocator rootAlloc,
-        int precision, int scale) {
+        BufferAllocator rootAlloc,
+        int precision, int scale, int recordsPerBatch) {
 
-      super(desc, icebergField, rootAlloc);
+      super(desc, icebergField, rootAlloc, recordsPerBatch);
       this.precision = precision;
       this.scale = scale;
     }
@@ -390,10 +416,10 @@ public class VectorizedParquetValueReaders {
 
     BinaryDecimalReader(ColumnDescriptor desc,
         Types.NestedField icebergField,
-        RootAllocator rootAlloc,
-        int precision, int scale) {
+        BufferAllocator rootAlloc,
+        int precision, int scale, int recordsPerBatch) {
 
-      super(desc, icebergField, rootAlloc);
+      super(desc, icebergField, rootAlloc, recordsPerBatch);
       this.precision = precision;
       this.scale = scale;
     }

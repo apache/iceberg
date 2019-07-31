@@ -283,7 +283,7 @@ public class Parquet {
     private Map<String, String> properties = Maps.newHashMap();
     private boolean callInit = false;
     private boolean reuseContainers = false;
-    private int maxRecordsPerBatch = 1000;
+    private int maxRecordsPerBatch = 10000;
 
     private ReadBuilder(InputFile file) {
       this.file = file;

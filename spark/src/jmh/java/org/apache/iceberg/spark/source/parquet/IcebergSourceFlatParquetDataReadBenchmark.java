@@ -66,12 +66,43 @@ public class IcebergSourceFlatParquetDataReadBenchmark extends IcebergSourceFlat
 
   @Benchmark
   @Threads(1)
-  public void readIceberg() {
+  public void readIcebergVectorized100k() {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
     withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg").load(tableLocation);
+      Dataset<Row> df = spark().read().format("iceberg")
+          .option("iceberg.read.numrecordsperbatch", "100000")
+          .load(tableLocation);
+      materialize(df);
+    });
+  }
+
+  @Benchmark
+  @Threads(1)
+  public void readIcebergVectorized10k() {
+    Map<String, String> tableProperties = Maps.newHashMap();
+    tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
+    withTableProperties(tableProperties, () -> {
+      String tableLocation = table().location();
+      Dataset<Row> df = spark().read().format("iceberg")
+          .option("iceberg.read.numrecordsperbatch", "10000")
+          .load(tableLocation);
+      materialize(df);
+    });
+  }
+
+
+  @Benchmark
+  @Threads(1)
+  public void readIcebergVectorized5k() {
+    Map<String, String> tableProperties = Maps.newHashMap();
+    tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
+    withTableProperties(tableProperties, () -> {
+      String tableLocation = table().location();
+      Dataset<Row> df = spark().read().format("iceberg")
+          .option("iceberg.read.numrecordsperbatch", "5000")
+          .load(tableLocation);
       materialize(df);
     });
   }
@@ -102,12 +133,43 @@ public class IcebergSourceFlatParquetDataReadBenchmark extends IcebergSourceFlat
 
   @Benchmark
   @Threads(1)
-  public void readWithProjectionIceberg() {
+  public void readWithProjectionIcebergVectorized100k() {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
     withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).select("longCol");
+      Dataset<Row> df = spark().read().format("iceberg")
+          .option("iceberg.read.numrecordsperbatch", "100000")
+          .load(tableLocation).select("longCol");
+      materialize(df);
+    });
+  }
+
+  @Benchmark
+  @Threads(1)
+  public void readWithProjectionIcebergVectorized10k() {
+    Map<String, String> tableProperties = Maps.newHashMap();
+    tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
+    withTableProperties(tableProperties, () -> {
+      String tableLocation = table().location();
+      Dataset<Row> df = spark().read().format("iceberg")
+          .option("iceberg.read.numrecordsperbatch", "10000")
+          .load(tableLocation).select("longCol");
+      materialize(df);
+    });
+  }
+
+
+  @Benchmark
+  @Threads(1)
+  public void readWithProjectionIcebergVectorized5k() {
+    Map<String, String> tableProperties = Maps.newHashMap();
+    tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
+    withTableProperties(tableProperties, () -> {
+      String tableLocation = table().location();
+      Dataset<Row> df = spark().read().format("iceberg")
+          .option("iceberg.read.numrecordsperbatch", "5000")
+          .load(tableLocation).select("longCol");
       materialize(df);
     });
   }
@@ -135,6 +197,23 @@ public class IcebergSourceFlatParquetDataReadBenchmark extends IcebergSourceFlat
       materialize(df);
     });
   }
+
+
+
+  @Benchmark
+  @Threads(1)
+  public void readIcebergVectorized1k() {
+    Map<String, String> tableProperties = Maps.newHashMap();
+    tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
+    withTableProperties(tableProperties, () -> {
+      String tableLocation = table().location();
+      Dataset<Row> df = spark().read().format("iceberg")
+          .option("iceberg.read.numrecordsperbatch", "1000")
+          .load(tableLocation);
+      materialize(df);
+    });
+  }
+
 
   private void appendData() {
     for (int fileNum = 1; fileNum <= NUM_FILES; fileNum++) {
