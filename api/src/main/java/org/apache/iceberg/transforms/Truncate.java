@@ -30,8 +30,6 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.UnicodeUtil;
 
 import static org.apache.iceberg.expressions.Expression.Operation.IS_NULL;
-import static org.apache.iceberg.expressions.Expression.Operation.LT;
-import static org.apache.iceberg.expressions.Expression.Operation.LT_EQ;
 import static org.apache.iceberg.expressions.Expression.Operation.NOT_NULL;
 
 abstract class Truncate<T> implements Transform<T, T> {
@@ -95,46 +93,14 @@ abstract class Truncate<T> implements Transform<T, T> {
     }
 
     @Override
-    public UnboundPredicate<Integer> projectStrict(String name, BoundPredicate<Integer> predicate) {
+    public UnboundPredicate<Integer> projectStrict(String name, BoundPredicate<Integer> pred) {
       // TODO: for integers, can this return the original predicate?
       // No. the predicate needs to be in terms of the applied value. For all x, apply(x) <= x.
       // Therefore, the lower bound can be transformed outside of a greater-than bound.
-      int in;
-      int out;
-      int inImage;
-      int outImage;
-      switch (predicate.op()) {
-        case LT:
-          in = predicate.literal().value() - 1;
-          out = predicate.literal().value();
-          inImage = apply(in);
-          outImage = apply(out);
-          if (inImage != outImage) {
-            return Expressions.predicate(LT_EQ, name, inImage);
-          } else {
-            return Expressions.predicate(LT, name, inImage);
-          }
-        case LT_EQ:
-          in = predicate.literal().value();
-          out = predicate.literal().value() + 1;
-          inImage = apply(in);
-          outImage = apply(out);
-          if (inImage != outImage) {
-            return Expressions.predicate(LT_EQ, name, inImage);
-          } else {
-            return Expressions.predicate(LT, name, inImage);
-          }
-        case GT:
-        case GT_EQ:
-        case EQ:
-        case NOT_EQ:
-//        case IN:
-//          break;
-//        case NOT_IN:
-//          break;
-        default:
-          return null;
+      if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
+        return Expressions.predicate(pred.op(), name);
       }
+      return ProjectionUtil.truncateIntegerStrict(name, pred, this);
     }
 
     @Override
@@ -192,8 +158,11 @@ abstract class Truncate<T> implements Transform<T, T> {
     }
 
     @Override
-    public UnboundPredicate<Long> projectStrict(String name, BoundPredicate<Long> predicate) {
-      return null;
+    public UnboundPredicate<Long> projectStrict(String name, BoundPredicate<Long> pred) {
+      if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
+        return Expressions.predicate(pred.op(), name);
+      }
+      return ProjectionUtil.truncateLongStrict(name, pred, this);
     }
 
     @Override
@@ -253,8 +222,11 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public UnboundPredicate<CharSequence> projectStrict(String name,
-                                                        BoundPredicate<CharSequence> predicate) {
-      return null;
+                                                        BoundPredicate<CharSequence> pred) {
+      if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
+        return Expressions.predicate(pred.op(), name);
+      }
+      return ProjectionUtil.truncateArrayStrict(name, pred, this);
     }
 
     @Override
@@ -316,8 +288,11 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public UnboundPredicate<ByteBuffer> projectStrict(String name,
-                                                      BoundPredicate<ByteBuffer> predicate) {
-      return null;
+                                                      BoundPredicate<ByteBuffer> pred) {
+      if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
+        return Expressions.predicate(pred.op(), name);
+      }
+      return ProjectionUtil.truncateArrayStrict(name, pred, this);
     }
 
     @Override
@@ -388,8 +363,11 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public UnboundPredicate<BigDecimal> projectStrict(String name,
-                                                      BoundPredicate<BigDecimal> predicate) {
-      return null;
+                                                      BoundPredicate<BigDecimal> pred) {
+      if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
+        return Expressions.predicate(pred.op(), name);
+      }
+      return ProjectionUtil.truncateDecimalStrict(name, pred, this);
     }
 
     @Override
