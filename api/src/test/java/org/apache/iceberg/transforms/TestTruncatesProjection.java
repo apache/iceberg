@@ -89,10 +89,10 @@ public class TestTruncatesProjection {
     Schema schema = new Schema(optional(1, "value", Types.IntegerType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 10).build();
 
-    assertProjectionStrict(spec, lessThan("value", value), Expression.Operation.LT_EQ, "90");
+    assertProjectionStrict(spec, lessThan("value", value), Expression.Operation.LT, "100");
     assertProjectionStrict(spec, lessThanOrEqual("value", value), Expression.Operation.LT, "100");
     assertProjectionStrict(spec, greaterThan("value", value), Expression.Operation.GT, "100");
-    assertProjectionStrict(spec, greaterThanOrEqual("value", value), Expression.Operation.GT_EQ, "100");
+    assertProjectionStrict(spec, greaterThanOrEqual("value", value), Expression.Operation.GT, "90");
     assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "100");
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
   }
@@ -104,8 +104,8 @@ public class TestTruncatesProjection {
     PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 10).build();
 
     assertProjectionStrict(spec, lessThan("value", value), Expression.Operation.LT, "90");
-    assertProjectionStrict(spec, lessThanOrEqual("value", value), Expression.Operation.LT_EQ, "90");
-    assertProjectionStrict(spec, greaterThan("value", value), Expression.Operation.GT_EQ, "100");
+    assertProjectionStrict(spec, lessThanOrEqual("value", value), Expression.Operation.LT, "100");
+    assertProjectionStrict(spec, greaterThan("value", value), Expression.Operation.GT, "90");
     assertProjectionStrict(spec, greaterThanOrEqual("value", value), Expression.Operation.GT, "90");
     assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "90");
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
@@ -145,10 +145,10 @@ public class TestTruncatesProjection {
     Schema schema = new Schema(optional(1, "value", Types.LongType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 10).build();
 
-    assertProjectionStrict(spec, lessThan("value", value), Expression.Operation.LT_EQ, "90");
+    assertProjectionStrict(spec, lessThan("value", value), Expression.Operation.LT, "100");
     assertProjectionStrict(spec, lessThanOrEqual("value", value), Expression.Operation.LT, "100");
     assertProjectionStrict(spec, greaterThan("value", value), Expression.Operation.GT, "100");
-    assertProjectionStrict(spec, greaterThanOrEqual("value", value), Expression.Operation.GT_EQ, "100");
+    assertProjectionStrict(spec, greaterThanOrEqual("value", value), Expression.Operation.GT, "90");
     assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "100");
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
   }
@@ -160,8 +160,8 @@ public class TestTruncatesProjection {
     PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 10).build();
 
     assertProjectionStrict(spec, lessThan("value", value), Expression.Operation.LT, "90");
-    assertProjectionStrict(spec, lessThanOrEqual("value", value), Expression.Operation.LT_EQ, "90");
-    assertProjectionStrict(spec, greaterThan("value", value), Expression.Operation.GT_EQ, "100");
+    assertProjectionStrict(spec, lessThanOrEqual("value", value), Expression.Operation.LT, "100");
+    assertProjectionStrict(spec, greaterThan("value", value), Expression.Operation.GT, "90");
     assertProjectionStrict(spec, greaterThanOrEqual("value", value), Expression.Operation.GT, "90");
     assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "90");
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
@@ -202,10 +202,10 @@ public class TestTruncatesProjection {
     Schema schema = new Schema(optional(1, "value", type));
     PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 10).build();
 
-    assertProjectionStrict(spec, lessThan("value", value), Expression.Operation.LT_EQ, "99.90");
+    assertProjectionStrict(spec, lessThan("value", value), Expression.Operation.LT, "100.00");
     assertProjectionStrict(spec, lessThanOrEqual("value", value), Expression.Operation.LT, "100.00");
     assertProjectionStrict(spec, greaterThan("value", value), Expression.Operation.GT, "100.00");
-    assertProjectionStrict(spec, greaterThanOrEqual("value", value), Expression.Operation.GT_EQ, "100.00");
+    assertProjectionStrict(spec, greaterThanOrEqual("value", value), Expression.Operation.GT, "99.90");
     assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "100.00");
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
   }
@@ -218,8 +218,8 @@ public class TestTruncatesProjection {
     PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 10).build();
 
     assertProjectionStrict(spec, lessThan("value", value), Expression.Operation.LT, "99.90");
-    assertProjectionStrict(spec, lessThanOrEqual("value", value), Expression.Operation.LT_EQ, "99.90");
-    assertProjectionStrict(spec, greaterThan("value", value), Expression.Operation.GT_EQ, "100.00");
+    assertProjectionStrict(spec, lessThanOrEqual("value", value), Expression.Operation.LT, "100.00");
+    assertProjectionStrict(spec, greaterThan("value", value), Expression.Operation.GT, "99.90");
     assertProjectionStrict(spec, greaterThanOrEqual("value", value), Expression.Operation.GT, "99.90");
     assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "99.90");
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);

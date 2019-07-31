@@ -105,7 +105,7 @@ class ProjectionUtil {
           return predicate(Expression.Operation.LT, name, transform.apply(boundary - 1));
         } else {
           // Literal was at the lower boundary, for eg: 100 if width is 10
-          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary - 1));
+          return predicate(Expression.Operation.LT, name, transform.apply(boundary));
         }
       case LT_EQ:
         if (transform.apply(boundary + 1).equals(transform.apply(boundary))) {
@@ -113,7 +113,7 @@ class ProjectionUtil {
           return predicate(Expression.Operation.LT, name, transform.apply(boundary));
         } else {
           // Literal is at upper boundary, for eg: 99 if width is 10
-          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
+          return predicate(Expression.Operation.LT, name, transform.apply(boundary + 1));
         }
       case GT:
         // Checking if the literal is at the upper partition boundary
@@ -122,7 +122,7 @@ class ProjectionUtil {
           return predicate(Expression.Operation.GT, name, transform.apply(boundary + 1));
         } else {
           // Literal is at upper boundary, for eg: 99 if width is 10
-          return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary + 1));
+          return predicate(Expression.Operation.GT, name, transform.apply(boundary));
         }
       case GT_EQ:
         // Checking if the literal is at the lower partition boundary
@@ -131,7 +131,7 @@ class ProjectionUtil {
           return predicate(Expression.Operation.GT, name, transform.apply(boundary));
         } else {
           // Literal was at the lower boundary, for eg: 100 if width is 10
-          return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
+          return predicate(Expression.Operation.GT, name, transform.apply(boundary - 1));
         }
       case NOT_EQ:
         return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
@@ -217,7 +217,7 @@ class ProjectionUtil {
           return predicate(Expression.Operation.LT, name, transform.apply(boundary - 1L));
         } else {
           // Literal was at the lower boundary, for eg: 100 if width is 10
-          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary - 1L));
+          return predicate(Expression.Operation.LT, name, transform.apply(boundary));
         }
       case LT_EQ:
         if (transform.apply(boundary + 1L).equals(transform.apply(boundary))) {
@@ -225,7 +225,7 @@ class ProjectionUtil {
           return predicate(Expression.Operation.LT, name, transform.apply(boundary));
         } else {
           // Literal is at upper boundary, for eg: 99 if width is 10
-          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
+          return predicate(Expression.Operation.LT, name, transform.apply(boundary + 1L));
         }
       case GT:
         // Checking if the literal is at the upper partition boundary
@@ -234,7 +234,7 @@ class ProjectionUtil {
           return predicate(Expression.Operation.GT, name, transform.apply(boundary + 1L));
         } else {
           // Literal is at upper boundary, for eg: 99 if width is 10
-          return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary + 1L));
+          return predicate(Expression.Operation.GT, name, transform.apply(boundary));
         }
       case GT_EQ:
         // Checking if the literal is at the lower partition boundary
@@ -243,7 +243,7 @@ class ProjectionUtil {
           return predicate(Expression.Operation.GT, name, transform.apply(boundary));
         } else {
           // Literal was at the lower boundary, for eg: 100 if width is 10
-          return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
+          return predicate(Expression.Operation.GT, name, transform.apply(boundary - 1L));
         }
       case NOT_EQ:
         return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
@@ -299,37 +299,37 @@ class ProjectionUtil {
       case LT:
         // Checking if the literal is at the lower partition boundary
         if (transform.apply(minusOne).equals(transform.apply(boundary))) {
-          // Literal is not at lower boundary, for eg: 123, if width is 10
+          // Literal is not at lower boundary, for eg: 123.45, if width is 10
           return predicate(Expression.Operation.LT, name, transform.apply(minusOne));
         } else {
-          // Literal was at the lower boundary, for eg: 100 if width is 10
-          return predicate(Expression.Operation.LT_EQ, name, transform.apply(minusOne));
+          // Literal was at the lower boundary, for eg: 100.00 if width is 10
+          return predicate(Expression.Operation.LT, name, transform.apply(boundary));
         }
       case LT_EQ:
         if (transform.apply(plusOne).equals(transform.apply(boundary))) {
-          // Literal is not at upper boundary, for eg: 123 if width is 10
+          // Literal is not at upper boundary, for eg: 123.45 if width is 10
           return predicate(Expression.Operation.LT, name, transform.apply(boundary));
         } else {
-          // Literal is at upper boundary, for eg: 99 if width is 10
-          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
+          // Literal is at upper boundary, for eg: 99.99 if width is 10
+          return predicate(Expression.Operation.LT, name, transform.apply(plusOne));
         }
       case GT:
         // Checking if the literal is at the upper partition boundary
         if (transform.apply(plusOne).equals(transform.apply(boundary))) {
-          // Literal is not at upper boundary, for eg: 123 if width is 10
+          // Literal is not at upper boundary, for eg: 123.45 if width is 10
           return predicate(Expression.Operation.GT, name, transform.apply(plusOne));
         } else {
-          // Literal is at upper boundary, for eg: 99 if width is 10
-          return predicate(Expression.Operation.GT_EQ, name, transform.apply(plusOne));
+          // Literal is at upper boundary, for eg: 99.99 if width is 10
+          return predicate(Expression.Operation.GT, name, transform.apply(boundary));
         }
       case GT_EQ:
         // Checking if the literal is at the lower partition boundary
         if (transform.apply(minusOne).equals(transform.apply(boundary))) {
-          // Literal is not at lower boundary, for eg: 123 if width is 10
+          // Literal is not at lower boundary, for eg: 123.45 if width is 10
           return predicate(Expression.Operation.GT, name, transform.apply(boundary));
         } else {
-          // Literal was at the lower boundary, for eg: 100 if width is 10
-          return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
+          // Literal was at the lower boundary, for eg: 100.00 if width is 10
+          return predicate(Expression.Operation.GT, name, transform.apply(minusOne));
         }
       case NOT_EQ:
         return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
