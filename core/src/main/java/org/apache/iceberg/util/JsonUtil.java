@@ -52,6 +52,16 @@ public class JsonUtil {
     return pNode.asInt();
   }
 
+  public static Integer getIntOrNull(String property, JsonNode node) {
+    if (!node.has(property)) {
+      return null;
+    }
+    JsonNode pNode = node.get(property);
+    Preconditions.checkArgument(pNode != null && !pNode.isNull() && pNode.isIntegralNumber() && pNode.canConvertToInt(),
+        "Cannot parse %s from non-string value: %s", property, pNode);
+    return pNode.asInt();
+  }
+
   public static long getLong(String property, JsonNode node) {
     Preconditions.checkArgument(node.has(property), "Cannot parse missing int %s", property);
     JsonNode pNode = node.get(property);

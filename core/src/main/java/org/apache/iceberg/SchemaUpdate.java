@@ -28,9 +28,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.apache.iceberg.mapping.MappingUtil;
+import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -39,6 +44,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
  * Schema evolution API implementation.
  */
 class SchemaUpdate implements UpdateSchema {
+  private static final Logger LOG = LoggerFactory.getLogger(SchemaUpdate.class);
   private static final int TABLE_ROOT_ID = -1;
 
   private final TableOperations ops;
@@ -200,7 +206,7 @@ class SchemaUpdate implements UpdateSchema {
 
   @Override
   public void commit() {
-    TableMetadata update = base.updateSchema(apply(), lastColumnId);
+    TableMetadata update = applyChangesToMapping(base.updateSchema(apply(), lastColumnId));
     ops.commit(base, update);
   }
 
@@ -208,6 +214,30 @@ class SchemaUpdate implements UpdateSchema {
     int next = lastColumnId + 1;
     this.lastColumnId = next;
     return next;
+  }
+
+  private TableMetadata applyChangesToMapping(TableMetadata metadata) {
+    String mappingJson = metadata.property(TableProperties.DEFAULT_NAME_MAPPING, null);
+    if (mappingJson != null) {
+      try {
+        // parse and update the mapping
+        NameMapping mapping = NameMappingParser.fromJson(mappingJson);
+        NameMapping updated = MappingUtil.update(mapping, updates, adds);
+
+        // replace the table property
+        Map<String, String> updatedProperties = Maps.newHashMap();
+        updatedProperties.putAll(metadata.properties());
+        updatedProperties.put(TableProperties.DEFAULT_NAME_MAPPING, NameMappingParser.toJson(updated));
+
+        return metadata.replaceProperties(updatedProperties);
+
+      } catch (RuntimeException e) {
+        // log the error, but do not fail the update
+        LOG.warn("Failed to update external schema mapping: {}", mappingJson, e);
+      }
+    }
+
+    return metadata;
   }
 
   private static Schema applyChanges(Schema schema, List<Integer> deletes,
