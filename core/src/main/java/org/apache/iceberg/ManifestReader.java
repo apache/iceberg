@@ -161,16 +161,20 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
     List<ManifestEntry> adds = Lists.newArrayList();
     List<ManifestEntry> deletes = Lists.newArrayList();
 
-    for (ManifestEntry entry : entries(fileSchema.select(CHANGE_COLUNNS))) {
-      switch (entry.status()) {
-        case ADDED:
-          adds.add(entry.copyWithoutStats());
-          break;
-        case DELETED:
-          deletes.add(entry.copyWithoutStats());
-          break;
-        default:
+    try (CloseableIterable<ManifestEntry> entries = entries(fileSchema.select(CHANGE_COLUNNS))) {
+      for (ManifestEntry entry : entries) {
+        switch (entry.status()) {
+          case ADDED:
+            adds.add(entry.copyWithoutStats());
+            break;
+          case DELETED:
+            deletes.add(entry.copyWithoutStats());
+            break;
+          default:
+        }
       }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to close manifest entries");
     }
 
     this.cachedAdds = adds;
