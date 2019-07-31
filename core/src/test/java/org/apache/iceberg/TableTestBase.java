@@ -40,7 +40,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TableTestBase {
   // Schema passed to create tables
-  static final Schema SCHEMA = new Schema(
+  public static final Schema SCHEMA = new Schema(
       required(3, "id", Types.IntegerType.get()),
       required(4, "data", Types.StringType.get())
   );
@@ -80,7 +80,7 @@ public class TableTestBase {
 
   File tableDir = null;
   File metadataDir = null;
-  TestTables.TestTable table = null;
+  public TestTables.TestTable table = null;
 
   @Before
   public void setupTable() throws Exception {
@@ -117,7 +117,7 @@ public class TableTestBase {
     return TestTables.metadataVersion("test");
   }
 
-  TableMetadata readMetadata() {
+  public TableMetadata readMetadata() {
     return TestTables.readMetadata("test");
   }
 
