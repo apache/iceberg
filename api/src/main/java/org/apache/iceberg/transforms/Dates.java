@@ -77,7 +77,7 @@ enum Dates implements Transform<Integer, Integer> {
     if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
       return Expressions.predicate(pred.op(), fieldName);
     }
-    return ProjectionUtil.dateIntegerStrict(fieldName, pred, this);
+    return ProjectionUtil.truncateIntegerStrict(fieldName, pred, this);
   }
 
   @Override
