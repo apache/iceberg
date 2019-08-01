@@ -31,7 +31,6 @@ import static org.apache.iceberg.TableProperties.DEFAULT_WRITE_METRICS_MODE_DEFA
 public class MetricsConfig {
 
   private static final Logger LOG = LoggerFactory.getLogger(MetricsConfig.class);
-  private static final String COLUMN_CONF_PREFIX = "write.metadata.metrics.column.";
 
   private Map<String, MetricsMode> columnModes = Maps.newHashMap();
   private MetricsMode defaultMode;
@@ -52,20 +51,20 @@ public class MetricsConfig {
       spec.defaultMode = MetricsModes.fromString(defaultModeAsString);
     } catch (IllegalArgumentException ignored) {
       // Mode was invalid, log the error and use the default
-      LOG.warn("Ignoring invalid default metrics mode: %s", defaultModeAsString);
+      LOG.warn("Ignoring invalid default metrics mode: {}", defaultModeAsString);
       spec.defaultMode = MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT);
     }
 
     props.keySet().stream()
-        .filter(key -> key.startsWith(COLUMN_CONF_PREFIX))
+        .filter(key -> key.startsWith(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX))
         .forEach(key -> {
-          String columnAlias = key.replaceFirst(COLUMN_CONF_PREFIX, "");
+          String columnAlias = key.replaceFirst(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX, "");
           MetricsMode mode;
           try {
             mode = MetricsModes.fromString(props.get(key));
           } catch (IllegalArgumentException ignored) {
             // Mode was invalid, log the error and use the default
-            LOG.warn("Ignoring invalid metrics mode for column %s: %s", columnAlias, key);
+            LOG.warn("Ignoring invalid metrics mode for column {}: {}", columnAlias, props.get(key));
             mode = spec.defaultMode;
           }
           spec.columnModes.put(columnAlias, mode);
