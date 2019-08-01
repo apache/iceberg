@@ -43,15 +43,14 @@ public class MetricsConfig {
     return spec;
   }
 
-  @SuppressWarnings("checkstyle:CatchBlockLogException")
   public static MetricsConfig fromProperties(Map<String, String> props) {
     MetricsConfig spec = new MetricsConfig();
     String defaultModeAsString = props.getOrDefault(DEFAULT_WRITE_METRICS_MODE, DEFAULT_WRITE_METRICS_MODE_DEFAULT);
     try {
       spec.defaultMode = MetricsModes.fromString(defaultModeAsString);
-    } catch (IllegalArgumentException ignored) {
+    } catch (IllegalArgumentException err) {
       // Mode was invalid, log the error and use the default
-      LOG.warn("Ignoring invalid default metrics mode: {}", defaultModeAsString);
+      LOG.warn("Ignoring invalid default metrics mode: {}", defaultModeAsString, err);
       spec.defaultMode = MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT);
     }
 
@@ -62,9 +61,9 @@ public class MetricsConfig {
           MetricsMode mode;
           try {
             mode = MetricsModes.fromString(props.get(key));
-          } catch (IllegalArgumentException ignored) {
+          } catch (IllegalArgumentException err) {
             // Mode was invalid, log the error and use the default
-            LOG.warn("Ignoring invalid metrics mode for column {}: {}", columnAlias, props.get(key));
+            LOG.warn("Ignoring invalid metrics mode for column {}: {}", columnAlias, props.get(key), err);
             mode = spec.defaultMode;
           }
           spec.columnModes.put(columnAlias, mode);
