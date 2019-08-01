@@ -129,7 +129,7 @@ class Reader implements DataSourceReader,
 
       this.numRecordsPerBatch = VectorizedParquetValueReaders.VectorReader.DEFAULT_NUM_ROWS_IN_BATCH;
     }
-    LOG.info("=> Set Config numRecordsPerBatch = " + numRecordsPerBatch);
+    LOG.info("=> Set Config numRecordsPerBatch = {}", numRecordsPerBatch);
 
     if (snapshotId != null && asOfTimestamp != null) {
       throw new IllegalArgumentException(
@@ -176,7 +176,7 @@ class Reader implements DataSourceReader,
           new ReadTask(task, tableSchemaString, expectedSchemaString, fileIo, encryptionManager,
               caseSensitive, numRecordsPerBatch));
     }
-    LOG.info("=> Batching input partitions with " + readTasks.size() + " tasks.");
+    LOG.info("=> Batching input partitions with {} tasks.", readTasks.size());
 
     return readTasks;
   }
@@ -313,7 +313,7 @@ class Reader implements DataSourceReader,
       this.encryptionManager = encryptionManager;
       this.caseSensitive = caseSensitive;
       this.numRecordsPerBatch = numRecordsPerBatch;
-      LOG.info("=> [ReadTask] numRecordsPerBatch = " + numRecordsPerBatch);
+      LOG.info("=> [ReadTask] numRecordsPerBatch = {}", numRecordsPerBatch);
     }
 
     @Override
@@ -373,7 +373,7 @@ class Reader implements DataSourceReader,
       this.numRecordsPerBatch = numRecordsPerBatch;
       this.currentIterator = open(tasks.next());
       this.caseSensitive = caseSensitive;
-      LOG.info("=> [TaskDataReader] numRecordsPerBatch = " + numRecordsPerBatch);
+      LOG.info("=> [TaskDataReader] numRecordsPerBatch = {}", numRecordsPerBatch);
     }
 
     @Override

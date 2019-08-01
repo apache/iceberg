@@ -68,7 +68,7 @@ public class VectorizedSparkParquetReaders {
       MessageType fileSchema,
       Integer recordsPerBatch) {
 
-    LOG.info("=> [VectorizedSparkParquetReaders] recordsPerBatch = " + recordsPerBatch);
+    LOG.info("=> [VectorizedSparkParquetReaders] recordsPerBatch = {}", recordsPerBatch);
     return (ParquetValueReader<ColumnarBatch>)
         TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
             new ReadBuilder(tableSchema, expectedSchema, fileSchema, recordsPerBatch));
@@ -91,7 +91,7 @@ public class VectorizedSparkParquetReaders {
       // this.rootAllocator = new RootAllocator(Long.MAX_VALUE);
       this.rootAllocator = ArrowUtils.rootAllocator().newChildAllocator("VectorizedReadBuilder",
           0, Long.MAX_VALUE);
-      LOG.info("=> [ReadBuilder] recordsPerBatch = " + this.recordsPerBatch);
+      LOG.info("=> [ReadBuilder] recordsPerBatch = {}", this.recordsPerBatch);
     }
 
     @Override
