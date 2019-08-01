@@ -182,38 +182,15 @@ class ProjectionUtil {
     S boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
-        // If the boundary is same as the partition value, it implies
-        // that the truncate width is more than the size of the array
-        if (boundary.equals(transform.apply(boundary))) {
-          // the partition only contains this single value therefore would be same as the predicate
-          return predicate(Expression.Operation.LT, name, transform.apply(boundary));
-        } else {
-          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
-        }
       case LT_EQ:
         return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
       case GT:
-        // If the boundary is same as the partition value, it implies
-        // that the truncate width is more than the size of the array
-        if (boundary.equals(transform.apply(boundary))) {
-          // the partition only contains this single value therefore would be same as the predicate
-          return predicate(Expression.Operation.GT, name, transform.apply(boundary));
-        } else {
-          return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
-        }
       case GT_EQ:
         return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
       case EQ:
         return predicate(Expression.Operation.EQ, name, transform.apply(boundary));
-      case NOT_EQ:
-        // If the boundary is same as the partition value, it implies
-        // that the truncate width is more than the size of the array
-        if (boundary.equals(transform.apply(boundary))) {
-          // the partition only contains this single value therefore would be same as the predicate
-          return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
-        } else {
-          return null;
-        }
+//        case IN: // TODO
+//          return Expressions.predicate(Operation.IN, name, transform.apply(boundary));
       default:
         return null;
     }
@@ -224,38 +201,16 @@ class ProjectionUtil {
     S boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
-        return predicate(Expression.Operation.LT, name, transform.apply(boundary));
       case LT_EQ:
-        // If the boundary is same as the partition value, it implies
-        // that the truncate width is more than the size of the array
-        if (boundary.equals(transform.apply(boundary))) {
-          // the partition only contains this single value therefore would be same as the predicate
-          return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
-        } else {
-          return predicate(Expression.Operation.LT, name, transform.apply(boundary));
-        }
+        return predicate(Expression.Operation.LT, name, transform.apply(boundary));
       case GT:
-        return predicate(Expression.Operation.GT, name, transform.apply(boundary));
       case GT_EQ:
-        // If the boundary is same as the partition value, it implies
-        // that the truncate width is more than the size of the array
-        if (boundary.equals(transform.apply(boundary))) {
-          // the partition only contains this single value therefore would be same as the predicate
-          return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
-        } else {
-          return predicate(Expression.Operation.GT, name, transform.apply(boundary));
-        }
+        return predicate(Expression.Operation.GT, name, transform.apply(boundary));
       case NOT_EQ:
         return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
       case EQ:
-        // If the boundary is same as the partition value, it implies
-        // that the truncate width is more than the size of the array
-        if (boundary.equals(transform.apply(boundary))) {
-          // the partition only contains this single value therefore would be same as the predicate
-          return predicate(Expression.Operation.EQ, name, transform.apply(boundary));
-        } else {
-          return null;
-        }
+        // there is no predicate that guarantees equality because adjacent values transform to the same partition
+        return null;
       default:
         return null;
     }

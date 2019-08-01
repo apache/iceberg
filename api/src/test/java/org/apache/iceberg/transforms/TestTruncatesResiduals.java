@@ -174,47 +174,4 @@ public class TestTruncatesResiduals {
     assertResidualPredicate(spec, notEqual("value", "bcd"), "bc");
     assertResidualValue(spec, notEqual("value", "bcd"), "cd", Expression.Operation.TRUE);
   }
-
-  @Test
-  public void testSmallStringTruncateTransformResiduals() {
-    Schema schema = new Schema(Types.NestedField.optional(50, "value", Types.StringType.get()));
-    // Specifying a truncate width of 8, larger than the values used in the test
-    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 8).build();
-
-    // less than
-    assertResidualValue(spec, lessThan("value", "bcd"), "abc", Expression.Operation.TRUE);
-    // can still accurately evaluate when partitionValue is same as the actual value
-    assertResidualValue(spec, lessThan("value", "bcd"), "bcd", Expression.Operation.FALSE);
-    assertResidualValue(spec, lessThan("value", "bcd"), "cde", Expression.Operation.FALSE);
-
-    // less than equals
-    assertResidualValue(spec, lessThanOrEqual("value", "bcd"), "abc", Expression.Operation.TRUE);
-    // can still accurately evaluate when partitionValue is same as the actual value
-    assertResidualValue(spec, lessThanOrEqual("value", "bcd"), "bcd", Expression.Operation.TRUE);
-    assertResidualValue(spec, lessThanOrEqual("value", "bcd"), "cde", Expression.Operation.FALSE);
-
-    // greater than
-    assertResidualValue(spec, greaterThan("value", "bcd"), "abc", Expression.Operation.FALSE);
-    // can still accurately evaluate when partitionValue is same as the actual value
-    assertResidualValue(spec, greaterThan("value", "bcd"), "bcd", Expression.Operation.FALSE);
-    assertResidualValue(spec, greaterThan("value", "bcd"), "cde", Expression.Operation.TRUE);
-
-    // greater than
-    assertResidualValue(spec, greaterThanOrEqual("value", "bcd"), "abc", Expression.Operation.FALSE);
-    // can still accurately evaluate when partitionValue is same as the actual value
-    assertResidualValue(spec, greaterThanOrEqual("value", "bcd"), "bcd", Expression.Operation.TRUE);
-    assertResidualValue(spec, greaterThanOrEqual("value", "bcd"), "cde", Expression.Operation.TRUE);
-
-    // equal
-    assertResidualValue(spec, equal("value", "bcd"), "abc", Expression.Operation.FALSE);
-    // can still accurately evaluate when partitionValue is same as the actual value
-    assertResidualValue(spec, equal("value", "bcd"), "bcd", Expression.Operation.TRUE);
-    assertResidualValue(spec, equal("value", "bcd"), "cde", Expression.Operation.FALSE);
-
-    // not equal
-    assertResidualValue(spec, notEqual("value", "bcd"), "abc", Expression.Operation.TRUE);
-    // can still accurately evaluate when partitionValue is same as the actual value
-    assertResidualValue(spec, notEqual("value", "bcd"), "bcd", Expression.Operation.FALSE);
-    assertResidualValue(spec, notEqual("value", "bcd"), "cde", Expression.Operation.TRUE);
-  }
 }

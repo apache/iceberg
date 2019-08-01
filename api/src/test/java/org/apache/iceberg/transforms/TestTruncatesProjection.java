@@ -270,28 +270,6 @@ public class TestTruncatesProjection {
   }
 
   @Test
-  public void testSmallStringStrict() {
-    String value = "abcde";
-    Schema schema = new Schema(optional(1, "value", Types.StringType.get()));
-    // choosing a truncate width larger than the size of value
-    // therefore, value of the partition would be same as the actual value
-    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 8).build();
-
-    assertProjectionStrict(spec, lessThan("value", value), Expression.Operation.LT, "abcde");
-
-    // would return <= "abcde" for the partition as well, as it's a single value partition
-    assertProjectionStrict(spec, lessThanOrEqual("value", value), Expression.Operation.LT_EQ, "abcde");
-    assertProjectionStrict(spec, greaterThan("value", value), Expression.Operation.GT, "abcde");
-
-    // would return >= "abcde" for the partition as well, as it's a single value partition
-    assertProjectionStrict(spec, greaterThanOrEqual("value", value), Expression.Operation.GT_EQ, "abcde");
-    assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "abcde");
-
-    // would return == "abcde" for the partition as well, as it's a single value partition
-    assertProjectionStrict(spec, equal("value", value), Expression.Operation.EQ, "abcde");
-  }
-
-  @Test
   public void testStringInclusive() {
     String value = "abcdefg";
     Schema schema = new Schema(optional(1, "value", Types.StringType.get()));
@@ -303,28 +281,6 @@ public class TestTruncatesProjection {
     assertProjectionInclusive(spec, greaterThanOrEqual("value", value), Expression.Operation.GT_EQ, "abcde");
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "abcde");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
-  }
-
-  @Test
-  public void testSmallStringInclusive() {
-    String value = "abcde";
-    Schema schema = new Schema(optional(1, "value", Types.StringType.get()));
-    // choosing a truncate width larger than the size of value
-    // therefore, value of the partition would be same as the actual value
-    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 8).build();
-
-    assertProjectionInclusive(spec, lessThan("value", value), Expression.Operation.LT, "abcde");
-
-    // would return <= "abcde" for the partition as well, as it's a single value partition
-    assertProjectionInclusive(spec, lessThanOrEqual("value", value), Expression.Operation.LT_EQ, "abcde");
-    assertProjectionInclusive(spec, greaterThan("value", value), Expression.Operation.GT, "abcde");
-
-    // would return >= "abcde" for the partition as well, as it's a single value partition
-    assertProjectionInclusive(spec, greaterThanOrEqual("value", value), Expression.Operation.GT_EQ, "abcde");
-    assertProjectionInclusive(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "abcde");
-
-    // would return == "abcde" for the partition as well, as it's a single value partition
-    assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "abcde");
   }
 
   @Test
