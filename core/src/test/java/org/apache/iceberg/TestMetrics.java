@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.parquet;
+package org.apache.iceberg;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -32,9 +32,8 @@ import java.util.UUID;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericFixed;
-import org.apache.iceberg.Metrics;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.BinaryType;
 import org.apache.iceberg.types.Types.BooleanType;
@@ -55,16 +54,23 @@ import org.apache.iceberg.types.Types.UUIDType;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.apache.iceberg.Files.localInput;
 import static org.apache.iceberg.types.Conversions.fromByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-public class TestParquetUtil extends BaseParquetWritingTest {
+/**
+ * Tests for Metrics.
+ */
+public abstract class TestMetrics {
+
   private final UUID uuid = UUID.randomUUID();
   private final GenericFixed fixed = new GenericData.Fixed(
       org.apache.avro.Schema.createFixed("fixedCol", null, null, 4),
       "abcd".getBytes(StandardCharsets.UTF_8));
+
+  public abstract Metrics getMetrics(InputFile file);
+
+  public abstract File writeRecords(Schema schema, Record... records) throws IOException;
 
   @Test
   public void testMetricsForTopLevelFields() throws IOException {
@@ -113,9 +119,9 @@ public class TestParquetUtil extends BaseParquetWritingTest {
     secondRecord.put("fixedCol", fixed);
     secondRecord.put("binaryCol", "W".getBytes());
 
-    File parquetFile = writeRecords(schema, firstRecord, secondRecord);
+    File recordsFile = writeRecords(schema, firstRecord, secondRecord);
 
-    Metrics metrics = ParquetUtil.fileMetrics(localInput(parquetFile));
+    Metrics metrics = getMetrics(Files.localInput(recordsFile));
     Assert.assertEquals(2L, (long) metrics.recordCount());
     assertCounts(1, 2L, 0L, metrics);
     assertBounds(1, BooleanType.get(), false, true, metrics);
@@ -160,9 +166,9 @@ public class TestParquetUtil extends BaseParquetWritingTest {
     record.put("decimalAsInt64", new BigDecimal("4.75"));
     record.put("decimalAsFixed", new BigDecimal("5.80"));
 
-    File parquetFile = writeRecords(schema, record);
+    File recordsFile = writeRecords(schema, record);
 
-    Metrics metrics = ParquetUtil.fileMetrics(localInput(parquetFile));
+    Metrics metrics = getMetrics(Files.localInput(recordsFile));
     Assert.assertEquals(1L, (long) metrics.recordCount());
     assertCounts(1, 1L, 0L, metrics);
     assertBounds(1, DecimalType.of(4, 2), new BigDecimal("2.55"), new BigDecimal("2.55"), metrics);
@@ -197,9 +203,9 @@ public class TestParquetUtil extends BaseParquetWritingTest {
     record.put("intCol", Integer.MAX_VALUE);
     record.put("nestedStructCol", nestedStruct);
 
-    File parquetFile = writeRecords(schema, record);
+    File recordsFile = writeRecords(schema, record);
 
-    Metrics metrics = ParquetUtil.fileMetrics(localInput(parquetFile));
+    Metrics metrics = getMetrics(Files.localInput(recordsFile));
     Assert.assertEquals(1L, (long) metrics.recordCount());
     assertCounts(1, 1L, 0L, metrics);
     assertBounds(1, IntegerType.get(), Integer.MAX_VALUE, Integer.MAX_VALUE, metrics);
@@ -232,9 +238,9 @@ public class TestParquetUtil extends BaseParquetWritingTest {
     map.put("4", struct);
     record.put(1, map);
 
-    File parquetFile = writeRecords(schema, record);
+    File recordsFile = writeRecords(schema, record);
 
-    Metrics metrics = ParquetUtil.fileMetrics(localInput(parquetFile));
+    Metrics metrics = getMetrics(Files.localInput(recordsFile));
     Assert.assertEquals(1L, (long) metrics.recordCount());
     assertCounts(1, 1, 0, metrics);
     assertBounds(1, IntegerType.get(), null, null, metrics);
@@ -256,9 +262,9 @@ public class TestParquetUtil extends BaseParquetWritingTest {
     Record secondRecord = new Record(AvroSchemaUtil.convert(schema.asStruct()));
     secondRecord.put("intCol", null);
 
-    File parquetFile = writeRecords(schema, firstRecord, secondRecord);
+    File recordsFile = writeRecords(schema, firstRecord, secondRecord);
 
-    Metrics metrics = ParquetUtil.fileMetrics(localInput(parquetFile));
+    Metrics metrics = getMetrics(Files.localInput(recordsFile));
     Assert.assertEquals(2L, (long) metrics.recordCount());
     assertCounts(1, 2, 2, metrics);
     assertBounds(1, IntegerType.get(), null, null, metrics);

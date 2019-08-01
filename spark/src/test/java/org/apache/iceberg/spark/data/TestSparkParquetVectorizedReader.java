@@ -65,7 +65,7 @@ public class TestSparkParquetVectorizedReader extends AvroDataTest {
 
     try (CloseableIterable<ColumnarBatch> batchReader = Parquet.read(Files.localInput(testFile))
         .project(schema)
-        .createReaderFunc(type -> VectorizedSparkParquetReaders.buildReader(schema, schema, type))
+        .createReaderFunc(type -> VectorizedSparkParquetReaders.buildReader(schema, schema, type, 10000))
         .build()) {
 
       Iterator<ColumnarBatch> batches = batchReader.iterator();

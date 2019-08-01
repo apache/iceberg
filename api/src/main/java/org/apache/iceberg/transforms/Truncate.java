@@ -27,6 +27,7 @@ import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.util.UnicodeUtil;
 
 import static org.apache.iceberg.expressions.Expression.Operation.IS_NULL;
 import static org.apache.iceberg.expressions.Expression.Operation.LT;
@@ -233,7 +234,7 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public CharSequence apply(CharSequence value) {
-      return value.subSequence(0, Math.min(value.length(), length));
+      return UnicodeUtil.truncateString(value, length);
     }
 
     @Override

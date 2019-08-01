@@ -89,6 +89,12 @@ public class TableProperties {
   public static final String METADATA_COMPRESSION = "write.metadata.compression-codec";
   public static final String METADATA_COMPRESSION_DEFAULT = "none";
 
+  public static final String METRICS_MODE_COLUMN_CONF_PREFIX = "write.metadata.metrics.column.";
   public static final String DEFAULT_WRITE_METRICS_MODE = "write.metadata.metrics.default";
   public static final String DEFAULT_WRITE_METRICS_MODE_DEFAULT = "truncate(16)";
+
+  public static final String DEFAULT_NAME_MAPPING = "schema.name-mapping.default";
+
+  public static final String WRITE_AUDIT_PUBLISH_ENABLED = "write.wap.enabled";
+  public static final String WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT = "false";
 }

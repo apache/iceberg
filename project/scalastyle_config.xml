@@ -136,12 +136,6 @@
     </check>
     <check level="error" class="org.scalastyle.scalariform.UnderscoreImportChecker" enabled="false"/>
     <check level="error" class="org.scalastyle.scalariform.LowercasePatternMatchChecker" enabled="true"/>
-    <check level="error" class="org.scalastyle.scalariform.MultipleStringLiteralsChecker" enabled="true">
-        <parameters>
-            <parameter name="allowed"><![CDATA[2]]></parameter>
-            <parameter name="ignoreRegex"><![CDATA[^""$]]></parameter>
-        </parameters>
-    </check>
     <check level="error" class="org.scalastyle.scalariform.ImportOrderChecker" enabled="true">
         <parameters>
             <parameter name="groups">all</parameter>

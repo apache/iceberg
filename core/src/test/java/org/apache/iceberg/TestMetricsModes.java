@@ -19,6 +19,8 @@
 
 package org.apache.iceberg;
 
+import com.google.common.collect.ImmutableMap;
+import java.util.Map;
 import org.apache.iceberg.MetricsModes.Counts;
 import org.apache.iceberg.MetricsModes.Full;
 import org.apache.iceberg.MetricsModes.None;
@@ -50,5 +52,27 @@ public class TestMetricsModes {
     exceptionRule.expect(IllegalArgumentException.class);
     exceptionRule.expectMessage("length should be positive");
     MetricsModes.fromString("truncate(0)");
+  }
+
+  @Test
+  public void testInvalidColumnModeValue() {
+    Map<String, String> properties = ImmutableMap.of(
+        TableProperties.DEFAULT_WRITE_METRICS_MODE, "full",
+        TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col", "troncate(5)");
+
+    MetricsConfig config = MetricsConfig.fromProperties(properties);
+    Assert.assertEquals("Invalid mode should be defaulted to table default (full)",
+        MetricsModes.Full.get(), config.columnMode("col"));
+  }
+
+  @Test
+  public void testInvalidDefaultColumnModeValue() {
+    Map<String, String> properties = ImmutableMap.of(
+        TableProperties.DEFAULT_WRITE_METRICS_MODE, "fuull",
+        TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col", "troncate(5)");
+
+    MetricsConfig config = MetricsConfig.fromProperties(properties);
+    Assert.assertEquals("Invalid mode should be defaulted to library default (truncate(16))",
+        MetricsModes.Truncate.withLength(16), config.columnMode("col"));
   }
 }
