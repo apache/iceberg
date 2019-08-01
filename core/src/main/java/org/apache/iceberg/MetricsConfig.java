@@ -48,7 +48,13 @@ public class MetricsConfig {
   public static MetricsConfig fromProperties(Map<String, String> props) {
     MetricsConfig spec = new MetricsConfig();
     String defaultModeAsString = props.getOrDefault(DEFAULT_WRITE_METRICS_MODE, DEFAULT_WRITE_METRICS_MODE_DEFAULT);
-    spec.defaultMode = MetricsModes.fromString(defaultModeAsString);
+    try {
+      spec.defaultMode = MetricsModes.fromString(defaultModeAsString);
+    } catch (IllegalArgumentException ignored) {
+      // Mode was invalid, log the error and use the default
+      LOG.warn("Ignoring invalid default metrics mode: %s", defaultModeAsString);
+      spec.defaultMode = MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT);
+    }
 
     props.keySet().stream()
         .filter(key -> key.startsWith(COLUMN_CONF_PREFIX))
