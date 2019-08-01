@@ -164,8 +164,8 @@ public class VectorizedParquetValueReaders {
         ((VarCharVector) getVector()).setNull(ordinal);
 
       } else {
-        String utf8Str = binary.toStringUsingUTF8();
-        ((VarCharVector) getVector()).setSafe(ordinal, utf8Str.getBytes());
+        // String utf8Str = binary.toStringUsingUTF8();
+        ((VarCharVector) getVector()).setSafe(ordinal, binary.getBytesUnsafe());
       }
     }
 

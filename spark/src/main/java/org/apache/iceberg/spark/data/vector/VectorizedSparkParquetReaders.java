@@ -164,6 +164,7 @@ public class VectorizedSparkParquetReaders {
           case ENUM:
           case JSON:
           case UTF8:
+            //return new VectorizedParquetValueReaders.BinaryReader(desc, icebergField, rootAllocator, recordsPerBatch);
             return new VectorizedParquetValueReaders.StringReader(desc, icebergField, rootAllocator, recordsPerBatch);
           case INT_8:
           case INT_16:
