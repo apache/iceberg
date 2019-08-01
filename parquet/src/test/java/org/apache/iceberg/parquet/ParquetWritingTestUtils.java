@@ -31,24 +31,23 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.parquet.schema.MessageType;
-import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.Files.localOutput;
 
 /**
- * Base utility test class for tests that need to write Parquet files
+ * Utilities for tests that need to write Parquet files.
  */
-public abstract class BaseParquetWritingTest {
+class ParquetWritingTestUtils {
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  private ParquetWritingTestUtils() {}
 
-  File writeRecords(Schema schema, GenericData.Record... records) throws IOException {
-    return writeRecords(schema, Collections.emptyMap(), null, records);
+  static File writeRecords(TemporaryFolder temp, Schema schema, GenericData.Record... records) throws IOException {
+    return writeRecords(temp, schema, Collections.emptyMap(), null, records);
   }
 
-  File writeRecords(
+  static File writeRecords(
+      TemporaryFolder temp,
       Schema schema, Map<String, String> properties,
       Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
       GenericData.Record... records) throws IOException {

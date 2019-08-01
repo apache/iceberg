@@ -86,6 +86,7 @@ public class Parquet {
     private Map<String, String> config = Maps.newLinkedHashMap();
     private Function<MessageType, ParquetValueWriter<?>> createWriterFunc = null;
     private MetricsConfig metricsConfig = MetricsConfig.getDefault();
+    private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
@@ -136,6 +137,15 @@ public class Parquet {
 
     public WriteBuilder metricsConfig(MetricsConfig newMetricsConfig) {
       this.metricsConfig = newMetricsConfig;
+      return this;
+    }
+
+    public WriteBuilder overwrite() {
+      return overwrite(true);
+    }
+
+    public WriteBuilder overwrite(boolean enabled) {
+      this.writeMode = enabled ? ParquetFileWriter.Mode.OVERWRITE : ParquetFileWriter.Mode.CREATE;
       return this;
     }
 
@@ -202,7 +212,7 @@ public class Parquet {
 
         return new org.apache.iceberg.parquet.ParquetWriter<>(
             conf, file, schema, rowGroupSize, metadata, createWriterFunc, codec(),
-            parquetProperties, metricsConfig);
+            parquetProperties, metricsConfig, writeMode);
       } else {
         return new ParquetWriteAdapter<>(new ParquetWriteBuilder<D>(ParquetIO.file(file))
             .withWriterVersion(writerVersion)
@@ -211,7 +221,7 @@ public class Parquet {
             .setKeyValueMetadata(metadata)
             .setWriteSupport(getWriteSupport(type))
             .withCompressionCodec(codec())
-            .withWriteMode(ParquetFileWriter.Mode.OVERWRITE) // TODO: support modes
+            .withWriteMode(writeMode)
             .withRowGroupSize(rowGroupSize)
             .withPageSize(pageSize)
             .withDictionaryPageSize(dictionaryPageSize)

@@ -321,6 +321,16 @@ public class TableMetadata {
         currentSnapshotId, snapshots, snapshotLog);
   }
 
+  public TableMetadata addStagedSnapshot(Snapshot snapshot) {
+    List<Snapshot> newSnapshots = ImmutableList.<Snapshot>builder()
+        .addAll(snapshots)
+        .add(snapshot)
+        .build();
+    return new TableMetadata(ops, null, uuid, location,
+        snapshot.timestampMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
+        currentSnapshotId, newSnapshots, snapshotLog);
+  }
+
   public TableMetadata replaceCurrentSnapshot(Snapshot snapshot) {
     List<Snapshot> newSnapshots = ImmutableList.<Snapshot>builder()
         .addAll(snapshots)

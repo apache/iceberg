@@ -45,6 +45,7 @@ import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -87,14 +88,20 @@ class Writer implements DataSourceWriter {
   private final EncryptionManager encryptionManager;
   private final boolean replacePartitions;
   private final String applicationId;
+  private final String wapId;
 
   Writer(Table table, DataSourceOptions options, boolean replacePartitions, String applicationId) {
+    this(table, options, replacePartitions, applicationId, null);
+  }
+
+  Writer(Table table, DataSourceOptions options, boolean replacePartitions, String applicationId, String wapId) {
     this.table = table;
     this.format = getFileFormat(table.properties(), options);
     this.fileIo = table.io();
     this.encryptionManager = table.encryption();
     this.replacePartitions = replacePartitions;
     this.applicationId = applicationId;
+    this.wapId = wapId;
   }
 
   private FileFormat getFileFormat(Map<String, String> tableProperties, DataSourceOptions options) {
@@ -102,6 +109,11 @@ class Writer implements DataSourceWriter {
     String formatString = formatOption
         .orElse(tableProperties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT));
     return FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
+  }
+
+  private boolean isWapTable() {
+    return Boolean.parseBoolean(table.properties().getOrDefault(
+        TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
   }
 
   @Override
@@ -124,6 +136,14 @@ class Writer implements DataSourceWriter {
     if (applicationId != null) {
       operation.set("spark.app.id", applicationId);
     }
+
+    if (isWapTable() && wapId != null) {
+      // write-audit-publish is enabled for this table and job
+      // stage the changes without changing the current snapshot
+      operation.set("wap.id", wapId);
+      operation.stageOnly();
+    }
+
     long start = System.currentTimeMillis();
     operation.commit(); // abort is automatically called if this fails
     long duration = System.currentTimeMillis() - start;

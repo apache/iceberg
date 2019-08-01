@@ -17,23 +17,23 @@
  * under the License.
  */
 
-package org.apache.iceberg.parquet;
+package org.apache.iceberg;
 
+import java.nio.ByteBuffer;
+import java.util.Comparator;
 import org.apache.iceberg.expressions.Literal;
 import org.junit.Assert;
 import org.junit.Test;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Comparator;
 
 import static org.apache.iceberg.util.BinaryUtil.truncateBinaryMax;
 import static org.apache.iceberg.util.BinaryUtil.truncateBinaryMin;
 import static org.apache.iceberg.util.UnicodeUtil.truncateStringMax;
 import static org.apache.iceberg.util.UnicodeUtil.truncateStringMin;
 
-public class TestParquetMetricsTruncation {
+@SuppressWarnings("checkstyle:LocalVariableName")
+public class TestMetricsTruncation {
   @Test
-  public void testTruncateBinaryMin() throws IOException {
+  public void testTruncateBinaryMin() {
     ByteBuffer test1 = ByteBuffer.wrap(new byte[] {1, 1, (byte) 0xFF, 2});
     // Output of test1 when truncated to 2 bytes
     ByteBuffer test1_2_expected = ByteBuffer.wrap(new byte[] {1, 1});
@@ -55,7 +55,7 @@ public class TestParquetMetricsTruncation {
   }
 
   @Test
-  public void testTruncateBinaryMax() throws IOException {
+  public void testTruncateBinaryMax() {
     ByteBuffer test1 = ByteBuffer.wrap(new byte[] {1, 1, 2});
     ByteBuffer test2 = ByteBuffer.wrap(new byte[] {1, 1, (byte) 0xFF, 2});
     ByteBuffer test3 = ByteBuffer.wrap(new byte[] {(byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 2});
@@ -83,8 +83,9 @@ public class TestParquetMetricsTruncation {
         cmp.compare(truncateBinaryMax(Literal.of(test4), 2).value(), expectedOutput) == 0);
   }
 
+  @SuppressWarnings("checkstyle:AvoidEscapedUnicodeCharacters")
   @Test
-  public void testTruncateStringMin() throws IOException {
+  public void testTruncateStringMin() {
     String test1 = "イロハニホヘト";
     // Output of test1 when truncated to 2 unicode characters
     String test1_2_expected = "イロ";
@@ -96,7 +97,6 @@ public class TestParquetMetricsTruncation {
     // test4 consists of 2 4 byte UTF-8 characters
     String test4 = "\uD800\uDC00\uD800\uDC00";
     String test4_1_expected = "\uD800\uDC00";
-
     Comparator<CharSequence> cmp = Literal.of(test1).comparator();
     Assert.assertTrue("Truncated lower bound should be lower than or equal to the actual lower bound",
         cmp.compare(truncateStringMin(Literal.of(test1), 3).value(), test1) <= 0);
@@ -120,8 +120,9 @@ public class TestParquetMetricsTruncation {
         cmp.compare(truncateStringMin(Literal.of(test4), 1).value(), test4_1_expected) == 0);
   }
 
+  @SuppressWarnings("checkstyle:AvoidEscapedUnicodeCharacters")
   @Test
-  public void testTruncateStringMax() throws IOException {
+  public void testTruncateStringMax() {
     String test1 = "イロハニホヘト";
     // Output of test1 when truncated to 2 unicode characters
     String test1_2_expected = "イヮ";
@@ -138,6 +139,9 @@ public class TestParquetMetricsTruncation {
     String test6 = "\uD800\uDFFF\uD800\uDFFF";
     // Increment the previous character
     String test6_2_expected = "\uD801\uDC00";
+    String test7 = "\uD83D\uDE02\uD83D\uDE02\uD83D\uDE02";
+    String test7_2_expected = "\uD83D\uDE02\uD83D\uDE03";
+    String test7_1_expected = "\uD83D\uDE03";
 
     Comparator<CharSequence> cmp = Literal.of(test1).comparator();
     Assert.assertTrue("Truncated upper bound should be greater than or equal to the actual upper bound",
@@ -175,5 +179,13 @@ public class TestParquetMetricsTruncation {
     Assert.assertTrue("Test 4 byte UTF-8 character increment. Output must have one character with " +
         "the first character incremented", cmp.compare(
         truncateStringMax(Literal.of(test6), 1).value(), test6_2_expected) == 0);
+    Assert.assertTrue("Truncated upper bound should be greater than or equal to the actual upper bound",
+        cmp.compare(truncateStringMax(Literal.of(test7), 2).value(), test7) >= 0);
+    Assert.assertTrue("Test input with multiple 4 byte UTF-8 character where the second unicode " +
+        "character should be incremented", cmp.compare(
+            truncateStringMax(Literal.of(test7), 2).value(), test7_2_expected) == 0);
+    Assert.assertTrue("Test input with multiple 4 byte UTF-8 character where the first unicode " +
+        "character should be incremented", cmp.compare(
+            truncateStringMax(Literal.of(test7), 1).value(), test7_1_expected) == 0);
   }
 }
