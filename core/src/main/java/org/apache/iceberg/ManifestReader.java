@@ -50,7 +50,7 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
   private static final Logger LOG = LoggerFactory.getLogger(ManifestReader.class);
 
   private static final List<String> ALL_COLUMNS = Lists.newArrayList("*");
-  private static final List<String> CHANGE_COLUNNS = Lists.newArrayList(
+  static final List<String> CHANGE_COLUNNS = Lists.newArrayList(
       "file_path", "file_format", "partition", "record_count", "file_size_in_bytes");
 
   // Visible for testing
@@ -161,16 +161,20 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
     List<ManifestEntry> adds = Lists.newArrayList();
     List<ManifestEntry> deletes = Lists.newArrayList();
 
-    for (ManifestEntry entry : entries(fileSchema.select(CHANGE_COLUNNS))) {
-      switch (entry.status()) {
-        case ADDED:
-          adds.add(entry.copyWithoutStats());
-          break;
-        case DELETED:
-          deletes.add(entry.copyWithoutStats());
-          break;
-        default:
+    try (CloseableIterable<ManifestEntry> entries = entries(fileSchema.select(CHANGE_COLUNNS))) {
+      for (ManifestEntry entry : entries) {
+        switch (entry.status()) {
+          case ADDED:
+            adds.add(entry.copyWithoutStats());
+            break;
+          case DELETED:
+            deletes.add(entry.copyWithoutStats());
+            break;
+          default:
+        }
       }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to close manifest entries");
     }
 
     this.cachedAdds = adds;
