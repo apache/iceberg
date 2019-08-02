@@ -50,7 +50,7 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
   private static final Logger LOG = LoggerFactory.getLogger(ManifestReader.class);
 
   private static final List<String> ALL_COLUMNS = Lists.newArrayList("*");
-  private static final List<String> CHANGE_COLUNNS = Lists.newArrayList(
+  static final List<String> CHANGE_COLUNNS = Lists.newArrayList(
       "file_path", "file_format", "partition", "record_count", "file_size_in_bytes");
 
   // Visible for testing
