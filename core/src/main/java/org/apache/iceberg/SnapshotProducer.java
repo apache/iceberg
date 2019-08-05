@@ -270,11 +270,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       } else {
         // saved may not be present if the latest metadata couldn't be loaded due to eventual
         // consistency problems in refresh. in that case, don't clean up.
-        LOG.info("Failed to load committed snapshot, skipping manifest clean-up");
+        LOG.warn("Failed to load committed snapshot, skipping manifest clean-up");
       }
 
     } catch (RuntimeException e) {
-      LOG.info("Failed to load committed table metadata, skipping manifest clean-up", e);
+      LOG.warn("Failed to load committed table metadata, skipping manifest clean-up", e);
     }
   }
 
