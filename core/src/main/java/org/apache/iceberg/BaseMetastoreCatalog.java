@@ -168,27 +168,26 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     Tasks.foreach(allManifests)
         .noRetry().suppressFailureWhenFinished()
         .executeWith(ThreadPools.getWorkerPool())
-        .onFailure((item, exc) ->
-            LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc)
-        ).run(manifest -> {
-      try (ManifestReader reader = ManifestReader.read(io.newInputFile(manifest.path()))) {
-        for (ManifestEntry entry : reader.entries()) {
-          // intern the file path because the weak key map uses identity (==) instead of equals
-          String path = entry.file().path().toString().intern();
-          Boolean alreadyDeleted = deletedFiles.putIfAbsent(path, true);
-          if (alreadyDeleted == null || !alreadyDeleted) {
-            try {
-              io.deleteFile(path);
-            } catch (RuntimeException e) {
-              // this may happen if the map of deleted files gets cleaned up by gc
-              LOG.warn("Delete failed for data file: {}", path, e);
+        .onFailure((item, exc) -> LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc))
+        .run(manifest -> {
+          try (ManifestReader reader = ManifestReader.read(io.newInputFile(manifest.path()))) {
+            for (ManifestEntry entry : reader.entries()) {
+              // intern the file path because the weak key map uses identity (==) instead of equals
+              String path = entry.file().path().toString().intern();
+              Boolean alreadyDeleted = deletedFiles.putIfAbsent(path, true);
+              if (alreadyDeleted == null || !alreadyDeleted) {
+                try {
+                  io.deleteFile(path);
+                } catch (RuntimeException e) {
+                  // this may happen if the map of deleted files gets cleaned up by gc
+                  LOG.warn("Delete failed for data file: {}", path, e);
+                }
+              }
             }
+          } catch (IOException e) {
+            throw new RuntimeIOException(e, "Failed to read manifest file: " + manifest.path());
           }
-        }
-      } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to read manifest file: " + manifest.path());
-      }
-    });
+        });
   }
 
   private Table loadMetadataTable(TableIdentifier identifier, TableType type) {
