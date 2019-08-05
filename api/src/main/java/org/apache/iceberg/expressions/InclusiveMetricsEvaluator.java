@@ -52,7 +52,7 @@ public class InclusiveMetricsEvaluator {
     return visitors.get();
   }
 
-  InclusiveMetricsEvaluator(Schema schema, Expression unbound) {
+  public InclusiveMetricsEvaluator(Schema schema, Expression unbound) {
     this(schema, unbound, true);
   }
 
