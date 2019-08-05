@@ -65,7 +65,9 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
 
     try {
       clients.run(client -> {
-        client.dropTable(database, identifier.name());
+        client.dropTable(database, identifier.name(),
+            false /* do not delete data */,
+            false /* throw NoSuchObjectException if the table doesn't exist */);
         return null;
       });
 

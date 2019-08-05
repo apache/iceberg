@@ -121,6 +121,14 @@ public interface Catalog {
   boolean dropTable(TableIdentifier identifier);
 
   /**
+   * Drop a table and remove all data and metadata files.
+   *
+   * @param identifier a table identifier
+   * @return true if the table was dropped, false if the table did not exist
+   */
+  boolean dropTableAndData(TableIdentifier identifier);
+
+  /**
    * Rename a table.
    *
    * @param from identifier of the table to rename
