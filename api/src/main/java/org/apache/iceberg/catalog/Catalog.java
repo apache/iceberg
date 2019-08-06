@@ -23,6 +23,7 @@ import java.util.Map;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.Transaction;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 
@@ -95,6 +96,146 @@ public interface Catalog {
       TableIdentifier identifier,
       Schema schema) {
     return createTable(identifier, schema, PartitionSpec.unpartitioned(), null, null);
+  }
+
+  /**
+   * Start a transaction to create a table.
+   *
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @param spec a partition spec
+   * @param location a location for the table; leave null if unspecified
+   * @param properties a string map of table properties
+   * @return a {@link Transaction} to create the table
+   * @throws AlreadyExistsException if the table already exists
+   */
+  Transaction newCreateTableTransaction(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec,
+      String location,
+      Map<String, String> properties);
+
+  /**
+   * Start a transaction to create a table.
+   *
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @param spec a partition spec
+   * @param properties a string map of table properties
+   * @return a {@link Transaction} to create the table
+   * @throws AlreadyExistsException if the table already exists
+   */
+  default Transaction newCreateTableTransaction(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec,
+      Map<String, String> properties) {
+    return newCreateTableTransaction(identifier, schema, spec, null, properties);
+  }
+
+  /**
+   * Start a transaction to create a table.
+   *
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @param spec a partition spec
+   * @return a {@link Transaction} to create the table
+   * @throws AlreadyExistsException if the table already exists
+   */
+  default Transaction newCreateTableTransaction(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec) {
+    return newCreateTableTransaction(identifier, schema, spec, null, null);
+  }
+
+  /**
+   * Start a transaction to create a table.
+   *
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @return a {@link Transaction} to create the table
+   * @throws AlreadyExistsException if the table already exists
+   */
+  default Transaction newCreateTableTransaction(
+      TableIdentifier identifier,
+      Schema schema) {
+    return newCreateTableTransaction(identifier, schema, PartitionSpec.unpartitioned(), null, null);
+  }
+
+  /**
+   * Start a transaction to replace a table.
+   *
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @param spec a partition spec
+   * @param location a location for the table; leave null if unspecified
+   * @param properties a string map of table properties
+   * @param orCreate whether to create the table if not exists
+   * @return a {@link Transaction} to replace the table
+   * @throws NoSuchTableException if the table doesn't exist and orCreate is false
+   */
+  Transaction newReplaceTableTransaction(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec,
+      String location,
+      Map<String, String> properties,
+      boolean orCreate);
+
+  /**
+   * Start a transaction to replace a table.
+   *
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @param spec a partition spec
+   * @param properties a string map of table properties
+   * @param orCreate whether to create the table if not exists
+   * @return a {@link Transaction} to replace the table
+   * @throws NoSuchTableException if the table doesn't exist and orCreate is false
+   */
+  default Transaction newReplaceTableTransaction(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec,
+      Map<String, String> properties,
+      boolean orCreate) {
+    return newReplaceTableTransaction(identifier, schema, spec, null, properties, orCreate);
+  }
+
+  /**
+   * Start a transaction to replace a table.
+   *
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @param spec a partition spec
+   * @param orCreate whether to create the table if not exists
+   * @return a {@link Transaction} to replace the table
+   * @throws NoSuchTableException if the table doesn't exist and orCreate is false
+   */
+  default Transaction newReplaceTableTransaction(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec,
+      boolean orCreate) {
+    return newReplaceTableTransaction(identifier, schema, spec, null, null, orCreate);
+  }
+
+  /**
+   * Start a transaction to replace a table.
+   *
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @param orCreate whether to create the table if not exists
+   * @return a {@link Transaction} to replace the table
+   * @throws NoSuchTableException if the table doesn't exist and orCreate is false
+   */
+  default Transaction newReplaceTableTransaction(
+      TableIdentifier identifier,
+      Schema schema,
+      boolean orCreate) {
+    return newReplaceTableTransaction(identifier, schema, PartitionSpec.unpartitioned(), null, null, orCreate);
   }
 
   /**

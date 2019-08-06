@@ -46,6 +46,7 @@ import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
@@ -85,7 +86,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   }
 
   @Override
-  public TableMetadata refresh() {
+  protected void doRefresh() {
     String metadataLocation = null;
     try {
       final Table table = metaClients.run(client -> client.getTable(database, tableName));
@@ -118,12 +119,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     }
 
     refreshFromMetadataLocation(metadataLocation);
-
-    return current();
   }
 
   @Override
-  public void commit(TableMetadata base, TableMetadata metadata) {
+  protected void doCommit(TableMetadata base, TableMetadata metadata) {
     // if the metadata is already out of date, reject it
     if (base != current()) {
       throw new CommitFailedException("Cannot commit: stale table metadata for %s.%s", database, tableName);
@@ -184,6 +183,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         });
       }
       threw = false;
+    } catch (org.apache.hadoop.hive.metastore.api.AlreadyExistsException e) {
+      throw new AlreadyExistsException("Table already exists: %s.%s", database, tableName);
+
     } catch (TException | UnknownHostException e) {
       throw new RuntimeException(String.format("Metastore operation failed for %s.%s", database, tableName), e);
 
@@ -198,8 +200,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       }
       unlock(lockId);
     }
-
-    requestRefresh();
   }
 
   private void setParameters(String newMetadataLocation, Table tbl) {

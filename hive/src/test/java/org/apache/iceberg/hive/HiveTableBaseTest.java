@@ -22,22 +22,16 @@ package org.apache.iceberg.hive;
 import java.io.File;
 import java.nio.file.Paths;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
-import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import static org.apache.iceberg.PartitionSpec.builderFor;
 import static org.apache.iceberg.TableMetadataParser.getFileExtension;
@@ -45,9 +39,8 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 
-public class HiveTableBaseTest {
+public class HiveTableBaseTest extends HiveMetastoreTest {
 
-  protected static final String DB_NAME = "hivedb";
   static final String TABLE_NAME =  "tbl";
   static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(DB_NAME, TABLE_NAME);
 
@@ -59,35 +52,6 @@ public class HiveTableBaseTest {
       optional(2, "data", Types.LongType.get())).fields());
 
   private static final PartitionSpec partitionSpec = builderFor(schema).identity("id").build();
-
-  private static TestHiveMetastore metastore;
-
-  protected static HiveMetaStoreClient metastoreClient;
-  protected static HiveCatalog catalog;
-  protected static HiveConf hiveConf;
-
-  @BeforeClass
-  public static void startMetastore() throws Exception {
-    HiveTableBaseTest.metastore = new TestHiveMetastore();
-    metastore.start();
-    HiveTableBaseTest.hiveConf = metastore.hiveConf();
-    HiveTableBaseTest.metastoreClient = new HiveMetaStoreClient(hiveConf);
-    String dbPath = metastore.getDatabasePath(DB_NAME);
-    Database db = new Database(DB_NAME, "description", dbPath, new HashMap<>());
-    metastoreClient.createDatabase(db);
-    HiveTableBaseTest.catalog = new HiveCatalog(hiveConf);
-  }
-
-  @AfterClass
-  public static void stopMetastore() {
-    HiveTableBaseTest.catalog.close();
-
-    metastoreClient.close();
-    HiveTableBaseTest.metastoreClient = null;
-
-    metastore.stop();
-    HiveTableBaseTest.metastore = null;
-  }
 
   private Path tableLocation;
 
