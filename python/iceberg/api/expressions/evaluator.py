@@ -25,7 +25,7 @@ class Evaluator(object):
     THREAD_LOCAL_DATA = threading.local()
 
     def visitor(self):
-        if not hasattr(Evaluator.THREAD_LOCAL_DATA, "visitors") :
+        if not hasattr(Evaluator.THREAD_LOCAL_DATA, "visitors"):
             Evaluator.THREAD_LOCAL_DATA.visitors = Evaluator.EvalVisitor()
 
         return Evaluator.THREAD_LOCAL_DATA.visitors
