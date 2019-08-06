@@ -17,6 +17,7 @@
 
 from copy import deepcopy
 
+
 class PackingIterator(object):
 
     def __init__(self, items, target_weight, lookback, weight_func):

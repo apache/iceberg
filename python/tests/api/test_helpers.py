@@ -49,14 +49,14 @@ class TestHelpers(object):
 
     class CheckReferencesBound(ExpressionVisitors.ExpressionVisitor):
 
-            def __init__(self, message):
-                self.message = message
+        def __init__(self, message):
+            self.message = message
 
-            def predicate(self, pred):
-                if isinstance(pred, UnboundPredicate):
-                    assert_true(False)
+        def predicate(self, pred):
+            if isinstance(pred, UnboundPredicate):
+                assert_true(False)
 
-                return None
+            return None
 
 
 class TestDataFile(DataFile):

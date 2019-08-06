@@ -26,9 +26,11 @@ class StrictMetricsEvaluator(object):
 
     def visitor(self):
         if not hasattr(self.thread_local_data, "visitors"):
-            self.thread_local_data.visitors = StrictMetricsEvaluator.MetricsEvalVisitor(self.expr,
-                                                                                                          self.schema,
-                                                                                                          self.struct)
+            self.thread_local_data.visitors = StrictMetricsEvaluator.MetricsEvalVisitor(
+                self.expr,
+                self.schema,
+                self.struct
+            )
 
         return self.thread_local_data.visitors
 
