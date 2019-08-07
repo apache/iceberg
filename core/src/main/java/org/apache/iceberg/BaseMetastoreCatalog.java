@@ -106,26 +106,50 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     return new BaseTable(ops, identifier.toString());
   }
 
-  @Override
-  public boolean dropTableAndData(TableIdentifier identifier) {
-    // load the table state to get the data files to delete
+  private Table loadMetadataTable(TableIdentifier identifier, TableType type) {
     TableOperations ops = newTableOps(identifier);
     if (ops.current() == null) {
-      return false;
+      throw new NoSuchTableException("Table does not exist: " + identifier);
     }
 
-    // drop the table
-    if (!dropTable(identifier)) {
-      // the table was dropped by another process after it was loaded, do nothing
-      return false;
-    }
+    Table baseTable = new BaseTable(ops, identifier.toString());
 
+    switch (type) {
+      case ENTRIES:
+        return new ManifestEntriesTable(ops, baseTable);
+      case FILES:
+        return new DataFilesTable(ops, baseTable);
+      case HISTORY:
+        return new HistoryTable(ops, baseTable);
+      case SNAPSHOTS:
+        return new SnapshotsTable(ops, baseTable);
+      case MANIFESTS:
+        return new ManifestsTable(ops, baseTable);
+      default:
+        throw new NoSuchTableException(String.format("Unknown metadata table type: %s for %s", type, identifier));
+    }
+  }
+
+  protected abstract TableOperations newTableOps(TableIdentifier tableIdentifier);
+
+  protected abstract String defaultWarehouseLocation(TableIdentifier tableIdentifier);
+
+  /**
+   * Drops all data and metadata files referenced by TableMetadata.
+   * <p>
+   * This should be called by dropTable implementations to clean up table files once the table has been dropped in the
+   * metastore.
+   *
+   * @param io a FileIO to use for deletes
+   * @param metadata the last valid TableMetadata instance for a dropped table.
+   */
+  protected static void dropTableData(FileIO io, TableMetadata metadata) {
     // Reads and deletes are done using Tasks.foreach(...).suppressFailureWhenFinished to complete
     // as much of the delete work as possible and avoid orphaned data or manifest files.
 
     Set<String> manifestListsToDelete = Sets.newHashSet();
     Set<ManifestFile> manifestsToDelete = Sets.newHashSet();
-    for (Snapshot snapshot : ops.current().snapshots()) {
+    for (Snapshot snapshot : metadata.snapshots()) {
       manifestsToDelete.addAll(snapshot.manifests());
       // add the manifest list to the delete set, if present
       if (snapshot.manifestListLocation() != null) {
@@ -137,7 +161,6 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
     // run all of the deletes
 
-    FileIO io = ops.io();
     deleteFiles(io, manifestsToDelete);
 
     Tasks.foreach(Iterables.transform(manifestsToDelete, ManifestFile::path))
@@ -150,15 +173,13 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         .onFailure((list, exc) -> LOG.warn("Delete failed for manifest list: {}", list, exc))
         .run(io::deleteFile);
 
-    Tasks.foreach(ops.current().file().location())
+    Tasks.foreach(metadata.file().location())
         .noRetry().suppressFailureWhenFinished()
         .onFailure((list, exc) -> LOG.warn("Delete failed for metadata file: {}", list, exc))
         .run(io::deleteFile);
-
-    return true;
   }
 
-  private void deleteFiles(FileIO io, Set<ManifestFile> allManifests) {
+  private static void deleteFiles(FileIO io, Set<ManifestFile> allManifests) {
     // keep track of deleted files in a map that can be cleaned up when memory runs low
     Map<String, Boolean> deletedFiles = new MapMaker()
         .concurrencyLevel(ThreadPools.WORKER_THREAD_POOL_SIZE)
@@ -189,32 +210,4 @@ public abstract class BaseMetastoreCatalog implements Catalog {
           }
         });
   }
-
-  private Table loadMetadataTable(TableIdentifier identifier, TableType type) {
-    TableOperations ops = newTableOps(identifier);
-    if (ops.current() == null) {
-      throw new NoSuchTableException("Table does not exist: " + identifier);
-    }
-
-    Table baseTable = new BaseTable(ops, identifier.toString());
-
-    switch (type) {
-      case ENTRIES:
-        return new ManifestEntriesTable(ops, baseTable);
-      case FILES:
-        return new DataFilesTable(ops, baseTable);
-      case HISTORY:
-        return new HistoryTable(ops, baseTable);
-      case SNAPSHOTS:
-        return new SnapshotsTable(ops, baseTable);
-      case MANIFESTS:
-        return new ManifestsTable(ops, baseTable);
-      default:
-        throw new NoSuchTableException(String.format("Unknown metadata table type: %s for %s", type, identifier));
-    }
-  }
-
-  protected abstract TableOperations newTableOps(TableIdentifier tableIdentifier);
-
-  protected abstract String defaultWarehouseLocation(TableIdentifier tableIdentifier);
 }

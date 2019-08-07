@@ -114,7 +114,7 @@ public class HiveTableTest extends HiveTableBaseTest {
   }
 
   @Test
-  public void testDropLeavesTableData() throws IOException {
+  public void testDropWithoutPurgeLeavesTableData() throws IOException {
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
 
     GenericRecordBuilder recordBuilder = new GenericRecordBuilder(AvroSchemaUtil.convert(schema, "test"));
@@ -144,7 +144,8 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     String manifestListLocation = table.currentSnapshot().manifestListLocation().replace("file:", "");
 
-    Assert.assertTrue("Drop should return true and drop the table", catalog.dropTable(TABLE_IDENTIFIER));
+    Assert.assertTrue("Drop should return true and drop the table",
+        catalog.dropTable(TABLE_IDENTIFIER, false /* do not delete underlying files */));
     Assert.assertFalse("Table should not exist", catalog.tableExists(TABLE_IDENTIFIER));
 
     Assert.assertTrue("Table data files should exist",
@@ -154,7 +155,7 @@ public class HiveTableTest extends HiveTableBaseTest {
   }
 
   @Test
-  public void testDropTableAndData() throws IOException {
+  public void testDropTable() throws IOException {
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
 
     GenericRecordBuilder recordBuilder = new GenericRecordBuilder(AvroSchemaUtil.convert(schema, "test"));
@@ -207,7 +208,7 @@ public class HiveTableTest extends HiveTableBaseTest {
     List<ManifestFile> manifests = table.currentSnapshot().manifests();
 
     Assert.assertTrue("Drop (table and data) should return true and drop the table",
-        catalog.dropTableAndData(TABLE_IDENTIFIER));
+        catalog.dropTable(TABLE_IDENTIFIER));
     Assert.assertFalse("Table should not exist", catalog.tableExists(TABLE_IDENTIFIER));
 
     Assert.assertFalse("Table data files should not exist",

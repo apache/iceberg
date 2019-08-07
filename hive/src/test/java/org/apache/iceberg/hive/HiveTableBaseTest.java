@@ -100,7 +100,7 @@ public class HiveTableBaseTest {
   public void dropTestTable() throws Exception {
     // drop the table data
     tableLocation.getFileSystem(hiveConf).delete(tableLocation, true);
-    catalog.dropTable(TABLE_IDENTIFIER);
+    catalog.dropTable(TABLE_IDENTIFIER, false /* metadata only, location was already deleted */);
   }
   private static String getTableBasePath(String tableName) {
     String databasePath = metastore.getDatabasePath(DB_NAME);
