@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.expressions;
 
+import java.util.Set;
+
 /**
  * Utils for traversing {@link Expression expressions}.
  */
@@ -89,11 +91,11 @@ public class ExpressionVisitors {
       return null;
     }
 
-    public <T> R in(BoundReference<T> ref, Literal<T> lit) {
+    public <T> R in(BoundReference<T> ref, Set<Literal<T>> lits) {
       return null;
     }
 
-    public <T> R notIn(BoundReference<T> ref, Literal<T> lit) {
+    public <T> R notIn(BoundReference<T> ref, Set<Literal<T>> lits) {
       return null;
     }
 
@@ -120,12 +122,12 @@ public class ExpressionVisitors {
           return eq(pred.ref(), pred.literal());
         case NOT_EQ:
           return notEq(pred.ref(), pred.literal());
-        case IN:
-          return in(pred.ref(), pred.literal());
-        case NOT_IN:
-          return notIn(pred.ref(), pred.literal());
         case STARTS_WITH:
           return startsWith(pred.ref(),  pred.literal());
+        case IN:
+          return in(pred.ref(), pred.literalSet());
+        case NOT_IN:
+          return notIn(pred.ref(), pred.literalSet());
         default:
           throw new UnsupportedOperationException(
               "Unknown operation for predicate: " + pred.op());

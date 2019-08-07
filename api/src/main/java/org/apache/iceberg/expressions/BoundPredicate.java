@@ -19,13 +19,19 @@
 
 package org.apache.iceberg.expressions;
 
+import java.util.Collection;
+
 public class BoundPredicate<T> extends Predicate<T, BoundReference<T>> {
   BoundPredicate(Operation op, BoundReference<T> ref, Literal<T> lit) {
     super(op, ref, lit);
   }
 
+  BoundPredicate(Operation op, BoundReference<T> ref, Literal<T> lit, Collection<Literal<T>> lits) {
+    super(op, ref, lit, lits);
+  }
+
   BoundPredicate(Operation op, BoundReference<T> ref) {
-    super(op, ref, null);
+    this(op, ref, null);
   }
 
   @Override

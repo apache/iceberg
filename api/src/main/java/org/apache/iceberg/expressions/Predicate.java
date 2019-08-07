@@ -19,15 +19,44 @@
 
 package org.apache.iceberg.expressions;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
+import java.util.Collection;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 public abstract class Predicate<T, R extends Reference> implements Expression {
   private final Operation op;
   private final R ref;
   private final Literal<T> literal;
+  private final Set<Literal<T>> literalSet;
 
   Predicate(Operation op, R ref, Literal<T> lit) {
     this.op = op;
     this.ref = ref;
     this.literal = lit;
+    if (lit == null || lit == Literals.aboveMax() || lit == Literals.belowMin() ||
+            (op != Operation.IN && op != Operation.NOT_IN)) {
+      this.literalSet = ImmutableSet.of();
+    } else {
+      this.literalSet = ImmutableSet.of(lit);
+    }
+  }
+
+  Predicate(Operation op, R ref, Literal<T> lit, Collection<Literal<T>> lits) {
+    Preconditions.checkArgument((op == Operation.IN || op == Operation.NOT_IN) && lit != null,
+            "IN and NOT_IN predicate support a collection of not null literals");
+    this.op = op;
+    this.ref = ref;
+    this.literal = lit;
+    if (lits == null) {
+      this.literalSet = ImmutableSet.of();
+    } else {
+      this.literalSet = Stream.concat(Stream.of(lit), lits.stream())
+              .filter(l -> l != null && l != Literals.aboveMax() && l != Literals.belowMin())
+              .collect(Collectors.toSet());
+    }
   }
 
   @Override
@@ -41,6 +70,10 @@ public abstract class Predicate<T, R extends Reference> implements Expression {
 
   public Literal<T> literal() {
     return literal;
+  }
+
+  public Set<Literal<T>> literalSet() {
+    return literalSet;
   }
 
   @Override
@@ -64,10 +97,10 @@ public abstract class Predicate<T, R extends Reference> implements Expression {
         return String.valueOf(ref()) + " != " + literal();
       case STARTS_WITH:
         return ref() + " startsWith \"" + literal() + "\"";
-//      case IN:
-//        break;
-//      case NOT_IN:
-//        break;
+      case IN:
+        return String.valueOf(ref()) + " in " + literalSet();
+      case NOT_IN:
+        return String.valueOf(ref()) + " not in " + literalSet();
       default:
         return "Invalid predicate: operation = " + op;
     }

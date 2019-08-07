@@ -33,6 +33,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
+import java.util.Objects;
 import java.util.UUID;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
@@ -109,6 +110,26 @@ class Literals {
     public String toString() {
       return String.valueOf(value);
     }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      }
+      if (other == null || getClass() != other.getClass()) {
+        return false;
+      }
+      BaseLiteral<T> that = (BaseLiteral<T>) other;
+
+      return comparator().compare(value(), that.value()) == 0;
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hashCode(value);
+    }
+
   }
 
   private abstract static class ComparableLiteral<C extends Comparable<C>> extends BaseLiteral<C> {
