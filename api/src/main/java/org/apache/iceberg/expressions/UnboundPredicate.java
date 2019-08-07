@@ -19,6 +19,10 @@
 
 package org.apache.iceberg.expressions;
 
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
@@ -30,6 +34,10 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
 
   UnboundPredicate(Operation op, NamedReference namedRef, T value) {
     super(op, namedRef, Literals.from(value));
+  }
+
+  UnboundPredicate(Operation op, NamedReference namedRef, T value, T... values) {
+    super(op, namedRef, Literals.from(value), Stream.of(values).map(Literals::from).collect(Collectors.toSet()));
   }
 
   UnboundPredicate(Operation op, NamedReference namedRef) {
@@ -110,10 +118,9 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
         case GT_EQ:
         case EQ:
           return Expressions.alwaysFalse();
-//        case IN:
-//          break;
-//        case NOT_IN:
-//          break;
+        case IN:
+        case NOT_IN:
+          break;
       }
     } else if (lit == Literals.belowMin()) {
       switch (op()) {
@@ -125,13 +132,26 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
         case LT_EQ:
         case EQ:
           return Expressions.alwaysFalse();
-//        case IN:
-//          break;
-//        case NOT_IN:
-//          break;
+        case IN:
+        case NOT_IN:
+          break;
       }
     }
-    return new BoundPredicate<>(op(), new BoundReference<>(field.fieldId(),
-        schema.accessorForField(field.fieldId())), lit);
+
+    switch (op()) {
+      case IN:
+      case NOT_IN:
+        @SuppressWarnings("unchecked")
+        Set<Literal<T>> lits = literalSet()
+                .stream()
+                .map(l -> (Literal<T>) l.to(field.type()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        return new BoundPredicate<>(op(), new BoundReference<>(field.fieldId(),
+                schema.accessorForField(field.fieldId())), lit, lits);
+      default:
+        return new BoundPredicate<>(op(), new BoundReference<>(field.fieldId(),
+                schema.accessorForField(field.fieldId())), lit);
+    }
   }
 }

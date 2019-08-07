@@ -107,6 +107,15 @@ public class Expressions {
 
   public static UnboundPredicate<String> startsWith(String name, String value) {
     return new UnboundPredicate<>(Expression.Operation.STARTS_WITH, ref(name), value);
+
+  public static <T> UnboundPredicate<T> in(String name, T value, T... values) {
+    Preconditions.checkNotNull(value, "in predicate must include at least one value");
+    return new UnboundPredicate<>(Operation.IN, ref(name), value, values);
+  }
+
+  public static <T> UnboundPredicate<T> notIn(String name, T value, T... values) {
+    Preconditions.checkNotNull(value, "notIn predicate must include at least one value");
+    return new UnboundPredicate<>(Operation.NOT_IN, ref(name), value, values);
   }
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name, T value) {
