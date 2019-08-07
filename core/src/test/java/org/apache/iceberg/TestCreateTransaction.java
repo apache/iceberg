@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import com.google.common.collect.Sets;
 import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -265,6 +266,9 @@ public class TestCreateTransaction extends TableTestBase {
 
     Transaction txn = TestTables.beginCreate(tableDir, "test_conflict", SCHEMA, SPEC);
 
+    // append in the transaction to ensure a manifest file is created
+    txn.newAppend().appendFile(FILE_A).commit();
+
     Assert.assertNull("Starting a create transaction should not commit metadata",
         TestTables.readMetadata("test_conflict"));
     Assert.assertNull("Should have no metadata version",
@@ -281,6 +285,8 @@ public class TestCreateTransaction extends TableTestBase {
 
     AssertHelpers.assertThrows("Transaction commit should fail",
         CommitFailedException.class, "Commit failed: table was updated", txn::commitTransaction);
+
+    Assert.assertEquals("Should clean up metadata", Sets.newHashSet(), Sets.newHashSet(listManifestFiles(tableDir)));
   }
 
   private static Schema assignFreshIds(Schema schema) {

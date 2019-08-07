@@ -32,7 +32,6 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
-import org.apache.iceberg.util.Exceptions;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -198,104 +197,173 @@ class BaseTransaction implements Transaction {
 
     switch (type) {
       case CREATE_TABLE:
-        // fix up the snapshot log, which should not contain intermediate snapshots
-        TableMetadata createMetadata = current.removeSnapshotLogEntries(intermediateSnapshotIds);
-
-        // this operation creates the table. if the commit fails, this cannot retry because another
-        // process has created the same table.
-        ops.commit(null, createMetadata);
+        commitCreateTransaction();
         break;
 
       case REPLACE_TABLE:
-        // fix up the snapshot log, which should not contain intermediate snapshots
-        TableMetadata replaceMetadata = current.removeSnapshotLogEntries(intermediateSnapshotIds);
-
-        Tasks.foreach(ops)
-            .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
-            .exponentialBackoff(
-                base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-                base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
-                base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-                2.0 /* exponential */)
-            .onlyRetryOn(CommitFailedException.class)
-            .run(underlyingOps -> {
-              // because this is a replace table, it will always completely replace the table
-              // metadata. even if it was just updated.
-              if (base != underlyingOps.refresh()) {
-                this.base = underlyingOps.current(); // just refreshed
-              }
-
-              underlyingOps.commit(base, replaceMetadata);
-            });
+        commitReplaceTransaction();
         break;
 
       case SIMPLE:
-        // if there were no changes, don't try to commit
-        if (base == current) {
-          return;
-        }
-
-        // this is always set to the latest commit attempt's snapshot id.
-        AtomicLong currentSnapshotId = new AtomicLong(-1L);
-
-        try {
-          Tasks.foreach(ops)
-              .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
-              .exponentialBackoff(
-                  base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-                  base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
-                  base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-                  2.0 /* exponential */)
-              .onlyRetryOn(CommitFailedException.class)
-              .run(underlyingOps -> {
-                if (base != underlyingOps.refresh()) {
-                  this.base = underlyingOps.current(); // just refreshed
-                  this.current = base;
-                  for (PendingUpdate update : updates) {
-                    // re-commit each update in the chain to apply it and update current
-                    update.commit();
-                  }
-                }
-
-                currentSnapshotId.set(current.currentSnapshot().snapshotId());
-
-                // fix up the snapshot log, which should not contain intermediate snapshots
-                underlyingOps.commit(base, current.removeSnapshotLogEntries(intermediateSnapshotIds));
-              });
-
-        } catch (RuntimeException e) {
-          // the commit failed and there are no committed manifests. delete any file cleaned up by an operation.
-          Exceptions.suppressAndThrow(e, () -> deletedFiles.forEach(ops.io()::deleteFile));
-        }
-
-        // the commit succeeded
-
-        try {
-          intermediateSnapshotIds.add(currentSnapshotId.get());
-
-          // clean up the data files that were deleted by each operation. first, get the list of committed manifests to
-          // ensure that no committed manifest is deleted. a manifest could be deleted in one successful operation
-          // commit, but reused in another successful commit of that operation if the whole transaction is retried.
-          Set<String> committedFiles = committedFiles(ops, intermediateSnapshotIds);
-          if (committedFiles != null) {
-            // delete all of the files that were deleted in the most recent set of operation commits
-            Tasks.foreach(deletedFiles)
-                .suppressFailureWhenFinished()
-                .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
-                .run(path -> {
-                  if (!committedFiles.contains(path)) {
-                    ops.io().deleteFile(path);
-                  }
-                });
-          } else {
-            LOG.warn("Failed to load metadata for a committed snapshot, skipping clean-up");
-          }
-
-        } catch (RuntimeException e) {
-          LOG.warn("Failed to load committed metadata, skipping clean-up", e);
-        }
-
+        commitSimpleTransaction();
         break;
+    }
+  }
+
+  private void commitCreateTransaction() {
+    // fix up the snapshot log, which should not contain intermediate snapshots
+    TableMetadata createMetadata = current.removeSnapshotLogEntries(intermediateSnapshotIds);
+
+    // this operation creates the table. if the commit fails, this cannot retry because another
+    // process has created the same table.
+    try {
+      ops.commit(null, createMetadata);
+
+    } catch (RuntimeException e) {
+      // the commit failed and no files were committed. clean up each update.
+      Tasks.foreach(updates)
+          .suppressFailureWhenFinished()
+          .run(update -> {
+            if (update instanceof SnapshotProducer) {
+              ((SnapshotProducer) update).cleanAll();
+            }
+          });
+
+      throw e;
+
+    } finally {
+      // create table never needs to retry because the table has no previous state. because retries are not a
+      // concern, it is safe to delete all of the deleted files from individual operations
+      Tasks.foreach(deletedFiles)
+          .suppressFailureWhenFinished()
+          .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
+          .run(ops.io()::deleteFile);
+    }
+  }
+
+  private void commitReplaceTransaction() {
+    // fix up the snapshot log, which should not contain intermediate snapshots
+    TableMetadata replaceMetadata = current.removeSnapshotLogEntries(intermediateSnapshotIds);
+
+    try {
+      Tasks.foreach(ops)
+          .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
+          .exponentialBackoff(
+              base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
+              base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+              base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
+              2.0 /* exponential */)
+          .onlyRetryOn(CommitFailedException.class)
+          .run(underlyingOps -> {
+            // because this is a replace table, it will always completely replace the table
+            // metadata. even if it was just updated.
+            if (base != underlyingOps.refresh()) {
+              this.base = underlyingOps.current(); // just refreshed
+            }
+
+            underlyingOps.commit(base, replaceMetadata);
+          });
+
+    } catch (RuntimeException e) {
+      // the commit failed and no files were committed. clean up each update.
+      Tasks.foreach(updates)
+          .suppressFailureWhenFinished()
+          .run(update -> {
+            if (update instanceof SnapshotProducer) {
+              ((SnapshotProducer) update).cleanAll();
+            }
+          });
+
+      throw e;
+
+    } finally {
+      // replace table never needs to retry because the table state is completely replaced. because retries are not
+      // a concern, it is safe to delete all of the deleted files from individual operations
+      Tasks.foreach(deletedFiles)
+          .suppressFailureWhenFinished()
+          .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
+          .run(ops.io()::deleteFile);
+    }
+  }
+
+  private void commitSimpleTransaction() {
+    // if there were no changes, don't try to commit
+    if (base == current) {
+      return;
+    }
+
+    // this is always set to the latest commit attempt's snapshot id.
+    AtomicLong currentSnapshotId = new AtomicLong(-1L);
+
+    try {
+      Tasks.foreach(ops)
+          .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
+          .exponentialBackoff(
+              base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
+              base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+              base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
+              2.0 /* exponential */)
+          .onlyRetryOn(CommitFailedException.class)
+          .run(underlyingOps -> {
+            if (base != underlyingOps.refresh()) {
+              this.base = underlyingOps.current(); // just refreshed
+              this.current = base;
+              for (PendingUpdate update : updates) {
+                // re-commit each update in the chain to apply it and update current
+                update.commit();
+              }
+            }
+
+            currentSnapshotId.set(current.currentSnapshot().snapshotId());
+
+            // fix up the snapshot log, which should not contain intermediate snapshots
+            underlyingOps.commit(base, current.removeSnapshotLogEntries(intermediateSnapshotIds));
+          });
+
+    } catch (RuntimeException e) {
+      // the commit failed and no files were committed. clean up each update.
+      Tasks.foreach(updates)
+          .suppressFailureWhenFinished()
+          .run(update -> {
+            if (update instanceof SnapshotProducer) {
+              ((SnapshotProducer) update).cleanAll();
+            }
+          });
+
+      // delete all files that were cleaned up
+      Tasks.foreach(deletedFiles)
+          .suppressFailureWhenFinished()
+          .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
+          .run(ops.io()::deleteFile);
+
+      throw e;
+    }
+
+    // the commit succeeded
+
+    try {
+      intermediateSnapshotIds.add(currentSnapshotId.get());
+
+      // clean up the data files that were deleted by each operation. first, get the list of committed manifests to
+      // ensure that no committed manifest is deleted. a manifest could be deleted in one successful operation
+      // commit, but reused in another successful commit of that operation if the whole transaction is retried.
+      Set<String> committedFiles = committedFiles(ops, intermediateSnapshotIds);
+      if (committedFiles != null) {
+        // delete all of the files that were deleted in the most recent set of operation commits
+        Tasks.foreach(deletedFiles)
+            .suppressFailureWhenFinished()
+            .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
+            .run(path -> {
+              if (!committedFiles.contains(path)) {
+                ops.io().deleteFile(path);
+              }
+            });
+      } else {
+        LOG.warn("Failed to load metadata for a committed snapshot, skipping clean-up");
+      }
+
+    } catch (RuntimeException e) {
+      LOG.warn("Failed to load committed metadata, skipping clean-up", e);
     }
   }
 
