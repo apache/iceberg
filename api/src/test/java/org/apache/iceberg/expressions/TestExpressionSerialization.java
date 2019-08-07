@@ -41,6 +41,8 @@ public class TestExpressionSerialization {
         Expressions.greaterThan("z", 0),
         Expressions.greaterThanOrEqual("t", 129),
         Expressions.equal("col", "data"),
+        Expressions.in("col", "a", "b"),
+        Expressions.notIn("col", 1, 2, 3),
         Expressions.notEqual("col", "abc"),
         Expressions.notNull("maybeNull"),
         Expressions.isNull("maybeNull2"),
