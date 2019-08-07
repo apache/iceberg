@@ -62,7 +62,7 @@ subprojects {
   apply plugin: 'nebula.source-jar'
   apply plugin: 'java'
   apply plugin: 'maven' // make pom files for deployment
-  apply plugin: 'nebula.maven-base-publish'
+  apply plugin: 'maven-publish' 
 
   compileJava {
     options.encoding = "UTF-8"
@@ -390,12 +390,12 @@ project(':iceberg-pig') {
 project(':iceberg-spark-runtime') {
   apply plugin: 'com.github.johnrengelman.shadow'
 
-  tasks.build.dependsOn tasks.shadowJar
+  tasks.assemble.dependsOn tasks.shadowJar
   tasks.install.dependsOn tasks.shadowJar
   tasks.javadocJar.dependsOn tasks.shadowJar
 
   configurations {
-    compile {
+    compileOnly {
       // included in Spark
       exclude group: 'org.slf4j'
       exclude group: 'org.apache.commons'
@@ -431,7 +431,7 @@ project(':iceberg-spark-runtime') {
     relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
     relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
 
-    archiveName = "iceberg-spark-runtime-${version}.${extension}"
+    archiveBaseName = "iceberg-spark-runtime"
   }
 }
 
