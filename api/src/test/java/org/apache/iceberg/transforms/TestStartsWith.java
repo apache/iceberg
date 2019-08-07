@@ -44,7 +44,7 @@ public class TestStartsWith {
   private static final Schema SCHEMA = new Schema(optional(1, COLUMN, Types.StringType.get()));
 
   @Test
-  public void assertTruncateProjections() {
+  public void testTruncateProjections() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).truncate(COLUMN, 4).build();
 
     assertProjectionInclusive(spec, startsWith(COLUMN, "ab"), "ab", Expression.Operation.STARTS_WITH);
@@ -57,7 +57,7 @@ public class TestStartsWith {
   }
 
   @Test
-  public void assertTruncateString() {
+  public void testTruncateString() {
     Truncate<String> trunc = Truncate.get(Types.StringType.get(), 2);
     Expression expr = startsWith(COLUMN, "abcde");
     BoundPredicate<String> boundExpr = (BoundPredicate<String>) Binder.bind(SCHEMA.asStruct(),  expr, false);
