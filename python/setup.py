@@ -29,11 +29,9 @@ setup(
     install_requires=['boto3',
                       'fastavro',
                       'mmh3',
-                      "pytest",
                       'python-dateutil',
                       'pytz',
                       'retrying',
-                      's3fs',
-                      'six'],
+                      's3fs'],
     setup_requires=['setupmeta']
 )
