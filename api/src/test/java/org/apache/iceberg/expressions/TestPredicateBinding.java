@@ -22,6 +22,7 @@ package org.apache.iceberg.expressions;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
@@ -32,10 +33,12 @@ import static org.apache.iceberg.TestHelpers.assertAndUnwrap;
 import static org.apache.iceberg.expressions.Expression.Operation.EQ;
 import static org.apache.iceberg.expressions.Expression.Operation.GT;
 import static org.apache.iceberg.expressions.Expression.Operation.GT_EQ;
+import static org.apache.iceberg.expressions.Expression.Operation.IN;
 import static org.apache.iceberg.expressions.Expression.Operation.IS_NULL;
 import static org.apache.iceberg.expressions.Expression.Operation.LT;
 import static org.apache.iceberg.expressions.Expression.Operation.LT_EQ;
 import static org.apache.iceberg.expressions.Expression.Operation.NOT_EQ;
+import static org.apache.iceberg.expressions.Expression.Operation.NOT_IN;
 import static org.apache.iceberg.expressions.Expression.Operation.NOT_NULL;
 import static org.apache.iceberg.expressions.Expressions.ref;
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -43,7 +46,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestPredicateBinding {
   private static final List<Expression.Operation> COMPARISONS = Arrays.asList(
-      LT, LT_EQ, GT, GT_EQ, EQ, NOT_EQ);
+      LT, LT_EQ, GT, GT_EQ, EQ, NOT_EQ, IN, NOT_IN);
 
   @Test
   @SuppressWarnings("unchecked")
@@ -63,6 +66,46 @@ public class TestPredicateBinding {
     Assert.assertEquals("Should not change the comparison operation", LT, bound.op());
     Assert.assertEquals("Should not alter literal value",
         Integer.valueOf(6), bound.literal().value());
+  }
+
+  @Test
+  public void testLiteralSet() {
+    StructType struct = StructType.of(
+            required(10, "x", Types.IntegerType.get()),
+            required(11, "y", Types.IntegerType.get()),
+            required(12, "z", Types.IntegerType.get())
+    );
+
+    UnboundPredicate<Integer> unbound = new UnboundPredicate<>(IN, ref("y"), 6, 7, 11);
+
+    Expression expr = unbound.bind(struct);
+    BoundPredicate<Integer> bound = assertAndUnwrap(expr);
+
+    Assert.assertEquals("Should reference correct field ID", 11, bound.ref().fieldId());
+    Assert.assertEquals("Should not change the comparison operation", IN, bound.op());
+    Assert.assertEquals("Should not alter literal value",
+            Integer.valueOf(6), bound.literal().value());
+    Assert.assertArrayEquals("Should not alter literal set values",
+            new Integer[]{6, 7, 11},
+            bound.literalSet().stream()
+                    .map(Literal::value).sorted()
+                    .collect(Collectors.toList()).toArray(new Integer[2]));
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void testLiteralSetConversion() {
+    StructType struct = StructType.of(required(15, "d", Types.DecimalType.of(9, 2)));
+    UnboundPredicate<String> unbound = new UnboundPredicate<>(NOT_IN, ref("d"), "12.40", "1.23", "99.99");
+    Expression expr = unbound.bind(struct);
+    BoundPredicate<BigDecimal> bound = assertAndUnwrap(expr);
+    Assert.assertArrayEquals("Should convert literal set values to decimal",
+            new BigDecimal[]{new BigDecimal("1.23"), new BigDecimal("12.40"), new BigDecimal("99.99")},
+            bound.literalSet().stream()
+                    .map(Literal::value).sorted()
+                    .collect(Collectors.toList()).toArray(new BigDecimal[2]));
+    Assert.assertEquals("Should reference correct field ID", 15, bound.ref().fieldId());
+    Assert.assertEquals("Should not change the comparison operation", NOT_IN, bound.op());
   }
 
   @Test
