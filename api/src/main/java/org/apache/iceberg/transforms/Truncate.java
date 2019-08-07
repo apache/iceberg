@@ -219,11 +219,6 @@ abstract class Truncate<T> implements Transform<T, T> {
         case IS_NULL:
           return Expressions.predicate(predicate.op(), name);
         case STARTS_WITH:
-          if (predicate.literal().value().length() <= width()) {
-            return Expressions.predicate(predicate.op(), name, predicate.literal().value());
-          } else {
-            return ProjectionUtil.truncateArray(name, predicate, this);
-          }
         default:
           return ProjectionUtil.truncateArray(name, predicate, this);
       }
@@ -237,8 +232,10 @@ abstract class Truncate<T> implements Transform<T, T> {
         case NOT_NULL:
           return Expressions.predicate(predicate.op(), name);
         case STARTS_WITH:
-          if (predicate.literal().value().length() <= width()) {
+          if (predicate.literal().value().length() < width()) {
             return Expressions.predicate(predicate.op(), name, predicate.literal().value());
+          } else if (predicate.literal().value().length() == width()) {
+            return Expressions.equal(name, predicate.literal().value());
           } else {
             return null;
           }
