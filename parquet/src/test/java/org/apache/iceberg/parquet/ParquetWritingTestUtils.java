@@ -46,6 +46,10 @@ class ParquetWritingTestUtils {
     return writeRecords(temp, schema, Collections.emptyMap(), null, records);
   }
 
+  static File writeRecords(TemporaryFolder temp, Schema schema, Map<String, String> properties, GenericData.Record... records) throws IOException {
+    return writeRecords(temp, schema, properties, null, records);
+  }
+
   static File writeRecords(
       TemporaryFolder temp,
       Schema schema, Map<String, String> properties,
