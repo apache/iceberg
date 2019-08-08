@@ -9,3 +9,18 @@ build
 out
 # web site build
 site/site
+
+__pycache__/
+*.py[cod]
+.eggs/
+.tox/
+env/
+venv/
+*.egg-info/
+test-reports
+build/
+dist/
+sdist/
+.coverage
+coverage.xml
+.pytest_cache/

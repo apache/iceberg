@@ -61,6 +61,14 @@ public interface Filterable<T extends Filterable<T>> extends CloseableIterable<D
   T select(Collection<String> columns);
 
   /**
+   * Set the projection from a schema.
+   *
+   * @param fileProjection a projection of the DataFile schema
+   * @return a Filterable that will load only the given schema's columns
+   */
+  T project(Schema fileProjection);
+
+  /**
    * Adds a filter expression on partition data for matching files.
    * <p>
    * If the Filterable object already has partition filters, the new filter will be added as an
@@ -90,4 +98,30 @@ public interface Filterable<T extends Filterable<T>> extends CloseableIterable<D
    * @return a Filterable that will load only rows that match expr
    */
   T filterRows(Expression expr);
+
+  /**
+   * Sets case sensitivity.
+   *
+   * @param isCaseSensitive true if expression binding and schema projection should be case sensitive
+   * @return a Filterable that will use the specified case sensitivity
+   */
+  T caseSensitive(boolean isCaseSensitive);
+
+  /**
+   * Sets case sensitive binding and projection.
+   *
+   * @return a Filterable that will case sensitive binding and projection
+   */
+  default T caseSensitive() {
+    return caseSensitive(true);
+  }
+
+  /**
+   * Sets case insensitive binding and projection.
+   *
+   * @return a Filterable that will case insensitive binding and projection
+   */
+  default T caseInsensitive() {
+    return caseSensitive(false);
+  }
 }

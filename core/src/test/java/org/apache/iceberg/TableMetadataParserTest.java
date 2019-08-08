@@ -19,63 +19,77 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Map;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
-import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.TableMetadataParser.Codec;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.types.Types.BooleanType;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.ConfigProperties.COMPRESS_METADATA;
 import static org.apache.iceberg.PartitionSpec.unpartitioned;
 import static org.apache.iceberg.TableMetadata.newTableMetadata;
 import static org.apache.iceberg.TableMetadataParser.getFileExtension;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
+@RunWith(Parameterized.class)
 public class TableMetadataParserTest {
 
-  private static final Schema SCHEMA = new Schema(Lists.newArrayList(optional(1, "b", BooleanType.get())));
-  private static final TableMetadata EXPECTED =
-      newTableMetadata(null, SCHEMA, unpartitioned(), "file://tmp/db/table");
+  private static final Schema SCHEMA = new Schema(optional(1, "b", BooleanType.get()));
+
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { "none" },
+        new Object[] { "gzip" }
+    };
+  }
+
+  private final String codecName;
+
+  public TableMetadataParserTest(String codecName) {
+    this.codecName = codecName;
+  }
 
   @Test
   public void testCompressionProperty() throws IOException {
-    final boolean[] props = {true, false};
-    final Configuration configuration = new Configuration();
-    for (boolean prop : props) {
-      configuration.setBoolean(COMPRESS_METADATA, prop);
-      final OutputFile outputFile = Files.localOutput(getFileExtension(configuration));
-      TableMetadataParser.write(EXPECTED, outputFile);
-      Assert.assertEquals(prop, isCompressed(getFileExtension(configuration)));
-      final TableMetadata read = TableMetadataParser.read(
-          null, Files.localInput(new File(getFileExtension(configuration))));
-      verifyMetadata(read);
-    }
+    Codec codec = Codec.fromName(codecName);
+    String fileExtension = getFileExtension(codec);
+    String fileName = "v3" + fileExtension;
+    OutputFile outputFile = Files.localOutput(fileName);
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(TableProperties.METADATA_COMPRESSION, codecName);
+    String location = "file://tmp/db/table";
+    TableMetadata metadata = newTableMetadata(null, SCHEMA, unpartitioned(), location, properties);
+    TableMetadataParser.write(metadata, outputFile);
+    Assert.assertEquals(codec == Codec.GZIP, isCompressed(fileName));
+    TableMetadata actualMetadata = TableMetadataParser.read(null, Files.localInput(new File(fileName)));
+    verifyMetadata(metadata, actualMetadata);
   }
 
   @After
   public void cleanup() throws IOException {
-    final boolean[] props = {true, false};
-    Configuration configuration = new Configuration();
-    for (boolean prop : props) {
-      configuration.setBoolean(COMPRESS_METADATA, prop);
-      java.nio.file.Files.deleteIfExists(Paths.get(getFileExtension(configuration)));
-    }
+    Codec codec = Codec.fromName(codecName);
+    Path metadataFilePath = Paths.get("v3" + getFileExtension(codec));
+    java.nio.file.Files.deleteIfExists(metadataFilePath);
   }
 
-  private void verifyMetadata(TableMetadata read) {
-    Assert.assertEquals(EXPECTED.schema().asStruct(), read.schema().asStruct());
-    Assert.assertEquals(EXPECTED.location(), read.location());
-    Assert.assertEquals(EXPECTED.lastColumnId(), read.lastColumnId());
-    Assert.assertEquals(EXPECTED.properties(), read.properties());
+  private void verifyMetadata(TableMetadata expected, TableMetadata actual) {
+    Assert.assertEquals(expected.schema().asStruct(), actual.schema().asStruct());
+    Assert.assertEquals(expected.location(), actual.location());
+    Assert.assertEquals(expected.lastColumnId(), actual.lastColumnId());
+    Assert.assertEquals(expected.properties(), actual.properties());
   }
 
   private boolean isCompressed(String path) throws IOException {

@@ -23,19 +23,20 @@ import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.Metrics;
+import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 
 public class ParquetWriteAdapter<D> implements FileAppender<D> {
-  private ParquetWriter<D> writer = null;
-  private ParquetMetadata footer = null;
-  private int statsTruncateLength;
+  private ParquetWriter<D> writer;
+  private MetricsConfig metricsConfig;
+  private ParquetMetadata footer;
 
-  public ParquetWriteAdapter(ParquetWriter<D> writer, int statsTruncateLength) {
+  public ParquetWriteAdapter(ParquetWriter<D> writer, MetricsConfig metricsConfig) {
     this.writer = writer;
-    this.statsTruncateLength = statsTruncateLength;
+    this.metricsConfig = metricsConfig;
   }
 
   @Override
@@ -50,7 +51,7 @@ public class ParquetWriteAdapter<D> implements FileAppender<D> {
   @Override
   public Metrics metrics() {
     Preconditions.checkState(footer != null, "Cannot produce metrics until closed");
-    return ParquetUtil.footerMetrics(footer, statsTruncateLength);
+    return ParquetUtil.footerMetrics(footer, metricsConfig);
   }
 
   @Override

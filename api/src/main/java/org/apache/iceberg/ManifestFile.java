@@ -69,14 +69,41 @@ public interface ManifestFile {
   Long snapshotId();
 
   /**
+   * Returns true if the manifest contains ADDED entries or if the count is not known.
+   *
+   * @return whether this manifest contains entries with ADDED status
+   */
+  default boolean hasAddedFiles() {
+    return addedFilesCount() == null || addedFilesCount() > 0;
+  }
+
+  /**
    * @return the number of data files with status ADDED in the manifest file
    */
   Integer addedFilesCount();
 
   /**
+   * Returns true if the manifest contains EXISTING entries or if the count is not known.
+   *
+   * @return whether this manifest contains entries with EXISTING status
+   */
+  default boolean hasExistingFiles() {
+    return existingFilesCount() == null || existingFilesCount() > 0;
+  }
+
+  /**
    * @return the number of data files with status EXISTING in the manifest file
    */
   Integer existingFilesCount();
+
+  /**
+   * Returns true if the manifest contains DELETED entries or if the count is not known.
+   *
+   * @return whether this manifest contains entries with DELETED status
+   */
+  default boolean hasDeletedFiles() {
+    return deletedFilesCount() == null || deletedFilesCount() > 0;
+  }
 
   /**
    * @return the number of data files with status DELETED in the manifest file

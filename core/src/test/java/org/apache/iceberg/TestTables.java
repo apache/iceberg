@@ -38,7 +38,7 @@ public class TestTables {
 
   private TestTables() {}
 
-  static TestTable create(File temp, String name, Schema schema, PartitionSpec spec) {
+  public static TestTable create(File temp, String name, Schema schema, PartitionSpec spec) {
     TestTableOperations ops = new TestTableOperations(name, temp);
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
@@ -47,7 +47,7 @@ public class TestTables {
     return new TestTable(ops, name);
   }
 
-  static Transaction beginCreate(File temp, String name, Schema schema, PartitionSpec spec) {
+  public static Transaction beginCreate(File temp, String name, Schema schema, PartitionSpec spec) {
     TableOperations ops = new TestTableOperations(name, temp);
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
@@ -77,12 +77,12 @@ public class TestTables {
     }
   }
 
-  static TestTable load(File temp, String name) {
+  public static TestTable load(File temp, String name) {
     TestTableOperations ops = new TestTableOperations(name, temp);
     return new TestTable(ops, name);
   }
 
-  static class TestTable extends BaseTable {
+  public static class TestTable extends BaseTable {
     private final TestTableOperations ops;
 
     private TestTable(TestTableOperations ops, String name) {

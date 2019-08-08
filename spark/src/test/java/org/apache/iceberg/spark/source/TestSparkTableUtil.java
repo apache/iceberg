@@ -1,0 +1,119 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.apache.iceberg.spark.source;
+
+import com.google.common.collect.Lists;
+import java.io.IOException;
+import java.util.List;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.iceberg.hive.HiveTableBaseTest;
+import org.apache.iceberg.spark.SparkTableUtil;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SQLContext;
+import org.apache.spark.sql.SparkSession;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
+public class TestSparkTableUtil extends HiveTableBaseTest {
+  private static final Configuration CONF = HiveTableBaseTest.hiveConf;
+  private static final String tableName = "hive_table";
+  private static final String dbName = HiveTableBaseTest.DB_NAME;
+  private static final String qualifiedTableName = String.format("%s.%s", dbName, tableName);
+  private static final Path tableLocationPath = HiveTableBaseTest.getTableLocationPath(tableName);
+  private static final String tableLocationStr = tableLocationPath.toString();
+  private static SparkSession spark = null;
+
+  @BeforeClass
+  public static void startSpark() {
+    String metastoreURI = CONF.get(HiveConf.ConfVars.METASTOREURIS.varname);
+
+    // Create a spark session.
+    TestSparkTableUtil.spark = SparkSession.builder().master("local[2]")
+            .enableHiveSupport()
+            .config("spark.hadoop.hive.metastore.uris", metastoreURI)
+            .config("hive.exec.dynamic.partition", "true")
+            .config("hive.exec.dynamic.partition.mode", "nonstrict")
+            .getOrCreate();
+  }
+
+  @AfterClass
+  public static void stopSpark() {
+    SparkSession currentSpark = TestSparkTableUtil.spark;
+    // Stop the spark session.
+    TestSparkTableUtil.spark = null;
+    currentSpark.stop();
+  }
+
+  @Before
+  public void before() {
+
+    // Create a hive table.
+    SQLContext sc = new SQLContext(TestSparkTableUtil.spark);
+
+    sc.sql(String.format(
+                    "CREATE TABLE %s (\n" +
+                    "    id int COMMENT 'unique id'\n" +
+                    ")\n" +
+                    " PARTITIONED BY (data string)\n" +
+                    " LOCATION '%s'", qualifiedTableName, tableLocationStr)
+    );
+
+    List<SimpleRecord> expected = Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "c")
+    );
+
+    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
+
+    df.select("id", "data").orderBy("data").write()
+            .mode("append")
+            .insertInto(qualifiedTableName);
+  }
+
+  @After
+  public void after() throws IOException {
+    // Drop the hive table.
+    SQLContext sc = new SQLContext(TestSparkTableUtil.spark);
+    sc.sql(String.format("DROP TABLE IF EXISTS %s", qualifiedTableName));
+
+    // Delete the data corresponding to the table.
+    tableLocationPath.getFileSystem(CONF).delete(tableLocationPath, true);
+  }
+
+  @Test
+  public void testPartitionScan() {
+    Dataset<Row> partitionDF = SparkTableUtil.partitionDF(spark, qualifiedTableName);
+    Assert.assertEquals("There should be 3 partitions", 3, partitionDF.count());
+  }
+
+  @Test
+  public void testPartitionScanByFilter() {
+    Dataset<Row> partitionDF = SparkTableUtil.partitionDFByFilter(spark, qualifiedTableName, "data = 'a'");
+    Assert.assertEquals("There should be 1 matching partition", 1, partitionDF.count());
+  }
+}

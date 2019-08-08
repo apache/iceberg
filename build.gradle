@@ -62,7 +62,7 @@ subprojects {
   apply plugin: 'nebula.source-jar'
   apply plugin: 'java'
   apply plugin: 'maven' // make pom files for deployment
-  apply plugin: 'nebula.maven-base-publish'
+  apply plugin: 'maven-publish' 
 
   compileJava {
     options.encoding = "UTF-8"
@@ -77,6 +77,8 @@ subprojects {
     all {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
+
+    testArtifacts
   }
 
   ext {
@@ -93,6 +95,15 @@ subprojects {
     testCompile 'junit:junit'
     testCompile 'org.slf4j:slf4j-simple'
     testCompile 'org.mockito:mockito-core'
+  }
+
+  task testJar(type: Jar){
+    archiveClassifier = 'tests'
+    from sourceSets.test.output
+  }
+
+  artifacts {
+    testArtifacts testJar
   }
 
   publishing {
@@ -284,19 +295,6 @@ project(':iceberg-hive') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
   }
-
-  task testJar(type: Jar){
-    archiveClassifier = 'tests'
-    from sourceSets.test.output
-  }
-
-  configurations {
-    testArtifacts
-  }
-
-  artifacts {
-    testArtifacts testJar
-  }
 }
 
 project(':iceberg-orc') {
@@ -335,6 +333,8 @@ project(':iceberg-parquet') {
     compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
+
+    testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 }
 
@@ -390,16 +390,12 @@ project(':iceberg-pig') {
 project(':iceberg-spark-runtime') {
   apply plugin: 'com.github.johnrengelman.shadow'
 
-  shadowJar {
-    from(project.sourceSets.main.output)
-  }
-
-  tasks.build.dependsOn tasks.shadowJar
+  tasks.assemble.dependsOn tasks.shadowJar
   tasks.install.dependsOn tasks.shadowJar
   tasks.javadocJar.dependsOn tasks.shadowJar
 
   configurations {
-    compile {
+    compileOnly {
       // included in Spark
       exclude group: 'org.slf4j'
       exclude group: 'org.apache.commons'
@@ -411,10 +407,13 @@ project(':iceberg-spark-runtime') {
   }
 
   dependencies {
-    compile project(':iceberg-spark')
+    compileOnly project(':iceberg-spark')
   }
 
   shadowJar {
+    // shade compileOnly dependencies to avoid including in transitive dependencies
+    configurations = [project.configurations.compileOnly]
+
     zip64 true
 
     // Relocate dependencies to avoid conflicts
@@ -428,79 +427,11 @@ project(':iceberg-spark-runtime') {
     relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
     relocate 'shaded.parquet', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
     // relocate Avro's jackson dependency to share parquet-jackson locations
-    relocate 'org.codehaus.jackson', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
+    relocate 'org.codehaus.jackson', 'org.apache.iceberg.shaded.org.apache.parquet.shaded.org.codehaus.jackson'
     relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
     relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
 
-    archiveName = "iceberg-spark-runtime-${version}.${extension}"
+    archiveBaseName = "iceberg-spark-runtime"
   }
-}
-
-// Runtime jar for presto. Presto depends on hive fat jar that does not shade avro and bunch
-// of other dependencies. This artifact is used by presto-iceberg plugin.
-project(':iceberg-presto-runtime') {
-    apply plugin: 'com.github.johnrengelman.shadow'
-
-    configurations {
-        shadow
-        compileOnly.extendsFrom shadow
-    }
-
-    dependencies {
-        shadow project(':iceberg-api')
-        shadow project(':iceberg-core')
-        shadow project(':iceberg-orc')
-        shadow project(':iceberg-parquet')
-        shadow project(':iceberg-hive')
-
-        shadow "org.apache.orc:orc-core::nohive"
-        shadow "org.apache.parquet:parquet-avro"
-        shadow "org.apache.avro:avro"
-        shadow ("org.apache.hive:hive-metastore") {
-            exclude group: 'org.apache.hadoop', module: 'hadoop-common'
-//            exclude group: 'org.apache.orc', module: 'orc-core'
-        }
-    }
-
-    tasks.build.dependsOn tasks.shadowJar
-    tasks.install.dependsOn tasks.shadowJar
-    tasks.javadocJar.dependsOn tasks.shadowJar
-
-    shadowJar {
-        zip64 true
-        exclude 'org/htrace/**'
-        exclude 'org/objectweb/**'
-        exclude 'org/apache/thrift/**'
-        exclude 'META-INF/services/org.apache.hadoop**'
-        exclude 'com/thoughtworks/**'
-        exclude 'org/slf4j/**'
-        exclude 'org/znerd/**'
-        exclude 'org/xerial/**'
-        exclude 'org/tukaani/**'
-        exclude 'org/objectweb/**'
-        exclude 'org/apache/commons/**'
-        exclude 'it/unimi/**'
-        exclude 'io/airlift/**'
-        exclude 'com/google/**'
-        exclude 'com/fasterxml/**'
-        exclude 'org/apache/log4j/**'
-        exclude 'org/apache/http/**'
-        exclude 'org/apache/http/version.properties'
-        exclude 'mozilla/public-suffix-list.txt'
-        exclude 'org/apache/http/client/version.properties'
-        exclude 'common-version-info.properties'
-        exclude 'core-default.xml'
-        exclude 'org/apache/hadoop/application-classloader.properties'
-        exclude '**application-classloader.properties'
-
-        configurations = [project.configurations.shadow]
-        from(project.sourceSets.main.output)
-
-        relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
-        relocate 'org.apache.parquet.avro', 'org.apache.iceberg.shaded.org.apache.parquet.avro'
-        relocate 'org.apache.hadoop.hive', 'org.apache.iceberg.shaded.org.apache.hadoop.hive'
-        relocate 'org.apache.hive', 'org.apache.iceberg.shaded.org.apache.hive'
-        archiveName = "iceberg-presto-runtime-${version}.${extension}"
-    }
 }
 

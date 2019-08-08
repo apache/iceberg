@@ -35,10 +35,10 @@ The core Java library that tracks table snapshots and metadata is complete, but 
 
 The [Iceberg format specification][iceberg-spec] is being actively updated and is open for comment. Until the specification is complete and released, it carries no compatibility guarantees. The spec is currently evolving as the Java reference implementation changes.
 
-[Java API javadocs][iceberg-javadocs] are available for the 0.6.0 tag.
+[Java API javadocs][iceberg-javadocs] are available for the master.
 
-[iceberg-javadocs]: https://iceberg.apache.org/javadoc/0.6.0/index.html?com/netflix/iceberg/package-summary.html
-[iceberg-spec]: https://docs.google.com/document/d/1Q-zL5lSCle6NEEdyfiYsXYzX_Q8Qf0ctMyGBKslOswA/edit?usp=sharing 
+[iceberg-javadocs]: https://iceberg.apache.org/javadoc/master
+[iceberg-spec]: https://iceberg.apache.org/spec
 
 
 ## Collaboration
@@ -54,6 +54,9 @@ Community discussions happen primarily on the [dev mailing list][dev-list] or on
 
 Iceberg is built using Gradle 5.2.1.
 
+* To invoke a build and run tests: `./gradlew build`
+* To skip tests: `./gradlew build -x test`
+
 Iceberg table support is organized in library modules:
 
 * `iceberg-common` contains utility classes used in other modules
@@ -68,7 +71,6 @@ This project Iceberg also has modules for adding Iceberg support to processing e
 * `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg (use iceberg-runtime for a shaded version)
 * `iceberg-data` is a client library used to read Iceberg tables from JVM applications
 * `iceberg-pig` is an implementation of Pig's LoadFunc API for Iceberg
-* `iceberg-presto-runtime` generates a shaded runtime jar that is used by presto to integrate with iceberg tables
 
 ### Compatibility
 

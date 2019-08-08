@@ -80,12 +80,21 @@ public class TableProperties {
 
   // This only applies to files written after this property is set. Files previously written aren't
   // relocated to reflect this parameter.
-  // If not set, defaults to a "meatdata" folder underneath the root path of the table.
+  // If not set, defaults to a "metadata" folder underneath the root path of the table.
   public static final String WRITE_METADATA_LOCATION = "write.metadata.path";
 
   public static final String MANIFEST_LISTS_ENABLED = "write.manifest-lists.enabled";
   public static final boolean MANIFEST_LISTS_ENABLED_DEFAULT = true;
 
-  public static final String WRITE_METADATA_TRUNCATE_BYTES = "write.metadata.truncate-length";
-  public static final int WRITE_METADATA_TRUNCATE_BYTES_DEFAULT = 16;
+  public static final String METADATA_COMPRESSION = "write.metadata.compression-codec";
+  public static final String METADATA_COMPRESSION_DEFAULT = "none";
+
+  public static final String METRICS_MODE_COLUMN_CONF_PREFIX = "write.metadata.metrics.column.";
+  public static final String DEFAULT_WRITE_METRICS_MODE = "write.metadata.metrics.default";
+  public static final String DEFAULT_WRITE_METRICS_MODE_DEFAULT = "truncate(16)";
+
+  public static final String DEFAULT_NAME_MAPPING = "schema.name-mapping.default";
+
+  public static final String WRITE_AUDIT_PUBLISH_ENABLED = "write.wap.enabled";
+  public static final String WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT = "false";
 }

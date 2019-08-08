@@ -24,7 +24,7 @@ import java.nio.ByteBuffer
 import java.util
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{Path, PathFilter}
-import org.apache.iceberg.{DataFile, DataFiles, Metrics, PartitionSpec, TableProperties}
+import org.apache.iceberg.{DataFile, DataFiles, Metrics, MetricsConfig, PartitionSpec}
 import org.apache.iceberg.hadoop.HadoopInputFile
 import org.apache.iceberg.orc.OrcMetrics
 import org.apache.iceberg.parquet.ParquetUtil
@@ -50,6 +50,26 @@ object SparkTableUtil {
 
     val partitions: Seq[(Map[String, String], Option[String], Option[String])] =
       Hive.partitions(spark, table).map { p: CatalogTablePartition =>
+        (p.spec, p.storage.locationUri.map(String.valueOf(_)), p.storage.serde)
+      }
+
+    partitions.toDF("partition", "uri", "format")
+  }
+
+  /**
+    * Returns a DataFrame with a row for each partition that matches the specified 'expression'.
+    *
+    * @param spark a Spark session.
+    * @param table name of the table.
+    * @param expression The expression whose matching partitions are returned.
+    * @return a DataFrame of the table partitions.
+    */
+  def partitionDFByFilter(spark: SparkSession, table: String, expression: String): DataFrame = {
+    import spark.implicits._
+
+    val expr = spark.sessionState.sqlParser.parseExpression(expression)
+    val partitions: Seq[(Map[String, String], Option[String], Option[String])] =
+      Hive.partitionsByFilter(spark, table, expr).map { p: CatalogTablePartition =>
         (p.spec, p.storage.locationUri.map(String.valueOf(_)), p.storage.serde)
       }
 
@@ -232,14 +252,14 @@ object SparkTableUtil {
   //noinspection ScalaDeprecation
   private def listParquetPartition(
       partitionPath: Map[String, String],
-      partitionUri: String): Seq[SparkDataFile] = {
+      partitionUri: String,
+      metricsSpec: MetricsConfig = MetricsConfig.getDefault): Seq[SparkDataFile] = {
     val conf = new Configuration()
     val partition = new Path(partitionUri)
     val fs = partition.getFileSystem(conf)
 
     fs.listStatus(partition, HiddenPathFilter).filter(_.isFile).map { stat =>
-      val metrics = ParquetUtil.footerMetrics(ParquetFileReader.readFooter(conf, stat),
-        TableProperties.WRITE_METADATA_TRUNCATE_BYTES_DEFAULT)
+      val metrics = ParquetUtil.footerMetrics(ParquetFileReader.readFooter(conf, stat), metricsSpec)
 
       SparkDataFile(
         stat.getPath.toString,

@@ -39,11 +39,13 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Metrics;
+import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.PendingUpdate;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -85,13 +87,21 @@ class Writer implements DataSourceWriter {
   private final FileIO fileIo;
   private final EncryptionManager encryptionManager;
   private final boolean replacePartitions;
+  private final String applicationId;
+  private final String wapId;
 
-  Writer(Table table, DataSourceOptions options, boolean replacePartitions) {
+  Writer(Table table, DataSourceOptions options, boolean replacePartitions, String applicationId) {
+    this(table, options, replacePartitions, applicationId, null);
+  }
+
+  Writer(Table table, DataSourceOptions options, boolean replacePartitions, String applicationId, String wapId) {
     this.table = table;
     this.format = getFileFormat(table.properties(), options);
     this.fileIo = table.io();
     this.encryptionManager = table.encryption();
     this.replacePartitions = replacePartitions;
+    this.applicationId = applicationId;
+    this.wapId = wapId;
   }
 
   private FileFormat getFileFormat(Map<String, String> tableProperties, DataSourceOptions options) {
@@ -99,6 +109,11 @@ class Writer implements DataSourceWriter {
     String formatString = formatOption
         .orElse(tableProperties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT));
     return FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
+  }
+
+  private boolean isWapTable() {
+    return Boolean.parseBoolean(table.properties().getOrDefault(
+        TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
   }
 
   @Override
@@ -116,8 +131,19 @@ class Writer implements DataSourceWriter {
     }
   }
 
-  protected void commitOperation(PendingUpdate<?> operation, int numFiles, String description) {
+  protected void commitOperation(SnapshotUpdate<?> operation, int numFiles, String description) {
     LOG.info("Committing {} with {} files to table {}", description, numFiles, table);
+    if (applicationId != null) {
+      operation.set("spark.app.id", applicationId);
+    }
+
+    if (isWapTable() && wapId != null) {
+      // write-audit-publish is enabled for this table and job
+      // stage the changes without changing the current snapshot
+      operation.set("wap.id", wapId);
+      operation.stageOnly();
+    }
+
     long start = System.currentTimeMillis();
     operation.commit(); // abort is automatically called if this fails
     long duration = System.currentTimeMillis() - start;
@@ -251,12 +277,14 @@ class Writer implements DataSourceWriter {
       @Override
       public FileAppender<InternalRow> newAppender(OutputFile file, FileFormat fileFormat) {
         Schema schema = spec.schema();
+        MetricsConfig metricsConfig = MetricsConfig.fromProperties(properties);
         try {
           switch (fileFormat) {
             case PARQUET:
               return Parquet.write(file)
                   .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(schema, msgType))
                   .setAll(properties)
+                  .metricsConfig(metricsConfig)
                   .schema(schema)
                   .build();
 

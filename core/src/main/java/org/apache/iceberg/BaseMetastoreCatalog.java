@@ -20,8 +20,8 @@
 package org.apache.iceberg;
 
 import com.google.common.collect.Maps;
+import java.util.Locale;
 import java.util.Map;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -29,10 +29,20 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 
 public abstract class BaseMetastoreCatalog implements Catalog {
-  private final Configuration conf;
+  enum TableType {
+    ENTRIES,
+    FILES,
+    HISTORY,
+    SNAPSHOTS,
+    MANIFESTS;
 
-  protected BaseMetastoreCatalog(Configuration conf) {
-    this.conf = conf;
+    static TableType from(String name) {
+      try {
+        return TableType.valueOf(name.toUpperCase(Locale.ROOT));
+      } catch (IllegalArgumentException ignored) {
+        return null;
+      }
+    }
   }
 
   @Override
@@ -42,7 +52,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       PartitionSpec spec,
       String location,
       Map<String, String> properties) {
-    TableOperations ops = newTableOps(conf, identifier);
+    TableOperations ops = newTableOps(identifier);
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table already exists: " + identifier);
     }
@@ -51,7 +61,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     if (location != null) {
       baseLocation = location;
     } else {
-      baseLocation = defaultWarehouseLocation(conf, identifier);
+      baseLocation = defaultWarehouseLocation(identifier);
     }
 
     TableMetadata metadata = TableMetadata.newTableMetadata(
@@ -68,15 +78,45 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
   @Override
   public Table loadTable(TableIdentifier identifier) {
-    TableOperations ops = newTableOps(conf, identifier);
+    TableOperations ops = newTableOps(identifier);
     if (ops.current() == null) {
-      throw new NoSuchTableException("Table does not exist: " + identifier);
+      String name = identifier.name();
+      TableType type = TableType.from(name);
+      if (type != null) {
+        return loadMetadataTable(TableIdentifier.of(identifier.namespace().levels()), type);
+      } else {
+        throw new NoSuchTableException("Table does not exist: " + identifier);
+      }
     }
 
     return new BaseTable(ops, identifier.toString());
   }
 
-  protected abstract TableOperations newTableOps(Configuration newConf, TableIdentifier tableIdentifier);
+  private Table loadMetadataTable(TableIdentifier identifier, TableType type) {
+    TableOperations ops = newTableOps(identifier);
+    if (ops.current() == null) {
+      throw new NoSuchTableException("Table does not exist: " + identifier);
+    }
 
-  protected abstract String defaultWarehouseLocation(Configuration hadoopConf, TableIdentifier tableIdentifier);
+    Table baseTable = new BaseTable(ops, identifier.toString());
+
+    switch (type) {
+      case ENTRIES:
+        return new ManifestEntriesTable(ops, baseTable);
+      case FILES:
+        return new DataFilesTable(ops, baseTable);
+      case HISTORY:
+        return new HistoryTable(ops, baseTable);
+      case SNAPSHOTS:
+        return new SnapshotsTable(ops, baseTable);
+      case MANIFESTS:
+        return new ManifestsTable(ops, baseTable);
+      default:
+        throw new NoSuchTableException(String.format("Unknown metadata table type: %s for %s", type, identifier));
+    }
+  }
+
+  protected abstract TableOperations newTableOps(TableIdentifier tableIdentifier);
+
+  protected abstract String defaultWarehouseLocation(TableIdentifier tableIdentifier);
 }

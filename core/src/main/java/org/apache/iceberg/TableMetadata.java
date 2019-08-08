@@ -81,7 +81,7 @@ public class TableMetadata {
         ImmutableMap.copyOf(properties), -1, ImmutableList.of(), ImmutableList.of());
   }
 
-  public static class SnapshotLogEntry {
+  public static class SnapshotLogEntry implements HistoryEntry {
     private final long timestampMillis;
     private final long snapshotId;
 
@@ -90,10 +90,12 @@ public class TableMetadata {
       this.snapshotId = snapshotId;
     }
 
+    @Override
     public long timestampMillis() {
       return timestampMillis;
     }
 
+    @Override
     public long snapshotId() {
       return snapshotId;
     }
@@ -140,7 +142,7 @@ public class TableMetadata {
   private final List<Snapshot> snapshots;
   private final Map<Long, Snapshot> snapshotsById;
   private final Map<Integer, PartitionSpec> specsById;
-  private final List<SnapshotLogEntry> snapshotLog;
+  private final List<HistoryEntry> snapshotLog;
 
   TableMetadata(TableOperations ops,
                 InputFile file,
@@ -154,7 +156,7 @@ public class TableMetadata {
                 Map<String, String> properties,
                 long currentSnapshotId,
                 List<Snapshot> snapshots,
-                List<SnapshotLogEntry> snapshotLog) {
+                List<HistoryEntry> snapshotLog) {
     this.ops = ops;
     this.file = file;
     this.uuid = uuid;
@@ -172,8 +174,8 @@ public class TableMetadata {
     this.snapshotsById = indexSnapshots(snapshots);
     this.specsById = indexSpecs(specs);
 
-    SnapshotLogEntry last = null;
-    for (SnapshotLogEntry logEntry : snapshotLog) {
+    HistoryEntry last = null;
+    for (HistoryEntry logEntry : snapshotLog) {
       if (last != null) {
         Preconditions.checkArgument(
             (logEntry.timestampMillis() - last.timestampMillis()) >= 0,
@@ -231,6 +233,10 @@ public class TableMetadata {
     return properties;
   }
 
+  public String property(String property, String defaultValue) {
+    return properties.getOrDefault(property, defaultValue);
+  }
+
   public boolean propertyAsBoolean(String property, boolean defaultValue) {
     return PropertyUtil.propertyAsBoolean(properties, property, defaultValue);
   }
@@ -255,7 +261,7 @@ public class TableMetadata {
     return snapshots;
   }
 
-  public List<SnapshotLogEntry> snapshotLog() {
+  public List<HistoryEntry> snapshotLog() {
     return snapshotLog;
   }
 
@@ -315,12 +321,22 @@ public class TableMetadata {
         currentSnapshotId, snapshots, snapshotLog);
   }
 
+  public TableMetadata addStagedSnapshot(Snapshot snapshot) {
+    List<Snapshot> newSnapshots = ImmutableList.<Snapshot>builder()
+        .addAll(snapshots)
+        .add(snapshot)
+        .build();
+    return new TableMetadata(ops, null, uuid, location,
+        snapshot.timestampMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
+        currentSnapshotId, newSnapshots, snapshotLog);
+  }
+
   public TableMetadata replaceCurrentSnapshot(Snapshot snapshot) {
     List<Snapshot> newSnapshots = ImmutableList.<Snapshot>builder()
         .addAll(snapshots)
         .add(snapshot)
         .build();
-    List<SnapshotLogEntry> newSnapshotLog = ImmutableList.<SnapshotLogEntry>builder()
+    List<HistoryEntry> newSnapshotLog = ImmutableList.<HistoryEntry>builder()
         .addAll(snapshotLog)
         .add(new SnapshotLogEntry(snapshot.timestampMillis(), snapshot.snapshotId()))
         .build();
@@ -340,8 +356,8 @@ public class TableMetadata {
 
     // update the snapshot log
     Set<Long> validIds = Sets.newHashSet(Iterables.transform(filtered, Snapshot::snapshotId));
-    List<SnapshotLogEntry> newSnapshotLog = Lists.newArrayList();
-    for (SnapshotLogEntry logEntry : snapshotLog) {
+    List<HistoryEntry> newSnapshotLog = Lists.newArrayList();
+    for (HistoryEntry logEntry : snapshotLog) {
       if (validIds.contains(logEntry.snapshotId())) {
         // copy the log entries that are still valid
         newSnapshotLog.add(logEntry);
@@ -365,7 +381,7 @@ public class TableMetadata {
         "Cannot set current snapshot to unknown: %s", snapshot.snapshotId());
 
     long nowMillis = System.currentTimeMillis();
-    List<SnapshotLogEntry> newSnapshotLog = ImmutableList.<SnapshotLogEntry>builder()
+    List<HistoryEntry> newSnapshotLog = ImmutableList.<HistoryEntry>builder()
         .addAll(snapshotLog)
         .add(new SnapshotLogEntry(nowMillis, snapshot.snapshotId()))
         .build();
@@ -383,8 +399,8 @@ public class TableMetadata {
   }
 
   public TableMetadata removeSnapshotLogEntries(Set<Long> snapshotIds) {
-    List<SnapshotLogEntry> newSnapshotLog = Lists.newArrayList();
-    for (SnapshotLogEntry logEntry : snapshotLog) {
+    List<HistoryEntry> newSnapshotLog = Lists.newArrayList();
+    for (HistoryEntry logEntry : snapshotLog) {
       if (!snapshotIds.contains(logEntry.snapshotId())) {
         // copy the log entries that are still valid
         newSnapshotLog.add(logEntry);

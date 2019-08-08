@@ -35,10 +35,11 @@ import org.apache.thrift.TException;
 public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
 
   private final HiveClientPool clients;
+  private final Configuration conf;
 
   public HiveCatalog(Configuration conf) {
-    super(conf);
     this.clients = new HiveClientPool(2, conf);
+    this.conf = conf;
   }
 
   @Override
@@ -51,7 +52,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
 
   @Override
   public org.apache.iceberg.Table loadTable(TableIdentifier identifier) {
-    Preconditions.checkArgument(identifier.namespace().levels().length == 1,
+    Preconditions.checkArgument(identifier.namespace().levels().length >= 1,
         "Missing database in table identifier: %s", identifier);
     return super.loadTable(identifier);
   }
@@ -113,14 +114,14 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
   }
 
   @Override
-  public TableOperations newTableOps(Configuration configuration, TableIdentifier tableIdentifier) {
+  public TableOperations newTableOps(TableIdentifier tableIdentifier) {
     String dbName = tableIdentifier.namespace().level(0);
     String tableName = tableIdentifier.name();
-    return new HiveTableOperations(configuration, clients, dbName, tableName);
+    return new HiveTableOperations(conf, clients, dbName, tableName);
   }
 
-  protected String defaultWarehouseLocation(Configuration hadoopConf, TableIdentifier tableIdentifier) {
-    String warehouseLocation = hadoopConf.get("hive.metastore.warehouse.dir");
+  protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
+    String warehouseLocation = conf.get("hive.metastore.warehouse.dir");
     Preconditions.checkNotNull(
         warehouseLocation,
         "Warehouse location is not set: hive.metastore.warehouse.dir=null");
