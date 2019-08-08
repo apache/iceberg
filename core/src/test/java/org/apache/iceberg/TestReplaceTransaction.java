@@ -19,8 +19,10 @@
 
 package org.apache.iceberg;
 
+import com.google.common.collect.Sets;
 import java.io.File;
 import java.io.IOException;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.types.TypeUtil;
@@ -207,7 +209,8 @@ public class TestReplaceTransaction extends TableTestBase {
         .appendFile(FILE_D)
         .commit();
 
-    table.ops().failCommits(1);
+    // trigger eventual transaction retry
+    ((TestTables.TestTableOperations) ((BaseTransaction) replace).ops()).failCommits(1);
 
     replace.commitTransaction();
 
@@ -232,6 +235,7 @@ public class TestReplaceTransaction extends TableTestBase {
     Assert.assertEquals("Version should be 1", 1L, (long) version());
 
     validateSnapshot(start, table.currentSnapshot(), FILE_A);
+    Set<File> manifests = Sets.newHashSet(listManifestFiles());
 
     Transaction replace = TestTables.beginReplace(tableDir, "test", table.schema(), table.spec());
 
@@ -253,6 +257,8 @@ public class TestReplaceTransaction extends TableTestBase {
     table.refresh();
 
     validateSnapshot(start, table.currentSnapshot(), FILE_A);
+
+    Assert.assertEquals("Should clean up replace manifests", manifests, Sets.newHashSet(listManifestFiles()));
   }
 
   @Test
