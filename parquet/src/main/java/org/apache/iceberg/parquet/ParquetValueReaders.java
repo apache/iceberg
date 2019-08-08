@@ -35,6 +35,7 @@ import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.Type;
+import org.apache.spark.sql.execution.datasources.parquet.VectorizedColumnReader;
 import org.apache.spark.sql.vectorized.ArrowColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
@@ -581,14 +582,11 @@ public class ParquetValueReaders {
   }
 
 
-  public static class ColumnarBatchReader implements ParquetValueReader<ColumnarBatch>  {
+  /*public static class ColumnarBatchReader {
 
     private final int numFields;
     private final Types.StructType iceExpectedFields;
-    private final ParquetValueReader<FieldVector>[] readers;
-    private final TripleIterator<?> column;
-    private final TripleIterator<?>[] columns;
-    private final List<TripleIterator<?>> children;
+    private final VectorReader[] readers;
     private ColumnarBatch columnarBatch;
 
     @SuppressWarnings("unchecked")
@@ -659,7 +657,7 @@ public class ParquetValueReaders {
     }
 
   }
-
+*/
   public abstract static class StructReader<T, I> implements ParquetValueReader<T> {
     private interface Setter<R> {
       void set(R record, int pos, Object reuse);

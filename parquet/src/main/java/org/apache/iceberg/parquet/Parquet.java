@@ -287,7 +287,7 @@ public class Parquet {
     private StructType sparkSchema = null;
     private Expression filter = null;
     private ReadSupport<?> readSupport = null;
-    private Function<MessageType, ParquetValueReader<?>> readerFunc = null;
+    private Function<MessageType, BatchedReader> readerFunc = null;
     private boolean filterRecords = true;
     private boolean caseSensitive = true;
     private Map<String, String> properties = Maps.newHashMap();
@@ -347,7 +347,7 @@ public class Parquet {
       return this;
     }
 
-    public ReadBuilder createReaderFunc(Function<MessageType, ParquetValueReader<?>> readerFunc) {
+    public ReadBuilder createReaderFunc(Function<MessageType, BatchedReader> readerFunc) {
       this.readerFunc = readerFunc;
       return this;
     }
@@ -452,6 +452,8 @@ public class Parquet {
 
       return new ParquetIterable<>(builder);
     }
+
+
   }
 
   private static class ParquetReadBuilder<T> extends ParquetReader.Builder<T> {

@@ -52,7 +52,7 @@ public class TestGenericData extends DataTest {
     List<Record> rows;
     try (CloseableIterable<Record> reader = Parquet.read(Files.localInput(testFile))
         .project(schema)
-        .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+        //.createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
         .build()) {
       rows = Lists.newArrayList(reader);
     }

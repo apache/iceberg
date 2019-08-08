@@ -23,10 +23,8 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
-import java.util.TimeZone;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.arrow.reader.ArrowReader;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -38,7 +36,6 @@ import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.schema.MessageType;
-import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
@@ -53,28 +50,24 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   private final InputFile input;
   private final Schema expectedSchema;
   private final ParquetReadOptions options;
-  private final Function<MessageType, ParquetValueReader<?>> readerFunc;
+  private final Function<MessageType, BatchedReader> readerFunc;
   private final Expression filter;
   private final boolean reuseContainers;
   private final boolean caseSensitive;
-  private final StructType sparkSchema;
-  private final int maxRecordsPerBatch;
   private static final Logger LOG = LoggerFactory.getLogger(ParquetReader.class);
 
   public ParquetReader(InputFile input, Schema expectedSchema, ParquetReadOptions options,
-                       Function<MessageType, ParquetValueReader<?>> readerFunc,
-                       Expression filter, boolean reuseContainers, boolean caseSensitive,
-                       StructType sparkSchema, int maxRecordsPerBatch) {
+      Function<MessageType, BatchedReader> readerFunc,
+      Expression filter, boolean reuseContainers, boolean caseSensitive,
+      StructType sparkSchema, int maxRecordsPerBatch) {
     this.input = input;
     this.expectedSchema = expectedSchema;
-    this.sparkSchema = sparkSchema;
     this.options = options;
     this.readerFunc = readerFunc;
     // replace alwaysTrue with null to avoid extra work evaluating a trivial filter
     this.filter = filter == Expressions.alwaysTrue() ? null : filter;
     this.reuseContainers = reuseContainers;
     this.caseSensitive = caseSensitive;
-    this.maxRecordsPerBatch = maxRecordsPerBatch;
   }
 
   private static class ReadConf<T> {
@@ -82,7 +75,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     private final InputFile file;
     private final ParquetReadOptions options;
     private final MessageType projection;
-    private final ParquetValueReader<T> model;
+    private final ColumnarBatchReader model;
     private final List<BlockMetaData> rowGroups;
     private final boolean[] shouldSkip;
     private final long totalValues;
@@ -90,8 +83,8 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
     @SuppressWarnings("unchecked")
     ReadConf(InputFile file, ParquetReadOptions options, Schema expectedSchema, Expression filter,
-             Function<MessageType, ParquetValueReader<?>> readerFunc, boolean reuseContainers,
-             boolean caseSensitive) {
+        Function<MessageType, ColumnarBatchReader> readerFunc, boolean reuseContainers,
+        boolean caseSensitive) {
       this.file = file;
       this.options = options;
       this.reader = newReader(file, options);
@@ -104,7 +97,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       this.projection = hasIds ?
           pruneColumns(fileSchema, expectedSchema) :
           pruneColumnsFallback(fileSchema, expectedSchema);
-      this.model = (ParquetValueReader<T>) readerFunc.apply(typeWithIds);
+      this.model = readerFunc.apply(typeWithIds);
       this.rowGroups = reader.getRowGroups();
       this.shouldSkip = new boolean[rowGroups.size()];
 
@@ -120,7 +113,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
         BlockMetaData rowGroup = rowGroups.get(i);
         boolean shouldRead = filter == null || (
             statsFilter.shouldRead(typeWithIds, rowGroup) &&
-            dictFilter.shouldRead(typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup)));
+                dictFilter.shouldRead(typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup)));
         this.shouldSkip[i] = !shouldRead;
         if (shouldRead) {
           totalValues += rowGroup.getRowCount();
@@ -154,7 +147,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       return newReader;
     }
 
-    ParquetValueReader<T> model() {
+    ColumnarBatchReader model() {
       return model;
     }
 
@@ -183,11 +176,11 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     }
   }
 
-  private ReadConf<T> conf = null;
+  private ReadConf conf = null;
 
-  private ReadConf<T> init() {
+  private ReadConf init() {
     if (conf == null) {
-      ReadConf<T> conf = new ReadConf<>(
+      ReadConf<T> conf = new ReadConf(
           input, options, expectedSchema, filter, readerFunc, reuseContainers, caseSensitive);
       this.conf = conf.copy();
       return conf;
@@ -197,45 +190,27 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   }
 
   @Override
-  public Iterator<T> iterator() {
+  public Iterator iterator() {
     // create iterator over file
-    FileIterator<T> iter = new FileIterator<>(init());
+    FileIterator iter = new FileIterator(init());
     addCloseable(iter);
 
     return iter;
   }
 
-  private Iterator<T> arrowBatchAsInternalRow(Iterator<InternalRow> iter) {
-    // Convert InterRow iterator to ArrowRecordBatch Iterator
-    Iterator<InternalRow> rowIterator = iter;
-    ArrowReader.ArrowRecordBatchIterator arrowBatchIter = ArrowReader.toBatchIterator(rowIterator,
-        sparkSchema, maxRecordsPerBatch,
-        TimeZone.getDefault().getID());
-    addCloseable(arrowBatchIter);
-
-    // Overlay InternalRow iterator over ArrowRecordbatches
-    ArrowReader.InternalRowOverArrowBatchIterator
-        rowOverbatchIter = ArrowReader.fromBatchIterator(arrowBatchIter,
-        sparkSchema, TimeZone.getDefault().getID());
-
-    addCloseable(rowOverbatchIter);
-
-    return (Iterator)rowOverbatchIter;
-  }
-
-  private static class FileIterator<T> implements Iterator<T>, Closeable {
+  private static class FileIterator implements Iterator, Closeable {
     private final ParquetFileReader reader;
     private final boolean[] shouldSkip;
-    private final ParquetValueReader<T> model;
+    private final ColumnarBatchReader model;
     private final long totalValues;
     private final boolean reuseContainers;
 
     private int nextRowGroup = 0;
     private long nextRowGroupStart = 0;
     private long valuesRead = 0;
-    private T last = null;
+    private ColumnarBatch last = null;
 
-    FileIterator(ReadConf<T> conf) {
+    FileIterator(ReadConf conf) {
       this.reader = conf.reader();
       this.shouldSkip = conf.shouldSkip();
       this.model = conf.model();
@@ -249,22 +224,16 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     }
 
     @Override
-    public T next() {
+    public ColumnarBatch next() {
       if (valuesRead >= nextRowGroupStart) {
         advance();
       }
-
       if (reuseContainers) {
-        this.last = model.read(last);
+        this.last = model.read(null); // anjali-todo last was being reused here?
       } else {
         this.last = model.read(null);
       }
-      if (last instanceof ColumnarBatch) {
-        valuesRead += ((ColumnarBatch)last).numRows();
-      } else {
-        valuesRead += 1;
-      }
-
+      valuesRead += last.numRows();
       return last;
     }
 

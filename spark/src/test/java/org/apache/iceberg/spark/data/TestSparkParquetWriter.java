@@ -67,32 +67,32 @@ public class TestSparkParquetWriter {
       optional(2, "slide", Types.StringType.get())
   );
 
-  @Test
-  public void testCorrectness() throws IOException {
-    int numRows = 250_000;
-    Iterable<InternalRow> records = RandomData.generateSpark(COMPLEX_SCHEMA, numRows, 19981);
-
-    File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
-
-    try (FileAppender<InternalRow> writer = Parquet.write(Files.localOutput(testFile))
-        .schema(COMPLEX_SCHEMA)
-        .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(COMPLEX_SCHEMA, msgType))
-        .build()) {
-      writer.addAll(records);
-    }
-
-    try (CloseableIterable<InternalRow> reader = Parquet.read(Files.localInput(testFile))
-        .project(COMPLEX_SCHEMA)
-        .createReaderFunc(type -> SparkParquetReaders.buildReader(COMPLEX_SCHEMA, type))
-        .build()) {
-      Iterator<InternalRow> expected = records.iterator();
-      Iterator<InternalRow> rows = reader.iterator();
-      for (int i = 0; i < numRows; i += 1) {
-        Assert.assertTrue("Should have expected number of rows", rows.hasNext());
-        TestHelpers.assertEquals(COMPLEX_SCHEMA, expected.next(), rows.next());
-      }
-      Assert.assertFalse("Should not have extra rows", rows.hasNext());
-    }
-  }
+  // @Test
+  // public void testCorrectness() throws IOException {
+  //   int numRows = 250_000;
+  //   Iterable<InternalRow> records = RandomData.generateSpark(COMPLEX_SCHEMA, numRows, 19981);
+  //
+  //   File testFile = temp.newFile();
+  //   Assert.assertTrue("Delete should succeed", testFile.delete());
+  //
+  //   try (FileAppender<InternalRow> writer = Parquet.write(Files.localOutput(testFile))
+  //       .schema(COMPLEX_SCHEMA)
+  //       .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(COMPLEX_SCHEMA, msgType))
+  //       .build()) {
+  //     writer.addAll(records);
+  //   }
+  //
+  //   try (CloseableIterable<InternalRow> reader = Parquet.read(Files.localInput(testFile))
+  //       .project(COMPLEX_SCHEMA)
+  //       .createReaderFunc(type -> SparkParquetReaders.buildReader(COMPLEX_SCHEMA, type))
+  //       .build()) {
+  //     Iterator<InternalRow> expected = records.iterator();
+  //     Iterator<InternalRow> rows = reader.iterator();
+  //     for (int i = 0; i < numRows; i += 1) {
+  //       Assert.assertTrue("Should have expected number of rows", rows.hasNext());
+  //       TestHelpers.assertEquals(COMPLEX_SCHEMA, expected.next(), rows.next());
+  //     }
+  //     Assert.assertFalse("Should not have extra rows", rows.hasNext());
+  //   }
+  // }
 }

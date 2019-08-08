@@ -216,14 +216,16 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
                 .project(readSchema)
                 .split(currentTask.start(), currentTask.length())
                 .filter(currentTask.residual())
-                .createReaderFunc(fileSchema -> PigParquetReader.buildReader(fileSchema, readSchema, partitionValueMap))
+                //.createReaderFunc(fileSchema -> PigParquetReader.buildReader(fileSchema, readSchema,
+                //partitionValueMap))
                 .build();
           } else {
             reader = Parquet.read(inputFile)
                 .project(projectedSchema)
                 .split(currentTask.start(), currentTask.length())
                 .filter(currentTask.residual())
-                .createReaderFunc(fileSchema -> PigParquetReader.buildReader(fileSchema, projectedSchema, partitionValueMap))
+                //.createReaderFunc(fileSchema -> PigParquetReader.buildReader(fileSchema, projectedSchema,
+                //partitionValueMap))
                 .build();
           }
 

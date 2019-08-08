@@ -25,7 +25,7 @@ import java.io.ObjectStreamException;
  * An {@link Expression expression} that is always false.
  */
 public class False implements Expression {
-  static final False INSTANCE = new False();
+  public static final False INSTANCE = new False();
 
   private False() {
   }
