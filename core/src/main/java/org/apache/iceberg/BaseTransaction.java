@@ -314,7 +314,9 @@ class BaseTransaction implements Transaction {
               }
             }
 
-            currentSnapshotId.set(current.currentSnapshot().snapshotId());
+            if (current.currentSnapshot() != null) {
+              currentSnapshotId.set(current.currentSnapshot().snapshotId());
+            }
 
             // fix up the snapshot log, which should not contain intermediate snapshots
             underlyingOps.commit(base, current.removeSnapshotLogEntries(intermediateSnapshotIds));
@@ -342,7 +344,9 @@ class BaseTransaction implements Transaction {
     // the commit succeeded
 
     try {
-      intermediateSnapshotIds.add(currentSnapshotId.get());
+      if (currentSnapshotId.get() != -1) {
+        intermediateSnapshotIds.add(currentSnapshotId.get());
+      }
 
       // clean up the data files that were deleted by each operation. first, get the list of committed manifests to
       // ensure that no committed manifest is deleted. a manifest could be deleted in one successful operation
@@ -367,10 +371,14 @@ class BaseTransaction implements Transaction {
     }
   }
 
-  private static Set<String> committedFiles(TableOperations ops, Set<Long> intermediateSnapshotIds) {
+  private static Set<String> committedFiles(TableOperations ops, Set<Long> snapshotIds) {
+    if (snapshotIds.isEmpty()) {
+      return null;
+    }
+
     Set<String> committedFiles = Sets.newHashSet();
 
-    for (long snapshotId : intermediateSnapshotIds) {
+    for (long snapshotId : snapshotIds) {
       Snapshot snap = ops.current().snapshot(snapshotId);
       if (snap != null) {
         committedFiles.add(snap.manifestListLocation());
