@@ -97,7 +97,7 @@ public class ExpressionVisitors {
       return null;
     }
 
-    public R startsWith(BoundReference<String> ref, Literal<String> lit) {
+    public <T> R startsWith(BoundReference<T> ref, Literal<T> lit) {
       throw new UnsupportedOperationException("Unsupported operation.");
     }
 
@@ -125,7 +125,7 @@ public class ExpressionVisitors {
         case NOT_IN:
           return notIn(pred.ref(), pred.literal());
         case STARTS_WITH:
-          // Expressions.startsWith accepts only strings, thus type casting is done here.
+          /* startsWith accepts only Strings, hence type-casting */
           return startsWith((BoundReference<String>) pred.ref(), (Literal<String>) pred.literal());
         default:
           throw new UnsupportedOperationException(
