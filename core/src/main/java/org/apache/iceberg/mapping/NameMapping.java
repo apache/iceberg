@@ -20,6 +20,7 @@
 package org.apache.iceberg.mapping;
 
 import com.google.common.base.Joiner;
+import com.google.common.collect.ImmutableList;
 import java.util.List;
 import java.util.Map;
 
@@ -28,6 +29,18 @@ import java.util.Map;
  */
 public class NameMapping {
   private static final Joiner DOT = Joiner.on('.');
+
+  public static NameMapping of(MappedField... fields) {
+    return new NameMapping(MappedFields.of(ImmutableList.copyOf(fields)));
+  }
+
+  public static NameMapping of(List<MappedField> fields) {
+    return new NameMapping(MappedFields.of(fields));
+  }
+
+  public static NameMapping of(MappedFields fields) {
+    return new NameMapping(fields);
+  }
 
   private final MappedFields mapping;
   private final Map<Integer, MappedField> fieldsById;
