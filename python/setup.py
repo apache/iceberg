@@ -26,12 +26,13 @@ setup(
     keywords='iceberg',
     url='https://github.com/apache/incubator-iceberg/blob/master/README.md',
     python_requires='>=3.4',
-    install_requires=['boto3',
+    install_requires=['botocore',
+                      'boto3',
                       'fastavro',
                       'mmh3',
                       'python-dateutil',
                       'pytz',
-                      'retrying',
-                      's3fs'],
+                      'requests',
+                      'retrying'],
     setup_requires=['setupmeta']
 )
