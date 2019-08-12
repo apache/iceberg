@@ -167,7 +167,7 @@ class BaseSnapshot implements Snapshot {
       for (ManifestEntry entry : entries) {
         switch (entry.status()) {
           case ADDED:
-            adds.add(entry.file().copyWithoutStats());
+            adds.add(entry.file().copy());
             break;
           case DELETED:
             deletes.add(entry.file().copyWithoutStats());
