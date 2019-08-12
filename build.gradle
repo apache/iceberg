@@ -62,7 +62,7 @@ subprojects {
   apply plugin: 'nebula.source-jar'
   apply plugin: 'java'
   apply plugin: 'maven' // make pom files for deployment
-  apply plugin: 'maven-publish' 
+  apply plugin: 'maven-publish'
 
   compileJava {
     options.encoding = "UTF-8"
@@ -90,20 +90,32 @@ subprojects {
 
   dependencies {
     compile 'org.slf4j:slf4j-api'
-    compile 'com.google.guava:guava'
+    compile('com.google.guava:guava') {
+      // may be LGPL - use ALv2 findbugs-annotations instead
+      exclude group: 'com.google.code.findbugs'
+    }
+    compile 'com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1'
 
     testCompile 'junit:junit'
     testCompile 'org.slf4j:slf4j-simple'
     testCompile 'org.mockito:mockito-core'
   }
 
-  task testJar(type: Jar){
+  task testJar(type: Jar) {
     archiveClassifier = 'tests'
     from sourceSets.test.output
   }
 
   artifacts {
     testArtifacts testJar
+  }
+
+  // add LICENSE and NOTICE
+  [jar, sourceJar, javadocJar, testJar].each { task ->
+    task.from(rootDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
   }
 
   publishing {
@@ -416,6 +428,12 @@ project(':iceberg-spark-runtime') {
 
     zip64 true
 
+    // include the LICENSE and NOTICE files for the shaded Jar
+    from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+
     // Relocate dependencies to avoid conflicts
     relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
     relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
@@ -431,7 +449,7 @@ project(':iceberg-spark-runtime') {
     relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
     relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
 
-    archiveBaseName = "iceberg-spark-runtime"
+    archiveName = "iceberg-spark-runtime-${version}.${extension}"
   }
 }
 
