@@ -53,7 +53,9 @@ public class TestStartsWith {
 
     assertProjectionStrict(spec, startsWith(COLUMN, "ab"), "ab", Expression.Operation.STARTS_WITH);
     assertProjectionStrict(spec, startsWith(COLUMN, "abab"), "abab", Expression.Operation.EQ);
-    assertProjectionFalse(spec, startsWith(COLUMN, "ababab"));
+
+    Expression projection = Projections.strict(spec).project(startsWith(COLUMN, "ababab"));
+    Assert.assertTrue(projection instanceof False);
   }
 
   @Test
@@ -90,10 +92,5 @@ public class TestStartsWith {
 
     Assert.assertEquals(expectedOp, predicate.op());
     Assert.assertEquals(expectedLiteral, output);
-  }
-
-  private void assertProjectionFalse(PartitionSpec spec, UnboundPredicate<?> filter) {
-    Expression projection = Projections.strict(spec).project(filter);
-    Assert.assertTrue(projection instanceof False);
   }
 }
