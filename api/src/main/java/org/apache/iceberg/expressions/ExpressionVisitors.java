@@ -125,8 +125,7 @@ public class ExpressionVisitors {
         case NOT_IN:
           return notIn(pred.ref(), pred.literal());
         case STARTS_WITH:
-          /* startsWith accepts only Strings, hence type-casting */
-          return startsWith((BoundReference<String>) pred.ref(), (Literal<String>) pred.literal());
+          return startsWith(pred.ref(),  pred.literal());
         default:
           throw new UnsupportedOperationException(
               "Unknown operation for predicate: " + pred.op());
