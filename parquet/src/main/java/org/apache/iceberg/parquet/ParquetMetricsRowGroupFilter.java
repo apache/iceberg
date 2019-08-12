@@ -23,7 +23,6 @@ import com.google.common.collect.Maps;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
@@ -33,6 +32,7 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.expressions.LiteralSet;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.StructType;
@@ -44,7 +44,7 @@ import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 
-public class ParquetMetricsRowGroupFilter {
+  public class ParquetMetricsRowGroupFilter {
   private final Schema schema;
   private final Expression expr;
   private transient ThreadLocal<MetricsEvalVisitor> visitors = null;
@@ -331,12 +331,12 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean in(BoundReference<T> ref, Set<Literal<T>> lits) {
+    public <T> Boolean in(BoundReference<T> ref, LiteralSet<T> literalSet) {
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean notIn(BoundReference<T> ref, Set<Literal<T>> lits) {
+    public <T> Boolean notIn(BoundReference<T> ref, LiteralSet<T> literalSet) {
       return ROWS_MIGHT_MATCH;
     }
 

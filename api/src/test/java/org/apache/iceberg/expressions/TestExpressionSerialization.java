@@ -108,6 +108,10 @@ public class TestExpressionSerialization {
       return true;
     }
 
+    if (left.op() == Operation.IN || left.op() == Operation.NOT_IN) {
+      return left.literalSet().equals(right.literalSet());
+    }
+
     return left.literal().comparator()
         .compare(left.literal().value(), right.literal().value()) == 0;
   }
