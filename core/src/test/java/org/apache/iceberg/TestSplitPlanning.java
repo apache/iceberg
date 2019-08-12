@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Before;
@@ -99,6 +100,51 @@ public class TestSplitPlanning {
     appendFiles(files);
     // all small files will be packed into one bin as "read.split.open-file-cost" is set to 0
     Assert.assertEquals(1, Iterables.size(table.newScan().planTasks()));
+  }
+
+  @Test
+  public void testSplitPlanningWithOverridenSize() {
+    List<DataFile> files128Mb = newFiles(4, 128 * 1024 * 1024);
+    appendFiles(files128Mb);
+    // we expect 2 bins since we are overriding split size in scan with 256MB
+    TableScan scan = table.newScan()
+        .splitOptions(
+            new SplitOptions()
+                .splitSize(256L * 1024 * 1024));
+    Assert.assertEquals(2, Iterables.size(scan.planTasks()));
+  }
+
+  @Test
+  public void testSplitPlanningWithOverridenLookback() {
+    List<DataFile> files120Mb = newFiles(1, 120 * 1024 * 1024);
+    List<DataFile> file128Mb = newFiles(1, 128 * 1024 * 1024);
+    Iterable<DataFile> files = Iterables.concat(files120Mb, file128Mb);
+    appendFiles(files);
+    // we expect 2 bins from non-overriden table properties
+    TableScan scan = table.newScan()
+        .splitOptions(
+            new SplitOptions()
+                .splitLookback(1));
+    CloseableIterable<CombinedScanTask> tasks = scan.planTasks();
+    Assert.assertEquals(2, Iterables.size(tasks));
+
+    // since lookback was overridden to 1, we expect the first bin to be the largest of the two.
+    CombinedScanTask combinedScanTask = tasks.iterator().next();
+    FileScanTask task = combinedScanTask.files().iterator().next();
+    Assert.assertEquals(128 * 1024 * 1024, task.length());
+  }
+
+  @Test
+  public void testSplitPlanningWithOverridenOpenCostSize() {
+    List<DataFile> files16Mb = newFiles(16, 16 * 1024 * 1024);
+    appendFiles(files16Mb);
+    // we expect 4 bins since we are overriding open file cost in scan with a cost of 32MB
+    // we can fit at most 128Mb/32Mb = 4 files per bin
+    TableScan scan = table.newScan()
+        .splitOptions(
+            new SplitOptions()
+                .splitOpenFileCost(32L * 1024 * 1024));
+    Assert.assertEquals(4, Iterables.size(scan.planTasks()));
   }
 
   private void appendFiles(Iterable<DataFile> files) {

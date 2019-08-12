@@ -82,18 +82,20 @@ class DataFilesTable extends BaseMetadataTable {
     }
 
     private FilesTableScan(
-        TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns, Schema fileSchema) {
-      super(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+        TableOperations ops, Table table, Long snapshotId, SplitOptions splitOptions, Schema schema,
+        Expression rowFilter, boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
+        Schema fileSchema) {
+      super(ops, table, snapshotId, splitOptions, schema, rowFilter, caseSensitive, colStats, selectedColumns);
       this.fileSchema = fileSchema;
     }
 
     @Override
     protected TableScan newRefinedScan(
-        TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns) {
+        TableOperations ops, Table table, Long snapshotId, SplitOptions splitOptions, Schema schema,
+        Expression rowFilter, boolean caseSensitive, boolean colStats, Collection<String> selectedColumns) {
       return new FilesTableScan(
-          ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, fileSchema);
+          ops, table, snapshotId, splitOptions, schema, rowFilter, caseSensitive, colStats, selectedColumns, fileSchema
+      );
     }
 
     @Override

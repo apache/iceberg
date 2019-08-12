@@ -170,4 +170,32 @@ public class TestDataSourceOptions {
       sparkHadoopConf.set("fs.default.name", originalDefaultFS);
     }
   }
+
+  @Test
+  public void testSplitOptionsOverridesTableProperties() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.SPLIT_SIZE, String.valueOf(128L * 1024 * 1024)); // 128Mb
+    tables.create(SCHEMA, spec, options, tableLocation);
+
+    List<SimpleRecord> expectedRecords = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b")
+    );
+    Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
+    originalDf.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    Dataset<Row> resultDf = spark.read()
+        .format("iceberg")
+        .option(TableProperties.SPLIT_SIZE, String.valueOf(562L)) // 562 bytes is the size of a SimpleRecord
+        .load(tableLocation);
+
+    Assert.assertEquals("Spark partitions should match", 2, resultDf.javaRDD().getNumPartitions());
+  }
 }

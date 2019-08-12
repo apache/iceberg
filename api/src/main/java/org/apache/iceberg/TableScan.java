@@ -59,6 +59,15 @@ public interface TableScan {
   TableScan asOfTime(long timestampMillis);
 
   /**
+   * Create a new {@link TableScan} from this scan's configuration that will override the {@link Table}'s read splitting
+   * behavior based on the incoming {@link SplitOptions}.
+   *
+   * @param splitOptions a {@link SplitOptions} containing the splitting options
+   * @return a new scan based on this with the splitting options set
+   */
+  TableScan splitOptions(SplitOptions splitOptions);
+
+  /**
    * Create a new {@link TableScan} from this with the schema as its projection.
    *
    * @param schema a projection schema

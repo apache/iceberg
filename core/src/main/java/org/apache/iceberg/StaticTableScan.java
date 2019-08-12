@@ -35,10 +35,10 @@ class StaticTableScan extends BaseTableScan {
   }
 
   private StaticTableScan(
-      TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-      boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
+      TableOperations ops, Table table, Long snapshotId, SplitOptions splitOptions, Schema schema,
+      Expression rowFilter, boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
       Function<StaticTableScan, DataTask> buildTask) {
-    super(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+    super(ops, table, snapshotId, splitOptions, schema, rowFilter, caseSensitive, colStats, selectedColumns);
     this.buildTask = buildTask;
   }
 
@@ -49,10 +49,10 @@ class StaticTableScan extends BaseTableScan {
 
   @Override
   protected TableScan newRefinedScan(
-      TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
+      TableOperations ops, Table table, Long snapshotId, SplitOptions splitOptions, Schema schema, Expression rowFilter,
       boolean caseSensitive, boolean colStats, Collection<String> selectedColumns) {
     return new StaticTableScan(
-        ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, buildTask);
+        ops, table, snapshotId, splitOptions, schema, rowFilter, caseSensitive, colStats, selectedColumns, buildTask);
   }
 
   @Override

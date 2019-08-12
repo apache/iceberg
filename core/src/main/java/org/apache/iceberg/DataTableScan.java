@@ -52,18 +52,18 @@ public class DataTableScan extends BaseTableScan {
     super(ops, table, table.schema());
   }
 
-  protected DataTableScan(TableOperations ops, Table table, Long snapshotId, Schema schema,
-                          Expression rowFilter, boolean caseSensitive, boolean colStats,
+  protected DataTableScan(TableOperations ops, Table table, Long snapshotId, SplitOptions splitOptions,
+                          Schema schema, Expression rowFilter, boolean caseSensitive, boolean colStats,
                           Collection<String> selectedColumns) {
-    super(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+    super(ops, table, snapshotId, splitOptions, schema, rowFilter, caseSensitive, colStats, selectedColumns);
   }
 
   @Override
   protected TableScan newRefinedScan(
-      TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-      boolean caseSensitive, boolean colStats, Collection<String> selectedColumns) {
+      TableOperations ops, Table table, Long snapshotId, SplitOptions splitOptions, Schema schema,
+      Expression rowFilter, boolean caseSensitive, boolean colStats, Collection<String> selectedColumns) {
     return new DataTableScan(
-        ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+        ops, table, snapshotId, splitOptions, schema, rowFilter, caseSensitive, colStats, selectedColumns);
   }
 
   public CloseableIterable<FileScanTask> planFiles(TableOperations ops, Snapshot snapshot,

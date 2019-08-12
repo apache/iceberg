@@ -54,6 +54,7 @@ abstract class BaseTableScan implements TableScan {
   private final TableOperations ops;
   private final Table table;
   private final Long snapshotId;
+  private final SplitOptions splitOptions;
   private final Schema schema;
   private final Expression rowFilter;
   private final boolean caseSensitive;
@@ -61,15 +62,16 @@ abstract class BaseTableScan implements TableScan {
   private final Collection<String> selectedColumns;
 
   protected BaseTableScan(TableOperations ops, Table table, Schema schema) {
-    this(ops, table, null, schema, Expressions.alwaysTrue(), true, false, null);
+    this(ops, table, null, null, schema, Expressions.alwaysTrue(), true, false, null);
   }
 
-  protected BaseTableScan(TableOperations ops, Table table, Long snapshotId, Schema schema,
-                        Expression rowFilter, boolean caseSensitive, boolean colStats,
+  protected BaseTableScan(TableOperations ops, Table table, Long snapshotId, SplitOptions splitOptions,
+                        Schema schema, Expression rowFilter, boolean caseSensitive, boolean colStats,
                         Collection<String> selectedColumns) {
     this.ops = ops;
     this.table = table;
     this.snapshotId = snapshotId;
+    this.splitOptions = splitOptions;
     this.schema = schema;
     this.rowFilter = rowFilter;
     this.caseSensitive = caseSensitive;
@@ -82,8 +84,8 @@ abstract class BaseTableScan implements TableScan {
 
   @SuppressWarnings("checkstyle:HiddenField")
   protected abstract TableScan newRefinedScan(
-      TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-      boolean caseSensitive, boolean colStats, Collection<String> selectedColumns);
+      TableOperations ops, Table table, Long snapshotId, SplitOptions splitOptions, Schema schema,
+      Expression rowFilter, boolean caseSensitive, boolean colStats, Collection<String> selectedColumns);
 
   @SuppressWarnings("checkstyle:HiddenField")
   protected abstract CloseableIterable<FileScanTask> planFiles(
@@ -100,7 +102,8 @@ abstract class BaseTableScan implements TableScan {
         "Cannot override snapshot, already set to id=%s", scanSnapshotId);
     Preconditions.checkArgument(ops.current().snapshot(scanSnapshotId) != null,
         "Cannot find snapshot with ID %s", scanSnapshotId);
-    return newRefinedScan(ops, table, scanSnapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+    return newRefinedScan(
+        ops, table, scanSnapshotId, splitOptions, schema, rowFilter, caseSensitive, colStats, selectedColumns);
   }
 
   @Override
@@ -124,30 +127,39 @@ abstract class BaseTableScan implements TableScan {
   }
 
   @Override
+  public TableScan splitOptions(SplitOptions scanSplitOptions) {
+    return newRefinedScan(
+        ops, table, snapshotId, scanSplitOptions, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+  }
+
+  @Override
   public TableScan project(Schema projectedSchema) {
     return newRefinedScan(
-        ops, table, snapshotId, projectedSchema, rowFilter, caseSensitive, colStats, selectedColumns);
+        ops, table, snapshotId, splitOptions, projectedSchema, rowFilter, caseSensitive,
+        colStats, selectedColumns);
   }
 
   @Override
   public TableScan caseSensitive(boolean scanCaseSensitive) {
-    return newRefinedScan(ops, table, snapshotId, schema, rowFilter, scanCaseSensitive, colStats, selectedColumns);
+    return newRefinedScan(
+        ops, table, snapshotId, splitOptions, schema, rowFilter, scanCaseSensitive, colStats, selectedColumns);
   }
 
   @Override
   public TableScan includeColumnStats() {
-    return newRefinedScan(ops, table, snapshotId, schema, rowFilter, caseSensitive, true, selectedColumns);
+    return newRefinedScan(
+        ops, table, snapshotId, splitOptions, schema, rowFilter, caseSensitive, true, selectedColumns);
   }
 
   @Override
   public TableScan select(Collection<String> columns) {
-    return newRefinedScan(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, columns);
+    return newRefinedScan(ops, table, snapshotId, splitOptions, schema, rowFilter, caseSensitive, colStats, columns);
   }
 
   @Override
   public TableScan filter(Expression expr) {
-    return newRefinedScan(
-        ops, table, snapshotId, schema, Expressions.and(rowFilter, expr), caseSensitive, colStats, selectedColumns);
+    return newRefinedScan(ops, table, snapshotId, splitOptions, schema, Expressions.and(rowFilter, expr), caseSensitive,
+        colStats, selectedColumns);
   }
 
   @Override
@@ -176,11 +188,26 @@ abstract class BaseTableScan implements TableScan {
 
   @Override
   public CloseableIterable<CombinedScanTask> planTasks() {
-    long splitSize = targetSplitSize(ops);
-    int lookback = ops.current().propertyAsInt(
-        TableProperties.SPLIT_LOOKBACK, TableProperties.SPLIT_LOOKBACK_DEFAULT);
-    long openFileCost = ops.current().propertyAsLong(
-        TableProperties.SPLIT_OPEN_FILE_COST, TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+    long splitSize;
+    if (splitOptions != null && splitOptions.getSplitSize() != null) {
+      splitSize = splitOptions.getSplitSize();
+    } else {
+      splitSize = targetSplitSize(ops);
+    }
+    int lookback;
+    if (splitOptions != null && splitOptions.getSplitLookback() != null) {
+      lookback = splitOptions.getSplitLookback();
+    } else {
+      lookback = ops.current().propertyAsInt(
+          TableProperties.SPLIT_LOOKBACK, TableProperties.SPLIT_LOOKBACK_DEFAULT);
+    }
+    long openFileCost;
+    if (splitOptions != null && splitOptions.getSplitOpenFileCost() != null) {
+      openFileCost = splitOptions.getSplitOpenFileCost();
+    } else {
+      openFileCost = ops.current().propertyAsLong(
+          TableProperties.SPLIT_OPEN_FILE_COST, TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+    }
 
     Function<FileScanTask, Long> weightFunc = file -> Math.max(file.length(), openFileCost);
 
