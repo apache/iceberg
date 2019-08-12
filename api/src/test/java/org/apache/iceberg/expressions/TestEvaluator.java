@@ -42,6 +42,7 @@ import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.predicate;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -371,7 +372,7 @@ public class TestEvaluator {
     Assert.assertEquals(3, in("s", 7, 8.1, Long.MAX_VALUE).literalSet().size());
     Assert.assertEquals(2, in("s", "abc", "abd", "abc").literalSet().size());
 
-    Evaluator evaluator = new Evaluator(STRUCT, in("x", 7, 8, 9.1));
+    Evaluator evaluator = new Evaluator(STRUCT, in("x", 7, 8, Long.MAX_VALUE));
     Assert.assertTrue("7 in [7, 8] => true", evaluator.eval(TestHelpers.Row.of(7, 8, null)));
     Assert.assertFalse("9 in [7, 8]  => false", evaluator.eval(TestHelpers.Row.of(9, 8, null)));
 
@@ -410,12 +411,57 @@ public class TestEvaluator {
   }
 
   @Test
+  public void testInExceptions() {
+    TestHelpers.assertThrows(
+        "Throw exception if value is null",
+        NullPointerException.class,
+        "Cannot create expression literal from null",
+        () -> in("x", null));
+
+    TestHelpers.assertThrows(
+        "Throw exception if calling literalSet() for EQ predicate",
+        IllegalArgumentException.class,
+        "EQ predicate cannot return a literal set",
+        () -> in("x", 5).literalSet());
+
+    TestHelpers.assertThrows(
+        "Throw exception if calling literal() for IN predicate",
+        IllegalArgumentException.class,
+        "IN predicate cannot return a literal",
+        () -> in("x", 5, 6).literal());
+
+    TestHelpers.assertThrows(
+        "Throw exception if any value in the input is null",
+        NullPointerException.class,
+        "Cannot create expression literal from null",
+        () -> in("x", 1, 2, null));
+
+    TestHelpers.assertThrows(
+        "Throw exception if binding fails for any element in the set",
+        ValidationException.class,
+        "Invalid value for comparison inclusive type int",
+        () -> new Evaluator(STRUCT, in("x", 7, 8, 9.1)));
+
+    TestHelpers.assertThrows(
+        "Throw exception if no input value",
+        IllegalArgumentException.class,
+        "Cannot create IN predicate without a value",
+        () -> predicate(Expression.Operation.IN, "x"));
+
+    TestHelpers.assertThrows(
+        "Implicit conversion IN to EQ and throw exception if binding fails",
+        ValidationException.class,
+        "Invalid value for comparison inclusive type int",
+        () -> new Evaluator(STRUCT, predicate(Expression.Operation.IN, "x", 5.1)));
+  }
+
+  @Test
   public void testNotIn() {
     Assert.assertEquals(3, notIn("s", 7, 8, 9).literalSet().size());
     Assert.assertEquals(3, notIn("s", 7, 8.1, Long.MAX_VALUE).literalSet().size());
     Assert.assertEquals(2, notIn("s", "abc", "abd", "abc").literalSet().size());
 
-    Evaluator evaluator = new Evaluator(STRUCT, notIn("x", 7, 8, 9.1));
+    Evaluator evaluator = new Evaluator(STRUCT, notIn("x", 7, 8, Long.MAX_VALUE));
     Assert.assertFalse("7 not in [7, 8] => false", evaluator.eval(TestHelpers.Row.of(7, 8, null)));
     Assert.assertTrue("6 not in [7, 8]  => true", evaluator.eval(TestHelpers.Row.of(9, 8, null)));
 
@@ -444,5 +490,50 @@ public class TestEvaluator {
             charSeqEvaluator.eval(TestHelpers.Row.of(new Utf8("abc"))));
     Assert.assertTrue("utf8(abcd) not in [string(abc), string(abd)] => true",
             charSeqEvaluator.eval(TestHelpers.Row.of(new Utf8("abcd"))));
+  }
+
+  @Test
+  public void testNotInExceptions() {
+    TestHelpers.assertThrows(
+        "Throw exception if value is null",
+        NullPointerException.class,
+        "Cannot create expression literal from null",
+        () -> notIn("x", null));
+
+    TestHelpers.assertThrows(
+        "Throw exception if calling literalSet() for EQ predicate",
+        IllegalArgumentException.class,
+        "NOT_EQ predicate cannot return a literal set",
+        () -> notIn("x", 5).literalSet());
+
+    TestHelpers.assertThrows(
+        "Throw exception if calling literal() for IN predicate",
+        IllegalArgumentException.class,
+        "NOT_IN predicate cannot return a literal",
+        () -> notIn("x", 5, 6).literal());
+
+    TestHelpers.assertThrows(
+        "Throw exception if any value in the input is null",
+        NullPointerException.class,
+        "Cannot create expression literal from null",
+        () -> notIn("x", 1, 2, null));
+
+    TestHelpers.assertThrows(
+        "Throw exception if binding fails for any element in the set",
+        ValidationException.class,
+        "Invalid value for comparison inclusive type int",
+        () -> new Evaluator(STRUCT, notIn("x", 7, 8, 9.1)));
+
+    TestHelpers.assertThrows(
+        "Throw exception if no input value",
+        IllegalArgumentException.class,
+        "Cannot create NOT_IN predicate without a value",
+        () -> predicate(Expression.Operation.NOT_IN, "x"));
+
+    TestHelpers.assertThrows(
+        "Implicit conversion NOT_IN to NOT_EQ and throw exception if binding fails",
+        ValidationException.class,
+        "Invalid value for comparison inclusive type int",
+        () -> new Evaluator(STRUCT, predicate(Expression.Operation.NOT_IN, "x", 5.1)));
   }
 }

@@ -19,10 +19,9 @@
 
 package org.apache.iceberg.expressions;
 
-import java.util.Objects;
+import com.google.common.base.Preconditions;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
@@ -36,21 +35,40 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
     super(op, namedRef, Literals.from(value));
   }
 
-  UnboundPredicate(Operation op, NamedReference namedRef, T value, T... values) {
-    super(op, namedRef, Literals.from(value), Stream.of(values).map(Literals::from).collect(Collectors.toSet()));
-  }
-
   UnboundPredicate(Operation op, NamedReference namedRef) {
-    super(op, namedRef, null);
+    super(op, namedRef);
   }
 
   UnboundPredicate(Operation op, NamedReference namedRef, Literal<T> lit) {
     super(op, namedRef, lit);
   }
 
+  UnboundPredicate(Operation op, NamedReference namedRef, Set<Literal<T>> lits) {
+    super(op, namedRef, lits);
+  }
+
   @Override
   public Expression negate() {
+    switch (op()) {
+      case IN:
+      case NOT_IN:
+        return new UnboundPredicate<>(op().negate(), ref(), literalSet());
+    }
     return new UnboundPredicate<>(op().negate(), ref(), literal());
+  }
+
+  @Override
+  public Literal<T> literal() {
+    Preconditions.checkArgument(op() != Operation.IN && op() != Operation.NOT_IN,
+        "%s predicate cannot return a literal", op());
+    return super.literal();
+  }
+
+  @Override
+  public LiteralSet<T> literalSet() {
+    Preconditions.checkArgument(op() == Operation.IN || op() == Operation.NOT_IN,
+        "%s predicate cannot return a literal set", op());
+    return super.literalSet();
   }
 
   /**
@@ -82,6 +100,13 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
 
     ValidationException.check(field != null,
         "Cannot find field '%s' in struct: %s", ref().name(), schema.asStruct());
+
+    switch (op()) {
+      case IN:
+        return bindInOperation(field, schema);
+      case NOT_IN:
+        return bindInOperation(field, schema).negate();
+    }
 
     if (literal() == null) {
       switch (op()) {
@@ -118,9 +143,6 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
         case GT_EQ:
         case EQ:
           return Expressions.alwaysFalse();
-        case IN:
-        case NOT_IN:
-          break;
       }
     } else if (lit == Literals.belowMin()) {
       switch (op()) {
@@ -132,26 +154,34 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
         case LT_EQ:
         case EQ:
           return Expressions.alwaysFalse();
-        case IN:
-        case NOT_IN:
-          break;
       }
     }
+    return new BoundPredicate<>(op(), new BoundReference<>(field.fieldId(),
+            schema.accessorForField(field.fieldId())), lit);
+  }
 
-    switch (op()) {
-      case IN:
-      case NOT_IN:
-        @SuppressWarnings("unchecked")
-        Set<Literal<T>> lits = literalSet()
-                .stream()
-                .map(l -> (Literal<T>) l.to(field.type()))
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-        return new BoundPredicate<>(op(), new BoundReference<>(field.fieldId(),
-                schema.accessorForField(field.fieldId())), lit, lits);
-      default:
-        return new BoundPredicate<>(op(), new BoundReference<>(field.fieldId(),
-                schema.accessorForField(field.fieldId())), lit);
+  private Expression bindInOperation(Types.NestedField field, Schema schema) {
+    final Set<Literal<T>> lits = literalSet().stream().map(
+        val -> {
+          Literal<T> lit = Literals.from(val).to(field.type());
+          if (lit == null) {
+            throw new ValidationException(String.format(
+                "Invalid value for comparison inclusive type %s: %s (%s)",
+                field.type(), val, val.getClass().getName()));
+          }
+          return lit;
+        })
+        .filter(l -> l != Literals.aboveMax() && l != Literals.belowMin())
+        .collect(Collectors.toSet());
+
+    if (lits.isEmpty()) {
+      return Expressions.alwaysFalse();
+    } else if (lits.size() == 1) {
+      return new BoundPredicate<>(Operation.EQ, new BoundReference<>(field.fieldId(),
+          schema.accessorForField(field.fieldId())), lits.iterator().next());
+    } else {
+      return new BoundSetPredicate<>(Operation.IN, new BoundReference<>(field.fieldId(),
+          schema.accessorForField(field.fieldId())), lits);
     }
   }
 }

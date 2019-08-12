@@ -20,43 +20,48 @@
 package org.apache.iceberg.expressions;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableSet;
-import java.util.Collection;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public abstract class Predicate<T, R extends Reference> implements Expression {
   private final Operation op;
   private final R ref;
   private final Literal<T> literal;
-  private final Set<Literal<T>> literalSet;
+  private final LiteralSet<T> literalSet;
 
-  Predicate(Operation op, R ref, Literal<T> lit) {
+  Predicate(Operation op, R ref) {
+    Preconditions.checkArgument(op == Operation.IS_NULL || op == Operation.NOT_NULL,
+        "Cannot create %s predicate without a value", op);
     this.op = op;
     this.ref = ref;
-    this.literal = lit;
-    if (lit == null || lit == Literals.aboveMax() || lit == Literals.belowMin() ||
-            (op != Operation.IN && op != Operation.NOT_IN)) {
-      this.literalSet = ImmutableSet.of();
-    } else {
-      this.literalSet = ImmutableSet.of(lit);
-    }
+    this.literal = null;
+    this.literalSet = null;
   }
 
-  Predicate(Operation op, R ref, Literal<T> lit, Collection<Literal<T>> lits) {
-    Preconditions.checkArgument((op == Operation.IN || op == Operation.NOT_IN) && lit != null,
-            "IN and NOT_IN predicate support a collection of not null literals");
+  Predicate(Operation op, R ref, Literal<T> lit) {
+    Preconditions.checkArgument(op != Operation.IN && op != Operation.NOT_IN,
+        "%s predicate does not support a single literal", op);
     this.op = op;
     this.ref = ref;
     this.literal = lit;
-    if (lits == null) {
-      this.literalSet = ImmutableSet.of();
-    } else {
-      this.literalSet = Stream.concat(Stream.of(lit), lits.stream())
-              .filter(l -> l != null && l != Literals.aboveMax() && l != Literals.belowMin())
-              .collect(Collectors.toSet());
-    }
+    this.literalSet = null;
+  }
+
+  Predicate(Operation op, R ref, Set<Literal<T>> lits) {
+    Preconditions.checkArgument(op == Operation.IN || op == Operation.NOT_IN,
+        "%s predicate does not support a set of literals", op);
+    this.op = op;
+    this.ref = ref;
+    this.literal = null;
+    this.literalSet = new LiteralSet<>(lits);
+  }
+
+  Predicate(Operation op, R ref, LiteralSet<T> lits) {
+    Preconditions.checkArgument(op == Operation.IN || op == Operation.NOT_IN,
+        "%s predicate does not support a literal set", op);
+    this.op = op;
+    this.ref = ref;
+    this.literal = null;
+    this.literalSet = lits;
   }
 
   @Override
@@ -68,11 +73,11 @@ public abstract class Predicate<T, R extends Reference> implements Expression {
     return ref;
   }
 
-  public Literal<T> literal() {
+  Literal<T> literal() {
     return literal;
   }
 
-  public Set<Literal<T>> literalSet() {
+  LiteralSet<T> literalSet() {
     return literalSet;
   }
 

@@ -19,27 +19,30 @@
 
 package org.apache.iceberg.expressions;
 
-public class BoundPredicate<T> extends Predicate<T, BoundReference<T>> {
-  BoundPredicate(Operation op, BoundReference<T> ref, Literal<T> lit) {
-    super(op, ref, lit);
+import java.util.Set;
+
+public class BoundSetPredicate<T> extends Predicate<T, BoundReference<T>> {
+  BoundSetPredicate(Operation op, BoundReference<T> ref, Set<Literal<T>> lits) {
+    super(op, ref, lits);
   }
 
-  BoundPredicate(Operation op, BoundReference<T> ref) {
-    super(op, ref);
+  BoundSetPredicate(Operation op, BoundReference<T> ref, LiteralSet<T> lits) {
+    super(op, ref, lits);
   }
 
   @Override
   public Expression negate() {
-    return new BoundPredicate<>(op().negate(), ref(), literal());
+    return new BoundSetPredicate<>(op().negate(), ref(), literalSet());
   }
 
   @Override
   public Literal<T> literal() {
-    return super.literal();
+    throw new UnsupportedOperationException("Bound set predicate has to return a literal set.");
   }
 
   @Override
   public LiteralSet<T> literalSet() {
-    throw new UnsupportedOperationException("Bound predicate has to return a Literal.");
+    return super.literalSet();
   }
+
 }

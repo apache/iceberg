@@ -19,20 +19,13 @@
 
 package org.apache.iceberg.parquet;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.expressions.Binder;
-import org.apache.iceberg.expressions.BoundReference;
-import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.ExpressionVisitors;
+import org.apache.iceberg.expressions.*;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
-import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
@@ -331,12 +324,12 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean in(BoundReference<T> ref, Set<Literal<T>> lits) {
+    public <T> Boolean in(BoundReference<T> ref, LiteralSet<T> literalSet) {
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean notIn(BoundReference<T> ref, Set<Literal<T>> lits) {
+    public <T> Boolean notIn(BoundReference<T> ref, LiteralSet<T> literalSet) {
       return ROWS_MIGHT_MATCH;
     }
 

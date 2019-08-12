@@ -20,7 +20,6 @@
 package org.apache.iceberg.parquet;
 
 import avro.shaded.com.google.common.collect.Sets;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import java.io.IOException;
 import java.util.Comparator;
@@ -36,7 +35,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.expressions.Literal;
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.expressions.LiteralSet;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
@@ -285,12 +284,12 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean in(BoundReference<T> ref, Set<Literal<T>> lit) {
+    public <T> Boolean in(BoundReference<T> ref, LiteralSet<T> literalSet) {
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean notIn(BoundReference<T> ref, Set<Literal<T>> lit) {
+    public <T> Boolean notIn(BoundReference<T> ref, LiteralSet<T> literalSet) {
       return ROWS_MIGHT_MATCH;
     }
 
