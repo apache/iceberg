@@ -142,5 +142,10 @@ public class Evaluator implements Serializable {
     public <T> Boolean notIn(BoundReference<T> ref, Literal<T> lit) {
       return !in(ref, lit);
     }
+
+    @Override
+    public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
+      return ((String) ref.get(struct)).startsWith((String) lit.value());
+    }
   }
 }

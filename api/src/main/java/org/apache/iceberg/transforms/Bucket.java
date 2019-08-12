@@ -113,6 +113,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
             predicate.op(), name, apply(predicate.literal().value()));
 //      case IN:
 //        return Expressions.predicate();
+      case STARTS_WITH:
       default:
         // comparison predicates can't be projected, notEq can't be projected
         // TODO: small ranges can be projected.

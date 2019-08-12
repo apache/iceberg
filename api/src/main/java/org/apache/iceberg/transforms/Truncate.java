@@ -213,20 +213,35 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public UnboundPredicate<CharSequence> project(String name,
-                                                  BoundPredicate<CharSequence> pred) {
-      if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
-        return Expressions.predicate(pred.op(), name);
+                                                  BoundPredicate<CharSequence> predicate) {
+      switch (predicate.op()) {
+        case NOT_NULL:
+        case IS_NULL:
+          return Expressions.predicate(predicate.op(), name);
+        case STARTS_WITH:
+        default:
+          return ProjectionUtil.truncateArray(name, predicate, this);
       }
-      return ProjectionUtil.truncateArray(name, pred, this);
     }
 
     @Override
     public UnboundPredicate<CharSequence> projectStrict(String name,
-                                                        BoundPredicate<CharSequence> pred) {
-      if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
-        return Expressions.predicate(pred.op(), name);
+                                                        BoundPredicate<CharSequence> predicate) {
+      switch (predicate.op()) {
+        case IS_NULL:
+        case NOT_NULL:
+          return Expressions.predicate(predicate.op(), name);
+        case STARTS_WITH:
+          if (predicate.literal().value().length() < width()) {
+            return Expressions.predicate(predicate.op(), name, predicate.literal().value());
+          } else if (predicate.literal().value().length() == width()) {
+            return Expressions.equal(name, predicate.literal().value());
+          } else {
+            return null;
+          }
+        default:
+          return ProjectionUtil.truncateArrayStrict(name, predicate, this);
       }
-      return ProjectionUtil.truncateArrayStrict(name, pred, this);
     }
 
     @Override
