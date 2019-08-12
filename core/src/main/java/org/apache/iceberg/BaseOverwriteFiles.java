@@ -30,12 +30,12 @@ import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
 
-public class OverwriteData extends MergingSnapshotProducer<OverwriteFiles> implements OverwriteFiles {
+public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> implements OverwriteFiles {
   private boolean validateAddedFilesMatchOverwriteFilter = false;
   private Long readSnapshotId = null;
   private Expression conflictDetectionFilter = null;
 
-  protected OverwriteData(TableOperations ops) {
+  protected BaseOverwriteFiles(TableOperations ops) {
     super(ops);
   }
 

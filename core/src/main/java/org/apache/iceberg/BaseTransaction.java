@@ -136,7 +136,7 @@ class BaseTransaction implements Transaction {
   @Override
   public RewriteFiles newRewrite() {
     checkLastOperationCommitted("RewriteFiles");
-    RewriteFiles rewrite = new ReplaceFiles(transactionOps);
+    RewriteFiles rewrite = new BaseRewriteFiles(transactionOps);
     rewrite.deleteWith(enqueueDelete);
     updates.add(rewrite);
     return rewrite;
@@ -145,7 +145,7 @@ class BaseTransaction implements Transaction {
   @Override
   public RewriteManifests rewriteManifests() {
     checkLastOperationCommitted("RewriteManifests");
-    RewriteManifests rewrite = new ReplaceManifests(transactionOps);
+    RewriteManifests rewrite = new BaseRewriteManifests(transactionOps);
     rewrite.deleteWith(enqueueDelete);
     updates.add(rewrite);
     return rewrite;
@@ -154,7 +154,7 @@ class BaseTransaction implements Transaction {
   @Override
   public OverwriteFiles newOverwrite() {
     checkLastOperationCommitted("OverwriteFiles");
-    OverwriteFiles overwrite = new OverwriteData(transactionOps);
+    OverwriteFiles overwrite = new BaseOverwriteFiles(transactionOps);
     overwrite.deleteWith(enqueueDelete);
     updates.add(overwrite);
     return overwrite;
@@ -163,7 +163,7 @@ class BaseTransaction implements Transaction {
   @Override
   public ReplacePartitions newReplacePartitions() {
     checkLastOperationCommitted("ReplacePartitions");
-    ReplacePartitionsOperation replacePartitions = new ReplacePartitionsOperation(transactionOps);
+    ReplacePartitions replacePartitions = new BaseReplacePartitions(transactionOps);
     replacePartitions.deleteWith(enqueueDelete);
     updates.add(replacePartitions);
     return replacePartitions;

@@ -31,7 +31,7 @@ import static org.apache.iceberg.Files.localInput;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-public class TestReplaceManifests extends TableTestBase {
+public class TestRewriteManifests extends TableTestBase {
 
   @Test
   public void testReplaceManifestsSeparate() {
@@ -179,7 +179,7 @@ public class TestReplaceManifests extends TableTestBase {
     Assert.assertEquals(1, table.currentSnapshot().manifests().size());
 
     // cluster by constant will combine manifests into one but small target size will create one per entry
-    ReplaceManifests rewriteManifests = spy((ReplaceManifests) table.rewriteManifests());
+    BaseRewriteManifests rewriteManifests = spy((BaseRewriteManifests) table.rewriteManifests());
     when(rewriteManifests.getManifestTargetSizeBytes()).thenReturn(1L);
     rewriteManifests.clusterBy(file -> "file").commit();
 

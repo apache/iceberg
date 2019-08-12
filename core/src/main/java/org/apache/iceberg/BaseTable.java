@@ -121,22 +121,22 @@ public class BaseTable implements Table, HasTableOperations {
 
   @Override
   public RewriteFiles newRewrite() {
-    return new ReplaceFiles(ops);
+    return new BaseRewriteFiles(ops);
   }
 
   @Override
   public RewriteManifests rewriteManifests() {
-    return new ReplaceManifests(ops);
+    return new BaseRewriteManifests(ops);
   }
 
   @Override
   public OverwriteFiles newOverwrite() {
-    return new OverwriteData(ops);
+    return new BaseOverwriteFiles(ops);
   }
 
   @Override
   public ReplacePartitions newReplacePartitions() {
-    return new ReplacePartitionsOperation(ops);
+    return new BaseReplacePartitions(ops);
   }
 
   @Override

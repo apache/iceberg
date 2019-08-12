@@ -31,7 +31,7 @@ import static org.apache.iceberg.ManifestEntry.Status.ADDED;
 import static org.apache.iceberg.ManifestEntry.Status.DELETED;
 import static org.apache.iceberg.ManifestEntry.Status.EXISTING;
 
-public class TestReplaceFiles extends TableTestBase {
+public class TestRewriteFiles extends TableTestBase {
 
   @Test
   public void testEmptyTable() {
