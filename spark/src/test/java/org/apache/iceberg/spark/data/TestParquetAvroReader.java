@@ -45,187 +45,187 @@ public class TestParquetAvroReader {
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
-  private static final Schema COMPLEX_SCHEMA = new Schema(
-      required(1, "roots", Types.LongType.get()),
-      optional(3, "lime", Types.ListType.ofRequired(4, Types.DoubleType.get())),
-      required(5, "strict", Types.StructType.of(
-          required(9, "tangerine", Types.StringType.get()),
-          optional(6, "hopeful", Types.StructType.of(
-              required(7, "steel", Types.FloatType.get()),
-              required(8, "lantern", Types.DateType.get())
-          )),
-          optional(10, "vehement", Types.LongType.get())
-      )),
-      optional(11, "metamorphosis", Types.MapType.ofRequired(12, 13,
-          Types.StringType.get(), Types.TimestampType.withoutZone())),
-      required(14, "winter", Types.ListType.ofOptional(15, Types.StructType.of(
-          optional(16, "beet", Types.DoubleType.get()),
-          required(17, "stamp", Types.TimeType.get()),
-          optional(18, "wheeze", Types.StringType.get())
-      ))),
-      optional(19, "renovate", Types.MapType.ofRequired(20, 21,
-          Types.StringType.get(), Types.StructType.of(
-              optional(22, "jumpy", Types.DoubleType.get()),
-              required(23, "koala", Types.TimeType.get())
-          ))),
-      optional(2, "slide", Types.StringType.get())
-  );
-
-  @Ignore
-  public void testStructSchema() throws IOException {
-    Schema structSchema = new Schema(
-        required(1, "circumvent", Types.LongType.get()),
-        optional(2, "antarctica", Types.StringType.get()),
-        optional(3, "fluent", Types.DoubleType.get()),
-        required(4, "quell", Types.StructType.of(
-            required(5, "operator", Types.BooleanType.get()),
-            optional(6, "fanta", Types.IntegerType.get()),
-            optional(7, "cable", Types.FloatType.get())
-        )),
-        required(8, "chimney", Types.TimestampType.withZone()),
-        required(9, "wool", Types.DateType.get())
-    );
-
-    File testFile = writeTestData(structSchema, 5_000_000, 1059);
-    // RandomData uses the root record name "test", which must match for records to be equal
-    MessageType readSchema = ParquetSchemaUtil.convert(structSchema, "test");
-
-    long sum = 0;
-    long sumSq = 0;
-    int warmups = 2;
-    int trials = 10;
-
-    for (int i = 0; i < warmups + trials; i += 1) {
-      // clean up as much memory as possible to avoid a large GC during the timed run
-      System.gc();
-
-      try (CloseableIterable<Record> reader = Parquet.read(Files.localInput(testFile))
-          .project(structSchema)
-          .createReaderFunc(
-              fileSchema -> ParquetAvroValueReaders.buildReader(structSchema, readSchema))
-           .build()) {
-        long start = System.currentTimeMillis();
-        long val = 0;
-        long count = 0;
-        for (Record record : reader) {
-          // access something to ensure the compiler doesn't optimize this away
-          val ^= (Long) record.get(0);
-          count += 1;
-        }
-        long end = System.currentTimeMillis();
-        long duration = end - start;
-
-        System.err.println("XOR val: " + val);
-        System.err.println(String.format("Reassembled %d records in %d ms", count, duration));
-
-        if (i >= warmups) {
-          sum += duration;
-          sumSq += duration * duration;
-        }
-      }
-    }
-
-    double mean = ((double) sum) / trials;
-    double stddev = Math.sqrt((((double) sumSq) / trials) - (mean * mean));
-
-    System.err.println(String.format(
-        "Ran %d trials: mean time: %.3f ms, stddev: %.3f ms", trials, mean, stddev));
-  }
-
-  @Ignore
-  public void testWithOldReadPath() throws IOException {
-    File testFile = writeTestData(COMPLEX_SCHEMA, 500_000, 1985);
-    // RandomData uses the root record name "test", which must match for records to be equal
-    MessageType readSchema = ParquetSchemaUtil.convert(COMPLEX_SCHEMA, "test");
-
-    for (int i = 0; i < 5; i += 1) {
-      // clean up as much memory as possible to avoid a large GC during the timed run
-      System.gc();
-
-      try (CloseableIterable<Record> reader =  Parquet.read(Files.localInput(testFile))
-          .project(COMPLEX_SCHEMA)
-          .build()) {
-        long start = System.currentTimeMillis();
-        long val = 0;
-        long count = 0;
-        for (Record record : reader) {
-          // access something to ensure the compiler doesn't optimize this away
-          val ^= (Long) record.get(0);
-          count += 1;
-        }
-        long end = System.currentTimeMillis();
-
-        System.err.println("XOR val: " + val);
-        System.err.println("Old read path: read " + count + " records in " + (end - start) + " ms");
-      }
-
-      // clean up as much memory as possible to avoid a large GC during the timed run
-      System.gc();
-
-      try (CloseableIterable<Record> reader = Parquet.read(Files.localInput(testFile))
-           .project(COMPLEX_SCHEMA)
-           .createReaderFunc(
-               fileSchema -> ParquetAvroValueReaders.buildReader(COMPLEX_SCHEMA, readSchema))
-           .build()) {
-        long start = System.currentTimeMillis();
-        long val = 0;
-        long count = 0;
-        for (Record record : reader) {
-          // access something to ensure the compiler doesn't optimize this away
-          val ^= (Long) record.get(0);
-          count += 1;
-        }
-        long end = System.currentTimeMillis();
-
-        System.err.println("XOR val: " + val);
-        System.err.println("New read path: read " + count + " records in " + (end - start) + " ms");
-      }
-    }
-  }
-
-  @Test
-  public void testCorrectness() throws IOException {
-    Iterable<Record> records = RandomData.generate(COMPLEX_SCHEMA, 250_000, 34139);
-
-    File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
-
-    try (FileAppender<Record> writer = Parquet.write(Files.localOutput(testFile))
-        .schema(COMPLEX_SCHEMA)
-        .build()) {
-      writer.addAll(records);
-    }
-
-    // RandomData uses the root record name "test", which must match for records to be equal
-    MessageType readSchema = ParquetSchemaUtil.convert(COMPLEX_SCHEMA, "test");
-
-    // verify that the new read path is correct
-    try (CloseableIterable<Record> reader = Parquet.read(Files.localInput(testFile))
-        .project(COMPLEX_SCHEMA)
-        .createReaderFunc(
-            fileSchema -> ParquetAvroValueReaders.buildReader(COMPLEX_SCHEMA, readSchema))
-        .reuseContainers()
-        .build()) {
-      int recordNum = 0;
-      Iterator<Record> iter = records.iterator();
-      for (Record actual : reader) {
-        Record expected = iter.next();
-        Assert.assertEquals("Record " + recordNum + " should match expected", expected, actual);
-        recordNum += 1;
-      }
-    }
-  }
-
-  private File writeTestData(Schema schema, int numRecords, int seed) throws IOException {
-    File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
-
-    try (FileAppender<Record> writer = Parquet.write(Files.localOutput(testFile))
-        .schema(schema)
-        .build()) {
-      writer.addAll(RandomData.generate(schema, numRecords, seed));
-    }
-
-    return testFile;
-  }
+  // private static final Schema COMPLEX_SCHEMA = new Schema(
+  //     required(1, "roots", Types.LongType.get()),
+  //     optional(3, "lime", Types.ListType.ofRequired(4, Types.DoubleType.get())),
+  //     required(5, "strict", Types.StructType.of(
+  //         required(9, "tangerine", Types.StringType.get()),
+  //         optional(6, "hopeful", Types.StructType.of(
+  //             required(7, "steel", Types.FloatType.get()),
+  //             required(8, "lantern", Types.DateType.get())
+  //         )),
+  //         optional(10, "vehement", Types.LongType.get())
+  //     )),
+  //     optional(11, "metamorphosis", Types.MapType.ofRequired(12, 13,
+  //         Types.StringType.get(), Types.TimestampType.withoutZone())),
+  //     required(14, "winter", Types.ListType.ofOptional(15, Types.StructType.of(
+  //         optional(16, "beet", Types.DoubleType.get()),
+  //         required(17, "stamp", Types.TimeType.get()),
+  //         optional(18, "wheeze", Types.StringType.get())
+  //     ))),
+  //     optional(19, "renovate", Types.MapType.ofRequired(20, 21,
+  //         Types.StringType.get(), Types.StructType.of(
+  //             optional(22, "jumpy", Types.DoubleType.get()),
+  //             required(23, "koala", Types.TimeType.get())
+  //         ))),
+  //     optional(2, "slide", Types.StringType.get())
+  // );
+  //
+  // @Ignore
+  // public void testStructSchema() throws IOException {
+  //   Schema structSchema = new Schema(
+  //       required(1, "circumvent", Types.LongType.get()),
+  //       optional(2, "antarctica", Types.StringType.get()),
+  //       optional(3, "fluent", Types.DoubleType.get()),
+  //       required(4, "quell", Types.StructType.of(
+  //           required(5, "operator", Types.BooleanType.get()),
+  //           optional(6, "fanta", Types.IntegerType.get()),
+  //           optional(7, "cable", Types.FloatType.get())
+  //       )),
+  //       required(8, "chimney", Types.TimestampType.withZone()),
+  //       required(9, "wool", Types.DateType.get())
+  //   );
+  //
+  //   File testFile = writeTestData(structSchema, 5_000_000, 1059);
+  //   // RandomData uses the root record name "test", which must match for records to be equal
+  //   MessageType readSchema = ParquetSchemaUtil.convert(structSchema, "test");
+  //
+  //   long sum = 0;
+  //   long sumSq = 0;
+  //   int warmups = 2;
+  //   int trials = 10;
+  //
+  //   for (int i = 0; i < warmups + trials; i += 1) {
+  //     // clean up as much memory as possible to avoid a large GC during the timed run
+  //     System.gc();
+  //
+  //     try (CloseableIterable<Record> reader = Parquet.read(Files.localInput(testFile))
+  //         .project(structSchema)
+  //         .createReaderFunc(
+  //             fileSchema -> ParquetAvroValueReaders.buildReader(structSchema, readSchema))
+  //          .build()) {
+  //       long start = System.currentTimeMillis();
+  //       long val = 0;
+  //       long count = 0;
+  //       for (Record record : reader) {
+  //         // access something to ensure the compiler doesn't optimize this away
+  //         val ^= (Long) record.get(0);
+  //         count += 1;
+  //       }
+  //       long end = System.currentTimeMillis();
+  //       long duration = end - start;
+  //
+  //       System.err.println("XOR val: " + val);
+  //       System.err.println(String.format("Reassembled %d records in %d ms", count, duration));
+  //
+  //       if (i >= warmups) {
+  //         sum += duration;
+  //         sumSq += duration * duration;
+  //       }
+  //     }
+  //   }
+  //
+  //   double mean = ((double) sum) / trials;
+  //   double stddev = Math.sqrt((((double) sumSq) / trials) - (mean * mean));
+  //
+  //   System.err.println(String.format(
+  //       "Ran %d trials: mean time: %.3f ms, stddev: %.3f ms", trials, mean, stddev));
+  // }
+  //
+  // @Ignore
+  // public void testWithOldReadPath() throws IOException {
+  //   File testFile = writeTestData(COMPLEX_SCHEMA, 500_000, 1985);
+  //   // RandomData uses the root record name "test", which must match for records to be equal
+  //   MessageType readSchema = ParquetSchemaUtil.convert(COMPLEX_SCHEMA, "test");
+  //
+  //   for (int i = 0; i < 5; i += 1) {
+  //     // clean up as much memory as possible to avoid a large GC during the timed run
+  //     System.gc();
+  //
+  //     try (CloseableIterable<Record> reader =  Parquet.read(Files.localInput(testFile))
+  //         .project(COMPLEX_SCHEMA)
+  //         .build()) {
+  //       long start = System.currentTimeMillis();
+  //       long val = 0;
+  //       long count = 0;
+  //       for (Record record : reader) {
+  //         // access something to ensure the compiler doesn't optimize this away
+  //         val ^= (Long) record.get(0);
+  //         count += 1;
+  //       }
+  //       long end = System.currentTimeMillis();
+  //
+  //       System.err.println("XOR val: " + val);
+  //       System.err.println("Old read path: read " + count + " records in " + (end - start) + " ms");
+  //     }
+  //
+  //     // clean up as much memory as possible to avoid a large GC during the timed run
+  //     System.gc();
+  //
+  //     try (CloseableIterable<Record> reader = Parquet.read(Files.localInput(testFile))
+  //          .project(COMPLEX_SCHEMA)
+  //          .createReaderFunc(
+  //              fileSchema -> ParquetAvroValueReaders.buildReader(COMPLEX_SCHEMA, readSchema))
+  //          .build()) {
+  //       long start = System.currentTimeMillis();
+  //       long val = 0;
+  //       long count = 0;
+  //       for (Record record : reader) {
+  //         // access something to ensure the compiler doesn't optimize this away
+  //         val ^= (Long) record.get(0);
+  //         count += 1;
+  //       }
+  //       long end = System.currentTimeMillis();
+  //
+  //       System.err.println("XOR val: " + val);
+  //       System.err.println("New read path: read " + count + " records in " + (end - start) + " ms");
+  //     }
+  //   }
+  // }
+  //
+  // @Test
+  // public void testCorrectness() throws IOException {
+  //   Iterable<Record> records = RandomData.generate(COMPLEX_SCHEMA, 250_000, 34139);
+  //
+  //   File testFile = temp.newFile();
+  //   Assert.assertTrue("Delete should succeed", testFile.delete());
+  //
+  //   try (FileAppender<Record> writer = Parquet.write(Files.localOutput(testFile))
+  //       .schema(COMPLEX_SCHEMA)
+  //       .build()) {
+  //     writer.addAll(records);
+  //   }
+  //
+  //   // RandomData uses the root record name "test", which must match for records to be equal
+  //   MessageType readSchema = ParquetSchemaUtil.convert(COMPLEX_SCHEMA, "test");
+  //
+  //   // verify that the new read path is correct
+  //   try (CloseableIterable<Record> reader = Parquet.read(Files.localInput(testFile))
+  //       .project(COMPLEX_SCHEMA)
+  //       .createReaderFunc(
+  //           fileSchema -> ParquetAvroValueReaders.buildReader(COMPLEX_SCHEMA, readSchema))
+  //       .reuseContainers()
+  //       .build()) {
+  //     int recordNum = 0;
+  //     Iterator<Record> iter = records.iterator();
+  //     for (Record actual : reader) {
+  //       Record expected = iter.next();
+  //       Assert.assertEquals("Record " + recordNum + " should match expected", expected, actual);
+  //       recordNum += 1;
+  //     }
+  //   }
+  // }
+  //
+  // private File writeTestData(Schema schema, int numRecords, int seed) throws IOException {
+  //   File testFile = temp.newFile();
+  //   Assert.assertTrue("Delete should succeed", testFile.delete());
+  //
+  //   try (FileAppender<Record> writer = Parquet.write(Files.localOutput(testFile))
+  //       .schema(schema)
+  //       .build()) {
+  //     writer.addAll(RandomData.generate(schema, numRecords, seed));
+  //   }
+  //
+  //   return testFile;
+  // }
 }

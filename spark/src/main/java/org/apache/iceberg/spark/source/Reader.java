@@ -59,7 +59,7 @@ import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkAvroReader;
 import org.apache.iceberg.spark.data.SparkOrcReader;
-import org.apache.iceberg.spark.data.vector.VectorizedParquetValueReaders;
+import org.apache.iceberg.parquet.VectorReader;
 import org.apache.iceberg.spark.data.vector.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
@@ -127,7 +127,7 @@ class Reader implements DataSourceReader,
 
     } else {
 
-      this.numRecordsPerBatch = VectorizedParquetValueReaders.VectorReader.DEFAULT_NUM_ROWS_IN_BATCH;
+      this.numRecordsPerBatch = VectorReader.DEFAULT_NUM_ROWS_IN_BATCH;
     }
     LOG.info("=> Set Config numRecordsPerBatch = {}", numRecordsPerBatch);
 

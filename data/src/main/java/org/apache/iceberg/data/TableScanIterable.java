@@ -91,7 +91,7 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
       case PARQUET:
         Parquet.ReadBuilder parquet = Parquet.read(input)
             .project(projection, SparkSchemaUtil.convert(projection))
-            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(projection, fileSchema))
+            //.createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(projection, fileSchema))
             .split(task.start(), task.length());
 
         if (reuseContainers) {
