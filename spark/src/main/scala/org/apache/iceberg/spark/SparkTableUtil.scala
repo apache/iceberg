@@ -22,17 +22,21 @@ package org.apache.iceberg.spark
 import com.google.common.collect.Maps
 import java.nio.ByteBuffer
 import java.util
+import java.util.UUID
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{Path, PathFilter}
-import org.apache.iceberg.{DataFile, DataFiles, Metrics, MetricsConfig, PartitionSpec}
+import org.apache.iceberg._
+import org.apache.iceberg.exceptions.NoSuchTableException
 import org.apache.iceberg.hadoop.HadoopInputFile
 import org.apache.iceberg.orc.OrcMetrics
 import org.apache.iceberg.parquet.ParquetUtil
 import org.apache.iceberg.spark.hacks.Hive
 import org.apache.parquet.hadoop.ParquetFileReader
 import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.catalog.CatalogTablePartition
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 
 object SparkTableUtil {
   /**
@@ -296,6 +300,89 @@ object SparkTableUtil {
         bytesMapToArray(metrics.upperBounds())
       )
     }
+  }
+
+  def buildManifest(table: Table,
+                    sparkDataFiles: Seq[SparkDataFile],
+                    partitionSpec: PartitionSpec): ManifestFile = {
+    val outputFile = table.io
+      .newOutputFile(FileFormat.AVRO.addExtension("/tmp/" + UUID.randomUUID.toString))
+    val writer = ManifestWriter.write(partitionSpec, outputFile)
+    try {
+      for (file <- sparkDataFiles) {
+        writer.add(file.toDataFile(partitionSpec))
+      }
+    } finally {
+      writer.close()
+    }
+
+    writer.toManifestFile
+  }
+
+  def partitionToMap(partition: String): Map[String, String] = {
+    val map = new mutable.HashMap[String, String]()
+    val list = partition.split("/")
+    list.foreach { str =>
+      val kv = str.split("=")
+      map.put(kv(0), kv(1))
+    }
+
+    map.toMap
+  }
+
+  /**
+   * Migrate a spark table to a iceberg table.
+   *
+   * The migration uses the spark session to get table metadata. It assumes no
+   * operation is going on original table and target table and thus is not
+   * thread-safe.
+   *
+   * @param dbName the database name of the table to be migrated
+   * @param tableName the table to be migrated
+   * @param table the target table to migrate in
+   *
+   * @return table the target table
+   */
+  def migrateSparkTable(dbName: String, tableName: String, table: Table): Table = {
+    val sparkSession = SparkSession.builder().getOrCreate()
+
+    if (!sparkSession.catalog.tableExists(dbName, tableName)) {
+      throw new NoSuchTableException(s"Table $dbName.$tableName does not exist")
+    }
+
+    val tableMetadata = sparkSession.sessionState.catalog.
+      getTableMetadata(new TableIdentifier(tableName, Some(dbName)))
+
+    val format = tableMetadata.provider.getOrElse("none")
+    if (format != "avro" && format != "parquet" && format != "orc") {
+      throw new UnsupportedOperationException(s"Unsupported format: $format")
+    }
+
+    val location = tableMetadata.location.toString
+    val partitionSpec = SparkSchemaUtil.specForTable(sparkSession, s"$dbName.$tableName")
+
+    val fastAppender = table.newFastAppend()
+
+    val partitions = sparkSession.sessionState.catalog.externalCatalog
+      .listPartitionNames(dbName, tableName)
+    if (partitions.isEmpty) {
+      val dataFiles = SparkTableUtil.listPartition(Map.empty[String, String], location, format)
+      fastAppender.appendManifest(buildManifest(table, dataFiles, PartitionSpec.unpartitioned))
+    } else {
+      // Retrieve data files according to partition. result = [[datafiles], [datafiles]]
+      val dataFiles = partitions.map { e =>
+        SparkTableUtil.listPartition(partitionToMap(e), location + "/" + e, format)
+      }
+
+      // Append manifest for each partition
+      dataFiles.foreach { partition =>
+        fastAppender.appendManifest(buildManifest(table, partition, partitionSpec))
+      }
+    }
+
+    fastAppender.apply()
+    fastAppender.commit()
+    table
   }
 }
 
