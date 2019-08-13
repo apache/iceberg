@@ -22,10 +22,10 @@ package org.apache.iceberg;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.ResidualEvaluator;
@@ -53,18 +53,19 @@ public class DataTableScan extends BaseTableScan {
     super(ops, table, table.schema());
   }
 
-  protected DataTableScan(TableOperations ops, Table table, Long snapshotId, Map<String, String> options,
-                          Schema schema, Expression rowFilter, boolean caseSensitive, boolean colStats,
-                          Collection<String> selectedColumns) {
-    super(ops, table, snapshotId, options, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+  protected DataTableScan(TableOperations ops, Table table, Long snapshotId, Schema schema,
+                          Expression rowFilter, boolean caseSensitive, boolean colStats,
+                          Collection<String> selectedColumns, ImmutableMap<String, String> options) {
+    super(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, options);
   }
 
   @Override
   protected TableScan newRefinedScan(
-      TableOperations ops, Table table, Long snapshotId, Map<String, String> options, Schema schema,
-      Expression rowFilter, boolean caseSensitive, boolean colStats, Collection<String> selectedColumns) {
+      TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
+      boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
+      ImmutableMap<String, String> options) {
     return new DataTableScan(
-        ops, table, snapshotId, options, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+        ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, options);
   }
 
   public CloseableIterable<FileScanTask> planFiles(TableOperations ops, Snapshot snapshot,

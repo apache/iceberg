@@ -22,7 +22,7 @@ package org.apache.iceberg;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.FluentIterable;
-import com.google.common.collect.Maps;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -30,7 +30,6 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.events.Listeners;
@@ -56,29 +55,29 @@ abstract class BaseTableScan implements TableScan {
   private final TableOperations ops;
   private final Table table;
   private final Long snapshotId;
-  private final Map<String, String> options;
   private final Schema schema;
   private final Expression rowFilter;
   private final boolean caseSensitive;
   private final boolean colStats;
   private final Collection<String> selectedColumns;
+  private final ImmutableMap<String, String> options;
 
   protected BaseTableScan(TableOperations ops, Table table, Schema schema) {
-    this(ops, table, null, null, schema, Expressions.alwaysTrue(), true, false, null);
+    this(ops, table, null, schema, Expressions.alwaysTrue(), true, false, null, ImmutableMap.of());
   }
 
-  protected BaseTableScan(TableOperations ops, Table table, Long snapshotId, Map<String, String> options,
-                        Schema schema, Expression rowFilter, boolean caseSensitive, boolean colStats,
-                        Collection<String> selectedColumns) {
+  protected BaseTableScan(TableOperations ops, Table table, Long snapshotId, Schema schema,
+                        Expression rowFilter, boolean caseSensitive, boolean colStats,
+                        Collection<String> selectedColumns, ImmutableMap<String, String> options) {
     this.ops = ops;
     this.table = table;
     this.snapshotId = snapshotId;
-    this.options = options;
     this.schema = schema;
     this.rowFilter = rowFilter;
     this.caseSensitive = caseSensitive;
     this.colStats = colStats;
     this.selectedColumns = selectedColumns;
+    this.options = options != null ? options : ImmutableMap.of();
   }
 
   @SuppressWarnings("checkstyle:HiddenField")
@@ -86,8 +85,9 @@ abstract class BaseTableScan implements TableScan {
 
   @SuppressWarnings("checkstyle:HiddenField")
   protected abstract TableScan newRefinedScan(
-      TableOperations ops, Table table, Long snapshotId, Map<String, String> options, Schema schema,
-      Expression rowFilter, boolean caseSensitive, boolean colStats, Collection<String> selectedColumns);
+      TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
+      boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
+      ImmutableMap<String, String> options);
 
   @SuppressWarnings("checkstyle:HiddenField")
   protected abstract CloseableIterable<FileScanTask> planFiles(
@@ -105,7 +105,7 @@ abstract class BaseTableScan implements TableScan {
     Preconditions.checkArgument(ops.current().snapshot(scanSnapshotId) != null,
         "Cannot find snapshot with ID %s", scanSnapshotId);
     return newRefinedScan(
-        ops, table, scanSnapshotId, options, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+        ops, table, scanSnapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, options);
   }
 
   @Override
@@ -130,44 +130,40 @@ abstract class BaseTableScan implements TableScan {
 
   @Override
   public TableScan option(String property, String value) {
-    Map<String, String> localOptions = Maps.newHashMap();
-    if (options != null) {
-      localOptions.putAll(options);
-    }
-    localOptions.put(property, value);
+    ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+    builder.putAll(options);
+    builder.put(property, value);
 
     return newRefinedScan(
-        ops, table, snapshotId, localOptions, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+        ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, builder.build());
   }
 
   @Override
   public TableScan project(Schema projectedSchema) {
     return newRefinedScan(
-        ops, table, snapshotId, options, projectedSchema, rowFilter, caseSensitive,
-        colStats, selectedColumns);
+        ops, table, snapshotId, projectedSchema, rowFilter, caseSensitive, colStats, selectedColumns, options);
   }
 
   @Override
   public TableScan caseSensitive(boolean scanCaseSensitive) {
     return newRefinedScan(
-        ops, table, snapshotId, options, schema, rowFilter, scanCaseSensitive, colStats, selectedColumns);
+        ops, table, snapshotId, schema, rowFilter, scanCaseSensitive, colStats, selectedColumns, options);
   }
 
   @Override
   public TableScan includeColumnStats() {
-    return newRefinedScan(
-        ops, table, snapshotId, options, schema, rowFilter, caseSensitive, true, selectedColumns);
+    return newRefinedScan(ops, table, snapshotId, schema, rowFilter, caseSensitive, true, selectedColumns, options);
   }
 
   @Override
   public TableScan select(Collection<String> columns) {
-    return newRefinedScan(ops, table, snapshotId, options, schema, rowFilter, caseSensitive, colStats, columns);
+    return newRefinedScan(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, columns, options);
   }
 
   @Override
   public TableScan filter(Expression expr) {
-    return newRefinedScan(ops, table, snapshotId, options, schema, Expressions.and(rowFilter, expr), caseSensitive,
-        colStats, selectedColumns);
+    return newRefinedScan(ops, table, snapshotId, schema, Expressions.and(rowFilter, expr), caseSensitive, colStats,
+        selectedColumns, options);
   }
 
   @Override
@@ -197,20 +193,20 @@ abstract class BaseTableScan implements TableScan {
   @Override
   public CloseableIterable<CombinedScanTask> planTasks() {
     long splitSize;
-    if (options != null && options.containsKey(TableProperties.SPLIT_SIZE)) {
+    if (options.containsKey(TableProperties.SPLIT_SIZE)) {
       splitSize = Long.parseLong(options.get(TableProperties.SPLIT_SIZE));
     } else {
       splitSize = targetSplitSize(ops);
     }
     int lookback;
-    if (options != null && options.containsKey(TableProperties.SPLIT_LOOKBACK)) {
+    if (options.containsKey(TableProperties.SPLIT_LOOKBACK)) {
       lookback = Integer.parseInt(options.get(TableProperties.SPLIT_LOOKBACK));
     } else {
       lookback = ops.current().propertyAsInt(
           TableProperties.SPLIT_LOOKBACK, TableProperties.SPLIT_LOOKBACK_DEFAULT);
     }
     long openFileCost;
-    if (options != null && options.containsKey(TableProperties.SPLIT_OPEN_FILE_COST)) {
+    if (options.containsKey(TableProperties.SPLIT_OPEN_FILE_COST)) {
       openFileCost = Long.parseLong(options.get(TableProperties.SPLIT_OPEN_FILE_COST));
     } else {
       openFileCost = ops.current().propertyAsLong(
