@@ -76,6 +76,10 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public Integer apply(Integer value) {
+      if (value == null) {
+        return null;
+      }
+
       return value - (((value % width) + width) % width);
     }
 
@@ -141,6 +145,10 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public Long apply(Long value) {
+      if (value == null) {
+        return null;
+      }
+
       return value - (((value % width) + width) % width);
     }
 
@@ -203,6 +211,10 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public CharSequence apply(CharSequence value) {
+      if (value == null) {
+        return null;
+      }
+
       return UnicodeUtil.truncateString(value, length);
     }
 
@@ -282,6 +294,10 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public ByteBuffer apply(ByteBuffer value) {
+      if (value == null) {
+        return null;
+      }
+
       ByteBuffer ret = value.duplicate();
       ret.limit(Math.min(value.limit(), value.position() + length));
       return ret;
@@ -353,12 +369,17 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public BigDecimal apply(BigDecimal value) {
+      if (value == null) {
+        return null;
+      }
+
       BigDecimal remainder = new BigDecimal(
           value.unscaledValue()
               .remainder(unscaledWidth)
               .add(unscaledWidth)
               .remainder(unscaledWidth),
           value.scale());
+
       return value.subtract(remainder);
     }
 
