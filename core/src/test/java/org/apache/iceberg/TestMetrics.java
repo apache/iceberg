@@ -63,32 +63,47 @@ import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.types.Conversions.fromByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
-
 /**
  * Tests for Metrics.
  */
 public abstract class TestMetrics {
 
   public static final int ROW_GROUP_SIZE = 1600;
-  private final UUID uuid = UUID.randomUUID();
-  private final GenericFixed fixed = new GenericData.Fixed(
-      org.apache.avro.Schema.createFixed("fixedCol", null, null, 4),
-      "abcd".getBytes(StandardCharsets.UTF_8));
-
-  private static StructType leafStructType = StructType.of(
+  private static final StructType LEAF_STRUCT_TYPE = StructType.of(
       optional(5, "leafLongCol", LongType.get()),
       optional(6, "leafBinaryCol", BinaryType.get())
   );
 
-  private static StructType nestedStructType = StructType.of(
+  private static final StructType NESTED_STRUCT_TYPE = StructType.of(
       required(3, "longCol", LongType.get()),
-      required(4, "leafStructCol", leafStructType)
+      required(4, "leafStructCol", LEAF_STRUCT_TYPE)
   );
 
-  private static Schema nestedSchema = new Schema(
+  private static final Schema NESTED_SCHEMA = new Schema(
       required(1, "intCol", IntegerType.get()),
-      required(2, "nestedStructCol", nestedStructType)
+      required(2, "nestedStructCol", NESTED_STRUCT_TYPE)
   );
+
+  private static final Schema SIMPLE_SCHEMA = new Schema(
+      optional(1, "booleanCol", BooleanType.get()),
+      required(2, "intCol", IntegerType.get()),
+      optional(3, "longCol", LongType.get()),
+      required(4, "floatCol", FloatType.get()),
+      optional(5, "doubleCol", DoubleType.get()),
+      optional(6, "decimalCol", DecimalType.of(10, 2)),
+      required(7, "stringCol", StringType.get()),
+      optional(8, "dateCol", DateType.get()),
+      required(9, "timeCol", TimeType.get()),
+      required(10, "timestampCol", TimestampType.withoutZone()),
+      optional(11, "uuidCol", UUIDType.get()),
+      required(12, "fixedCol", FixedType.ofLength(4)),
+      required(13, "binaryCol", BinaryType.get())
+  );
+
+  private final UUID uuid = UUID.randomUUID();
+  private final GenericFixed fixed = new GenericData.Fixed(
+      org.apache.avro.Schema.createFixed("fixedCol", null, null, 4),
+      "abcd".getBytes(StandardCharsets.UTF_8));
 
   public abstract Metrics getMetrics(InputFile file);
 
@@ -101,9 +116,7 @@ public abstract class TestMetrics {
 
   @Test
   public void testMetricsForTopLevelFields() throws IOException {
-    Schema schema = getSimpleSchema();
-
-    Record firstRecord = new Record(AvroSchemaUtil.convert(schema.asStruct()));
+    Record firstRecord = new Record(AvroSchemaUtil.convert(SIMPLE_SCHEMA.asStruct()));
     firstRecord.put("booleanCol", true);
     firstRecord.put("intCol", 3);
     firstRecord.put("longCol", 5L);
@@ -117,7 +130,7 @@ public abstract class TestMetrics {
     firstRecord.put("uuidCol", uuid);
     firstRecord.put("fixedCol", fixed);
     firstRecord.put("binaryCol", "S".getBytes());
-    Record secondRecord = new Record(AvroSchemaUtil.convert(schema.asStruct()));
+    Record secondRecord = new Record(AvroSchemaUtil.convert(SIMPLE_SCHEMA.asStruct()));
     secondRecord.put("booleanCol", false);
     secondRecord.put("intCol", Integer.MIN_VALUE);
     secondRecord.put("longCol", null);
@@ -132,7 +145,7 @@ public abstract class TestMetrics {
     secondRecord.put("fixedCol", fixed);
     secondRecord.put("binaryCol", "W".getBytes());
 
-    File recordsFile = writeRecords(schema, firstRecord, secondRecord);
+    File recordsFile = writeRecords(SIMPLE_SCHEMA, firstRecord, secondRecord);
 
     Metrics metrics = getMetrics(Files.localInput(recordsFile));
     Assert.assertEquals(2L, (long) metrics.recordCount());
@@ -166,24 +179,6 @@ public abstract class TestMetrics {
         ByteBuffer.wrap("S".getBytes()), ByteBuffer.wrap("W".getBytes()), metrics);
   }
 
-  private Schema getSimpleSchema() {
-    return new Schema(
-        optional(1, "booleanCol", BooleanType.get()),
-        required(2, "intCol", IntegerType.get()),
-        optional(3, "longCol", LongType.get()),
-        required(4, "floatCol", FloatType.get()),
-        optional(5, "doubleCol", DoubleType.get()),
-        optional(6, "decimalCol", DecimalType.of(10, 2)),
-        required(7, "stringCol", StringType.get()),
-        optional(8, "dateCol", DateType.get()),
-        required(9, "timeCol", TimeType.get()),
-        required(10, "timestampCol", TimestampType.withoutZone()),
-        optional(11, "uuidCol", UUIDType.get()),
-        required(12, "fixedCol", FixedType.ofLength(4)),
-        required(13, "binaryCol", BinaryType.get())
-    );
-  }
-
   @Test
   public void testMetricsForDecimals() throws IOException {
     Schema schema = new Schema(
@@ -212,17 +207,17 @@ public abstract class TestMetrics {
   @Test
   public void testMetricsForNestedStructFields() throws IOException {
 
-    Record leafStruct = new Record(AvroSchemaUtil.convert(leafStructType));
+    Record leafStruct = new Record(AvroSchemaUtil.convert(LEAF_STRUCT_TYPE));
     leafStruct.put("leafLongCol", 20L);
     leafStruct.put("leafBinaryCol", "A".getBytes());
-    Record nestedStruct = new Record(AvroSchemaUtil.convert(nestedStructType));
+    Record nestedStruct = new Record(AvroSchemaUtil.convert(NESTED_STRUCT_TYPE));
     nestedStruct.put("longCol", 100L);
     nestedStruct.put("leafStructCol", leafStruct);
-    Record record = new Record(AvroSchemaUtil.convert(nestedSchema.asStruct()));
+    Record record = new Record(AvroSchemaUtil.convert(NESTED_SCHEMA.asStruct()));
     record.put("intCol", Integer.MAX_VALUE);
     record.put("nestedStructCol", nestedStruct);
 
-    File recordsFile = writeRecords(nestedSchema, record);
+    File recordsFile = writeRecords(NESTED_SCHEMA, record);
 
     Metrics metrics = getMetrics(Files.localInput(recordsFile));
     Assert.assertEquals(1L, (long) metrics.recordCount());
@@ -290,13 +285,12 @@ public abstract class TestMetrics {
   }
 
   @Test
-  public void testMetricsForTopLevelWithMultipleRG() throws Exception {
-    Schema schema = getSimpleSchema();
-    int minimumRowGroupRecordCount = 100;
-    List<GenericData.Record> records = new ArrayList<>(201);
+  public void testMetricsForTopLevelWithMultipleRowGroup() throws Exception {
+    int recordCount = 201;
+    List<GenericData.Record> records = new ArrayList<>(recordCount);
 
-    for (int i = 0; i < 201; i++) {
-      GenericData.Record newRecord = new GenericData.Record(AvroSchemaUtil.convert(schema.asStruct()));
+    for (int i = 0; i < recordCount; i++) {
+      GenericData.Record newRecord = new GenericData.Record(AvroSchemaUtil.convert(SIMPLE_SCHEMA.asStruct()));
       newRecord.put("booleanCol", i == 0 ? false : true);
       newRecord.put("intCol", i + 1);
       newRecord.put("longCol", i == 0 ? null : i + 1L);
@@ -315,7 +309,7 @@ public abstract class TestMetrics {
 
     // create parquet file with multiple row groups. by using smaller number of bytes
     File parquetFile = writeRecords(
-        schema,
+        SIMPLE_SCHEMA,
         ImmutableMap.of(PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(ROW_GROUP_SIZE)),
         records.toArray(new GenericData.Record[] {}));
 
@@ -340,18 +334,18 @@ public abstract class TestMetrics {
   }
 
   @Test
-  public void testMetricsForNestedStructFieldsWithMultipleRG() throws IOException {
-    int minimumRowGroupRecordCount = 101;
-    List<Record> records = new ArrayList(201);
+  public void testMetricsForNestedStructFieldsWithMultipleRowGroup() throws IOException {
+    int recordCount = 201;
+    List<Record> records = new ArrayList(recordCount);
 
-    for (int i = 0; i < 201; i++) {
-      Record newLeafStruct = new Record(AvroSchemaUtil.convert(leafStructType));
+    for (int i = 0; i < recordCount; i++) {
+      Record newLeafStruct = new Record(AvroSchemaUtil.convert(LEAF_STRUCT_TYPE));
       newLeafStruct.put("leafLongCol", i + 1L);
       newLeafStruct.put("leafBinaryCol", "A".getBytes());
-      Record newNestedStruct = new Record(AvroSchemaUtil.convert(nestedStructType));
+      Record newNestedStruct = new Record(AvroSchemaUtil.convert(NESTED_STRUCT_TYPE));
       newNestedStruct.put("longCol", i + 1L);
       newNestedStruct.put("leafStructCol", newLeafStruct);
-      Record newRecord = new Record(AvroSchemaUtil.convert(nestedSchema.asStruct()));
+      Record newRecord = new Record(AvroSchemaUtil.convert(NESTED_SCHEMA.asStruct()));
       newRecord.put("intCol", i + 1);
       newRecord.put("nestedStructCol", newNestedStruct);
       records.add(newRecord);
@@ -359,7 +353,7 @@ public abstract class TestMetrics {
 
     // create parquet file with multiple row groups. by using smaller number of bytes
     File parquetFile = writeRecords(
-        nestedSchema,
+        NESTED_SCHEMA,
         ImmutableMap.of(PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(ROW_GROUP_SIZE)),
         records.toArray(new GenericData.Record[] {}));
 

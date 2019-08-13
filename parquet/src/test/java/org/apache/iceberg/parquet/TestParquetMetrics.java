@@ -22,7 +22,6 @@ package org.apache.iceberg.parquet;
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
-
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Schema;
