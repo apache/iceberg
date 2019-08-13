@@ -21,13 +21,17 @@ package org.apache.iceberg.parquet;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Map;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestMetrics;
 import org.apache.iceberg.io.InputFile;
+import org.apache.parquet.hadoop.ParquetFileReader;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
+
+import static org.apache.iceberg.Files.localInput;
 
 /**
  * Test Metrics for Parquet.
@@ -45,5 +49,17 @@ public class TestParquetMetrics extends TestMetrics {
   @Override
   public File writeRecords(Schema schema, GenericData.Record... records) throws IOException {
     return ParquetWritingTestUtils.writeRecords(temp, schema, records);
+  }
+
+  @Override
+  public File writeRecords(Schema schema, Map<String, String> properties, GenericData.Record... records) throws IOException {
+    return ParquetWritingTestUtils.writeRecords(temp, schema, properties, records);
+  }
+
+  @Override
+  public int splitCount(File parquetFile) throws IOException {
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(localInput(parquetFile)))) {
+      return reader.getRowGroups().size();
+    }
   }
 }
