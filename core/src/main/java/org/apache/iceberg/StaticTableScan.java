@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.util.Collection;
+import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
@@ -35,10 +36,10 @@ class StaticTableScan extends BaseTableScan {
   }
 
   private StaticTableScan(
-      TableOperations ops, Table table, Long snapshotId, SplitOptions splitOptions, Schema schema,
+      TableOperations ops, Table table, Long snapshotId, Map<String, String> options, Schema schema,
       Expression rowFilter, boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
       Function<StaticTableScan, DataTask> buildTask) {
-    super(ops, table, snapshotId, splitOptions, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+    super(ops, table, snapshotId, options, schema, rowFilter, caseSensitive, colStats, selectedColumns);
     this.buildTask = buildTask;
   }
 
@@ -49,10 +50,10 @@ class StaticTableScan extends BaseTableScan {
 
   @Override
   protected TableScan newRefinedScan(
-      TableOperations ops, Table table, Long snapshotId, SplitOptions splitOptions, Schema schema, Expression rowFilter,
-      boolean caseSensitive, boolean colStats, Collection<String> selectedColumns) {
+      TableOperations ops, Table table, Long snapshotId, Map<String, String> options, Schema schema,
+      Expression rowFilter, boolean caseSensitive, boolean colStats, Collection<String> selectedColumns) {
     return new StaticTableScan(
-        ops, table, snapshotId, splitOptions, schema, rowFilter, caseSensitive, colStats, selectedColumns, buildTask);
+        ops, table, snapshotId, options, schema, rowFilter, caseSensitive, colStats, selectedColumns, buildTask);
   }
 
   @Override

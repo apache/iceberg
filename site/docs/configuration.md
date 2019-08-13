@@ -10,7 +10,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | ---------------------------- | ------------------ | ------------------------------------------------------ |
 | read.split.target-size       | 134217728 (128 MB) | Target size when combining input splits                |
 | read.split.planning-lookback | 10                 | Number of bins to consider when combining input splits |
-
+| read.split.open-file-cost    | 4194304 (4 MB)     | The estimated cost to open a file, used as a minimum weight when combining splits. |
 
 ### Write properties
 
@@ -52,10 +52,13 @@ spark.read
     .load("db.table")
 ```
 
-| Spark option    | Default  | Description                                                                               |
-| --------------- | -------- | ----------------------------------------------------------------------------------------- |
-| snapshot-id     | (latest) | Snapshot ID of the table snapshot to read                                                 |
-| as-of-timestamp | (latest) | A timestamp in milliseconds; the snapshot used will be the snapshot current at this time. |
+| Spark option    | Default               | Description                                                                               |
+| --------------- | --------------------- | ----------------------------------------------------------------------------------------- |
+| snapshot-id     | (latest)              | Snapshot ID of the table snapshot to read                                                 |
+| as-of-timestamp | (latest)              | A timestamp in milliseconds; the snapshot used will be the snapshot current at this time. |
+| split-size      | As per table property | Overrides this table's read.split.target-size                                             |
+| lookback        | As per table property | Overrides this table's read.split.planning-lookback                                       |
+| file-open-cost  | As per table property | Overrides this table's read.split.open-file-cost                                          |
 
 ### Write options
 

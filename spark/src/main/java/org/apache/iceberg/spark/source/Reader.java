@@ -41,7 +41,6 @@ import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.SplitOptions;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -126,9 +125,9 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     }
 
     // look for split behavior overrides in options
-    this.splitSize = options.get(TableProperties.SPLIT_SIZE).map(Long::parseLong).orElse(null);
-    this.splitLookback = options.get(TableProperties.SPLIT_LOOKBACK).map(Integer::parseInt).orElse(null);
-    this.splitOpenFileCost = options.get(TableProperties.SPLIT_OPEN_FILE_COST).map(Long::parseLong).orElse(null);
+    this.splitSize = options.get("split-size").map(Long::parseLong).orElse(null);
+    this.splitLookback = options.get("lookback").map(Integer::parseInt).orElse(null);
+    this.splitOpenFileCost = options.get("file-open-cost").map(Long::parseLong).orElse(null);
 
     this.schema = table.schema();
     this.fileIo = table.io();
@@ -244,12 +243,16 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
         scan = scan.asOfTime(asOfTimestamp);
       }
 
-      if (splitSize != null || splitLookback != null || splitOpenFileCost != null) {
-        scan = scan.splitOptions(
-            new SplitOptions()
-                .splitSize(splitSize)
-                .splitLookback(splitLookback)
-                .splitOpenFileCost(splitOpenFileCost));
+      if (splitSize != null) {
+        scan = scan.option(TableProperties.SPLIT_SIZE, splitSize.toString());
+      }
+
+      if (splitLookback != null) {
+        scan = scan.option(TableProperties.SPLIT_LOOKBACK, splitLookback.toString());
+      }
+
+      if (splitOpenFileCost != null) {
+        scan = scan.option(TableProperties.SPLIT_OPEN_FILE_COST, splitOpenFileCost.toString());
       }
 
       if (filterExpressions != null) {

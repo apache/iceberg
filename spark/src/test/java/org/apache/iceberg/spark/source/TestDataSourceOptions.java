@@ -193,7 +193,7 @@ public class TestDataSourceOptions {
 
     Dataset<Row> resultDf = spark.read()
         .format("iceberg")
-        .option(TableProperties.SPLIT_SIZE, String.valueOf(562L)) // 562 bytes is the size of a SimpleRecord
+        .option("split-size", String.valueOf(562L)) // 562 bytes is the size of SimpleRecord(1,"a")
         .load(tableLocation);
 
     Assert.assertEquals("Spark partitions should match", 2, resultDf.javaRDD().getNumPartitions());

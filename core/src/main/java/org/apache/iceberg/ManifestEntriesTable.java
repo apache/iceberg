@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import com.google.common.collect.Sets;
 import java.util.Collection;
+import java.util.Map;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
@@ -81,17 +82,17 @@ class ManifestEntriesTable extends BaseMetadataTable {
     }
 
     private EntriesTableScan(
-        TableOperations ops, Table table, Long snapshotId, SplitOptions splitOptions, Schema schema,
+        TableOperations ops, Table table, Long snapshotId, Map<String, String> options, Schema schema,
         Expression rowFilter, boolean caseSensitive, boolean colStats, Collection<String> selectedColumns) {
-      super(ops, table, snapshotId, splitOptions, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+      super(ops, table, snapshotId, options, schema, rowFilter, caseSensitive, colStats, selectedColumns);
     }
 
     @Override
     protected TableScan newRefinedScan(
-        TableOperations ops, Table table, Long snapshotId, SplitOptions splitOptions, Schema schema,
+        TableOperations ops, Table table, Long snapshotId, Map<String, String> options, Schema schema,
         Expression rowFilter, boolean caseSensitive, boolean colStats, Collection<String> selectedColumns) {
       return new EntriesTableScan(
-          ops, table, snapshotId, splitOptions, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+          ops, table, snapshotId, options, schema, rowFilter, caseSensitive, colStats, selectedColumns);
     }
 
     @Override

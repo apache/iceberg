@@ -108,9 +108,7 @@ public class TestSplitPlanning {
     appendFiles(files128Mb);
     // we expect 2 bins since we are overriding split size in scan with 256MB
     TableScan scan = table.newScan()
-        .splitOptions(
-            new SplitOptions()
-                .splitSize(256L * 1024 * 1024));
+        .option(TableProperties.SPLIT_SIZE, String.valueOf(256L * 1024 * 1024));
     Assert.assertEquals(2, Iterables.size(scan.planTasks()));
   }
 
@@ -122,9 +120,7 @@ public class TestSplitPlanning {
     appendFiles(files);
     // we expect 2 bins from non-overriden table properties
     TableScan scan = table.newScan()
-        .splitOptions(
-            new SplitOptions()
-                .splitLookback(1));
+        .option(TableProperties.SPLIT_LOOKBACK, "1");
     CloseableIterable<CombinedScanTask> tasks = scan.planTasks();
     Assert.assertEquals(2, Iterables.size(tasks));
 
@@ -141,9 +137,7 @@ public class TestSplitPlanning {
     // we expect 4 bins since we are overriding open file cost in scan with a cost of 32MB
     // we can fit at most 128Mb/32Mb = 4 files per bin
     TableScan scan = table.newScan()
-        .splitOptions(
-            new SplitOptions()
-                .splitOpenFileCost(32L * 1024 * 1024));
+        .option(TableProperties.SPLIT_OPEN_FILE_COST, String.valueOf(32L * 1024 * 1024));
     Assert.assertEquals(4, Iterables.size(scan.planTasks()));
   }
 

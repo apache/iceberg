@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.FluentIterable;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -29,6 +30,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.events.Listeners;
@@ -54,7 +56,7 @@ abstract class BaseTableScan implements TableScan {
   private final TableOperations ops;
   private final Table table;
   private final Long snapshotId;
-  private final SplitOptions splitOptions;
+  private final Map<String, String> options;
   private final Schema schema;
   private final Expression rowFilter;
   private final boolean caseSensitive;
@@ -65,13 +67,13 @@ abstract class BaseTableScan implements TableScan {
     this(ops, table, null, null, schema, Expressions.alwaysTrue(), true, false, null);
   }
 
-  protected BaseTableScan(TableOperations ops, Table table, Long snapshotId, SplitOptions splitOptions,
+  protected BaseTableScan(TableOperations ops, Table table, Long snapshotId, Map<String, String> options,
                         Schema schema, Expression rowFilter, boolean caseSensitive, boolean colStats,
                         Collection<String> selectedColumns) {
     this.ops = ops;
     this.table = table;
     this.snapshotId = snapshotId;
-    this.splitOptions = splitOptions;
+    this.options = options;
     this.schema = schema;
     this.rowFilter = rowFilter;
     this.caseSensitive = caseSensitive;
@@ -84,7 +86,7 @@ abstract class BaseTableScan implements TableScan {
 
   @SuppressWarnings("checkstyle:HiddenField")
   protected abstract TableScan newRefinedScan(
-      TableOperations ops, Table table, Long snapshotId, SplitOptions splitOptions, Schema schema,
+      TableOperations ops, Table table, Long snapshotId, Map<String, String> options, Schema schema,
       Expression rowFilter, boolean caseSensitive, boolean colStats, Collection<String> selectedColumns);
 
   @SuppressWarnings("checkstyle:HiddenField")
@@ -103,7 +105,7 @@ abstract class BaseTableScan implements TableScan {
     Preconditions.checkArgument(ops.current().snapshot(scanSnapshotId) != null,
         "Cannot find snapshot with ID %s", scanSnapshotId);
     return newRefinedScan(
-        ops, table, scanSnapshotId, splitOptions, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+        ops, table, scanSnapshotId, options, schema, rowFilter, caseSensitive, colStats, selectedColumns);
   }
 
   @Override
@@ -127,38 +129,44 @@ abstract class BaseTableScan implements TableScan {
   }
 
   @Override
-  public TableScan splitOptions(SplitOptions scanSplitOptions) {
+  public TableScan option(String property, String value) {
+    Map<String, String> localOptions = Maps.newHashMap();
+    if (options != null) {
+      localOptions.putAll(options);
+    }
+    localOptions.put(property, value);
+
     return newRefinedScan(
-        ops, table, snapshotId, scanSplitOptions, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+        ops, table, snapshotId, localOptions, schema, rowFilter, caseSensitive, colStats, selectedColumns);
   }
 
   @Override
   public TableScan project(Schema projectedSchema) {
     return newRefinedScan(
-        ops, table, snapshotId, splitOptions, projectedSchema, rowFilter, caseSensitive,
+        ops, table, snapshotId, options, projectedSchema, rowFilter, caseSensitive,
         colStats, selectedColumns);
   }
 
   @Override
   public TableScan caseSensitive(boolean scanCaseSensitive) {
     return newRefinedScan(
-        ops, table, snapshotId, splitOptions, schema, rowFilter, scanCaseSensitive, colStats, selectedColumns);
+        ops, table, snapshotId, options, schema, rowFilter, scanCaseSensitive, colStats, selectedColumns);
   }
 
   @Override
   public TableScan includeColumnStats() {
     return newRefinedScan(
-        ops, table, snapshotId, splitOptions, schema, rowFilter, caseSensitive, true, selectedColumns);
+        ops, table, snapshotId, options, schema, rowFilter, caseSensitive, true, selectedColumns);
   }
 
   @Override
   public TableScan select(Collection<String> columns) {
-    return newRefinedScan(ops, table, snapshotId, splitOptions, schema, rowFilter, caseSensitive, colStats, columns);
+    return newRefinedScan(ops, table, snapshotId, options, schema, rowFilter, caseSensitive, colStats, columns);
   }
 
   @Override
   public TableScan filter(Expression expr) {
-    return newRefinedScan(ops, table, snapshotId, splitOptions, schema, Expressions.and(rowFilter, expr), caseSensitive,
+    return newRefinedScan(ops, table, snapshotId, options, schema, Expressions.and(rowFilter, expr), caseSensitive,
         colStats, selectedColumns);
   }
 
@@ -189,21 +197,21 @@ abstract class BaseTableScan implements TableScan {
   @Override
   public CloseableIterable<CombinedScanTask> planTasks() {
     long splitSize;
-    if (splitOptions != null && splitOptions.getSplitSize() != null) {
-      splitSize = splitOptions.getSplitSize();
+    if (options != null && options.containsKey(TableProperties.SPLIT_SIZE)) {
+      splitSize = Long.parseLong(options.get(TableProperties.SPLIT_SIZE));
     } else {
       splitSize = targetSplitSize(ops);
     }
     int lookback;
-    if (splitOptions != null && splitOptions.getSplitLookback() != null) {
-      lookback = splitOptions.getSplitLookback();
+    if (options != null && options.containsKey(TableProperties.SPLIT_LOOKBACK)) {
+      lookback = Integer.parseInt(options.get(TableProperties.SPLIT_LOOKBACK));
     } else {
       lookback = ops.current().propertyAsInt(
           TableProperties.SPLIT_LOOKBACK, TableProperties.SPLIT_LOOKBACK_DEFAULT);
     }
     long openFileCost;
-    if (splitOptions != null && splitOptions.getSplitOpenFileCost() != null) {
-      openFileCost = splitOptions.getSplitOpenFileCost();
+    if (options != null && options.containsKey(TableProperties.SPLIT_OPEN_FILE_COST)) {
+      openFileCost = Long.parseLong(options.get(TableProperties.SPLIT_OPEN_FILE_COST));
     } else {
       openFileCost = ops.current().propertyAsLong(
           TableProperties.SPLIT_OPEN_FILE_COST, TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
