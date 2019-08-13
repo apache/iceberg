@@ -22,9 +22,12 @@ package org.apache.iceberg.hadoop;
 import com.google.common.collect.Lists;
 import com.google.common.io.Files;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.zip.GZIPOutputStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -121,7 +124,8 @@ public class HadoopTableTestBase {
   }
 
   List<File> listMetadataJsonFiles() {
-    return Lists.newArrayList(metadataDir.listFiles((dir, name) -> name.endsWith(".metadata.json")));
+    return Lists.newArrayList(metadataDir.listFiles((dir, name) ->
+        name.endsWith(".metadata.json") || name.endsWith(".metadata.json.gz")));
   }
 
   File version(int versionNumber) {
@@ -141,5 +145,25 @@ public class HadoopTableTestBase {
     // remove the checksum that will no longer match
     new File(metadataDir, ".version-hint.text.crc").delete();
     Files.write(String.valueOf(version), versionHintFile, StandardCharsets.UTF_8);
+  }
+
+  /*
+   * Rewrites all current metadata files to gz compressed with extension .metadata.json.gz.
+   * Assumes source files are not compressed.
+   */
+  void rewriteMetadataAsGzipWithOldExtension() throws IOException {
+    List<File> metadataJsonFiles = listMetadataJsonFiles();
+    for (File file : metadataJsonFiles) {
+      try (FileInputStream input = new FileInputStream(file)) {
+        try (GZIPOutputStream gzOutput = new GZIPOutputStream(new FileOutputStream(file.getAbsolutePath() + ".gz"))) {
+          int bb;
+          while ((bb = input.read()) != -1) {
+            gzOutput.write(bb);
+          }
+        }
+      }
+      // delete original metadata file
+      file.delete();
+    }
   }
 }
