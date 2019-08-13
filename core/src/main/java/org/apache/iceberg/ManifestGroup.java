@@ -148,7 +148,7 @@ class ManifestGroup {
       // only scan manifests that have entries other than deletes
       // remove any manifests that don't have any existing or added files. if either the added or
       // existing files count is missing, the manifest must be scanned.
-      matchingManifests = Iterables.filter(manifests,
+      matchingManifests = Iterables.filter(matchingManifests,
           manifest -> manifest.hasAddedFiles() || manifest.hasExistingFiles());
     }
 
@@ -156,7 +156,7 @@ class ManifestGroup {
       // only scan manifests that have entries other than existing
       // remove any manifests that don't have any deleted or added files. if either the added or
       // deleted files count is missing, the manifest must be scanned.
-      matchingManifests = Iterables.filter(manifests,
+      matchingManifests = Iterables.filter(matchingManifests,
           manifest -> manifest.hasAddedFiles() || manifest.hasDeletedFiles());
     }
 
