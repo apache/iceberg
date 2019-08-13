@@ -88,7 +88,7 @@ public class TestStartsWith {
     UnboundPredicate<?> predicate = assertAndUnwrapUnbound(projection);
     Literal literal = predicate.literal();
     Truncate<CharSequence> transform = (Truncate<CharSequence>) spec.getFieldsBySourceId(1).get(0).transform();
-    String output = transform.toHumanString((String) literal.value());
+    String output = transform.toHumanString(literal.value().toString());
 
     Assert.assertEquals(expectedOp, predicate.op());
     Assert.assertEquals(expectedLiteral, output);

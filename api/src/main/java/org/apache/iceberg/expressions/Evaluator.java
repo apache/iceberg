@@ -145,7 +145,7 @@ public class Evaluator implements Serializable {
 
     @Override
     public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
-      return ((String) ref.get(struct)).startsWith((String) lit.value());
+      return ((String) ref.get(struct)).startsWith(lit.value().toString());
     }
   }
 }
