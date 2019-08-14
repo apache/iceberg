@@ -93,6 +93,9 @@ public class TestFindFiles extends TableTestBase {
   public void testAsOfTimestamp() {
     table.newAppend()
         .appendFile(FILE_A)
+        .commit();
+
+    table.newAppend()
         .appendFile(FILE_B)
         .commit();
 

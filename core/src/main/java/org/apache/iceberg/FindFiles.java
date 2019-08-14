@@ -93,6 +93,8 @@ public class FindFiles {
       for (HistoryEntry logEntry : ops.current().snapshotLog()) {
         if (logEntry.timestampMillis() <= timestampMillis) {
           lastSnapshotId = logEntry.snapshotId();
+        } else {
+          // the last snapshot ID was the last one older than the timestamp
           break;
         }
       }
