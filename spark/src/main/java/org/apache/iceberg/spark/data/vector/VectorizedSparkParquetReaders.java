@@ -86,9 +86,7 @@ public class VectorizedSparkParquetReaders {
       this.projectedIcebergSchema = projectedIcebergSchema;
       this.arrowSchema = ArrowSchemaUtil.convert(projectedIcebergSchema);
       this.recordsPerBatch = recordsPerBatch;
-      // this.rootAllocator = new RootAllocator(Long.MAX_VALUE);
-      this.rootAllocator = ArrowUtils.rootAllocator().newChildAllocator("VectorizedReadBuilder",
-          0, Long.MAX_VALUE);
+      this.rootAllocator = ArrowUtils.rootAllocator().newChildAllocator("VectorizedReadBuilder", 0, Long.MAX_VALUE);
       LOG.info("=> [ReadBuilder] recordsPerBatch = {}", this.recordsPerBatch);
     }
 

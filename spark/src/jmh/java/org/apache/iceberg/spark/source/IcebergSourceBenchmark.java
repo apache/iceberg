@@ -43,6 +43,7 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
+import static org.apache.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.WRITE_NEW_DATA_LOCATION;
 
 @Fork(1)
@@ -95,6 +96,9 @@ public abstract class IcebergSourceBenchmark {
   protected void setupSpark() {
     spark = SparkSession.builder()
         .config("spark.ui.enabled", false)
+            .config("parquet.enable.dictionary",false)
+    .config(PARQUET_DICT_SIZE_BYTES, "1")
+            .config("parquet.dictionary.page.size", "1")
         .master("local")
         .getOrCreate();
     Configuration sparkHadoopConf = spark.sparkContext().hadoopConfiguration();

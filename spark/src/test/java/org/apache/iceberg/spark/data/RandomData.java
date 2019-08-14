@@ -56,7 +56,7 @@ public class RandomData {
     List<Record> records = Lists.newArrayListWithExpectedSize(numRecords);
     for (int i = 0; i < numRecords; i += 1) {
       Record rec = (Record) TypeUtil.visit(schema, generator);
-      // System.out.println("Add record "+rec);
+      //System.out.println("Add record "+rec);
       records.add(rec);
     }
 

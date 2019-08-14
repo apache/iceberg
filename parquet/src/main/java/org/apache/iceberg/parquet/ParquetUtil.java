@@ -41,6 +41,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
@@ -48,12 +49,18 @@ import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.OriginalType;
+import org.apache.parquet.schema.PrimitiveType;
+import org.apache.spark.sql.catalog.Column;
 
 import static org.apache.iceberg.parquet.ParquetConversions.fromParquetPrimitive;
 import static org.apache.iceberg.util.BinaryUtil.truncateBinaryMax;
 import static org.apache.iceberg.util.BinaryUtil.truncateBinaryMin;
 import static org.apache.iceberg.util.UnicodeUtil.truncateStringMax;
 import static org.apache.iceberg.util.UnicodeUtil.truncateStringMin;
+import static org.apache.parquet.schema.OriginalType.*;
+import static org.apache.parquet.schema.OriginalType.BSON;
+import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.*;
 
 public class ParquetUtil {
   // not meant to be instantiated
@@ -228,4 +235,53 @@ public class ParquetUtil {
     }
     return bufferMap;
   }
+
+  public static boolean isFixedLengthDecimal(ColumnDescriptor desc) {
+    PrimitiveType primitive = desc.getPrimitiveType();
+    return (primitive.getOriginalType() != null &&
+            primitive.getOriginalType() == DECIMAL &&
+            (primitive.getPrimitiveTypeName() == FIXED_LEN_BYTE_ARRAY ||
+                    primitive.getPrimitiveTypeName() == BINARY));
+  }
+
+  public static boolean isIntLongBackedDecimal(ColumnDescriptor desc) {
+    PrimitiveType primitive = desc.getPrimitiveType();
+    return (primitive.getOriginalType() != null &&
+            primitive.getOriginalType() == DECIMAL &&
+            (primitive.getPrimitiveTypeName() == INT64 ||
+                    primitive.getPrimitiveTypeName() == INT32));
+  }
+
+  public static boolean isVarWidthType(ColumnDescriptor desc) {
+    PrimitiveType primitive = desc.getPrimitiveType();
+    OriginalType originalType = primitive.getOriginalType();
+    if (originalType != null &&
+            originalType != DECIMAL &&
+            (originalType == ENUM ||
+                    originalType == OriginalType.JSON ||
+                    originalType == UTF8 ||
+                    originalType == BSON)) {
+      return true;
+    }
+    if (originalType == null && primitive.getPrimitiveTypeName() == BINARY) {
+      return true;
+    }
+    return false;
+  }
+
+  public static boolean isBooleanType(ColumnDescriptor desc) {
+    PrimitiveType primitive = desc.getPrimitiveType();
+    OriginalType originalType = primitive.getOriginalType();
+    return (originalType == null && primitive.getPrimitiveTypeName() == BOOLEAN);
+  }
+
+  public static boolean isFixedWidthBinary(ColumnDescriptor desc) {
+    PrimitiveType primitive = desc.getPrimitiveType();
+    OriginalType originalType = primitive.getOriginalType();
+    if (originalType == null && primitive.getPrimitiveTypeName() == FIXED_LEN_BYTE_ARRAY) {
+      return true;
+    }
+    return false;
+  }
+
 }

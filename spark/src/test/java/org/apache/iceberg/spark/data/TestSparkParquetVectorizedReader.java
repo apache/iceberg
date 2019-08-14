@@ -38,6 +38,7 @@ import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
 
+import static org.apache.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES;
 import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 
 public class TestSparkParquetVectorizedReader extends AvroDataTest {
@@ -56,9 +57,13 @@ public class TestSparkParquetVectorizedReader extends AvroDataTest {
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
     try (FileAppender<GenericData.Record> writer = Parquet.write(Files.localOutput(testFile))
-        .schema(schema)
-        .named("test")
-        .build()) {
+            .schema(schema)
+            .named("test")
+            /*.set("parquet.dictionary.page.size", "0")
+            .set("parquet.writer.encoding-override.double", "plain")
+            .set("parquet.enable.dictionary", "false")*/
+            .set(PARQUET_DICT_SIZE_BYTES, "1")
+            .build()) {
       writer.addAll(expected);
     }
 
