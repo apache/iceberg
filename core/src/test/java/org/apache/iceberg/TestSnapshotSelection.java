@@ -19,7 +19,10 @@
 
 package org.apache.iceberg;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -42,5 +45,38 @@ public class TestSnapshotSelection extends TableTestBase {
     Assert.assertEquals("Table should have two snapshots", 2, Iterables.size(table.snapshots()));
     validateSnapshot(null, table.snapshot(firstSnapshot.snapshotId()), FILE_A);
     validateSnapshot(firstSnapshot, table.snapshot(secondSnapshot.snapshotId()), FILE_B);
+  }
+
+  @Test
+  public void testSnapshotStatsForAddedFiles() {
+    DataFile fileWithStats = DataFiles.builder(SPEC)
+        .withPath("/path/to/data-with-stats.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data_bucket=0")
+        .withRecordCount(10)
+        .withMetrics(new Metrics(3L,
+            null, // no column sizes
+            ImmutableMap.of(1, 3L), // value count
+            ImmutableMap.of(1, 0L), // null count
+            ImmutableMap.of(1, longToBuffer(20L)), // lower bounds
+            ImmutableMap.of(1, longToBuffer(22L)))) // upper bounds
+        .build();
+
+    table.newFastAppend()
+        .appendFile(fileWithStats)
+        .commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    Iterable<DataFile> addedFiles = snapshot.addedFiles();
+    Assert.assertEquals(1, Iterables.size(addedFiles));
+    DataFile dataFile = Iterables.getOnlyElement(addedFiles);
+    Assert.assertNotNull("Value counts should be not null", dataFile.valueCounts());
+    Assert.assertNotNull("Null value counts should be not null", dataFile.nullValueCounts());
+    Assert.assertNotNull("Lower bounds should be not null", dataFile.lowerBounds());
+    Assert.assertNotNull("Upper bounds should be not null", dataFile.upperBounds());
+  }
+
+  private ByteBuffer longToBuffer(long value) {
+    return ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(0, value);
   }
 }

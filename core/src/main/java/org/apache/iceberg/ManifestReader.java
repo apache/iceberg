@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import java.io.IOException;
@@ -49,9 +50,13 @@ import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 public class ManifestReader extends CloseableGroup implements Filterable<FilteredManifest> {
   private static final Logger LOG = LoggerFactory.getLogger(ManifestReader.class);
 
-  private static final List<String> ALL_COLUMNS = Lists.newArrayList("*");
-  static final List<String> CHANGE_COLUNNS = Lists.newArrayList(
+  private static final List<String> ALL_COLUMNS = ImmutableList.of("*");
+  static final List<String> CHANGE_COLUMNS = ImmutableList.of(
       "file_path", "file_format", "partition", "record_count", "file_size_in_bytes");
+  static final List<String> CHANGE_WITH_STATS_COLUMNS = ImmutableList.<String>builder()
+      .addAll(CHANGE_COLUMNS)
+      .add("value_counts", "null_value_counts", "lower_bounds", "upper_bounds")
+      .build();
 
   // Visible for testing
   static ManifestReader read(InputFile file) {
@@ -161,7 +166,7 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
     List<ManifestEntry> adds = Lists.newArrayList();
     List<ManifestEntry> deletes = Lists.newArrayList();
 
-    try (CloseableIterable<ManifestEntry> entries = entries(fileSchema.select(CHANGE_COLUNNS))) {
+    try (CloseableIterable<ManifestEntry> entries = entries(fileSchema.select(CHANGE_COLUMNS))) {
       for (ManifestEntry entry : entries) {
         switch (entry.status()) {
           case ADDED:
