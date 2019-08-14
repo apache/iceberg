@@ -19,18 +19,18 @@
 
 package org.apache.iceberg.spark.source;
 
-import com.google.common.collect.Maps;
-import java.util.Map;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.types.Types;
+        import com.google.common.collect.Maps;
+        import java.util.Map;
+        import org.apache.hadoop.conf.Configuration;
+        import org.apache.iceberg.PartitionSpec;
+        import org.apache.iceberg.Schema;
+        import org.apache.iceberg.Table;
+        import org.apache.iceberg.TableProperties;
+        import org.apache.iceberg.hadoop.HadoopTables;
+        import org.apache.iceberg.types.Types;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
+        import static org.apache.iceberg.types.Types.NestedField.optional;
+        import static org.apache.iceberg.types.Types.NestedField.required;
 
 public abstract class IcebergSourceFlatDataBenchmark extends IcebergSourceBenchmark {
 
@@ -42,18 +42,19 @@ public abstract class IcebergSourceFlatDataBenchmark extends IcebergSourceBenchm
   @Override
   protected final Table initTable() {
     Schema schema = new Schema(
-        required(1, "longCol", Types.LongType.get()),
-        required(2, "intCol", Types.IntegerType.get()),
-        required(3, "floatCol", Types.FloatType.get()),
-        optional(4, "doubleCol", Types.DoubleType.get()),
-        optional(5, "decimalCol", Types.DecimalType.of(20, 5)),
-        optional(6, "dateCol", Types.DateType.get()),
-        optional(7, "timestampCol", Types.TimestampType.withZone()),
-        optional(8, "stringCol", Types.StringType.get()));
+            required(1, "longCol", Types.LongType.get()),
+            required(2, "intCol", Types.IntegerType.get()),
+            required(3, "floatCol", Types.FloatType.get()),
+            optional(4, "doubleCol", Types.DoubleType.get()),
+            optional(5, "decimalCol", Types.DecimalType.of(20, 5)),
+            optional(6, "dateCol", Types.DateType.get()),
+            optional(7, "timestampCol", Types.TimestampType.withZone()),
+            optional(8, "stringCol", Types.StringType.get()));
     PartitionSpec partitionSpec = PartitionSpec.unpartitioned();
     HadoopTables tables = new HadoopTables(hadoopConf());
     Map<String, String> properties = Maps.newHashMap();
     properties.put(TableProperties.METADATA_COMPRESSION, "gzip");
+    properties.put(TableProperties.PARQUET_DICT_SIZE_BYTES, "1");
     return tables.create(schema, partitionSpec, properties, newTableLocation());
   }
 }

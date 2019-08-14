@@ -4,6 +4,7 @@ import java.lang.reflect.Array;
 import java.util.List;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.iceberg.types.Types;
+import org.apache.parquet.Preconditions;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.vectorized.ArrowColumnVector;
@@ -13,16 +14,11 @@ import org.slf4j.LoggerFactory;
 
 public class ColumnarBatchReader implements BatchedReader{
     private static final Logger LOG = LoggerFactory.getLogger(ColumnarBatchReader.class);
-    private final int numFields;
-    private final Types.StructType iceExpectedFields;
     private final VectorReader[] readers;
 
     public ColumnarBatchReader(List<Type> types,
                                Types.StructType icebergExpectedFields,
                                List<BatchedReader> readers) {
-
-        this.numFields = readers.size();
-        this.iceExpectedFields = icebergExpectedFields;
         this.readers = (VectorReader[]) Array.newInstance(
                 VectorReader.class, readers.size());
         int i = 0;
@@ -49,6 +45,9 @@ public class ColumnarBatchReader implements BatchedReader{
 
             FieldVector vec = readers[i].read();
             arrowVectorArr[i] = new ArrowColumnVector(vec);
+            Preconditions.checkState(i > 0 && numRows == vec.getValueCount(),
+                    "Different number of values returned by readers for columns: " +
+                    readers[i-1] + " and " + readers[i]);
             numRows = vec.getValueCount();
         }
 

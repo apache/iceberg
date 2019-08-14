@@ -20,6 +20,7 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
+
 import org.apache.arrow.vector.FieldVector;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
@@ -36,8 +37,8 @@ public class BatchedColumnIterator {
 
   // state reset for each row group
   private PageReader pageSource = null;
-  private long triplesCount = 0L;
-  private long triplesRead = 0L;
+  private long totalValuesCount = 0L;
+  private long valuesRead = 0L;
   private long advanceNextPageCount = 0L;
   private final int batchSize;
 
@@ -49,8 +50,8 @@ public class BatchedColumnIterator {
 
   public void setPageSource(PageReadStore store) {
     this.pageSource = store.getPageReader(desc);
-    this.triplesCount = pageSource.getTotalValueCount();
-    this.triplesRead = 0L;
+    this.totalValuesCount = pageSource.getTotalValueCount();
+    this.valuesRead = 0L;
     this.advanceNextPageCount = 0L;
     this.batchedPageIterator.reset();
     this.batchedPageIterator.setDictionary(readDictionary(desc, pageSource));
@@ -58,8 +59,8 @@ public class BatchedColumnIterator {
   }
 
   private void advance() {
-    if (triplesRead >= advanceNextPageCount) {
-      // A parquet page could be empty (no values) -> confirm with Ryan, anjali
+    if (valuesRead >= advanceNextPageCount) {
+      // A parquet page may be empty i.e. contains no values
       while (!batchedPageIterator.hasNext()) {
         DataPage page = pageSource.readPage();
         if (page != null) {
@@ -73,20 +74,98 @@ public class BatchedColumnIterator {
   }
 
   public boolean hasNext() {
-    return triplesRead < triplesCount;
+    return valuesRead < totalValuesCount;
   }
 
-  public void nextBatch(FieldVector fieldVector) {
+  /**
+   * Method for reading a batch of non-decimal numeric data types (INT32, INT64, FLOAT, DOUBLE, DATE, TIMESTAMP)
+   */
+  public void nextBatchNumericNonDecimal(FieldVector fieldVector, int typeWidth) {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {
       advance();
-      int rowsInThisBatch = batchedPageIterator.nextBatch(fieldVector, batchSize - rowsReadSoFar);
+      int rowsInThisBatch = batchedPageIterator.nextBatchNumericNonDecimal(fieldVector, batchSize - rowsReadSoFar,
+              rowsReadSoFar, typeWidth);
       rowsReadSoFar += rowsInThisBatch;
-      this.triplesRead += rowsInThisBatch;
+      this.valuesRead += rowsInThisBatch;
+      fieldVector.setValueCount(rowsReadSoFar);
     }
   }
 
+  /**
+   * Method for reading a batch of decimals backed by INT32 and INT64 parquet data types.
+   */
+  public void nextBatchIntLongBackedDecimal(FieldVector fieldVector, int typeWidth) {
+    int rowsReadSoFar = 0;
+    while (rowsReadSoFar < batchSize && hasNext()) {
+      advance();
+      int rowsInThisBatch = batchedPageIterator.nextBatchIntLongBackedDecimal(fieldVector, batchSize - rowsReadSoFar,
+              rowsReadSoFar, typeWidth);
+      rowsReadSoFar += rowsInThisBatch;
+      this.valuesRead += rowsInThisBatch;
+      fieldVector.setValueCount(rowsReadSoFar);
+    }
+  }
 
+  /**
+   * Method for reading a batch of decimals backed by fixed length byte array parquet data type.
+   */
+  public void nextBatchFixedLengthDecimal(FieldVector fieldVector, int typeWidth) {
+    int rowsReadSoFar = 0;
+    while (rowsReadSoFar < batchSize && hasNext()) {
+      advance();
+      int rowsInThisBatch = batchedPageIterator.nextBatchFixedLengthDecimal(fieldVector, batchSize - rowsReadSoFar,
+              rowsReadSoFar, typeWidth);
+      rowsReadSoFar += rowsInThisBatch;
+      this.valuesRead += rowsInThisBatch;
+      fieldVector.setValueCount(rowsReadSoFar);
+    }
+  }
+
+  /**
+   * Method for reading a batch of variable width data type (ENUM, JSON, UTF8, BSON).
+   */
+  public void nextBatchVarWidthType(FieldVector fieldVector) {
+    int rowsReadSoFar = 0;
+    while (rowsReadSoFar < batchSize && hasNext()) {
+      advance();
+      int rowsInThisBatch = batchedPageIterator.nextBatchVarWidthType(fieldVector, batchSize - rowsReadSoFar,
+              rowsReadSoFar);
+      rowsReadSoFar += rowsInThisBatch;
+      this.valuesRead += rowsInThisBatch;
+      fieldVector.setValueCount(rowsReadSoFar);
+    }
+  }
+
+  /**
+   * Method for reading batches of fixed width binary type (e.g. BYTE[7]).
+   */
+  public void nextBatchFixedWidthBinary(FieldVector fieldVector, int typeWidth) {
+    int rowsReadSoFar = 0;
+    while (rowsReadSoFar < batchSize && hasNext()) {
+      advance();
+      int rowsInThisBatch = batchedPageIterator.nextBatchFixedWidthBinary(fieldVector, batchSize - rowsReadSoFar,
+              rowsReadSoFar, typeWidth);
+      rowsReadSoFar += rowsInThisBatch;
+      this.valuesRead += rowsInThisBatch;
+      fieldVector.setValueCount(rowsReadSoFar);
+    }
+  }
+
+  /**
+   * Method for reading batches of booleans.
+   */
+  public void nextBatchBoolean(FieldVector fieldVector) {
+    int rowsReadSoFar = 0;
+    while (rowsReadSoFar < batchSize && hasNext()) {
+      advance();
+      int rowsInThisBatch = batchedPageIterator.nextBatchBoolean(fieldVector, batchSize - rowsReadSoFar,
+              rowsReadSoFar);
+      rowsReadSoFar += rowsInThisBatch;
+      this.valuesRead += rowsInThisBatch;
+      fieldVector.setValueCount(rowsReadSoFar);
+    }
+  }
 
   private static Dictionary readDictionary(ColumnDescriptor desc, PageReader pageSource) {
     DictionaryPage dictionaryPage = pageSource.readDictionaryPage();
