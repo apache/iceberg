@@ -31,6 +31,9 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 
 public class FindFiles {
+  private FindFiles() {
+  }
+
   private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
   public static Builder in(Table table) {
@@ -56,23 +59,23 @@ public class FindFiles {
       return this;
     }
 
-    public Builder caseSensitive(boolean caseSensitive) {
-      this.caseSensitive = caseSensitive;
+    public Builder caseSensitive(boolean findCaseSensitive) {
+      this.caseSensitive = findCaseSensitive;
       return this;
     }
 
     /**
      * Base results on the given snapshot.
      *
-     * @param snapshotId a snapshot ID
+     * @param findSnapshotId a snapshot ID
      * @return this for method chaining
      */
-    public Builder inSnapshot(long snapshotId) {
+    public Builder inSnapshot(long findSnapshotId) {
       Preconditions.checkArgument(this.snapshotId == null,
-          "Cannot set snapshot multiple times, already set to id=%s", snapshotId);
-      Preconditions.checkArgument(table.snapshot(snapshotId) != null,
-          "Cannot find snapshot for id=%s", snapshotId);
-      this.snapshotId = snapshotId;
+          "Cannot set snapshot multiple times, already set to id=%s", findSnapshotId);
+      Preconditions.checkArgument(table.snapshot(findSnapshotId) != null,
+          "Cannot find snapshot for id=%s", findSnapshotId);
+      this.snapshotId = findSnapshotId;
       return this;
     }
 
@@ -90,6 +93,7 @@ public class FindFiles {
       for (HistoryEntry logEntry : ops.current().snapshotLog()) {
         if (logEntry.timestampMillis() <= timestampMillis) {
           lastSnapshotId = logEntry.snapshotId();
+          break;
         }
       }
 
@@ -125,7 +129,7 @@ public class FindFiles {
     }
 
     /**
-     * Filter results to files in any one of the given partition.
+     * Filter results to files in any one of the given partitions.
      *
      * @param spec a spec for the partitions
      * @param partition a StructLike that stores a partition tuple
@@ -159,17 +163,21 @@ public class FindFiles {
 
       Expression partitionSetFilter = Expressions.alwaysFalse();
       for (StructLike partitionData : partitions) {
-        Expression partitionFilter = Expressions.alwaysTrue();
+        Expression partFilter = Expressions.alwaysTrue();
         for (int i = 0; i < spec.fields().size(); i += 1) {
           PartitionField field = spec.fields().get(i);
-          partitionFilter = Expressions.and(
-              partitionFilter,
+          partFilter = Expressions.and(
+              partFilter,
               Expressions.equal(field.name(), partitionData.get(i, Object.class)));
         }
-        partitionSetFilter = Expressions.or(partitionSetFilter, partitionFilter);
+        partitionSetFilter = Expressions.or(partitionSetFilter, partFilter);
       }
 
-      this.partitionFilter = Expressions.and(partitionFilter, partitionSetFilter);
+      if (partitionFilter != Expressions.alwaysTrue()) {
+        this.partitionFilter = Expressions.or(partitionFilter, partitionSetFilter);
+      } else {
+        this.partitionFilter = partitionSetFilter;
+      }
 
       return this;
     }
