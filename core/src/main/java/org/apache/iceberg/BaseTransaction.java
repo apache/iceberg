@@ -402,6 +402,8 @@ class BaseTransaction implements Transaction {
   }
 
   public class TransactionTableOperations implements TableOperations {
+    private TableOperations tempOps = ops.temp(current);
+
     @Override
     public TableMetadata current() {
       return current;
@@ -427,31 +429,33 @@ class BaseTransaction implements Transaction {
       }
 
       BaseTransaction.this.current = metadata;
+
+      this.tempOps = ops.temp(metadata);
     }
 
     @Override
     public FileIO io() {
-      return ops.io();
+      return tempOps.io();
     }
 
     @Override
     public EncryptionManager encryption() {
-      return ops.encryption();
+      return tempOps.encryption();
     }
 
     @Override
     public String metadataFileLocation(String fileName) {
-      return ops.metadataFileLocation(fileName);
+      return tempOps.metadataFileLocation(fileName);
     }
 
     @Override
     public LocationProvider locationProvider() {
-      return ops.locationProvider();
+      return tempOps.locationProvider();
     }
 
     @Override
     public long newSnapshotId() {
-      return ops.newSnapshotId();
+      return tempOps.newSnapshotId();
     }
   }
 
