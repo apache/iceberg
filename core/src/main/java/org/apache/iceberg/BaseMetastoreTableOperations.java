@@ -23,6 +23,7 @@ import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -82,10 +83,15 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   }
 
   protected void refreshFromMetadataLocation(String newLocation) {
-    refreshFromMetadataLocation(newLocation, 20);
+    refreshFromMetadataLocation(newLocation, null, 20);
   }
 
   protected void refreshFromMetadataLocation(String newLocation, int numRetries) {
+    refreshFromMetadataLocation(newLocation, null, numRetries);
+  }
+
+  protected void refreshFromMetadataLocation(String newLocation, Predicate<Exception> shouldRetry,
+                                             int numRetries) {
     // use null-safe equality check because new tables have a null metadata location
     if (!Objects.equal(currentMetadataLocation, newLocation)) {
       LOG.info("Refreshing table metadata from new version: {}", newLocation);
@@ -93,7 +99,8 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
       AtomicReference<TableMetadata> newMetadata = new AtomicReference<>();
       Tasks.foreach(newLocation)
           .retry(numRetries).exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */)
-          .suppressFailureWhenFinished()
+          .throwFailureWhenFinished()
+          .shouldRetryTest(shouldRetry)
           .run(metadataLocation -> newMetadata.set(
               TableMetadataParser.read(this, io().newInputFile(metadataLocation))));
 
