@@ -134,8 +134,7 @@ public class TestPredicateBinding {
       } catch (ValidationException e) {
         Assert.assertEquals("Should ",
             e.getMessage(),
-            "Invalid value for comparison inclusive type float: 12.40 " +
-                "(org.apache.iceberg.expressions.Literals$CharSeqWrapper)");
+            "Invalid value for comparison inclusive type float: 12.40 (java.lang.String)");
       }
     }
   }
