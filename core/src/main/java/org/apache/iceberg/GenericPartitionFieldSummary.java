@@ -29,6 +29,7 @@ import org.apache.avro.specific.SpecificData.SchemaConstructable;
 import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 
 public class GenericPartitionFieldSummary
     implements PartitionFieldSummary, StructLike, IndexedRecord, SchemaConstructable, Serializable {
@@ -87,8 +88,8 @@ public class GenericPartitionFieldSummary
   private GenericPartitionFieldSummary(GenericPartitionFieldSummary toCopy) {
     this.avroSchema = toCopy.avroSchema;
     this.containsNull = toCopy.containsNull;
-    this.lowerBound = toCopy.lowerBound;
-    this.upperBound = toCopy.upperBound;
+    this.lowerBound = ByteBuffers.copy(toCopy.lowerBound);
+    this.upperBound = ByteBuffers.copy(toCopy.upperBound);
     this.fromProjectionPos = toCopy.fromProjectionPos;
   }
 
