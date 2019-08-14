@@ -48,7 +48,7 @@ class ReplaceFiles extends MergingSnapshotProducer<RewriteFiles> implements Rewr
         "Files to add can not be null or empty");
 
     for (DataFile toDelete : filesToDelete) {
-      delete(toDelete.path());
+      delete(toDelete);
     }
 
     for (DataFile toAdd : filesToAdd) {
