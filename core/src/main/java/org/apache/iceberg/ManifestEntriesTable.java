@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import java.util.Collection;
 import org.apache.iceberg.avro.Avro;
@@ -82,16 +83,18 @@ class ManifestEntriesTable extends BaseMetadataTable {
 
     private EntriesTableScan(
         TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns) {
-      super(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
+        ImmutableMap<String, String> options) {
+      super(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, options);
     }
 
     @Override
     protected TableScan newRefinedScan(
         TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns) {
+        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
+        ImmutableMap<String, String> options) {
       return new EntriesTableScan(
-          ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+          ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, options);
     }
 
     @Override

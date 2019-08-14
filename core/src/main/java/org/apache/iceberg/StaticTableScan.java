@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import com.google.common.collect.ImmutableMap;
 import java.util.Collection;
 import java.util.function.Function;
 import org.apache.iceberg.expressions.Expression;
@@ -37,8 +38,8 @@ class StaticTableScan extends BaseTableScan {
   private StaticTableScan(
       TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
       boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
-      Function<StaticTableScan, DataTask> buildTask) {
-    super(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+      Function<StaticTableScan, DataTask> buildTask, ImmutableMap<String, String> options) {
+    super(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, options);
     this.buildTask = buildTask;
   }
 
@@ -50,9 +51,10 @@ class StaticTableScan extends BaseTableScan {
   @Override
   protected TableScan newRefinedScan(
       TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-      boolean caseSensitive, boolean colStats, Collection<String> selectedColumns) {
+      boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
+      ImmutableMap<String, String> options) {
     return new StaticTableScan(
-        ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, buildTask);
+        ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, buildTask, options);
   }
 
   @Override
