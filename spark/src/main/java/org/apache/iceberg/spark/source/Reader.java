@@ -43,6 +43,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.common.DynMethods;
@@ -99,6 +100,9 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
   private final Table table;
   private final Long snapshotId;
   private final Long asOfTimestamp;
+  private final Long splitSize;
+  private final Integer splitLookback;
+  private final Long splitOpenFileCost;
   private final FileIO fileIo;
   private final EncryptionManager encryptionManager;
   private final boolean caseSensitive;
@@ -119,6 +123,12 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       throw new IllegalArgumentException(
           "Cannot scan using both snapshot-id and as-of-timestamp to select the table snapshot");
     }
+
+    // look for split behavior overrides in options
+    this.splitSize = options.get("split-size").map(Long::parseLong).orElse(null);
+    this.splitLookback = options.get("lookback").map(Integer::parseInt).orElse(null);
+    this.splitOpenFileCost = options.get("file-open-cost").map(Long::parseLong).orElse(null);
+
     this.schema = table.schema();
     this.fileIo = table.io();
     this.encryptionManager = table.encryption();
@@ -231,6 +241,18 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
 
       if (asOfTimestamp != null) {
         scan = scan.asOfTime(asOfTimestamp);
+      }
+
+      if (splitSize != null) {
+        scan = scan.option(TableProperties.SPLIT_SIZE, splitSize.toString());
+      }
+
+      if (splitLookback != null) {
+        scan = scan.option(TableProperties.SPLIT_LOOKBACK, splitLookback.toString());
+      }
+
+      if (splitOpenFileCost != null) {
+        scan = scan.option(TableProperties.SPLIT_OPEN_FILE_COST, splitOpenFileCost.toString());
       }
 
       if (filterExpressions != null) {

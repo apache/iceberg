@@ -79,6 +79,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private final List<String> manifestLists = Lists.newArrayList();
   private Long snapshotId = null;
   private TableMetadata base = null;
+  private boolean stageOnly = false;
   private Consumer<String> deleteFunc = defaultDelete;
 
   protected SnapshotProducer(TableOperations ops) {
@@ -95,6 +96,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   protected abstract ThisT self();
+
+  @Override
+  public ThisT stageOnly() {
+    this.stageOnly = true;
+    return self();
+  }
 
   @Override
   public ThisT deleteWith(Consumer<String> deleteCallback) {
@@ -230,7 +237,13 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           .run(taskOps -> {
             Snapshot newSnapshot = apply();
             newSnapshotId.set(newSnapshot.snapshotId());
-            TableMetadata updated = base.replaceCurrentSnapshot(newSnapshot);
+            TableMetadata updated;
+            if (stageOnly) {
+              updated = base.addStagedSnapshot(newSnapshot);
+            } else {
+              updated = base.replaceCurrentSnapshot(newSnapshot);
+            }
+
             // if the table UUID is missing, add it here. the UUID will be re-created each time this operation retries
             // to ensure that if a concurrent operation assigns the UUID, this operation will not fail.
             taskOps.commit(base, updated.withUUID());
@@ -257,11 +270,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       } else {
         // saved may not be present if the latest metadata couldn't be loaded due to eventual
         // consistency problems in refresh. in that case, don't clean up.
-        LOG.info("Failed to load committed snapshot, skipping manifest clean-up");
+        LOG.warn("Failed to load committed snapshot, skipping manifest clean-up");
       }
 
     } catch (RuntimeException e) {
-      LOG.info("Failed to load committed table metadata, skipping manifest clean-up", e);
+      LOG.warn("Failed to load committed table metadata, skipping manifest clean-up", e);
     }
   }
 

@@ -35,9 +35,9 @@ The core Java library that tracks table snapshots and metadata is complete, but 
 
 The [Iceberg format specification][iceberg-spec] is being actively updated and is open for comment. Until the specification is complete and released, it carries no compatibility guarantees. The spec is currently evolving as the Java reference implementation changes.
 
-[Java API javadocs][iceberg-javadocs] are available for the 0.6.0 tag.
+[Java API javadocs][iceberg-javadocs] are available for the master.
 
-[iceberg-javadocs]: https://iceberg.apache.org/javadoc/0.6.0/index.html?com/netflix/iceberg/package-summary.html
+[iceberg-javadocs]: https://iceberg.apache.org/javadoc/master
 [iceberg-spec]: https://iceberg.apache.org/spec
 
 
@@ -53,6 +53,9 @@ Community discussions happen primarily on the [dev mailing list][dev-list] or on
 ### Building
 
 Iceberg is built using Gradle 5.2.1.
+
+* To invoke a build and run tests: `./gradlew build`
+* To skip tests: `./gradlew build -x test`
 
 Iceberg table support is organized in library modules:
 

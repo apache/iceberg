@@ -367,4 +367,30 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     Set<String> expected = Sets.newHashSet("v1.metadata.json", "v2.metadata.json");
     assertEquals("only v1 and v2 metadata.json should exist.", expected, actual);
   }
+
+  @Test
+  public void testCanReadOldCompressedManifestFiles() throws Exception {
+    assertTrue("Should create v1 metadata",
+        version(1).exists() && version(1).isFile());
+
+    // do a file append
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    // since we don't generate old file extensions anymore, let's convert existing metadata to old .metadata.json.gz
+    // to test backwards compatibility
+    rewriteMetadataAsGzipWithOldExtension();
+
+    List<File> metadataFiles = listMetadataJsonFiles();
+
+    assertEquals("Should have two versions", 2, metadataFiles.size());
+    assertTrue("Metadata should be compressed with old format.",
+        metadataFiles.stream().allMatch(f -> f.getName().endsWith(".metadata.json.gz")));
+
+    Table reloaded = TABLES.load(tableLocation);
+
+    List<FileScanTask> tasks = Lists.newArrayList(reloaded.newScan().planFiles());
+    Assert.assertEquals("Should scan 1 files", 1, tasks.size());
+  }
 }

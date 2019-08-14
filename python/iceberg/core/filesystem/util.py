@@ -15,8 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 
-__all__ = ["get_fs", "HadoopInputFile", "HadoopOutputFile"]
+from urllib.parse import urlparse
 
-from .hadoop_input_file import HadoopInputFile
-from .hadoop_output_file import HadoopOutputFile
-from .util import get_fs
+
+def get_fs(path, conf, local_only=False):
+    from .local_filesystem import LocalFileSystem
+    from .s3_filesystem import S3FileSystem
+
+    if local_only:
+        return LocalFileSystem.get_instance()
+    else:
+        parsed_path = urlparse(path)
+
+        if parsed_path.scheme in ["", "file"]:
+            return LocalFileSystem.get_instance()
+        elif parsed_path.scheme in ["s3", "s3n", "s3a"]:
+            fs = S3FileSystem.get_instance()
+            fs.set_conf(conf)
+            return fs
+        elif parsed_path.scheme in ["hdfs"]:
+            raise RuntimeError("Hadoop FS not implemented")
+
+    raise RuntimeError("No filesystem found for this location: %s" % path)

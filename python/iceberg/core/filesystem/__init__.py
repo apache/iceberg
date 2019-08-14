@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
+__all__ = ["get_fs", "FileStatus", "FileSystem", "FileSystemInputFile", "FileSystemOutputFile",
+           "FilesystemTableOperations", "FilesystemTables", "S3File", "S3FileSystem"]
 
-class FileSystem(object):
-
-    def open(self, path, mode='rb'):
-        raise NotImplementedError()
-
-    def stat(self, path):
-        raise NotImplementedError()
+from .file_status import FileStatus
+from .file_system import FileSystem, FileSystemInputFile, FileSystemOutputFile
+from .filesystem_table_operations import FilesystemTableOperations
+from .filesystem_tables import FilesystemTables
+from .s3_filesystem import S3File, S3FileSystem
+from .util import get_fs

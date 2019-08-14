@@ -17,8 +17,9 @@
  * under the License.
  */
 
-package org.apache.iceberg.parquet;
+package org.apache.iceberg;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.io.File;
@@ -27,15 +28,17 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericFixed;
-import org.apache.iceberg.Metrics;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.BinaryType;
 import org.apache.iceberg.types.Types.BooleanType;
 import org.apache.iceberg.types.Types.DateType;
@@ -56,35 +59,64 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import static org.apache.iceberg.Files.localInput;
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.types.Conversions.fromByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+/**
+ * Tests for Metrics.
+ */
+public abstract class TestMetrics {
 
-public class TestParquetUtil extends BaseParquetWritingTest {
+  public static final int ROW_GROUP_SIZE = 1600;
+  private static final StructType LEAF_STRUCT_TYPE = StructType.of(
+      optional(5, "leafLongCol", LongType.get()),
+      optional(6, "leafBinaryCol", BinaryType.get())
+  );
+
+  private static final StructType NESTED_STRUCT_TYPE = StructType.of(
+      required(3, "longCol", LongType.get()),
+      required(4, "leafStructCol", LEAF_STRUCT_TYPE)
+  );
+
+  private static final Schema NESTED_SCHEMA = new Schema(
+      required(1, "intCol", IntegerType.get()),
+      required(2, "nestedStructCol", NESTED_STRUCT_TYPE)
+  );
+
+  private static final Schema SIMPLE_SCHEMA = new Schema(
+      optional(1, "booleanCol", BooleanType.get()),
+      required(2, "intCol", IntegerType.get()),
+      optional(3, "longCol", LongType.get()),
+      required(4, "floatCol", FloatType.get()),
+      optional(5, "doubleCol", DoubleType.get()),
+      optional(6, "decimalCol", DecimalType.of(10, 2)),
+      required(7, "stringCol", StringType.get()),
+      optional(8, "dateCol", DateType.get()),
+      required(9, "timeCol", TimeType.get()),
+      required(10, "timestampCol", TimestampType.withoutZone()),
+      optional(11, "uuidCol", UUIDType.get()),
+      required(12, "fixedCol", FixedType.ofLength(4)),
+      required(13, "binaryCol", BinaryType.get())
+  );
+
   private final UUID uuid = UUID.randomUUID();
   private final GenericFixed fixed = new GenericData.Fixed(
       org.apache.avro.Schema.createFixed("fixedCol", null, null, 4),
       "abcd".getBytes(StandardCharsets.UTF_8));
 
+  public abstract Metrics getMetrics(InputFile file);
+
+  public abstract File writeRecords(Schema schema, Record... records) throws IOException;
+
+  public abstract File writeRecords(Schema schema, Map<String, String> properties, GenericData.Record... records)
+      throws IOException;
+
+  public abstract int splitCount(File parquetFile) throws IOException;
+
   @Test
   public void testMetricsForTopLevelFields() throws IOException {
-    Schema schema = new Schema(
-        optional(1, "booleanCol", BooleanType.get()),
-        required(2, "intCol", IntegerType.get()),
-        optional(3, "longCol", LongType.get()),
-        required(4, "floatCol", FloatType.get()),
-        optional(5, "doubleCol", DoubleType.get()),
-        optional(6, "decimalCol", DecimalType.of(10, 2)),
-        required(7, "stringCol", StringType.get()),
-        optional(8, "dateCol", DateType.get()),
-        required(9, "timeCol", TimeType.get()),
-        required(10, "timestampCol", TimestampType.withoutZone()),
-        optional(11, "uuidCol", UUIDType.get()),
-        required(12, "fixedCol", FixedType.ofLength(4)),
-        required(13, "binaryCol", BinaryType.get())
-    );
-
-    Record firstRecord = new Record(AvroSchemaUtil.convert(schema.asStruct()));
+    Record firstRecord = new Record(AvroSchemaUtil.convert(SIMPLE_SCHEMA.asStruct()));
     firstRecord.put("booleanCol", true);
     firstRecord.put("intCol", 3);
     firstRecord.put("longCol", 5L);
@@ -98,7 +130,7 @@ public class TestParquetUtil extends BaseParquetWritingTest {
     firstRecord.put("uuidCol", uuid);
     firstRecord.put("fixedCol", fixed);
     firstRecord.put("binaryCol", "S".getBytes());
-    Record secondRecord = new Record(AvroSchemaUtil.convert(schema.asStruct()));
+    Record secondRecord = new Record(AvroSchemaUtil.convert(SIMPLE_SCHEMA.asStruct()));
     secondRecord.put("booleanCol", false);
     secondRecord.put("intCol", Integer.MIN_VALUE);
     secondRecord.put("longCol", null);
@@ -113,9 +145,9 @@ public class TestParquetUtil extends BaseParquetWritingTest {
     secondRecord.put("fixedCol", fixed);
     secondRecord.put("binaryCol", "W".getBytes());
 
-    File parquetFile = writeRecords(schema, firstRecord, secondRecord);
+    File recordsFile = writeRecords(SIMPLE_SCHEMA, firstRecord, secondRecord);
 
-    Metrics metrics = ParquetUtil.fileMetrics(localInput(parquetFile));
+    Metrics metrics = getMetrics(Files.localInput(recordsFile));
     Assert.assertEquals(2L, (long) metrics.recordCount());
     assertCounts(1, 2L, 0L, metrics);
     assertBounds(1, BooleanType.get(), false, true, metrics);
@@ -160,9 +192,9 @@ public class TestParquetUtil extends BaseParquetWritingTest {
     record.put("decimalAsInt64", new BigDecimal("4.75"));
     record.put("decimalAsFixed", new BigDecimal("5.80"));
 
-    File parquetFile = writeRecords(schema, record);
+    File recordsFile = writeRecords(schema, record);
 
-    Metrics metrics = ParquetUtil.fileMetrics(localInput(parquetFile));
+    Metrics metrics = getMetrics(Files.localInput(recordsFile));
     Assert.assertEquals(1L, (long) metrics.recordCount());
     assertCounts(1, 1L, 0L, metrics);
     assertBounds(1, DecimalType.of(4, 2), new BigDecimal("2.55"), new BigDecimal("2.55"), metrics);
@@ -174,32 +206,20 @@ public class TestParquetUtil extends BaseParquetWritingTest {
 
   @Test
   public void testMetricsForNestedStructFields() throws IOException {
-    StructType leafStructType = StructType.of(
-        optional(5, "leafLongCol", LongType.get()),
-        optional(6, "leafBinaryCol", BinaryType.get())
-    );
-    StructType nestedStructType = StructType.of(
-        required(3, "longCol", LongType.get()),
-        required(4, "leafStructCol", leafStructType)
-    );
-    Schema schema = new Schema(
-        required(1, "intCol", IntegerType.get()),
-        required(2, "nestedStructCol", nestedStructType)
-    );
 
-    Record leafStruct = new Record(AvroSchemaUtil.convert(leafStructType));
+    Record leafStruct = new Record(AvroSchemaUtil.convert(LEAF_STRUCT_TYPE));
     leafStruct.put("leafLongCol", 20L);
     leafStruct.put("leafBinaryCol", "A".getBytes());
-    Record nestedStruct = new Record(AvroSchemaUtil.convert(nestedStructType));
+    Record nestedStruct = new Record(AvroSchemaUtil.convert(NESTED_STRUCT_TYPE));
     nestedStruct.put("longCol", 100L);
     nestedStruct.put("leafStructCol", leafStruct);
-    Record record = new Record(AvroSchemaUtil.convert(schema.asStruct()));
+    Record record = new Record(AvroSchemaUtil.convert(NESTED_SCHEMA.asStruct()));
     record.put("intCol", Integer.MAX_VALUE);
     record.put("nestedStructCol", nestedStruct);
 
-    File parquetFile = writeRecords(schema, record);
+    File recordsFile = writeRecords(NESTED_SCHEMA, record);
 
-    Metrics metrics = ParquetUtil.fileMetrics(localInput(parquetFile));
+    Metrics metrics = getMetrics(Files.localInput(recordsFile));
     Assert.assertEquals(1L, (long) metrics.recordCount());
     assertCounts(1, 1L, 0L, metrics);
     assertBounds(1, IntegerType.get(), Integer.MAX_VALUE, Integer.MAX_VALUE, metrics);
@@ -232,9 +252,9 @@ public class TestParquetUtil extends BaseParquetWritingTest {
     map.put("4", struct);
     record.put(1, map);
 
-    File parquetFile = writeRecords(schema, record);
+    File recordsFile = writeRecords(schema, record);
 
-    Metrics metrics = ParquetUtil.fileMetrics(localInput(parquetFile));
+    Metrics metrics = getMetrics(Files.localInput(recordsFile));
     Assert.assertEquals(1L, (long) metrics.recordCount());
     assertCounts(1, 1, 0, metrics);
     assertBounds(1, IntegerType.get(), null, null, metrics);
@@ -256,12 +276,102 @@ public class TestParquetUtil extends BaseParquetWritingTest {
     Record secondRecord = new Record(AvroSchemaUtil.convert(schema.asStruct()));
     secondRecord.put("intCol", null);
 
-    File parquetFile = writeRecords(schema, firstRecord, secondRecord);
+    File recordsFile = writeRecords(schema, firstRecord, secondRecord);
 
-    Metrics metrics = ParquetUtil.fileMetrics(localInput(parquetFile));
+    Metrics metrics = getMetrics(Files.localInput(recordsFile));
     Assert.assertEquals(2L, (long) metrics.recordCount());
     assertCounts(1, 2, 2, metrics);
     assertBounds(1, IntegerType.get(), null, null, metrics);
+  }
+
+  @Test
+  public void testMetricsForTopLevelWithMultipleRowGroup() throws Exception {
+    int recordCount = 201;
+    List<GenericData.Record> records = new ArrayList<>(recordCount);
+
+    for (int i = 0; i < recordCount; i++) {
+      GenericData.Record newRecord = new GenericData.Record(AvroSchemaUtil.convert(SIMPLE_SCHEMA.asStruct()));
+      newRecord.put("booleanCol", i == 0 ? false : true);
+      newRecord.put("intCol", i + 1);
+      newRecord.put("longCol", i == 0 ? null : i + 1L);
+      newRecord.put("floatCol", i + 1.0F);
+      newRecord.put("doubleCol", i == 0 ? null : i + 1.0D);
+      newRecord.put("decimalCol", i == 0 ? null : new BigDecimal(i + "").add(new BigDecimal("1.00")));
+      newRecord.put("stringCol", "AAA");
+      newRecord.put("dateCol", i + 1);
+      newRecord.put("timeCol", i + 1L);
+      newRecord.put("timestampCol", i + 1L);
+      newRecord.put("uuidCol", uuid);
+      newRecord.put("fixedCol", fixed);
+      newRecord.put("binaryCol", "S".getBytes());
+      records.add(newRecord);
+    }
+
+    // create parquet file with multiple row groups. by using smaller number of bytes
+    File parquetFile = writeRecords(
+        SIMPLE_SCHEMA,
+        ImmutableMap.of(PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(ROW_GROUP_SIZE)),
+        records.toArray(new GenericData.Record[] {}));
+
+    Assert.assertNotNull(parquetFile);
+    // rowgroup size should be > 1
+    Assert.assertEquals(3, splitCount(parquetFile));
+
+    Metrics metrics = getMetrics(localInput(parquetFile));
+    Assert.assertEquals(201L, (long) metrics.recordCount());
+    assertCounts(1, 201L, 0L, metrics);
+    assertBounds(1, Types.BooleanType.get(), false, true, metrics);
+    assertBounds(2, Types.IntegerType.get(), 1, 201, metrics);
+    assertCounts(3, 201L, 1L, metrics);
+    assertBounds(3, Types.LongType.get(), 2L, 201L, metrics);
+    assertCounts(4, 201L, 0L, metrics);
+    assertBounds(4, Types.FloatType.get(), 1.0F, 201.0F, metrics);
+    assertCounts(5, 201L, 1L, metrics);
+    assertBounds(5, Types.DoubleType.get(), 2.0D, 201.0D, metrics);
+    assertCounts(6, 201L, 1L, metrics);
+    assertBounds(6, Types.DecimalType.of(10, 2), new BigDecimal("2.00"),
+        new BigDecimal("201.00"), metrics);
+  }
+
+  @Test
+  public void testMetricsForNestedStructFieldsWithMultipleRowGroup() throws IOException {
+    int recordCount = 201;
+    List<Record> records = new ArrayList(recordCount);
+
+    for (int i = 0; i < recordCount; i++) {
+      Record newLeafStruct = new Record(AvroSchemaUtil.convert(LEAF_STRUCT_TYPE));
+      newLeafStruct.put("leafLongCol", i + 1L);
+      newLeafStruct.put("leafBinaryCol", "A".getBytes());
+      Record newNestedStruct = new Record(AvroSchemaUtil.convert(NESTED_STRUCT_TYPE));
+      newNestedStruct.put("longCol", i + 1L);
+      newNestedStruct.put("leafStructCol", newLeafStruct);
+      Record newRecord = new Record(AvroSchemaUtil.convert(NESTED_SCHEMA.asStruct()));
+      newRecord.put("intCol", i + 1);
+      newRecord.put("nestedStructCol", newNestedStruct);
+      records.add(newRecord);
+    }
+
+    // create parquet file with multiple row groups. by using smaller number of bytes
+    File parquetFile = writeRecords(
+        NESTED_SCHEMA,
+        ImmutableMap.of(PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(ROW_GROUP_SIZE)),
+        records.toArray(new GenericData.Record[] {}));
+
+    Assert.assertNotNull(parquetFile);
+    // rowgroup size should be > 1
+    Assert.assertEquals(3, splitCount(parquetFile));
+
+    Metrics metrics = getMetrics(localInput(parquetFile));
+    Assert.assertEquals(201L, (long) metrics.recordCount());
+    assertCounts(1, 201L, 0L, metrics);
+    assertBounds(1, IntegerType.get(), 1, 201, metrics);
+    assertCounts(3, 201L, 0L, metrics);
+    assertBounds(3, LongType.get(), 1L, 201L, metrics);
+    assertCounts(5, 201L, 0L, metrics);
+    assertBounds(5, LongType.get(), 1L, 201L, metrics);
+    assertCounts(6, 201L, 0L, metrics);
+    assertBounds(6, BinaryType.get(),
+        ByteBuffer.wrap("A".getBytes()), ByteBuffer.wrap("A".getBytes()), metrics);
   }
 
   private void assertCounts(int fieldId, long valueCount, long nullValueCount, Metrics metrics) {

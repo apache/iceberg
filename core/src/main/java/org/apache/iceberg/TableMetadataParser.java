@@ -116,6 +116,11 @@ public class TableMetadataParser {
     return codec.extension + ".metadata.json";
   }
 
+  public static String getOldFileExtension(Codec codec) {
+    // we have to be backward-compatible with .metadata.json.gz files
+    return ".metadata.json" + codec.extension;
+  }
+
   public static String toJson(TableMetadata metadata) {
     StringWriter writer = new StringWriter();
     try {

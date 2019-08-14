@@ -178,12 +178,26 @@ public class HadoopTableOperations implements TableOperations {
       if (fs.exists(metadataFile)) {
         return metadataFile;
       }
+
+      if (codec.equals(TableMetadataParser.Codec.GZIP)) {
+        // we have to be backward-compatible with .metadata.json.gz files
+        metadataFile = oldMetadataFilePath(metadataVersion, codec);
+        fs = getFileSystem(metadataFile, conf);
+        if (fs.exists(metadataFile)) {
+          return metadataFile;
+        }
+      }
     }
+
     return null;
   }
 
   private Path metadataFilePath(int metadataVersion, TableMetadataParser.Codec codec) {
     return metadataPath("v" + metadataVersion + TableMetadataParser.getFileExtension(codec));
+  }
+
+  private Path oldMetadataFilePath(int metadataVersion, TableMetadataParser.Codec codec) {
+    return metadataPath("v" + metadataVersion + TableMetadataParser.getOldFileExtension(codec));
   }
 
   private Path metadataPath(String filename) {

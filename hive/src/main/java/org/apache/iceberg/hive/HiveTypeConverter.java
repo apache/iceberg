@@ -45,7 +45,7 @@ public final class HiveTypeConverter {
       case DATE:
         return "date";
       case TIME:
-        throw new UnsupportedOperationException("Hive does not support time fields");
+        return "string";
       case TIMESTAMP:
         return "timestamp";
       case STRING:

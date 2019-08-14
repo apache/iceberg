@@ -34,6 +34,7 @@ import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestExpressionBinding {
@@ -129,6 +130,18 @@ public class TestExpressionBinding {
     // make sure the refs are for the right fields
     BoundPredicate<?> child = TestHelpers.assertAndUnwrap(not.child());
     Assert.assertEquals("Should bind x correctly", 0, child.ref().fieldId());
+  }
+
+  @Test
+  public void testStartsWith() {
+    StructType struct = StructType.of(required(0, "s", Types.StringType.get()));
+    Expression expr = startsWith("s", "abc");
+    Expression boundExpr = Binder.bind(struct, expr);
+    TestHelpers.assertAllReferencesBound("StartsWith", boundExpr);
+    // make sure the expression is a StartsWith
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(boundExpr, BoundPredicate.class);
+    Assert.assertEquals("Should be right operation", Expression.Operation.STARTS_WITH, pred.op());
+    Assert.assertEquals("Should bind s correctly", 0, pred.ref().fieldId());
   }
 
   @Test

@@ -15,8 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import errno
 import os
-import stat
+from pathlib import Path
 
 from .file_status import FileStatus
 from .file_system import FileSystem
@@ -36,12 +37,23 @@ class LocalFileSystem(FileSystem):
             LocalFileSystem.fs_inst = self
 
     def open(self, path, mode='rb'):
+        open_path = Path(LocalFileSystem.fix_path(path))
 
-        return open(LocalFileSystem.fix_path(path), mode=mode)
+        if "w" in mode and not open_path.parents[0].exists():
+            try:
+                open_path.parents[0].mkdir(parents=True)
+            except OSError as exc:
+                if exc.errno != errno.EEXIST:
+                    raise
+
+        return open(open_path, mode=mode)
+
+    def delete(self, path):
+        raise NotImplementedError()
 
     def stat(self, path):
         st = os.stat(LocalFileSystem.fix_path(path))
-        return FileStatus(path=path, length=st.st_size, is_dir=stat.S_ISDIR(st.st_mode),
+        return FileStatus(path=path, length=st.st_size, is_dir=os.stat.S_ISDIR(st.st_mode),
                           blocksize=st.st_blksize, modification_time=st.st_mtime, access_time=st.st_atime,
                           permission=st.st_mode, owner=st.st_uid, group=st.st_gid)
 
@@ -51,34 +63,19 @@ class LocalFileSystem(FileSystem):
             path = str(path[7:])
         return path
 
-    # def ls(self, path):
-    #     return os.listdir(path)
-    #
-    # def delete(self, path, recursive=False):
-    #     return os.remove(path)
-    #
+    def create(self, path, overwrite=False):
+        if os.path.exists(path) and not overwrite:
+            raise RuntimeError("Path %s already exists" % path)
 
-    #
-    # def rename(self, path, new_path):
-    #     return os.rename(path, new_path)
-    #
-    # def mkdir(self, path, create_parents=True):
-    #     if create_parents:
-    #         return os.makedirs(path)
-    #
-    #     return os.mkdir(path)
-    #
-    # def exists(self, path):
-    #     return os.path.isfile(path)
-    #
-    # def isdir(self, path):
-    #     return os.path.isdir(path)
-    #
-    # def isfile(self, path):
-    #     return os.path.isfile(path)
-    #
-    # def _isfilestore(self):
-    #     return True
-    #
-    # def open(self, path, mode='rb'):
-    #     return open(path, mode=mode)
+        return open(path, "w")
+
+    def rename(self, src, dest):
+        try:
+            os.rename(src, dest)
+        except OSError:
+            return False
+
+        return True
+
+    def exists(self, path):
+        return os.path.exists(path)

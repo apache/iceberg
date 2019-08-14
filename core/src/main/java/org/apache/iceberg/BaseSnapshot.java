@@ -20,6 +20,8 @@
 package org.apache.iceberg;
 
 import com.google.common.base.MoreObjects;
+import com.google.common.base.Objects;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import java.io.IOException;
@@ -152,32 +154,35 @@ class BaseSnapshot implements Snapshot {
   }
 
   private void cacheChanges() {
-    List<DataFile> adds = Lists.newArrayList();
-    List<DataFile> deletes = Lists.newArrayList();
+    ImmutableList.Builder<DataFile> adds = ImmutableList.builder();
+    ImmutableList.Builder<DataFile> deletes = ImmutableList.builder();
 
-    // accumulate adds and deletes from all manifests.
-    // because manifests can be reused in newer snapshots, filter the changes by snapshot id.
-    for (String manifest : Iterables.transform(manifests(), ManifestFile::path)) {
-      try (ManifestReader reader = ManifestReader.read(
-          ops.io().newInputFile(manifest),
-          ops.current()::spec)) {
-        for (ManifestEntry add : reader.addedFiles()) {
-          if (add.snapshotId() == snapshotId) {
-            adds.add(add.file().copyWithoutStats());
-          }
+    // read only manifests that were created by this snapshot
+    Iterable<ManifestFile> changedManifests = Iterables.filter(manifests(),
+        manifest -> Objects.equal(manifest.snapshotId(), snapshotId));
+    try (CloseableIterable<ManifestEntry> entries = new ManifestGroup(ops, changedManifests)
+        .ignoreExisting()
+        .select(ManifestReader.CHANGE_WITH_STATS_COLUMNS)
+        .entries()) {
+      for (ManifestEntry entry : entries) {
+        switch (entry.status()) {
+          case ADDED:
+            adds.add(entry.file().copy());
+            break;
+          case DELETED:
+            deletes.add(entry.file().copyWithoutStats());
+            break;
+          default:
+            throw new IllegalStateException(
+                "Unexpected entry status, not added or deleted: " + entry);
         }
-        for (ManifestEntry delete : reader.deletedFiles()) {
-          if (delete.snapshotId() == snapshotId) {
-            deletes.add(delete.file().copyWithoutStats());
-          }
-        }
-      } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to close reader while caching changes");
       }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to close entries while caching changes");
     }
 
-    this.cachedAdds = adds;
-    this.cachedDeletes = deletes;
+    this.cachedAdds = adds.build();
+    this.cachedDeletes = deletes.build();
   }
 
   @Override

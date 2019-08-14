@@ -14,6 +14,7 @@ com.fasterxml.jackson.module:jackson-module-paranamer:2.7.9 (1 constraints: e015
 com.fasterxml.jackson.module:jackson-module-scala_2.11:2.7.9 (1 constraints: 7f0da251)
 com.github.ben-manes.caffeine:caffeine:2.7.0 (1 constraints: 0b050a36)
 com.github.luben:zstd-jni:1.3.2-2 (1 constraints: 760d7c51)
+com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1 (1 constraints: 6d05ab40)
 com.google.code.findbugs:jsr305:3.0.2 (10 constraints: c483db75)
 com.google.code.gson:gson:2.2.4 (1 constraints: 8c0d3f2f)
 com.google.errorprone:error_prone_annotations:2.3.3 (2 constraints: 161a2544)

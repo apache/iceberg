@@ -59,6 +59,16 @@ public interface TableScan {
   TableScan asOfTime(long timestampMillis);
 
   /**
+   * Create a new {@link TableScan} from this scan's configuration that will override the {@link Table}'s behavior based
+   * on the incoming pair. Unknown properties will be ignored.
+   *
+   * @param property name of the table property to be overridden
+   * @param value value to override with
+   * @return a new scan based on this with overridden behavior
+   */
+  TableScan option(String property, String value);
+
+  /**
    * Create a new {@link TableScan} from this with the schema as its projection.
    *
    * @param schema a projection schema

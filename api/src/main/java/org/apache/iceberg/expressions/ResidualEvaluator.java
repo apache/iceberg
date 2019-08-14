@@ -19,12 +19,9 @@
 
 package org.apache.iceberg.expressions;
 
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import java.io.Serializable;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
@@ -198,12 +195,23 @@ public class ResidualEvaluator implements Serializable {
     }
 
     @Override
+    public <T> Expression startsWith(BoundReference<T> ref, Literal<T> lit) {
+      Comparator<T> cmp = lit.comparator();
+      return  ((String) ref.get(struct)).startsWith((String) lit.value()) ? alwaysTrue() : alwaysFalse();
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     public <T> Expression predicate(BoundPredicate<T> pred) {
-      // Get the strict projection of this predicate in partition data, then use it to determine
-      // whether to return the original predicate. The strict projection returns true iff the
-      // original predicate would have returned true, so the predicate can be eliminated if the
-      // strict projection evaluates to true.
+      /**
+       * Get the strict projection and inclusive projection of this predicate in partition data,
+       * then use them to determine whether to return the original predicate. The strict projection
+       * returns true iff the original predicate would have returned true, so the predicate can be
+       * eliminated if the strict projection evaluates to true. Similarly the inclusive projection
+       * returns false iff the original predicate would have returned false, so the predicate can
+       * also be eliminated if the inclusive projection evaluates to false.
+       */
+
       //
       // If there is no strict projection or if it evaluates to false, then return the predicate.
       List<PartitionField> parts = spec.getFieldsBySourceId(pred.ref().fieldId());
@@ -211,31 +219,50 @@ public class ResidualEvaluator implements Serializable {
         return pred; // not associated inclusive a partition field, can't be evaluated
       }
 
-      List<UnboundPredicate<?>> strictProjections = Lists.transform(parts,
-          part -> ((Transform<T, ?>) part.transform()).projectStrict(part.name(), pred));
+      for (PartitionField part : parts) {
 
-      if (Iterables.all(strictProjections, Objects::isNull)) {
-        // if there are no strict projections, the predicate must be in the residual
-        return pred;
-      }
+        // checking the strict projection
+        UnboundPredicate<?> strictProjection = ((Transform<T, ?>) part.transform()).projectStrict(part.name(), pred);
+        Expression strictResult = null;
 
-      Expression result = Expressions.alwaysFalse();
-      for (UnboundPredicate<?> strictProjection : strictProjections) {
-        if (strictProjection == null) {
-          continue;
+        if (strictProjection != null) {
+          Expression bound = strictProjection.bind(spec.partitionType(), caseSensitive);
+          if (bound instanceof BoundPredicate) {
+            strictResult = super.predicate((BoundPredicate<?>) bound);
+          } else {
+            // if the result is not a predicate, then it must be a constant like alwaysTrue or alwaysFalse
+            strictResult = bound;
+          }
         }
 
-        Expression bound = strictProjection.bind(spec.partitionType(), caseSensitive);
-        if (bound instanceof BoundPredicate) {
-          // evaluate the bound predicate, which will return alwaysTrue or alwaysFalse
-          result = Expressions.or(result, super.predicate((BoundPredicate<?>) bound));
-        } else {
-          // update the result expression with the non-predicate residual (e.g. alwaysTrue)
-          result = Expressions.or(result, bound);
+        if (strictResult != null && strictResult.op() == Expression.Operation.TRUE) {
+          // If strict is true, returning true
+          return Expressions.alwaysTrue();
         }
+
+        // checking the inclusive projection
+        UnboundPredicate<?> inclusiveProjection = ((Transform<T, ?>) part.transform()).project(part.name(), pred);
+        Expression inclusiveResult = null;
+        if (inclusiveProjection != null) {
+          Expression boundInclusive = inclusiveProjection.bind(spec.partitionType(), caseSensitive);
+          if (boundInclusive instanceof BoundPredicate) {
+            // using predicate method specific to inclusive
+            inclusiveResult = super.predicate((BoundPredicate<?>) boundInclusive);
+          } else {
+            // if the result is not a predicate, then it must be a constant like alwaysTrue or alwaysFalse
+            inclusiveResult = boundInclusive;
+          }
+        }
+
+        if (inclusiveResult != null && inclusiveResult.op() == Expression.Operation.FALSE) {
+          // If inclusive is false, returning false
+          return Expressions.alwaysFalse();
+        }
+
       }
 
-      return result;
+      // neither strict not inclusive predicate was conclusive, returning the original pred
+      return pred;
     }
 
     @Override
