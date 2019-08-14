@@ -74,7 +74,9 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     OutputFile newMetadataLocation = io().newOutputFile(newTableMetadataFilePath);
 
     // write the new metadata
-    TableMetadataParser.write(metadata, newMetadataLocation);
+    // use overwrite to avoid negative caching in S3. this is safe because the metadata location is
+    // always unique because it includes a UUID.
+    TableMetadataParser.overwrite(metadata, newMetadataLocation);
 
     return newTableMetadataFilePath;
   }
