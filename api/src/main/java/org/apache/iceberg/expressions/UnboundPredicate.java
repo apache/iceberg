@@ -160,9 +160,13 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
             schema.accessorForField(field.fieldId())), lit);
   }
 
+  @SuppressWarnings("unchecked")
   private Expression bindInOperation(Types.NestedField field, Schema schema) {
     final Set<Literal<T>> lits = literalSet().stream().map(
         val -> {
+          if (val instanceof LiteralSet.CharSeqWrapper) {
+            val = (T) ((LiteralSet.CharSeqWrapper) val).unWrap();
+          }
           Literal<T> lit = Literals.from(val).to(field.type());
           if (lit == null) {
             throw new ValidationException(String.format(

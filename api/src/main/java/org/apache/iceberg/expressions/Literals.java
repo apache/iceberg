@@ -21,7 +21,6 @@ package org.apache.iceberg.expressions;
 
 import com.google.common.base.Preconditions;
 import java.io.ObjectStreamException;
-import java.io.Serializable;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.ByteBuffer;
@@ -409,64 +408,12 @@ class Literals {
     }
   }
 
-  static class CharSeqWrapper implements CharSequence, Serializable {
-    private static final Comparator<CharSequence> CMP =
-        Comparators.<CharSequence>nullsFirst().thenComparing(Comparators.charSequences());
-
-    private final CharSequence chars;
-
-    CharSeqWrapper(CharSequence charSequence) {
-      Preconditions.checkNotNull(charSequence, "String literal values cannot be null");
-      this.chars = charSequence;
-    }
-
-    @Override
-    public int length() {
-      return chars.length();
-    }
-
-    @Override
-    public char charAt(int index) {
-      return chars.charAt(index);
-    }
-
-    @Override
-    public CharSequence subSequence(int start, int end) {
-      return chars.subSequence(start, end);
-    }
-
-    @Override
-    public int hashCode() {
-      return chars.hashCode();
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-      if (this == obj) {
-        return true;
-      }
-      if (obj == null) {
-        return false;
-      }
-
-      if (obj instanceof CharSequence) {
-        return CMP.compare(chars, (CharSequence) obj) == 0;
-      }
-      return false;
-    }
-
-    @Override
-    public String toString() {
-      return chars.toString();
-    }
-  }
-
   static class StringLiteral extends BaseLiteral<CharSequence> {
     private static final Comparator<CharSequence> CMP =
         Comparators.<CharSequence>nullsFirst().thenComparing(Comparators.charSequences());
 
     StringLiteral(CharSequence value) {
-      super(new CharSeqWrapper(value));
+      super(value);
     }
 
     @Override

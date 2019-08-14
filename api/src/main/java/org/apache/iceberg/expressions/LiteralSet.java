@@ -23,10 +23,11 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
+import org.apache.iceberg.types.Comparators;
 
 /**
  * Represents a set of literal values in an IN or NOT_IN predicate
@@ -35,11 +36,20 @@ import java.util.stream.Collectors;
 public class LiteralSet<T> implements Set<T>, Serializable {
   private final Set<T> literals;
 
+  @SuppressWarnings("unchecked")
   LiteralSet(Set<Literal<T>> lits) {
     Preconditions.checkArgument(lits == null || lits.size() > 1,
         "The input literal set must include more than 1 element.");
     literals = ImmutableSet.<T>builder().addAll(
-        lits.stream().map(Literal::value).collect(Collectors.toSet())).build();
+        lits.stream().map(
+            lit -> {
+              if (lit instanceof Literals.StringLiteral) {
+                return (T) new CharSeqWrapper((CharSequence) lit.value());
+              } else {
+                return lit.value();
+              }
+            }
+    ).iterator()).build();
   }
 
   @Override
@@ -144,4 +154,59 @@ public class LiteralSet<T> implements Set<T>, Serializable {
     throw new UnsupportedOperationException();
   }
 
+  static class CharSeqWrapper implements CharSequence, Serializable {
+    private static final Comparator<CharSequence> CMP =
+        Comparators.<CharSequence>nullsFirst().thenComparing(Comparators.charSequences());
+
+    private final CharSequence chars;
+
+    CharSeqWrapper(CharSequence charSequence) {
+      Preconditions.checkNotNull(charSequence, "String literal values cannot be null");
+      this.chars = charSequence;
+    }
+
+    @Override
+    public int length() {
+      return chars.length();
+    }
+
+    @Override
+    public char charAt(int index) {
+      return chars.charAt(index);
+    }
+
+    @Override
+    public CharSequence subSequence(int start, int end) {
+      return chars.subSequence(start, end);
+    }
+
+    @Override
+    public int hashCode() {
+      return chars.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+      if (this == obj) {
+        return true;
+      }
+      if (obj == null) {
+        return false;
+      }
+
+      if (obj instanceof CharSequence) {
+        return CMP.compare(chars, (CharSequence) obj) == 0;
+      }
+      return false;
+    }
+
+    @Override
+    public String toString() {
+      return chars.toString();
+    }
+
+    public CharSequence unWrap() {
+      return chars;
+    }
+  }
 }
