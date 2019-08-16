@@ -58,8 +58,17 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
       .add("value_counts", "null_value_counts", "lower_bounds", "upper_bounds")
       .build();
 
-  // Visible for testing
-  static ManifestReader read(InputFile file) {
+  /**
+   * Returns a new {@link ManifestReader} for an {@link InputFile}.
+   * <p>
+   * <em>Note:</em> Most callers should use {@link #read(InputFile, Function)} to ensure that the
+   * schema used by filters is the latest table schema. This should be used only when reading a
+   * manifest without filters.
+   *
+   * @param file an InputFile
+   * @return a manifest reader
+   */
+  public static ManifestReader read(InputFile file) {
     return new ManifestReader(file, null);
   }
 

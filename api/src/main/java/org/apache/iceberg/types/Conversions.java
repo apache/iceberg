@@ -78,6 +78,10 @@ public class Conversions {
       ThreadLocal.withInitial(StandardCharsets.UTF_8::newDecoder);
 
   public static ByteBuffer toByteBuffer(Type type, Object value) {
+    if (value == null) {
+      return null;
+    }
+
     switch (type.typeId()) {
       case BOOLEAN:
         return ByteBuffer.allocate(1).put(0, (Boolean) value ? (byte) 0x01 : (byte) 0x00);
@@ -120,6 +124,10 @@ public class Conversions {
   }
 
   private static Object internalFromByteBuffer(Type type, ByteBuffer buffer) {
+    if (buffer == null) {
+      return null;
+    }
+
     ByteBuffer tmp = buffer.duplicate();
     if (type == Types.UUIDType.get() || type instanceof Types.DecimalType) {
       tmp.order(ByteOrder.BIG_ENDIAN);
