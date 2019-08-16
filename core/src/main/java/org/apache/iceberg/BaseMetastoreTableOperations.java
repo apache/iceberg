@@ -23,8 +23,6 @@ import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
@@ -43,7 +41,6 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   private static final String METADATA_FOLDER_NAME = "metadata";
   private static final String DATA_FOLDER_NAME = "data";
 
-  private final Configuration conf;
   private final FileIO fileIo;
 
   private TableMetadata currentMetadata = null;
@@ -51,9 +48,8 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   private boolean shouldRefresh = true;
   private int version = -1;
 
-  protected BaseMetastoreTableOperations(Configuration conf) {
-    this.conf = conf;
-    this.fileIo = new HadoopFileIO(conf);
+  protected BaseMetastoreTableOperations(FileIO fileIo) {
+    this.fileIo = fileIo;
   }
 
   @Override

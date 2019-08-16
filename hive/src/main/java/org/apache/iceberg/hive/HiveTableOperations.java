@@ -48,6 +48,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,7 +65,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final String tableName;
 
   protected HiveTableOperations(Configuration conf, HiveClientPool metaClients, String database, String table) {
-    super(conf);
+    super(new HadoopFileIO(conf));
     this.metaClients = metaClients;
     this.database = database;
     this.tableName = table;
