@@ -414,9 +414,15 @@ public class TestEvaluator {
   @Test
   public void testInExceptions() {
     TestHelpers.assertThrows(
+        "Throw exception if value is empty",
+        IllegalArgumentException.class,
+        "Literal set cannot be empty",
+        () -> in("x"));
+
+    TestHelpers.assertThrows(
         "Throw exception if value is null",
         NullPointerException.class,
-        "Cannot create expression literal from null",
+        "Values cannot be null for IN predicate",
         () -> in("x", null));
 
     TestHelpers.assertThrows(
@@ -496,9 +502,15 @@ public class TestEvaluator {
   @Test
   public void testNotInExceptions() {
     TestHelpers.assertThrows(
+        "Throw exception if value is empty",
+        IllegalArgumentException.class,
+        "Literal set cannot be empty",
+        () -> notIn("x"));
+
+    TestHelpers.assertThrows(
         "Throw exception if value is null",
         NullPointerException.class,
-        "Cannot create expression literal from null",
+        "Values cannot be null for NOT_IN predicate",
         () -> notIn("x", null));
 
     TestHelpers.assertThrows(

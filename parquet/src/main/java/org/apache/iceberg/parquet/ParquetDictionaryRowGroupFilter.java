@@ -37,7 +37,6 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
-import org.apache.iceberg.expressions.LiteralSet;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
@@ -280,12 +279,12 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean in(BoundReference<T> ref, LiteralSet<T> literalSet) {
+    public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean notIn(BoundReference<T> ref, LiteralSet<T> literalSet) {
+    public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
       return ROWS_MIGHT_MATCH;
     }
 

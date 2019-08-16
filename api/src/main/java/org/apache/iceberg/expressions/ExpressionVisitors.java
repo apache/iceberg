@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.expressions;
 
+import java.util.Set;
+
 /**
  * Utils for traversing {@link Expression expressions}.
  */
@@ -93,11 +95,11 @@ public class ExpressionVisitors {
       return null;
     }
 
-    public <T> R in(BoundReference<T> ref, LiteralSet<T> literalSet) {
+    public <T> R in(BoundReference<T> ref, Set<T> literalSet) {
       throw new UnsupportedOperationException("In operation is not supported by the visitor");
     }
 
-    public <T> R notIn(BoundReference<T> ref, LiteralSet<T> literalSet) {
+    public <T> R notIn(BoundReference<T> ref, Set<T> literalSet) {
       throw new UnsupportedOperationException("notIn operation is not supported by the visitor");
     }
 

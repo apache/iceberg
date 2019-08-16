@@ -23,7 +23,6 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
@@ -323,13 +322,6 @@ public class TestPredicateBinding {
 
     Assert.assertEquals("Should reference correct field ID", 11, bound.ref().fieldId());
     Assert.assertEquals("Should not change the IN operation", IN, bound.op());
-
-    TestHelpers.assertThrows(
-        "Throw exception if calling literal() for IN predicate",
-        UnsupportedOperationException.class,
-        "Bound set predicate has to return a literal set",
-        () -> bound.literal().value());
-
     Assert.assertArrayEquals("Should not alter literal set values",
         new Integer[]{6, 7, 11},
         bound.literalSet().stream().sorted()
@@ -379,7 +371,7 @@ public class TestPredicateBinding {
     UnboundPredicate<Long> unbound = Expressions.in("x", 5L, Long.MAX_VALUE);
 
     Expression.Operation op = unbound.op();
-    Assert.assertEquals("Should create a IN unbound predicate", IN, op);
+    Assert.assertEquals("Should create an IN unbound predicate", IN, op);
 
     Expression expr = unbound.bind(struct);
     BoundPredicate<Integer> bound = assertAndUnwrap(expr);
@@ -387,6 +379,20 @@ public class TestPredicateBinding {
     Assert.assertEquals("Should remove aboveMax literal value",
         Integer.valueOf(5), bound.literal().value());
     Assert.assertEquals("Should reference correct field ID", 14, bound.ref().fieldId());
+    Assert.assertEquals("Should change the IN operation to EQ", EQ, bound.op());
+  }
+
+  @Test
+  public void testInPredicateBindingConversionDedupToEq() {
+    StructType struct = StructType.of(required(15, "d", Types.DecimalType.of(9, 2)));
+    UnboundPredicate<Double> unbound = Expressions.in("d", 12.40, 12.401, 12.402);
+    Assert.assertEquals("Should create an IN unbound predicate", IN, unbound.op());
+
+    Expression expr = unbound.bind(struct);
+    BoundPredicate<BigDecimal> bound = assertAndUnwrap(expr);
+    Assert.assertEquals("Should convert literal set values to a single decimal",
+        new BigDecimal("12.40"), bound.literal().value());
+    Assert.assertEquals("Should reference correct field ID", 15, bound.ref().fieldId());
     Assert.assertEquals("Should change the IN operation to EQ", EQ, bound.op());
   }
 
@@ -418,13 +424,6 @@ public class TestPredicateBinding {
 
     Assert.assertEquals("Should reference correct field ID", 11, bound.ref().fieldId());
     Assert.assertEquals("Should not change the NOT_IN operation", NOT_IN, bound.op());
-
-    TestHelpers.assertThrows(
-        "Throw exception if calling literal() for NOT_IN predicate",
-        UnsupportedOperationException.class,
-        "Bound set predicate has to return a literal set",
-        () -> bound.literal().value());
-
     Assert.assertArrayEquals("Should not alter literal set values",
         new Integer[]{6, 7, 11},
         bound.literalSet().stream().sorted()
@@ -482,6 +481,20 @@ public class TestPredicateBinding {
     Assert.assertEquals("Should remove aboveMax literal value",
         Integer.valueOf(5), bound.literal().value());
     Assert.assertEquals("Should reference correct field ID", 14, bound.ref().fieldId());
+    Assert.assertEquals("Should change the NOT_IN operation to NOT_EQ", NOT_EQ, bound.op());
+  }
+
+  @Test
+  public void testNotInPredicateBindingConversionDedupToNotEq() {
+    StructType struct = StructType.of(required(15, "d", Types.DecimalType.of(9, 2)));
+    UnboundPredicate<Double> unbound = Expressions.notIn("d", 12.40, 12.401, 12.402);
+    Assert.assertEquals("Should create a NOT_IN unbound predicate", NOT_IN, unbound.op());
+
+    Expression expr = unbound.bind(struct);
+    BoundPredicate<BigDecimal> bound = assertAndUnwrap(expr);
+    Assert.assertEquals("Should convert literal set values to a single decimal",
+        new BigDecimal("12.40"), bound.literal().value());
+    Assert.assertEquals("Should reference correct field ID", 15, bound.ref().fieldId());
     Assert.assertEquals("Should change the NOT_IN operation to NOT_EQ", NOT_EQ, bound.op());
   }
 

@@ -108,12 +108,38 @@ public class TestExpressionSerialization {
       return true;
     }
 
-    if (left.op() == Operation.IN || left.op() == Operation.NOT_IN) {
-      return left.literalSet().equals(right.literalSet());
+    if (left.getClass() != right.getClass()) {
+      return false;
     }
 
-    return left.literal().comparator()
-        .compare(left.literal().value(), right.literal().value()) == 0;
+    if (left instanceof UnboundPredicate) {
+      UnboundPredicate lpred = (UnboundPredicate) left;
+      UnboundPredicate rpred = (UnboundPredicate) right;
+      if (left.op() == Operation.IN || left.op() == Operation.NOT_IN) {
+        return equals(lpred.literalSet(), rpred.literalSet());
+      }
+      return lpred.literal().comparator()
+          .compare(lpred.literal().value(), rpred.literal().value()) == 0;
+    } else if (left instanceof BoundPredicate) {
+      BoundPredicate lpred = (BoundPredicate) left;
+      BoundPredicate rpred = (BoundPredicate) right;
+      return lpred.literal().comparator()
+          .compare(lpred.literal().value(), rpred.literal().value()) == 0;
+    } else if (left instanceof BoundSetPredicate) {
+      BoundSetPredicate lpred = (BoundSetPredicate) left;
+      BoundSetPredicate rpred = (BoundSetPredicate) right;
+      return equals(lpred.literalSet(), rpred.literalSet());
+    } else {
+      throw new UnsupportedOperationException(String.format(
+          "Predicate equality check for %s is not supported", left.getClass()));
+    }
+  }
+
+  private static boolean equals(LiteralSet left, LiteralSet right) {
+    if (left.size() != right.size()) {
+      return false;
+    }
+    return left.containsAll(right);
   }
 
   private static boolean equals(Reference left, Reference right) {

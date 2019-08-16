@@ -22,6 +22,7 @@ package org.apache.iceberg.expressions;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
@@ -267,12 +268,12 @@ public class InclusiveMetricsEvaluator {
     }
 
     @Override
-    public <T> Boolean in(BoundReference<T> ref, LiteralSet<T> literalSet) {
+    public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean notIn(BoundReference<T> ref, LiteralSet<T> literalSet) {
+    public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
       return ROWS_MIGHT_MATCH;
     }
 

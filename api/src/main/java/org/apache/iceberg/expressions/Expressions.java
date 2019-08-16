@@ -111,15 +111,17 @@ public class Expressions {
     return new UnboundPredicate<>(Expression.Operation.STARTS_WITH, ref(name), value);
   }
 
-  public static <T> UnboundPredicate<T> in(String name, T value, T... values) {
+  public static <T> UnboundPredicate<T> in(String name, T... values) {
+    Preconditions.checkNotNull(values, "Values cannot be null for IN predicate.");
     return predicate(Operation.IN, name,
-        Stream.concat(Stream.of(value), Stream.of(values))
+        Stream.of(values)
             .map(Literals::from).collect(Collectors.toSet()));
   }
 
-  public static <T> UnboundPredicate<T> notIn(String name, T value, T... values) {
+  public static <T> UnboundPredicate<T> notIn(String name, T... values) {
+    Preconditions.checkNotNull(values, "Values cannot be null for NOT_IN predicate.");
     return predicate(Operation.NOT_IN, name,
-        Stream.concat(Stream.of(value), Stream.of(values))
+        Stream.of(values)
             .map(Literals::from).collect(Collectors.toSet()));
   }
 

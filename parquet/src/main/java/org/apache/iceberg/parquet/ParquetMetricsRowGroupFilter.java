@@ -23,6 +23,7 @@ import com.google.common.collect.Maps;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
@@ -331,12 +332,12 @@ import org.apache.parquet.schema.PrimitiveType;
     }
 
     @Override
-    public <T> Boolean in(BoundReference<T> ref, LiteralSet<T> literalSet) {
+    public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean notIn(BoundReference<T> ref, LiteralSet<T> literalSet) {
+    public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
       return ROWS_MIGHT_MATCH;
     }
 
