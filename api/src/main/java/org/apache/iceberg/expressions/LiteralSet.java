@@ -19,32 +19,31 @@
 
 package org.apache.iceberg.expressions;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import java.io.Serializable;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.Iterator;
-import java.util.Objects;
 import java.util.Set;
-import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.util.CharSequenceWrapper;
 
 /**
  * Represents a set of literal values in an IN or NOT_IN predicate
  * @param <T> The Java type of the value, which can be wrapped by a {@link Literal}
  */
-public class LiteralSet<T> implements Set<T>, Serializable {
-  private final Set<T> literals;
+class LiteralSet<T> implements Set<T>, Serializable {
+  private final Set<T> values;
 
   @SuppressWarnings("unchecked")
   LiteralSet(Set<Literal<T>> lits) {
     Preconditions.checkArgument(lits == null || lits.size() > 1,
         "The input literal set must include more than 1 element.");
-    literals = ImmutableSet.<T>builder().addAll(
+    values = ImmutableSet.<T>builder().addAll(
         lits.stream().map(
             lit -> {
               if (lit instanceof Literals.StringLiteral) {
-                return (T) new CharSeqWrapper((CharSequence) lit.value());
+                return (T) CharSequenceWrapper.wrap((CharSequence) lit.value());
               } else {
                 return lit.value();
               }
@@ -54,159 +53,88 @@ public class LiteralSet<T> implements Set<T>, Serializable {
 
   @Override
   public String toString() {
-    Iterator<T> it = literals.iterator();
-    if (!it.hasNext()) {
-      return "{}";
-    }
-
-    StringBuilder sb = new StringBuilder();
-    sb.append('{');
-    while (true) {
-      sb.append(it.next());
-      if (!it.hasNext()) {
-        return sb.append('}').toString();
-      }
-      sb.append(',').append(' ');
-    }
-  }
-
-  @Override
-  @SuppressWarnings("unchecked")
-  public boolean equals(Object other) {
-    if (this == other) {
-      return true;
-    }
-    if (other == null || getClass() != other.getClass()) {
-      return false;
-    }
-    LiteralSet<T> that = (LiteralSet<T>) other;
-    return literals.equals(that.literals);
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hashCode(literals);
+    return "{ " + Joiner.on(", ").join(values) + " }";
   }
 
   @Override
   public boolean contains(Object object) {
-    return literals.contains(object);
-  }
-
-  @Override
-  public int size() {
-    return literals.size();
-  }
-
-  @Override
-  public boolean isEmpty() {
-    return literals.isEmpty();
-  }
-
-  @Override
-  public Iterator<T> iterator() {
-    return literals.iterator();
-  }
-
-  @Override
-  public Object[] toArray() {
-    return literals.toArray();
-  }
-
-  @Override
-  public <X> X[] toArray(X[] a) {
-    return literals.toArray(a);
+    return values.contains(object);
   }
 
   @Override
   public boolean containsAll(Collection<?> c) {
-    return literals.containsAll(c);
+    return values.containsAll(c);
+  }
+
+  @Override
+  public int size() {
+    return values.size();
+  }
+
+  @Override
+  public boolean isEmpty() {
+    return values.isEmpty();
+  }
+
+  @Override
+  @SuppressWarnings("unchecked")
+  public Iterator<T> iterator() {
+    return values.stream().map(
+        val -> {
+          if (val instanceof CharSequenceWrapper) {
+            return (T) ((CharSequenceWrapper) val).get();
+          } else {
+            return val;
+          }
+        }).iterator();
+  }
+
+  @Override
+  public Object[] toArray() {
+    throw new UnsupportedOperationException(
+        "Please use iterator() to visit the elements in the set.");
+  }
+
+  @Override
+  public <X> X[] toArray(X[] a) {
+    throw new UnsupportedOperationException(
+        "Please use iterator() to visit the elements in the set.");
   }
 
   @Override
   public boolean add(T t) {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException(
+        "The set is immutable and cannot add an element.");
   }
 
   @Override
   public boolean remove(Object o) {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException(
+        "The set is immutable and cannot remove an element.");
   }
 
 
   @Override
   public boolean addAll(Collection<? extends T> c) {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException(
+        "The set is immutable and cannot add elements.");
   }
 
   @Override
   public boolean retainAll(Collection<?> c) {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException(
+        "The set is immutable and cannot be modified.");
   }
 
   @Override
   public boolean removeAll(Collection<?> c) {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException(
+        "The set is immutable and cannot remove elements.");
   }
 
   @Override
   public void clear() {
-    throw new UnsupportedOperationException();
-  }
-
-  static class CharSeqWrapper implements CharSequence, Serializable {
-    private static final Comparator<CharSequence> CMP =
-        Comparators.<CharSequence>nullsFirst().thenComparing(Comparators.charSequences());
-
-    private final CharSequence chars;
-
-    CharSeqWrapper(CharSequence charSequence) {
-      Preconditions.checkNotNull(charSequence, "String literal values cannot be null");
-      this.chars = charSequence;
-    }
-
-    @Override
-    public int length() {
-      return chars.length();
-    }
-
-    @Override
-    public char charAt(int index) {
-      return chars.charAt(index);
-    }
-
-    @Override
-    public CharSequence subSequence(int start, int end) {
-      return chars.subSequence(start, end);
-    }
-
-    @Override
-    public int hashCode() {
-      return chars.hashCode();
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-      if (this == obj) {
-        return true;
-      }
-      if (obj == null) {
-        return false;
-      }
-
-      if (obj instanceof CharSequence) {
-        return CMP.compare(chars, (CharSequence) obj) == 0;
-      }
-      return false;
-    }
-
-    @Override
-    public String toString() {
-      return chars.toString();
-    }
-
-    public CharSequence unWrap() {
-      return chars;
-    }
+    throw new UnsupportedOperationException(
+        "The set is immutable and cannot be modified.");
   }
 }

@@ -19,15 +19,24 @@
 
 package org.apache.iceberg.expressions;
 
+import com.google.common.base.Preconditions;
 import java.util.Set;
 
-public class BoundSetPredicate<T> extends Predicate<T, BoundReference<T>> {
+public class BoundSetPredicate<T> extends Predicate<BoundReference<T>> {
+  private final LiteralSet<T> literalSet;
+
   BoundSetPredicate(Operation op, BoundReference<T> ref, Set<Literal<T>> lits) {
-    super(op, ref, lits);
+    super(op, ref);
+    Preconditions.checkArgument(op == Operation.IN || op == Operation.NOT_IN,
+        "%s predicate does not support a set of literals", op);
+    this.literalSet = new LiteralSet<>(lits);
   }
 
   BoundSetPredicate(Operation op, BoundReference<T> ref, LiteralSet<T> lits) {
-    super(op, ref, lits);
+    super(op, ref);
+    Preconditions.checkArgument(op == Operation.IN || op == Operation.NOT_IN,
+        "%s predicate does not support a literal set", op);
+    this.literalSet = lits;
   }
 
   @Override
@@ -35,14 +44,19 @@ public class BoundSetPredicate<T> extends Predicate<T, BoundReference<T>> {
     return new BoundSetPredicate<>(op().negate(), ref(), literalSet());
   }
 
-  @Override
-  public Literal<T> literal() {
-    throw new UnsupportedOperationException("Bound set predicate has to return a literal set.");
-  }
-
-  @Override
   public LiteralSet<T> literalSet() {
-    return super.literalSet();
+    return literalSet;
   }
 
+  @Override
+  public String toString() {
+    switch (op()) {
+      case IN:
+        return String.valueOf(ref()) + " in " + literalSet();
+      case NOT_IN:
+        return String.valueOf(ref()) + " not in " + literalSet();
+      default:
+        return "Invalid predicate: operation = " + op();
+    }
+  }
 }

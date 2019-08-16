@@ -29,22 +29,44 @@ import org.apache.iceberg.types.Types;
 import static org.apache.iceberg.expressions.Expression.Operation.IS_NULL;
 import static org.apache.iceberg.expressions.Expression.Operation.NOT_NULL;
 
-public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
+public class UnboundPredicate<T> extends Predicate<NamedReference> {
+  private final Literal<T> literal;
+  private final LiteralSet<T> literalSet;
+  private final Set<Literal<T>> literals;
 
   UnboundPredicate(Operation op, NamedReference namedRef, T value) {
-    super(op, namedRef, Literals.from(value));
+    this(op, namedRef, Literals.from(value));
   }
 
   UnboundPredicate(Operation op, NamedReference namedRef) {
     super(op, namedRef);
+    Preconditions.checkArgument(op == Operation.IS_NULL || op == Operation.NOT_NULL,
+        "Cannot create %s predicate without a value", op);
+    this.literal = null;
+    this.literalSet = null;
+    this.literals = null;
   }
 
   UnboundPredicate(Operation op, NamedReference namedRef, Literal<T> lit) {
-    super(op, namedRef, lit);
+    super(op, namedRef);
+    Preconditions.checkArgument(op != Operation.IN && op != Operation.NOT_IN,
+        "%s predicate does not support a single literal", op);
+    this.literal = lit;
+    this.literalSet = null;
+    this.literals = null;
   }
 
   UnboundPredicate(Operation op, NamedReference namedRef, Set<Literal<T>> lits) {
-    super(op, namedRef, lits);
+    this(op, namedRef, lits, new LiteralSet<>(lits));
+  }
+
+  UnboundPredicate(Operation op, NamedReference namedRef, Set<Literal<T>> lits, LiteralSet<T> literalSet) {
+    super(op, namedRef);
+    Preconditions.checkArgument(op == Operation.IN || op == Operation.NOT_IN,
+        "%s predicate does not support a literal set", op);
+    this.literal = null;
+    this.literalSet = literalSet;
+    this.literals = lits;
   }
 
   @Override
@@ -52,23 +74,27 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
     switch (op()) {
       case IN:
       case NOT_IN:
-        return new UnboundPredicate<>(op().negate(), ref(), literalSet());
+        return new UnboundPredicate<>(op().negate(), ref(), literals, literalSet);
     }
     return new UnboundPredicate<>(op().negate(), ref(), literal());
   }
 
-  @Override
   public Literal<T> literal() {
     Preconditions.checkArgument(op() != Operation.IN && op() != Operation.NOT_IN,
         "%s predicate cannot return a literal", op());
-    return super.literal();
+    return literal;
   }
 
-  @Override
+  public Set<Literal<T>> literals() {
+    Preconditions.checkArgument(op() == Operation.IN || op() == Operation.NOT_IN,
+        "%s predicate cannot return a set of literals", op());
+    return literals;
+  }
+
   public LiteralSet<T> literalSet() {
     Preconditions.checkArgument(op() == Operation.IN || op() == Operation.NOT_IN,
         "%s predicate cannot return a literal set", op());
-    return super.literalSet();
+    return literalSet;
   }
 
   /**
@@ -162,16 +188,13 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
 
   @SuppressWarnings("unchecked")
   private Expression bindInOperation(Types.NestedField field, Schema schema) {
-    final Set<Literal<T>> lits = literalSet().stream().map(
-        val -> {
-          if (val instanceof LiteralSet.CharSeqWrapper) {
-            val = (T) ((LiteralSet.CharSeqWrapper) val).unWrap();
-          }
-          Literal<T> lit = Literals.from(val).to(field.type());
+    final Set<Literal<T>> lits = literals().stream().map(
+        l -> {
+          Literal<T> lit = l.to(field.type());
           if (lit == null) {
             throw new ValidationException(String.format(
                 "Invalid value for comparison inclusive type %s: %s (%s)",
-                field.type(), val, val.getClass().getName()));
+                field.type(), l.value(), l.value().getClass().getName()));
           }
           return lit;
         })
@@ -186,6 +209,36 @@ public class UnboundPredicate<T> extends Predicate<T, NamedReference> {
     } else {
       return new BoundSetPredicate<>(Operation.IN, new BoundReference<>(field.fieldId(),
           schema.accessorForField(field.fieldId())), lits);
+    }
+  }
+
+  @Override
+  public String toString() {
+    switch (op()) {
+      case IS_NULL:
+        return "is_null(" + ref() + ")";
+      case NOT_NULL:
+        return "not_null(" + ref() + ")";
+      case LT:
+        return String.valueOf(ref()) + " < " + literal();
+      case LT_EQ:
+        return String.valueOf(ref()) + " <= " + literal();
+      case GT:
+        return String.valueOf(ref()) + " > " + literal();
+      case GT_EQ:
+        return String.valueOf(ref()) + " >= " + literal();
+      case EQ:
+        return String.valueOf(ref()) + " == " + literal();
+      case NOT_EQ:
+        return String.valueOf(ref()) + " != " + literal();
+      case STARTS_WITH:
+        return ref() + " startsWith \"" + literal() + "\"";
+      case IN:
+        return String.valueOf(ref()) + " in " + literalSet();
+      case NOT_IN:
+        return String.valueOf(ref()) + " not in " + literalSet();
+      default:
+        return "Invalid predicate: operation = " + op();
     }
   }
 }

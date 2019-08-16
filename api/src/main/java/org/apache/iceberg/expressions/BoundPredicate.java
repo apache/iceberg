@@ -19,13 +19,23 @@
 
 package org.apache.iceberg.expressions;
 
-public class BoundPredicate<T> extends Predicate<T, BoundReference<T>> {
+import com.google.common.base.Preconditions;
+
+public class BoundPredicate<T> extends Predicate<BoundReference<T>> {
+  private final Literal<T> literal;
+
   BoundPredicate(Operation op, BoundReference<T> ref, Literal<T> lit) {
-    super(op, ref, lit);
+    super(op, ref);
+    Preconditions.checkArgument(op != Operation.IN && op != Operation.NOT_IN,
+        "Bound predicate does not support %s operation", op);
+    this.literal = lit;
   }
 
   BoundPredicate(Operation op, BoundReference<T> ref) {
     super(op, ref);
+    Preconditions.checkArgument(op == Operation.IS_NULL || op == Operation.NOT_NULL,
+        "Cannot create %s predicate without a value", op);
+    this.literal = null;
   }
 
   @Override
@@ -33,13 +43,33 @@ public class BoundPredicate<T> extends Predicate<T, BoundReference<T>> {
     return new BoundPredicate<>(op().negate(), ref(), literal());
   }
 
-  @Override
   public Literal<T> literal() {
-    return super.literal();
+    return literal;
   }
 
   @Override
-  public LiteralSet<T> literalSet() {
-    throw new UnsupportedOperationException("Bound predicate has to return a Literal.");
+  public String toString() {
+    switch (op()) {
+      case IS_NULL:
+        return "is_null(" + ref() + ")";
+      case NOT_NULL:
+        return "not_null(" + ref() + ")";
+      case LT:
+        return String.valueOf(ref()) + " < " + literal();
+      case LT_EQ:
+        return String.valueOf(ref()) + " <= " + literal();
+      case GT:
+        return String.valueOf(ref()) + " > " + literal();
+      case GT_EQ:
+        return String.valueOf(ref()) + " >= " + literal();
+      case EQ:
+        return String.valueOf(ref()) + " == " + literal();
+      case NOT_EQ:
+        return String.valueOf(ref()) + " != " + literal();
+      case STARTS_WITH:
+        return ref() + " startsWith \"" + literal() + "\"";
+      default:
+        return "Invalid predicate: operation = " + op();
+    }
   }
 }

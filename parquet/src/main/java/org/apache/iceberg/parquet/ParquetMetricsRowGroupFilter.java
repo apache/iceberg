@@ -21,6 +21,7 @@ package org.apache.iceberg.parquet;
 
 import com.google.common.collect.Maps;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.*;
@@ -324,12 +325,12 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean in(BoundReference<T> ref, LiteralSet<T> literalSet) {
+    public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean notIn(BoundReference<T> ref, LiteralSet<T> literalSet) {
+    public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
       return ROWS_MIGHT_MATCH;
     }
 
