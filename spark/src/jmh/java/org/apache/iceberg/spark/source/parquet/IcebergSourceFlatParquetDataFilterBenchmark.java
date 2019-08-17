@@ -83,6 +83,21 @@ public class IcebergSourceFlatParquetDataFilterBenchmark extends IcebergSourceFl
 
   @Benchmark
   @Threads(1)
+  public void readWithFilterIcebergV1Vectorized10k() {
+    Map<String, String> tableProperties = Maps.newHashMap();
+    tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
+    withTableProperties(tableProperties, () -> {
+      String tableLocation = table().location();
+      Dataset<Row> df = spark().read().format("iceberg")
+          .option("iceberg.read.enableV1VectorizedReader", "true")
+          .option("iceberg.read.numrecordsperbatch", "10000")
+          .load(tableLocation).filter(FILTER_COND);
+      materialize(df);
+    });
+  }
+
+  @Benchmark
+  @Threads(1)
   public void readWithFilterFileSourceVectorized() {
     Map<String, String> conf = Maps.newHashMap();
     conf.put(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "true");

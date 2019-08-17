@@ -37,6 +37,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.UnknownTransform;
 import org.apache.iceberg.types.CheckCompatibility;
+import org.apache.spark.SparkConf;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.execution.streaming.StreamExecution;
@@ -51,11 +52,18 @@ import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
 import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter;
 import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.types.StructType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, DataSourceRegister, StreamWriteSupport {
 
+  public static final String ICEBERG_READ_ENABLE_V1_VECTORIZATION_CONF = "iceberg.read.enableV1VectorizedReader";
+  public static final String ICEBERG_READ_NUM_RECORDS_BATCH_CONF = "iceberg.read.numrecordsperbatch";
+
   private SparkSession lazySpark = null;
   private Configuration lazyConf = null;
+
+  private static final Logger LOG = LoggerFactory.getLogger(IcebergSource.class);
 
   @Override
   public String shortName() {
@@ -67,8 +75,27 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
     String caseSensitive = lazySparkSession().conf().get("spark.sql.caseSensitive", "true");
+    String sparkMaster = lazySparkSession().conf().get("spark.master");
+    SparkConf sparkConf = lazySparkSession().sparkContext().conf();
 
-    return new Reader(table, Boolean.valueOf(caseSensitive), options);
+    // look for split behavior overrides in options
+    Optional<String> enableV1VectorizedReadOpt = options.get(ICEBERG_READ_ENABLE_V1_VECTORIZATION_CONF);
+    Optional<String> numRecordsPerBatchOpt = options.get(ICEBERG_READ_NUM_RECORDS_BATCH_CONF);
+
+
+    boolean enableV1VectorizedRead = enableV1VectorizedReadOpt.isPresent() ?
+        Boolean.parseBoolean(enableV1VectorizedReadOpt.get()) : false;
+
+    int numRecordsPerBatch = numRecordsPerBatchOpt.isPresent() ?
+        Integer.parseInt(numRecordsPerBatchOpt.get()) : V1VectorizedReader.DEFAULT_NUM_ROWS_IN_BATCH;
+    if (enableV1VectorizedRead) {
+      LOG.debug("V1VectorizedReader engaged.");
+      return new V1VectorizedReader(table, Boolean.valueOf(caseSensitive), options, conf,
+          numRecordsPerBatch, lazySparkSession());
+    } else {
+
+      return new Reader(table, Boolean.valueOf(caseSensitive), options);
+    }
   }
 
   @Override
