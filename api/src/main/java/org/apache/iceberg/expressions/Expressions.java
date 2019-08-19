@@ -20,7 +20,8 @@
 package org.apache.iceberg.expressions;
 
 import com.google.common.base.Preconditions;
-import java.util.Set;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression.Operation;
@@ -112,17 +113,25 @@ public class Expressions {
   }
 
   public static <T> UnboundPredicate<T> in(String name, T... values) {
+    return predicate(Operation.IN, name,
+        Stream.of(values).map(Literals::from).collect(Collectors.toSet()));
+  }
+
+  public static <T> UnboundPredicate<T> in(String name, Collection<T> values) {
     Preconditions.checkNotNull(values, "Values cannot be null for IN predicate.");
     return predicate(Operation.IN, name,
-        Stream.of(values)
-            .map(Literals::from).collect(Collectors.toSet()));
+        values.stream().map(Literals::from).collect(Collectors.toSet()));
   }
 
   public static <T> UnboundPredicate<T> notIn(String name, T... values) {
+    return predicate(Operation.NOT_IN, name,
+        Stream.of(values).map(Literals::from).collect(Collectors.toSet()));
+  }
+
+  public static <T> UnboundPredicate<T> notIn(String name, Collection<T> values) {
     Preconditions.checkNotNull(values, "Values cannot be null for NOT_IN predicate.");
     return predicate(Operation.NOT_IN, name,
-        Stream.of(values)
-            .map(Literals::from).collect(Collectors.toSet()));
+        values.stream().map(Literals::from).collect(Collectors.toSet()));
   }
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name, T value) {
@@ -130,29 +139,13 @@ public class Expressions {
   }
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name, Literal<T> lit) {
-    switch (op) {
-      case IS_NULL:
-      case NOT_NULL:
-        throw new IllegalArgumentException(String.format("Cannot create %s predicate inclusive a value", op));
-      case IN:
-        return new UnboundPredicate<>(Operation.EQ, ref(name), lit);
-      case NOT_IN:
-        return new UnboundPredicate<>(Operation.NOT_EQ, ref(name), lit);
-      default:
-        return new UnboundPredicate<>(op, ref(name), lit);
-    }
+    Preconditions.checkArgument(op != Operation.IS_NULL && op != Operation.NOT_NULL,
+        "Cannot create %s predicate inclusive a value", op);
+    return predicate(op, name, Collections.singleton(lit));
   }
 
-  private static <T> UnboundPredicate<T> predicate(Operation op, String name, Set<Literal<T>> lits) {
-    Preconditions.checkArgument(op == Operation.IN || op == Operation.NOT_IN,
-        "Cannot create %s predicate inclusive a set of values", op);
-    if (lits.isEmpty()) {
-      throw new IllegalArgumentException("Literal set cannot be empty");
-    } else if (lits.size() == 1) {
-      return predicate(op, name, lits.iterator().next());
-    } else {
-      return new UnboundPredicate<>(op, ref(name), lits);
-    }
+  private static <T> UnboundPredicate<T> predicate(Operation op, String name, Collection<Literal<T>> lits) {
+    return new UnboundPredicate<>(op, ref(name), lits);
   }
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name) {

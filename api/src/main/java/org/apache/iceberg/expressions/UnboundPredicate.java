@@ -19,7 +19,10 @@
 
 package org.apache.iceberg.expressions;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
@@ -30,71 +33,37 @@ import static org.apache.iceberg.expressions.Expression.Operation.IS_NULL;
 import static org.apache.iceberg.expressions.Expression.Operation.NOT_NULL;
 
 public class UnboundPredicate<T> extends Predicate<NamedReference> {
-  private final Literal<T> literal;
-  private final LiteralSet<T> literalSet;
-  private final Set<Literal<T>> literals;
+  private final Collection<Literal<T>> literals;
 
   UnboundPredicate(Operation op, NamedReference namedRef, T value) {
-    this(op, namedRef, Literals.from(value));
+    this(op, namedRef, Collections.singleton(Literals.from(value)));
   }
 
   UnboundPredicate(Operation op, NamedReference namedRef) {
     super(op, namedRef);
-    Preconditions.checkArgument(op == Operation.IS_NULL || op == Operation.NOT_NULL,
-        "Cannot create %s predicate without a value", op);
-    this.literal = null;
-    this.literalSet = null;
     this.literals = null;
   }
 
-  UnboundPredicate(Operation op, NamedReference namedRef, Literal<T> lit) {
+  UnboundPredicate(Operation op, NamedReference namedRef, Collection<Literal<T>> lits) {
     super(op, namedRef);
-    Preconditions.checkArgument(op != Operation.IN && op != Operation.NOT_IN,
-        "%s predicate does not support a single literal", op);
-    this.literal = lit;
-    this.literalSet = null;
-    this.literals = null;
-  }
-
-  UnboundPredicate(Operation op, NamedReference namedRef, Set<Literal<T>> lits) {
-    this(op, namedRef, lits, new LiteralSet<>(lits));
-  }
-
-  UnboundPredicate(Operation op, NamedReference namedRef, Set<Literal<T>> lits, LiteralSet<T> literalSet) {
-    super(op, namedRef);
-    Preconditions.checkArgument(op == Operation.IN || op == Operation.NOT_IN,
-        "%s predicate does not support a literal set", op);
-    this.literal = null;
-    this.literalSet = literalSet;
-    this.literals = lits;
+    this.literals = Collections.unmodifiableCollection(lits);
   }
 
   @Override
   public Expression negate() {
-    switch (op()) {
-      case IN:
-      case NOT_IN:
-        return new UnboundPredicate<>(op().negate(), ref(), literals, literalSet);
-    }
-    return new UnboundPredicate<>(op().negate(), ref(), literal());
+    return new UnboundPredicate<>(op().negate(), ref(), literals);
   }
 
   public Literal<T> literal() {
     Preconditions.checkArgument(op() != Operation.IN && op() != Operation.NOT_IN,
         "%s predicate cannot return a literal", op());
-    return literal;
+    return literals == null ? null : literals.iterator().next();
   }
 
-  public Set<Literal<T>> literals() {
+  public Collection<Literal<T>> literals() {
     Preconditions.checkArgument(op() == Operation.IN || op() == Operation.NOT_IN,
-        "%s predicate cannot return a set of literals", op());
+        "%s predicate cannot return a list of literals", op());
     return literals;
-  }
-
-  public LiteralSet<T> literalSet() {
-    Preconditions.checkArgument(op() == Operation.IN || op() == Operation.NOT_IN,
-        "%s predicate cannot return a literal set", op());
-    return literalSet;
   }
 
   /**
@@ -213,32 +182,7 @@ public class UnboundPredicate<T> extends Predicate<NamedReference> {
   }
 
   @Override
-  public String toString() {
-    switch (op()) {
-      case IS_NULL:
-        return "is_null(" + ref() + ")";
-      case NOT_NULL:
-        return "not_null(" + ref() + ")";
-      case LT:
-        return String.valueOf(ref()) + " < " + literal();
-      case LT_EQ:
-        return String.valueOf(ref()) + " <= " + literal();
-      case GT:
-        return String.valueOf(ref()) + " > " + literal();
-      case GT_EQ:
-        return String.valueOf(ref()) + " >= " + literal();
-      case EQ:
-        return String.valueOf(ref()) + " == " + literal();
-      case NOT_EQ:
-        return String.valueOf(ref()) + " != " + literal();
-      case STARTS_WITH:
-        return ref() + " startsWith \"" + literal() + "\"";
-      case IN:
-        return String.valueOf(ref()) + " in " + literalSet();
-      case NOT_IN:
-        return String.valueOf(ref()) + " not in " + literalSet();
-      default:
-        return "Invalid predicate: operation = " + op();
-    }
+  String literalString() {
+    return Joiner.on(", ").join(literals);
   }
 }

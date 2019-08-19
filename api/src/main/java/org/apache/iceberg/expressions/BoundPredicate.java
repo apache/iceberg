@@ -48,28 +48,7 @@ public class BoundPredicate<T> extends Predicate<BoundReference<T>> {
   }
 
   @Override
-  public String toString() {
-    switch (op()) {
-      case IS_NULL:
-        return "is_null(" + ref() + ")";
-      case NOT_NULL:
-        return "not_null(" + ref() + ")";
-      case LT:
-        return String.valueOf(ref()) + " < " + literal();
-      case LT_EQ:
-        return String.valueOf(ref()) + " <= " + literal();
-      case GT:
-        return String.valueOf(ref()) + " > " + literal();
-      case GT_EQ:
-        return String.valueOf(ref()) + " >= " + literal();
-      case EQ:
-        return String.valueOf(ref()) + " == " + literal();
-      case NOT_EQ:
-        return String.valueOf(ref()) + " != " + literal();
-      case STARTS_WITH:
-        return ref() + " startsWith \"" + literal() + "\"";
-      default:
-        return "Invalid predicate: operation = " + op();
-    }
+  String literalString() {
+    return literal.toString();
   }
 }

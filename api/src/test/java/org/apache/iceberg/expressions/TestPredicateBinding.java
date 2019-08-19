@@ -331,7 +331,7 @@ public class TestPredicateBinding {
   @Test
   public void testInPredicateBindingConversion() {
     StructType struct = StructType.of(required(15, "d", Types.DecimalType.of(9, 2)));
-    UnboundPredicate<String> unbound = Expressions.in("d", "12.40", "1.23", "99.99");
+    UnboundPredicate<String> unbound = Expressions.in("d", "12.40", "1.23", "99.99", "1.23");
     Expression expr = unbound.bind(struct);
     BoundSetPredicate<BigDecimal> bound = assertAndUnwrapBoundSet(expr);
     Assert.assertArrayEquals("Should convert literal set values to decimal",
@@ -348,8 +348,9 @@ public class TestPredicateBinding {
 
     UnboundPredicate<Integer> unbound = Expressions.in("x", 5);
 
-    Expression.Operation op = unbound.op();
-    Assert.assertEquals("Should create a EQ predicate instead of IN", EQ, op);
+    Assert.assertEquals("Should create an IN predicate with a single item", IN, unbound.op());
+    Assert.assertEquals("Should create an IN predicate with a single item",
+        1, unbound.literals().size());
 
     Expression expr = unbound.bind(struct);
     BoundPredicate<Integer> bound = assertAndUnwrap(expr);
@@ -357,11 +358,7 @@ public class TestPredicateBinding {
     Assert.assertEquals("Should not alter literal value",
         Integer.valueOf(5), bound.literal().value());
     Assert.assertEquals("Should reference correct field ID", 14, bound.ref().fieldId());
-    Assert.assertEquals("Should not change the comparison operation", op, bound.op());
-
-    unbound = Expressions.in("x", 5, 5);
-    op = unbound.op();
-    Assert.assertEquals("Should create a EQ predicate instead of IN", EQ, op);
+    Assert.assertEquals("Should change the operation from IN to EQ", EQ, bound.op());
   }
 
   @Test
@@ -433,7 +430,7 @@ public class TestPredicateBinding {
   @Test
   public void testNotInPredicateBindingConversion() {
     StructType struct = StructType.of(required(15, "d", Types.DecimalType.of(9, 2)));
-    UnboundPredicate<String> unbound = Expressions.notIn("d", "12.40", "1.23", "99.99");
+    UnboundPredicate<String> unbound = Expressions.notIn("d", "12.40", "1.23", "99.99", "1.23");
     Expression expr = unbound.bind(struct);
     BoundSetPredicate<BigDecimal> bound = assertAndUnwrapBoundSet(expr);
     Assert.assertArrayEquals("Should convert literal set values to decimal",
@@ -450,8 +447,9 @@ public class TestPredicateBinding {
 
     UnboundPredicate<Integer> unbound = Expressions.notIn("x", 5);
 
-    Expression.Operation op = unbound.op();
-    Assert.assertEquals("Should create a NOT_EQ predicate instead of IN", NOT_EQ, op);
+    Assert.assertEquals("Should create a NOT_IN predicate with a single item", NOT_IN, unbound.op());
+    Assert.assertEquals("Should create a NOT_IN predicate with a single item",
+        1, unbound.literals().size());
 
     Expression expr = unbound.bind(struct);
     BoundPredicate<Integer> bound = assertAndUnwrap(expr);
@@ -459,11 +457,7 @@ public class TestPredicateBinding {
     Assert.assertEquals("Should not alter literal value",
         Integer.valueOf(5), bound.literal().value());
     Assert.assertEquals("Should reference correct field ID", 14, bound.ref().fieldId());
-    Assert.assertEquals("Should not change the comparison operation", op, bound.op());
-
-    unbound = Expressions.notIn("x", 5, 5);
-    op = unbound.op();
-    Assert.assertEquals("Should create a NOT_EQ predicate instead of NOT_IN", NOT_EQ, op);
+    Assert.assertEquals("Should change the operation from NOT_IN to NOT_EQ", NOT_EQ, bound.op());
   }
 
   @Test

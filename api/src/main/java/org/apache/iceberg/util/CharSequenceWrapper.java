@@ -25,7 +25,7 @@ import org.apache.iceberg.types.Comparators;
 /**
  * Wrapper class to adapt CharSequence for use in maps and sets.
  */
-public class CharSequenceWrapper implements Serializable {
+public class CharSequenceWrapper implements CharSequence, Serializable {
   public static CharSequenceWrapper wrap(CharSequence seq) {
     return new CharSequenceWrapper(seq);
   }
@@ -50,22 +50,36 @@ public class CharSequenceWrapper implements Serializable {
     if (this == other) {
       return true;
     }
-    if (other == null) {
+    if (other == null || getClass() != other.getClass()) {
       return false;
     }
 
-    if (other instanceof CharSequence) {
-      return Comparators.charSequences().compare(wrapped, (CharSequence) other) == 0;
-    } else if (other instanceof CharSequenceWrapper) {
-      CharSequenceWrapper that = (CharSequenceWrapper) other;
-      return Comparators.charSequences().compare(wrapped, that.wrapped) == 0;
-    } else {
-      return false;
-    }
+    CharSequenceWrapper that = (CharSequenceWrapper) other;
+    return Comparators.charSequences().compare(wrapped, that.wrapped) == 0;
   }
 
   @Override
   public int hashCode() {
-    return wrapped.hashCode();
+    int result = 177;
+    for (int i = 0; i < wrapped.length(); i += 1) {
+      char ch = wrapped.charAt(i);
+      result = 31 * result + (int) ch;
+    }
+    return result;
+  }
+
+  @Override
+  public int length() {
+    return wrapped.length();
+  }
+
+  @Override
+  public char charAt(int index) {
+    return wrapped.charAt(index);
+  }
+
+  @Override
+  public CharSequence subSequence(int start, int end) {
+    return wrapped.subSequence(start, end);
   }
 }

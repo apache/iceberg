@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.expressions;
 
+import java.util.Collection;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.expressions.Expression.Operation;
@@ -116,7 +117,7 @@ public class TestExpressionSerialization {
       UnboundPredicate lpred = (UnboundPredicate) left;
       UnboundPredicate rpred = (UnboundPredicate) right;
       if (left.op() == Operation.IN || left.op() == Operation.NOT_IN) {
-        return equals(lpred.literalSet(), rpred.literalSet());
+        return equals(lpred.literals(), rpred.literals());
       }
       return lpred.literal().comparator()
           .compare(lpred.literal().value(), rpred.literal().value()) == 0;
@@ -135,7 +136,7 @@ public class TestExpressionSerialization {
     }
   }
 
-  private static boolean equals(LiteralSet left, LiteralSet right) {
+  private static boolean equals(Collection<Literal<?>> left, Collection<Literal<?>> right) {
     if (left.size() != right.size()) {
       return false;
     }
