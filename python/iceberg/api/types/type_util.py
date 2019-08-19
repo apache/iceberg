@@ -52,9 +52,9 @@ def select(schema, field_ids):
         return schema
     elif result is not None:
         if schema.get_aliases() is not None:
-            return iceberg.api.schema.Schema(result.as_nested_type(), schema.get_aliases())
+            return iceberg.api.schema.Schema(result.as_nested_type().fields, schema.get_aliases())
         else:
-            return iceberg.api.schema.Schema(result.as_nested_type())
+            return iceberg.api.schema.Schema(result.as_nested_type().fields)
 
     return iceberg.api.schema.Schema(list(), schema.get_aliases())
 
@@ -161,6 +161,11 @@ def visit_custom_order(arg, visitor):
                 results.append(VisitFieldFuture(field, visitor))
             struct = visitor.struct(struct, [x.get() for x in results])
             return struct
+        elif type_var.type_id == TypeID.LIST:
+            list_var = type_var.as_nested_type().as_list_type()
+            return visitor.list(list_var, VisitFuture(list_var.element_type, visitor))
+        elif type_var.type_id == TypeID.MAP:
+            raise NotImplementedError()
 
         return visitor.primitive(type_var.as_primitive_type())
 
@@ -172,22 +177,22 @@ class SchemaVisitor(object):
         self.field_ids = list()
 
     def schema(self, schema, struct_result):
-        return NotImplementedError()
+        return None
 
     def struct(self, struct, field_results):
-        return NotImplementedError()
+        return None
 
     def field(self, field, field_result):
-        return NotImplementedError()
+        return None
 
     def list(self, list_var, element_result):
-        return NotImplementedError()
+        return None
 
     def map(self, map_var, key_result, value_result):
-        return NotImplementedError()
+        return None
 
     def primitive(self, primitive_var):
-        return NotImplementedError()
+        return None
 
 
 class CustomOrderSchemaVisitor(object):
@@ -195,22 +200,22 @@ class CustomOrderSchemaVisitor(object):
         super(CustomOrderSchemaVisitor, self).__init__()
 
     def schema(self, schema, struct_result):
-        return NotImplementedError()
+        return None
 
     def struct(self, struct, field_results):
-        return NotImplementedError()
+        return None
 
     def field(self, field, field_result):
-        return NotImplementedError()
+        return None
 
     def list(self, list_var, element_result):
-        return NotImplementedError()
+        return None
 
     def map(self, map_var, key_result, value_result):
-        return NotImplementedError()
+        return None
 
     def primitive(self, primitive_var):
-        return NotImplementedError()
+        return None
 
 
 class VisitFuture(object):
@@ -245,7 +250,7 @@ class GetProjectedIds(SchemaVisitor):
 
     def __init__(self):
         super(GetProjectedIds, self).__init__()
-        self.field_ids = set()
+        self.field_ids = list()
 
     def schema(self, schema, struct_result):
         return self.field_ids
@@ -254,22 +259,22 @@ class GetProjectedIds(SchemaVisitor):
         return self.field_ids
 
     def field(self, field, field_result):
-        if field_result is not None:
-            self.field_ids.add(field.field_id)
+        if field_result is None:
+            self.field_ids.append(field.field_id)
 
         return self.field_ids
 
     def list(self, list_var, element_result):
         if element_result is None:
-            for field in list_var.fields:
-                self.field_ids.add(field.field_id)
+            for field in list_var.fields():
+                self.field_ids.append(field.field_id)
 
         return self.field_ids
 
     def map(self, map_var, key_result, value_result):
         if value_result is None:
-            for field in map_var.fields:
-                self.field_ids.add(field.field_id)
+            for field in map_var.fields():
+                self.field_ids.append(field.field_id)
 
         return self.field_ids
 
@@ -278,7 +283,7 @@ class PruneColumns(SchemaVisitor):
 
     def __init__(self, selected):
         super(PruneColumns, self).__init__()
-        self.selected = selected
+        self.selected = list(selected)
 
     def schema(self, schema, struct_result):
         return struct_result
@@ -288,10 +293,10 @@ class PruneColumns(SchemaVisitor):
         selected_fields = list()
         same_types = True
 
-        for i, field in enumerate(field_results):
-            projected_type = field_results[i]
+        for i, projected_type in enumerate(field_results):
+            field = fields[i]
             if projected_type is not None:
-                if field.type_id == projected_type.type_id:
+                if field.type == projected_type:
                     selected_fields.append(field)
                 elif projected_type is not None:
                     same_types = False
@@ -315,6 +320,9 @@ class PruneColumns(SchemaVisitor):
             return field.type
         elif field_result is not None:
             return field_result
+
+    def primitive(self, primitive_var):
+        return None
 
 
 class IndexByName(SchemaVisitor):
@@ -416,9 +424,9 @@ class AssignFreshIds(CustomOrderSchemaVisitor):
     def list(self, list_var, element_result):
         new_id = self.next_id()
         if list_var.is_element_optional():
-            return ListType.of_optional(new_id, element_result())
+            return ListType.of_optional(new_id, element_result.get())
         else:
-            return ListType.of_required(new_id, element_result())
+            return ListType.of_required(new_id, element_result.get())
 
     def map(self, map_var, key_result, value_result):
         new_key_id = self.next_id()

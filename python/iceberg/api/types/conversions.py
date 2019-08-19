@@ -82,11 +82,10 @@ class Conversions(object):
 
     @staticmethod
     def to_byte_buffer(type_var, value):
-        byte_buf_func = Conversions.to_byte_buff_mapping.get(type_var.type_id)
-        if byte_buf_func is None:
+        try:
+            return Conversions.to_byte_buff_mapping.get(type_var.type_id)(type_var, value)
+        except KeyError:
             raise RuntimeError("Cannot Serialize Type: %s" % type_var)
-
-        return byte_buf_func(type_var, value)
 
     @staticmethod
     def from_byte_buffer(type_var, buffer_var):
@@ -94,8 +93,7 @@ class Conversions(object):
 
     @staticmethod
     def internal_from_byte_buffer(type_var, buffer_var):
-        byte_buf_func = Conversions.from_byte_buff_mapping.get(type_var.type_id)
-        if byte_buf_func is None:
+        try:
+            return Conversions.from_byte_buff_mapping[type_var.type_id](type_var.type_id, buffer_var)
+        except KeyError:
             raise RuntimeError("Cannot Serialize Type: %s" % type_var)
-
-        return byte_buf_func(type_var.type_id, buffer_var)
