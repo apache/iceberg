@@ -19,8 +19,14 @@
 
 package org.apache.iceberg.expressions;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
+import java.io.Serializable;
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.Set;
+import org.apache.iceberg.util.CharSequenceWrapper;
 
 public class BoundSetPredicate<T> extends Predicate<BoundReference<T>> {
   private final LiteralSet<T> literalSet;
@@ -41,22 +47,130 @@ public class BoundSetPredicate<T> extends Predicate<BoundReference<T>> {
 
   @Override
   public Expression negate() {
-    return new BoundSetPredicate<>(op().negate(), ref(), literalSet());
+    return new BoundSetPredicate<>(op().negate(), ref(), literalSet);
   }
 
-  public LiteralSet<T> literalSet() {
+  public Set<T> literalSet() {
     return literalSet;
   }
 
   @Override
-  public String toString() {
-    switch (op()) {
-      case IN:
-        return String.valueOf(ref()) + " in " + literalSet();
-      case NOT_IN:
-        return String.valueOf(ref()) + " not in " + literalSet();
-      default:
-        return "Invalid predicate: operation = " + op();
+  String literalString() {
+    return literalSet.toString();
+  }
+
+  /**
+   * Represents a set of literal values in an IN or NOT_IN predicate
+   * @param <T> The Java type of the value, which can be wrapped by a {@link Literal}
+   */
+  private static class LiteralSet<T> implements Set<T>, Serializable {
+    private final Set<T> values;
+
+    @SuppressWarnings("unchecked")
+    LiteralSet(Set<Literal<T>> lits) {
+      Preconditions.checkArgument(lits == null || lits.size() > 1,
+          "The input literal set must include more than 1 element.");
+      values = ImmutableSet.<T>builder().addAll(
+          lits.stream().map(
+              lit -> {
+                if (lit instanceof Literals.StringLiteral) {
+                  return (T) CharSequenceWrapper.wrap(((Literals.StringLiteral) lit).value());
+                } else {
+                  return lit.value();
+                }
+              }
+          ).iterator()).build();
+    }
+
+    @Override
+    public String toString() {
+      return Joiner.on(", ").join(values);
+    }
+
+    @Override
+    public boolean contains(Object object) {
+      if (object instanceof CharSequence) {
+        return values.contains(CharSequenceWrapper.wrap((CharSequence) object));
+      }
+      return values.contains(object);
+    }
+
+    @Override
+    public int size() {
+      return values.size();
+    }
+
+    @Override
+    public boolean isEmpty() {
+      return values.isEmpty();
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Iterator<T> iterator() {
+      return values.stream().map(
+          val -> {
+            if (val instanceof CharSequenceWrapper) {
+              return (T) ((CharSequenceWrapper) val).get();
+            } else {
+              return val;
+            }
+          }).iterator();
+    }
+
+    @Override
+    public boolean containsAll(Collection<?> c) {
+      throw new UnsupportedOperationException(
+          "LiteralSet currently only supports checking if a single item is contained in it.");
+    }
+
+    @Override
+    public Object[] toArray() {
+      throw new UnsupportedOperationException(
+          "Please use iterator() to visit the elements in the set.");
+    }
+
+    @Override
+    public <X> X[] toArray(X[] a) {
+      throw new UnsupportedOperationException(
+          "Please use iterator() to visit the elements in the set.");
+    }
+
+    @Override
+    public boolean add(T t) {
+      throw new UnsupportedOperationException(
+          "The set is immutable and cannot add an element.");
+    }
+
+    @Override
+    public boolean remove(Object o) {
+      throw new UnsupportedOperationException(
+          "The set is immutable and cannot remove an element.");
+    }
+
+
+    @Override
+    public boolean addAll(Collection<? extends T> c) {
+      throw new UnsupportedOperationException(
+          "The set is immutable and cannot add elements.");
+    }
+
+    @Override
+    public boolean retainAll(Collection<?> c) {
+      throw new UnsupportedOperationException(
+          "The set is immutable and cannot be modified.");
+    }
+
+    @Override
+    public boolean removeAll(Collection<?> c) {
+      throw new UnsupportedOperationException(
+          "The set is immutable and cannot remove elements.");
+    }
+
+    @Override
+    public void clear() {
+      throw new UnsupportedOperationException(
+          "The set is immutable and cannot be modified.");
     }
   }
 }

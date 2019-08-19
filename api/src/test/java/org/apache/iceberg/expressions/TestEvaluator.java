@@ -19,6 +19,9 @@
 
 package org.apache.iceberg.expressions;
 
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.TestHelpers;
@@ -369,9 +372,14 @@ public class TestEvaluator {
 
   @Test
   public void testIn() {
-    Assert.assertEquals(3, in("s", 7, 8, 9).literalSet().size());
-    Assert.assertEquals(3, in("s", 7, 8.1, Long.MAX_VALUE).literalSet().size());
-    Assert.assertEquals(2, in("s", "abc", "abd", "abc").literalSet().size());
+    Assert.assertEquals(3, in("s", 7, 8, 9).literals().size());
+    Assert.assertEquals(3, in("s", 7, 8.1, Long.MAX_VALUE).literals().size());
+    Assert.assertEquals(2, in("s", "abc", "abd", "abc").literals().size());
+    Assert.assertEquals(0, in("s").literals().size());
+    Assert.assertEquals(1, in("s", 5).literals().size());
+    Assert.assertEquals(1, in("s", 5, 5).literals().size());
+    Assert.assertEquals(1, in("s", Arrays.asList(5, 5)).literals().size());
+    Assert.assertEquals(0, in("s", Collections.emptyList()).literals().size());
 
     Evaluator evaluator = new Evaluator(STRUCT, in("x", 7, 8, Long.MAX_VALUE));
     Assert.assertTrue("7 in [7, 8] => true", evaluator.eval(TestHelpers.Row.of(7, 8, null)));
@@ -414,22 +422,22 @@ public class TestEvaluator {
   @Test
   public void testInExceptions() {
     TestHelpers.assertThrows(
-        "Throw exception if value is empty",
-        IllegalArgumentException.class,
-        "Literal set cannot be empty",
-        () -> in("x"));
+        "Throw exception if value is null",
+        NullPointerException.class,
+        "Cannot create expression literal from null",
+        () -> in("x", (Literal) null));
 
     TestHelpers.assertThrows(
         "Throw exception if value is null",
         NullPointerException.class,
         "Values cannot be null for IN predicate",
-        () -> in("x", null));
+        () -> in("x", (Collection<?>) null));
 
     TestHelpers.assertThrows(
-        "Throw exception if calling literalSet() for EQ predicate",
+        "Throw exception if calling literals() for EQ predicate",
         IllegalArgumentException.class,
-        "EQ predicate cannot return a literal set",
-        () -> in("x", 5).literalSet());
+        "EQ predicate cannot return a list of literals",
+        () -> equal("x", 5).literals());
 
     TestHelpers.assertThrows(
         "Throw exception if calling literal() for IN predicate",
@@ -464,9 +472,14 @@ public class TestEvaluator {
 
   @Test
   public void testNotIn() {
-    Assert.assertEquals(3, notIn("s", 7, 8, 9).literalSet().size());
-    Assert.assertEquals(3, notIn("s", 7, 8.1, Long.MAX_VALUE).literalSet().size());
-    Assert.assertEquals(2, notIn("s", "abc", "abd", "abc").literalSet().size());
+    Assert.assertEquals(3, notIn("s", 7, 8, 9).literals().size());
+    Assert.assertEquals(3, notIn("s", 7, 8.1, Long.MAX_VALUE).literals().size());
+    Assert.assertEquals(2, notIn("s", "abc", "abd", "abc").literals().size());
+    Assert.assertEquals(0, notIn("s").literals().size());
+    Assert.assertEquals(1, notIn("s", 5).literals().size());
+    Assert.assertEquals(1, notIn("s", 5, 5).literals().size());
+    Assert.assertEquals(1, notIn("s", Arrays.asList(5, 5)).literals().size());
+    Assert.assertEquals(0, notIn("s", Collections.emptyList()).literals().size());
 
     Evaluator evaluator = new Evaluator(STRUCT, notIn("x", 7, 8, Long.MAX_VALUE));
     Assert.assertFalse("7 not in [7, 8] => false", evaluator.eval(TestHelpers.Row.of(7, 8, null)));
@@ -502,22 +515,22 @@ public class TestEvaluator {
   @Test
   public void testNotInExceptions() {
     TestHelpers.assertThrows(
-        "Throw exception if value is empty",
-        IllegalArgumentException.class,
-        "Literal set cannot be empty",
-        () -> notIn("x"));
+        "Throw exception if value is null",
+        NullPointerException.class,
+        "Cannot create expression literal from null",
+        () -> notIn("x", (Literal) null));
 
     TestHelpers.assertThrows(
         "Throw exception if value is null",
         NullPointerException.class,
         "Values cannot be null for NOT_IN predicate",
-        () -> notIn("x", null));
+        () -> notIn("x", (Collection<?>) null));
 
     TestHelpers.assertThrows(
-        "Throw exception if calling literalSet() for EQ predicate",
+        "Throw exception if calling literals() for EQ predicate",
         IllegalArgumentException.class,
-        "NOT_EQ predicate cannot return a literal set",
-        () -> notIn("x", 5).literalSet());
+        "NOT_EQ predicate cannot return a list of literals",
+        () -> notEqual("x", 5).literals());
 
     TestHelpers.assertThrows(
         "Throw exception if calling literal() for IN predicate",
