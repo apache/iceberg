@@ -23,7 +23,6 @@ import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.Tasks;
@@ -41,16 +40,12 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   private static final String METADATA_FOLDER_NAME = "metadata";
   private static final String DATA_FOLDER_NAME = "data";
 
-  private final FileIO fileIo;
-
   private TableMetadata currentMetadata = null;
   private String currentMetadataLocation = null;
   private boolean shouldRefresh = true;
   private int version = -1;
 
-  protected BaseMetastoreTableOperations(FileIO fileIo) {
-    this.fileIo = fileIo;
-  }
+  protected BaseMetastoreTableOperations() { }
 
   @Override
   public TableMetadata current() {
@@ -74,7 +69,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   protected String writeNewMetadata(TableMetadata metadata, int newVersion) {
     String newTableMetadataFilePath = newTableMetadataFilePath(metadata, newVersion);
-    OutputFile newMetadataLocation = fileIo.newOutputFile(newTableMetadataFilePath);
+    OutputFile newMetadataLocation = io().newOutputFile(newTableMetadataFilePath);
 
     // write the new metadata
     TableMetadataParser.write(metadata, newMetadataLocation);
@@ -125,11 +120,6 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   @Override
   public String metadataFileLocation(String filename) {
     return metadataFileLocation(current(), filename);
-  }
-
-  @Override
-  public FileIO io() {
-    return fileIo;
   }
 
   @Override
