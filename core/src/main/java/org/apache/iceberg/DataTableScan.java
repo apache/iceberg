@@ -44,7 +44,7 @@ public class DataTableScan extends BaseTableScan {
   );
   private static final List<String> SCAN_WITH_STATS_COLUMNS = ImmutableList.<String>builder()
       .addAll(SCAN_COLUMNS)
-      .add("value_counts", "null_value_counts", "lower_bounds", "upper_bounds")
+      .add("value_counts", "null_value_counts", "lower_bounds", "upper_bounds", "column_sizes")
       .build();
   private static final boolean PLAN_SCANS_WITH_WORKER_POOL =
       SystemProperties.getBoolean(SystemProperties.SCAN_THREAD_POOL_ENABLED, true);
