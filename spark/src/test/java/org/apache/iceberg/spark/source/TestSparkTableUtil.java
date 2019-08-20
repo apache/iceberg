@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.source;
 
 import com.google.common.collect.Lists;
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
@@ -31,12 +32,15 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 public class TestSparkTableUtil extends HiveTableBaseTest {
   private static final Configuration CONF = HiveTableBaseTest.hiveConf;
@@ -46,6 +50,9 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
   private static final Path tableLocationPath = HiveTableBaseTest.getTableLocationPath(tableName);
   private static final String tableLocationStr = tableLocationPath.toString();
   private static SparkSession spark = null;
+
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
 
   @BeforeClass
   public static void startSpark() {
@@ -115,5 +122,17 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
   public void testPartitionScanByFilter() {
     Dataset<Row> partitionDF = SparkTableUtil.partitionDFByFilter(spark, qualifiedTableName, "data = 'a'");
     Assert.assertEquals("There should be 1 matching partition", 1, partitionDF.count());
+  }
+
+  @Test
+  public void testMigrateSparkTable() throws Exception {
+    File parent = temp.newFolder("iceberg_warehouse");
+    File location = new File(parent, "test");
+    spark.table(qualifiedTableName).write().mode("overwrite").partitionBy("data").format("parquet")
+            .saveAsTable("test_parquet");
+    TableIdentifier source = spark.sessionState().sqlParser().parseTableIdentifier("test_parquet");
+    SparkTableUtil.importSparkTable(source, location.getCanonicalPath());
+    long count = spark.read().format("iceberg").load(location.toString()).count();
+    Assert.assertEquals("three values ", 3, count);
   }
 }
