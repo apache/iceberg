@@ -102,7 +102,7 @@ public class TestHiveMetastore {
         .transportFactory(new TTransportFactory())
         .protocolFactory(new TBinaryProtocol.Factory())
         .minWorkerThreads(3)
-        .maxWorkerThreads(5);
+        .maxWorkerThreads(8);
 
     return new TThreadPoolServer(args);
   }
@@ -111,7 +111,7 @@ public class TestHiveMetastore {
     HiveConf newHiveConf = new HiveConf(new Configuration(), TestHiveMetastore.class);
     newHiveConf.set(HiveConf.ConfVars.METASTOREURIS.varname, "thrift://localhost:" + port);
     newHiveConf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file:" + hiveLocalDir.getAbsolutePath());
-    newHiveConf.set(HiveConf.ConfVars.METASTORE_TRY_DIRECT_SQL.varname,"false");
+    newHiveConf.set(HiveConf.ConfVars.METASTORE_TRY_DIRECT_SQL.varname, "false");
     return newHiveConf;
   }
 
