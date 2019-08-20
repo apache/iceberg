@@ -104,7 +104,9 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
       return tables.load(path.get());
     } else {
       HiveCatalog hiveCatalog = HiveCatalogs.loadCatalog(conf);
-      TableIdentifier tableIdentifier = TableIdentifier.parse(path.get());
+      TableIdentifier tableIdentifier = path.get().contains(".") ?
+          TableIdentifier.parse(path.get()) :
+          TableIdentifier.of(lazySparkSession().catalog().currentDatabase(), path.get());
       return hiveCatalog.loadTable(tableIdentifier);
     }
   }

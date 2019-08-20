@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import java.io.IOException;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
@@ -50,6 +51,7 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.catalog.CatalogDatabase;
 import org.apache.thrift.TException;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -88,6 +90,12 @@ public class TestIcebergSourceHiveTables {
         .master("local[2]")
         .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
         .getOrCreate();
+    // Also creating a table in Spark's catalog and setting as current database, so that we can
+    // avoid adding namespace when read/write.
+    TestIcebergSourceHiveTables.spark.sessionState().catalog().createDatabase(
+        new CatalogDatabase(DB_NAME, "desc", new URI(dbPath), new scala.collection.immutable.HashMap<>()),
+        true);
+    TestIcebergSourceHiveTables.spark.catalog().setCurrentDatabase(DB_NAME);
   }
 
   @AfterClass
@@ -124,6 +132,15 @@ public class TestIcebergSourceHiveTables {
           .collectAsList();
 
       Assert.assertEquals("Records should match", expectedRecords, actualRecords);
+
+      Dataset<Row> resultDf1 = spark.read()
+          .format("iceberg")
+          .load(TABLE_NAME);
+      List<SimpleRecord> actualRecords1 = resultDf1.orderBy("id")
+          .as(Encoders.bean(SimpleRecord.class))
+          .collectAsList();
+      Assert.assertEquals("Records should match", expectedRecords, actualRecords1);
+
     } finally {
       metastoreClient.dropTable(DB_NAME, TABLE_NAME);
     }
