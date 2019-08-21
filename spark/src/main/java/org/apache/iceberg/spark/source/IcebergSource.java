@@ -43,6 +43,8 @@ import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
 import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter;
 import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.types.StructType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, DataSourceRegister, StreamWriteSupport {
 
@@ -51,6 +53,8 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
 
   private SparkSession lazySpark = null;
   private Configuration lazyConf = null;
+
+  private static final Logger LOG = LoggerFactory.getLogger(IcebergSource.class);
 
   @Override
   public String shortName() {
@@ -74,7 +78,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     int numRecordsPerBatch = numRecordsPerBatchOpt.isPresent() ?
         Integer.parseInt(numRecordsPerBatchOpt.get()) : V1VectorizedReader.DEFAULT_NUM_ROWS_IN_BATCH;
     if (enableV1VectorizedRead) {
-
+      LOG.warn("V1VectorizedReader engaged.");
       return new V1VectorizedReader(table, Boolean.valueOf(caseSensitive), options, conf, numRecordsPerBatch);
     } else {
 
