@@ -57,6 +57,7 @@ import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -74,8 +75,9 @@ public class TestMetricsRowGroupFilter {
       optional(6, "no_nulls", StringType.get()),
       optional(7, "struct_not_null", structFieldType),
       optional(9, "not_in_file", FloatType.get()),
-      optional(10, "map_not_null",
-          Types.MapType.ofRequired(11, 12, StringType.get(), IntegerType.get()))
+      optional(10, "str", StringType.get()),
+      optional(11, "map_not_null",
+          Types.MapType.ofRequired(12, 13, StringType.get(), IntegerType.get()))
   );
 
   private static final Types.StructType _structFieldType =
@@ -88,7 +90,8 @@ public class TestMetricsRowGroupFilter {
       optional(4, "_all_nulls", LongType.get()),
       optional(5, "_some_nulls", StringType.get()),
       optional(6, "_no_nulls", StringType.get()),
-      optional(7, "_struct_not_null", _structFieldType)
+      optional(7, "_struct_not_null", _structFieldType),
+      optional(10, "_str", StringType.get())
   );
 
   private static final String TOO_LONG_FOR_STATS;
@@ -126,6 +129,7 @@ public class TestMetricsRowGroupFilter {
         builder.set("_all_nulls", null); // never non-null
         builder.set("_some_nulls", (i % 10 == 0) ? null : "some"); // includes some null values
         builder.set("_no_nulls", ""); // optional, but always non-null
+        builder.set("_str", i + "str" + i);
 
         Record struct_not_null = new Record(structSchema);
         struct_not_null.put("_int_field", 30 + i);
@@ -620,5 +624,48 @@ public class TestMetricsRowGroupFilter {
     boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("ID", 5), false)
         .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
     Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+  }
+
+  @Test
+  public void testStringStartsWith() {
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, startsWith("no_stats", "a"))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: no stats", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, startsWith("str", "1"))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, startsWith("str", "0st"))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, startsWith("str", "1str1"))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, startsWith("str", "1str1_xgd"))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, startsWith("str", "2str"))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, startsWith("str", "9xstr"))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertFalse("Should not read: range doesn't match", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, startsWith("str", "0S"))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertFalse("Should not read: range doesn't match", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, startsWith("str", "x"))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertFalse("Should not read: range doesn't match", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, startsWith("str", "9str9aaa"))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+    Assert.assertFalse("Should not read: range doesn't match", shouldRead);
   }
 }

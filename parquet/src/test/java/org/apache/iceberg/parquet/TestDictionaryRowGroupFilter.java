@@ -58,6 +58,7 @@ import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -180,6 +181,10 @@ public class TestDictionaryRowGroupFilter {
         NullPointerException.class,
         "Cannot create expression literal from null",
         () -> greaterThanOrEqual("col", null));
+    TestHelpers.assertThrows("Should reject null literal in startsWith expression",
+        NullPointerException.class,
+        "Cannot create expression literal from null",
+        () -> startsWith("col", null));
   }
 
   @Test
@@ -229,6 +234,41 @@ public class TestDictionaryRowGroupFilter {
     shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, isNull("required"))
         .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
     Assert.assertFalse("Should skip: required columns are always non-null", shouldRead);
+  }
+
+  @Test
+  public void testStartsWith() {
+    boolean shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, startsWith("non_dict", "re"))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: no dictionary", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, startsWith("required", "re"))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: dictionary contains a matching entry", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, startsWith("required", "req"))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: dictionary contains a matching entry", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, startsWith("some_nulls", "so"))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertTrue("Should read: dictionary contains a matching entry", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, startsWith("no_stats", UUID.randomUUID().toString()))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertFalse("Should skip: no stats but dictionary is present", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, startsWith("required", "reqs"))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertFalse("Should skip: no match in dictionary", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, startsWith("some_nulls", "somex"))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertFalse("Should skip: no match in dictionary", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, startsWith("no_nulls", "xxx"))
+        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
+    Assert.assertFalse("Should skip: no match in dictionary", shouldRead);
   }
 
   @Test

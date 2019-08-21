@@ -20,12 +20,15 @@
 package org.apache.iceberg.expressions;
 
 import java.nio.ByteBuffer;
+import java.util.Comparator;
 import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.BinaryUtil;
 
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
@@ -270,6 +273,41 @@ public class InclusiveMetricsEvaluator {
 
     @Override
     public <T> Boolean notIn(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
+      Integer id = ref.fieldId();
+
+      if (containsNullsOnly(id)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      ByteBuffer prefixAsBytes = lit.toByteBuffer();
+
+      Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
+
+      if (lowerBounds != null && lowerBounds.containsKey(id)) {
+        ByteBuffer lower = lowerBounds.get(id);
+        // truncate lower bound so that its length in bytes is not greater than the length of prefix
+        int length = Math.min(prefixAsBytes.remaining(), lower.remaining());
+        int cmp = comparator.compare(BinaryUtil.truncateBinary(lower, length), prefixAsBytes);
+        if (cmp > 0) {
+          return ROWS_CANNOT_MATCH;
+        }
+      }
+
+      if (upperBounds != null && upperBounds.containsKey(id)) {
+        ByteBuffer upper = upperBounds.get(id);
+        // truncate upper bound so that its length in bytes is not greater than the length of prefix
+        int length = Math.min(prefixAsBytes.remaining(), upper.remaining());
+        int cmp = comparator.compare(BinaryUtil.truncateBinary(upper, length), prefixAsBytes);
+        if (cmp < 0) {
+          return ROWS_CANNOT_MATCH;
+        }
+      }
+
       return ROWS_MIGHT_MATCH;
     }
 
