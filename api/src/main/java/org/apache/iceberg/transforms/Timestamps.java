@@ -49,12 +49,16 @@ enum Timestamps implements Transform<Long, Integer> {
 
   @Override
   public Integer apply(Long timestampMicros) {
+    if (timestampMicros == null) {
+      return null;
+    }
+
     // discards fractional seconds, not needed for calculation
     OffsetDateTime timestamp = Instant
         .ofEpochSecond(timestampMicros / 1_000_000)
         .atOffset(ZoneOffset.UTC);
-    Integer year = Long.valueOf(granularity.between(EPOCH, timestamp)).intValue();
-    return year;
+
+    return (int) granularity.between(EPOCH, timestamp);
   }
 
   @Override

@@ -48,9 +48,14 @@ enum Dates implements Transform<Integer, Integer> {
 
   @Override
   public Integer apply(Integer days) {
+    if (days == null) {
+      return null;
+    }
+
     if (granularity == ChronoUnit.DAYS) {
       return days;
     }
+
     return (int) granularity.between(EPOCH, EPOCH.plusDays(days));
   }
 
