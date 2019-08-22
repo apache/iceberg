@@ -23,6 +23,8 @@ import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.Tasks;
@@ -125,6 +127,51 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   @Override
   public LocationProvider locationProvider() {
     return LocationProviders.locationsFor(current().location(), current().properties());
+  }
+
+  @Override
+  public TableOperations temp(TableMetadata uncommittedMetadata) {
+    return new TableOperations() {
+      @Override
+      public TableMetadata current() {
+        return uncommittedMetadata;
+      }
+
+      @Override
+      public TableMetadata refresh() {
+        throw new UnsupportedOperationException("Cannot call refresh on temporary table operations");
+      }
+
+      @Override
+      public void commit(TableMetadata base, TableMetadata metadata) {
+        throw new UnsupportedOperationException("Cannot call commit on temporary table operations");
+      }
+
+      @Override
+      public String metadataFileLocation(String fileName) {
+        return BaseMetastoreTableOperations.this.metadataFileLocation(uncommittedMetadata, fileName);
+      }
+
+      @Override
+      public LocationProvider locationProvider() {
+        return LocationProviders.locationsFor(uncommittedMetadata.location(), uncommittedMetadata.properties());
+      }
+
+      @Override
+      public FileIO io() {
+        return BaseMetastoreTableOperations.this.io();
+      }
+
+      @Override
+      public EncryptionManager encryption() {
+        return BaseMetastoreTableOperations.this.encryption();
+      }
+
+      @Override
+      public long newSnapshotId() {
+        return BaseMetastoreTableOperations.this.newSnapshotId();
+      }
+    };
   }
 
   private String newTableMetadataFilePath(TableMetadata meta, int newVersion) {
