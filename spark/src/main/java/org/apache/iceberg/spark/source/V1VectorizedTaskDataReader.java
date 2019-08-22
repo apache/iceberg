@@ -25,6 +25,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import java.io.Closeable;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -238,8 +239,17 @@ class V1VectorizedTaskDataReader implements InputPartitionReader<ColumnarBatch> 
 
     StructType sparkReadSchema = SparkSchemaUtil.convert(readSchema);
 
-    PartitionedFile partitionedFile = new PartitionedFile(InternalRow.empty(),
-        task.file().path().toString(), task.start(), task.length(), null);
+    // Databricks Runtime has        PartitionedFile(InternalRow, String, long, long, Seq[])
+    // while vanilla Spark 2.4.X has PartitionedFile(InternalRow, String, long, long, String[])
+    Class<?> clazz = PartitionedFile.class;
+    Constructor<?> ctor = clazz.getConstructors()[0]; // we know PartitionedFile has only one constructor
+    PartitionedFile partitionedFile;
+    try {
+      partitionedFile = (PartitionedFile)
+          ctor.newInstance(InternalRow.empty(), task.file().path().toString(), task.start(), task.length(), null);
+    } catch (Throwable t) {
+      throw new RuntimeException("Could not instantiate PartitionedFile", t);
+    }
 
     // Set Vectorization Config
     LOG.info("=> Set numRecordsPerBatch = {}", numRecordsPerBatch);
