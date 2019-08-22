@@ -29,6 +29,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.avro.generic.GenericData;
@@ -53,6 +54,9 @@ import org.junit.Test;
 import static org.apache.iceberg.BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE;
 import static org.apache.iceberg.BaseMetastoreTableOperations.METADATA_LOCATION_PROP;
 import static org.apache.iceberg.BaseMetastoreTableOperations.TABLE_TYPE_PROP;
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 
 public class HiveTableTest extends HiveTableBaseTest {
   @Test
@@ -222,5 +226,33 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     icebergTable.refresh();
     Assert.assertEquals(20, icebergTable.currentSnapshot().manifests().size());
+  }
+
+  @Test
+  public void testConcurrentConnections() throws InterruptedException {
+    Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
+
+    icebergTable.updateProperties()
+        .set(COMMIT_NUM_RETRIES, "20")
+        .set(COMMIT_MIN_RETRY_WAIT_MS, "25")
+        .set(COMMIT_MAX_RETRY_WAIT_MS, "25")
+        .commit();
+
+    String fileName = UUID.randomUUID().toString();
+    DataFile file = DataFiles.builder(icebergTable.spec())
+        .withPath(FileFormat.PARQUET.addExtension(fileName))
+        .withRecordCount(2)
+        .withFileSizeInBytes(0)
+        .build();
+
+    ExecutorService executorService = MoreExecutors.getExitingExecutorService(
+        (ThreadPoolExecutor) Executors.newFixedThreadPool(10));
+
+    for (int i = 0; i < 10; i++) {
+      executorService.submit(() -> icebergTable.newAppend().appendFile(file).commit());
+    }
+
+    executorService.shutdown();
+    Assert.assertTrue("Timeout", executorService.awaitTermination(1, TimeUnit.MINUTES));
   }
 }

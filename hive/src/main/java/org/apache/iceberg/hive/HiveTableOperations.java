@@ -249,6 +249,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     while (state.equals(LockState.WAITING)) {
       lockResponse = metaClients.run(client -> client.checkLock(lockId));
       state = lockResponse.getState();
+      Thread.sleep(50);
     }
 
     if (!state.equals(LockState.ACQUIRED)) {
