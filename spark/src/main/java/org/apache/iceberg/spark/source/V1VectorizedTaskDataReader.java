@@ -50,7 +50,6 @@ import org.apache.iceberg.spark.data.SparkAvroReader;
 import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.SparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Attribute;
@@ -83,6 +82,7 @@ class V1VectorizedTaskDataReader implements InputPartitionReader<ColumnarBatch> 
   private final Map<String, InputFile> inputFiles;
   private final boolean caseSensitive;
   private final Integer numRecordsPerBatch;
+  private final String sparkMaster;
 
   private Iterator<ColumnarBatch> currentIterator = null;
   private Closeable currentCloseable = null;
@@ -93,7 +93,7 @@ class V1VectorizedTaskDataReader implements InputPartitionReader<ColumnarBatch> 
   V1VectorizedTaskDataReader(
       CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
       EncryptionManager encryptionManager, boolean caseSensitive, int numRecordsPerBatch,
-      Configuration hadoopConf, Filter[] filters) {
+      Configuration hadoopConf, Filter[] filters, String sparkMaster) {
     this.fileIo = fileIo;
     this.tasks = task.files().iterator();
     this.tableSchema = tableSchema;
@@ -111,6 +111,7 @@ class V1VectorizedTaskDataReader implements InputPartitionReader<ColumnarBatch> 
     this.caseSensitive = caseSensitive;
     this.hadoopConf = hadoopConf;
     this.numRecordsPerBatch = numRecordsPerBatch;
+    this.sparkMaster = sparkMaster;
 
     // open after initializing everything
     this.currentIterator = open(tasks.next());
@@ -257,7 +258,9 @@ class V1VectorizedTaskDataReader implements InputPartitionReader<ColumnarBatch> 
     this.hadoopConf.set(SQLConf.PARQUET_VECTORIZED_READER_BATCH_SIZE().key(),
         Integer.toString(this.numRecordsPerBatch));
 
-    SparkSession localSparkSession = new SparkSession(SparkContext.getOrCreate());
+    // SparkSession localSparkSession = new SparkSession(SparkContext.getOrCreate());
+    LOG.warn("=> Got Spark Master {}", this.sparkMaster);
+    SparkSession localSparkSession = SparkSession.builder().master(this.sparkMaster).getOrCreate();
     localSparkSession.sessionState().conf().setConfString(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "true");
     localSparkSession.sessionState().conf().setConfString(SQLConf.PARQUET_VECTORIZED_READER_BATCH_SIZE().key(),
         Integer.toString(this.numRecordsPerBatch));
