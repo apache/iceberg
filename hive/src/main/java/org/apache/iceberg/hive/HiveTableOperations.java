@@ -92,7 +92,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       String tableType = table.getParameters().get(TABLE_TYPE_PROP);
 
       if (tableType == null || !tableType.equalsIgnoreCase(ICEBERG_TABLE_TYPE_VALUE)) {
-        throw new IllegalArgumentException(String.format("Invalid tableName, not Iceberg: %s.%s", database, table));
+        throw new IllegalArgumentException(String.format("Type of %s.%s is %s, not %s",
+            database, tableName,
+            tableType /* actual type */, ICEBERG_TABLE_TYPE_VALUE /* expected type */));
       }
 
       metadataLocation = table.getParameters().get(METADATA_LOCATION_PROP);
