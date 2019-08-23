@@ -108,7 +108,9 @@ class Schema(object):
 
     def find_column_name(self, id):
         if isinstance(id, int):
-            return self._id_to_name.get(id)
+            field = self.lazy_id_to_field().get(id)
+
+            return None if field is None else field.name
 
     def alias_to_id(self, alias):
         if self._alias_to_id:
@@ -142,8 +144,11 @@ class Schema(object):
 
         return select(self, selected)
 
+    def __len__(self):
+        return len(self.struct.fields)
+
     def __repr__(self):
-        return "Schema(%s)" % self.struct.fields
+        return "Schema(%s)" % ",".join([str(field) for field in self.struct.fields])
 
     def __str__(self):
         return "table {\n%s\n}" % Schema.NEWLINE.join([" " + str(field) for field in self.struct.fields])

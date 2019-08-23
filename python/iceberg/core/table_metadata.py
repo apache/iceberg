@@ -28,22 +28,24 @@ class TableMetadata(object):
     TABLE_FORMAT_VERSION = 1
 
     @staticmethod
-    def new_table_metadata(ops, schema, spec, location):
+    def new_table_metadata(ops, schema, spec, location, properties=None):
         last_column_id = AtomicInteger(0)
         fresh_schema = assign_fresh_ids(schema, last_column_id.increment_and_get)
 
         spec_builder = PartitionSpec.builder_for(fresh_schema)
         for field in spec.fields:
             src_name = schema.find_column_name(field.source_id)
-            spec_builder.add(fresh_schema.find_field(src_name),
-                             field,
-                             str(field.fransform()))
+            spec_builder.add(fresh_schema.find_field(src_name).field_id,
+                             field.name,
+                             str(field.transform))
 
         fresh_spec = spec_builder.build()
+        properties = properties if properties is not None else dict()
+
         return TableMetadata(ops, None, location,
                              int(time.time() * 1000),
                              last_column_id.get(), fresh_schema, TableMetadata.INITIAL_SPEC_ID, [fresh_spec],
-                             dict(), -1, list(), list())
+                             properties, -1, list(), list())
 
     def __init__(self, ops, file, location, last_updated_millis,
                  last_column_id, schema, default_spec_id, specs, properties,
@@ -57,6 +59,7 @@ class TableMetadata(object):
         self.default_spec_id = default_spec_id
         self.specs = specs
         self.properties = properties
+        self.properties["provider"] = "ICEBERG"
         self.current_snapshot_id = current_snapshot_id
         self.snapshots = snapshots
         self.snapshot_log = snapshot_log
@@ -111,6 +114,20 @@ class TableMetadata(object):
         return TableMetadata(self.ops, None, self.location,
                              int(time.time() * 1000), self.last_column_id, self.schema, self.spec, self.properties,
                              self.current_snapshot_id, new_snapshots, new_snapshot_log)
+
+    def add_staged_snapshot(self, snapshot):
+        self.snapshots.append(snapshot)
+        return TableMetadata(self.ops, None, self.location, snapshot.timestamp_millis,
+                             self.last_column_id, self.schema, self.default_spec_id, self.specs,
+                             self.current_snapshot_id, self.snapshots, self.snapshot_log)
+
+    def replace_current_snapshot(self, snapshot):
+        self.snapshots.append(snapshot)
+        self.snapshot_log.append(SnapshotLogEntry(snapshot.timestamp_millis, snapshot.snapshot_id))
+
+        return TableMetadata(self.ops, None, self.location, snapshot.timestamp_millis,
+                             self.last_column_id, self.schema, self.default_spec_id, self.specs,
+                             self.current_snapshot_id, self.snapshots, self.snapshot_log)
 
     def remove_snapshots_if(self, remove_if):
         filtered = list()

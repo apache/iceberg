@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+
 class AvroSchemaUtil(object):
     FIELD_ID_PROP = "field-id"
     KEY_ID_PROP = "key-id"

@@ -17,7 +17,7 @@
 
 import random
 
-from iceberg.core.util.bin_packing import PackingIterator
+from iceberg.core.util import PackingIterator
 import pytest
 
 

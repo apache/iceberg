@@ -23,21 +23,27 @@ class GenericPartitionFieldSummary(PartitionFieldSummary, StructLike):
 
     AVRO_SCHEMA = None  # IcebergToAvro.type_to_schema(PartitionFieldSummary.get_type())
 
-    def __init__(self, avro_schema=None, contains_null=False, lower_bound=None, upper_bound=None):
+    def __init__(self, avro_schema=None, contains_null=False, lower_bound=None, upper_bound=None, copy=None):
+        if copy is not None:
+            avro_schema = copy.avro_schema
+            contains_null = copy.contains_null()
+            lower_bound = copy.lower_bound()
+            upper_bound = copy.upper_bound()
+
         if avro_schema is None:
             avro_schema = GenericPartitionFieldSummary.AVRO_SCHEMA
 
         self.avro_schema = avro_schema
-        self.contains_null = contains_null
-        self.lower_bound = lower_bound
-        self.upper_bound = upper_bound
+        self._contains_null = contains_null
+        self._lower_bound = lower_bound
+        self._upper_bound = upper_bound
 
     def __str__(self):
-        return ("GenericPartitionFieldSummary(contains_null={},lower_bound={}, upper_bound={}"
-                .format(self.contains_null, self.lower_bound, self.upper_bound))
+        return ("GenericPartitionFieldSummary(contains_null={},lower_bound={}, upper_bound={})"
+                .format(self.contains_null(), self.lower_bound(), self.upper_bound()))
 
     def contains_null(self):
-        raise NotImplementedError()
+        return self._contains_null
 
     def get(self, pos):
         raise NotImplementedError()
@@ -46,10 +52,10 @@ class GenericPartitionFieldSummary(PartitionFieldSummary, StructLike):
         raise NotImplementedError()
 
     def lower_bound(self):
-        raise NotImplementedError()
+        return self._lower_bound
 
     def upper_bound(self):
-        raise NotImplementedError()
+        return self._upper_bound
 
     def copy(self):
-        raise NotImplementedError()
+        return GenericPartitionFieldSummary(copy=self)

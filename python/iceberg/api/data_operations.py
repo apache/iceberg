@@ -15,20 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from .partition_spec import PartitionSpec
 
-
-class Tables(object):
-
-    def create(self, schema, table_identifier=None, spec=None, properties=None):
-        raise NotImplementedError()
-
-    def load(self, table_identifier):
-        raise NotImplementedError()
-
-    @staticmethod
-    def default_args(spec=None, properties=None):
-        spec = spec if spec is not None else PartitionSpec.unpartitioned()
-        properties = properties if properties is not None else dict()
-
-        return spec, properties
+class DataOperations(object):
+    APPEND = "append"
+    REPLACE = "replace"
+    OVERWRITE = "overwrite"
+    DELETE = "delete"

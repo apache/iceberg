@@ -15,20 +15,23 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from .partition_spec import PartitionSpec
+from copy import deepcopy
+
+from iceberg.api import CombinedScanTask
 
 
-class Tables(object):
+class BaseCombinedScanTask(CombinedScanTask):
 
-    def create(self, schema, table_identifier=None, spec=None, properties=None):
-        raise NotImplementedError()
+    def __init__(self, tasks):
+        self.tasks = deepcopy(tasks)
 
-    def load(self, table_identifier):
-        raise NotImplementedError()
+    @property
+    def files(self):
+        return self.tasks
 
-    @staticmethod
-    def default_args(spec=None, properties=None):
-        spec = spec if spec is not None else PartitionSpec.unpartitioned()
-        properties = properties if properties is not None else dict()
+    def __repr__(self):
+        return "BaseCombinedScanTask([{}])".format(self.tasks)
 
-        return spec, properties
+    def __str__(self):
+        total_size = sum([task.length for task in self.tasks])
+        return "BaseCombinedScanTask(num_tasks={}, total_size={})".format(len(self.tasks), total_size)

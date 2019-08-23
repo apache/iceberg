@@ -396,7 +396,7 @@ class DecimalType(PrimitiveType):
         elif other is None or not isinstance(other, DecimalType):
             return False
 
-        return self.precision == other.precison and self.scale == other.scale
+        return self.precision == other.precision and self.scale == other.scale
 
     def __ne__(self, other):
         return not self.__eq__(other)

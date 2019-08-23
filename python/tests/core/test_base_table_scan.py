@@ -15,35 +15,24 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from iceberg.api import Schema
+from iceberg.api.types import IntegerType, NestedField
 
-class Snapshot(object):
 
-    @property
-    def snapshot_id(self):
-        raise NotImplementedError()
+def test_table_scan_honors_select(ts_table):
+    scan = ts_table.new_scan().select(["id"])
 
-    @property
-    def parent_id(self):
-        raise NotImplementedError()
+    expected_schema = Schema([NestedField.required(1, "id", IntegerType.get())])
 
-    @property
-    def timestamp_millis(self):
-        raise NotImplementedError()
+    assert scan.schema.as_struct() == expected_schema.as_struct()
 
-    @property
-    def manifests(self):
-        raise NotImplementedError()
 
-    @property
-    def summary(self):
-        raise NotImplementedError()
+def test_table_scan_honors_select_without_case_sensitivity(ts_table):
+    scan1 = ts_table.new_scan().case_sensitive(False).select(["ID"])
+    # order of refinements shouldn't matter
+    scan2 = ts_table.new_scan().select(["ID"]).case_sensitive(False)
 
-    @property
-    def operation(self):
-        raise NotImplementedError()
+    expected_schema = Schema([NestedField.required(1, "id", IntegerType.get())])
 
-    def added_files(self):
-        raise NotImplementedError()
-
-    def deleted_files(self):
-        raise NotImplementedError()
+    assert scan1.schema.as_struct() == expected_schema.as_struct()
+    assert scan2.schema.as_struct() == expected_schema.as_struct()
