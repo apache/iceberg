@@ -40,11 +40,13 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.BinPacking.ListPacker;
 import org.apache.iceberg.util.CharSequenceWrapper;
+import org.apache.iceberg.util.ManifestFileUtil;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -85,8 +87,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final List<DataFile> newFiles = Lists.newArrayList();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final Set<CharSequenceWrapper> deletePaths = Sets.newHashSet();
+  private final Set<StructLikeWrapper> deleteFilePartitions = Sets.newHashSet();
   private final Set<StructLikeWrapper> dropPartitions = Sets.newHashSet();
   private Expression deleteExpression = Expressions.alwaysFalse();
+  private boolean hasPathOnlyDeletes = false;
   private boolean failAnyDelete = false;
   private boolean failMissingDeletePaths = false;
 
@@ -165,9 +169,20 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   /**
    * Add a specific path to be deleted in the new snapshot.
    */
+  protected void delete(DataFile file) {
+    Preconditions.checkNotNull(file, "Cannot delete file: null");
+    this.filterUpdated = true;
+    deletePaths.add(CharSequenceWrapper.wrap(file.path()));
+    deleteFilePartitions.add(StructLikeWrapper.wrap(file.partition()));
+  }
+
+  /**
+   * Add a specific path to be deleted in the new snapshot.
+   */
   protected void delete(CharSequence path) {
     Preconditions.checkNotNull(path, "Cannot delete file path: null");
     this.filterUpdated = true;
+    this.hasPathOnlyDeletes = true;
     deletePaths.add(CharSequenceWrapper.wrap(path));
   }
 
@@ -281,6 +296,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       Map<Integer, List<ManifestFile>> groups,
       Set<CharSequenceWrapper> deletedFiles, Iterable<ManifestFile> filtered) {
     for (ManifestFile manifest : filtered) {
+      // only keep manifests that have live data files or that were written by this commit
+      boolean hasLiveDataFiles = manifest.hasAddedFiles() || manifest.hasExistingFiles();
+      boolean isNewManifest = manifest.snapshotId() == snapshotId();
+      if (!hasLiveDataFiles && !isNewManifest) {
+        continue;
+      }
+
       PartitionSpec manifestSpec = ops.current().spec(manifest.partitionSpecId());
       Iterable<DataFile> manifestDeletes = filteredManifestToDeletedFiles.get(manifest);
       if (manifestDeletes != null) {
@@ -358,22 +380,54 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     cleanUncommittedAppends(committed);
   }
 
-  private boolean nothingToFilter() {
-    return (deleteExpression == null || deleteExpression == Expressions.alwaysFalse()) &&
-        deletePaths.isEmpty() && dropPartitions.isEmpty();
+  private boolean canContainDeletedFiles(ManifestFile manifest) {
+    boolean canContainExpressionDeletes;
+    if (deleteExpression != null && deleteExpression != Expressions.alwaysFalse()) {
+      ManifestEvaluator manifestEvaluator =
+          ManifestEvaluator.forRowFilter(deleteExpression, ops.current().spec(), true);
+      canContainExpressionDeletes = manifestEvaluator.eval(manifest);
+    } else {
+      canContainExpressionDeletes = false;
+    }
+
+    boolean canContainDroppedPartitions;
+    if (dropPartitions.size() > 0) {
+      canContainDroppedPartitions = ManifestFileUtil.canContainAny(
+          manifest,
+          Iterables.transform(dropPartitions, StructLikeWrapper::get),
+          specId -> ops.current().spec(specId));
+    } else {
+      canContainDroppedPartitions = false;
+    }
+
+    boolean canContainDroppedFiles;
+    if (hasPathOnlyDeletes) {
+      canContainDroppedFiles = true;
+    } else if (deletePaths.size() > 0) {
+      // because there were no path-only deletes, the set of deleted file partitions is valid
+      canContainDroppedFiles = ManifestFileUtil.canContainAny(
+          manifest,
+          Iterables.transform(deleteFilePartitions, StructLikeWrapper::get),
+          specId -> ops.current().spec(specId));
+    } else {
+      canContainDroppedFiles = false;
+    }
+
+    return canContainExpressionDeletes || canContainDroppedPartitions || canContainDroppedFiles;
   }
 
   /**
    * @return a ManifestReader that is a filtered version of the input manifest.
    */
   private ManifestFile filterManifest(StrictMetricsEvaluator metricsEvaluator,
-                                        ManifestFile manifest) throws IOException {
+                                      ManifestFile manifest) throws IOException {
     ManifestFile cached = filteredManifests.get(manifest);
     if (cached != null) {
       return cached;
     }
 
-    if (nothingToFilter()) {
+    boolean hasLiveFiles = manifest.hasAddedFiles() || manifest.hasExistingFiles();
+    if (!hasLiveFiles || !canContainDeletedFiles(manifest)) {
       filteredManifests.put(manifest, manifest);
       return manifest;
     }

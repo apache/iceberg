@@ -42,6 +42,10 @@ public class StructLikeWrapper {
     return this;
   }
 
+  public StructLike get() {
+    return struct;
+  }
+
   @Override
   public boolean equals(Object other) {
     if (this == other) {
