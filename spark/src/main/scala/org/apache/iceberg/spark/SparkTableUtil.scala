@@ -26,7 +26,8 @@ import java.util
 import java.util.UUID
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{Path, PathFilter}
-import org.apache.iceberg._
+import org.apache.iceberg.{DataFile, DataFiles, FileFormat, ManifestFile, ManifestWriter, Metrics,
+  MetricsConfig, PartitionSpec, Table}
 import org.apache.iceberg.exceptions.NoSuchTableException
 import org.apache.iceberg.hadoop.{HadoopInputFile, HadoopTables}
 import org.apache.iceberg.orc.OrcMetrics
@@ -303,13 +304,13 @@ object SparkTableUtil {
   }
 
   private def buildManifest(table: Table,
-                    sparkDataFiles: Seq[SparkDataFile],
-                    partitionSpec: PartitionSpec): ManifestFile = {
+      sparkDataFiles: Seq[SparkDataFile],
+      partitionSpec: PartitionSpec): ManifestFile = {
     val outputFile = table.io
       .newOutputFile(FileFormat.AVRO.addExtension("/tmp/" + UUID.randomUUID.toString))
     val writer = ManifestWriter.write(partitionSpec, outputFile)
     try {
-      for (file <- sparkDataFiles) {
+      sparkDataFiles.foreach { file =>
         writer.add(file.toDataFile(partitionSpec))
       }
     } finally {
