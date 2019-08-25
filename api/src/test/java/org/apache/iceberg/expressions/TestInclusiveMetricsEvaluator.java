@@ -79,6 +79,21 @@ public class TestInclusiveMetricsEvaluator {
     boolean shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notNull("all_nulls")).eval(FILE);
     Assert.assertFalse("Should skip: no non-null value in all null column", shouldRead);
 
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, lessThan("all_nulls", "a")).eval(FILE);
+    Assert.assertFalse("Should skip: lessThan on all null column", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, lessThanOrEqual("all_nulls", "a")).eval(FILE);
+    Assert.assertFalse("Should skip: lessThanOrEqual on all null column", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, greaterThan("all_nulls", "a")).eval(FILE);
+    Assert.assertFalse("Should skip: greaterThan on all null column", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, greaterThanOrEqual("all_nulls", "a")).eval(FILE);
+    Assert.assertFalse("Should skip: greaterThanOrEqual on all null column", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, equal("all_nulls", "a")).eval(FILE);
+    Assert.assertFalse("Should skip: equal on all null column", shouldRead);
+
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notNull("some_nulls")).eval(FILE);
     Assert.assertTrue("Should read: column with some nulls contains a non-null value", shouldRead);
 

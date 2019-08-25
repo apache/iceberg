@@ -126,9 +126,7 @@ public class StrictMetricsEvaluator {
       Preconditions.checkNotNull(struct.field(id),
           "Cannot filter by nested column: %s", schema.findField(id));
 
-      if (valueCounts != null && valueCounts.containsKey(id) &&
-          nullCounts != null && nullCounts.containsKey(id) &&
-          valueCounts.get(id) - nullCounts.get(id) == 0) {
+      if (containsNullsOnly(id)) {
         return ROWS_MUST_MATCH;
       }
 
@@ -157,6 +155,10 @@ public class StrictMetricsEvaluator {
       Types.NestedField field = struct.field(id);
       Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
+      if (canContainNulls(id)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
       if (upperBounds != null && upperBounds.containsKey(id)) {
         T upper = Conversions.fromByteBuffer(field.type(), upperBounds.get(id));
 
@@ -175,6 +177,10 @@ public class StrictMetricsEvaluator {
       Integer id = ref.fieldId();
       Types.NestedField field = struct.field(id);
       Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
+
+      if (canContainNulls(id)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
 
       if (upperBounds != null && upperBounds.containsKey(id)) {
         T upper = Conversions.fromByteBuffer(field.type(), upperBounds.get(id));
@@ -195,6 +201,10 @@ public class StrictMetricsEvaluator {
       Types.NestedField field = struct.field(id);
       Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
+      if (canContainNulls(id)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(field.type(), lowerBounds.get(id));
 
@@ -214,6 +224,10 @@ public class StrictMetricsEvaluator {
       Types.NestedField field = struct.field(id);
       Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
+      if (canContainNulls(id)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(field.type(), lowerBounds.get(id));
 
@@ -232,6 +246,10 @@ public class StrictMetricsEvaluator {
       Integer id = ref.fieldId();
       Types.NestedField field = struct.field(id);
       Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
+
+      if (canContainNulls(id)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
 
       if (lowerBounds != null && lowerBounds.containsKey(id) &&
           upperBounds != null && upperBounds.containsKey(id)) {
@@ -262,6 +280,10 @@ public class StrictMetricsEvaluator {
       Types.NestedField field = struct.field(id);
       Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
+      if (containsNullsOnly(id)) {
+        return ROWS_MUST_MATCH;
+      }
+
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(struct.field(id).type(), lowerBounds.get(id));
 
@@ -291,6 +313,16 @@ public class StrictMetricsEvaluator {
     @Override
     public <T> Boolean notIn(BoundReference<T> ref, Literal<T> lit) {
       return ROWS_MIGHT_NOT_MATCH;
+    }
+
+    private boolean canContainNulls(Integer id) {
+      return nullCounts == null || nullCounts.containsKey(id) && nullCounts.get(id) > 0;
+    }
+
+    private boolean containsNullsOnly(Integer id) {
+      return valueCounts != null && valueCounts.containsKey(id) &&
+          nullCounts != null && nullCounts.containsKey(id) &&
+          valueCounts.get(id) - nullCounts.get(id) == 0;
     }
   }
 }

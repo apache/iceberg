@@ -140,9 +140,7 @@ public class InclusiveMetricsEvaluator {
       // if the column has no non-null values, the expression cannot match
       Integer id = ref.fieldId();
 
-      if (valueCounts != null && valueCounts.containsKey(id) &&
-          nullCounts != null && nullCounts.containsKey(id) &&
-          valueCounts.get(id) - nullCounts.get(id) == 0) {
+      if (containsNullsOnly(id)) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -152,6 +150,10 @@ public class InclusiveMetricsEvaluator {
     @Override
     public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
+
+      if (containsNullsOnly(id)) {
+        return ROWS_CANNOT_MATCH;
+      }
 
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
@@ -169,6 +171,10 @@ public class InclusiveMetricsEvaluator {
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
 
+      if (containsNullsOnly(id)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
 
@@ -184,6 +190,10 @@ public class InclusiveMetricsEvaluator {
     @Override
     public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
+
+      if (containsNullsOnly(id)) {
+        return ROWS_CANNOT_MATCH;
+      }
 
       if (upperBounds != null && upperBounds.containsKey(id)) {
         T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
@@ -201,6 +211,10 @@ public class InclusiveMetricsEvaluator {
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
 
+      if (containsNullsOnly(id)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
       if (upperBounds != null && upperBounds.containsKey(id)) {
         T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
 
@@ -216,6 +230,10 @@ public class InclusiveMetricsEvaluator {
     @Override
     public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
+
+      if (containsNullsOnly(id)) {
+        return ROWS_CANNOT_MATCH;
+      }
 
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
@@ -253,6 +271,12 @@ public class InclusiveMetricsEvaluator {
     @Override
     public <T> Boolean notIn(BoundReference<T> ref, Literal<T> lit) {
       return ROWS_MIGHT_MATCH;
+    }
+
+    private boolean containsNullsOnly(Integer id) {
+      return valueCounts != null && valueCounts.containsKey(id) &&
+          nullCounts != null && nullCounts.containsKey(id) &&
+          valueCounts.get(id) - nullCounts.get(id) == 0;
     }
   }
 }
