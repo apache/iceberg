@@ -102,4 +102,14 @@ public interface Literal<T> extends Serializable {
    * @return a comparator for T objects
    */
   Comparator<T> comparator();
+
+  /**
+   * Serializes the value wrapped by this literal to binary using the single-value serialization
+   * format described in the Iceberg table specification.
+   *
+   * @return a ByteBuffer that contains the serialized literal value.
+   */
+  default ByteBuffer toByteBuffer() {
+    throw new UnsupportedOperationException("toByteBuffer is not supported");
+  }
 }

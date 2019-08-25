@@ -78,11 +78,15 @@ public class Conversions {
       ThreadLocal.withInitial(StandardCharsets.UTF_8::newDecoder);
 
   public static ByteBuffer toByteBuffer(Type type, Object value) {
+    return toByteBuffer(type.typeId(), value);
+  }
+
+  public static ByteBuffer toByteBuffer(Type.TypeID typeId, Object value) {
     if (value == null) {
       return null;
     }
 
-    switch (type.typeId()) {
+    switch (typeId) {
       case BOOLEAN:
         return ByteBuffer.allocate(1).put(0, (Boolean) value ? (byte) 0x01 : (byte) 0x00);
       case INTEGER:
@@ -114,7 +118,7 @@ public class Conversions {
       case DECIMAL:
         return ByteBuffer.wrap(((BigDecimal) value).unscaledValue().toByteArray());
       default:
-        throw new UnsupportedOperationException("Cannot serialize type: " + type);
+        throw new UnsupportedOperationException("Cannot serialize type: " + typeId);
     }
   }
 
