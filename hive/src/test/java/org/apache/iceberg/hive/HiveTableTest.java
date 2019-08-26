@@ -39,6 +39,8 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -116,7 +118,7 @@ public class HiveTableTest extends HiveTableBaseTest {
   }
 
   @Test
-  public void testDropLeavesTableData() throws IOException {
+  public void testDropWithoutPurgeLeavesTableData() throws IOException {
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
 
     GenericRecordBuilder recordBuilder = new GenericRecordBuilder(AvroSchemaUtil.convert(schema, "test"));
@@ -146,13 +148,85 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     String manifestListLocation = table.currentSnapshot().manifestListLocation().replace("file:", "");
 
-    Assert.assertTrue("Drop should return true and drop the table", catalog.dropTable(TABLE_IDENTIFIER));
+    Assert.assertTrue("Drop should return true and drop the table",
+        catalog.dropTable(TABLE_IDENTIFIER, false /* do not delete underlying files */));
     Assert.assertFalse("Table should not exist", catalog.tableExists(TABLE_IDENTIFIER));
 
     Assert.assertTrue("Table data files should exist",
         new File(fileLocation).exists());
     Assert.assertTrue("Table metadata files should exist",
         new File(manifestListLocation).exists());
+  }
+
+  @Test
+  public void testDropTable() throws IOException {
+    Table table = catalog.loadTable(TABLE_IDENTIFIER);
+
+    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(AvroSchemaUtil.convert(schema, "test"));
+    List<GenericData.Record> records = Lists.newArrayList(
+        recordBuilder.set("id", 1L).build(),
+        recordBuilder.set("id", 2L).build(),
+        recordBuilder.set("id", 3L).build()
+    );
+
+    String location1 = table.location().replace("file:", "") + "/data/file1.avro";
+    try (FileAppender<GenericData.Record> writer = Avro.write(Files.localOutput(location1))
+        .schema(schema)
+        .named("test")
+        .build()) {
+      for (GenericData.Record rec : records) {
+        writer.add(rec);
+      }
+    }
+
+    String location2 = table.location().replace("file:", "") + "/data/file2.avro";
+    try (FileAppender<GenericData.Record> writer = Avro.write(Files.localOutput(location2))
+        .schema(schema)
+        .named("test")
+        .build()) {
+      for (GenericData.Record rec : records) {
+        writer.add(rec);
+      }
+    }
+
+    DataFile file1 = DataFiles.builder(table.spec())
+        .withRecordCount(3)
+        .withPath(location1)
+        .withFileSizeInBytes(Files.localInput(location2).getLength())
+        .build();
+
+    DataFile file2 = DataFiles.builder(table.spec())
+        .withRecordCount(3)
+        .withPath(location2)
+        .withFileSizeInBytes(Files.localInput(location1).getLength())
+        .build();
+
+    // add both data files
+    table.newAppend().appendFile(file1).appendFile(file2).commit();
+
+    // delete file2
+    table.newDelete().deleteFile(file2.path()).commit();
+
+    String manifestListLocation = table.currentSnapshot().manifestListLocation().replace("file:", "");
+
+    List<ManifestFile> manifests = table.currentSnapshot().manifests();
+
+    Assert.assertTrue("Drop (table and data) should return true and drop the table",
+        catalog.dropTable(TABLE_IDENTIFIER));
+    Assert.assertFalse("Table should not exist", catalog.tableExists(TABLE_IDENTIFIER));
+
+    Assert.assertFalse("Table data files should not exist",
+        new File(location1).exists());
+    Assert.assertFalse("Table data files should not exist",
+        new File(location2).exists());
+    Assert.assertFalse("Table manifest list files should not exist",
+        new File(manifestListLocation).exists());
+    for (ManifestFile manifest : manifests) {
+      Assert.assertFalse("Table manifest files should not exist",
+          new File(manifest.path().replace("file:", "")).exists());
+    }
+    Assert.assertFalse("Table metadata file should not exist",
+        new File(((HasTableOperations) table).operations().current().file().location().replace("file:", "")).exists());
   }
 
   @Test

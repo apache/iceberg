@@ -113,12 +113,25 @@ public interface Catalog {
   }
 
   /**
-   * Drop a table.
+   * Drop a table and delete all data and metadata files.
    *
    * @param identifier a table identifier
    * @return true if the table was dropped, false if the table did not exist
    */
-  boolean dropTable(TableIdentifier identifier);
+  default boolean dropTable(TableIdentifier identifier) {
+    return dropTable(identifier, true /* drop data and metadata files */);
+  }
+
+  /**
+   * Drop a table; optionally delete data and metadata files.
+   * <p>
+   * If purge is set to true the implementation should delete all data and metadata files.
+   *
+   * @param identifier a table identifier
+   * @param purge if true, delete all data and metadata files in the table
+   * @return true if the table was dropped, false if the table did not exist
+   */
+  boolean dropTable(TableIdentifier identifier, boolean purge);
 
   /**
    * Rename a table.

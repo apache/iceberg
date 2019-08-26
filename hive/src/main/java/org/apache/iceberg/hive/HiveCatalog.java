@@ -28,6 +28,7 @@ import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.thrift.TException;
@@ -58,16 +59,30 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
   }
 
   @Override
-  public boolean dropTable(TableIdentifier identifier) {
+  public boolean dropTable(TableIdentifier identifier, boolean purge) {
     Preconditions.checkArgument(identifier.namespace().levels().length == 1,
         "Missing database in table identifier: %s", identifier);
     String database = identifier.namespace().level(0);
 
+    TableOperations ops = newTableOps(identifier);
+    TableMetadata lastMetadata;
+    if (purge && ops.current() != null) {
+      lastMetadata = ops.current();
+    } else {
+      lastMetadata = null;
+    }
+
     try {
       clients.run(client -> {
-        client.dropTable(database, identifier.name());
+        client.dropTable(database, identifier.name(),
+            false /* do not delete data */,
+            false /* throw NoSuchObjectException if the table doesn't exist */);
         return null;
       });
+
+      if (purge && lastMetadata != null) {
+        dropTableData(ops.io(), lastMetadata);
+      }
 
       return true;
 
