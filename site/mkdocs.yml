@@ -52,6 +52,7 @@ nav:
     - Quickstart: api-quickstart.md
     - Spark: spark.md
     - Presto: presto.md
+    - Custom Catalog: custom-catalog.md
   - Java:
     - Git Repo: https://github.com/apache/incubator-iceberg
     - Quickstart: api-quickstart.md
