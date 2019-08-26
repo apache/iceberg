@@ -25,8 +25,12 @@ import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.thrift.TException;
 import org.apache.thrift.transport.TTransportException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> {
+  private static final Logger LOG = LoggerFactory.getLogger(HiveClientPool.class);
+
   private final HiveConf hiveConf;
 
   HiveClientPool(Configuration conf) {
@@ -44,6 +48,14 @@ class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> {
       return new HiveMetaStoreClient(hiveConf);
     } catch (MetaException e) {
       throw new RuntimeMetaException(e, "Failed to connect to Hive Metastore");
+    } catch (Throwable t) {
+      if (t.getMessage().contains("Another instance of Derby may have already booted")) {
+        LOG.error("Another instance of Derby may have already booted. This is happened when using" +
+            " embedded metastore, which only supports one client at time. Please change to use " +
+            "other metastores which could support multiple clients, like metastore service.", t);
+      }
+
+      throw new RuntimeMetaException(t, "Failed to connect to Hive Metastore");
     }
   }
 

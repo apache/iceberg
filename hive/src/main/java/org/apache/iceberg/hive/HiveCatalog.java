@@ -23,7 +23,6 @@ import com.google.common.base.Preconditions;
 import java.io.Closeable;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.BaseMetastoreCatalog;
@@ -39,10 +38,6 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
   private final Configuration conf;
 
   public HiveCatalog(Configuration conf) {
-    if (isEmbeddedMetaStore(conf)) {
-      throw new IllegalStateException("Iceberg Hive catalog cannot work with embedded metastore");
-    }
-
     this.clients = new HiveClientPool(2, conf);
     this.conf = conf;
   }
@@ -140,14 +135,5 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
   @Override
   public void close() {
     clients.close();
-  }
-
-  private boolean isEmbeddedMetaStore(Configuration configuration) {
-    String msUri = configuration.get(HiveConf.ConfVars.METASTOREURIS.varname,
-        HiveConf.ConfVars.METASTOREURIS.defaultStrVal);
-    String msConnUrl = configuration.get(HiveConf.ConfVars.METASTORECONNECTURLKEY.varname,
-        HiveConf.ConfVars.METASTORECONNECTURLKEY.defaultStrVal);
-    return (msUri == null || msUri.trim().isEmpty()) &&
-       (msConnUrl != null && msConnUrl.startsWith("jdbc:derby"));
   }
 }
