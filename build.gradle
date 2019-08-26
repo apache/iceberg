@@ -306,6 +306,8 @@ project(':iceberg-hive') {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
+
+    testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 }
 

@@ -30,8 +30,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,9 +50,10 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFA
 class BaseTransaction implements Transaction {
   private static final Logger LOG = LoggerFactory.getLogger(BaseTransaction.class);
 
-  private enum TransactionType {
+  enum TransactionType {
     CREATE_TABLE,
     REPLACE_TABLE,
+    CREATE_OR_REPLACE_TABLE,
     SIMPLE
   }
 
@@ -66,20 +69,14 @@ class BaseTransaction implements Transaction {
   private TableMetadata lastBase;
   private TableMetadata current;
 
-  BaseTransaction(TableOperations ops, TableMetadata start) {
+  BaseTransaction(TableOperations ops, TransactionType type, TableMetadata start) {
     this.ops = ops;
     this.transactionTable = new TransactionTable();
     this.transactionOps = new TransactionTableOperations();
     this.updates = Lists.newArrayList();
     this.intermediateSnapshotIds = Sets.newHashSet();
     this.base = ops.current();
-    if (base == null && start != null) {
-      this.type = TransactionType.CREATE_TABLE;
-    } else if (base != null && start != base) {
-      this.type = TransactionType.REPLACE_TABLE;
-    } else {
-      this.type = TransactionType.SIMPLE;
-    }
+    this.type = type;
     this.lastBase = null;
     this.current = start;
   }
@@ -201,7 +198,11 @@ class BaseTransaction implements Transaction {
         break;
 
       case REPLACE_TABLE:
-        commitReplaceTransaction();
+        commitReplaceTransaction(false);
+        break;
+
+      case CREATE_OR_REPLACE_TABLE:
+        commitReplaceTransaction(true);
         break;
 
       case SIMPLE:
@@ -241,23 +242,33 @@ class BaseTransaction implements Transaction {
     }
   }
 
-  private void commitReplaceTransaction() {
+  private void commitReplaceTransaction(boolean orCreate) {
     // fix up the snapshot log, which should not contain intermediate snapshots
     TableMetadata replaceMetadata = current.removeSnapshotLogEntries(intermediateSnapshotIds);
+    Map<String, String> props = base != null ? base.properties() : replaceMetadata.properties();
 
     try {
       Tasks.foreach(ops)
-          .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
+          .retry(PropertyUtil.propertyAsInt(props, COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
           .exponentialBackoff(
-              base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-              base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
-              base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
+              PropertyUtil.propertyAsInt(props, COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
+              PropertyUtil.propertyAsInt(props, COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+              PropertyUtil.propertyAsInt(props, COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
           .run(underlyingOps -> {
+
+            try {
+              underlyingOps.refresh();
+            } catch (NoSuchTableException e) {
+              if (!orCreate) {
+                throw e;
+              }
+            }
+
             // because this is a replace table, it will always completely replace the table
             // metadata. even if it was just updated.
-            if (base != underlyingOps.refresh()) {
+            if (base != underlyingOps.current()) {
               this.base = underlyingOps.current(); // just refreshed
             }
 

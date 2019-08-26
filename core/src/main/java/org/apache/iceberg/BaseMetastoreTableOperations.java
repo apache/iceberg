@@ -25,6 +25,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
@@ -64,6 +65,35 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   public int currentVersion() {
     return version;
+  }
+
+  @Override
+  public TableMetadata refresh() {
+    try {
+      doRefresh();
+    } catch (NoSuchTableException e) {
+      LOG.warn("Could not find the table during refresh, setting current metadata to null", e);
+      currentMetadata = null;
+      currentMetadataLocation = null;
+      version = -1;
+      shouldRefresh = false;
+      throw e;
+    }
+    return current();
+  }
+
+  protected void doRefresh() {
+    throw new UnsupportedOperationException("Not implemented: doRefresh");
+  }
+
+  @Override
+  public void commit(TableMetadata base, TableMetadata metadata) {
+    doCommit(base, metadata);
+    requestRefresh();
+  }
+
+  protected void doCommit(TableMetadata base, TableMetadata metadata) {
+    throw new UnsupportedOperationException("Not implemented: doCommit");
   }
 
   protected void requestRefresh() {

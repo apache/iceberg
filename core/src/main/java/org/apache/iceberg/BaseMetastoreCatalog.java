@@ -91,6 +91,49 @@ public abstract class BaseMetastoreCatalog implements Catalog {
   }
 
   @Override
+  public Transaction newCreateTableTransaction(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec,
+      String location,
+      Map<String, String> properties) {
+
+    TableOperations ops = newTableOps(identifier);
+    if (ops.current() != null) {
+      throw new AlreadyExistsException("Table already exists: " + identifier);
+    }
+
+    String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
+    Map<String, String> tableProperties = properties != null ? properties : Maps.newHashMap();
+    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, baseLocation, tableProperties);
+    return Transactions.createTableTransaction(ops, metadata);
+  }
+
+  @Override
+  public Transaction newReplaceTableTransaction(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec,
+      String location,
+      Map<String, String> properties,
+      boolean orCreate) {
+
+    TableOperations ops = newTableOps(identifier);
+    if (!orCreate && ops.current() == null) {
+      throw new NoSuchTableException("No such table: " + identifier);
+    }
+
+    String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
+    Map<String, String> tableProperties = properties != null ? properties : Maps.newHashMap();
+    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, baseLocation, tableProperties);
+    if (orCreate) {
+      return Transactions.createOrReplaceTableTransaction(ops, metadata);
+    } else {
+      return Transactions.replaceTableTransaction(ops, metadata);
+    }
+  }
+
+  @Override
   public Table loadTable(TableIdentifier identifier) {
     TableOperations ops = newTableOps(identifier);
     if (ops.current() == null) {
