@@ -12,7 +12,7 @@ Extend `BaseMetastoreTableOperations` to provide implementation on how to read a
 Example:
 ```java
 
-class CustomTableOperations {
+class CustomTableOperations extends BaseMetastoreTableOperations {
     private String dbName;
     private String tableName;
     private Configuration conf;
@@ -81,6 +81,7 @@ public class CustomCatalog extends BaseMetastoreCatalog {
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
     String dbName = tableIdentifier.namespace().level(0);
     String tableName = tableIdentifier.name();
+    // instantiate the CustomTableOperations
     return new CustomTableOperations(configuration, dbName, tableName);
   }
 
@@ -124,7 +125,8 @@ public class CustomIcebergSource extends IcebergSource {
   protected Table findTable(DataSourceOptions options, Configuration conf) {
     Optional<String> path = options.get("path");
     Preconditions.checkArgument(path.isPresent(), "Cannot open table: path is not set");
-
+    
+    // Read table from CustomCatalog
     CustomCatalog catalog = new CustomCatalog(conf);
     TableIdentifier tableIdentifier = TableIdentifier.parse(path.get());
     return catalog.loadTable(tableIdentifier);
