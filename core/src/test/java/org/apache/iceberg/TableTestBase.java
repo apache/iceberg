@@ -22,11 +22,13 @@ package org.apache.iceberg;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import com.google.common.io.Files;
 import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
@@ -162,6 +164,18 @@ public class TableTestBase {
     }
 
     Assert.assertFalse("Should find all files in the manifest", newPaths.hasNext());
+  }
+
+  void validateTableFiles(Table tbl, DataFile... expectedFiles) {
+    Set<CharSequence> expectedFilePaths = Sets.newHashSet();
+    for (DataFile file : expectedFiles) {
+      expectedFilePaths.add(file.path());
+    }
+    Set<CharSequence> actualFilePaths = Sets.newHashSet();
+    for (FileScanTask task : tbl.newScan().planFiles()) {
+      actualFilePaths.add(task.file().path());
+    }
+    Assert.assertEquals("Files should match", expectedFilePaths, actualFilePaths);
   }
 
   List<String> paths(DataFile... dataFiles) {

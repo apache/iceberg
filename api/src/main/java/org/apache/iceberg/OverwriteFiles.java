@@ -24,18 +24,21 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Projections;
 
 /**
- * API for overwriting files in a table by filter expression.
+ * API for overwriting files in a table.
  * <p>
  * This API accumulates file additions and produces a new {@link Snapshot} of the table by replacing
- * all the files that match the filter expression with the set of additions. This operation is used
- * to implement idempotent writes that always replace a section of a table with new data.
+ * all the deleted files with the set of additions. This operation is used to implement idempotent
+ * writes that always replace a section of a table with new data or update/delete operations that
+ * eagerly overwrite files.
  * <p>
- * Overwrites can be validated
+ * Overwrites can be validated. The default validation mode is idempotent, meaning the overwrite is
+ * correct and should be committed out regardless of other concurrent changes to the table.
+ * For example, this can be used for replacing all the data for day D with query results.
+ * Alternatively, this API can be configured for overwriting certain files with their filtered
+ * versions while ensuring no new data that would need to be filtered has been added.
  * <p>
  * When committing, these changes will be applied to the latest table snapshot. Commit conflicts
  * will be resolved by applying the changes to the new latest snapshot and reattempting the commit.
- * This has no requirements for the latest snapshot and will not fail based on other snapshot
- * changes.
  */
 public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
   /**
@@ -66,6 +69,14 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
   OverwriteFiles addFile(DataFile file);
 
   /**
+   * Delete a {@link DataFile} from the table.
+   *
+   * @param file a data file
+   * @return this for method chaining
+   */
+  OverwriteFiles deleteFile(DataFile file);
+
+  /**
    * Signal that each file added to the table must match the overwrite expression.
    * <p>
    * If this method is called, each added file is validated on commit to ensure that it matches the
@@ -74,5 +85,23 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
    *
    * @return this for method chaining
    */
-  OverwriteFiles validateAddedFiles();
+  OverwriteFiles validateAddedFilesMatchOverwriteFilter();
+
+  /**
+   * Enables validation that files added concurrently do not conflict with this commit's operation.
+   * <p>
+   * This method should be called when the table is queried to determine which files to delete/append.
+   * If a concurrent operation commits a new file after the data was read and that file might
+   * contain rows matching the specified conflict detection filter, the overwrite operation
+   * will detect this during retries and fail.
+   * <p>
+   * Calling this method with a correct conflict detection filter is required to maintain
+   * serializable isolation for eager update/delete operations. Otherwise, the isolation level
+   * will be snapshot isolation.
+   *
+   * @param readSnapshotId the snapshot id that was used to read the data or null if the table was empty
+   * @param conflictDetectionFilter an expression on rows in the table
+   * @return this for method chaining
+   */
+  OverwriteFiles validateNoConflictingAppends(Long readSnapshotId, Expression conflictDetectionFilter);
 }
