@@ -173,7 +173,6 @@ class RemoveSnapshots implements ExpireSnapshots {
     Set<String> validManifests = Sets.newHashSet();
     Set<String> manifestsToScan = Sets.newHashSet();
     for (Snapshot snapshot : snapshots) {
-      validIds.add(snapshot.snapshotId());
       try (CloseableIterable<ManifestFile> manifests = readManifestFiles(snapshot)) {
         for (ManifestFile manifest : manifests) {
           validManifests.add(manifest.path());
