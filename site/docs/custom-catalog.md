@@ -12,53 +12,53 @@ Extend `BaseMetastoreTableOperations` to provide implementation on how to read a
 Example:
 ```java
 class CustomTableOperations extends BaseMetastoreTableOperations {
-    private String dbName;
-    private String tableName;
-    private Configuration conf;
+  private String dbName;
+  private String tableName;
+  private Configuration conf;
 
-    protected CustomTableOperations(Configuration conf, String dbName, String tableName) {
-        super(conf);
-        this.conf = conf;
-        this.dbName = dbName;
-        this.tableName = tableName;
+  protected CustomTableOperations(Configuration conf, String dbName, String tableName) {
+    super(conf);
+    this.conf = conf;
+    this.dbName = dbName;
+    this.tableName = tableName;
+  }
+
+  // The refresh method should provide implementation on how to get the metadata location
+  @Override
+  public TableMetadata refresh() {
+
+    // Example custom service which returns the metadata location given a dbName and tableName
+    val metadataLocation = CustomService.getMetadataForTable(conf, dbName, tableName)
+
+    // Use existing method to refresh metadata  
+    refreshFromMetadataLocation(metadataLocation);
+
+    // Use existing method to return the table metadata
+    return current();
+  }
+
+  // The commit method should provide implementation on how to persist the metadata location
+  @Override
+  public void commit(TableMetadata base, TableMetadata metadata) {
+    // if the metadata is already out of date, reject it
+    if (base != current()) {
+      throw new CommitFailedException("Cannot commit: stale table metadata for %s.%s", dbName, tableName);
     }
 
-    // The refresh method should provide implementation on how to get the metadata location
-    @Override
-    public TableMetadata refresh() {
-
-        // Example custom service which returns the metadata location given a dbName and tableName
-        val metadataLocation = CustomService.getMetadataForTable(conf, dbName, tableName)
-
-        // Use existing method to refresh metadata  
-        refreshFromMetadataLocation(metadataLocation);
-
-        // Use existing method to return the table metadata
-        return current();
+    // if the metadata is not changed, return early
+    if (base == metadata) {
+      return;
     }
 
-    // The commit method should provide implementation on how to persist the metadata location
-    @Override
-    public void commit(TableMetadata base, TableMetadata metadata) {
-        // if the metadata is already out of date, reject it
-        if (base != current()) {
-            throw new CommitFailedException("Cannot commit: stale table metadata for %s.%s", dbName, tableName);
-        }
+    // Write new metadata
+    String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
 
-        // if the metadata is not changed, return early
-        if (base == metadata) {
-            return;
-        }
+    // Example custom service which updates the metadata location for the given db and table
+    CustomService.updateMetadataLocation(dbName, tableName, newMetadataLocation);
 
-        // Write new metadata
-        String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
-
-        // Example custom service which updates the metadata location for the given db and table
-        CustomService.updateMetadataLocation(dbName, tableName, newMetadataLocation);
-
-        // Use existing method to request a refresh
-        requestRefresh();
-    }
+    // Use existing method to request a refresh
+    requestRefresh();
+  }
 }
 ```
 
@@ -69,46 +69,46 @@ Example:
 ```java
 public class CustomCatalog extends BaseMetastoreCatalog {
 
-    private Configuration configuration;
+  private Configuration configuration;
 
-    public CustomCatalog(Configuration configuration) {
-        this.configuration = configuration;
+  public CustomCatalog(Configuration configuration) {
+    this.configuration = configuration;
+  }
+
+  @Override
+  protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
+    String dbName = tableIdentifier.namespace().level(0);
+    String tableName = tableIdentifier.name();
+    // instantiate the CustomTableOperations
+    return new CustomTableOperations(configuration, dbName, tableName);
+  }
+
+  @Override
+  protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
+
+    // Can choose to use any other configuration name
+    String tableLocation = configuration.get("custom.iceberg.table.location");
+
+    // Can be an s3 or hdfs path
+    if (tableLocation == null) {
+      throw new RuntimeException("custom.iceberg.table.location configuration not set!");
     }
 
-    @Override
-    protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
-        String dbName = tableIdentifier.namespace().level(0);
-        String tableName = tableIdentifier.name();
-        // instantiate the CustomTableOperations
-        return new CustomTableOperations(configuration, dbName, tableName);
-    }
+    return String.format(
+            "%s/%s.db/%s", tableLocation,
+            tableIdentifier.namespace().levels()[0],
+            tableIdentifier.name());
+  }
 
-    @Override
-    protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
+  @Override
+  public boolean dropTable(TableIdentifier identifier) {
+    throw new RuntimeException("Not Supported");
+  }
 
-        // Can choose to use any other configuration name
-        String tableLocation = configuration.get("custom.iceberg.table.location");
-
-        // Can be an s3 or hdfs path
-        if (tableLocation == null) {
-            throw new RuntimeException("custom.iceberg.table.location configuration not set!");
-        }
-
-        return String.format(
-                "%s/%s.db/%s", tableLocation,
-                tableIdentifier.namespace().levels()[0],
-                tableIdentifier.name());
-    }
-
-    @Override
-    public boolean dropTable(TableIdentifier identifier) {
-        throw new RuntimeException("Not Supported");
-    }
-
-    @Override
-    public void renameTable(TableIdentifier from, TableIdentifier to) {
-        throw new RuntimeException("Not Supported");
-    }
+  @Override
+  public void renameTable(TableIdentifier from, TableIdentifier to) {
+    throw new RuntimeException("Not Supported");
+  }
 }
 ```
 ### Custom IcebergSource
@@ -118,16 +118,16 @@ Example:
 ```java
 public class CustomIcebergSource extends IcebergSource {
 
-    @Override
-    protected Table findTable(DataSourceOptions options, Configuration conf) {
-        Optional<String> path = options.get("path");
-        Preconditions.checkArgument(path.isPresent(), "Cannot open table: path is not set");
+  @Override
+  protected Table findTable(DataSourceOptions options, Configuration conf) {
+    Optional<String> path = options.get("path");
+    Preconditions.checkArgument(path.isPresent(), "Cannot open table: path is not set");
 
-        // Read table from CustomCatalog
-        CustomCatalog catalog = new CustomCatalog(conf);
-        TableIdentifier tableIdentifier = TableIdentifier.parse(path.get());
-        return catalog.loadTable(tableIdentifier);
-    }
+    // Read table from CustomCatalog
+    CustomCatalog catalog = new CustomCatalog(conf);
+    TableIdentifier tableIdentifier = TableIdentifier.parse(path.get());
+    return catalog.loadTable(tableIdentifier);
+  }
 }
 ```
 
