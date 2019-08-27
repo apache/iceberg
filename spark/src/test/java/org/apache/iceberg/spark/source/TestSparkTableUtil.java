@@ -125,13 +125,25 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
   }
 
   @Test
-  public void testMigrateSparkTable() throws Exception {
+  public void testImportPartitionedTable() throws Exception {
     File parent = temp.newFolder("iceberg_warehouse");
     File location = new File(parent, "test");
     spark.table(qualifiedTableName).write().mode("overwrite").partitionBy("data").format("parquet")
             .saveAsTable("test_parquet");
     TableIdentifier source = spark.sessionState().sqlParser().parseTableIdentifier("test_parquet");
-    SparkTableUtil.importSparkTable(source, location.getCanonicalPath());
+    SparkTableUtil.importSparkTable(source, location.getCanonicalPath(), 1, "/tmp");
+    long count = spark.read().format("iceberg").load(location.toString()).count();
+    Assert.assertEquals("three values ", 3, count);
+  }
+
+  @Test
+  public void testImportUnpartitionedTable() throws Exception {
+    File parent = temp.newFolder("iceberg_warehouse");
+    File location = new File(parent, "test_unpartitioned_table");
+    spark.table(qualifiedTableName).write().mode("overwrite").format("parquet")
+            .saveAsTable("test_parquet");
+    TableIdentifier source = spark.sessionState().sqlParser().parseTableIdentifier("test_parquet");
+    SparkTableUtil.importSparkTable(source, location.getCanonicalPath(), 1,  "/tmp");
     long count = spark.read().format("iceberg").load(location.toString()).count();
     Assert.assertEquals("three values ", 3, count);
   }
