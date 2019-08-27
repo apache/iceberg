@@ -81,6 +81,11 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
   }
 
   @Override
+  protected String name() {
+    return conf.get("hive.metastore.uris");
+  }
+
+  @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
     if (!isValidIdentifier(identifier)) {
       throw new NoSuchTableException("Invalid identifier: %s", identifier);
