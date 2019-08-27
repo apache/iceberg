@@ -56,12 +56,6 @@ class CustomTableOperations extends BaseMetastoreTableOperations {
     }
     return fileIO;
   }
-
-  // Optional: this can be overridden to provide custom location provider implementation
-  @Override
-  public LocationProvider locationProvider() {
-    // TODO
-  }
 }
 ```
 
@@ -111,8 +105,10 @@ public class CustomCatalog extends BaseMetastoreCatalog {
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
-    // TODO implement behavior  
-    throw new RuntimeException("Not yet implemented");
+    Preconditions.checkArgument(from.namespace().level(0).equals(to.namespace().level(0)),
+            "Cannot move table between databases");
+    // Example service to rename table
+    CustomService.renameTable(from.namepsace().level(0), from.name(), to.name());
   }
 }
 ```
