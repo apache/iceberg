@@ -15,31 +15,29 @@ class CustomTableOperations extends BaseMetastoreTableOperations {
   private String dbName;
   private String tableName;
   private Configuration conf;
+  private FileIO fileIO;
 
   protected CustomTableOperations(Configuration conf, String dbName, String tableName) {
-    super(conf);
     this.conf = conf;
     this.dbName = dbName;
     this.tableName = tableName;
   }
 
-  // The refresh method should provide implementation on how to get the metadata location
+  // The doRefresh method should provide implementation on how to get the metadata location
   @Override
-  public TableMetadata refresh() {
+  public void doRefresh() {
 
     // Example custom service which returns the metadata location given a dbName and tableName
-    val metadataLocation = CustomService.getMetadataForTable(conf, dbName, tableName)
+    String metadataLocation = CustomService.getMetadataForTable(conf, dbName, tableName);
 
-    // Use existing method to refresh metadata  
+    // Use existing method to refresh metadata
     refreshFromMetadataLocation(metadataLocation);
 
-    // Use existing method to return the table metadata
-    return current();
   }
 
   // The commit method should provide implementation on how to persist the metadata location
   @Override
-  public void commit(TableMetadata base, TableMetadata metadata) {
+  public void doCommit(TableMetadata base, TableMetadata metadata) {
     // if the metadata is already out of date, reject it
     if (base != current()) {
       throw new CommitFailedException("Cannot commit: stale table metadata for %s.%s", dbName, tableName);
@@ -50,14 +48,28 @@ class CustomTableOperations extends BaseMetastoreTableOperations {
       return;
     }
 
+    String oldMetadataLocation = base.location();
+
     // Write new metadata
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
 
-    // Example custom service which updates the metadata location for the given db and table
-    CustomService.updateMetadataLocation(dbName, tableName, newMetadataLocation);
+    // Example custom service which updates the metadata location for the given db and table atomically
+    CustomService.updateMetadataLocation(dbName, tableName, oldMetadataLocation, newMetadataLocation);
 
-    // Use existing method to request a refresh
-    requestRefresh();
+  }
+
+  @Override
+  public FileIO io() {
+    if (fileIO == null) {
+      fileIO = new HadoopFileIO(conf);
+    }
+    return fileIO;
+  }
+
+  // Optional: this can be overridden to provide custom location provider implementation
+  @Override
+  public LocationProvider locationProvider() {
+    // TODO
   }
 }
 ```
@@ -87,11 +99,11 @@ public class CustomCatalog extends BaseMetastoreCatalog {
   protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
 
     // Can choose to use any other configuration name
-    String tableLocation = configuration.get("custom.iceberg.table.location");
+    String tableLocation = configuration.get("custom.iceberg.warehouse.location");
 
     // Can be an s3 or hdfs path
     if (tableLocation == null) {
-      throw new RuntimeException("custom.iceberg.table.location configuration not set!");
+      throw new RuntimeException("custom.iceberg.warehouse.location configuration not set!");
     }
 
     return String.format(
@@ -101,7 +113,7 @@ public class CustomCatalog extends BaseMetastoreCatalog {
   }
 
   @Override
-  public boolean dropTable(TableIdentifier identifier) {
+  public boolean dropTable(TableIdentifier identifier, boolean purge) {
     throw new RuntimeException("Not Supported");
   }
 
