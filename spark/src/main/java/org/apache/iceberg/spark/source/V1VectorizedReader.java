@@ -172,11 +172,35 @@ class V1VectorizedReader implements SupportsScanColumnarBatch,
     String tableSchemaString = SchemaParser.toJson(table.schema());
     String expectedSchemaString = SchemaParser.toJson(lazySchema());
 
+    //
+    // pre-process static parameters here, once
+    //
+
+    // prepare filters
+    Filter[] processedFilters = pushFilters(pushedFilters);
+    // prepare filter seq
+    scala.collection.mutable.ArrayBuffer<Filter> filtersAsArrayBuf =  new ArrayBuffer(processedFilters.length);
+    for (Filter f : processedFilters) {
+      filtersAsArrayBuf.$plus$eq(f);
+    }
+    Seq<Filter> filterAsSeq = filtersAsArrayBuf.toSeq();
+    // prepare hadoopconf
+    hadoopConf.set(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "true");
+    hadoopConf.set(SQLConf.PARQUET_VECTORIZED_READER_BATCH_SIZE().key(),
+        Integer.toString(this.numRecordsPerBatch));
+    sparkSession.sessionState().conf().setConfString(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "true");
+    sparkSession.sessionState().conf().setConfString(SQLConf.PARQUET_VECTORIZED_READER_BATCH_SIZE().key(),
+        Integer.toString(this.numRecordsPerBatch));
+    // prepare sparkReadSchema
+    StructType sparkReadSchema = SparkSchemaUtil.convert(lazySchema());
+
     List<InputPartition<ColumnarBatch>> readTasks = Lists.newArrayList();
     for (CombinedScanTask task : tasks()) {
+      long readTaskStart = System.currentTimeMillis();
       readTasks.add(
           new ReadTask(task, tableSchemaString, expectedSchemaString, fileIo, encryptionManager, caseSensitive,
-              numRecordsPerBatch, hadoopConf, pushFilters(pushedFilters), sparkSession));
+              numRecordsPerBatch, hadoopConf, processedFilters, sparkSession, filterAsSeq, sparkReadSchema));
+      LOG.warn("=> ReadTask creating time took {} ms.", System.currentTimeMillis() - readTaskStart);
     }
     LOG.warn("=> Input Task planning took {} seconds.", (System.currentTimeMillis() - start) / 1000.0f);
 
@@ -307,7 +331,8 @@ class V1VectorizedReader implements SupportsScanColumnarBatch,
     private ReadTask(
         CombinedScanTask task, String tableSchemaString, String expectedSchemaString, FileIO fileIo,
         EncryptionManager encryptionManager, boolean caseSensitive, int numRecordsPerBatch,
-        Configuration hadoopConf, Filter[] filters, SparkSession sparkSession) {
+        Configuration hadoopConf, Filter[] filters, SparkSession sparkSession, Seq<Filter> filterAsSeq,
+        StructType readSchema) {
       this.task = task;
       this.tableSchemaString = tableSchemaString;
       this.expectedSchemaString = expectedSchemaString;
@@ -320,28 +345,11 @@ class V1VectorizedReader implements SupportsScanColumnarBatch,
       // Build function to for V1 Partition Reader which is passed over from Driver to Executors
       this.fileFormatInstance = new ParquetFileFormat();
 
-      scala.collection.mutable.ArrayBuffer<Filter> filtersAsArrayBuf =  new ArrayBuffer(filters.length);
-      for (Filter f : filters) {
-        filtersAsArrayBuf.$plus$eq(f);
-      }
-      Seq<Filter> filterAsSeq = filtersAsArrayBuf.toSeq();
-
-      // Seq<Filter> filtersAsSeq = JavaConverters.collectionAsScalaIterableConverter(filtersAsList).asScala().toSeq();
-      // Seq<Filter> filtersAsSeq = JavaConverters.asScalaIteratorConverter(filtersAsList.iterator()).asScala().toSeq();
-      StructType sparkReadSchema = SparkSchemaUtil.convert(lazyExpectedSchema());
-
-      hadoopConf.set(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "true");
-      hadoopConf.set(SQLConf.PARQUET_VECTORIZED_READER_BATCH_SIZE().key(),
-          Integer.toString(this.numRecordsPerBatch));
-      sparkSession.sessionState().conf().setConfString(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "true");
-      sparkSession.sessionState().conf().setConfString(SQLConf.PARQUET_VECTORIZED_READER_BATCH_SIZE().key(),
-          Integer.toString(this.numRecordsPerBatch));
-
       LOG.warn("=> Build partition reader function ");
       this.buildReaderFunc = fileFormatInstance.buildReaderWithPartitionValues(sparkSession,
-          sparkReadSchema,
+          readSchema,
           new StructType(),
-          sparkReadSchema,
+          readSchema,
           filterAsSeq, // List$.MODULE$.empty(),
           null, hadoopConf);
     }
