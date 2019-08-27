@@ -29,6 +29,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.CheckCompatibility;
+import org.apache.spark.SparkConf;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.execution.streaming.StreamExecution;
@@ -67,6 +68,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
     String caseSensitive = lazySparkSession().conf().get("spark.sql.caseSensitive", "true");
     String sparkMaster = lazySparkSession().conf().get("spark.master");
+    SparkConf sparkConf = lazySparkSession().sparkContext().conf();
 
     // look for split behavior overrides in options
     Optional<String> enableV1VectorizedReadOpt = options.get(ICEBERG_READ_ENABLE_V1_VECTORIZATION_CONF);
@@ -80,8 +82,8 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
         Integer.parseInt(numRecordsPerBatchOpt.get()) : V1VectorizedReader.DEFAULT_NUM_ROWS_IN_BATCH;
     if (enableV1VectorizedRead) {
       LOG.warn("V1VectorizedReader engaged.");
-      return new V1VectorizedReader(table, Boolean.valueOf(caseSensitive), options, conf, numRecordsPerBatch,
-          sparkMaster);
+      return new V1VectorizedReader(table, Boolean.valueOf(caseSensitive), options, conf,
+          numRecordsPerBatch, lazySparkSession());
     } else {
 
       return new Reader(table, Boolean.valueOf(caseSensitive), options);

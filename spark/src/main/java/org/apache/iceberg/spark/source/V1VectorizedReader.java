@@ -33,6 +33,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.SystemProperties;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
@@ -44,8 +45,12 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
+import org.apache.spark.sql.execution.datasources.PartitionedFile;
+import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat;
+import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
 import org.apache.spark.sql.sources.v2.reader.DataSourceReader;
@@ -67,6 +72,8 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import scala.collection.Seq;
+import scala.collection.mutable.ArrayBuffer;
 
 class V1VectorizedReader implements SupportsScanColumnarBatch,
     DataSourceReader,
@@ -87,8 +94,10 @@ class V1VectorizedReader implements SupportsScanColumnarBatch,
   private final EncryptionManager encryptionManager;
   private final boolean caseSensitive;
   private final int numRecordsPerBatch;
-  private final String sparkMaster;
+  // private final String sparkMaster;
   private final Configuration hadoopConf;
+  // private final SparkConf sparkConf;
+  private final SparkSession sparkSession;
   // default as per SQLConf.PARQUET_VECTORIZED_READER_BATCH_SIZE default
   public static final int DEFAULT_NUM_ROWS_IN_BATCH = 4096;
 
@@ -102,7 +111,7 @@ class V1VectorizedReader implements SupportsScanColumnarBatch,
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
 
   V1VectorizedReader(Table table, boolean caseSensitive, DataSourceOptions options,
-      Configuration hadoopConf, int numRecordsPerBatch, String sparkMaster) {
+      Configuration hadoopConf, int numRecordsPerBatch, SparkSession sparkSession) {
 
     this.table = table;
     this.snapshotId = options.get("snapshot-id").map(Long::parseLong).orElse(null);
@@ -124,9 +133,12 @@ class V1VectorizedReader implements SupportsScanColumnarBatch,
     this.encryptionManager = table.encryption();
     this.caseSensitive = caseSensitive;
     this.hadoopConf = hadoopConf;
-    this.sparkMaster = sparkMaster;
+    this.sparkSession = sparkSession;
 
-    LOG.warn("=> Set Config numRecordsPerBatch = {}, Spark Master", numRecordsPerBatch, sparkMaster);
+    LOG.warn("=> Set Config numRecordsPerBatch: {}, " +
+            "Split size: {}, " +
+            "Planning Thread count: {}",
+        numRecordsPerBatch, splitSize, System.getProperty(SystemProperties.WORKER_THREAD_POOL_SIZE_PROP));
   }
 
   private Schema lazySchema() {
@@ -154,6 +166,9 @@ class V1VectorizedReader implements SupportsScanColumnarBatch,
 
   @Override
   public List<InputPartition<ColumnarBatch>> planBatchInputPartitions() {
+
+    long start = System.currentTimeMillis();
+
     String tableSchemaString = SchemaParser.toJson(table.schema());
     String expectedSchemaString = SchemaParser.toJson(lazySchema());
 
@@ -161,9 +176,9 @@ class V1VectorizedReader implements SupportsScanColumnarBatch,
     for (CombinedScanTask task : tasks()) {
       readTasks.add(
           new ReadTask(task, tableSchemaString, expectedSchemaString, fileIo, encryptionManager, caseSensitive,
-              numRecordsPerBatch, new SerializableHadoopConfiguration(hadoopConf),
-              pushFilters(pushedFilters), sparkMaster));
+              numRecordsPerBatch, hadoopConf, pushFilters(pushedFilters), sparkSession));
     }
+    LOG.warn("=> Input Task planning took {} seconds.", (System.currentTimeMillis() - start) / 1000.0f);
 
     return readTasks;
   }
@@ -282,9 +297,9 @@ class V1VectorizedReader implements SupportsScanColumnarBatch,
     private final EncryptionManager encryptionManager;
     private final boolean caseSensitive;
     private final int numRecordsPerBatch;
-    private final SerializableHadoopConfiguration serHadoopConf;
     private final Filter[] filters;
-    private final String sparkMaster;
+    private final ParquetFileFormat fileFormatInstance;
+    private final scala.Function1<PartitionedFile, scala.collection.Iterator<InternalRow>> buildReaderFunc;
 
     private transient Schema tableSchema = null;
     private transient Schema expectedSchema = null;
@@ -292,7 +307,7 @@ class V1VectorizedReader implements SupportsScanColumnarBatch,
     private ReadTask(
         CombinedScanTask task, String tableSchemaString, String expectedSchemaString, FileIO fileIo,
         EncryptionManager encryptionManager, boolean caseSensitive, int numRecordsPerBatch,
-        SerializableHadoopConfiguration serHadoopConf, Filter[] filters, String sparkMaster) {
+        Configuration hadoopConf, Filter[] filters, SparkSession sparkSession) {
       this.task = task;
       this.tableSchemaString = tableSchemaString;
       this.expectedSchemaString = expectedSchemaString;
@@ -300,16 +315,43 @@ class V1VectorizedReader implements SupportsScanColumnarBatch,
       this.encryptionManager = encryptionManager;
       this.caseSensitive = caseSensitive;
       this.numRecordsPerBatch = numRecordsPerBatch;
-      this.serHadoopConf = serHadoopConf;
       this.filters = filters;
-      this.sparkMaster = sparkMaster;
+
+      // Build function to for V1 Partition Reader which is passed over from Driver to Executors
+      this.fileFormatInstance = new ParquetFileFormat();
+
+      scala.collection.mutable.ArrayBuffer<Filter> filtersAsArrayBuf =  new ArrayBuffer(filters.length);
+      for (Filter f : filters) {
+        filtersAsArrayBuf.$plus$eq(f);
+      }
+      Seq<Filter> filterAsSeq = filtersAsArrayBuf.toSeq();
+
+      // Seq<Filter> filtersAsSeq = JavaConverters.collectionAsScalaIterableConverter(filtersAsList).asScala().toSeq();
+      // Seq<Filter> filtersAsSeq = JavaConverters.asScalaIteratorConverter(filtersAsList.iterator()).asScala().toSeq();
+      StructType sparkReadSchema = SparkSchemaUtil.convert(lazyExpectedSchema());
+
+      hadoopConf.set(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "true");
+      hadoopConf.set(SQLConf.PARQUET_VECTORIZED_READER_BATCH_SIZE().key(),
+          Integer.toString(this.numRecordsPerBatch));
+      sparkSession.sessionState().conf().setConfString(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "true");
+      sparkSession.sessionState().conf().setConfString(SQLConf.PARQUET_VECTORIZED_READER_BATCH_SIZE().key(),
+          Integer.toString(this.numRecordsPerBatch));
+
+      LOG.warn("=> Build partition reader function ");
+      this.buildReaderFunc = fileFormatInstance.buildReaderWithPartitionValues(sparkSession,
+          sparkReadSchema,
+          new StructType(),
+          sparkReadSchema,
+          filterAsSeq, // List$.MODULE$.empty(),
+          null, hadoopConf);
     }
 
     @Override
     public InputPartitionReader<ColumnarBatch> createPartitionReader() {
 
+      LOG.warn("=> Create Partition Reader");
       return new V1VectorizedTaskDataReader(task, lazyTableSchema(), lazyExpectedSchema(), fileIo,
-            encryptionManager, caseSensitive, numRecordsPerBatch, serHadoopConf.get(), filters, sparkMaster);
+            encryptionManager, caseSensitive, numRecordsPerBatch, filters, buildReaderFunc);
     }
 
     private Schema lazyTableSchema() {
