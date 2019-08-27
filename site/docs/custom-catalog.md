@@ -30,7 +30,7 @@ class CustomTableOperations extends BaseMetastoreTableOperations {
     // Example custom service which returns the metadata location given a dbName and tableName
     String metadataLocation = CustomService.getMetadataForTable(conf, dbName, tableName);
 
-    // Use existing method to refresh metadata
+    // When updating from a metadata file location, call the helper method
     refreshFromMetadataLocation(metadataLocation);
 
   }
@@ -38,19 +38,9 @@ class CustomTableOperations extends BaseMetastoreTableOperations {
   // The doCommit method should provide implementation on how to update with metadata location atomically
   @Override
   public void doCommit(TableMetadata base, TableMetadata metadata) {
-    // if the metadata is already out of date, reject it
-    if (base != current()) {
-      throw new CommitFailedException("Cannot commit: stale table metadata for %s.%s", dbName, tableName);
-    }
-
-    // if the metadata is not changed, return early
-    if (base == metadata) {
-      return;
-    }
-
     String oldMetadataLocation = base.location();
 
-    // Write new metadata
+    // Write new metadata using helper method
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
 
     // Example custom service which updates the metadata location for the given db and table atomically
@@ -115,8 +105,8 @@ public class CustomCatalog extends BaseMetastoreCatalog {
 
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
-    // TODO implement behavior  
-    throw new RuntimeException("Not yet implemented");
+    // Example service to delete table
+    CustomService.deleteTable(identifier.namepsace().level(0), identifier.name());
   }
 
   @Override
