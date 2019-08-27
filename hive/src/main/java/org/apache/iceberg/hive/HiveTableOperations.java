@@ -123,17 +123,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
-    // if the metadata is already out of date, reject it
-    if (base != current()) {
-      throw new CommitFailedException("Cannot commit: stale table metadata for %s.%s", database, tableName);
-    }
-
-    // if the metadata is not changed, return early
-    if (base == metadata) {
-      LOG.info("Nothing to commit.");
-      return;
-    }
-
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
 
     boolean threw = true;
