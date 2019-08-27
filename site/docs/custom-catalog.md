@@ -35,7 +35,7 @@ class CustomTableOperations extends BaseMetastoreTableOperations {
 
   }
 
-  // The commit method should provide implementation on how to persist the metadata location
+  // The doCommit method should provide implementation on how to update with metadata location atomically
   @Override
   public void doCommit(TableMetadata base, TableMetadata metadata) {
     // if the metadata is already out of date, reject it
@@ -58,6 +58,7 @@ class CustomTableOperations extends BaseMetastoreTableOperations {
 
   }
 
+  // The io method provides a FileIO which is used to read and write the table metadata files
   @Override
   public FileIO io() {
     if (fileIO == null) {
@@ -114,12 +115,14 @@ public class CustomCatalog extends BaseMetastoreCatalog {
 
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
-    throw new RuntimeException("Not Supported");
+    // TODO implement behavior  
+    throw new RuntimeException("Not yet implemented");
   }
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
-    throw new RuntimeException("Not Supported");
+    // TODO implement behavior  
+    throw new RuntimeException("Not yet implemented");
   }
 }
 ```
