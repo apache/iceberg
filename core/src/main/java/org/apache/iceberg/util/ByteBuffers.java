@@ -25,6 +25,10 @@ import java.util.Arrays;
 public class ByteBuffers {
 
   public static byte[] toByteArray(ByteBuffer buffer) {
+    if (buffer == null) {
+      return null;
+    }
+
     if (buffer.hasArray()) {
       byte[] array = buffer.array();
       if (buffer.arrayOffset() == 0 && buffer.position() == 0 &&
@@ -46,12 +50,11 @@ public class ByteBuffers {
     if (buffer == null) {
       return null;
     }
-    int size = buffer.remaining();
-    byte[] copyArray = new byte[size];
+
+    byte[] copyArray = new byte[buffer.remaining()];
     ByteBuffer readerBuffer = buffer.asReadOnlyBuffer();
-    for (int i = 0; i < size && readerBuffer.hasRemaining(); i++) {
-      copyArray[i] = readerBuffer.get();
-    }
+    readerBuffer.get(copyArray);
+
     return ByteBuffer.wrap(copyArray);
   }
 
