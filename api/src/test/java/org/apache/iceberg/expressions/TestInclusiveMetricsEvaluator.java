@@ -28,6 +28,8 @@ import org.apache.iceberg.TestHelpers.TestDataFile;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
+import org.apache.iceberg.types.Types.StringType;
+import org.apache.iceberg.util.UnicodeUtil;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -42,6 +44,7 @@ import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -74,6 +77,36 @@ public class TestInclusiveMetricsEvaluator {
       ImmutableMap.of(
           1, toByteBuffer(IntegerType.get(), 79)));
 
+  private static final DataFile FILE_2 = new TestDataFile("file_2.avro", Row.of(), 50,
+      // any value counts, including nulls
+      ImmutableMap.of(3, 20L),
+      // null value counts
+      ImmutableMap.of(3, 2L),
+      // lower bounds
+      ImmutableMap.of(3, toByteBuffer(StringType.get(), "aa")),
+      // upper bounds
+      ImmutableMap.of(3, toByteBuffer(StringType.get(), "dC")));
+
+  private static final DataFile FILE_3 = new TestDataFile("file_3.avro", Row.of(), 50,
+      // any value counts, including nulls
+      ImmutableMap.of(3, 20L),
+      // null value counts
+      ImmutableMap.of(3, 2L),
+      // lower bounds
+      ImmutableMap.of(3, toByteBuffer(StringType.get(), "1str1")),
+      // upper bounds
+      ImmutableMap.of(3, toByteBuffer(StringType.get(), "3str3")));
+
+  private static final DataFile FILE_4 = new TestDataFile("file_4.avro", Row.of(), 50,
+      // any value counts, including nulls
+      ImmutableMap.of(3, 20L),
+      // null value counts
+      ImmutableMap.of(3, 2L),
+      // lower bounds
+      ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")),
+      // upper bounds
+      ImmutableMap.of(3, toByteBuffer(StringType.get(), "イロハニホヘト")));
+
   @Test
   public void testAllNulls() {
     boolean shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notNull("all_nulls")).eval(FILE);
@@ -93,6 +126,9 @@ public class TestInclusiveMetricsEvaluator {
 
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, equal("all_nulls", "a")).eval(FILE);
     Assert.assertFalse("Should skip: equal on all null column", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, startsWith("all_nulls", "a")).eval(FILE);
+    Assert.assertFalse("Should skip: startsWith on all null column", shouldRead);
 
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notNull("some_nulls")).eval(FILE);
     Assert.assertTrue("Should read: column with some nulls contains a non-null value", shouldRead);
@@ -354,5 +390,45 @@ public class TestInclusiveMetricsEvaluator {
   @Test(expected = ValidationException.class)
   public void testCaseSensitiveIntegerNotEqRewritten() {
     boolean shouldRead = new InclusiveMetricsEvaluator(SCHEMA, not(equal("ID", 5)), true).eval(FILE);
+  }
+
+  @Test
+  public void testStringStartsWith() {
+    boolean shouldRead = new InclusiveMetricsEvaluator(SCHEMA, startsWith("required", "a"), true).eval(FILE);
+    Assert.assertTrue("Should read: no stats", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, startsWith("required", "a"), true).eval(FILE_2);
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, startsWith("required", "aa"), true).eval(FILE_2);
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, startsWith("required", "aaa"), true).eval(FILE_2);
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, startsWith("required", "1s"), true).eval(FILE_3);
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, startsWith("required", "1str1x"), true).eval(FILE_3);
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, startsWith("required", "ff"), true).eval(FILE_4);
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, startsWith("required", "aB"), true).eval(FILE_2);
+    Assert.assertFalse("Should not read: range doesn't match", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, startsWith("required", "dWX"), true).eval(FILE_2);
+    Assert.assertFalse("Should not read: range doesn't match", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, startsWith("required", "5"), true).eval(FILE_3);
+    Assert.assertFalse("Should not read: range doesn't match", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, startsWith("required", "3str3x"), true).eval(FILE_3);
+    Assert.assertFalse("Should not read: range doesn't match", shouldRead);
+
+    String aboveMax = UnicodeUtil.truncateStringMax(Literal.of("イロハニホヘト"), 4).value().toString();
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, startsWith("required", aboveMax), true).eval(FILE_4);
+    Assert.assertFalse("Should not read: range doesn't match", shouldRead);
   }
 }
