@@ -374,6 +374,7 @@ project(':iceberg-spark') {
       exclude group: 'org.apache.avro', module: 'avro'
     }
     testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 }
 

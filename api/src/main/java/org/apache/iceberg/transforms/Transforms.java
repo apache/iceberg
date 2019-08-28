@@ -55,13 +55,19 @@ public class Transforms {
 
     if (transform.equalsIgnoreCase("identity")) {
       return Identity.get(type);
-    } else if (type.typeId() == Type.TypeID.TIMESTAMP) {
-      return Timestamps.valueOf(transform.toUpperCase(Locale.ENGLISH));
-    } else if (type.typeId() == Type.TypeID.DATE) {
-      return Dates.valueOf(transform.toUpperCase(Locale.ENGLISH));
     }
 
-    throw new IllegalArgumentException("Unknown transform: " + transform);
+    try {
+      if (type.typeId() == Type.TypeID.TIMESTAMP) {
+        return Timestamps.valueOf(transform.toUpperCase(Locale.ENGLISH));
+      } else if (type.typeId() == Type.TypeID.DATE) {
+        return Dates.valueOf(transform.toUpperCase(Locale.ENGLISH));
+      }
+    } catch (IllegalArgumentException ignored) {
+      // fall through to return unknown transform
+    }
+
+    return new UnknownTransform<>(type, transform);
   }
 
   /**
