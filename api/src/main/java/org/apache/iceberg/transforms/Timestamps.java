@@ -64,6 +64,9 @@ enum Timestamps implements Transform<Long, Integer> {
 
   @Override
   public Type getResultType(Type sourceType) {
+    if (granularity == ChronoUnit.DAYS) {
+      return Types.DateType.get();
+    }
     return Types.IntegerType.get();
   }
 

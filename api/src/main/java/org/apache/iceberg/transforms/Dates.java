@@ -61,6 +61,9 @@ enum Dates implements Transform<Integer, Integer> {
 
   @Override
   public Type getResultType(Type sourceType) {
+    if (granularity == ChronoUnit.DAYS) {
+      return Types.DateType.get();
+    }
     return Types.IntegerType.get();
   }
 
