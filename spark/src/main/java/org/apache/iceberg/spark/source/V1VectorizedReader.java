@@ -193,13 +193,22 @@ class V1VectorizedReader implements SupportsScanColumnarBatch,
         Integer.toString(this.numRecordsPerBatch));
     // prepare sparkReadSchema
     StructType sparkReadSchema = SparkSchemaUtil.convert(lazySchema());
+    // Build function for V1 Partition Reader which is passed over from Driver to Executors
+    ParquetFileFormat fileFormatInstance = new ParquetFileFormat();
+    scala.Function1<PartitionedFile, scala.collection.Iterator<InternalRow>> partitionFunction =
+        fileFormatInstance.buildReaderWithPartitionValues(sparkSession,
+          sparkReadSchema,
+          new StructType(),
+          sparkReadSchema,
+          filterAsSeq, // List$.MODULE$.empty(),
+          null, hadoopConf);
 
     List<InputPartition<ColumnarBatch>> readTasks = Lists.newArrayList();
     for (CombinedScanTask task : tasks()) {
       long readTaskStart = System.currentTimeMillis();
       readTasks.add(
           new ReadTask(task, tableSchemaString, expectedSchemaString, fileIo, encryptionManager, caseSensitive,
-              numRecordsPerBatch, hadoopConf, processedFilters, sparkSession, filterAsSeq, sparkReadSchema));
+              numRecordsPerBatch, processedFilters, partitionFunction));
       LOG.warn("=> ReadTask creating time took {} ms.", System.currentTimeMillis() - readTaskStart);
     }
     LOG.warn("=> Input Task planning took {} seconds.", (System.currentTimeMillis() - start) / 1000.0f);
@@ -322,7 +331,6 @@ class V1VectorizedReader implements SupportsScanColumnarBatch,
     private final boolean caseSensitive;
     private final int numRecordsPerBatch;
     private final Filter[] filters;
-    private final ParquetFileFormat fileFormatInstance;
     private final scala.Function1<PartitionedFile, scala.collection.Iterator<InternalRow>> buildReaderFunc;
 
     private transient Schema tableSchema = null;
@@ -331,8 +339,7 @@ class V1VectorizedReader implements SupportsScanColumnarBatch,
     private ReadTask(
         CombinedScanTask task, String tableSchemaString, String expectedSchemaString, FileIO fileIo,
         EncryptionManager encryptionManager, boolean caseSensitive, int numRecordsPerBatch,
-        Configuration hadoopConf, Filter[] filters, SparkSession sparkSession, Seq<Filter> filterAsSeq,
-        StructType readSchema) {
+        Filter[] filters, scala.Function1<PartitionedFile, scala.collection.Iterator<InternalRow>> partitionFunction) {
       this.task = task;
       this.tableSchemaString = tableSchemaString;
       this.expectedSchemaString = expectedSchemaString;
@@ -342,16 +349,8 @@ class V1VectorizedReader implements SupportsScanColumnarBatch,
       this.numRecordsPerBatch = numRecordsPerBatch;
       this.filters = filters;
 
-      // Build function to for V1 Partition Reader which is passed over from Driver to Executors
-      this.fileFormatInstance = new ParquetFileFormat();
-
       LOG.warn("=> Build partition reader function ");
-      this.buildReaderFunc = fileFormatInstance.buildReaderWithPartitionValues(sparkSession,
-          readSchema,
-          new StructType(),
-          readSchema,
-          filterAsSeq, // List$.MODULE$.empty(),
-          null, hadoopConf);
+      this.buildReaderFunc = partitionFunction;
     }
 
     @Override
