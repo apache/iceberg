@@ -21,6 +21,7 @@ package org.apache.iceberg.expressions;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterables;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
@@ -57,12 +58,10 @@ public class UnboundPredicate<T> extends Predicate<NamedReference> {
   public Literal<T> literal() {
     Preconditions.checkArgument(op() != Operation.IN && op() != Operation.NOT_IN,
         "%s predicate cannot return a literal", op());
-    return literals == null ? null : literals.iterator().next();
+    return literals == null ? null : Iterables.getOnlyElement(literals);
   }
 
   public Collection<Literal<T>> literals() {
-    Preconditions.checkArgument(op() == Operation.IN || op() == Operation.NOT_IN,
-        "%s predicate cannot return a list of literals", op());
     return literals;
   }
 
@@ -152,7 +151,7 @@ public class UnboundPredicate<T> extends Predicate<NamedReference> {
       }
     }
     return new BoundPredicate<>(op(), new BoundReference<>(field.fieldId(),
-            schema.accessorForField(field.fieldId())), lit);
+        schema.accessorForField(field.fieldId())), lit);
   }
 
   @SuppressWarnings("unchecked")
@@ -174,7 +173,7 @@ public class UnboundPredicate<T> extends Predicate<NamedReference> {
       return Expressions.alwaysFalse();
     } else if (lits.size() == 1) {
       return new BoundPredicate<>(Operation.EQ, new BoundReference<>(field.fieldId(),
-          schema.accessorForField(field.fieldId())), lits.iterator().next());
+          schema.accessorForField(field.fieldId())), Iterables.getOnlyElement(lits));
     } else {
       return new BoundSetPredicate<>(Operation.IN, new BoundReference<>(field.fieldId(),
           schema.accessorForField(field.fieldId())), lits);

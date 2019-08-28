@@ -41,7 +41,7 @@ public abstract class Predicate<R extends Reference> implements Expression {
 
   @Override
   public String toString() {
-    switch (op()) {
+    switch (op) {
       case IS_NULL:
         return "is_null(" + ref() + ")";
       case NOT_NULL:
@@ -65,7 +65,7 @@ public abstract class Predicate<R extends Reference> implements Expression {
       case NOT_IN:
         return ref() + " not in { " + literalString() + " }";
       default:
-        return "Invalid predicate: operation = " + op();
+        return "Invalid predicate: operation = " + op;
     }
   }
 }
