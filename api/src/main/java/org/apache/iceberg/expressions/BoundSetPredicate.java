@@ -31,11 +31,16 @@ import org.apache.iceberg.util.CharSequenceWrapper;
 public class BoundSetPredicate<T> extends Predicate<BoundReference<T>> {
   private final LiteralSet<T> literalSet;
 
+  @SuppressWarnings("unchecked")
   BoundSetPredicate(Operation op, BoundReference<T> ref, Set<Literal<T>> lits) {
     super(op, ref);
     Preconditions.checkArgument(op == Operation.IN || op == Operation.NOT_IN,
         "%s predicate does not support a set of literals", op);
-    this.literalSet = new LiteralSet<>(lits);
+    if (lits.iterator().next() instanceof Literals.StringLiteral) {
+      this.literalSet = (LiteralSet<T>) new CharSeqLiteralSet((Set) lits);
+    } else {
+      this.literalSet = new LiteralSet<>(lits);
+    }
   }
 
   BoundSetPredicate(Operation op, BoundReference<T> ref, LiteralSet<T> lits) {
@@ -66,20 +71,19 @@ public class BoundSetPredicate<T> extends Predicate<BoundReference<T>> {
   private static class LiteralSet<T> implements Set<T>, Serializable {
     private final Set<T> values;
 
-    @SuppressWarnings("unchecked")
+    LiteralSet(Iterator<T> vals) {
+      this.values = ImmutableSet.<T>builder().addAll(vals).build();
+    }
+
     LiteralSet(Set<Literal<T>> lits) {
       Preconditions.checkArgument(lits == null || lits.size() > 1,
           "The input literal set must include more than 1 element.");
       values = ImmutableSet.<T>builder().addAll(
-          lits.stream().map(
-              lit -> {
-                if (lit instanceof Literals.StringLiteral) {
-                  return (T) CharSequenceWrapper.wrap(((Literals.StringLiteral) lit).value());
-                } else {
-                  return lit.value();
-                }
-              }
-          ).iterator()).build();
+          lits.stream().map(Literal::value).iterator()).build();
+    }
+
+    Set<T> getValues() {
+      return values;
     }
 
     @Override
@@ -89,9 +93,6 @@ public class BoundSetPredicate<T> extends Predicate<BoundReference<T>> {
 
     @Override
     public boolean contains(Object object) {
-      if (object instanceof CharSequence) {
-        return values.contains(CharSequenceWrapper.wrap((CharSequence) object));
-      }
       return values.contains(object);
     }
 
@@ -106,16 +107,8 @@ public class BoundSetPredicate<T> extends Predicate<BoundReference<T>> {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public Iterator<T> iterator() {
-      return values.stream().map(
-          val -> {
-            if (val instanceof CharSequenceWrapper) {
-              return (T) ((CharSequenceWrapper) val).get();
-            } else {
-              return val;
-            }
-          }).iterator();
+      return values.iterator();
     }
 
     @Override
@@ -148,7 +141,6 @@ public class BoundSetPredicate<T> extends Predicate<BoundReference<T>> {
           "The set is immutable and cannot remove an element.");
     }
 
-
     @Override
     public boolean addAll(Collection<? extends T> c) {
       throw new UnsupportedOperationException(
@@ -171,6 +163,30 @@ public class BoundSetPredicate<T> extends Predicate<BoundReference<T>> {
     public void clear() {
       throw new UnsupportedOperationException(
           "The set is immutable and cannot be modified.");
+    }
+  }
+
+  private static class CharSeqLiteralSet extends LiteralSet<CharSequence> {
+    private static final ThreadLocal<CharSequenceWrapper> wrapper =
+        ThreadLocal.withInitial(() -> CharSequenceWrapper.wrap(null));
+
+    CharSeqLiteralSet(Set<Literal<CharSequence>> lits) {
+      super(lits.stream()
+          .map(lit -> (CharSequence) CharSequenceWrapper.wrap(lit.value()))
+          .iterator());
+    }
+
+    @Override
+    public Iterator<CharSequence> iterator() {
+      return getValues().stream().map(val -> ((CharSequenceWrapper) val).get()).iterator();
+    }
+
+    @Override
+    public boolean contains(Object object) {
+      if (object instanceof CharSequence) {
+        return super.contains(wrapper.get().set((CharSequence) object));
+      }
+      return false;
     }
   }
 }

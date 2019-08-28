@@ -54,7 +54,8 @@ public class ExpressionVisitors {
     }
 
     public <T> R predicate(BoundSetPredicate<T> pred) {
-      return null;
+      throw new UnsupportedOperationException(
+          "predicate for BoundSetPredicate is not supported by the visitor");
     }
 
     public <T> R predicate(UnboundPredicate<T> pred) {

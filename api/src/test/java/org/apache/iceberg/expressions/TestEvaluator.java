@@ -169,6 +169,8 @@ public class TestEvaluator {
 
   @Test
   public void testEqual() {
+    Assert.assertEquals(1, equal("x", 5).literals().size());
+
     Evaluator evaluator = new Evaluator(STRUCT, equal("x", 7));
     Assert.assertTrue("7 == 7 => true", evaluator.eval(TestHelpers.Row.of(7, 8, null)));
     Assert.assertFalse("6 == 7 => false", evaluator.eval(TestHelpers.Row.of(6, 8, null)));
@@ -190,6 +192,8 @@ public class TestEvaluator {
 
   @Test
   public void testNotEqual() {
+    Assert.assertEquals(1, notEqual("x", 5).literals().size());
+
     Evaluator evaluator = new Evaluator(STRUCT, notEqual("x", 7));
     Assert.assertFalse("7 != 7 => false", evaluator.eval(TestHelpers.Row.of(7, 8, null)));
     Assert.assertTrue("6 != 7 => true", evaluator.eval(TestHelpers.Row.of(6, 8, null)));
@@ -384,17 +388,20 @@ public class TestEvaluator {
     Assert.assertTrue("7 in [7, 8] => true", evaluator.eval(TestHelpers.Row.of(7, 8, null)));
     Assert.assertFalse("9 in [7, 8]  => false", evaluator.eval(TestHelpers.Row.of(9, 8, null)));
 
-    Evaluator longEvaluator = new Evaluator(STRUCT,
+    Evaluator intSetEvaluator = new Evaluator(STRUCT,
         in("x", Long.MAX_VALUE, Integer.MAX_VALUE, Long.MIN_VALUE));
     Assert.assertTrue("Integer.MAX_VALUE in [Integer.MAX_VALUE] => true",
-        longEvaluator.eval(TestHelpers.Row.of(Integer.MAX_VALUE, 7.0, null)));
+        intSetEvaluator.eval(TestHelpers.Row.of(Integer.MAX_VALUE, 7.0, null)));
     Assert.assertFalse("6 in [Integer.MAX_VALUE]  => false",
-        longEvaluator.eval(TestHelpers.Row.of(6, 6.8, null)));
+        intSetEvaluator.eval(TestHelpers.Row.of(6, 6.8, null)));
 
     Evaluator integerEvaluator = new Evaluator(STRUCT, in("y", 7, 8, 9.1));
-    Assert.assertTrue("7.0 in [7, 8, 9.1] => true", integerEvaluator.eval(TestHelpers.Row.of(7, 7.0, null)));
-    Assert.assertTrue("9.1 in [7, 8, 9.1] => true", integerEvaluator.eval(TestHelpers.Row.of(7, 9.1, null)));
-    Assert.assertFalse("6.8 in [7, 8, 9]  => false", integerEvaluator.eval(TestHelpers.Row.of(6, 6.8, null)));
+    Assert.assertTrue("7.0 in [7, 8, 9.1] => true",
+        integerEvaluator.eval(TestHelpers.Row.of(0, 7.0, null)));
+    Assert.assertTrue("9.1 in [7, 8, 9.1] => true",
+        integerEvaluator.eval(TestHelpers.Row.of(7, 9.1, null)));
+    Assert.assertFalse("6.8 in [7, 8, 9.1]  => false",
+        integerEvaluator.eval(TestHelpers.Row.of(6, 6.8, null)));
 
     Evaluator structEvaluator = new Evaluator(STRUCT, in("s1.s2.s3.s4.i", 7, 8, 9));
     Assert.assertTrue("7 in [7, 8, 9] => true",
@@ -431,12 +438,6 @@ public class TestEvaluator {
         NullPointerException.class,
         "Values cannot be null for IN predicate",
         () -> in("x", (Collection<?>) null));
-
-    TestHelpers.assertThrows(
-        "Throw exception if calling literals() for EQ predicate",
-        IllegalArgumentException.class,
-        "EQ predicate cannot return a list of literals",
-        () -> equal("x", 5).literals());
 
     TestHelpers.assertThrows(
         "Throw exception if calling literal() for IN predicate",
@@ -484,10 +485,20 @@ public class TestEvaluator {
     Assert.assertFalse("7 not in [7, 8] => false", evaluator.eval(TestHelpers.Row.of(7, 8, null)));
     Assert.assertTrue("6 not in [7, 8]  => true", evaluator.eval(TestHelpers.Row.of(9, 8, null)));
 
+    Evaluator intSetEvaluator = new Evaluator(STRUCT,
+        notIn("x", Long.MAX_VALUE, Integer.MAX_VALUE, Long.MIN_VALUE));
+    Assert.assertFalse("Integer.MAX_VALUE not_in [Integer.MAX_VALUE] => false",
+        intSetEvaluator.eval(TestHelpers.Row.of(Integer.MAX_VALUE, 7.0, null)));
+    Assert.assertTrue("6 not_in [Integer.MAX_VALUE]  => true",
+        intSetEvaluator.eval(TestHelpers.Row.of(6, 6.8, null)));
+
     Evaluator integerEvaluator = new Evaluator(STRUCT, notIn("y", 7, 8, 9.1));
-    Assert.assertFalse("7.0 not in [7, 8, 9] => false", integerEvaluator.eval(TestHelpers.Row.of(7, 7.0, null)));
-    Assert.assertFalse("9.1 not in [7, 8, 9.1] => false", integerEvaluator.eval(TestHelpers.Row.of(7, 9.1, null)));
-    Assert.assertTrue("6.8 not in [7, 8, 9]  => true", integerEvaluator.eval(TestHelpers.Row.of(6, 6.8, null)));
+    Assert.assertFalse("7.0 not in [7, 8, 9] => false",
+        integerEvaluator.eval(TestHelpers.Row.of(0, 7.0, null)));
+    Assert.assertFalse("9.1 not in [7, 8, 9.1] => false",
+        integerEvaluator.eval(TestHelpers.Row.of(7, 9.1, null)));
+    Assert.assertTrue("6.8 not in [7, 8, 9.1]  => true",
+        integerEvaluator.eval(TestHelpers.Row.of(6, 6.8, null)));
 
     Evaluator structEvaluator = new Evaluator(STRUCT, notIn("s1.s2.s3.s4.i", 7, 8, 9));
     Assert.assertFalse("7 not in [7, 8, 9] => false",
@@ -524,12 +535,6 @@ public class TestEvaluator {
         NullPointerException.class,
         "Values cannot be null for NOT_IN predicate",
         () -> notIn("x", (Collection<?>) null));
-
-    TestHelpers.assertThrows(
-        "Throw exception if calling literals() for EQ predicate",
-        IllegalArgumentException.class,
-        "NOT_EQ predicate cannot return a list of literals",
-        () -> notEqual("x", 5).literals());
 
     TestHelpers.assertThrows(
         "Throw exception if calling literal() for IN predicate",
