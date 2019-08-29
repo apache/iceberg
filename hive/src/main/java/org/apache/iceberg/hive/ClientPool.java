@@ -26,7 +26,7 @@ import java.util.Deque;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-abstract class ClientPool<C, E extends Exception> implements Closeable {
+public abstract class ClientPool<C, E extends Exception> implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(ClientPool.class);
 
   private final int poolSize;
@@ -45,7 +45,7 @@ abstract class ClientPool<C, E extends Exception> implements Closeable {
     this.closed = false;
   }
 
-  interface Action<R, C, E extends Exception> {
+  public interface Action<R, C, E extends Exception> {
     R run(C client) throws E;
   }
 

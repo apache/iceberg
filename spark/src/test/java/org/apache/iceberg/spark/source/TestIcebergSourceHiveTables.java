@@ -22,13 +22,11 @@ package org.apache.iceberg.spark.source;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ManifestFile;
@@ -40,6 +38,7 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hive.HiveCatalog;
+import org.apache.iceberg.hive.HiveClientPool;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
@@ -50,7 +49,6 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
-import org.apache.thrift.TException;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -61,9 +59,6 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TestIcebergSourceHiveTables {
 
-  private static final String DB_NAME = "hivedb";
-  private static final String TABLE_NAME = "tbl";
-  private static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(DB_NAME, TABLE_NAME);
   private static final Schema SCHEMA = new Schema(
       optional(1, "id", Types.IntegerType.get()),
       optional(2, "data", Types.StringType.get())
@@ -71,29 +66,37 @@ public class TestIcebergSourceHiveTables {
 
   private static SparkSession spark;
   private static TestHiveMetastore metastore;
+  private static HiveClientPool clients;
   private static HiveConf hiveConf;
-  private static HiveMetaStoreClient metastoreClient;
+  private static HiveCatalog catalog;
 
   @BeforeClass
   public static void startMetastoreAndSpark() throws Exception {
     TestIcebergSourceHiveTables.metastore = new TestHiveMetastore();
     metastore.start();
     TestIcebergSourceHiveTables.hiveConf = metastore.hiveConf();
-    TestIcebergSourceHiveTables.metastoreClient = new HiveMetaStoreClient(hiveConf);
-    String dbPath = metastore.getDatabasePath(DB_NAME);
-    Database db = new Database(DB_NAME, "desc", dbPath, new HashMap<>());
-    metastoreClient.createDatabase(db);
+    String dbPath = metastore.getDatabasePath("db");
+    Database db = new Database("db", "desc", dbPath, new HashMap<>());
+    TestIcebergSourceHiveTables.clients = new HiveClientPool(1, hiveConf);
+    clients.run(client -> {
+      client.createDatabase(db);
+      return null;
+    });
 
     TestIcebergSourceHiveTables.spark = SparkSession.builder()
         .master("local[2]")
         .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
         .getOrCreate();
+
+    TestIcebergSourceHiveTables.catalog = new HiveCatalog(hiveConf);
   }
 
   @AfterClass
   public static void stopMetastoreAndSpark() {
-    metastoreClient.close();
-    TestIcebergSourceHiveTables.metastoreClient = null;
+    catalog.close();
+    TestIcebergSourceHiveTables.catalog = null;
+    clients.close();
+    TestIcebergSourceHiveTables.clients = null;
     metastore.stop();
     TestIcebergSourceHiveTables.metastore = null;
     spark.stop();
@@ -101,9 +104,10 @@ public class TestIcebergSourceHiveTables {
   }
 
   @Test
-  public void testHiveTablesSupport() throws TException {
-    try (HiveCatalog catalog = new HiveCatalog(hiveConf)) {
-      catalog.createTable(TABLE_IDENTIFIER, SCHEMA, PartitionSpec.unpartitioned());
+  public void testHiveTablesSupport() throws Exception {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
+    try {
+      catalog.createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
 
       List<SimpleRecord> expectedRecords = Lists.newArrayList(
           new SimpleRecord(1, "1"),
@@ -114,26 +118,30 @@ public class TestIcebergSourceHiveTables {
       inputDf.select("id", "data").write()
           .format("iceberg")
           .mode(SaveMode.Append)
-          .save(TABLE_IDENTIFIER.toString());
+          .save(tableIdentifier.toString());
 
       Dataset<Row> resultDf = spark.read()
           .format("iceberg")
-          .load(TABLE_IDENTIFIER.toString());
+          .load(tableIdentifier.toString());
       List<SimpleRecord> actualRecords = resultDf.orderBy("id")
           .as(Encoders.bean(SimpleRecord.class))
           .collectAsList();
 
       Assert.assertEquals("Records should match", expectedRecords, actualRecords);
     } finally {
-      metastoreClient.dropTable(DB_NAME, TABLE_NAME);
+      clients.run(client -> {
+        client.dropTable(tableIdentifier.namespace().level(0), tableIdentifier.name());
+        return null;
+      });
     }
   }
 
   @Test
-  public void testHiveEntriesTable() throws TException, IOException {
-    try (HiveCatalog catalog = new HiveCatalog(hiveConf)) {
-      Table table = catalog.createTable(TABLE_IDENTIFIER, SCHEMA, PartitionSpec.unpartitioned());
-      Table entriesTable = catalog.loadTable(TableIdentifier.of(DB_NAME, TABLE_NAME, "entries"));
+  public void testHiveEntriesTable() throws Exception {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_test");
+    try {
+      Table table = catalog.createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
+      Table entriesTable = catalog.loadTable(TableIdentifier.of("db", "entries_test", "entries"));
 
       List<SimpleRecord> records = Lists.newArrayList(new SimpleRecord(1, "1"));
 
@@ -141,13 +149,13 @@ public class TestIcebergSourceHiveTables {
       inputDf.select("id", "data").write()
           .format("iceberg")
           .mode("append")
-          .save(TABLE_IDENTIFIER.toString());
+          .save(tableIdentifier.toString());
 
       table.refresh();
 
       List<Row> actual = spark.read()
           .format("iceberg")
-          .load(DB_NAME + "." + TABLE_NAME + ".entries")
+          .load("db.entries_test.entries")
           .collectAsList();
 
       Assert.assertEquals("Should only contain one manifest", 1, table.currentSnapshot().manifests().size());
@@ -162,17 +170,21 @@ public class TestIcebergSourceHiveTables {
       TestHelpers.assertEqualsSafe(entriesTable.schema().asStruct(), expected.get(0), actual.get(0));
 
     } finally {
-      metastoreClient.dropTable(DB_NAME, TABLE_NAME);
+      clients.run(client -> {
+        client.dropTable(tableIdentifier.namespace().level(0), tableIdentifier.name());
+        return null;
+      });
     }
   }
 
   @Test
-  public void testHiveFilesTable() throws TException, IOException {
-    try (HiveCatalog catalog = new HiveCatalog(hiveConf)) {
-      Table table = catalog.createTable(TABLE_IDENTIFIER, SCHEMA,
+  public void testHiveFilesTable() throws Exception {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "files_test");
+    try {
+      Table table = catalog.createTable(tableIdentifier, SCHEMA,
           PartitionSpec.builderFor(SCHEMA).identity("id").build());
-      Table entriesTable = catalog.loadTable(TableIdentifier.of(DB_NAME, TABLE_NAME, "entries"));
-      Table filesTable = catalog.loadTable(TableIdentifier.of(DB_NAME, TABLE_NAME, "files"));
+      Table entriesTable = catalog.loadTable(TableIdentifier.of("db", "files_test", "entries"));
+      Table filesTable = catalog.loadTable(TableIdentifier.of("db", "files_test", "files"));
 
       Dataset<Row> df1 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
       Dataset<Row> df2 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(2, "b")), SimpleRecord.class);
@@ -180,20 +192,20 @@ public class TestIcebergSourceHiveTables {
       df1.select("id", "data").write()
           .format("iceberg")
           .mode("append")
-          .save(TABLE_IDENTIFIER.toString());
+          .save(tableIdentifier.toString());
 
       // add a second file
       df2.select("id", "data").write()
           .format("iceberg")
           .mode("append")
-          .save(TABLE_IDENTIFIER.toString());
+          .save(tableIdentifier.toString());
 
       // delete the first file to test that only live files are listed
       table.newDelete().deleteFromRowFilter(Expressions.equal("id", 1)).commit();
 
       List<Row> actual = spark.read()
           .format("iceberg")
-          .load(DB_NAME + "." + TABLE_NAME + ".files")
+          .load("db.files_test.files")
           .collectAsList();
 
       List<GenericData.Record> expected = Lists.newArrayList();
@@ -213,16 +225,20 @@ public class TestIcebergSourceHiveTables {
       TestHelpers.assertEqualsSafe(filesTable.schema().asStruct(), expected.get(0), actual.get(0));
 
     } finally {
-      metastoreClient.dropTable(DB_NAME, TABLE_NAME);
+      clients.run(client -> {
+        client.dropTable(tableIdentifier.namespace().level(0), tableIdentifier.name());
+        return null;
+      });
     }
   }
 
   @Test
-  public void testHiveFilesUnpartitionedTable() throws TException, IOException {
-    try (HiveCatalog catalog = new HiveCatalog(hiveConf)) {
-      Table table = catalog.createTable(TABLE_IDENTIFIER, SCHEMA);
-      Table entriesTable = catalog.loadTable(TableIdentifier.of(DB_NAME, TABLE_NAME, "entries"));
-      Table filesTable = catalog.loadTable(TableIdentifier.of(DB_NAME, TABLE_NAME, "files"));
+  public void testHiveFilesUnpartitionedTable() throws Exception {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "unpartitioned_files_test");
+    try {
+      Table table = catalog.createTable(tableIdentifier, SCHEMA);
+      Table entriesTable = catalog.loadTable(TableIdentifier.of("db", "unpartitioned_files_test", "entries"));
+      Table filesTable = catalog.loadTable(TableIdentifier.of("db", "unpartitioned_files_test", "files"));
 
       Dataset<Row> df1 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
       Dataset<Row> df2 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(2, "b")), SimpleRecord.class);
@@ -230,7 +246,7 @@ public class TestIcebergSourceHiveTables {
       df1.select("id", "data").write()
           .format("iceberg")
           .mode("append")
-          .save(TABLE_IDENTIFIER.toString());
+          .save(tableIdentifier.toString());
 
       table.refresh();
       DataFile toDelete = Iterables.getOnlyElement(table.currentSnapshot().addedFiles());
@@ -239,14 +255,14 @@ public class TestIcebergSourceHiveTables {
       df2.select("id", "data").write()
           .format("iceberg")
           .mode("append")
-          .save(TABLE_IDENTIFIER.toString());
+          .save(tableIdentifier.toString());
 
       // delete the first file to test that only live files are listed
       table.newDelete().deleteFile(toDelete).commit();
 
       List<Row> actual = spark.read()
           .format("iceberg")
-          .load(DB_NAME + "." + TABLE_NAME + ".files")
+          .load("db.unpartitioned_files_test.files")
           .collectAsList();
 
       List<GenericData.Record> expected = Lists.newArrayList();
@@ -266,15 +282,19 @@ public class TestIcebergSourceHiveTables {
       TestHelpers.assertEqualsSafe(filesTable.schema().asStruct(), expected.get(0), actual.get(0));
 
     } finally {
-      metastoreClient.dropTable(DB_NAME, TABLE_NAME);
+      clients.run(client -> {
+        client.dropTable(tableIdentifier.namespace().level(0), tableIdentifier.name());
+        return null;
+      });
     }
   }
 
   @Test
-  public void testHiveHistoryTable() throws TException {
-    try (HiveCatalog catalog = new HiveCatalog(hiveConf)) {
-      Table table = catalog.createTable(TABLE_IDENTIFIER, SCHEMA, PartitionSpec.unpartitioned());
-      Table historyTable = catalog.loadTable(TableIdentifier.of(DB_NAME, TABLE_NAME, "history"));
+  public void testHiveHistoryTable() throws Exception {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "history_test");
+    try {
+      Table table = catalog.createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
+      Table historyTable = catalog.loadTable(TableIdentifier.of("db", "history_test", "history"));
 
       List<SimpleRecord> records = Lists.newArrayList(new SimpleRecord(1, "1"));
       Dataset<Row> inputDf = spark.createDataFrame(records, SimpleRecord.class);
@@ -282,7 +302,7 @@ public class TestIcebergSourceHiveTables {
       inputDf.select("id", "data").write()
           .format("iceberg")
           .mode("append")
-          .save(TABLE_IDENTIFIER.toString());
+          .save(tableIdentifier.toString());
 
       table.refresh();
       long firstSnapshotTimestamp = table.currentSnapshot().timestampMillis();
@@ -291,7 +311,7 @@ public class TestIcebergSourceHiveTables {
       inputDf.select("id", "data").write()
           .format("iceberg")
           .mode("append")
-          .save(TABLE_IDENTIFIER.toString());
+          .save(tableIdentifier.toString());
 
       table.refresh();
       long secondSnapshotTimestamp = table.currentSnapshot().timestampMillis();
@@ -304,7 +324,7 @@ public class TestIcebergSourceHiveTables {
       inputDf.select("id", "data").write()
           .format("iceberg")
           .mode("append")
-          .save(TABLE_IDENTIFIER.toString());
+          .save(tableIdentifier.toString());
 
       table.refresh();
       long thirdSnapshotTimestamp = table.currentSnapshot().timestampMillis();
@@ -312,7 +332,7 @@ public class TestIcebergSourceHiveTables {
 
       List<Row> actual = spark.read()
           .format("iceberg")
-          .load(DB_NAME + "." + TABLE_NAME + ".history")
+          .load("db.history_test.history")
           .collectAsList();
 
       GenericRecordBuilder builder = new GenericRecordBuilder(AvroSchemaUtil.convert(historyTable.schema(), "history"));
@@ -345,15 +365,19 @@ public class TestIcebergSourceHiveTables {
       TestHelpers.assertEqualsSafe(historyTable.schema().asStruct(), expected.get(2), actual.get(2));
 
     } finally {
-      metastoreClient.dropTable(DB_NAME, TABLE_NAME);
+      clients.run(client -> {
+        client.dropTable(tableIdentifier.namespace().level(0), tableIdentifier.name());
+        return null;
+      });
     }
   }
 
   @Test
-  public void testHiveSnapshotsTable() throws TException {
-    try (HiveCatalog catalog = new HiveCatalog(hiveConf)) {
-      Table table = catalog.createTable(TABLE_IDENTIFIER, SCHEMA, PartitionSpec.unpartitioned());
-      Table snapTable = catalog.loadTable(TableIdentifier.of(DB_NAME, TABLE_NAME, "snapshots"));
+  public void testHiveSnapshotsTable() throws Exception {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "snapshots_test");
+    try {
+      Table table = catalog.createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
+      Table snapTable = catalog.loadTable(TableIdentifier.of("db", "snapshots_test", "snapshots"));
 
       List<SimpleRecord> records = Lists.newArrayList(new SimpleRecord(1, "1"));
       Dataset<Row> inputDf = spark.createDataFrame(records, SimpleRecord.class);
@@ -361,7 +385,7 @@ public class TestIcebergSourceHiveTables {
       inputDf.select("id", "data").write()
           .format("iceberg")
           .mode("append")
-          .save(TABLE_IDENTIFIER.toString());
+          .save(tableIdentifier.toString());
 
       table.refresh();
       long firstSnapshotTimestamp = table.currentSnapshot().timestampMillis();
@@ -379,7 +403,7 @@ public class TestIcebergSourceHiveTables {
 
       List<Row> actual = spark.read()
           .format("iceberg")
-          .load(DB_NAME + "." + TABLE_NAME + ".snapshots")
+          .load("db.snapshots_test.snapshots")
           .collectAsList();
 
       GenericRecordBuilder builder = new GenericRecordBuilder(AvroSchemaUtil.convert(snapTable.schema(), "snapshots"));
@@ -417,29 +441,33 @@ public class TestIcebergSourceHiveTables {
       TestHelpers.assertEqualsSafe(snapTable.schema().asStruct(), expected.get(1), actual.get(1));
 
     } finally {
-      metastoreClient.dropTable(DB_NAME, TABLE_NAME);
+      clients.run(client -> {
+        client.dropTable(tableIdentifier.namespace().level(0), tableIdentifier.name());
+        return null;
+      });
     }
   }
 
   @Test
-  public void testHiveManifestsTable() throws TException {
-    try (HiveCatalog catalog = new HiveCatalog(hiveConf)) {
+  public void testHiveManifestsTable() throws Exception {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "manifests_test");
+    try {
       Table table = catalog.createTable(
-          TABLE_IDENTIFIER,
+          tableIdentifier,
           SCHEMA,
           PartitionSpec.builderFor(SCHEMA).identity("id").build());
-      Table manifestTable = catalog.loadTable(TableIdentifier.of(DB_NAME, TABLE_NAME, "manifests"));
+      Table manifestTable = catalog.loadTable(TableIdentifier.of("db", "manifests_test", "manifests"));
 
       Dataset<Row> df1 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
 
       df1.select("id", "data").write()
           .format("iceberg")
           .mode("append")
-          .save(TABLE_IDENTIFIER.toString());
+          .save(tableIdentifier.toString());
 
       List<Row> actual = spark.read()
           .format("iceberg")
-          .load(DB_NAME + "." + TABLE_NAME + ".manifests")
+          .load("db.manifests_test.manifests")
           .collectAsList();
 
       table.refresh();
@@ -470,7 +498,10 @@ public class TestIcebergSourceHiveTables {
       TestHelpers.assertEqualsSafe(manifestTable.schema().asStruct(), expected.get(0), actual.get(0));
 
     } finally {
-      metastoreClient.dropTable(DB_NAME, TABLE_NAME);
+      clients.run(client -> {
+        client.dropTable(tableIdentifier.namespace().level(0), tableIdentifier.name());
+        return null;
+      });
     }
   }
 }
