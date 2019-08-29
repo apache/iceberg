@@ -25,8 +25,8 @@ import java.nio.ByteBuffer
 import java.util
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{Path, PathFilter}
-import org.apache.iceberg.{DataFile, DataFiles, FileFormat, ManifestFile, ManifestWriter, Metrics,
-  MetricsConfig, PartitionSpec, Table}
+import org.apache.iceberg.{DataFile, DataFiles, FileFormat, ManifestFile, ManifestWriter}
+import org.apache.iceberg.{Metrics, MetricsConfig, PartitionSpec, Table}
 import org.apache.iceberg.exceptions.NoSuchTableException
 import org.apache.iceberg.hadoop.{HadoopFileIO, HadoopInputFile, HadoopTables, SerializableConfiguration}
 import org.apache.iceberg.orc.OrcMetrics
@@ -363,17 +363,13 @@ object SparkTableUtil {
    * thread-safe.
    *
    * @param source the database name of the table to be import
-   * @param location the location used to store table metadata
-   * @param numOfManifest the expected number of manifest file to be created
    * @param stagingDir the staging directory to store temporary manifest file
-   *
-   * @return table the imported table
+   * @param table the target table to import
    */
   def importSparkTable(
       source: TableIdentifier,
-      location: String,
-      numOfManifest: Int,
-      stagingDir: String): Table = {
+      stagingDir: String,
+      table: Table): Unit = {
     val sparkSession = SparkSession.builder().getOrCreate()
     import sparkSession.sqlContext.implicits._
 
@@ -387,9 +383,6 @@ object SparkTableUtil {
     val partitionSpec = SparkSchemaUtil.specForTable(sparkSession, s"$dbName.$tableName")
     val conf = sparkSession.sparkContext.hadoopConfiguration
     val serializableConfiguration = new SerializableConfiguration(conf)
-    val tables = new HadoopTables(conf)
-    val schema = SparkSchemaUtil.schemaForTable(sparkSession, s"$dbName.$tableName")
-    val table = tables.create(schema, partitionSpec, ImmutableMap.of(), location)
     val appender = table.newAppend()
 
     if (partitionSpec == PartitionSpec.unpartitioned) {
@@ -401,14 +394,15 @@ object SparkTableUtil {
       val partitions = partitionDF(sparkSession, s"$dbName.$tableName")
       val manifests = partitions.flatMap { row =>
         listPartition(row.getMap[String, String](0).toMap, row.getString(1), row.getString(2))
-      }.repartition(numOfManifest).mapPartitions {
+      }.repartition(sparkSession.sessionState.conf.numShufflePartitions)
+        .orderBy($"path")
+        .mapPartitions {
         files => buildManifest(serializableConfiguration, files.toSeq, partitionSpec, stagingDir)
       }.collect().map(_.toManifestFile)
       manifests.foreach(appender.appendManifest)
     }
 
     appender.commit()
-    table
   }
 
 }
