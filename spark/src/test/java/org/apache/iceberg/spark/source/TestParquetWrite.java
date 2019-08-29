@@ -247,4 +247,93 @@ public class TestParquetWrite {
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
   }
+
+  @Test
+  public void testUnpartitionedCreateWithTargetFileSize() throws IOException {
+    File parent = temp.newFolder("parquet");
+    File location = new File(parent, "test");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table = tables.create(SCHEMA, spec, location.toString());
+
+    List<SimpleRecord> expected = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b"),
+        new SimpleRecord(3, "c")
+    );
+
+    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
+
+    df.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .option("target-file-size", 4) // ~4 bytes per file
+        .save(location.toString());
+
+    table.refresh();
+
+    Dataset<Row> result = spark.read()
+        .format("iceberg")
+        .load(location.toString());
+
+    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
+    Assert.assertEquals("Result rows should match", expected, actual);
+
+    List<DataFile> files = Lists.newArrayList();
+    for (ManifestFile manifest : table.currentSnapshot().manifests()) {
+      for (DataFile file : ManifestReader.read(localInput(manifest.path()), null)) {
+        files.add(file);
+      }
+    }
+    Assert.assertEquals("Should have 3 DataFiles", 3, files.size());
+    Assert.assertTrue("All DataFiles contain 1 row", files.stream().allMatch(d -> d.recordCount() == 1));
+  }
+
+  @Test
+  public void testPartitionedCreateWithTargetFileSize() throws IOException {
+    File parent = temp.newFolder("parquet");
+    File location = new File(parent, "test");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
+    Table table = tables.create(SCHEMA, spec, location.toString());
+
+    List<SimpleRecord> expected = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "a"),
+        new SimpleRecord(3, "b"),
+        new SimpleRecord(4, "b"),
+        new SimpleRecord(5, "c"),
+        new SimpleRecord(6, "c")
+    );
+
+    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
+
+    df.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .option("target-file-size", 4) // 4 bytes per file
+        .save(location.toString());
+
+    table.refresh();
+
+    Dataset<Row> result = spark.read()
+        .format("iceberg")
+        .load(location.toString());
+
+    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
+    Assert.assertEquals("Result rows should match", expected, actual);
+
+    List<DataFile> files = Lists.newArrayList();
+    for (ManifestFile manifest : table.currentSnapshot().manifests()) {
+      for (DataFile file : ManifestReader.read(localInput(manifest.path()), null)) {
+        files.add(file);
+      }
+    }
+    Assert.assertEquals("Should have 6 DataFiles", 6, files.size());
+    Assert.assertTrue("All DataFiles contain 1 row", files.stream().allMatch(d -> d.recordCount() == 1));
+  }
 }
