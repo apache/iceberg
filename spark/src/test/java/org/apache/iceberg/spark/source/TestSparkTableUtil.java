@@ -56,7 +56,10 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
   private static SparkSession spark = null;
 
   @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  public TemporaryFolder temp1 = new TemporaryFolder();
+
+  @Rule
+  public TemporaryFolder temp2 = new TemporaryFolder();
 
   @BeforeClass
   public static void startSpark() {
@@ -130,8 +133,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
 
   @Test
   public void testImportPartitionedTable() throws Exception {
-    File parent = temp.newFolder("iceberg_warehouse");
-    File location = new File(parent, "partitioned_table");
+    File location = temp1.newFolder("partitioned_table");
     spark.table(qualifiedTableName).write().mode("overwrite").partitionBy("data").format("parquet")
             .saveAsTable("test_partitioned_table");
     TableIdentifier source = spark.sessionState().sqlParser()
@@ -141,7 +143,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
             SparkSchemaUtil.specForTable(spark, qualifiedTableName),
             ImmutableMap.of(),
             location.getCanonicalPath());
-    File stageDir = temp.newFolder("staging1");
+    File stageDir = temp1.newFolder("staging1");
     SparkTableUtil.importSparkTable(source, stageDir.getCanonicalPath(), table);
     long count = spark.read().format("iceberg").load(location.toString()).count();
     Assert.assertEquals("three values ", 3, count);
@@ -149,8 +151,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
 
   @Test
   public void testImportUnpartitionedTable() throws Exception {
-    File parent = temp.newFolder("iceberg_warehouse2");
-    File location = new File(parent, "unpartitioned_table");
+    File location = temp2.newFolder("unpartitioned_table");
     spark.table(qualifiedTableName).write().mode("overwrite").format("parquet")
             .saveAsTable("test_unpartitioned_table");
     TableIdentifier source = spark.sessionState().sqlParser()
@@ -160,7 +161,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
             SparkSchemaUtil.specForTable(spark, qualifiedTableName),
             ImmutableMap.of(),
             location.getCanonicalPath());
-    File stageDir = temp.newFolder("staging2");
+    File stageDir = temp2.newFolder("staging2");
     SparkTableUtil.importSparkTable(source, stageDir.getCanonicalPath(), table);
     long count = spark.read().format("iceberg").load(location.toString()).count();
     Assert.assertEquals("three values ", 3, count);
