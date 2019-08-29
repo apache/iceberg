@@ -149,7 +149,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
 
   @Test
   public void testImportUnpartitionedTable() throws Exception {
-    File parent = temp.newFolder("iceberg_warehouse");
+    File parent = temp.newFolder("iceberg_warehouse2");
     File location = new File(parent, "unpartitioned_table");
     spark.table(qualifiedTableName).write().mode("overwrite").format("parquet")
             .saveAsTable("test_unpartitioned_table");
