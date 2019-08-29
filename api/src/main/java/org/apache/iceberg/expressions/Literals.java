@@ -95,7 +95,7 @@ class Literals {
 
   private abstract static class BaseLiteral<T> implements Literal<T> {
     private final T value;
-    private volatile ByteBuffer byteBuffer = null;
+    private transient volatile ByteBuffer byteBuffer = null;
 
     BaseLiteral(T value) {
       Preconditions.checkNotNull(value, "Literal values cannot be null");

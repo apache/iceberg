@@ -46,6 +46,7 @@ import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.api.java.UDF1;
@@ -452,6 +453,21 @@ public class TestFilteredScan {
     pushFilters(reader, new StringStartsWith("data", "junc"));
 
     Assert.assertEquals(1, reader.planInputPartitions().size());
+  }
+
+  @Test
+  public void testUnpartitionedStartsWith() {
+    Dataset<Row> df = spark.read()
+        .format("iceberg")
+        .load(unpartitioned.toString());
+
+    List<String> matchedData = df.select("data")
+        .where("data LIKE 'jun%'")
+        .as(Encoders.STRING())
+        .collectAsList();
+
+    Assert.assertEquals(1, matchedData.size());
+    Assert.assertEquals("junction", matchedData.get(0));
   }
 
   private static Record projectFlat(Schema projection, Record record) {
