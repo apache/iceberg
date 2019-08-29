@@ -129,37 +129,39 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
   }
 
   @Test
-  public void testImportPartitionedHadoopTable() throws Exception {
+  public void testImportPartitionedTable() throws Exception {
     File parent = temp.newFolder("iceberg_warehouse");
-    File location = new File(parent, "partitioned_hadoop_table");
+    File location = new File(parent, "partitioned_table");
     spark.table(qualifiedTableName).write().mode("overwrite").partitionBy("data").format("parquet")
-            .saveAsTable("test_partitioned_hadoop_table");
+            .saveAsTable("test_partitioned_table");
     TableIdentifier source = spark.sessionState().sqlParser()
-            .parseTableIdentifier("test_partitioned_hadoop_table");
+            .parseTableIdentifier("test_partitioned_table");
     HadoopTables tables = new HadoopTables(spark.sparkContext().hadoopConfiguration());
     Table table = tables.create(SparkSchemaUtil.schemaForTable(spark, qualifiedTableName),
             SparkSchemaUtil.specForTable(spark, qualifiedTableName),
             ImmutableMap.of(),
             location.getCanonicalPath());
-    SparkTableUtil.importSparkTable(source, "/tmp", table);
+    File stageDir = temp.newFolder("staging1");
+    SparkTableUtil.importSparkTable(source, stageDir.getCanonicalPath(), table);
     long count = spark.read().format("iceberg").load(location.toString()).count();
     Assert.assertEquals("three values ", 3, count);
   }
 
   @Test
-  public void testImportUnpartitionedHadoopTable() throws Exception {
+  public void testImportUnpartitionedTable() throws Exception {
     File parent = temp.newFolder("iceberg_warehouse");
-    File location = new File(parent, "test_unpartitioned_hadoop_table");
+    File location = new File(parent, "unpartitioned_table");
     spark.table(qualifiedTableName).write().mode("overwrite").format("parquet")
-            .saveAsTable("test_unpartitioned_hadoop_table");
+            .saveAsTable("test_unpartitioned_table");
     TableIdentifier source = spark.sessionState().sqlParser()
-            .parseTableIdentifier("test_unpartitioned_hadoop_table");
+            .parseTableIdentifier("test_unpartitioned_table");
     HadoopTables tables = new HadoopTables(spark.sparkContext().hadoopConfiguration());
     Table table = tables.create(SparkSchemaUtil.schemaForTable(spark, qualifiedTableName),
             SparkSchemaUtil.specForTable(spark, qualifiedTableName),
             ImmutableMap.of(),
             location.getCanonicalPath());
-    SparkTableUtil.importSparkTable(source, "/tmp", table);
+    File stageDir = temp.newFolder("staging2");
+    SparkTableUtil.importSparkTable(source, stageDir.getCanonicalPath(), table);
     long count = spark.read().format("iceberg").load(location.toString()).count();
     Assert.assertEquals("three values ", 3, count);
   }

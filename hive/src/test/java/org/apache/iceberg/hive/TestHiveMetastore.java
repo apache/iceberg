@@ -102,7 +102,7 @@ public class TestHiveMetastore {
         .transportFactory(new TTransportFactory())
         .protocolFactory(new TBinaryProtocol.Factory())
         .minWorkerThreads(3)
-        .maxWorkerThreads(10);
+        .maxWorkerThreads(12);
 
     return new TThreadPoolServer(args);
   }
