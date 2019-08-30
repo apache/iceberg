@@ -41,6 +41,9 @@ public class TableProperties {
   public static final String MANIFEST_MIN_MERGE_COUNT = "commit.manifest.min-count-to-merge";
   public static final int MANIFEST_MIN_MERGE_COUNT_DEFAULT = 100;
 
+  public static final String MANIFEST_MERGE_ENABLED = "commit.manifest-merge.enabled";
+  public static final boolean MANIFEST_MERGE_ENABLED_DEFAULT = true;
+
   public static final String DEFAULT_FILE_FORMAT = "write.format.default";
   public static final String DEFAULT_FILE_FORMAT_DEFAULT = "parquet";
 

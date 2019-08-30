@@ -81,6 +81,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final long manifestTargetSizeBytes;
   private final int minManifestsCountToMerge;
   private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
+  private final boolean mergeEnabled;
 
   // update data
   private final AtomicInteger manifestCount = new AtomicInteger(0);
@@ -118,6 +119,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         .propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
     this.minManifestsCountToMerge = ops.current()
         .propertyAsInt(MANIFEST_MIN_MERGE_COUNT, MANIFEST_MIN_MERGE_COUNT_DEFAULT);
+    this.mergeEnabled = ops.current()
+        .propertyAsBoolean(TableProperties.MANIFEST_MERGE_ENABLED, TableProperties.MANIFEST_MERGE_ENABLED_DEFAULT);
   }
 
   @Override
@@ -231,19 +234,17 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     // add the current spec as the first group. files are added to the beginning.
     try {
+      Iterable<ManifestFile> newManifests;
       if (newFiles.size() > 0) {
         // add all of the new files to the summary builder
         for (DataFile file : newFiles) {
           summaryBuilder.addedFile(spec, file);
         }
 
-        ManifestFile newManifest = newFilesAsManifest();
-        List<ManifestFile> manifestGroup = Lists.newArrayList();
-        manifestGroup.add(newManifest);
-        groups.put(newManifest.partitionSpecId(), manifestGroup);
+        newManifests = Iterables.concat(ImmutableList.of(newFilesAsManifest()), appendManifests);
+      } else {
+        newManifests = appendManifests;
       }
-
-      Set<CharSequenceWrapper> deletedFiles = Sets.newHashSet();
 
       // filter any existing manifests
       List<ManifestFile> filtered;
@@ -254,15 +255,21 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         filtered = ImmutableList.of();
       }
 
-      groupManifestsByPartitionSpec(groups, deletedFiles, Iterables.concat(appendManifests, filtered));
+      Iterable<ManifestFile> unmergedManifests = Iterables.filter(
+          Iterables.concat(newManifests, filtered),
+          // only keep manifests that have live data files or that were written by this commit
+          manifest -> manifest.hasAddedFiles() || manifest.hasExistingFiles() || manifest.snapshotId() == snapshotId());
+
+      Set<CharSequenceWrapper> deletedFiles = deletedFiles(unmergedManifests);
 
       List<ManifestFile> manifests = Lists.newArrayList();
-      for (Map.Entry<Integer, List<ManifestFile>> entry : groups.entrySet()) {
-        int groupId = entry.getKey();
-        List<ManifestFile> manifestGroup = entry.getValue();
-        for (ManifestFile manifest : mergeGroup(groupId, manifestGroup)) {
-          manifests.add(manifest);
+      if (mergeEnabled) {
+        groupManifestsByPartitionSpec(groups, unmergedManifests);
+        for (Map.Entry<Integer, List<ManifestFile>> entry : groups.entrySet()) {
+          Iterables.addAll(manifests, mergeGroup(entry.getKey(), entry.getValue()));
         }
+      } else {
+        Iterables.addAll(manifests, unmergedManifests);
       }
 
       ValidationException.check(!failMissingDeletePaths || deletedFiles.containsAll(deletePaths),
@@ -292,17 +299,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return filtered;
   }
 
-  private void groupManifestsByPartitionSpec(
-      Map<Integer, List<ManifestFile>> groups,
-      Set<CharSequenceWrapper> deletedFiles, Iterable<ManifestFile> filtered) {
-    for (ManifestFile manifest : filtered) {
-      // only keep manifests that have live data files or that were written by this commit
-      boolean hasLiveDataFiles = manifest.hasAddedFiles() || manifest.hasExistingFiles();
-      boolean isNewManifest = manifest.snapshotId() == snapshotId();
-      if (!hasLiveDataFiles && !isNewManifest) {
-        continue;
-      }
+  private Set<CharSequenceWrapper> deletedFiles(Iterable<ManifestFile> manifests) {
+    Set<CharSequenceWrapper> deletedFiles = Sets.newHashSet();
 
+    for (ManifestFile manifest : manifests) {
       PartitionSpec manifestSpec = ops.current().spec(manifest.partitionSpecId());
       Iterable<DataFile> manifestDeletes = filteredManifestToDeletedFiles.get(manifest);
       if (manifestDeletes != null) {
@@ -311,7 +311,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
           deletedFiles.add(CharSequenceWrapper.wrap(file.path()));
         }
       }
+    }
 
+    return deletedFiles;
+  }
+
+  private void groupManifestsByPartitionSpec(Map<Integer, List<ManifestFile>> groups, Iterable<ManifestFile> filtered) {
+    for (ManifestFile manifest : filtered) {
       List<ManifestFile> group = groups.get(manifest.partitionSpecId());
       if (group != null) {
         group.add(manifest);
