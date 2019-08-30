@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark
 
-import com.google.common.collect.ImmutableMap
 import com.google.common.collect.Maps
 import java.nio.ByteBuffer
 import java.util
@@ -147,7 +146,7 @@ object SparkTableUtil {
           arrayToMap(lowerBounds),
           arrayToMap(upperBounds)))
 
-      if (partitionKey == "") {
+      if (partitionKey.isEmpty) {
         builder.build()
       } else {
         builder.withPartitionPath(partitionKey).build()
@@ -312,7 +311,7 @@ object SparkTableUtil {
       partitionSpec: PartitionSpec,
       basePath: String): Iterator[Manifest] = {
     if (sparkDataFiles.isEmpty) {
-      Seq.empty.iterator
+      return Seq.empty.iterator
     }
 
     val io = new HadoopFileIO(conf.get())
@@ -386,7 +385,7 @@ object SparkTableUtil {
     val appender = table.newAppend()
 
     if (partitionSpec == PartitionSpec.unpartitioned) {
-      val catalogTable = Hive.getTable(sparkSession, s"$dbName.$tableName")
+      val catalogTable = sparkSession.sessionState.catalog.getTableMetadata(source)
       val files = listPartition(Map.empty[String, String], catalogTable.location.toString,
         catalogTable.storage.serde.getOrElse("none"))
       files.foreach{f => appender.appendFile(f.toDataFile(PartitionSpec.unpartitioned))}

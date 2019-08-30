@@ -56,10 +56,8 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
   private static SparkSession spark = null;
 
   @Rule
-  public TemporaryFolder temp1 = new TemporaryFolder();
+  public TemporaryFolder temp = new TemporaryFolder();
 
-  @Rule
-  public TemporaryFolder temp2 = new TemporaryFolder();
 
   @BeforeClass
   public static void startSpark() {
@@ -133,7 +131,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
 
   @Test
   public void testImportPartitionedTable() throws Exception {
-    File location = temp1.newFolder("partitioned_table");
+    File location = temp.newFolder("partitioned_table");
     spark.table(qualifiedTableName).write().mode("overwrite").partitionBy("data").format("parquet")
             .saveAsTable("test_partitioned_table");
     TableIdentifier source = spark.sessionState().sqlParser()
@@ -143,15 +141,14 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
             SparkSchemaUtil.specForTable(spark, qualifiedTableName),
             ImmutableMap.of(),
             location.getCanonicalPath());
-    File stageDir = temp1.newFolder("staging1");
-    SparkTableUtil.importSparkTable(source, stageDir.getCanonicalPath(), table);
+    SparkTableUtil.importSparkTable(source, "tmp", table);
     long count = spark.read().format("iceberg").load(location.toString()).count();
     Assert.assertEquals("three values ", 3, count);
   }
 
   @Test
   public void testImportUnpartitionedTable() throws Exception {
-    File location = temp2.newFolder("unpartitioned_table");
+    File location = temp.newFolder("unpartitioned_table");
     spark.table(qualifiedTableName).write().mode("overwrite").format("parquet")
             .saveAsTable("test_unpartitioned_table");
     TableIdentifier source = spark.sessionState().sqlParser()
@@ -161,8 +158,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
             SparkSchemaUtil.specForTable(spark, qualifiedTableName),
             ImmutableMap.of(),
             location.getCanonicalPath());
-    File stageDir = temp2.newFolder("staging2");
-    SparkTableUtil.importSparkTable(source, stageDir.getCanonicalPath(), table);
+    SparkTableUtil.importSparkTable(source, "/tmp", table);
     long count = spark.read().format("iceberg").load(location.toString()).count();
     Assert.assertEquals("three values ", 3, count);
   }

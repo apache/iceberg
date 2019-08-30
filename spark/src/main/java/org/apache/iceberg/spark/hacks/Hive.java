@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalyst.catalog.CatalogTable;
 import org.apache.spark.sql.catalyst.catalog.CatalogTablePartition;
 import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.hive.HiveUtils$;
@@ -62,17 +61,5 @@ public class Hive {
             scala.collection.JavaConverters.collectionAsScalaIterableConverter(expressions).asScala().toSeq();
 
     return client.getPartitionsByFilter(client.getTable(db, table), exprs);
-  }
-
-  public static CatalogTable getTable(SparkSession spark, String name) {
-    List<String> parts = Lists.newArrayList(Splitter.on('.').limit(2).split(name));
-    String db = parts.size() == 1 ? "default" : parts.get(0);
-    String table = parts.get(parts.size() == 1 ? 0 : 1);
-
-    HiveClient client = HiveUtils$.MODULE$.newClientForMetadata(
-            spark.sparkContext().conf(),
-            spark.sparkContext().hadoopConfiguration());
-
-    return client.getTable(db, table);
   }
 }
