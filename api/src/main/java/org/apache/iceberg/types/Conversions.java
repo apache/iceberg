@@ -51,7 +51,7 @@ public class Conversions {
       case LONG:
         return Long.valueOf(asString);
       case FLOAT:
-        return Long.valueOf(asString);
+        return Float.valueOf(asString);
       case DOUBLE:
         return Double.valueOf(asString);
       case STRING:
