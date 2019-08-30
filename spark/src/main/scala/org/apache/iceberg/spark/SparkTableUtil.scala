@@ -312,24 +312,24 @@ object SparkTableUtil {
       basePath: String): Iterator[Manifest] = {
     if (sparkDataFiles.isEmpty) {
       return Seq.empty.iterator
-    }
-
-    val io = new HadoopFileIO(conf.get())
-    val ctx = TaskContext.get()
-    val location = new Path(basePath,
-      s"stage-${ctx.stageId()}-task-${ctx.taskAttemptId()}-manifest")
-    val outputFile = io.newOutputFile(FileFormat.AVRO.addExtension(location.toString))
-    val writer = ManifestWriter.write(partitionSpec, outputFile)
-    try {
-      sparkDataFiles.foreach { file =>
-        writer.add(file.toDataFile(partitionSpec))
+    } else {
+      val io = new HadoopFileIO(conf.get())
+      val ctx = TaskContext.get()
+      val location = new Path(basePath,
+        s"stage-${ctx.stageId()}-task-${ctx.taskAttemptId()}-manifest")
+      val outputFile = io.newOutputFile(FileFormat.AVRO.addExtension(location.toString))
+      val writer = ManifestWriter.write(partitionSpec, outputFile)
+      try {
+        sparkDataFiles.foreach { file =>
+          writer.add(file.toDataFile(partitionSpec))
+        }
+      } finally {
+        writer.close()
       }
-    } finally {
-      writer.close()
-    }
 
-    val manifestFile = writer.toManifestFile
-    Seq(Manifest(manifestFile.path, manifestFile.length, manifestFile.partitionSpecId)).iterator
+      val manifestFile = writer.toManifestFile
+      Seq(Manifest(manifestFile.path, manifestFile.length, manifestFile.partitionSpecId)).iterator
+    }
   }
 
   private case class Manifest(location: String, fileLength: Long, specId: Int) {
