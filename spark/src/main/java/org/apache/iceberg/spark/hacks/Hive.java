@@ -36,7 +36,7 @@ public class Hive {
 
   private Hive() {}
 
-  private static HiveClient hiveClient = null;
+  private static volatile HiveClient hiveClient = null;
 
   private static HiveClient getClient(SparkSession spark) {
     if (hiveClient == null) {
