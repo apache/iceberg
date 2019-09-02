@@ -311,7 +311,7 @@ object SparkTableUtil {
       partitionSpec: PartitionSpec,
       basePath: String): Iterator[Manifest] = {
     if (sparkDataFiles.isEmpty) {
-      return Seq.empty.iterator
+      Seq.empty.iterator
     } else {
       val io = new HadoopFileIO(conf.get())
       val ctx = TaskContext.get()
