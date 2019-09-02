@@ -45,6 +45,9 @@ public class TestScanSummary extends TableTestBase {
         .commit();
 
     long t1 = System.currentTimeMillis();
+    while (t1 == t0) {
+      t1 = System.currentTimeMillis();
+    }
 
     table.newAppend()
         .appendFile(FILE_C) // data_bucket=2
@@ -53,6 +56,9 @@ public class TestScanSummary extends TableTestBase {
     long secondSnapshotId = table.currentSnapshot().snapshotId();
 
     long t2 = System.currentTimeMillis();
+    while (t2 == t1) {
+      t2 = System.currentTimeMillis();
+    }
 
     // expire the first snapshot
     table.expireSnapshots()
