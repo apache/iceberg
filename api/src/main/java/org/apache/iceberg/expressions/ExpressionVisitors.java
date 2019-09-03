@@ -141,15 +141,15 @@ public class ExpressionVisitors {
   /**
    * Traverses the given {@link Expression expression} with a {@link ExpressionVisitor visitor}.
    * <p>
-   * The visitor will be called to handle each node in the expression tree in postfix order. Result
-   * values produced by child nodes are passed when parent nodes are handled.
+   * The visitor will be called to handle only nodes required for determining result
+   * in the expression tree in postfix order. Result values produced by child nodes
+   * are passed when parent nodes are handled.
    *
    * @param expr an expression to traverse
    * @param visitor a visitor that will be called to handle each node in the expression tree
    * @param <R> the return type produced by the expression visitor
    * @return the value returned by the visitor for the root expression node
    */
-  @SuppressWarnings("unchecked")
   public static <R> R visit(Expression expr, ExpressionVisitor<R> visitor) {
     if (expr instanceof Predicate) {
       if (expr instanceof BoundPredicate) {
@@ -168,10 +168,18 @@ public class ExpressionVisitors {
           return visitor.not(visit(not.child(), visitor));
         case AND:
           And and = (And) expr;
-          return visitor.and(visit(and.left(), visitor), visit(and.right(), visitor));
+          R andLeftOperand = visit(and.left(), visitor);
+          if (andLeftOperand == visitor.alwaysFalse()) {
+            return visitor.alwaysFalse();
+          }
+          return visitor.and(andLeftOperand, visit(and.right(), visitor));
         case OR:
           Or or = (Or) expr;
-          return visitor.or(visit(or.left(), visitor), visit(or.right(), visitor));
+          R orLeftOperand = visit(or.left(), visitor);
+          if (orLeftOperand == visitor.alwaysTrue()) {
+            return visitor.alwaysTrue();
+          }
+          return visitor.or(orLeftOperand, visit(or.right(), visitor));
         default:
           throw new UnsupportedOperationException(
               "Unknown operation: " + expr.op());
