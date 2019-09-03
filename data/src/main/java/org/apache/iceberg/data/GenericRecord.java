@@ -117,7 +117,7 @@ public class GenericRecord implements Record, StructLike {
   @Override
   public <T> T get(int pos, Class<T> javaClass) {
     Object value = get(pos);
-    if (javaClass.isInstance(value)) {
+    if (value == null || javaClass.isInstance(value)) {
       return javaClass.cast(value);
     } else {
       throw new IllegalStateException("Not an instance of " + javaClass.getName() + ": " + value);
