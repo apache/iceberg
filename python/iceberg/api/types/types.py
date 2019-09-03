@@ -371,8 +371,8 @@ class BinaryType(PrimitiveType):
 class DecimalType(PrimitiveType):
 
     @staticmethod
-    def of(precison, scale):
-        return DecimalType(precison, scale)
+    def of(precision, scale):
+        return DecimalType(precision, scale)
 
     def __init__(self, precision, scale):
         if int(precision) > 38:
@@ -385,7 +385,7 @@ class DecimalType(PrimitiveType):
         return TypeID.DECIMAL
 
     def __repr__(self):
-        return "decimal(%s,%s)" % (self.precision, self.scale)
+        return "decimal(%s, %s)" % (self.precision, self.scale)
 
     def __str__(self):
         return self.__repr__()
@@ -396,7 +396,7 @@ class DecimalType(PrimitiveType):
         elif other is None or not isinstance(other, DecimalType):
             return False
 
-        return self.precision == other.precison and self.scale == other.scale
+        return self.precision == other.precision and self.scale == other.scale
 
     def __ne__(self, other):
         return not self.__eq__(other)

@@ -40,7 +40,6 @@ ROLE_ARN = "default"
 AUTOREFRESH_SESSION = None
 
 
-
 @retry(wait_incrementing_start=100, wait_exponential_multiplier=4,
        wait_exponential_max=5000, stop_max_delay=600000, stop_max_attempt_number=7)
 def get_s3(obj="resource"):
