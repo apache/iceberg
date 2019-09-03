@@ -16,7 +16,6 @@
 # under the License.
 
 
-
 class TableProperties(object):
     COMMIT_NUM_RETRIES = "commit.retry.num-retries"
     COMMIT_NUM_RETRIES_DEFAULT = 4
