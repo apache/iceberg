@@ -30,6 +30,7 @@ import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -249,13 +250,17 @@ public class TestParquetWrite {
   }
 
   @Test
-  public void testUnpartitionedCreateWithTargetFileSize() throws IOException {
+  public void testUnpartitionedCreateWithTargetFileSizeViaTableProperties() throws IOException {
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test");
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Table table = tables.create(SCHEMA, spec, location.toString());
+
+    table.updateProperties()
+        .set(TableProperties.WRITE_TARGET_FILE_SIZE, "4") // ~4 bytes per file
+        .commit();
 
     List<SimpleRecord> expected = Lists.newArrayList(
         new SimpleRecord(1, "a"),
@@ -268,7 +273,6 @@ public class TestParquetWrite {
     df.select("id", "data").write()
         .format("iceberg")
         .mode("append")
-        .option("target-file-size", 4) // ~4 bytes per file
         .save(location.toString());
 
     table.refresh();
@@ -292,7 +296,7 @@ public class TestParquetWrite {
   }
 
   @Test
-  public void testPartitionedCreateWithTargetFileSize() throws IOException {
+  public void testPartitionedCreateWithTargetFileSizeViaOption() throws IOException {
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test");
 

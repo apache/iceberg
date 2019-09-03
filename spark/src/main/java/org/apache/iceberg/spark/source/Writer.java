@@ -75,6 +75,8 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
+import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE;
+import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_DEFAULT;
 
 // TODO: parameterize DataSourceWriter with subclass of WriterCommitMessage
 class Writer implements DataSourceWriter {
@@ -101,7 +103,10 @@ class Writer implements DataSourceWriter {
     this.replacePartitions = replacePartitions;
     this.applicationId = applicationId;
     this.wapId = wapId;
-    this.targetFileSize = options.getLong("target-file-size", Long.MAX_VALUE);
+
+    long tableTargetFileSize = Long.parseLong(table.properties().getOrDefault(
+        WRITE_TARGET_FILE_SIZE, String.valueOf(WRITE_TARGET_FILE_SIZE_DEFAULT)));
+    this.targetFileSize = options.getLong("target-file-size", tableTargetFileSize);
   }
 
   private FileFormat getFileFormat(Map<String, String> tableProperties, DataSourceOptions options) {
