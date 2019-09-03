@@ -62,15 +62,11 @@ import org.apache.pig.data.Tuple;
 import org.apache.pig.data.TupleFactory;
 
 import static java.lang.String.format;
-import static org.apache.iceberg.parquet.ParquetSchemaUtil.convert;
 import static org.apache.iceberg.parquet.ParquetSchemaUtil.hasIds;
 import static org.apache.iceberg.parquet.ParquetValueReaders.option;
 
 public class PigParquetReader {
-  private final ParquetValueReader reader;
-
-  public PigParquetReader(Schema readSchema, MessageType fileSchema, Map<Integer, Object> partitionValues) {
-    this.reader = buildReader(convert(readSchema, fileSchema.getName()), readSchema, partitionValues);
+  private PigParquetReader() {
   }
 
   @SuppressWarnings("unchecked")
@@ -112,7 +108,7 @@ public class PigParquetReader {
         types.add(fieldType);
       }
 
-      return new TupleReader(types, newFields, partitionValues);
+      return new TupleReader(types, newFields);
     }
   }
 
@@ -151,17 +147,23 @@ public class PigParquetReader {
       List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
-        ParquetValueReader<?> reader = readersById.get(id);
-        if (reader != null) {
-          reorderedFields.add(reader);
-          types.add(typesById.get(id));
-        } else {
-          reorderedFields.add(ParquetValueReaders.nulls());
+        if (partitionValues.containsKey(id)) {
+          // the value may be null so containsKey is used to check for a partition value
+          reorderedFields.add(ParquetValueReaders.constant(partitionValues.get(id)));
           types.add(null);
+        } else {
+          ParquetValueReader<?> reader = readersById.get(id);
+          if (reader != null) {
+            reorderedFields.add(reader);
+            types.add(typesById.get(id));
+          } else {
+            reorderedFields.add(ParquetValueReaders.nulls());
+            types.add(null);
+          }
         }
       }
 
-      return new TupleReader(types, reorderedFields, partitionValues);
+      return new TupleReader(types, reorderedFields);
     }
 
     @Override
@@ -394,19 +396,16 @@ public class PigParquetReader {
 
   private static class TupleReader extends StructReader<Tuple, Tuple> {
     private static final TupleFactory TF = TupleFactory.getInstance();
-    private final Map<Integer, Object> partitionValues;
-    private final int columns;
+    private final int numColumns;
 
-    protected TupleReader(List<Type> types, List<ParquetValueReader<?>> readers, Map<Integer, Object> partitionValues) {
+    TupleReader(List<Type> types, List<ParquetValueReader<?>> readers) {
       super(types, readers);
-
-      this.partitionValues = partitionValues;
-      this.columns = types.size() + partitionValues.size();
+      this.numColumns = readers.size();
     }
 
     @Override
     protected Tuple newStructData(Tuple reuse) {
-      return TF.newTuple(columns);
+      return TF.newTuple(numColumns);
     }
 
     @Override
@@ -416,14 +415,6 @@ public class PigParquetReader {
 
     @Override
     protected Tuple buildStruct(Tuple tuple) {
-      for (Map.Entry<Integer, Object> e : partitionValues.entrySet()) {
-        try {
-          tuple.set(e.getKey(), e.getValue());
-        } catch (ExecException ex) {
-          throw new RuntimeException("Error setting value for key" + e.getKey(), ex);
-        }
-      }
-
       return tuple;
     }
 

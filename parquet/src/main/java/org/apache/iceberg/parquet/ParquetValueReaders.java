@@ -53,6 +53,10 @@ public class ParquetValueReaders {
     return (ParquetValueReader<T>) NullReader.INSTANCE;
   }
 
+  public static <C> ParquetValueReader<C> constant(C value) {
+    return new ConstantReader<>(value);
+  }
+
   private static class NullReader<T> implements ParquetValueReader<T> {
     private static final NullReader<Void> INSTANCE = new NullReader<>();
     private static final List<TripleIterator<?>> COLUMNS = ImmutableList.of();
@@ -99,6 +103,33 @@ public class ParquetValueReaders {
     @Override
     public List<TripleIterator<?>> columns() {
       return COLUMNS;
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {
+    }
+  }
+
+  static class ConstantReader<C> implements ParquetValueReader<C> {
+    private final C constantValue;
+
+    ConstantReader(C constantValue) {
+      this.constantValue = constantValue;
+    }
+
+    @Override
+    public C read(C reuse) {
+      return constantValue;
+    }
+
+    @Override
+    public TripleIterator<?> column() {
+      return NullReader.NULL_COLUMN;
+    }
+
+    @Override
+    public List<TripleIterator<?>> columns() {
+      return NullReader.COLUMNS;
     }
 
     @Override
@@ -604,11 +635,7 @@ public class ParquetValueReaders {
       }
 
       this.children = columnsBuilder.build();
-      if (children.size() > 0) {
-        this.column = children.get(0);
-      } else {
-        this.column = NullReader.NULL_COLUMN;
-      }
+      this.column = firstNonNullColumn(children);
     }
 
     @Override
@@ -718,6 +745,21 @@ public class ParquetValueReaders {
 
     protected void setDouble(I struct, int pos, double value) {
       set(struct, pos, value);
+    }
+
+    /**
+     * Find a non-null column or return NULL_COLUMN if one is not available.
+     *
+     * @param columns a collection of triple iterator columns
+     * @return the first non-null column in columns
+     */
+    private TripleIterator<?> firstNonNullColumn(List<TripleIterator<?>> columns) {
+      for (TripleIterator<?> column : columns) {
+        if (column != NullReader.NULL_COLUMN) {
+          return column;
+        }
+      }
+      return NullReader.NULL_COLUMN;
     }
   }
 }
