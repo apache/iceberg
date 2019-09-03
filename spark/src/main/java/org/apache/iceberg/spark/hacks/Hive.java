@@ -36,16 +36,26 @@ public class Hive {
 
   private Hive() {}
 
+  private static volatile HiveClient hiveClient = null;
+
+  private static HiveClient getClient(SparkSession spark) {
+    if (hiveClient == null) {
+      synchronized (Hive.class) {
+        if (hiveClient == null) {
+          Hive.hiveClient = HiveUtils$.MODULE$.newClientForMetadata(
+              spark.sparkContext().conf(),
+              spark.sparkContext().hadoopConfiguration());
+        }
+      }
+    }
+    return hiveClient;
+  }
+
   public static Seq<CatalogTablePartition> partitions(SparkSession spark, String name) {
     List<String> parts = Lists.newArrayList(Splitter.on('.').limit(2).split(name));
     String db = parts.size() == 1 ? "default" : parts.get(0);
     String table = parts.get(parts.size() == 1 ? 0 : 1);
-
-    HiveClient client = HiveUtils$.MODULE$.newClientForMetadata(
-        spark.sparkContext().conf(),
-        spark.sparkContext().hadoopConfiguration());
-
-    return client.getPartitions(db, table, Option.empty());
+    return getClient(spark).getPartitions(db, table, Option.empty());
   }
 
   public static Seq<CatalogTablePartition> partitionsByFilter(SparkSession spark, String name, Expression expression) {
@@ -53,9 +63,7 @@ public class Hive {
     String db = parts.size() == 1 ? "default" : parts.get(0);
     String table = parts.get(parts.size() == 1 ? 0 : 1);
 
-    HiveClient client = HiveUtils$.MODULE$.newClientForMetadata(
-            spark.sparkContext().conf(),
-            spark.sparkContext().hadoopConfiguration());
+    HiveClient client = getClient(spark);
     List<Expression> expressions = new ArrayList<Expression>(Arrays.asList(expression));
     Seq<Expression> exprs =
             scala.collection.JavaConverters.collectionAsScalaIterableConverter(expressions).asScala().toSeq();

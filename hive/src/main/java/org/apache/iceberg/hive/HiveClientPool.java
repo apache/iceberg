@@ -26,14 +26,14 @@ import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.thrift.TException;
 import org.apache.thrift.transport.TTransportException;
 
-class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> {
+public class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> {
   private final HiveConf hiveConf;
 
   HiveClientPool(Configuration conf) {
     this(conf.getInt("iceberg.hive.client-pool-size", 5), conf);
   }
 
-  HiveClientPool(int poolSize, Configuration conf) {
+  public HiveClientPool(int poolSize, Configuration conf) {
     super(poolSize, TTransportException.class);
     this.hiveConf = new HiveConf(conf, HiveClientPool.class);
   }
