@@ -11,7 +11,9 @@ The Hive catalog connects to a Hive MetaStore to keep track of Iceberg tables. T
 ```scala
 import org.apache.iceberg.hive.HiveCatalog
 
-spark.sparkContext.hadoopConfiguration.set("hive.metastore.warehouse.dir", "path/to/warehouse")
+// Set Hive warehouse location here to make it available to Spark
+spark.conf.set("hive.metastore.warehouse.dir", "s3://bucket/path/to/warehouse")
+
 val catalog = new HiveCatalog(spark.sparkContext.hadoopConfiguration)
 ```
 
