@@ -45,9 +45,11 @@ public class ColumnarBatchReader implements BatchedReader{
 
             FieldVector vec = readers[i].read();
             arrowVectorArr[i] = new ArrowColumnVector(vec);
-            Preconditions.checkState(i > 0 && numRows == vec.getValueCount(),
+            if (i > 0) {
+                Preconditions.checkState(numRows == vec.getValueCount(),
                     "Different number of values returned by readers for columns: " +
-                    readers[i-1] + " and " + readers[i]);
+                        readers[i - 1] + " and " + readers[i]);
+            }
             numRows = vec.getValueCount();
         }
 
