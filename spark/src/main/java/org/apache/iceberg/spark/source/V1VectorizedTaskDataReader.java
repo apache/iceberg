@@ -30,7 +30,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
@@ -55,7 +54,6 @@ import org.apache.spark.sql.catalyst.expressions.AttributeReference;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
 import org.apache.spark.sql.execution.datasources.PartitionedFile;
 import org.apache.spark.sql.execution.vectorized.MutableColumnarRow;
-import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.v2.reader.InputPartitionReader;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
@@ -82,13 +80,13 @@ class V1VectorizedTaskDataReader implements InputPartitionReader<ColumnarBatch> 
   private Iterator<ColumnarBatch> currentIterator = null;
   private Closeable currentCloseable = null;
   private ColumnarBatch current = null;
-  private Configuration hadoopConf;
-  private Filter[] pushedFilters;
 
   V1VectorizedTaskDataReader(
       CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
-      EncryptionManager encryptionManager, boolean caseSensitive, int numRecordsPerBatch,
-      Filter[] filters, scala.Function1<PartitionedFile, scala.collection.Iterator<InternalRow>> buildReaderFunc) {
+      EncryptionManager encryptionManager, boolean caseSensitive,
+      scala.Function1<PartitionedFile,
+      scala.collection.Iterator<InternalRow>> buildReaderFunc) {
+
     this.fileIo = fileIo;
     this.tasks = task.files().iterator();
     this.tableSchema = tableSchema;
@@ -102,7 +100,6 @@ class V1VectorizedTaskDataReader implements InputPartitionReader<ColumnarBatch> 
     decryptedFiles.forEach(decrypted -> inputFileBuilder.put(decrypted.location(), decrypted));
     this.inputFiles = inputFileBuilder.build();
     // open last because the schemas and fileIo must be set
-    this.pushedFilters = filters;
     this.caseSensitive = caseSensitive;
     this.buildReaderFunc = buildReaderFunc;
 

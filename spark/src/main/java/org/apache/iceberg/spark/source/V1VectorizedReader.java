@@ -90,6 +90,7 @@ class V1VectorizedReader implements SupportsScanColumnarBatch,
   private final Long splitSize;
   private final Integer splitLookback;
   private final Long splitOpenFileCost;
+  private final Integer maxNumVectorizedFields;
   private final FileIO fileIo;
   private final EncryptionManager encryptionManager;
   private final boolean caseSensitive;
@@ -100,6 +101,7 @@ class V1VectorizedReader implements SupportsScanColumnarBatch,
   private final SparkSession sparkSession;
   // default as per SQLConf.PARQUET_VECTORIZED_READER_BATCH_SIZE default
   public static final int DEFAULT_NUM_ROWS_IN_BATCH = 4096;
+  public static final int DEFAULT_MAX_NUM_FIELDS = 300;
 
   private StructType requestedSchema = null;
   private List<Expression> filterExpressions = null;
@@ -127,6 +129,8 @@ class V1VectorizedReader implements SupportsScanColumnarBatch,
     this.splitSize = options.get("split-size").map(Long::parseLong).orElse(null);
     this.splitLookback = options.get("lookback").map(Integer::parseInt).orElse(null);
     this.splitOpenFileCost = options.get("file-open-cost").map(Long::parseLong).orElse(null);
+    this.maxNumVectorizedFields =
+        options.get("max-num-vectorized-fields").map(Integer::parseInt).orElse(DEFAULT_MAX_NUM_FIELDS);
 
     this.schema = table.schema();
     this.fileIo = table.io();
@@ -135,10 +139,14 @@ class V1VectorizedReader implements SupportsScanColumnarBatch,
     this.hadoopConf = hadoopConf;
     this.sparkSession = sparkSession;
 
-    LOG.warn("=> Set Config numRecordsPerBatch: {}, " +
+    LOG.debug("=> Set Config numRecordsPerBatch: {}, " +
             "Split size: {}, " +
-            "Planning Thread count: {}",
-        numRecordsPerBatch, splitSize, System.getProperty(SystemProperties.WORKER_THREAD_POOL_SIZE_PROP));
+            "Planning Thread count: {}, " +
+            "Max Num Vectorized Fields: {}",
+        numRecordsPerBatch,
+        splitSize,
+        System.getProperty(SystemProperties.WORKER_THREAD_POOL_SIZE_PROP),
+        maxNumVectorizedFields);
   }
 
   private Schema lazySchema() {
@@ -188,9 +196,14 @@ class V1VectorizedReader implements SupportsScanColumnarBatch,
     hadoopConf.set(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "true");
     hadoopConf.set(SQLConf.PARQUET_VECTORIZED_READER_BATCH_SIZE().key(),
         Integer.toString(this.numRecordsPerBatch));
+    hadoopConf.set(SQLConf.WHOLESTAGE_MAX_NUM_FIELDS().key(),
+        Integer.toString(maxNumVectorizedFields));
     sparkSession.sessionState().conf().setConfString(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "true");
     sparkSession.sessionState().conf().setConfString(SQLConf.PARQUET_VECTORIZED_READER_BATCH_SIZE().key(),
         Integer.toString(this.numRecordsPerBatch));
+    sparkSession.sessionState().conf().setConfString(SQLConf.WHOLESTAGE_MAX_NUM_FIELDS().key(),
+        Integer.toString(maxNumVectorizedFields));
+
     // prepare sparkReadSchema
     StructType sparkReadSchema = SparkSchemaUtil.convert(lazySchema());
     // Build function for V1 Partition Reader which is passed over from Driver to Executors
@@ -209,9 +222,10 @@ class V1VectorizedReader implements SupportsScanColumnarBatch,
       readTasks.add(
           new ReadTask(task, tableSchemaString, expectedSchemaString, fileIo, encryptionManager, caseSensitive,
               numRecordsPerBatch, processedFilters, partitionFunction));
-      LOG.warn("=> ReadTask creating time took {} ms.", System.currentTimeMillis() - readTaskStart);
+      LOG.debug("=> ReadTask creating time took {} ms.", System.currentTimeMillis() - readTaskStart);
     }
-    LOG.warn("=> Input Task planning took {} seconds.", (System.currentTimeMillis() - start) / 1000.0f);
+    LOG.debug("=> Input Task planning took {} seconds.", (System.currentTimeMillis() - start) / 1000.0f);
+    LOG.debug("=> Spark Schema: {}", sparkReadSchema);
 
     return readTasks;
   }
@@ -252,6 +266,7 @@ class V1VectorizedReader implements SupportsScanColumnarBatch,
   public void pruneColumns(StructType newRequestedSchema) {
     this.requestedSchema = newRequestedSchema;
 
+    LOG.debug("=> Prune columns : {}", newRequestedSchema.prettyJson());
     // invalidate the schema that will be projected
     this.schema = null;
     this.type = null;
@@ -349,16 +364,16 @@ class V1VectorizedReader implements SupportsScanColumnarBatch,
       this.numRecordsPerBatch = numRecordsPerBatch;
       this.filters = filters;
 
-      LOG.warn("=> Build partition reader function ");
+      LOG.debug("=> Build partition reader function ");
       this.buildReaderFunc = partitionFunction;
     }
 
     @Override
     public InputPartitionReader<ColumnarBatch> createPartitionReader() {
 
-      LOG.warn("=> Create Partition Reader");
+      LOG.debug("=> Create Partition Reader");
       return new V1VectorizedTaskDataReader(task, lazyTableSchema(), lazyExpectedSchema(), fileIo,
-            encryptionManager, caseSensitive, numRecordsPerBatch, filters, buildReaderFunc);
+            encryptionManager, caseSensitive, buildReaderFunc);
     }
 
     private Schema lazyTableSchema() {

@@ -81,7 +81,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     int numRecordsPerBatch = numRecordsPerBatchOpt.isPresent() ?
         Integer.parseInt(numRecordsPerBatchOpt.get()) : V1VectorizedReader.DEFAULT_NUM_ROWS_IN_BATCH;
     if (enableV1VectorizedRead) {
-      LOG.warn("V1VectorizedReader engaged.");
+      LOG.debug("V1VectorizedReader engaged.");
       return new V1VectorizedReader(table, Boolean.valueOf(caseSensitive), options, conf,
           numRecordsPerBatch, lazySparkSession());
     } else {
