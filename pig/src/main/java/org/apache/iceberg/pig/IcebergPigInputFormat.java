@@ -205,18 +205,17 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
             }
 
             for (Types.NestedField field : projectedPartitionSchema.columns()) {
-              int tupleIndex = projectedSchema.columns().indexOf(field);
               int partitionIndex = partitionSpecFieldIndexMap.get(field.name());
 
               Object partitionValue = file.partition().get(partitionIndex, Object.class);
-              partitionValueMap.put(tupleIndex, convertPartitionValue(field.type(), partitionValue));
+              partitionValueMap.put(field.fieldId(), convertPartitionValue(field.type(), partitionValue));
             }
 
             reader = Parquet.read(inputFile)
                 .project(readSchema)
                 .split(currentTask.start(), currentTask.length())
                 .filter(currentTask.residual())
-                .createReaderFunc(fileSchema -> PigParquetReader.buildReader(fileSchema, readSchema, partitionValueMap))
+                .createReaderFunc(fileSchema -> PigParquetReader.buildReader(fileSchema, projectedSchema, partitionValueMap))
                 .build();
           } else {
             reader = Parquet.read(inputFile)
