@@ -20,24 +20,16 @@
 package org.apache.iceberg.hive;
 
 import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.MoreExecutors;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
@@ -48,7 +40,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.Tasks;
 import org.apache.thrift.TException;
 import org.junit.Assert;
 import org.junit.Test;
@@ -56,9 +47,6 @@ import org.junit.Test;
 import static org.apache.iceberg.BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE;
 import static org.apache.iceberg.BaseMetastoreTableOperations.METADATA_LOCATION_PROP;
 import static org.apache.iceberg.BaseMetastoreTableOperations.TABLE_TYPE_PROP;
-import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 
 public class HiveTableTest extends HiveTableBaseTest {
   @Test
@@ -262,71 +250,5 @@ public class HiveTableTest extends HiveTableBaseTest {
     icebergTable.updateSchema()
         .addColumn("data", Types.LongType.get())
         .commit();
-  }
-
-  @Test
-  public void testConcurrentFastAppends() {
-    Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
-    Table anotherIcebergTable = catalog.loadTable(TABLE_IDENTIFIER);
-
-    String fileName = UUID.randomUUID().toString();
-    DataFile file = DataFiles.builder(icebergTable.spec())
-        .withPath(FileFormat.PARQUET.addExtension(fileName))
-        .withRecordCount(2)
-        .withFileSizeInBytes(0)
-        .build();
-
-    ExecutorService executorService = MoreExecutors.getExitingExecutorService(
-        (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
-
-    AtomicInteger barrier = new AtomicInteger(0);
-    Tasks.foreach(icebergTable, anotherIcebergTable)
-        .stopOnFailure().throwFailureWhenFinished()
-        .executeWith(executorService)
-        .run(table -> {
-          for (int numCommittedFiles = 0; numCommittedFiles < 10; numCommittedFiles++) {
-            while (barrier.get() < numCommittedFiles * 2) {
-              try {
-                Thread.sleep(10);
-              } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-              }
-            }
-
-            table.newFastAppend().appendFile(file).commit();
-            barrier.incrementAndGet();
-          }
-        });
-
-    icebergTable.refresh();
-    Assert.assertEquals(20, icebergTable.currentSnapshot().manifests().size());
-  }
-
-  @Test
-  public void testConcurrentConnections() throws InterruptedException {
-    Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
-
-    icebergTable.updateProperties()
-        .set(COMMIT_NUM_RETRIES, "20")
-        .set(COMMIT_MIN_RETRY_WAIT_MS, "25")
-        .set(COMMIT_MAX_RETRY_WAIT_MS, "25")
-        .commit();
-
-    String fileName = UUID.randomUUID().toString();
-    DataFile file = DataFiles.builder(icebergTable.spec())
-        .withPath(FileFormat.PARQUET.addExtension(fileName))
-        .withRecordCount(2)
-        .withFileSizeInBytes(0)
-        .build();
-
-    ExecutorService executorService = MoreExecutors.getExitingExecutorService(
-        (ThreadPoolExecutor) Executors.newFixedThreadPool(10));
-
-    for (int i = 0; i < 10; i++) {
-      executorService.submit(() -> icebergTable.newAppend().appendFile(file).commit());
-    }
-
-    executorService.shutdown();
-    Assert.assertTrue("Timeout", executorService.awaitTermination(1, TimeUnit.MINUTES));
   }
 }
