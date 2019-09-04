@@ -42,7 +42,7 @@ import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
 
 
-public class ReplaceManifests extends SnapshotProducer<RewriteManifests> implements RewriteManifests {
+public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> implements RewriteManifests {
   private final TableOperations ops;
   private final PartitionSpec spec;
   private final long manifestTargetSizeBytes;
@@ -65,7 +65,7 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
   private static final String NEW_CNT = "manifests-created";
   private static final String ENTRY_CNT = "entries-processed";
 
-  ReplaceManifests(TableOperations ops) {
+  BaseRewriteManifests(TableOperations ops) {
     super(ops);
     this.ops = ops;
     this.spec = ops.current().spec();
@@ -101,13 +101,13 @@ public class ReplaceManifests extends SnapshotProducer<RewriteManifests> impleme
   }
 
   @Override
-  public ReplaceManifests clusterBy(Function<DataFile, Object> func) {
+  public RewriteManifests clusterBy(Function<DataFile, Object> func) {
     this.clusterByFunc = func;
     return this;
   }
 
   @Override
-  public ReplaceManifests rewriteIf(Predicate<ManifestFile> pred) {
+  public RewriteManifests rewriteIf(Predicate<ManifestFile> pred) {
     this.predicate = pred;
     return this;
   }
