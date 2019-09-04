@@ -165,21 +165,21 @@ public class VectorReader implements BatchedReader {
         }
     }
 
-    public FieldVector read() {
+    public FieldVector read(NullabilityVector nullabilityVector) {
         if (batchedColumnIterator.hasNext()) {
             if (isFixedLengthDecimal) {
-                batchedColumnIterator.nextBatchFixedLengthDecimal(vec, typeWidth);
+                batchedColumnIterator.nextBatchFixedLengthDecimal(vec, typeWidth, nullabilityVector);
             } else if (isVarWidthType) {
-                batchedColumnIterator.nextBatchVarWidthType(vec);
+                batchedColumnIterator.nextBatchVarWidthType(vec, nullabilityVector);
             } else if (isFixedWidthBinary) {
                 vec.reset();
-                batchedColumnIterator.nextBatchFixedWidthBinary(vec, typeWidth);
+                batchedColumnIterator.nextBatchFixedWidthBinary(vec, typeWidth, nullabilityVector);
             } else if (isBooleanType) {
-                batchedColumnIterator.nextBatchBoolean(vec);
+                batchedColumnIterator.nextBatchBoolean(vec, nullabilityVector);
             } else if (isPaddedDecimal) {
-                batchedColumnIterator.nextBatchIntLongBackedDecimal(vec, typeWidth);
+                batchedColumnIterator.nextBatchIntLongBackedDecimal(vec, typeWidth, nullabilityVector);
             } else {
-                batchedColumnIterator.nextBatchNumericNonDecimal(vec, typeWidth);
+                batchedColumnIterator.nextBatchNumericNonDecimal(vec, typeWidth, nullabilityVector);
             }
         }
         return vec;
@@ -192,6 +192,10 @@ public class VectorReader implements BatchedReader {
     @Override
     public String toString() {
         return columnDescriptor.toString();
+    }
+
+    public int batchSize() {
+        return rowsInBatch;
     }
 }
 

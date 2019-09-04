@@ -80,12 +80,12 @@ public class BatchedColumnIterator {
   /**
    * Method for reading a batch of non-decimal numeric data types (INT32, INT64, FLOAT, DOUBLE, DATE, TIMESTAMP)
    */
-  public void nextBatchNumericNonDecimal(FieldVector fieldVector, int typeWidth) {
+  public void nextBatchNumericNonDecimal(FieldVector fieldVector, int typeWidth, NullabilityVector nullabilityVector) {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {
       advance();
       int rowsInThisBatch = batchedPageIterator.nextBatchNumericNonDecimal(fieldVector, batchSize - rowsReadSoFar,
-              rowsReadSoFar, typeWidth);
+              rowsReadSoFar, typeWidth, nullabilityVector);
       rowsReadSoFar += rowsInThisBatch;
       this.valuesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);
@@ -95,12 +95,12 @@ public class BatchedColumnIterator {
   /**
    * Method for reading a batch of decimals backed by INT32 and INT64 parquet data types.
    */
-  public void nextBatchIntLongBackedDecimal(FieldVector fieldVector, int typeWidth) {
+  public void nextBatchIntLongBackedDecimal(FieldVector fieldVector, int typeWidth, NullabilityVector nullabilityVector) {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {
       advance();
       int rowsInThisBatch = batchedPageIterator.nextBatchIntLongBackedDecimal(fieldVector, batchSize - rowsReadSoFar,
-              rowsReadSoFar, typeWidth);
+              rowsReadSoFar, typeWidth, nullabilityVector);
       rowsReadSoFar += rowsInThisBatch;
       this.valuesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);
@@ -110,12 +110,12 @@ public class BatchedColumnIterator {
   /**
    * Method for reading a batch of decimals backed by fixed length byte array parquet data type.
    */
-  public void nextBatchFixedLengthDecimal(FieldVector fieldVector, int typeWidth) {
+  public void nextBatchFixedLengthDecimal(FieldVector fieldVector, int typeWidth, NullabilityVector nullabilityVector) {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {
       advance();
       int rowsInThisBatch = batchedPageIterator.nextBatchFixedLengthDecimal(fieldVector, batchSize - rowsReadSoFar,
-              rowsReadSoFar, typeWidth);
+              rowsReadSoFar, typeWidth, nullabilityVector);
       rowsReadSoFar += rowsInThisBatch;
       this.valuesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);
@@ -125,12 +125,12 @@ public class BatchedColumnIterator {
   /**
    * Method for reading a batch of variable width data type (ENUM, JSON, UTF8, BSON).
    */
-  public void nextBatchVarWidthType(FieldVector fieldVector) {
+  public void nextBatchVarWidthType(FieldVector fieldVector, NullabilityVector nullabilityVector) {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {
       advance();
       int rowsInThisBatch = batchedPageIterator.nextBatchVarWidthType(fieldVector, batchSize - rowsReadSoFar,
-              rowsReadSoFar);
+              rowsReadSoFar, nullabilityVector);
       rowsReadSoFar += rowsInThisBatch;
       this.valuesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);
@@ -140,12 +140,12 @@ public class BatchedColumnIterator {
   /**
    * Method for reading batches of fixed width binary type (e.g. BYTE[7]).
    */
-  public void nextBatchFixedWidthBinary(FieldVector fieldVector, int typeWidth) {
+  public void nextBatchFixedWidthBinary(FieldVector fieldVector, int typeWidth, NullabilityVector nullabilityVector) {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {
       advance();
       int rowsInThisBatch = batchedPageIterator.nextBatchFixedWidthBinary(fieldVector, batchSize - rowsReadSoFar,
-              rowsReadSoFar, typeWidth);
+              rowsReadSoFar, typeWidth, nullabilityVector);
       rowsReadSoFar += rowsInThisBatch;
       this.valuesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);
@@ -155,12 +155,12 @@ public class BatchedColumnIterator {
   /**
    * Method for reading batches of booleans.
    */
-  public void nextBatchBoolean(FieldVector fieldVector) {
+  public void nextBatchBoolean(FieldVector fieldVector, NullabilityVector nullabilityVector) {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {
       advance();
       int rowsInThisBatch = batchedPageIterator.nextBatchBoolean(fieldVector, batchSize - rowsReadSoFar,
-              rowsReadSoFar);
+              rowsReadSoFar, nullabilityVector);
       rowsReadSoFar += rowsInThisBatch;
       this.valuesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);

@@ -27,6 +27,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.internal.SQLConf;
 import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
@@ -93,57 +94,57 @@ public class IcebergSourceFlatParquetDataReadBenchmark extends IcebergSourceFlat
 //  }
 
 
-  @Benchmark
-  @Threads(1)
-  public void readIcebergVectorized100() {
-    Map<String, String> tableProperties = Maps.newHashMap();
-    tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
-    withTableProperties(tableProperties, () -> {
-      String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg")
-              .option("iceberg.read.numrecordsperbatch", "100")
-              .load(tableLocation);
-      materialize(df);
-    });
-  }
+  // @Benchmark
+  // @Threads(1)
+  // public void readIcebergVectorized100() {
+  //   Map<String, String> tableProperties = Maps.newHashMap();
+  //   tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
+  //   withTableProperties(tableProperties, () -> {
+  //     String tableLocation = table().location();
+  //     Dataset<Row> df = spark().read().format("iceberg")
+  //             .option("iceberg.read.numrecordsperbatch", "100")
+  //             .load(tableLocation);
+  //     materialize(df);
+  //   });
+  // }
 
-  @Benchmark
-  @Threads(1)
-  public void readIcebergVectorized5k() {
-    Map<String, String> tableProperties = Maps.newHashMap();
-    tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
-    withTableProperties(tableProperties, () -> {
-      String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg")
-          .option("iceberg.read.numrecordsperbatch", "5000")
-          .load(tableLocation);
-      materialize(df);
-    });
-  }
+  // @Benchmark
+  // @Threads(1)
+  // public void readIcebergVectorized5k() {
+  //   Map<String, String> tableProperties = Maps.newHashMap();
+  //   tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
+  //   withTableProperties(tableProperties, () -> {
+  //     String tableLocation = table().location();
+  //     Dataset<Row> df = spark().read().format("iceberg")
+  //         .option("iceberg.read.numrecordsperbatch", "5000")
+  //         .load(tableLocation);
+  //     materialize(df);
+  //   });
+  // }
 
-  @Benchmark
-  @Threads(1)
-  public void readFileSourceVectorized() {
-    Map<String, String> conf = Maps.newHashMap();
-    conf.put(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "true");
-    conf.put(SQLConf.FILES_OPEN_COST_IN_BYTES().key(), Integer.toString(128 * 1024 * 1024));
-    withSQLConf(conf, () -> {
-      Dataset<Row> df = spark().read().parquet(dataLocation());
-      materialize(df);
-    });
-  }
+  // @Benchmark
+  // @Threads(1)
+  // public void readFileSourceVectorized() {
+  //   Map<String, String> conf = Maps.newHashMap();
+  //   conf.put(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "true");
+  //   conf.put(SQLConf.FILES_OPEN_COST_IN_BYTES().key(), Integer.toString(128 * 1024 * 1024));
+  //   withSQLConf(conf, () -> {
+  //     Dataset<Row> df = spark().read().parquet(dataLocation());
+  //     materialize(df);
+  //   });
+  // }
 
-  @Benchmark
-  @Threads(1)
-  public void readFileSourceNonVectorized() {
-    Map<String, String> conf = Maps.newHashMap();
-    conf.put(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "false");
-    conf.put(SQLConf.FILES_OPEN_COST_IN_BYTES().key(), Integer.toString(128 * 1024 * 1024));
-    withSQLConf(conf, () -> {
-      Dataset<Row> df = spark().read().parquet(dataLocation());
-      materialize(df);
-    });
-  }
+  // @Benchmark
+  // @Threads(1)
+  // public void readFileSourceNonVectorized() {
+  //   Map<String, String> conf = Maps.newHashMap();
+  //   conf.put(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "false");
+  //   conf.put(SQLConf.FILES_OPEN_COST_IN_BYTES().key(), Integer.toString(128 * 1024 * 1024));
+  //   withSQLConf(conf, () -> {
+  //     Dataset<Row> df = spark().read().parquet(dataLocation());
+  //     materialize(df);
+  //   });
+  // }
 
 //  @Benchmark
 //  @Threads(1)
@@ -215,6 +216,7 @@ public class IcebergSourceFlatParquetDataReadBenchmark extends IcebergSourceFlat
 
   @Benchmark
   @Threads(1)
+  @Fork(jvmArgsAppend = "-Darrow.enable_unsafe_memory_access=true")
   public void readIcebergVectorized1k() {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
@@ -235,10 +237,10 @@ public class IcebergSourceFlatParquetDataReadBenchmark extends IcebergSourceFlat
           .withColumn("intCol", expr("CAST(longCol AS INT)"))
           .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
           .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
-          .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(20, 5))"))
+          //.withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(20, 5))"))
           .withColumn("dateCol", date_add(current_date(), fileNum))
-          .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
-          .withColumn("stringCol", expr("CAST(dateCol AS STRING)"));
+          .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"));
+          //.withColumn("stringCol", expr("CAST(dateCol AS STRING)"));
       appendAsFile(df);
     }
   }

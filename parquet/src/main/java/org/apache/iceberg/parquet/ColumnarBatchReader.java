@@ -37,23 +37,25 @@ public class ColumnarBatchReader implements BatchedReader{
 
     public final ColumnarBatch read(ColumnarBatch ignore) {
 
-        ArrowColumnVector[] arrowVectorArr = (ArrowColumnVector[]) Array.newInstance(ArrowColumnVector.class,
-                readers.length);
+        IcebergArrowColumnVector[] icebergArrowColumnVectors = (IcebergArrowColumnVector[]) Array.newInstance(IcebergArrowColumnVector.class,
+            readers.length);
 
         int numRows = 0;
         for (int i = 0; i < readers.length; i += 1) {
-
-            FieldVector vec = readers[i].read();
-            arrowVectorArr[i] = new ArrowColumnVector(vec);
-            if (i > 0) {
-                Preconditions.checkState(numRows == vec.getValueCount(),
-                    "Different number of values returned by readers for columns: " +
-                        readers[i - 1] + " and " + readers[i]);
-            }
+            NullabilityVector nullabilityVector = new NullabilityVector(readers[i].batchSize());
+            FieldVector vec = readers[i].read(nullabilityVector);
+            icebergArrowColumnVectors[i] = new IcebergArrowColumnVector(new ArrowColumnVector(vec), nullabilityVector);
+            //TODO: samarth reenable this check
+            // if (i > 0) {
+            //     //TODO: samarth time spent in this string builder!!
+            //     Preconditions.checkState(numRows == vec.getValueCount(),
+            //         "Different number of values returned by readers for columns: " +
+            //             readers[i - 1] + " and " + readers[i]);
+            // }
             numRows = vec.getValueCount();
         }
 
-        ColumnarBatch batch = new ColumnarBatch(arrowVectorArr);
+        ColumnarBatch batch = new ColumnarBatch(icebergArrowColumnVectors);
         batch.setNumRows(numRows);
 
         return batch;

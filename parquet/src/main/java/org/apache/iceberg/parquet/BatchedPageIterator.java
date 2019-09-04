@@ -124,7 +124,7 @@ public class BatchedPageIterator {
      * vector. It appropriately sets the validity buffer in the Arrow vector.
      */
     public int nextBatchNumericNonDecimal(final FieldVector vector, final int expectedBatchSize, final int numValsInVector,
-                                          final int typeWidth) {
+                                          final int typeWidth, NullabilityVector nullabilityVector) {
         final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
         if (actualBatchSize <= 0) {
             return 0;
@@ -156,6 +156,7 @@ public class BatchedPageIterator {
 
             while (valsRead < actualBatchSize && defLevel < maxDefLevel) {
                 BitVectorHelper.setValidityBit(validityBuffer, ordinal, 0);
+                nullabilityVector.nullAt(ordinal);
                 valsRead++;
                 startWriteValIdx++;
                 ordinal++;
@@ -174,7 +175,7 @@ public class BatchedPageIterator {
      * Arrow stores all decimals in 16 bytes. This method provides the necessary padding to the decimals read.
      */
     public int nextBatchIntLongBackedDecimal(final FieldVector vector, final int expectedBatchSize, final int numValsInVector,
-                                             final int typeWidth) {
+                                             final int typeWidth, NullabilityVector nullabilityVector) {
         final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
         if (actualBatchSize <= 0) {
             return 0;
@@ -212,6 +213,7 @@ public class BatchedPageIterator {
 
             while (valsRead < actualBatchSize && defLevel < maxDefLevel) {
                 BitVectorHelper.setValidityBit(validityBuffer, ordinal, 0);
+                nullabilityVector.nullAt(ordinal);
                 valsRead++;
                 startWriteValIdx++;
                 ordinal++;
@@ -233,7 +235,7 @@ public class BatchedPageIterator {
      * Arrow vector is indeed little endian.
      */
     public int nextBatchFixedLengthDecimal(final FieldVector vector, final int expectedBatchSize, final int numValsInVector,
-                                           final int typeWidth) {
+                                           final int typeWidth, NullabilityVector nullabilityVector) {
         final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
         if (actualBatchSize <= 0) {
             return 0;
@@ -279,6 +281,7 @@ public class BatchedPageIterator {
                 for (int i = 0; i < numNulls; i++) {
                     try {
                         ((DecimalVector) vector).setNull(ordinal);
+                        nullabilityVector.nullAt(ordinal);
                         ordinal++;
                     } catch (RuntimeException e) {
                         throw handleRuntimeException(e);
@@ -294,7 +297,7 @@ public class BatchedPageIterator {
     /**
      * Method for reading a batch of variable width data type (ENUM, JSON, UTF8, BSON).
      */
-    public int nextBatchVarWidthType(final FieldVector vector, final int expectedBatchSize, final int numValsInVector) {
+    public int nextBatchVarWidthType(final FieldVector vector, final int expectedBatchSize, final int numValsInVector, NullabilityVector nullabilityVector) {
         final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
         if (actualBatchSize <= 0) {
             return 0;
@@ -337,6 +340,7 @@ public class BatchedPageIterator {
                 for (int i = 0; i < numNulls; i++) {
                     try {
                         ((BaseVariableWidthVector) vector).setNull(ordinal);
+                        nullabilityVector.nullAt(ordinal);
                         ordinal++;
                     } catch (RuntimeException e) {
                         throw handleRuntimeException(e);
@@ -355,7 +359,7 @@ public class BatchedPageIterator {
      * fixed width binary from parquet and stored in a {@link VarBinaryVector} in Arrow.
      */
     public int nextBatchFixedWidthBinary(final FieldVector vector, final int expectedBatchSize, final int numValsInVector,
-                                         final int typeWidth) {
+                                         final int typeWidth, NullabilityVector nullabilityVector) {
         final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
         if (actualBatchSize <= 0) {
             return 0;
@@ -401,6 +405,7 @@ public class BatchedPageIterator {
                 for (int i = 0; i < numNulls; i++) {
                     try {
                         ((VarBinaryVector) vector).setNull(ordinal);
+                        nullabilityVector.nullAt(ordinal);
                         ordinal++;
                     } catch (RuntimeException e) {
                         throw handleRuntimeException(e);
@@ -416,7 +421,7 @@ public class BatchedPageIterator {
     /**
      * Method for reading batches of booleans.
      */
-    public int nextBatchBoolean(final FieldVector vector, final int expectedBatchSize, final int numValsInVector) {
+    public int nextBatchBoolean(final FieldVector vector, final int expectedBatchSize, final int numValsInVector, NullabilityVector nullabilityVector) {
         final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
         if (actualBatchSize <= 0) {
             return 0;
@@ -459,6 +464,7 @@ public class BatchedPageIterator {
                 for (int i = 0; i < numNulls; i++) {
                     try {
                         ((BitVector) vector).setNull(ordinal);
+                        nullabilityVector.nullAt(ordinal);
                         ordinal++;
                     } catch (RuntimeException e) {
                         throw handleRuntimeException(e);
