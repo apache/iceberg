@@ -48,7 +48,6 @@ allprojects {
   group = "org.apache.iceberg"
   apply plugin: 'com.palantir.baseline-idea'
   version = gitVersion()
-  
   repositories {
     maven { url  "http://palantir.bintray.com/releases" }
     mavenCentral()
