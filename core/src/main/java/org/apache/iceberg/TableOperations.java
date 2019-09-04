@@ -88,6 +88,21 @@ public interface TableOperations {
   LocationProvider locationProvider();
 
   /**
+   * Return a temporary {@link TableOperations} instance that uses configuration from uncommitted metadata.
+   * <p>
+   * This is called by transactions when uncommitted table metadata should be used; for example, to create a metadata
+   * file location based on metadata in the transaction that has not been committed.
+   * <p>
+   * Transactions will not call {@link #refresh()} or {@link #commit(TableMetadata, TableMetadata)}.
+   *
+   * @param uncommittedMetadata uncommitted table metadata
+   * @return a temporary table operations that behaves like the uncommitted metadata is current
+   */
+  default TableOperations temp(TableMetadata uncommittedMetadata) {
+    return this;
+  }
+
+  /**
    * Create a new ID for a Snapshot
    *
    * @return a long snapshot ID

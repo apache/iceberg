@@ -79,6 +79,9 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
   @Override
   public Integer apply(T value) {
+    if (value == null) {
+      return null;
+    }
     return (hash(value) & Integer.MAX_VALUE) % numBuckets;
   }
 

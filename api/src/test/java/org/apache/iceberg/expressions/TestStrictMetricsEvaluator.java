@@ -77,6 +77,38 @@ public class TestStrictMetricsEvaluator {
           1, toByteBuffer(IntegerType.get(), 79),
           7, toByteBuffer(IntegerType.get(), 5)));
 
+  private static final DataFile FILE_2 = new TestDataFile("file_2.avro", Row.of(), 50,
+      // any value counts, including nulls
+      ImmutableMap.of(
+          4, 50L,
+          5, 50L,
+          6, 50L),
+      // null value counts
+      ImmutableMap.of(
+          4, 50L,
+          5, 10L,
+          6, 0L),
+      // lower bounds
+      ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")),
+      // upper bounds
+      ImmutableMap.of(5, toByteBuffer(StringType.get(), "eee")));
+
+  private static final DataFile FILE_3 = new TestDataFile("file_3.avro", Row.of(), 50,
+      // any value counts, including nulls
+      ImmutableMap.of(
+          4, 50L,
+          5, 50L,
+          6, 50L),
+      // null value counts
+      ImmutableMap.of(
+          4, 50L,
+          5, 10L,
+          6, 0L),
+      // lower bounds
+      ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")),
+      // upper bounds
+      ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")));
+
   @Test
   public void testAllNulls() {
     boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, notNull("all_nulls")).eval(FILE);
@@ -87,6 +119,9 @@ public class TestStrictMetricsEvaluator {
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA, notNull("no_nulls")).eval(FILE);
     Assert.assertTrue("Should match: non-null column contains no null values", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notEqual("all_nulls", "a")).eval(FILE);
+    Assert.assertTrue("Should match: notEqual on all nulls column", shouldRead);
   }
 
   @Test
@@ -99,6 +134,24 @@ public class TestStrictMetricsEvaluator {
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA, isNull("no_nulls")).eval(FILE);
     Assert.assertFalse("Should not match: no values are null", shouldRead);
+  }
+
+  @Test
+  public void testSomeNulls() {
+    boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, lessThan("some_nulls", "ggg")).eval(FILE_2);
+    Assert.assertFalse("Should not match: lessThan on some nulls column", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, lessThanOrEqual("some_nulls", "eee")).eval(FILE_2);
+    Assert.assertFalse("Should not match: lessThanOrEqual on some nulls column", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, greaterThan("some_nulls", "aaa")).eval(FILE_2);
+    Assert.assertFalse("Should not match: greaterThan on some nulls column", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, greaterThanOrEqual("some_nulls", "bbb")).eval(FILE_2);
+    Assert.assertFalse("Should not match: greaterThanOrEqual on some nulls column", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, equal("some_nulls", "bbb")).eval(FILE_3);
+    Assert.assertFalse("Should not match: equal on some nulls column", shouldRead);
   }
 
   @Test

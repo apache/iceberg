@@ -36,7 +36,9 @@ import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveComparator;
 import org.apache.parquet.schema.PrimitiveType;
 
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
@@ -336,6 +338,47 @@ public class ParquetMetricsRowGroupFilter {
 
     @Override
     public <T> Boolean notIn(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
+      int id = ref.fieldId();
+
+      Long valueCount = valueCounts.get(id);
+      if (valueCount == null) {
+        // the column is not present and is all nulls
+        return ROWS_CANNOT_MATCH;
+      }
+
+      Statistics<Binary> colStats = (Statistics<Binary>) stats.get(id);
+      if (colStats != null && !colStats.isEmpty()) {
+        if (!colStats.hasNonNullValue()) {
+          return ROWS_CANNOT_MATCH;
+        }
+
+        Binary prefixAsBinary = Binary.fromConstantByteBuffer(lit.toByteBuffer());
+
+        PrimitiveComparator<Binary> comparator = PrimitiveComparator.UNSIGNED_LEXICOGRAPHICAL_BINARY_COMPARATOR;
+
+        Binary lower = colStats.genericGetMin();
+        // truncate lower bound so that its length in bytes is not greater than the length of prefix
+        int lowerLength = Math.min(prefixAsBinary.length(), lower.length());
+        int lowerCmp = comparator.compare(lower.slice(0, lowerLength), prefixAsBinary);
+        if (lowerCmp > 0) {
+          return ROWS_CANNOT_MATCH;
+        }
+
+        Binary upper = colStats.genericGetMax();
+        // truncate upper bound so that its length in bytes is not greater than the length of prefix
+        int upperLength = Math.min(prefixAsBinary.length(), upper.length());
+        int upperCmp = comparator.compare(upper.slice(0, upperLength), prefixAsBinary);
+        if (upperCmp < 0) {
+          return ROWS_CANNOT_MATCH;
+        }
+      }
+
       return ROWS_MIGHT_MATCH;
     }
 

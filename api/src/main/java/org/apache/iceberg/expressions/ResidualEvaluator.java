@@ -196,8 +196,7 @@ public class ResidualEvaluator implements Serializable {
 
     @Override
     public <T> Expression startsWith(BoundReference<T> ref, Literal<T> lit) {
-      Comparator<T> cmp = lit.comparator();
-      return  ((String) ref.get(struct)).startsWith((String) lit.value()) ? alwaysTrue() : alwaysFalse();
+      return ((String) ref.get(struct)).startsWith((String) lit.value()) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override

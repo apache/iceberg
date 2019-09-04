@@ -90,13 +90,14 @@ object SparkTableUtil {
   def listPartition(
       partition: Map[String, String],
       uri: String,
-      format: String): Seq[SparkDataFile] = {
+      format: String,
+      conf: Configuration = new Configuration()): Seq[SparkDataFile] = {
     if (format.contains("avro")) {
-      listAvroPartition(partition, uri)
+      listAvroPartition(partition, uri, conf)
     } else if (format.contains("parquet")) {
-      listParquetPartition(partition, uri)
+      listParquetPartition(partition, uri, conf)
     } else if (format.contains("orc")) {
-      listOrcPartition(partition, uri)
+      listOrcPartition(partition, uri, conf)
     } else {
       throw new UnsupportedOperationException(s"Unknown partition format: $format")
     }
@@ -230,8 +231,8 @@ object SparkTableUtil {
 
   private def listAvroPartition(
       partitionPath: Map[String, String],
-      partitionUri: String): Seq[SparkDataFile] = {
-    val conf = new Configuration()
+      partitionUri: String,
+      conf: Configuration): Seq[SparkDataFile] = {
     val partition = new Path(partitionUri)
     val fs = partition.getFileSystem(conf)
 
@@ -253,8 +254,8 @@ object SparkTableUtil {
   private def listParquetPartition(
       partitionPath: Map[String, String],
       partitionUri: String,
+      conf: Configuration,
       metricsSpec: MetricsConfig = MetricsConfig.getDefault): Seq[SparkDataFile] = {
-    val conf = new Configuration()
     val partition = new Path(partitionUri)
     val fs = partition.getFileSystem(conf)
 
@@ -276,8 +277,8 @@ object SparkTableUtil {
 
   private def listOrcPartition(
       partitionPath: Map[String, String],
-      partitionUri: String): Seq[SparkDataFile] = {
-    val conf = new Configuration()
+      partitionUri: String,
+      conf: Configuration): Seq[SparkDataFile] = {
     val partition = new Path(partitionUri)
     val fs = partition.getFileSystem(conf)
 

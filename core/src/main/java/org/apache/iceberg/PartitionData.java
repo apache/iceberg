@@ -25,6 +25,7 @@ import com.google.common.hash.Hashing;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
 import org.apache.avro.Schema;
@@ -78,7 +79,7 @@ class PartitionData
   private PartitionData(PartitionData toCopy) {
     this.partitionType = toCopy.partitionType;
     this.size = toCopy.size;
-    this.data = Arrays.copyOf(toCopy.data, toCopy.data.length);
+    this.data = copyData(toCopy.partitionType, toCopy.data);
     this.stringSchema = toCopy.stringSchema;
     this.schema = toCopy.schema;
   }
@@ -194,5 +195,36 @@ class PartitionData
     Stream.of(data).map(Objects::hashCode).forEach(hasher::putInt);
     partitionType.fields().stream().map(Objects::hashCode).forEach(hasher::putInt);
     return hasher.hash().hashCode();
+  }
+
+  public static Object[] copyData(Types.StructType type, Object[] data) {
+    List<Types.NestedField> fields = type.fields();
+    Object[] copy = new Object[data.length];
+    for (int i = 0; i < data.length; i += 1) {
+      if (data[i] == null) {
+        copy[i] = null;
+      } else {
+        Types.NestedField field = fields.get(i);
+        switch (field.type().typeId()) {
+          case STRUCT:
+          case LIST:
+          case MAP:
+            throw new IllegalArgumentException("Unsupported type in partition data: " + type);
+          case BINARY:
+          case FIXED:
+            byte[] buffer = (byte[]) data[i];
+            copy[i] = Arrays.copyOf(buffer, buffer.length);
+            break;
+          case STRING:
+            copy[i] = data[i].toString();
+            break;
+          default:
+            // no need to copy the object
+            copy[i] = data[i];
+        }
+      }
+    }
+
+    return copy;
   }
 }

@@ -15,27 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import threading
-
 from .expressions import Expressions, ExpressionVisitors
 from .predicate import BoundPredicate, Predicate, UnboundPredicate
 
 
 class ResidualEvaluator(object):
 
-    def visitor(self):
-        if not hasattr(self.thread_local_data, "visitors"):
-            self.thread_local_data.visitors = ResidualVisitor()
-
-        return self.thread_local_data.visitors
-
     def __init__(self, spec, expr):
         self._spec = spec
         self._expr = expr
-        self.thread_local_data = threading.local()
+        self.__visitor = None
+
+    def _visitor(self):
+        if self.__visitor is None:
+            self.__visitor = ResidualVisitor()
+
+        return self.__visitor
 
     def residual_for(self, partition_data):
-        return self.visitor().eval(partition_data)
+        return self._visitor().eval(partition_data)
 
 
 class ResidualVisitor(ExpressionVisitors.BoundExpressionVisitor):

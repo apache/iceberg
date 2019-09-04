@@ -23,11 +23,16 @@ import com.google.common.base.Preconditions;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.transforms.UnknownTransform;
 import org.apache.iceberg.types.CheckCompatibility;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
@@ -90,6 +95,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
     validateWriteSchema(table.schema(), dsStruct);
+    validatePartitionTransforms(table.spec());
     String appId = lazySparkSession().sparkContext().applicationId();
     String wapId = lazySparkSession().conf().get("spark.wap.id", null);
     return Optional.of(new Writer(table, options, mode == SaveMode.Overwrite, appId, wapId));
@@ -104,6 +110,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
     validateWriteSchema(table.schema(), dsStruct);
+    validatePartitionTransforms(table.spec());
     // Spark 2.4.x passes runId to createStreamWriter instead of real queryId,
     // so we fetch it directly from sparkContext to make writes idempotent
     String queryId = lazySparkSession().sparkContext().getLocalProperty(StreamExecution.QUERY_ID_KEY());
@@ -170,6 +177,19 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
         sb.append("\n* ").append(error);
       }
       throw new IllegalArgumentException(sb.toString());
+    }
+  }
+
+  private void validatePartitionTransforms(PartitionSpec spec) {
+    if (spec.fields().stream().anyMatch(field -> field.transform() instanceof UnknownTransform)) {
+      String unsupported = spec.fields().stream()
+          .map(PartitionField::transform)
+          .filter(transform -> transform instanceof UnknownTransform)
+          .map(Transform::toString)
+          .collect(Collectors.joining(", "));
+
+      throw new UnsupportedOperationException(
+          String.format("Cannot write using unsupported transforms: %s", unsupported));
     }
   }
 }

@@ -20,21 +20,26 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
+import org.apache.iceberg.BaseTransaction.TransactionType;
 
 public final class Transactions {
   private Transactions() {}
 
+  public static Transaction createOrReplaceTableTransaction(TableOperations ops, TableMetadata start) {
+    return new BaseTransaction(ops, TransactionType.CREATE_OR_REPLACE_TABLE, start);
+  }
+
   public static Transaction replaceTableTransaction(TableOperations ops, TableMetadata start) {
-    return new BaseTransaction(ops, start);
+    return new BaseTransaction(ops, TransactionType.REPLACE_TABLE, start);
   }
 
   public static Transaction createTableTransaction(TableOperations ops, TableMetadata start) {
     Preconditions.checkArgument(ops.current() == null,
             "Cannot start create table transaction: table already exists");
-    return new BaseTransaction(ops, start);
+    return new BaseTransaction(ops, TransactionType.CREATE_TABLE, start);
   }
 
   public static Transaction newTransaction(TableOperations ops) {
-    return new BaseTransaction(ops, ops.refresh());
+    return new BaseTransaction(ops, TransactionType.SIMPLE, ops.refresh());
   }
 }

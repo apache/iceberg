@@ -17,11 +17,8 @@
  * under the License.
  */
 
-package org.apache.iceberg.transforms;
+package org.apache.iceberg;
 
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
@@ -75,6 +72,7 @@ public class TestTransformSerialization {
         PartitionSpec.builderFor(schema).truncate("l", 10).build(),
         PartitionSpec.builderFor(schema).truncate("dec", 10).build(),
         PartitionSpec.builderFor(schema).truncate("s", 10).build(),
+        PartitionSpec.builderFor(schema).add(6, "dec_unsupported", "unsupported").build(),
     };
 
     for (PartitionSpec spec : specs) {

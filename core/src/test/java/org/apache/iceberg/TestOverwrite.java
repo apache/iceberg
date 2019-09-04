@@ -209,7 +209,7 @@ public class TestOverwrite extends TableTestBase {
     OverwriteFiles overwrite = table.newOverwrite()
         .overwriteByRowFilter(equal("date", "2018-06-08"))
         .addFile(FILE_10_TO_14) // in 2018-06-09, NOT in 2018-06-08
-        .validateAddedFiles();
+        .validateAddedFilesMatchOverwriteFilter();
 
     AssertHelpers.assertThrows("Should reject commit with file not matching delete expression",
         ValidationException.class, "Cannot append file with rows that do not match filter",
@@ -227,7 +227,7 @@ public class TestOverwrite extends TableTestBase {
     OverwriteFiles overwrite = table.newOverwrite()
         .overwriteByRowFilter(and(equal("date", "2018-06-09"), lessThan("id", 10)))
         .addFile(FILE_10_TO_14) // in 2018-06-09 matches, but IDs are outside range
-        .validateAddedFiles();
+        .validateAddedFilesMatchOverwriteFilter();
 
     AssertHelpers.assertThrows("Should reject commit with file not matching delete expression",
         ValidationException.class, "Cannot append file with rows that do not match filter",
@@ -245,7 +245,7 @@ public class TestOverwrite extends TableTestBase {
     OverwriteFiles overwrite = table.newOverwrite()
         .overwriteByRowFilter(and(equal("date", "2018-06-09"), lessThan("id", 20)))
         .addFile(FILE_10_TO_14) // in 2018-06-09 matches and IDs are inside range
-        .validateAddedFiles();
+        .validateAddedFilesMatchOverwriteFilter();
 
     AssertHelpers.assertThrows("Should reject commit with file not matching delete expression",
         ValidationException.class, "Cannot append file with rows that do not match filter",

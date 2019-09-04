@@ -27,6 +27,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.StringWriter;
 import java.util.Comparator;
@@ -95,10 +96,19 @@ public class TableMetadataParser {
   static final String TIMESTAMP_MS = "timestamp-ms";
   static final String SNAPSHOT_LOG = "snapshot-log";
 
+  public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
+    internalWrite(metadata, outputFile, true);
+  }
+
   public static void write(TableMetadata metadata, OutputFile outputFile) {
-    Codec codec = Codec.fromFileName(outputFile.location());
-    try (OutputStreamWriter writer = new OutputStreamWriter(
-        codec == Codec.GZIP ? new GZIPOutputStream(outputFile.create()) : outputFile.create())) {
+    internalWrite(metadata, outputFile, false);
+  }
+
+  public static void internalWrite(
+      TableMetadata metadata, OutputFile outputFile, boolean overwrite) {
+    boolean isGzip = Codec.fromFileName(outputFile.location()) == Codec.GZIP;
+    OutputStream stream = overwrite ? outputFile.createOrOverwrite() : outputFile.create();
+    try (OutputStreamWriter writer = new OutputStreamWriter(isGzip ? new GZIPOutputStream(stream) : stream)) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
       generator.useDefaultPrettyPrinter();
       toJson(metadata, generator);

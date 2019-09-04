@@ -96,7 +96,7 @@ class ManifestGroup {
 
   public ManifestGroup filterPartitions(Expression expr) {
     return new ManifestGroup(
-        ops, manifests, dataFilter, fileFilter, Expressions.and(fileFilter, expr),
+        ops, manifests, dataFilter, fileFilter, Expressions.and(partitionFilter, expr),
         ignoreDeleted, ignoreExisting, columns, caseSensitive);
   }
 
@@ -139,7 +139,7 @@ class ManifestGroup {
    * @return a CloseableIterable of manifest entries.
    */
   public CloseableIterable<ManifestEntry> entries() {
-    Evaluator evaluator = new Evaluator(DataFile.getType(EMPTY_STRUCT), fileFilter);
+    Evaluator evaluator = new Evaluator(DataFile.getType(EMPTY_STRUCT), fileFilter, caseSensitive);
 
     Iterable<ManifestFile> matchingManifests = Iterables.filter(manifests,
         manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
@@ -148,7 +148,7 @@ class ManifestGroup {
       // only scan manifests that have entries other than deletes
       // remove any manifests that don't have any existing or added files. if either the added or
       // existing files count is missing, the manifest must be scanned.
-      matchingManifests = Iterables.filter(manifests,
+      matchingManifests = Iterables.filter(matchingManifests,
           manifest -> manifest.hasAddedFiles() || manifest.hasExistingFiles());
     }
 
@@ -156,7 +156,7 @@ class ManifestGroup {
       // only scan manifests that have entries other than existing
       // remove any manifests that don't have any deleted or added files. if either the added or
       // deleted files count is missing, the manifest must be scanned.
-      matchingManifests = Iterables.filter(manifests,
+      matchingManifests = Iterables.filter(matchingManifests,
           manifest -> manifest.hasAddedFiles() || manifest.hasDeletedFiles());
     }
 

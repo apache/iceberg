@@ -23,8 +23,10 @@ import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.hadoop.HadoopFileIO;
+import java.util.function.Predicate;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
@@ -43,18 +45,12 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   private static final String METADATA_FOLDER_NAME = "metadata";
   private static final String DATA_FOLDER_NAME = "data";
 
-  private final Configuration conf;
-  private final FileIO fileIo;
-
   private TableMetadata currentMetadata = null;
   private String currentMetadataLocation = null;
   private boolean shouldRefresh = true;
   private int version = -1;
 
-  protected BaseMetastoreTableOperations(Configuration conf) {
-    this.conf = conf;
-    this.fileIo = new HadoopFileIO(conf);
-  }
+  protected BaseMetastoreTableOperations() { }
 
   @Override
   public TableMetadata current() {
@@ -72,25 +68,71 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     return version;
   }
 
+  @Override
+  public TableMetadata refresh() {
+    try {
+      doRefresh();
+    } catch (NoSuchTableException e) {
+      LOG.warn("Could not find the table during refresh, setting current metadata to null", e);
+      currentMetadata = null;
+      currentMetadataLocation = null;
+      version = -1;
+      shouldRefresh = false;
+      throw e;
+    }
+    return current();
+  }
+
+  protected void doRefresh() {
+    throw new UnsupportedOperationException("Not implemented: doRefresh");
+  }
+
+  @Override
+  public void commit(TableMetadata base, TableMetadata metadata) {
+    // if the metadata is already out of date, reject it
+    if (base != current()) {
+      throw new CommitFailedException("Cannot commit: stale table metadata");
+    }
+    // if the metadata is not changed, return early
+    if (base == metadata) {
+      LOG.info("Nothing to commit.");
+      return;
+    }
+
+    doCommit(base, metadata);
+    requestRefresh();
+  }
+
+  protected void doCommit(TableMetadata base, TableMetadata metadata) {
+    throw new UnsupportedOperationException("Not implemented: doCommit");
+  }
+
   protected void requestRefresh() {
     this.shouldRefresh = true;
   }
 
   protected String writeNewMetadata(TableMetadata metadata, int newVersion) {
     String newTableMetadataFilePath = newTableMetadataFilePath(metadata, newVersion);
-    OutputFile newMetadataLocation = fileIo.newOutputFile(newTableMetadataFilePath);
+    OutputFile newMetadataLocation = io().newOutputFile(newTableMetadataFilePath);
 
     // write the new metadata
-    TableMetadataParser.write(metadata, newMetadataLocation);
+    // use overwrite to avoid negative caching in S3. this is safe because the metadata location is
+    // always unique because it includes a UUID.
+    TableMetadataParser.overwrite(metadata, newMetadataLocation);
 
     return newTableMetadataFilePath;
   }
 
   protected void refreshFromMetadataLocation(String newLocation) {
-    refreshFromMetadataLocation(newLocation, 20);
+    refreshFromMetadataLocation(newLocation, null, 20);
   }
 
   protected void refreshFromMetadataLocation(String newLocation, int numRetries) {
+    refreshFromMetadataLocation(newLocation, null, numRetries);
+  }
+
+  protected void refreshFromMetadataLocation(String newLocation, Predicate<Exception> shouldRetry,
+                                             int numRetries) {
     // use null-safe equality check because new tables have a null metadata location
     if (!Objects.equal(currentMetadataLocation, newLocation)) {
       LOG.info("Refreshing table metadata from new version: {}", newLocation);
@@ -98,7 +140,8 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
       AtomicReference<TableMetadata> newMetadata = new AtomicReference<>();
       Tasks.foreach(newLocation)
           .retry(numRetries).exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */)
-          .suppressFailureWhenFinished()
+          .throwFailureWhenFinished()
+          .shouldRetryTest(shouldRetry)
           .run(metadataLocation -> newMetadata.set(
               TableMetadataParser.read(this, io().newInputFile(metadataLocation))));
 
@@ -132,13 +175,53 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   }
 
   @Override
-  public FileIO io() {
-    return fileIo;
+  public LocationProvider locationProvider() {
+    return LocationProviders.locationsFor(current().location(), current().properties());
   }
 
   @Override
-  public LocationProvider locationProvider() {
-    return LocationProviders.locationsFor(current().location(), current().properties());
+  public TableOperations temp(TableMetadata uncommittedMetadata) {
+    return new TableOperations() {
+      @Override
+      public TableMetadata current() {
+        return uncommittedMetadata;
+      }
+
+      @Override
+      public TableMetadata refresh() {
+        throw new UnsupportedOperationException("Cannot call refresh on temporary table operations");
+      }
+
+      @Override
+      public void commit(TableMetadata base, TableMetadata metadata) {
+        throw new UnsupportedOperationException("Cannot call commit on temporary table operations");
+      }
+
+      @Override
+      public String metadataFileLocation(String fileName) {
+        return BaseMetastoreTableOperations.this.metadataFileLocation(uncommittedMetadata, fileName);
+      }
+
+      @Override
+      public LocationProvider locationProvider() {
+        return LocationProviders.locationsFor(uncommittedMetadata.location(), uncommittedMetadata.properties());
+      }
+
+      @Override
+      public FileIO io() {
+        return BaseMetastoreTableOperations.this.io();
+      }
+
+      @Override
+      public EncryptionManager encryption() {
+        return BaseMetastoreTableOperations.this.encryption();
+      }
+
+      @Override
+      public long newSnapshotId() {
+        return BaseMetastoreTableOperations.this.newSnapshotId();
+      }
+    };
   }
 
   private String newTableMetadataFilePath(TableMetadata meta, int newVersion) {

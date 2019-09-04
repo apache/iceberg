@@ -20,6 +20,7 @@
 package org.apache.iceberg.transforms;
 
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
@@ -52,5 +53,22 @@ public class TestDates {
         "null", Transforms.month(type).toHumanString(null));
     Assert.assertEquals("Should produce \"null\" for null",
         "null", Transforms.day(type).toHumanString(null));
+  }
+
+  @Test
+  public void testDatesReturnType() {
+    Types.DateType type = Types.DateType.get();
+
+    Transform<Integer, Integer> year = Transforms.year(type);
+    Type yearResultType = year.getResultType(type);
+    Assert.assertEquals(Types.IntegerType.get(), yearResultType);
+
+    Transform<Integer, Integer> month = Transforms.month(type);
+    Type monthResultType = month.getResultType(type);
+    Assert.assertEquals(Types.IntegerType.get(), monthResultType);
+
+    Transform<Integer, Integer> day = Transforms.day(type);
+    Type dayResultType = day.getResultType(type);
+    Assert.assertEquals(Types.DateType.get(), dayResultType);
   }
 }

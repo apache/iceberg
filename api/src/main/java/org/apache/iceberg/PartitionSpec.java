@@ -37,6 +37,7 @@ import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.transforms.UnknownTransform;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -123,9 +124,13 @@ public class PartitionSpec implements Serializable {
           Class<?>[] classes = new Class<?>[fields.length];
           for (int i = 0; i < fields.length; i += 1) {
             PartitionField field = fields[i];
-            Type sourceType = schema.findType(field.sourceId());
-            Type result = field.transform().getResultType(sourceType);
-            classes[i] = result.typeId().javaClass();
+            if (field.transform() instanceof UnknownTransform) {
+              classes[i] = Object.class;
+            } else {
+              Type sourceType = schema.findType(field.sourceId());
+              Type result = field.transform().getResultType(sourceType);
+              classes[i] = result.typeId().javaClass();
+            }
           }
 
           this.lazyJavaClasses = classes;
@@ -422,12 +427,11 @@ public class PartitionSpec implements Serializable {
       return this;
     }
 
-    public Builder add(int sourceId, String name, String transform) {
+    Builder add(int sourceId, String name, String transform) {
       checkAndAddPartitionName(name);
       Types.NestedField column = schema.findField(sourceId);
       Preconditions.checkNotNull(column, "Cannot find source column: %d", sourceId);
-      fields.add(new PartitionField(
-          sourceId, name, Transforms.fromString(column.type(), transform)));
+      fields.add(new PartitionField(sourceId, name, Transforms.fromString(column.type(), transform)));
       return this;
     }
 
@@ -438,7 +442,7 @@ public class PartitionSpec implements Serializable {
     }
   }
 
-  public static void checkCompatibility(PartitionSpec spec, Schema schema) {
+  static void checkCompatibility(PartitionSpec spec, Schema schema) {
     for (PartitionField field : spec.fields) {
       Type sourceType = schema.findType(field.sourceId());
       ValidationException.check(sourceType.isPrimitiveType(),
