@@ -29,11 +29,15 @@ import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.hive.HiveCatalog;
+import org.apache.iceberg.hive.HiveCatalogs;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.UnknownTransform;
 import org.apache.iceberg.types.CheckCompatibility;
+import org.apache.spark.SparkConf;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.execution.streaming.StreamExecution;
@@ -48,6 +52,8 @@ import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
 import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter;
 import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.types.StructType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, DataSourceRegister, StreamWriteSupport {
 
@@ -56,6 +62,8 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
 
   private SparkSession lazySpark = null;
   private Configuration lazyConf = null;
+
+  private static final Logger LOG = LoggerFactory.getLogger(IcebergSource.class);
 
   @Override
   public String shortName() {
@@ -67,6 +75,8 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
     String caseSensitive = lazySparkSession().conf().get("spark.sql.caseSensitive", "true");
+    String sparkMaster = lazySparkSession().conf().get("spark.master");
+    SparkConf sparkConf = lazySparkSession().sparkContext().conf();
 
     // look for split behavior overrides in options
     Optional<String> enableV1VectorizedReadOpt = options.get(ICEBERG_READ_ENABLE_V1_VECTORIZATION_CONF);
@@ -79,8 +89,9 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     int numRecordsPerBatch = numRecordsPerBatchOpt.isPresent() ?
         Integer.parseInt(numRecordsPerBatchOpt.get()) : V1VectorizedReader.DEFAULT_NUM_ROWS_IN_BATCH;
     if (enableV1VectorizedRead) {
-
-      return new V1VectorizedReader(table, Boolean.valueOf(caseSensitive), options, conf, numRecordsPerBatch);
+      LOG.debug("V1VectorizedReader engaged.");
+      return new V1VectorizedReader(table, Boolean.valueOf(caseSensitive), options, conf,
+          numRecordsPerBatch, lazySparkSession());
     } else {
 
       return new Reader(table, Boolean.valueOf(caseSensitive), options);
@@ -122,14 +133,14 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Optional<String> path = options.get("path");
     Preconditions.checkArgument(path.isPresent(), "Cannot open table: path is not set");
 
-    // if (path.get().contains("/")) {
-    HadoopTables tables = new HadoopTables(conf);
-    return tables.load(path.get());
-    // } else {
-    //   HiveCatalog hiveCatalog = HiveCatalogs.loadCatalog(conf);
-    //   TableIdentifier tableIdentifier = TableIdentifier.parse(path.get());
-    //   return hiveCatalog.loadTable(tableIdentifier);
-    // }
+    if (path.get().contains("/")) {
+      HadoopTables tables = new HadoopTables(conf);
+      return tables.load(path.get());
+    } else {
+      HiveCatalog hiveCatalog = HiveCatalogs.loadCatalog(conf);
+      TableIdentifier tableIdentifier = TableIdentifier.parse(path.get());
+      return hiveCatalog.loadTable(tableIdentifier);
+    }
   }
 
   private SparkSession lazySparkSession() {

@@ -25,12 +25,11 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Arrays;
+import java.lang.reflect.Constructor;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
@@ -49,23 +48,18 @@ import org.apache.iceberg.spark.data.SparkAvroReader;
 import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.SparkContext;
-import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Attribute;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
 import org.apache.spark.sql.execution.datasources.PartitionedFile;
-import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat;
-import org.apache.spark.sql.internal.SQLConf;
-import org.apache.spark.sql.sources.Filter;
+import org.apache.spark.sql.execution.vectorized.MutableColumnarRow;
 import org.apache.spark.sql.sources.v2.reader.InputPartitionReader;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.collection.JavaConverters;
-import scala.collection.Seq;
 
 class V1VectorizedTaskDataReader implements InputPartitionReader<ColumnarBatch> {
 
@@ -81,18 +75,18 @@ class V1VectorizedTaskDataReader implements InputPartitionReader<ColumnarBatch> 
   private final FileIO fileIo;
   private final Map<String, InputFile> inputFiles;
   private final boolean caseSensitive;
-  private final Integer numRecordsPerBatch;
+  private final scala.Function1<PartitionedFile, scala.collection.Iterator<InternalRow>> buildReaderFunc;
 
   private Iterator<ColumnarBatch> currentIterator = null;
   private Closeable currentCloseable = null;
   private ColumnarBatch current = null;
-  private Configuration hadoopConf;
-  private Filter[] pushedFilters;
 
   V1VectorizedTaskDataReader(
       CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
-      EncryptionManager encryptionManager, boolean caseSensitive, int numRecordsPerBatch,
-      Configuration hadoopConf, Filter[] filters) {
+      EncryptionManager encryptionManager, boolean caseSensitive,
+      scala.Function1<PartitionedFile,
+      scala.collection.Iterator<InternalRow>> buildReaderFunc) {
+
     this.fileIo = fileIo;
     this.tasks = task.files().iterator();
     this.tableSchema = tableSchema;
@@ -106,13 +100,12 @@ class V1VectorizedTaskDataReader implements InputPartitionReader<ColumnarBatch> 
     decryptedFiles.forEach(decrypted -> inputFileBuilder.put(decrypted.location(), decrypted));
     this.inputFiles = inputFileBuilder.build();
     // open last because the schemas and fileIo must be set
-    this.pushedFilters = filters;
     this.caseSensitive = caseSensitive;
-    this.hadoopConf = hadoopConf;
-    this.numRecordsPerBatch = numRecordsPerBatch;
+    this.buildReaderFunc = buildReaderFunc;
 
     // open after initializing everything
     this.currentIterator = open(tasks.next());
+    // LOG.warn("=> V1VectorizedTaskDataReader initialized.");
   }
 
   @Override
@@ -232,32 +225,29 @@ class V1VectorizedTaskDataReader implements InputPartitionReader<ColumnarBatch> 
   private scala.collection.Iterator<InternalRow> buildV1VectorizedBatchReader(Schema readSchema,
       FileScanTask task) {
 
-    ParquetFileFormat fileFormatInstance = new ParquetFileFormat();
-    List<Filter> filtersAsList = Arrays.asList(pushedFilters);
-    Seq<Filter> filtersAsSeq = JavaConverters.asScalaIteratorConverter(filtersAsList.iterator()).asScala().toSeq();
+    // LOG.warn("=> Resolve buildV1VectorizedBatchReader()");
+    // Prepare param for building partition reader
+    //   Databricks Runtime has        PartitionedFile(InternalRow, String, long, long, Seq[])
+    //   while vanilla Spark 2.4.X has PartitionedFile(InternalRow, String, long, long, String[])
+    Class<?> clazz = PartitionedFile.class;
+    Constructor<?> ctor = clazz.getConstructors()[0]; // we know PartitionedFile has only one constructor
+    PartitionedFile partitionedFile;
+    try {
+      // Pick partition fields
 
-    StructType sparkReadSchema = SparkSchemaUtil.convert(readSchema);
+      // Set<Integer> idPartitionColumns = task.spec().identitySourceIds();
+      // Schema partitionSchema = TypeUtil.select(readSchema, idPartitionColumns);
+      // InternalRow partitionValues = new StructInternalRow(partitionSchema.asStruct());
 
-    PartitionedFile partitionedFile = new PartitionedFile(InternalRow.empty(),
-        task.file().path().toString(), task.start(), task.length(), null);
+      partitionedFile = (PartitionedFile)
+          ctor.newInstance(InternalRow.empty(),   task.file().path().toString(),
+              task.start(), task.length(), null);
+    } catch (Throwable t) {
+      throw new RuntimeException("Could not instantiate PartitionedFile", t);
+    }
 
-    // Set Vectorization Config
-    LOG.info("=> Set numRecordsPerBatch = {}", numRecordsPerBatch);
-    this.hadoopConf.set(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "true");
-    this.hadoopConf.set(SQLConf.PARQUET_VECTORIZED_READER_BATCH_SIZE().key(),
-        Integer.toString(this.numRecordsPerBatch));
-
-    SparkSession localSparkSession = new SparkSession(SparkContext.getOrCreate());
-    localSparkSession.sessionState().conf().setConfString(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "true");
-    localSparkSession.sessionState().conf().setConfString(SQLConf.PARQUET_VECTORIZED_READER_BATCH_SIZE().key(),
-        Integer.toString(this.numRecordsPerBatch));
-
-    return fileFormatInstance.buildReaderWithPartitionValues(localSparkSession,
-        sparkReadSchema,
-        new StructType(),
-        sparkReadSchema,
-        filtersAsSeq,
-        null, hadoopConf).apply(partitionedFile);
+    // LOG.warn("=> buildV1VectorizedBatchReader.apply()");
+    return buildReaderFunc.apply(partitionedFile);
   }
 
   private static UnsafeProjection projection(Schema finalSchema, Schema readSchema) {
@@ -348,9 +338,13 @@ class V1VectorizedTaskDataReader implements InputPartitionReader<ColumnarBatch> 
 
         ColumnarBatch batch = (ColumnarBatch) object;
         return batch;
+      } else {
+
+        MutableColumnarRow columnarRow = (MutableColumnarRow) object;
       }
 
-      throw new RuntimeException("Object not of [ColumnarBatch] type");
+      throw new RuntimeException("Object not of [ColumnarBatch] type, " +
+          "found [" + object.getClass().getCanonicalName() + "]");
     }
 
     @Override
