@@ -259,14 +259,13 @@ public class TestParquetWrite {
     Table table = tables.create(SCHEMA, spec, location.toString());
 
     table.updateProperties()
-        .set(TableProperties.WRITE_TARGET_FILE_SIZE, "4") // ~4 bytes per file
+        .set(TableProperties.WRITE_TARGET_FILE_SIZE, "4") // ~4 bytes; low enough to trigger
         .commit();
 
-    List<SimpleRecord> expected = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> expected = Lists.newArrayListWithCapacity(4000);
+    for (int i = 0; i < 4000; i++) {
+      expected.add(new SimpleRecord(i, "a"));
+    }
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
@@ -291,8 +290,8 @@ public class TestParquetWrite {
         files.add(file);
       }
     }
-    Assert.assertEquals("Should have 3 DataFiles", 3, files.size());
-    Assert.assertTrue("All DataFiles contain 1 row", files.stream().allMatch(d -> d.recordCount() == 1));
+    Assert.assertEquals("Should have 4 DataFiles", 4, files.size());
+    Assert.assertTrue("All DataFiles contain 1000 rows", files.stream().allMatch(d -> d.recordCount() == 1000));
   }
 
   @Test
@@ -304,21 +303,20 @@ public class TestParquetWrite {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
     Table table = tables.create(SCHEMA, spec, location.toString());
 
-    List<SimpleRecord> expected = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "a"),
-        new SimpleRecord(3, "b"),
-        new SimpleRecord(4, "b"),
-        new SimpleRecord(5, "c"),
-        new SimpleRecord(6, "c")
-    );
+    List<SimpleRecord> expected = Lists.newArrayListWithCapacity(8000);
+    for (int i = 0; i < 2000; i++) {
+      expected.add(new SimpleRecord(i, "a"));
+      expected.add(new SimpleRecord(i, "b"));
+      expected.add(new SimpleRecord(i, "c"));
+      expected.add(new SimpleRecord(i, "d"));
+    }
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
-    df.select("id", "data").write()
+    df.select("id", "data").sort("data").write()
         .format("iceberg")
         .mode("append")
-        .option("target-file-size", 4) // 4 bytes per file
+        .option("target-file-size", 4) // ~4 bytes; low enough to trigger
         .save(location.toString());
 
     table.refresh();
@@ -337,7 +335,7 @@ public class TestParquetWrite {
         files.add(file);
       }
     }
-    Assert.assertEquals("Should have 6 DataFiles", 6, files.size());
-    Assert.assertTrue("All DataFiles contain 1 row", files.stream().allMatch(d -> d.recordCount() == 1));
+    Assert.assertEquals("Should have 8 DataFiles", 8, files.size());
+    Assert.assertTrue("All DataFiles contain 1000 rows", files.stream().allMatch(d -> d.recordCount() == 1000));
   }
 }

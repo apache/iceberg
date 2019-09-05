@@ -310,15 +310,21 @@ class Writer implements DataSourceWriter {
       private final int partitionId;
       private final long taskId;
       private final long epochId;
+      // The purpose of this uuid is to be able to know from two paths that they were written by the same operation.
+      // That's useful, for example, if a Spark job dies and leaves files in the file system, you can identify them all
+      // with a recursive listing and grep.
+      private final String uuid = UUID.randomUUID().toString();
+      private int fileCount;
 
       EncryptedOutputFileFactory(int partitionId, long taskId, long epochId) {
         this.partitionId = partitionId;
         this.taskId = taskId;
         this.epochId = epochId;
+        this.fileCount = 0;
       }
 
-      private String generateFilename() {
-        return format.addExtension(String.format("%05d-%d-%s", partitionId, taskId, UUID.randomUUID().toString()));
+      private synchronized String generateFilename() {
+        return format.addExtension(String.format("%05d-%d-%s-%05d", partitionId, taskId, uuid, fileCount++));
       }
 
       /**
@@ -349,6 +355,8 @@ class Writer implements DataSourceWriter {
   }
 
   private static class UnpartitionedWriter implements DataWriter<InternalRow> {
+    private static final int ROWS_DIVISOR = 1000;
+
     private final FileIO fileIo;
     private FileAppender<InternalRow> currentAppender = null;
     private final OutputFileFactory<EncryptedOutputFile> fileFactory;
@@ -357,6 +365,7 @@ class Writer implements DataSourceWriter {
     private EncryptedOutputFile currentFile = null;
     private final List<DataFile> completedFiles = Lists.newArrayList();
     private final long targetFileSize;
+    private long currentRows;
 
     UnpartitionedWriter(
         OutputFileFactory<EncryptedOutputFile> fileFactory,
@@ -375,12 +384,13 @@ class Writer implements DataSourceWriter {
 
     @Override
     public void write(InternalRow record) throws IOException {
-      if (currentAppender.length() >= targetFileSize) {
+      if (currentRows % ROWS_DIVISOR == 0 && currentAppender.length() >= targetFileSize) {
         closeCurrent();
         openCurrent();
       }
 
       currentAppender.add(record);
+      currentRows++;
     }
 
     @Override
@@ -409,6 +419,7 @@ class Writer implements DataSourceWriter {
     private void openCurrent() {
       this.currentFile = fileFactory.newOutputFile();
       this.currentAppender = appenderFactory.newAppender(currentFile.encryptingOutputFile(), format);
+      this.currentRows = 0;
     }
 
     private void closeCurrent() throws IOException {
@@ -432,6 +443,8 @@ class Writer implements DataSourceWriter {
   }
 
   private static class PartitionedWriter implements DataWriter<InternalRow> {
+    private static final int ROWS_DIVISOR = 1000;
+
     private final Set<PartitionKey> completedPartitions = Sets.newHashSet();
     private final List<DataFile> completedFiles = Lists.newArrayList();
     private final PartitionSpec spec;
@@ -445,6 +458,7 @@ class Writer implements DataSourceWriter {
     private PartitionKey currentKey = null;
     private FileAppender<InternalRow> currentAppender = null;
     private EncryptedOutputFile currentFile = null;
+    private long currentRows;
 
     PartitionedWriter(
         PartitionSpec spec,
@@ -480,14 +494,16 @@ class Writer implements DataSourceWriter {
         this.currentKey = key.copy();
         this.currentFile = fileFactory.newOutputFile(currentKey);
         this.currentAppender = appenderFactory.newAppender(currentFile.encryptingOutputFile(), format);
+        this.currentRows = 0;
       }
 
-      if (currentAppender.length() >= targetFileSize) {
+      if (currentRows % ROWS_DIVISOR == 0 && currentAppender.length() >= targetFileSize) {
         closeCurrent();
         openCurrent();
       }
 
       currentAppender.add(row);
+      currentRows++;
     }
 
     @Override
@@ -510,6 +526,7 @@ class Writer implements DataSourceWriter {
     private void openCurrent() {
       this.currentFile = fileFactory.newOutputFile(currentKey);
       this.currentAppender = appenderFactory.newAppender(currentFile.encryptingOutputFile(), format);
+      this.currentRows = 0;
     }
 
     private void closeCurrent() throws IOException {
