@@ -109,7 +109,7 @@ public class PartitionSpec implements Serializable {
       PartitionField field = fields[i];
       Type sourceType = schema.findType(field.sourceId());
       Type resultType = field.transform().getResultType(sourceType);
-      // assign ids for partition fields starting at 100 to leave room for data file's other fields
+      // assign ids for partition fields starting at PARTITION_DATA_ID_START to leave room for data file's other fields
       structFields.add(
           Types.NestedField.optional(PARTITION_DATA_ID_START + i, field.name(), resultType));
     }
