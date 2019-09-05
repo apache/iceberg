@@ -19,11 +19,13 @@
 
 package org.apache.iceberg.hadoop;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
@@ -123,6 +125,8 @@ public class HadoopInputFile implements InputFile {
   public SeekableInputStream newStream() {
     try {
       return HadoopStreams.wrap(fs.open(path));
+    } catch (FileNotFoundException e) {
+      throw new NotFoundException(e, "Failed to open input stream for file: %s", path);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to open input stream for file: %s", path);
     }

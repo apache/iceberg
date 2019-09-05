@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Paths;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -124,7 +125,7 @@ public class Files {
       try {
         return new SeekableFileInputStream(new RandomAccessFile(file, "r"));
       } catch (FileNotFoundException e) {
-        throw new RuntimeIOException(e, "Failed to read file: %s", file);
+        throw new NotFoundException(e, "Failed to read file: %s", file);
       }
     }
 
