@@ -19,24 +19,32 @@
 
 package org.apache.iceberg.spark.source;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveTableBaseTest;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 public class TestSparkTableUtil extends HiveTableBaseTest {
   private static final Configuration CONF = HiveTableBaseTest.hiveConf;
@@ -46,6 +54,10 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
   private static final Path tableLocationPath = HiveTableBaseTest.getTableLocationPath(tableName);
   private static final String tableLocationStr = tableLocationPath.toString();
   private static SparkSession spark = null;
+
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
+
 
   @BeforeClass
   public static void startSpark() {
@@ -115,5 +127,39 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
   public void testPartitionScanByFilter() {
     Dataset<Row> partitionDF = SparkTableUtil.partitionDFByFilter(spark, qualifiedTableName, "data = 'a'");
     Assert.assertEquals("There should be 1 matching partition", 1, partitionDF.count());
+  }
+
+  @Test
+  public void testImportPartitionedTable() throws Exception {
+    File location = temp.newFolder("partitioned_table");
+    spark.table(qualifiedTableName).write().mode("overwrite").partitionBy("data").format("parquet")
+            .saveAsTable("test_partitioned_table");
+    TableIdentifier source = spark.sessionState().sqlParser()
+            .parseTableIdentifier("test_partitioned_table");
+    HadoopTables tables = new HadoopTables(spark.sparkContext().hadoopConfiguration());
+    Table table = tables.create(SparkSchemaUtil.schemaForTable(spark, qualifiedTableName),
+            SparkSchemaUtil.specForTable(spark, qualifiedTableName),
+            ImmutableMap.of(),
+            location.getCanonicalPath());
+    SparkTableUtil.importSparkTable(source, "tmp", table);
+    long count = spark.read().format("iceberg").load(location.toString()).count();
+    Assert.assertEquals("three values ", 3, count);
+  }
+
+  @Test
+  public void testImportUnpartitionedTable() throws Exception {
+    File location = temp.newFolder("unpartitioned_table");
+    spark.table(qualifiedTableName).write().mode("overwrite").format("parquet")
+            .saveAsTable("test_unpartitioned_table");
+    TableIdentifier source = spark.sessionState().sqlParser()
+            .parseTableIdentifier("test_unpartitioned_table");
+    HadoopTables tables = new HadoopTables(spark.sparkContext().hadoopConfiguration());
+    Table table = tables.create(SparkSchemaUtil.schemaForTable(spark, qualifiedTableName),
+            SparkSchemaUtil.specForTable(spark, qualifiedTableName),
+            ImmutableMap.of(),
+            location.getCanonicalPath());
+    SparkTableUtil.importSparkTable(source, "/tmp", table);
+    long count = spark.read().format("iceberg").load(location.toString()).count();
+    Assert.assertEquals("three values ", 3, count);
   }
 }

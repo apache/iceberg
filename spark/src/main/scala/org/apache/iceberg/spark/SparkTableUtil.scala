@@ -24,13 +24,17 @@ import java.nio.ByteBuffer
 import java.util
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{Path, PathFilter}
-import org.apache.iceberg.{DataFile, DataFiles, Metrics, MetricsConfig, PartitionSpec}
-import org.apache.iceberg.hadoop.HadoopInputFile
+import org.apache.iceberg.{DataFile, DataFiles, FileFormat, ManifestFile, ManifestWriter}
+import org.apache.iceberg.{Metrics, MetricsConfig, PartitionSpec, Table}
+import org.apache.iceberg.exceptions.NoSuchTableException
+import org.apache.iceberg.hadoop.{HadoopFileIO, HadoopInputFile, HadoopTables, SerializableConfiguration}
 import org.apache.iceberg.orc.OrcMetrics
 import org.apache.iceberg.parquet.ParquetUtil
 import org.apache.iceberg.spark.hacks.Hive
 import org.apache.parquet.hadoop.ParquetFileReader
+import org.apache.spark.TaskContext
 import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.catalog.CatalogTablePartition
 import scala.collection.JavaConverters._
 
@@ -132,18 +136,22 @@ object SparkTableUtil {
         s"$name=${partition(name)}"
       }.mkString("/")
 
-      DataFiles.builder(spec)
-          .withPath(path)
-          .withFormat(format)
-          .withPartitionPath(partitionKey)
-          .withFileSizeInBytes(fileSize)
-          .withMetrics(new Metrics(rowCount,
-            arrayToMap(columnSizes),
-            arrayToMap(valueCounts),
-            arrayToMap(nullValueCounts),
-            arrayToMap(lowerBounds),
-            arrayToMap(upperBounds)))
-          .build()
+      var builder = DataFiles.builder(spec)
+        .withPath(path)
+        .withFormat(format)
+        .withFileSizeInBytes(fileSize)
+        .withMetrics(new Metrics(rowCount,
+          arrayToMap(columnSizes),
+          arrayToMap(valueCounts),
+          arrayToMap(nullValueCounts),
+          arrayToMap(lowerBounds),
+          arrayToMap(upperBounds)))
+
+      if (partitionKey.isEmpty) {
+        builder.build()
+      } else {
+        builder.withPartitionPath(partitionKey).build()
+      }
     }
   }
 
@@ -298,5 +306,104 @@ object SparkTableUtil {
       )
     }
   }
+
+  private def buildManifest(conf: SerializableConfiguration,
+      sparkDataFiles: Seq[SparkDataFile],
+      partitionSpec: PartitionSpec,
+      basePath: String): Iterator[Manifest] = {
+    if (sparkDataFiles.isEmpty) {
+      Seq.empty.iterator
+    } else {
+      val io = new HadoopFileIO(conf.get())
+      val ctx = TaskContext.get()
+      val location = new Path(basePath,
+        s"stage-${ctx.stageId()}-task-${ctx.taskAttemptId()}-manifest")
+      val outputFile = io.newOutputFile(FileFormat.AVRO.addExtension(location.toString))
+      val writer = ManifestWriter.write(partitionSpec, outputFile)
+      try {
+        sparkDataFiles.foreach { file =>
+          writer.add(file.toDataFile(partitionSpec))
+        }
+      } finally {
+        writer.close()
+      }
+
+      val manifestFile = writer.toManifestFile
+      Seq(Manifest(manifestFile.path, manifestFile.length, manifestFile.partitionSpecId)).iterator
+    }
+  }
+
+  private case class Manifest(location: String, fileLength: Long, specId: Int) {
+    def toManifestFile: ManifestFile = new ManifestFile {
+      override def path: String = location
+
+      override def length: Long = fileLength
+
+      override def partitionSpecId: Int = specId
+
+      override def snapshotId: java.lang.Long = null
+
+      override def addedFilesCount: Integer = null
+
+      override def existingFilesCount: Integer = null
+
+      override def deletedFilesCount: Integer = null
+
+      override def partitions: java.util.List[ManifestFile.PartitionFieldSummary] = null
+
+      override def copy: ManifestFile = this
+    }
+  }
+
+  /**
+   * Import a spark table to a iceberg table.
+   *
+   * The import uses the spark session to get table metadata. It assumes no
+   * operation is going on original table and target table and thus is not
+   * thread-safe.
+   *
+   * @param source the database name of the table to be import
+   * @param stagingDir the staging directory to store temporary manifest file
+   * @param table the target table to import
+   */
+  def importSparkTable(
+      source: TableIdentifier,
+      stagingDir: String,
+      table: Table): Unit = {
+    val sparkSession = SparkSession.builder().getOrCreate()
+    import sparkSession.sqlContext.implicits._
+
+    val dbName = source.database.getOrElse("default")
+    val tableName = source.table
+
+    if (!sparkSession.catalog.tableExists(dbName, tableName)) {
+      throw new NoSuchTableException(s"Table $dbName.$tableName does not exist")
+    }
+
+    val partitionSpec = SparkSchemaUtil.specForTable(sparkSession, s"$dbName.$tableName")
+    val conf = sparkSession.sparkContext.hadoopConfiguration
+    val serializableConfiguration = new SerializableConfiguration(conf)
+    val appender = table.newAppend()
+
+    if (partitionSpec == PartitionSpec.unpartitioned) {
+      val catalogTable = sparkSession.sessionState.catalog.getTableMetadata(source)
+      val files = listPartition(Map.empty[String, String], catalogTable.location.toString,
+        catalogTable.storage.serde.getOrElse("none"))
+      files.foreach{f => appender.appendFile(f.toDataFile(PartitionSpec.unpartitioned))}
+    } else {
+      val partitions = partitionDF(sparkSession, s"$dbName.$tableName")
+      val manifests = partitions.flatMap { row =>
+        listPartition(row.getMap[String, String](0).toMap, row.getString(1), row.getString(2))
+      }.repartition(sparkSession.sessionState.conf.numShufflePartitions)
+        .orderBy($"path")
+        .mapPartitions {
+        files => buildManifest(serializableConfiguration, files.toSeq, partitionSpec, stagingDir)
+      }.collect().map(_.toManifestFile)
+      manifests.foreach(appender.appendManifest)
+    }
+
+    appender.commit()
+  }
+
 }
 
