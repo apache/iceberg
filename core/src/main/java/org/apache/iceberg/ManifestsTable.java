@@ -27,7 +27,7 @@ import org.apache.iceberg.types.Types;
 /**
  * A {@link Table} implementation that exposes a table's manifest files as rows.
  */
-class ManifestsTable extends BaseMetadataTable {
+public class ManifestsTable extends BaseMetadataTable {
   private static final Schema SNAPSHOT_SCHEMA = new Schema(
       Types.NestedField.required(1, "path", Types.StringType.get()),
       Types.NestedField.required(2, "length", Types.LongType.get()),
@@ -47,7 +47,7 @@ class ManifestsTable extends BaseMetadataTable {
   private final Table table;
   private final PartitionSpec spec;
 
-  ManifestsTable(TableOperations ops, Table table) {
+  public ManifestsTable(TableOperations ops, Table table) {
     this.ops = ops;
     this.table = table;
     this.spec = table.spec();

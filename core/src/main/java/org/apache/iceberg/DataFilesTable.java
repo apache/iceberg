@@ -33,11 +33,11 @@ import org.apache.iceberg.types.TypeUtil;
 /**
  * A {@link Table} implementation that exposes a table's data files as rows.
  */
-class DataFilesTable extends BaseMetadataTable {
+public class DataFilesTable extends BaseMetadataTable {
   private final TableOperations ops;
   private final Table table;
 
-  DataFilesTable(TableOperations ops, Table table) {
+  public DataFilesTable(TableOperations ops, Table table) {
     this.ops = ops;
     this.table = table;
   }

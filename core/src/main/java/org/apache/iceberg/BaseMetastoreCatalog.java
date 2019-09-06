@@ -25,7 +25,6 @@ import com.google.common.collect.MapMaker;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.catalog.Catalog;
@@ -42,22 +41,6 @@ import org.slf4j.LoggerFactory;
 
 public abstract class BaseMetastoreCatalog implements Catalog {
   private static final Logger LOG = LoggerFactory.getLogger(BaseMetastoreCatalog.class);
-
-  enum TableType {
-    ENTRIES,
-    FILES,
-    HISTORY,
-    SNAPSHOTS,
-    MANIFESTS;
-
-    static TableType from(String name) {
-      try {
-        return TableType.valueOf(name.toUpperCase(Locale.ROOT));
-      } catch (IllegalArgumentException ignored) {
-        return null;
-      }
-    }
-  }
 
   @Override
   public Table createTable(
@@ -138,7 +121,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     TableOperations ops = newTableOps(identifier);
     if (ops.current() == null) {
       String name = identifier.name();
-      TableType type = TableType.from(name);
+      MetadataTableType type = MetadataTableType.from(name);
       if (type != null) {
         return loadMetadataTable(TableIdentifier.of(identifier.namespace().levels()), type);
       } else {
@@ -149,7 +132,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     return new BaseTable(ops, identifier.toString());
   }
 
-  private Table loadMetadataTable(TableIdentifier identifier, TableType type) {
+  private Table loadMetadataTable(TableIdentifier identifier, MetadataTableType type) {
     TableOperations ops = newTableOps(identifier);
     if (ops.current() == null) {
       throw new NoSuchTableException("Table does not exist: " + identifier);
