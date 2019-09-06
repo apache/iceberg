@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.data;
 
 import java.io.IOException;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.LongType;
@@ -61,7 +62,7 @@ public abstract class AvroDataTest {
 
   @Test
   public void testSimpleStruct() throws IOException {
-    writeAndValidate(new Schema(SUPPORTED_PRIMITIVES.fields()));
+    writeAndValidate(TypeUtil.assignIncreasingFreshIds(new Schema(SUPPORTED_PRIMITIVES.fields())));
   }
 
   @Test
@@ -75,9 +76,9 @@ public abstract class AvroDataTest {
 
   @Test
   public void testArrayOfStructs() throws IOException {
-    Schema schema = new Schema(
+    Schema schema = TypeUtil.assignIncreasingFreshIds(new Schema(
         required(0, "id", LongType.get()),
-        optional(1, "data", ListType.ofOptional(2, SUPPORTED_PRIMITIVES)));
+        optional(1, "data", ListType.ofOptional(2, SUPPORTED_PRIMITIVES))));
 
     writeAndValidate(schema);
   }
@@ -119,18 +120,18 @@ public abstract class AvroDataTest {
 
   @Test
   public void testMapOfStructs() throws IOException {
-    Schema schema = new Schema(
+    Schema schema = TypeUtil.assignIncreasingFreshIds(new Schema(
         required(0, "id", LongType.get()),
         optional(1, "data", MapType.ofOptional(2, 3,
             Types.StringType.get(),
-            SUPPORTED_PRIMITIVES)));
+            SUPPORTED_PRIMITIVES))));
 
     writeAndValidate(schema);
   }
 
   @Test
   public void testMixedTypes() throws IOException {
-    Schema schema = new Schema(
+    Schema schema = TypeUtil.assignIncreasingFreshIds(new Schema(
         required(0, "id", LongType.get()),
         optional(1, "list_of_maps",
             ListType.ofOptional(2, MapType.ofOptional(3, 4,
@@ -158,7 +159,7 @@ public abstract class AvroDataTest {
                 Types.StringType.get(),
                 SUPPORTED_PRIMITIVES))
         )))
-    );
+    ));
 
     writeAndValidate(schema);
   }
