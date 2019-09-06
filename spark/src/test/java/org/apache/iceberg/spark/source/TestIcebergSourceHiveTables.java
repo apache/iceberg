@@ -104,7 +104,7 @@ public class TestIcebergSourceHiveTables {
   }
 
   @Test
-  public void testHiveTablesSupport() throws Exception {
+  public synchronized void testHiveTablesSupport() throws Exception {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
     try {
       catalog.createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
@@ -137,7 +137,7 @@ public class TestIcebergSourceHiveTables {
   }
 
   @Test
-  public void testHiveEntriesTable() throws Exception {
+  public synchronized void testHiveEntriesTable() throws Exception {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_test");
     try {
       Table table = catalog.createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
@@ -178,7 +178,7 @@ public class TestIcebergSourceHiveTables {
   }
 
   @Test
-  public void testHiveFilesTable() throws Exception {
+  public synchronized void testHiveFilesTable() throws Exception {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "files_test");
     try {
       Table table = catalog.createTable(tableIdentifier, SCHEMA,
@@ -233,7 +233,7 @@ public class TestIcebergSourceHiveTables {
   }
 
   @Test
-  public void testHiveFilesUnpartitionedTable() throws Exception {
+  public synchronized void testHiveFilesUnpartitionedTable() throws Exception {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "unpartitioned_files_test");
     try {
       Table table = catalog.createTable(tableIdentifier, SCHEMA);
@@ -290,7 +290,7 @@ public class TestIcebergSourceHiveTables {
   }
 
   @Test
-  public void testHiveHistoryTable() throws Exception {
+  public synchronized void testHiveHistoryTable() throws Exception {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "history_test");
     try {
       Table table = catalog.createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
@@ -373,7 +373,7 @@ public class TestIcebergSourceHiveTables {
   }
 
   @Test
-  public void testHiveSnapshotsTable() throws Exception {
+  public synchronized void testHiveSnapshotsTable() throws Exception {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "snapshots_test");
     try {
       Table table = catalog.createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
@@ -449,7 +449,7 @@ public class TestIcebergSourceHiveTables {
   }
 
   @Test
-  public void testHiveManifestsTable() throws Exception {
+  public synchronized void testHiveManifestsTable() throws Exception {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "manifests_test");
     try {
       Table table = catalog.createTable(
