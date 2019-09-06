@@ -20,6 +20,7 @@
 package org.apache.iceberg.io;
 
 import java.io.IOException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 
 /**
@@ -38,6 +39,7 @@ public interface InputFile {
    * Opens a new {@link SeekableInputStream} for the underlying data file
    *
    * @return a seekable stream for reading the file
+   * @throws NotFoundException If the file does not exist
    * @throws RuntimeIOException If the implementation throws an {@link IOException}
    */
   SeekableInputStream newStream();
