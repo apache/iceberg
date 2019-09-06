@@ -122,10 +122,10 @@ public class TypeUtil {
   }
 
   /**
-   * Assigns strictly increasing fresh ids for all fields in a schema, starting from 0.
+   * Assigns strictly increasing fresh ids for all fields in a schema, starting from 1.
    *
    * @param schema a schema
-   * @return a structurally identical schema with new ids assigned strictly increasing from 0.
+   * @return a structurally identical schema with new ids assigned strictly increasing from 1
    */
   public static Schema assignIncreasingFreshIds(Schema schema) {
     AtomicInteger lastColumnId = new AtomicInteger(0);
