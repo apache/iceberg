@@ -92,7 +92,7 @@ public class ManifestEvaluator {
         return ROWS_MIGHT_MATCH;
       }
 
-      return ExpressionVisitors.visit(expr, this);
+      return ExpressionVisitors.visitEvaluator(expr, this);
     }
 
     @Override

@@ -125,7 +125,7 @@ public class ParquetDictionaryRowGroupFilter {
         }
       }
 
-      return ExpressionVisitors.visit(expr, this);
+      return ExpressionVisitors.visitEvaluator(expr, this);
     }
 
     @Override

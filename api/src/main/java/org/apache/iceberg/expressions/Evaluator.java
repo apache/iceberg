@@ -60,7 +60,7 @@ public class Evaluator implements Serializable {
 
     private boolean eval(StructLike row) {
       this.struct = row;
-      return ExpressionVisitors.visit(expr, this);
+      return ExpressionVisitors.visitEvaluator(expr, this);
     }
 
     @Override

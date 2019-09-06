@@ -96,7 +96,7 @@ public class InclusiveMetricsEvaluator {
       this.lowerBounds = file.lowerBounds();
       this.upperBounds = file.upperBounds();
 
-      return ExpressionVisitors.visit(expr, this);
+      return ExpressionVisitors.visitEvaluator(expr, this);
     }
 
     @Override

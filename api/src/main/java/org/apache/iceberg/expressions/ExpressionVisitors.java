@@ -141,9 +141,8 @@ public class ExpressionVisitors {
   /**
    * Traverses the given {@link Expression expression} with a {@link ExpressionVisitor visitor}.
    * <p>
-   * The visitor will be called to handle only nodes required for determining result
-   * in the expression tree in postfix order. Result values produced by child nodes
-   * are passed when parent nodes are handled.
+   * The visitor will be called to handle each node in the expression tree in postfix order. Result
+   * values produced by child nodes are passed when parent nodes are handled.
    *
    * @param expr an expression to traverse
    * @param visitor a visitor that will be called to handle each node in the expression tree
@@ -168,18 +167,58 @@ public class ExpressionVisitors {
           return visitor.not(visit(not.child(), visitor));
         case AND:
           And and = (And) expr;
-          R andLeftOperand = visit(and.left(), visitor);
-          if (andLeftOperand == visitor.alwaysFalse()) {
-            return visitor.alwaysFalse();
-          }
-          return visitor.and(andLeftOperand, visit(and.right(), visitor));
+          return visitor.and(visit(and.left(), visitor), visit(and.right(), visitor));
         case OR:
           Or or = (Or) expr;
-          R orLeftOperand = visit(or.left(), visitor);
-          if (orLeftOperand == visitor.alwaysTrue()) {
+          return visitor.or(visit(or.left(), visitor), visit(or.right(), visitor));
+        default:
+          throw new UnsupportedOperationException(
+              "Unknown operation: " + expr.op());
+      }
+    }
+  }
+
+  /**
+   * Traverses the given {@link Expression expression} with a {@link ExpressionVisitor visitor}.
+   * <p>
+   * The visitor will be called to handle only nodes required for determining result
+   * in the expression tree in postfix order. Result values produced by child nodes
+   * are passed when parent nodes are handled.
+   *
+   * @param expr an expression to traverse
+   * @param visitor a visitor that will be called to handle each node in the expression tree
+   * @return the value returned by the visitor for the root expression node
+   */
+  public static Boolean visitEvaluator(Expression expr, ExpressionVisitor<Boolean> visitor) {
+    if (expr instanceof Predicate) {
+      if (expr instanceof BoundPredicate) {
+        return visitor.predicate((BoundPredicate<?>) expr);
+      } else {
+        return visitor.predicate((UnboundPredicate<?>) expr);
+      }
+    } else {
+      switch (expr.op()) {
+        case TRUE:
+          return visitor.alwaysTrue();
+        case FALSE:
+          return visitor.alwaysFalse();
+        case NOT:
+          Not not = (Not) expr;
+          return visitor.not(visitEvaluator(not.child(), visitor));
+        case AND:
+          And and = (And) expr;
+          Boolean andLeftOperand = visitEvaluator(and.left(), visitor);
+          if (!andLeftOperand) {
+            return visitor.alwaysFalse();
+          }
+          return visitor.and(Boolean.TRUE, visitEvaluator(and.right(), visitor));
+        case OR:
+          Or or = (Or) expr;
+          Boolean orLeftOperand = visitEvaluator(or.left(), visitor);
+          if (orLeftOperand) {
             return visitor.alwaysTrue();
           }
-          return visitor.or(orLeftOperand, visit(or.right(), visitor));
+          return visitor.or(Boolean.FALSE, visitEvaluator(or.right(), visitor));
         default:
           throw new UnsupportedOperationException(
               "Unknown operation: " + expr.op());
