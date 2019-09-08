@@ -21,8 +21,6 @@ package org.apache.iceberg.hadoop;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Map;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
@@ -68,19 +66,20 @@ public class HadoopTables implements Tables, Configurable {
   public Table load(String location) {
     TableOperations ops = newTableOps(location);
     if (ops.current() == null) {
-      try {
-        // try to resolve a metadata table, which are encoded as URI fragments
-        // e.g. hdfs:///warehouse/my_table#snapshots
-        URI meta = new URI(location);
-        MetadataTableType type = MetadataTableType.from(meta.getFragment());
+      // try to resolve a metadata table, which we encode as URI fragments
+      // e.g. hdfs:///warehouse/my_table#snapshots
+      int hashIndex = location.lastIndexOf('#');
+      if (hashIndex != -1 && location.length() - 1 != hashIndex) {
+        // we found char '#', and it is not the last char of location
+        String baseTable = location.substring(0, hashIndex);
+        String metaTable = location.substring(hashIndex + 1);
+        MetadataTableType type = MetadataTableType.from(metaTable);
         if (type != null) {
-          URI baseTable = new URI(meta.getScheme(), meta.getUserInfo(), meta.getHost(), meta.getPort(), meta.getPath(),
-              meta.getQuery(), null);
-          return loadMetadataTable(baseTable.toString(), type);
+          return loadMetadataTable(baseTable, type);
         } else {
           throw new NoSuchTableException("Table does not exist at location: " + location);
         }
-      } catch (URISyntaxException e) {
+      } else {
         throw new NoSuchTableException("Table does not exist at location: " + location);
       }
     }
