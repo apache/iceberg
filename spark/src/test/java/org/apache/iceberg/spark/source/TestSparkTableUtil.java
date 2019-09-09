@@ -29,7 +29,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.HiveTableBaseTest;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
@@ -168,10 +167,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
   public void testImportAsHiveTable() throws Exception {
     spark.table(qualifiedTableName).write().mode("overwrite").format("parquet")
             .saveAsTable("unpartitioned_table");
-    TableIdentifier source = spark.sessionState().sqlParser()
-            .parseTableIdentifier("unpartitioned_table");
-
-    HiveCatalog catalog = new HiveCatalog(spark.sparkContext().hadoopConfiguration());
+    TableIdentifier source = new TableIdentifier("unpartitioned_table");
     Table table = catalog.createTable(
             org.apache.iceberg.catalog.TableIdentifier.of("default", "test_unpartitioned_table"),
             SparkSchemaUtil.schemaForTable(spark, qualifiedTableName),
@@ -182,7 +178,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
 
     spark.table(qualifiedTableName).write().mode("overwrite").partitionBy("data").format("parquet")
             .saveAsTable("partitioned_table");
-
+    source = new TableIdentifier("partitioned_table");
     table = catalog.createTable(
             org.apache.iceberg.catalog.TableIdentifier.of("default", "test_partitioned_table"),
             SparkSchemaUtil.schemaForTable(spark, qualifiedTableName),
