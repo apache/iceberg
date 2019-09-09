@@ -169,23 +169,23 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
             .saveAsTable("unpartitioned_table");
     TableIdentifier source = new TableIdentifier("unpartitioned_table");
     Table table = catalog.createTable(
-            org.apache.iceberg.catalog.TableIdentifier.of("default", "test_unpartitioned_table"),
+            org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "test_unpartitioned_table"),
             SparkSchemaUtil.schemaForTable(spark, qualifiedTableName),
             SparkSchemaUtil.specForTable(spark, qualifiedTableName));
     SparkTableUtil.importSparkTable(source, "/tmp", table);
-    long count1 = spark.read().format("iceberg").load("default.test_unpartitioned_table").count();
+    long count1 = spark.read().format("iceberg").load(DB_NAME + ".test_unpartitioned_table").count();
     Assert.assertEquals("three values ", 3, count1);
 
     spark.table(qualifiedTableName).write().mode("overwrite").partitionBy("data").format("parquet")
             .saveAsTable("partitioned_table");
     source = new TableIdentifier("partitioned_table");
     table = catalog.createTable(
-            org.apache.iceberg.catalog.TableIdentifier.of("default", "test_partitioned_table"),
+            org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "test_partitioned_table"),
             SparkSchemaUtil.schemaForTable(spark, qualifiedTableName),
             SparkSchemaUtil.specForTable(spark, qualifiedTableName));
 
     SparkTableUtil.importSparkTable(source, "/tmp", table);
-    long count2 = spark.read().format("iceberg").load("default.test_partitioned_table").count();
+    long count2 = spark.read().format("iceberg").load(DB_NAME + ".test_partitioned_table").count();
     Assert.assertEquals("three values ", 3, count2);
   }
 }
