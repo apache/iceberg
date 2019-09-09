@@ -52,5 +52,11 @@ public class BytesReader extends ValuesReader {
       throw new ParquetDecodingException("Failed to read " + length + " bytes", e);
     }
   }
+
+  @Override
+  public final int readInteger() {
+    return getBuffer(4).getInt();
+  }
+
 }
 

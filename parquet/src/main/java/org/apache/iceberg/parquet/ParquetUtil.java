@@ -30,11 +30,15 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.DateDayVector;
+import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
 import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.arrow.ArrowSchemaUtil;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.InputFile;
@@ -284,4 +288,22 @@ public class ParquetUtil {
     return false;
   }
 
+  public static boolean isNumericNonDecimalType(ColumnDescriptor desc) {
+    PrimitiveType primitive = desc.getPrimitiveType();
+    OriginalType originalType = primitive.getOriginalType();
+    if (originalType != null) {
+      if (originalType == INT_8 || originalType == INT_16 || originalType == INT_32
+          || originalType == DATE || originalType == INT_64 || originalType == TIMESTAMP_MILLIS
+          || originalType == TIMESTAMP_MICROS) {
+        return true;
+      }
+    } else {
+      PrimitiveType.PrimitiveTypeName primitiveTypeName = primitive.getPrimitiveTypeName();
+      if (primitiveTypeName == INT64 || primitiveTypeName == INT32 || primitiveTypeName == FLOAT ||
+          primitiveTypeName == DOUBLE) {
+        return true;
+      }
+    }
+    return false;
+  }
 }

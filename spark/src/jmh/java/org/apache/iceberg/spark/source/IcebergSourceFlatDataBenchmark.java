@@ -43,12 +43,12 @@ public abstract class IcebergSourceFlatDataBenchmark extends IcebergSourceBenchm
   protected final Table initTable() {
     Schema schema = new Schema(
             required(1, "longCol", Types.LongType.get()),
-            required(2, "intCol", Types.IntegerType.get()),
-            required(3, "floatCol", Types.FloatType.get()),
-            optional(4, "doubleCol", Types.DoubleType.get()),
-            //optional(5, "decimalCol", Types.DecimalType.of(20, 5)),
-            optional(6, "dateCol", Types.DateType.get()),
-            optional(7, "timestampCol", Types.TimestampType.withZone()));
+            // optional(2, "intCol", Types.LongType.get()),
+            // optional(3, "floatCol", Types.LongType.get()),
+            // optional(4, "doubleCol", Types.LongType.get()));
+            optional(5, "decimalCol", Types.DecimalType.of(20, 5)));
+            //optional(6, "dateCol", Types.DateType.get()),
+            //optional(7, "timestampCol", Types.TimestampType.withZone()));
             //optional(8, "stringCol", Types.StringType.get()));
     PartitionSpec partitionSpec = PartitionSpec.unpartitioned();
     HadoopTables tables = new HadoopTables(hadoopConf());

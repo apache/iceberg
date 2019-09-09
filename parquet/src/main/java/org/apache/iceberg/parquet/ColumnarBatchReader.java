@@ -4,7 +4,6 @@ import java.lang.reflect.Array;
 import java.util.List;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.iceberg.types.Types;
-import org.apache.parquet.Preconditions;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.vectorized.ArrowColumnVector;
@@ -42,9 +41,9 @@ public class ColumnarBatchReader implements BatchedReader{
 
         int numRows = 0;
         for (int i = 0; i < readers.length; i += 1) {
-            NullabilityVector nullabilityVector = new NullabilityVector(readers[i].batchSize());
-            FieldVector vec = readers[i].read(nullabilityVector);
-            icebergArrowColumnVectors[i] = new IcebergArrowColumnVector(new ArrowColumnVector(vec), nullabilityVector);
+            NullabilityHolder nullabilityHolder = new NullabilityHolder(readers[i].batchSize());
+            FieldVector vec = readers[i].read(nullabilityHolder);
+            icebergArrowColumnVectors[i] = new IcebergArrowColumnVector(vec, nullabilityHolder);
             //TODO: samarth reenable this check
             // if (i > 0) {
             //     //TODO: samarth time spent in this string builder!!

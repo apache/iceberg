@@ -1,12 +1,12 @@
 org.slf4j:slf4j-api = 1.7.5
 com.google.guava:guava = 28.0-jre
 org.apache.avro:avro = 1.8.2
-org.apache.arrow:arrow-vector = 0.12.0
+org.apache.arrow:arrow-vector = 0.14.1
 org.apache.hadoop:* = 2.7.3
 org.apache.hive:hive-standalone-metastore = 1.2.1
 org.apache.orc:orc-core = 1.5.5
 org.apache.parquet:parquet-avro = 1.10.0
-org.apache.spark:spark-hive_2.11 = 2.4.0
+org.apache.spark:spark-hive_2.11 = 2.4.1-SNAPSHOT
 org.apache.pig:pig = 0.14.0
 com.fasterxml.jackson.*:* = 2.7.9
 com.github.ben-manes.caffeine:caffeine = 2.7.0

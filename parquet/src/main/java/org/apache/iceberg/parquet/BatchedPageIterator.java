@@ -21,7 +21,12 @@ package org.apache.iceberg.parquet;
 
 import com.google.common.base.Preconditions;
 import io.netty.buffer.ArrowBuf;
-import org.apache.arrow.vector.*;
+import java.io.IOException;
+import org.apache.arrow.vector.BitVector;
+import org.apache.arrow.vector.BitVectorHelper;
+import org.apache.arrow.vector.DecimalVector;
+import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.parquet.CorruptDeltaByteArrays;
 import org.apache.parquet.bytes.ByteBufferInputStream;
 import org.apache.parquet.bytes.BytesInput;
@@ -39,14 +44,14 @@ import org.apache.parquet.io.ParquetDecodingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-
 import static java.lang.String.format;
-import static org.apache.parquet.column.ValuesType.*;
+import static org.apache.parquet.column.ValuesType.DEFINITION_LEVEL;
+import static org.apache.parquet.column.ValuesType.REPETITION_LEVEL;
+import static org.apache.parquet.column.ValuesType.VALUES;
 
 public class BatchedPageIterator {
     private static final Logger LOG = LoggerFactory.getLogger(BatchedPageIterator.class);
+    private VectorizedRleValuesReader vectorizedRleValuesReader;
     private final int batchSize;
 
     public BatchedPageIterator(ColumnDescriptor desc, String writerVersion, int batchSize) {
@@ -74,7 +79,6 @@ public class BatchedPageIterator {
     private IntIterator repetitionLevels = null;
     private BytesReader bytesReader = null;
     private ValuesReader valuesReader = null;
-
 
     public void setPage(DataPage page) {
         Preconditions.checkNotNull(page, "Cannot read from null page");
@@ -123,59 +127,113 @@ public class BatchedPageIterator {
      * This method reads batches of bytes from Parquet and writes them into the data buffer underneath the Arrow
      * vector. It appropriately sets the validity buffer in the Arrow vector.
      */
-    public int nextBatchNumericNonDecimal(final FieldVector vector, final int expectedBatchSize, final int numValsInVector,
-                                          final int typeWidth, NullabilityVector nullabilityVector) {
+    public int nextBatchNumericNonDecimal(final FieldVector vector, final int expectedBatchSize,
+        final int numValsInVector,
+        final int typeWidth, NullabilityHolder nullabilityHolder) {
         final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
         if (actualBatchSize <= 0) {
             return 0;
         }
-        int ordinal = numValsInVector;
-        int valsRead = 0;
-        int numNonNulls = 0;
-        int startWriteValIdx = numValsInVector;
         int maxDefLevel = desc.getMaxDefinitionLevel();
-        ArrowBuf validityBuffer = vector.getValidityBuffer();
-        ArrowBuf dataBuffer = vector.getDataBuffer();
-        int defLevel = definitionLevels.nextInt();
-        while (valsRead < actualBatchSize) {
-            numNonNulls = 0;
-            while (valsRead < actualBatchSize && defLevel == maxDefLevel) {
-                BitVectorHelper.setValidityBitToOne(validityBuffer, ordinal);
-                numNonNulls++;
-                valsRead++;
-                ordinal++;
-                if (valsRead < actualBatchSize) {
-                    defLevel = definitionLevels.nextInt();
-                }
-            }
-            if (numNonNulls > 0) {
-                ByteBuffer buffer = bytesReader.getBuffer(numNonNulls * typeWidth);
-                dataBuffer.setBytes(startWriteValIdx * typeWidth, buffer);
-                startWriteValIdx += numNonNulls;
-            }
-
-            while (valsRead < actualBatchSize && defLevel < maxDefLevel) {
-                BitVectorHelper.setValidityBit(validityBuffer, ordinal, 0);
-                nullabilityVector.nullAt(ordinal);
-                valsRead++;
-                startWriteValIdx++;
-                ordinal++;
-                if (valsRead < actualBatchSize) {
-                    defLevel = definitionLevels.nextInt();
-                }
-            }
-        }
-        triplesRead += valsRead;
+        vectorizedRleValuesReader.nextBatchNumericNonDecimal(vector, numValsInVector, typeWidth, actualBatchSize,
+            maxDefLevel, nullabilityHolder, bytesReader);
+        triplesRead += actualBatchSize;
         this.hasNext = triplesRead < triplesCount;
         return actualBatchSize;
     }
+
+    // /**
+    //  * Method for reading a batch of non-decimal numeric data types (INT32, INT64, FLOAT, DOUBLE, DATE, TIMESTAMP)
+    //  * This method reads batches of bytes from Parquet and writes them into the data buffer underneath the Arrow
+    //  * vector. It appropriately sets the validity buffer in the Arrow vector.
+    //  */
+    // public int nextBatchNumericNonDecimal(final FieldVector vector, final int expectedBatchSize, final int numValsInVector,
+    //                                       final int typeWidth, NullabilityHolder nullabilityHolder) {
+    //     final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
+    //     if (actualBatchSize <= 0) {
+    //         return 0;
+    //     }
+    //     int ordinal = numValsInVector;
+    //     int valsRead = 0;
+    //     int numNonNulls = 0;
+    //     int startWriteValIdx = numValsInVector;
+    //     int maxDefLevel = desc.getMaxDefinitionLevel();
+    //     ArrowBuf validityBuffer = vector.getValidityBuffer();
+    //     ArrowBuf dataBuffer = vector.getDataBuffer();
+    //     int defLevel = 0;//definitionLevels.nextInt();
+    //     while (valsRead < actualBatchSize) {
+    //         numNonNulls = 0;
+    //         while (valsRead < actualBatchSize && defLevel == maxDefLevel) {
+    //             BitVectorHelper.setValidityBitToOne(validityBuffer, ordinal);
+    //             numNonNulls++;
+    //             valsRead++;
+    //             ordinal++;
+    //             if (valsRead < actualBatchSize) {
+    //                 defLevel = 0;//definitionLevels.nextInt();
+    //             }
+    //         }
+    //         if (numNonNulls > 0) {
+    //             ByteBuffer buffer = bytesReader.getBuffer(numNonNulls * typeWidth);
+    //             dataBuffer.setBytes(startWriteValIdx * typeWidth, buffer);
+    //             startWriteValIdx += numNonNulls;
+    //         }
+    //
+    //         while (valsRead < actualBatchSize && defLevel < maxDefLevel) {
+    //             BitVectorHelper.setValidityBit(validityBuffer, ordinal, 0);
+    //             nullabilityHolder.nullAt(ordinal);
+    //             valsRead++;
+    //             startWriteValIdx++;
+    //             ordinal++;
+    //             if (valsRead < actualBatchSize) {
+    //                 defLevel = 0;//definitionLevels.nextInt();
+    //             }
+    //         }
+    //     }
+    //     triplesRead += valsRead;
+    //     this.hasNext = triplesRead < triplesCount;
+    //     return actualBatchSize;
+    // }
+    //
+
+    /**
+     * Method for reading a batch of non-decimal numeric data types (INT32, INT64, FLOAT, DOUBLE, DATE, TIMESTAMP)
+     * This method reads batches of bytes from Parquet and writes them into the data buffer underneath the Arrow
+     * vector. It appropriately sets the validity buffer in the Arrow vector.
+     */
+    // public int nextBatchNumericNonDecimal(final FieldVector vector, final int expectedBatchSize, final int numValsInVector,
+    //     final int typeWidth, NullabilityHolder nullabilityHolder) {
+    //     final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
+    //     if (actualBatchSize <= 0) {
+    //         return 0;
+    //     }
+    //     ArrowBuf validityBuffer = vector.getValidityBuffer();
+    //     ArrowBuf dataBuffer = vector.getDataBuffer();
+    //     int maxDefLevel = desc.getMaxDefinitionLevel();
+    //     int ordinal = numValsInVector;
+    //
+    //     List<Chunk> chunks = getNullabilityChunks(actualBatchSize, maxDefLevel, validityBuffer, ordinal, nullabilityHolder);
+    //     int startWriteValIdx = numValsInVector;
+    //
+    //     for (Chunk c : chunks) {
+    //         if (c.isChunkOfNulls()) {
+    //             startWriteValIdx += c.chunkSize();
+    //         } else {
+    //             ByteBuffer buffer = bytesReader.getBuffer(c.chunkSize() * typeWidth);
+    //             dataBuffer.setBytes(startWriteValIdx * typeWidth, buffer);
+    //             startWriteValIdx += c.chunkSize();
+    //         }
+    //     }
+    //     triplesRead += actualBatchSize;
+    //     this.hasNext = triplesRead < triplesCount;
+    //     return actualBatchSize;
+    // }
 
     /**
      * Method for reading a batch of decimals backed by INT32 and INT64 parquet data types.
      * Arrow stores all decimals in 16 bytes. This method provides the necessary padding to the decimals read.
      */
     public int nextBatchIntLongBackedDecimal(final FieldVector vector, final int expectedBatchSize, final int numValsInVector,
-                                             final int typeWidth, NullabilityVector nullabilityVector) {
+                                             final int typeWidth, NullabilityHolder nullabilityHolder) {
         final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
         if (actualBatchSize <= 0) {
             return 0;
@@ -213,7 +271,7 @@ public class BatchedPageIterator {
 
             while (valsRead < actualBatchSize && defLevel < maxDefLevel) {
                 BitVectorHelper.setValidityBit(validityBuffer, ordinal, 0);
-                nullabilityVector.nullAt(ordinal);
+                nullabilityHolder.nullAt(ordinal);
                 valsRead++;
                 startWriteValIdx++;
                 ordinal++;
@@ -235,120 +293,91 @@ public class BatchedPageIterator {
      * Arrow vector is indeed little endian.
      */
     public int nextBatchFixedLengthDecimal(final FieldVector vector, final int expectedBatchSize, final int numValsInVector,
-                                           final int typeWidth, NullabilityVector nullabilityVector) {
+                                           final int typeWidth, NullabilityHolder nullabilityHolder) {
         final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
         if (actualBatchSize <= 0) {
             return 0;
         }
-        int ordinal = numValsInVector;
-        int valsRead = 0;
-        int numNonNulls = 0;
-        int numNulls = 0;
         int maxDefLevel = desc.getMaxDefinitionLevel();
-        int defLevel = definitionLevels.nextInt();
-        while (valsRead < actualBatchSize) {
-            numNonNulls = 0;
-            numNulls = 0;
-            while (valsRead < actualBatchSize && defLevel == maxDefLevel) {
-                numNonNulls++;
-                valsRead++;
-                if (valsRead < actualBatchSize) {
-                    defLevel = definitionLevels.nextInt();
-                }
-            }
-
-            for (int i = 0; i < numNonNulls; i++) {
-                try {
-                    byte[] byteArray = new byte[DecimalVector.TYPE_WIDTH];
-                    //bytesReader.getBuffer(typeWidth).get(byteArray, 0, typeWidth);
-                    bytesReader.getBuffer(typeWidth).get(byteArray, DecimalVector.TYPE_WIDTH - typeWidth, typeWidth);
-                   ((DecimalVector) vector).setBigEndian(ordinal, byteArray);
-                    ordinal++;
-                } catch (RuntimeException e) {
-                    throw handleRuntimeException(e);
-                }
-            }
-
-
-            while (valsRead < actualBatchSize && defLevel < maxDefLevel) {
-                numNulls++;
-                valsRead++;
-                if (valsRead < actualBatchSize) {
-                    defLevel = definitionLevels.nextInt();
-                }
-            }
-            if (numNulls > 0) {
-                for (int i = 0; i < numNulls; i++) {
-                    try {
-                        ((DecimalVector) vector).setNull(ordinal);
-                        nullabilityVector.nullAt(ordinal);
-                        ordinal++;
-                    } catch (RuntimeException e) {
-                        throw handleRuntimeException(e);
-                    }
-                }
-            }
-        }
-        triplesRead += valsRead;
+        vectorizedRleValuesReader.nextBatchFixedLengthDecimal(vector, numValsInVector, typeWidth, actualBatchSize,
+            maxDefLevel, nullabilityHolder, bytesReader);
+        triplesRead += actualBatchSize;
         this.hasNext = triplesRead < triplesCount;
         return actualBatchSize;
     }
 
+    // /**
+    //  * Method for reading a batch of variable width data type (ENUM, JSON, UTF8, BSON).
+    //  */
+    // public int nextBatchVarWidthType(final FieldVector vector, final int expectedBatchSize, final int numValsInVector, NullabilityHolder nullabilityHolder) {
+    //     final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
+    //     if (actualBatchSize <= 0) {
+    //         return 0;
+    //     }
+    //     int ordinal = numValsInVector;
+    //     int valsRead = 0;
+    //     int numNonNulls = 0;
+    //     int numNulls = 0;
+    //     int maxDefLevel = desc.getMaxDefinitionLevel();
+    //     int defLevel = definitionLevels.nextInt();
+    //     while (valsRead < actualBatchSize) {
+    //         numNonNulls = 0;
+    //         numNulls = 0;
+    //         while (valsRead < actualBatchSize && defLevel == maxDefLevel) {
+    //             numNonNulls++;
+    //             valsRead++;
+    //             if (valsRead < actualBatchSize) {
+    //                 defLevel = definitionLevels.nextInt();
+    //             }
+    //         }
+    //
+    //         for (int i = 0; i < numNonNulls; i++) {
+    //             try {
+    //                 ((BaseVariableWidthVector) vector).setSafe(ordinal, valuesReader.readBytes().getBytesUnsafe());
+    //                 ordinal++;
+    //             } catch (RuntimeException e) {
+    //                 throw handleRuntimeException(e);
+    //             }
+    //         }
+    //
+    //
+    //         while (valsRead < actualBatchSize && defLevel < maxDefLevel) {
+    //             numNulls++;
+    //             valsRead++;
+    //             if (valsRead < actualBatchSize) {
+    //                 defLevel = definitionLevels.nextInt();
+    //             }
+    //         }
+    //         if (numNulls > 0) {
+    //             for (int i = 0; i < numNulls; i++) {
+    //                 try {
+    //                     ((BaseVariableWidthVector) vector).setNull(ordinal);
+    //                     nullabilityHolder.nullAt(ordinal);
+    //                     ordinal++;
+    //                 } catch (RuntimeException e) {
+    //                     throw handleRuntimeException(e);
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     triplesRead += valsRead;
+    //     this.hasNext = triplesRead < triplesCount;
+    //     return actualBatchSize;
+    // }
+
     /**
      * Method for reading a batch of variable width data type (ENUM, JSON, UTF8, BSON).
      */
-    public int nextBatchVarWidthType(final FieldVector vector, final int expectedBatchSize, final int numValsInVector, NullabilityVector nullabilityVector) {
+    public int nextBatchVarWidthType(final FieldVector vector, final int expectedBatchSize, final int numValsInVector
+        , NullabilityHolder nullabilityHolder) {
         final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
         if (actualBatchSize <= 0) {
             return 0;
         }
-        int ordinal = numValsInVector;
-        int valsRead = 0;
-        int numNonNulls = 0;
-        int numNulls = 0;
         int maxDefLevel = desc.getMaxDefinitionLevel();
-        int defLevel = definitionLevels.nextInt();
-        while (valsRead < actualBatchSize) {
-            numNonNulls = 0;
-            numNulls = 0;
-            while (valsRead < actualBatchSize && defLevel == maxDefLevel) {
-                numNonNulls++;
-                valsRead++;
-                if (valsRead < actualBatchSize) {
-                    defLevel = definitionLevels.nextInt();
-                }
-            }
-
-            for (int i = 0; i < numNonNulls; i++) {
-                try {
-                    ((BaseVariableWidthVector) vector).setSafe(ordinal, valuesReader.readBytes().getBytesUnsafe());
-                    ordinal++;
-                } catch (RuntimeException e) {
-                    throw handleRuntimeException(e);
-                }
-            }
-
-
-            while (valsRead < actualBatchSize && defLevel < maxDefLevel) {
-                numNulls++;
-                valsRead++;
-                if (valsRead < actualBatchSize) {
-                    defLevel = definitionLevels.nextInt();
-                }
-            }
-            if (numNulls > 0) {
-                for (int i = 0; i < numNulls; i++) {
-                    try {
-                        ((BaseVariableWidthVector) vector).setNull(ordinal);
-                        nullabilityVector.nullAt(ordinal);
-                        ordinal++;
-                    } catch (RuntimeException e) {
-                        throw handleRuntimeException(e);
-                    }
-                }
-            }
-        }
-        triplesRead += valsRead;
+        vectorizedRleValuesReader.nextBatchVarWidth(vector, numValsInVector, actualBatchSize, maxDefLevel,
+            nullabilityHolder, bytesReader);
+        triplesRead += actualBatchSize;
         this.hasNext = triplesRead < triplesCount;
         return actualBatchSize;
     }
@@ -359,7 +388,7 @@ public class BatchedPageIterator {
      * fixed width binary from parquet and stored in a {@link VarBinaryVector} in Arrow.
      */
     public int nextBatchFixedWidthBinary(final FieldVector vector, final int expectedBatchSize, final int numValsInVector,
-                                         final int typeWidth, NullabilityVector nullabilityVector) {
+                                         final int typeWidth, NullabilityHolder nullabilityHolder) {
         final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
         if (actualBatchSize <= 0) {
             return 0;
@@ -405,7 +434,7 @@ public class BatchedPageIterator {
                 for (int i = 0; i < numNulls; i++) {
                     try {
                         ((VarBinaryVector) vector).setNull(ordinal);
-                        nullabilityVector.nullAt(ordinal);
+                        nullabilityHolder.nullAt(ordinal);
                         ordinal++;
                     } catch (RuntimeException e) {
                         throw handleRuntimeException(e);
@@ -421,7 +450,7 @@ public class BatchedPageIterator {
     /**
      * Method for reading batches of booleans.
      */
-    public int nextBatchBoolean(final FieldVector vector, final int expectedBatchSize, final int numValsInVector, NullabilityVector nullabilityVector) {
+    public int nextBatchBoolean(final FieldVector vector, final int expectedBatchSize, final int numValsInVector, NullabilityHolder nullabilityHolder) {
         final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
         if (actualBatchSize <= 0) {
             return 0;
@@ -464,7 +493,7 @@ public class BatchedPageIterator {
                 for (int i = 0; i < numNulls; i++) {
                     try {
                         ((BitVector) vector).setNull(ordinal);
-                        nullabilityVector.nullAt(ordinal);
+                        nullabilityHolder.nullAt(ordinal);
                         ordinal++;
                     } catch (RuntimeException e) {
                         throw handleRuntimeException(e);
@@ -520,7 +549,8 @@ public class BatchedPageIterator {
             }
             this.bytesReader = dataEncoding.getDictionaryBasedValuesReader(desc, VALUES, dict); */
         } else {
-            if (ParquetUtil.isVarWidthType(desc) || ParquetUtil.isBooleanType(desc)) {
+            //if (ParquetUtil.isVarWidthType(desc) || ParquetUtil.isBooleanType(desc)) {
+            if (ParquetUtil.isBooleanType(desc)) {
                 this.valuesReader = dataEncoding.getValuesReader(desc, VALUES);
                 try {
                     valuesReader.initFromPage(valueCount, in);
@@ -549,18 +579,22 @@ public class BatchedPageIterator {
     private void initFromPage(DataPageV1 page) {
         this.triplesCount = page.getValueCount();
         ValuesReader rlReader = page.getRlEncoding().getValuesReader(desc, REPETITION_LEVEL);
-        ValuesReader dlReader = page.getDlEncoding().getValuesReader(desc, DEFINITION_LEVEL);
+        ValuesReader dlReader = null;
+        if (ParquetUtil.isNumericNonDecimalType(desc)
+            || ParquetUtil.isVarWidthType(desc)
+            || ParquetUtil.isFixedLengthDecimal(desc)) {
+            int bitWidth = BytesUtils.getWidthFromMaxInt(desc.getMaxDefinitionLevel());
+            dlReader = this.vectorizedRleValuesReader = new VectorizedRleValuesReader(bitWidth);
+        } else {
+            dlReader = page.getDlEncoding().getValuesReader(desc, DEFINITION_LEVEL);
+        }
         this.repetitionLevels = new ValuesReaderIntIterator(rlReader);
         this.definitionLevels = new ValuesReaderIntIterator(dlReader);
         try {
             BytesInput bytes = page.getBytes();
-            LOG.debug("page size {} bytes and {} records", bytes.size(), triplesCount);
-            LOG.debug("reading repetition levels at 0");
             ByteBufferInputStream in = bytes.toInputStream();
             rlReader.initFromPage(triplesCount, in);
-            LOG.debug("reading definition levels at {}", in.position());
             dlReader.initFromPage(triplesCount, in);
-            LOG.debug("reading data at {}", in.position());
             initDataReader(page.getValueEncoding(), in, page.getValueCount());
         } catch (IOException e) {
             throw new ParquetDecodingException("could not read page " + page + " in col " + desc, e);
@@ -574,6 +608,13 @@ public class BatchedPageIterator {
         LOG.debug("page data size {} bytes and {} records", page.getData().size(), triplesCount);
         try {
             initDataReader(page.getDataEncoding(), page.getData().toInputStream(), triplesCount);
+            if (ParquetUtil.isNumericNonDecimalType(desc)
+                || ParquetUtil.isVarWidthType(desc)
+                || ParquetUtil.isFixedLengthDecimal(desc)) {
+                int bitWidth = BytesUtils.getWidthFromMaxInt(desc.getMaxDefinitionLevel());
+                this.vectorizedRleValuesReader = new VectorizedRleValuesReader(bitWidth, false);
+                vectorizedRleValuesReader.initFromPage(triplesCount, page.getDefinitionLevels().toInputStream());
+            }
         } catch (IOException e) {
             throw new ParquetDecodingException("could not read page " + page + " in col " + desc, e);
         }
@@ -634,5 +675,4 @@ public class BatchedPageIterator {
             return 0;
         }
     }
-
 }

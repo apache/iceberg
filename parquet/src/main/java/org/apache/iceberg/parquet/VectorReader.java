@@ -85,7 +85,9 @@ public class VectorReader implements BatchedReader {
                 case JSON:
                 case UTF8:
                 case BSON:
-                    this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
+                    this.vec = new IcebergVarcharVector(icebergField.name(), rootAlloc);
+                    vec.setInitialCapacity(rowsInBatch * 10);
+                    vec.allocateNewSafe();
                     return UNKNOWN_WIDTH;
                 case INT_8:
                 case INT_16:
@@ -135,9 +137,9 @@ public class VectorReader implements BatchedReader {
                     vec.allocateNew();
                     return len;
                 case BINARY:
-                    this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
+                    this.vec = new IcebergVarBinaryArrowVector(icebergField.name(), rootAlloc);
                     vec.setInitialCapacity(rowsInBatch);
-                    vec.allocateNew();
+                    vec.allocateNewSafe();
                     return UNKNOWN_WIDTH;
                 case INT32:
                     this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
@@ -165,21 +167,27 @@ public class VectorReader implements BatchedReader {
         }
     }
 
-    public FieldVector read(NullabilityVector nullabilityVector) {
+    public FieldVector read(NullabilityHolder nullabilityHolder) {
+        //TODO: samarth confirm this
+        vec.setValueCount(0);
         if (batchedColumnIterator.hasNext()) {
             if (isFixedLengthDecimal) {
-                batchedColumnIterator.nextBatchFixedLengthDecimal(vec, typeWidth, nullabilityVector);
+                batchedColumnIterator.nextBatchFixedLengthDecimal(vec, typeWidth, nullabilityHolder);
             } else if (isVarWidthType) {
-                batchedColumnIterator.nextBatchVarWidthType(vec, nullabilityVector);
+                if (vec instanceof IcebergVarcharVector) {
+                    //TODO: samarth this could possibly be a general varwidth vector and not just varchar
+                    ((IcebergVarcharVector) vec).setNullabilityHolder(nullabilityHolder);
+                }
+                batchedColumnIterator.nextBatchVarWidthType(vec, nullabilityHolder);
             } else if (isFixedWidthBinary) {
-                vec.reset();
-                batchedColumnIterator.nextBatchFixedWidthBinary(vec, typeWidth, nullabilityVector);
+                //vec.reset();
+                batchedColumnIterator.nextBatchFixedWidthBinary(vec, typeWidth, nullabilityHolder);
             } else if (isBooleanType) {
-                batchedColumnIterator.nextBatchBoolean(vec, nullabilityVector);
+                batchedColumnIterator.nextBatchBoolean(vec, nullabilityHolder);
             } else if (isPaddedDecimal) {
-                batchedColumnIterator.nextBatchIntLongBackedDecimal(vec, typeWidth, nullabilityVector);
+                batchedColumnIterator.nextBatchIntLongBackedDecimal(vec, typeWidth, nullabilityHolder);
             } else {
-                batchedColumnIterator.nextBatchNumericNonDecimal(vec, typeWidth, nullabilityVector);
+                batchedColumnIterator.nextBatchNumericNonDecimal(vec, typeWidth, nullabilityHolder);
             }
         }
         return vec;

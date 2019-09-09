@@ -45,7 +45,8 @@ public class TestSparkParquetVectorizedReader extends AvroDataTest {
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-
+    System.setProperty("arrow.enable_unsafe_memory_access", "true");
+    System.setProperty("arrow.enable_null_check_for_get", "false");
     // Write test data
     Assume.assumeTrue("Parquet Avro cannot write non-string map keys", null == TypeUtil.find(schema,
         type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()));
