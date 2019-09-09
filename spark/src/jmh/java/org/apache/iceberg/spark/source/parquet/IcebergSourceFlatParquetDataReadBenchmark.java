@@ -240,12 +240,12 @@ public class IcebergSourceFlatParquetDataReadBenchmark extends IcebergSourceFlat
       //           .drop("id")
       Dataset<Row> df = spark().range(NUM_ROWS)
           .withColumnRenamed("id", "longCol")
-          // .withColumn("intCol", expr("CAST(longCol AS BIGINT)"))
-          // .withColumn("floatCol", expr("CAST(longCol AS BIGINT)"))
-          // .withColumn("doubleCol", expr("CAST(longCol AS BIGINT)"));
-          .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(20, 5))"));
-          //.withColumn("dateCol", date_add(current_date(), fileNum))
-          //.withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"));
+          .withColumn("intCol", expr("CAST(longCol AS BIGINT)"))
+          .withColumn("floatCol", expr("CAST(longCol AS BIGINT)"))
+          .withColumn("doubleCol", expr("CAST(longCol AS BIGINT)"))
+          .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(20, 5))"))
+          .withColumn("dateCol", date_add(current_date(), fileNum))
+          .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"));
           //.withColumn("stringCol", expr("CAST(longCol AS STRING)"));
       appendAsFile(df);
     }
