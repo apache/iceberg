@@ -29,6 +29,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.HiveTableBaseTest;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
@@ -161,5 +162,34 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
     SparkTableUtil.importSparkTable(source, "/tmp", table);
     long count = spark.read().format("iceberg").load(location.toString()).count();
     Assert.assertEquals("three values ", 3, count);
+  }
+
+  @Test
+  public void testImportAsHiveTable() throws Exception {
+    spark.table(qualifiedTableName).write().mode("overwrite").format("parquet")
+            .saveAsTable("unpartitioned_table");
+    TableIdentifier source = spark.sessionState().sqlParser()
+            .parseTableIdentifier("unpartitioned_table");
+
+    HiveCatalog catalog = new HiveCatalog(spark.sparkContext().hadoopConfiguration());
+    Table table = catalog.createTable(
+            org.apache.iceberg.catalog.TableIdentifier.of("default", "test_unpartitioned_table"),
+            SparkSchemaUtil.schemaForTable(spark, qualifiedTableName),
+            SparkSchemaUtil.specForTable(spark, qualifiedTableName));
+    SparkTableUtil.importSparkTable(source, "/tmp", table);
+    long count1 = spark.read().format("iceberg").load("default.test_unpartitioned_table").count();
+    Assert.assertEquals("three values ", 3, count1);
+
+    spark.table(qualifiedTableName).write().mode("overwrite").partitionBy("data").format("parquet")
+            .saveAsTable("partitioned_table");
+
+    table = catalog.createTable(
+            org.apache.iceberg.catalog.TableIdentifier.of("default", "test_partitioned_table"),
+            SparkSchemaUtil.schemaForTable(spark, qualifiedTableName),
+            SparkSchemaUtil.specForTable(spark, qualifiedTableName));
+
+    SparkTableUtil.importSparkTable(source, "/tmp", table);
+    long count2 = spark.read().format("iceberg").load("default.test_partitioned_table").count();
+    Assert.assertEquals("three values ", 3, count2);
   }
 }
