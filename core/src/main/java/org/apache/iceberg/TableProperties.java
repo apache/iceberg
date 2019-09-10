@@ -101,6 +101,6 @@ public class TableProperties {
   public static final String WRITE_AUDIT_PUBLISH_ENABLED = "write.wap.enabled";
   public static final String WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT = "false";
 
-  public static final String WRITE_TARGET_FILE_SIZE = "write.target-file-size";
-  public static final long WRITE_TARGET_FILE_SIZE_DEFAULT = Long.MAX_VALUE;
+  public static final String WRITE_TARGET_FILE_SIZE_BYTES = "write.target-file-size-bytes";
+  public static final long WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT = Long.MAX_VALUE;
 }

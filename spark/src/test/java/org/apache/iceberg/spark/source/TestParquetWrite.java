@@ -259,7 +259,7 @@ public class TestParquetWrite {
     Table table = tables.create(SCHEMA, spec, location.toString());
 
     table.updateProperties()
-        .set(TableProperties.WRITE_TARGET_FILE_SIZE, "4") // ~4 bytes; low enough to trigger
+        .set(TableProperties.WRITE_TARGET_FILE_SIZE_BYTES, "4") // ~4 bytes; low enough to trigger
         .commit();
 
     List<SimpleRecord> expected = Lists.newArrayListWithCapacity(4000);
@@ -316,7 +316,7 @@ public class TestParquetWrite {
     df.select("id", "data").sort("data").write()
         .format("iceberg")
         .mode("append")
-        .option("target-file-size", 4) // ~4 bytes; low enough to trigger
+        .option("target-file-size-bytes", 4) // ~4 bytes; low enough to trigger
         .save(location.toString());
 
     table.refresh();

@@ -54,6 +54,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.data.SparkAvroWriter;
 import org.apache.iceberg.spark.data.SparkParquetWriters;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
@@ -74,8 +75,8 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
-import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE;
-import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_DEFAULT;
+import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
 // TODO: parameterize DataSourceWriter with subclass of WriterCommitMessage
 class Writer implements DataSourceWriter {
@@ -103,9 +104,9 @@ class Writer implements DataSourceWriter {
     this.applicationId = applicationId;
     this.wapId = wapId;
 
-    long tableTargetFileSize = Long.parseLong(table.properties().getOrDefault(
-        WRITE_TARGET_FILE_SIZE, String.valueOf(WRITE_TARGET_FILE_SIZE_DEFAULT)));
-    this.targetFileSize = options.getLong("target-file-size", tableTargetFileSize);
+    long tableTargetFileSize = PropertyUtil.propertyAsLong(
+        table.properties(), WRITE_TARGET_FILE_SIZE_BYTES, WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
+    this.targetFileSize = options.getLong("target-file-size-bytes", tableTargetFileSize);
   }
 
   private FileFormat getFileFormat(Map<String, String> tableProperties, DataSourceOptions options) {
