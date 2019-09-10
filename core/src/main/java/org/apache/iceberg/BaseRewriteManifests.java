@@ -173,7 +173,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
             } else {
               replacedManifests.add(manifest);
               try (ManifestReader reader =
-                     ManifestReader.read(ops.io().newInputFile(manifest.path()), ops.current()::spec)) {
+                     ManifestReader.read(ops.io().newInputFile(manifest.path()), ops.current().specsById())) {
                 FilteredManifest filteredManifest = reader.select(Arrays.asList("*"));
                 filteredManifest.liveEntries().forEach(
                     entry -> appendEntry(entry, clusterByFunc.apply(entry.file()))
