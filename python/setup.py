@@ -30,6 +30,8 @@ setup(
                       'boto3',
                       'fastavro',
                       'mmh3',
+                      'moz_sql_parser',
+                      'pyparsing',
                       'python-dateutil',
                       'pytz',
                       'requests',
