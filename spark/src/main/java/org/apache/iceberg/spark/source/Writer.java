@@ -373,7 +373,7 @@ class Writer implements DataSourceWriter {
     protected long currentRows;
 
     BaseWriter(PartitionSpec spec, FileFormat format, AppenderFactory<InternalRow> appenderFactory,
-        OutputFileFactory<EncryptedOutputFile> fileFactory, FileIO fileIo, long targetFileSize) {
+               OutputFileFactory<EncryptedOutputFile> fileFactory, FileIO fileIo, long targetFileSize) {
       this.spec = spec;
       this.format = format;
       this.appenderFactory = appenderFactory;
