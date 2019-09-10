@@ -28,11 +28,11 @@ import java.util.Objects;
 
 public class MappedFields {
 
-  static MappedFields of(MappedField... fields) {
+  public static MappedFields of(MappedField... fields) {
     return new MappedFields(ImmutableList.copyOf(fields));
   }
 
-  static MappedFields of(List<MappedField> fields) {
+  public static MappedFields of(List<MappedField> fields) {
     return new MappedFields(fields);
   }
 
