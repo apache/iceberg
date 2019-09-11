@@ -24,4 +24,3 @@ sdist/
 .coverage
 coverage.xml
 .pytest_cache/
-spark/tmp/
