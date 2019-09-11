@@ -135,7 +135,6 @@ public class TestIcebergSourceHiveTables {
       });
     }
   }
-
   
   @Test
   public synchronized void testHiveEntriesTable() throws Exception {
