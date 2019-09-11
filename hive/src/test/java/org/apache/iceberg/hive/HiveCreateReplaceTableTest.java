@@ -21,9 +21,13 @@ package org.apache.iceberg.hive;
 
 import com.google.common.collect.Maps;
 import java.io.IOException;
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -102,6 +106,28 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
         AlreadyExistsException.class,
         "Table already exists: hivedb.tbl",
         txn::commitTransaction);
+  }
+
+  @Test
+  public void testCreateTableTxnAndAppend() {
+    Assert.assertFalse("Table should not exist", catalog.tableExists(TABLE_IDENTIFIER));
+
+    Transaction txn = catalog.newCreateTableTransaction(
+        TABLE_IDENTIFIER, SCHEMA, SPEC, tableLocation, Maps.newHashMap());
+
+    AppendFiles append = txn.newAppend();
+    DataFile dataFile = DataFiles.builder(SPEC)
+        .withPath("/path/to/data-a.parquet")
+        .withFileSizeInBytes(0)
+        .withRecordCount(1)
+        .build();
+    append.appendFile(dataFile);
+    append.commit();
+    txn.commitTransaction();
+
+    Table table = catalog.loadTable(TABLE_IDENTIFIER);
+    Snapshot snapshot = table.currentSnapshot();
+    Assert.assertTrue("Table should have one manifest file", snapshot.manifests().size() == 1);
   }
 
   @Test
