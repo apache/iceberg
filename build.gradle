@@ -477,4 +477,3 @@ String getBranchName() {
     return branchName
   }
 }
-
