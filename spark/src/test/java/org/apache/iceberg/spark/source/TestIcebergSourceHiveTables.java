@@ -135,7 +135,7 @@ public class TestIcebergSourceHiveTables {
       });
     }
   }
-  
+
   @Test
   public synchronized void testHiveEntriesTable() throws Exception {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_test");
