@@ -78,7 +78,6 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
       currentMetadataLocation = null;
       version = -1;
       shouldRefresh = false;
-      throw e;
     }
     return current();
   }
