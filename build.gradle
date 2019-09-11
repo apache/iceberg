@@ -463,7 +463,7 @@ String getProjectVersion() {
     return gitVersion()
   } catch (NullPointerException e) {
     def noGitVersion = '0.1.0-SNAPSHOT'
-    println "no git available in current checkout, use version $noGitVersion"
+    println "no .git directory available, use version $noGitVersion"
     return noGitVersion
   }
 }
@@ -473,7 +473,7 @@ String getBranchName() {
     return versionDetails().branchName
   } catch (NullPointerException e) {
     def branchName = 'noGitBranch'
-    println "no git available in current checkout, use branch name $branchName"
+    println "no .git directory available, use branch name $branchName"
     return branchName
   }
 }
