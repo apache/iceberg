@@ -47,7 +47,7 @@ if (JavaVersion.current() != JavaVersion.VERSION_1_8) {
 allprojects {
   group = "org.apache.iceberg"
   apply plugin: 'com.palantir.baseline-idea'
-  version = gitVersion()
+  version = getProjectVersion()
   repositories {
     maven { url  "http://palantir.bintray.com/releases" }
     mavenCentral()
@@ -134,23 +134,23 @@ subprojects {
 
 task aggregateJavadoc(type: Javadoc) {
   // use the branch name in place of version in Javadoc
-  project.rootProject.version = versionDetails().branchName
+  project.rootProject.version = getBranchName()
 
   dependsOn subprojects.javadoc
   source subprojects.javadoc.source
-  destinationDir project.rootProject.file("site/docs/javadoc/${versionDetails().branchName}")
+  destinationDir project.rootProject.file("site/docs/javadoc/${getBranchName()}")
   classpath = project.rootProject.files(subprojects.javadoc.classpath)
 }
 
 task removeJavadoc(type: Exec) {
-  commandLine 'rm', '-rf', "site/docs/javadoc/${versionDetails().branchName}"
+  commandLine 'rm', '-rf', "site/docs/javadoc/${getBranchName()}"
 }
 
 task refreshJavadoc(type: Exec) {
   dependsOn aggregateJavadoc
   dependsOn removeJavadoc
   aggregateJavadoc.mustRunAfter removeJavadoc
-  commandLine 'git', 'add', "site/docs/javadoc/${versionDetails().branchName}"
+  commandLine 'git', 'add', "site/docs/javadoc/${getBranchName()}"
 }
 
 task deploySite(type: Exec) {
@@ -455,6 +455,26 @@ project(':iceberg-spark-runtime') {
     relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
 
     archiveName = "iceberg-spark-runtime-${version}.${extension}"
+  }
+}
+
+String getProjectVersion() {
+  try {
+    return gitVersion()
+  } catch (NullPointerException e) {
+    def noGitVersion = '0.1.0-SNAPSHOT'
+    println "no git available in current checkout, use version $noGitVersion"
+    return noGitVersion
+  }
+}
+
+String getBranchName() {
+  try {
+    return versionDetails().branchName
+  } catch (NullPointerException e) {
+    def branchName = 'noGitBranch'
+    println "no git available in current checkout, use branch name $branchName"
+    return branchName
   }
 }
 
