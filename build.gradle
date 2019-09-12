@@ -133,24 +133,23 @@ subprojects {
 }
 
 task aggregateJavadoc(type: Javadoc) {
-  // use the branch name in place of version in Javadoc
-  project.rootProject.version = getBranchName()
+  project.rootProject.version = getJavadocVersion()
 
   dependsOn subprojects.javadoc
   source subprojects.javadoc.source
-  destinationDir project.rootProject.file("site/docs/javadoc/${getBranchName()}")
+  destinationDir project.rootProject.file("site/docs/javadoc/${getJavadocVersion()}")
   classpath = project.rootProject.files(subprojects.javadoc.classpath)
 }
 
 task removeJavadoc(type: Exec) {
-  commandLine 'rm', '-rf', "site/docs/javadoc/${getBranchName()}"
+  commandLine 'rm', '-rf', "site/docs/javadoc/${getJavadocVersion()}"
 }
 
 task refreshJavadoc(type: Exec) {
   dependsOn aggregateJavadoc
   dependsOn removeJavadoc
   aggregateJavadoc.mustRunAfter removeJavadoc
-  commandLine 'git', 'add', "site/docs/javadoc/${getBranchName()}"
+  commandLine 'git', 'add', "site/docs/javadoc/${getJavadocVersion()}"
 }
 
 task deploySite(type: Exec) {
@@ -462,18 +461,19 @@ String getProjectVersion() {
   try {
     return gitVersion()
   } catch (NullPointerException e) {
-    def noGitVersion = '0.1.0-SNAPSHOT'
-    println "no .git directory available, use version $noGitVersion"
-    return noGitVersion
+    def version = file('version.txt').text.trim()
+    println "no .git directory available, use version $version"
+    return version
   }
 }
 
-String getBranchName() {
+String getJavadocVersion() {
   try {
+    // use the branch name in place of version in Javadoc
     return versionDetails().branchName
   } catch (NullPointerException e) {
-    def branchName = 'noGitBranch'
-    println "no .git directory available, use branch name $branchName"
-    return branchName
+    def version = file('version.txt').text.trim()
+    println "no .git directory available, use version $version"
+    return version
   }
 }
