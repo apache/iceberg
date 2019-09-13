@@ -20,6 +20,8 @@
 package org.apache.iceberg.parquet;
 
 import com.google.common.collect.Maps;
+import java.nio.ByteBuffer;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
@@ -29,14 +31,15 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.BinaryUtil;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.PrimitiveComparator;
 import org.apache.parquet.schema.PrimitiveType;
 
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
@@ -356,22 +359,22 @@ public class ParquetMetricsRowGroupFilter {
           return ROWS_CANNOT_MATCH;
         }
 
-        Binary prefixAsBinary = Binary.fromConstantByteBuffer(lit.toByteBuffer());
+        ByteBuffer prefixAsBytes = lit.toByteBuffer();
 
-        PrimitiveComparator<Binary> comparator = PrimitiveComparator.UNSIGNED_LEXICOGRAPHICAL_BINARY_COMPARATOR;
+        Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
 
         Binary lower = colStats.genericGetMin();
         // truncate lower bound so that its length in bytes is not greater than the length of prefix
-        int lowerLength = Math.min(prefixAsBinary.length(), lower.length());
-        int lowerCmp = comparator.compare(lower.slice(0, lowerLength), prefixAsBinary);
+        int lowerLength = Math.min(prefixAsBytes.remaining(), lower.length());
+        int lowerCmp = comparator.compare(BinaryUtil.truncateBinary(lower.toByteBuffer(), lowerLength), prefixAsBytes);
         if (lowerCmp > 0) {
           return ROWS_CANNOT_MATCH;
         }
 
         Binary upper = colStats.genericGetMax();
         // truncate upper bound so that its length in bytes is not greater than the length of prefix
-        int upperLength = Math.min(prefixAsBinary.length(), upper.length());
-        int upperCmp = comparator.compare(upper.slice(0, upperLength), prefixAsBinary);
+        int upperLength = Math.min(prefixAsBytes.remaining(), upper.length());
+        int upperCmp = comparator.compare(BinaryUtil.truncateBinary(upper.toByteBuffer(), upperLength), prefixAsBytes);
         if (upperCmp < 0) {
           return ROWS_CANNOT_MATCH;
         }
