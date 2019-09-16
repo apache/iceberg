@@ -23,6 +23,7 @@ import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.DateDayVector;
 import org.apache.arrow.vector.DecimalVector;
+import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
@@ -235,8 +236,10 @@ public class IcebergArrowColumnVector extends ColumnVector {
       return new DoubleAccessor((Float8Vector) vector);
     } else if (vector instanceof DecimalVector) {
       return new DecimalAccessor((DecimalVector) vector);
-    } else if (vector instanceof IcebergVarcharVector) {
-      return new StringAccessor((IcebergVarcharVector) vector);
+    } else if (vector instanceof IcebergVarcharArrowVector) {
+      return new StringAccessor((IcebergVarcharArrowVector) vector);
+    } else if (vector instanceof FixedSizeBinaryVector) {
+      return new FixedSizeBinaryAccessor((FixedSizeBinaryVector) vector);
     } else if (vector instanceof VarBinaryVector) {
       return new BinaryAccessor((VarBinaryVector) vector);
     } else if (vector instanceof DateDayVector) {
@@ -382,10 +385,10 @@ public class IcebergArrowColumnVector extends ColumnVector {
 
   private static class StringAccessor extends ArrowVectorAccessor {
 
-    private final IcebergVarcharVector vector;
+    private final IcebergVarcharArrowVector vector;
     private final NullableVarCharHolder stringResult = new NullableVarCharHolder();
 
-    StringAccessor(IcebergVarcharVector vector) {
+    StringAccessor(IcebergVarcharArrowVector vector) {
       super(vector);
       this.vector = vector;
     }
@@ -400,6 +403,21 @@ public class IcebergArrowColumnVector extends ColumnVector {
             stringResult.buffer.memoryAddress() + stringResult.start,
             stringResult.end - stringResult.start);
       }
+    }
+  }
+
+  private static class FixedSizeBinaryAccessor extends ArrowVectorAccessor {
+
+    private final FixedSizeBinaryVector vector;
+
+    FixedSizeBinaryAccessor(FixedSizeBinaryVector vector) {
+      super(vector);
+      this.vector = vector;
+    }
+
+    @Override
+    final byte[] getBinary(int rowId) {
+      return vector.getObject(rowId);
     }
   }
 

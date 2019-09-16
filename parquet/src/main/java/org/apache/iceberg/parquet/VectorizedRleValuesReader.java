@@ -17,19 +17,15 @@
 
 package org.apache.iceberg.parquet;
 
-import com.google.common.io.ByteArrayDataOutput;
-import com.google.common.io.ByteStreams;
 import io.netty.buffer.ArrowBuf;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.LinkedList;
-import java.util.List;
 import org.apache.arrow.vector.BaseVariableWidthVector;
-import org.apache.arrow.vector.BitVectorHelper;
+import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.parquet.Preconditions;
 import org.apache.parquet.bytes.ByteBufferInputStream;
 import org.apache.parquet.bytes.BytesUtils;
@@ -79,21 +75,24 @@ public final class VectorizedRleValuesReader extends ValuesReader {
   // controls if we need to read the bitwidth from the beginning of the data stream.
   private final boolean fixedWidth;
   private final boolean readLength;
+  private final int maxDefLevel;
 
-  public VectorizedRleValuesReader() {
-    this.fixedWidth = false;
-    this.readLength = false;
-  }
-
-  public VectorizedRleValuesReader(int bitWidth) {
+  public VectorizedRleValuesReader(
+      int bitWidth,
+      int maxDefLevel) {
     this.fixedWidth = true;
     this.readLength = bitWidth != 0;
+    this.maxDefLevel = maxDefLevel;
     init(bitWidth);
   }
 
-  public VectorizedRleValuesReader(int bitWidth, boolean readLength) {
+  public VectorizedRleValuesReader(
+      int bitWidth,
+      boolean readLength,
+      int maxDefLevel) {
     this.fixedWidth = true;
     this.readLength = readLength;
+    this.maxDefLevel = maxDefLevel;
     init(bitWidth);
   }
 
@@ -130,37 +129,6 @@ public final class VectorizedRleValuesReader extends ValuesReader {
     this.bitWidth = bitWidth;
     this.bytesWidth = BytesUtils.paddedByteCountFromBits(bitWidth);
     this.packer = Packer.LITTLE_ENDIAN.newBytePacker(bitWidth);
-  }
-
-  @Override
-  public boolean readBoolean() {
-    return this.readInteger() != 0;
-  }
-
-  @Override
-  public void skip() {
-    this.readInteger();
-  }
-
-  @Override
-  public int readValueDictionaryId() {
-    return readInteger();
-  }
-
-  @Override
-  public int readInteger() {
-    if (this.currentCount == 0) {
-      this.readNextGroup();
-    }
-
-    this.currentCount--;
-    switch (mode) {
-      case RLE:
-        return this.currentValue;
-      case PACKED:
-        return this.currentBuffer[currentBufferIdx++];
-    }
-    throw new RuntimeException("Unreachable");
   }
 
   /**
@@ -256,19 +224,220 @@ public final class VectorizedRleValuesReader extends ValuesReader {
     }
   }
 
-  /**
-   * Method for reading a batch of non-decimal numeric data types (INT32, INT64, FLOAT, DOUBLE, DATE, TIMESTAMP)
-   * This method reads batches of bytes from Parquet and writes them into the data buffer underneath the Arrow
-   * vector. It appropriately sets the validity buffer in the Arrow vector.
-   */
-  public void nextBatchNumericNonDecimal(
+  @Override
+  public boolean readBoolean() {
+    return this.readInteger() != 0;
+  }
+
+  @Override
+  public void skip() {
+    this.readInteger();
+  }
+
+  @Override
+  public int readValueDictionaryId() {
+    return readInteger();
+  }
+
+  @Override
+  public int readInteger() {
+    if (this.currentCount == 0) {
+      this.readNextGroup();
+    }
+
+    this.currentCount--;
+    switch (mode) {
+      case RLE:
+        return this.currentValue;
+      case PACKED:
+        return this.currentBuffer[currentBufferIdx++];
+    }
+    throw new RuntimeException("Unreachable");
+  }
+
+  public void readBatchOfIntegers(
       final FieldVector vector, final int numValsInVector,
-      final int typeWidth, final int batchSize, final int maxDefLevel, NullabilityHolder nullabilityHolder,
-      BytesReader valuesReader) {
-    int validityBufferIdx = numValsInVector;
-    int dataBufferIdx = numValsInVector;
+      final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder, BytesReader valuesReader) {
+    int bufferIdx = numValsInVector;
     ArrowBuf validityBuffer = vector.getValidityBuffer();
     ArrowBuf dataBuffer = vector.getDataBuffer();
+    int left = batchSize;
+    while (left > 0) {
+      if (this.currentCount == 0) {
+        this.readNextGroup();
+      }
+      int n = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          bufferIdx =
+              fillFixWidthValueBuffer(
+                  typeWidth,
+                  maxDefLevel,
+                  nullabilityHolder,
+                  valuesReader,
+                  bufferIdx,
+                  dataBuffer,
+                  n);
+          break;
+        case PACKED:
+          for (int i = 0; i < n; ++i) {
+            if (currentBuffer[currentBufferIdx++] == maxDefLevel) {
+              //ByteBuffer buffer = valuesReader.getBuffer(typeWidth);
+              //dataBuffer.setBytes(bufferIdx * typeWidth, buffer);
+              dataBuffer.setInt(bufferIdx * typeWidth, valuesReader.getBuffer(typeWidth).getInt());
+              //BitVectorHelper.setValidityBitToOne(validityBuffer, validityBufferIdx);
+              bufferIdx++;
+            } else {
+              nullabilityHolder.nullAt(bufferIdx);
+              bufferIdx++;
+            }
+          }
+          break;
+      }
+      left -= n;
+      currentCount -= n;
+    }
+  }
+
+  public void readBatchOfLongs(
+      final FieldVector vector, final int numValsInVector,
+      final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder, BytesReader valuesReader) {
+    int bufferIdx = numValsInVector;
+    ArrowBuf validityBuffer = vector.getValidityBuffer();
+    ArrowBuf dataBuffer = vector.getDataBuffer();
+    int left = batchSize;
+    while (left > 0) {
+      if (this.currentCount == 0) {
+        this.readNextGroup();
+      }
+      int n = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          bufferIdx =
+              fillFixWidthValueBuffer(
+                  typeWidth,
+                  maxDefLevel,
+                  nullabilityHolder,
+                  valuesReader,
+                  bufferIdx,
+                  dataBuffer,
+                  n);
+          break;
+        case PACKED:
+          for (int i = 0; i < n; ++i) {
+            if (currentBuffer[currentBufferIdx++] == maxDefLevel) {
+              //ByteBuffer buffer = valuesReader.getBuffer(typeWidth);
+              //dataBuffer.setBytes(bufferIdx * typeWidth, buffer);
+              dataBuffer.setLong(bufferIdx * typeWidth, valuesReader.getBuffer(typeWidth).getLong());
+              //BitVectorHelper.setValidityBitToOne(validityBuffer, validityBufferIdx);
+              bufferIdx++;
+            } else {
+              nullabilityHolder.nullAt(bufferIdx);
+              bufferIdx++;
+            }
+          }
+          break;
+      }
+      left -= n;
+      currentCount -= n;
+    }
+  }
+
+  public void readBatchOfFloats(
+      final FieldVector vector, final int numValsInVector,
+      final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder, BytesReader valuesReader) {
+    int bufferIdx = numValsInVector;
+    ArrowBuf validityBuffer = vector.getValidityBuffer();
+    ArrowBuf dataBuffer = vector.getDataBuffer();
+    int left = batchSize;
+    while (left > 0) {
+      if (this.currentCount == 0) {
+        this.readNextGroup();
+      }
+      int n = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          bufferIdx =
+              fillFixWidthValueBuffer(
+                  typeWidth,
+                  maxDefLevel,
+                  nullabilityHolder,
+                  valuesReader,
+                  bufferIdx,
+                  dataBuffer,
+                  n);
+          break;
+        case PACKED:
+          for (int i = 0; i < n; ++i) {
+            if (currentBuffer[currentBufferIdx++] == maxDefLevel) {
+              //ByteBuffer buffer = valuesReader.getBuffer(typeWidth);
+              //dataBuffer.setBytes(bufferIdx * typeWidth, buffer);
+              dataBuffer.setFloat(bufferIdx * typeWidth, valuesReader.getBuffer(typeWidth).getFloat());
+              //BitVectorHelper.setValidityBitToOne(validityBuffer, validityBufferIdx);
+              bufferIdx++;
+            } else {
+              nullabilityHolder.nullAt(bufferIdx);
+              bufferIdx++;
+            }
+          }
+          break;
+      }
+      left -= n;
+      currentCount -= n;
+    }
+  }
+
+  public void readBatchOfDoubles(
+      final FieldVector vector, final int numValsInVector,
+      final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder,
+      BytesReader valuesReader) {
+    int bufferIdx = numValsInVector;
+    ArrowBuf validityBuffer = vector.getValidityBuffer();
+    ArrowBuf dataBuffer = vector.getDataBuffer();
+    int left = batchSize;
+    while (left > 0) {
+      if (this.currentCount == 0) {
+        this.readNextGroup();
+      }
+      int n = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          bufferIdx =
+              fillFixWidthValueBuffer(
+                  typeWidth,
+                  maxDefLevel,
+                  nullabilityHolder,
+                  valuesReader,
+                  bufferIdx,
+                  dataBuffer,
+                  n);
+          break;
+        case PACKED:
+          for (int i = 0; i < n; ++i) {
+            if (currentBuffer[currentBufferIdx++] == maxDefLevel) {
+              //ByteBuffer buffer = valuesReader.getBuffer(typeWidth);
+              //dataBuffer.setBytes(bufferIdx * typeWidth, buffer);
+              dataBuffer.setDouble(bufferIdx * typeWidth, valuesReader.getBuffer(typeWidth).getDouble());
+              //BitVectorHelper.setValidityBitToOne(validityBuffer, validityBufferIdx);
+              bufferIdx++;
+            } else {
+              nullabilityHolder.nullAt(bufferIdx);
+              bufferIdx++;
+            }
+          }
+          break;
+      }
+      left -= n;
+      currentCount -= n;
+    }
+  }
+
+  public void readBatchOfFixedWidthBinary(
+      final FieldVector vector, final int numValsInVector,
+      final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder,
+      BytesReader valuesReader) {
+    int bufferIdx = numValsInVector;
+    ArrowBuf validityBuffer = vector.getValidityBuffer();
     int left = batchSize;
     while (left > 0) {
       if (this.currentCount == 0) {
@@ -282,30 +451,25 @@ public final class VectorizedRleValuesReader extends ValuesReader {
             //   //BitVectorHelper.setValidityBitToOne(validityBuffer, validityBufferIdx);
             //   validityBufferIdx++;
             // }
-            validityBufferIdx += n;
-            ByteBuffer buffer = valuesReader.getBuffer(n * typeWidth);
-            dataBuffer.setBytes(dataBufferIdx * typeWidth, buffer);
+            for (int i = 0; i < n; i++) {
+              bufferIdx = setBinaryInVector((VarBinaryVector) vector, typeWidth, valuesReader, bufferIdx);
+            }
           } else {
             for (int i = 0; i < n; i++) {
               //BitVectorHelper.setValidityBit(validityBuffer, validityBufferIdx, 0);
-              nullabilityHolder.nullAt(validityBufferIdx);
-              validityBufferIdx++;
+              nullabilityHolder.nullAt(bufferIdx);
+              bufferIdx++;
             }
           }
-          dataBufferIdx += n;
           break;
         case PACKED:
           for (int i = 0; i < n; ++i) {
             if (currentBuffer[currentBufferIdx++] == maxDefLevel) {
-              ByteBuffer buffer = valuesReader.getBuffer(typeWidth);
-              dataBuffer.setBytes(dataBufferIdx * typeWidth, buffer);
-              //BitVectorHelper.setValidityBitToOne(validityBuffer, validityBufferIdx);
-              validityBufferIdx++;
-              dataBufferIdx++;
+              bufferIdx = setBinaryInVector((VarBinaryVector) vector, typeWidth, valuesReader, bufferIdx);
             } else {
-              nullabilityHolder.nullAt(validityBufferIdx);
-              validityBufferIdx++;
-              dataBufferIdx++;
+              //BitVectorHelper.setValidityBit(validityBuffer, validityBufferIdx, 0);
+              nullabilityHolder.nullAt(bufferIdx);
+              bufferIdx++;
             }
           }
           break;
@@ -315,19 +479,13 @@ public final class VectorizedRleValuesReader extends ValuesReader {
     }
   }
 
-  /**
-   * Method for reading a batch of non-decimal numeric data types (INT32, INT64, FLOAT, DOUBLE, DATE, TIMESTAMP)
-   * This method reads batches of bytes from Parquet and writes them into the data buffer underneath the Arrow
-   * vector. It appropriately sets the validity buffer in the Arrow vector.
-   */
-  public void nextBatchFixedLengthDecimal(
+  public void readBatchOfFixedLengthDecimals(
       final FieldVector vector, final int numValsInVector,
-      final int typeWidth, final int batchSize, final int maxDefLevel, NullabilityHolder nullabilityHolder,
+      final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder,
       BytesReader valuesReader) {
-    int validityBufferIdx = numValsInVector;
-    int dataBufferIdx = numValsInVector;
+    int bufferIdx = numValsInVector;
     //ArrowBuf validityBuffer = vector.getValidityBuffer();
-    ArrowBuf dataBuffer = vector.getDataBuffer();
+    //ArrowBuf dataBuffer = vector.getDataBuffer();
     int left = batchSize;
     while (left > 0) {
       if (this.currentCount == 0) {
@@ -345,14 +503,14 @@ public final class VectorizedRleValuesReader extends ValuesReader {
               byte[] byteArray = new byte[DecimalVector.TYPE_WIDTH];
               //bytesReader.getBuffer(typeWidth).get(byteArray, 0, typeWidth);
               valuesReader.getBuffer(typeWidth).get(byteArray, DecimalVector.TYPE_WIDTH - typeWidth, typeWidth);
-              ((DecimalVector) vector).setBigEndian(dataBufferIdx, byteArray);
-              dataBufferIdx++;
+              ((DecimalVector) vector).setBigEndian(bufferIdx, byteArray);
+              bufferIdx++;
             }
           } else {
             for (int i = 0; i < n; i++) {
               //BitVectorHelper.setValidityBit(validityBuffer, validityBufferIdx, 0);
-              nullabilityHolder.nullAt(validityBufferIdx);
-              validityBufferIdx++;
+              nullabilityHolder.nullAt(bufferIdx);
+              bufferIdx++;
             }
           }
           break;
@@ -361,13 +519,11 @@ public final class VectorizedRleValuesReader extends ValuesReader {
             if (currentBuffer[currentBufferIdx++] == maxDefLevel) {
               byte[] byteArray = new byte[DecimalVector.TYPE_WIDTH];
               valuesReader.getBuffer(typeWidth).get(byteArray, DecimalVector.TYPE_WIDTH - typeWidth, typeWidth);
-              ((DecimalVector) vector).setBigEndian(dataBufferIdx, byteArray);
-              dataBufferIdx++;
-              validityBufferIdx++;
+              ((DecimalVector) vector).setBigEndian(bufferIdx, byteArray);
+              bufferIdx++;
             } else {
-              nullabilityHolder.nullAt(validityBufferIdx);
-              validityBufferIdx++;
-              dataBufferIdx++;
+              nullabilityHolder.nullAt(bufferIdx);
+              bufferIdx++;
             }
           }
           break;
@@ -382,13 +538,15 @@ public final class VectorizedRleValuesReader extends ValuesReader {
    * This method reads batches of bytes from Parquet and writes them into the data buffer underneath the Arrow
    * vector. It appropriately sets the validity buffer in the Arrow vector.
    */
-  public void nextBatchVarWidth(
-      final FieldVector vector, final int numValsInVector, final int batchSize, final int maxDefLevel,
-      NullabilityHolder nullabilityHolder, BytesReader valuesReader) {
-    int nullabilityHolderIdx = numValsInVector;
-    int dataBufferIdx = numValsInVector;
-    int left = batchSize;
+  public void readBatchVarWidth(
+      final FieldVector vector,
+      final int numValsInVector,
+      final int batchSize,
+      NullabilityHolder nullabilityHolder,
+      BytesReader valuesReader) {
+    int bufferIdx = numValsInVector;
     ArrowBuf dataBuffer = vector.getDataBuffer();
+    int left = batchSize;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -397,45 +555,35 @@ public final class VectorizedRleValuesReader extends ValuesReader {
       switch (mode) {
         case RLE:
           if (currentValue == maxDefLevel) {
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            // for (int i = 0; i < n; i++) {
+            //   //BitVectorHelper.setValidityBitToOne(validityBuffer, validityBufferIdx);
+            //   validityBufferIdx++;
+            // }
             for (int i = 0; i < n; i++) {
               int len = valuesReader.readInteger();
               ByteBuffer buffer = valuesReader.getBuffer(len);
-              byte[] bytes = new byte[len];
-              ((BaseVariableWidthVector) vector).setValueLengthSafe(dataBufferIdx, len);
-              dataBufferIdx++;
-              buffer.get(bytes);
-              out.write(bytes, 0, bytes.length);
+              ((BaseVariableWidthVector) vector).setValueLengthSafe(bufferIdx, len);
+              dataBuffer.writeBytes(buffer.array(), buffer.position(), buffer.limit() - buffer.position());
+              bufferIdx++;
             }
-            dataBuffer.writeBytes(out.toByteArray());
-            nullabilityHolderIdx += n;
           } else {
-            for (int i = 0; i < n; i++) {
-              nullabilityHolder.nullAt(nullabilityHolderIdx);
-              dataBufferIdx++;
-              nullabilityHolderIdx++;
-            }
+            //BitVectorHelper.setValidityBitToOne(validityBuffer, validityBufferIdx);
+            nullabilityHolder.setNulls(bufferIdx, n);
+            bufferIdx += n;
           }
-          dataBufferIdx += n;
           break;
         case PACKED:
-          for (int i = 0; i < n; ++i) {
+          for (int i = 0; i < n; i++) {
             if (currentBuffer[currentBufferIdx++] == maxDefLevel) {
               int len = valuesReader.readInteger();
               ByteBuffer buffer = valuesReader.getBuffer(len);
-              if (buffer.hasArray()) {
-                ((BaseVariableWidthVector) vector).setSafe(dataBufferIdx, buffer.array());
-              } else {
-                byte[] bytes = new byte[len];
-                buffer.get(bytes);
-                ((BaseVariableWidthVector) vector).setSafe(dataBufferIdx, bytes);
-              }
-              nullabilityHolderIdx++;
-              dataBufferIdx++;
+              ((BaseVariableWidthVector) vector).setValueLengthSafe(bufferIdx, len);
+              dataBuffer.writeBytes(buffer.array(), buffer.position(), buffer.limit() - buffer.position());
+              bufferIdx++;
             } else {
-              nullabilityHolder.nullAt(nullabilityHolderIdx);
-              nullabilityHolderIdx++;
-              dataBufferIdx++;
+              //BitVectorHelper.setValidityBitToOne(validityBuffer, validityBufferIdx);
+              nullabilityHolder.nullAt(bufferIdx);
+              bufferIdx++;
             }
           }
           break;
@@ -445,43 +593,124 @@ public final class VectorizedRleValuesReader extends ValuesReader {
     }
   }
 
-  // private static class Chunk {
-  //   private final boolean isNull;
-  //   private int num = 1;
-  //
-  //   Chunk(boolean isNull) {
-  //     this.isNull = isNull;
-  //   }
-  //   void increment() {
-  //     num++;
-  //   }
-  //   boolean isChunkOfNulls() {
-  //     return isNull;
-  //   }
-  //   int chunkSize() {
-  //     return num;
-  //   }
-  // }
-  //
-  // private List<Chunk> getNullabilityChunks(int actualBatchSize, int maxDefLevel, NullabilityHolder nullabilityHolder) {
-  //   int prevDefLevel = definitionLevels.nextInt();
-  //   int defLevelsRead = 1;
-  //   List<Chunk> chunks = new LinkedList<>();
-  //   Chunk currentChunk = new Chunk(prevDefLevel != maxDefLevel);
-  //   chunks.add(currentChunk);
-  //   while (defLevelsRead < actualBatchSize) {
-  //     int defLevel = definitionLevels.nextInt();
-  //     if (defLevel == prevDefLevel) {
-  //       currentChunk.increment();
-  //     } else {
-  //       currentChunk = new Chunk(defLevel != maxDefLevel);
-  //       chunks.add(currentChunk);
-  //       prevDefLevel = defLevel;
-  //     }
-  //     vectorIdx++;
-  //     defLevelsRead++;
-  //   }
-  //   return chunks;
-  // }
+  public void readBatchOfIntLongBackedDecimals(
+      final FieldVector vector, final int numValsInVector,
+      final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder,
+      BytesReader valuesReader) {
+    int bufferIdx = numValsInVector;
+    ArrowBuf validityBuffer = vector.getValidityBuffer();
+    ArrowBuf dataBuffer = vector.getDataBuffer();
+    int left = batchSize;
+    while (left > 0) {
+      if (this.currentCount == 0) {
+        this.readNextGroup();
+      }
+      int n = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          if (currentValue == maxDefLevel) {
+            for (int i = 0; i < n; i++) {
+              byte[] byteArray = new byte[DecimalVector.TYPE_WIDTH];
+              valuesReader.getBuffer(typeWidth).get(byteArray, 0, typeWidth);
+              dataBuffer.setBytes(bufferIdx * DecimalVector.TYPE_WIDTH, byteArray);
+              bufferIdx++;
+            }
+          } else {
+            nullabilityHolder.setNulls(bufferIdx, n);
+            bufferIdx += n;
+          }
+          break;
+        case PACKED:
+          for (int i = 0; i < n; ++i) {
+            if (currentBuffer[currentBufferIdx++] == maxDefLevel) {
+              byte[] byteArray = new byte[DecimalVector.TYPE_WIDTH];
+              valuesReader.getBuffer(typeWidth).get(byteArray, 0, typeWidth);
+              dataBuffer.setBytes(bufferIdx * DecimalVector.TYPE_WIDTH, byteArray);
+              bufferIdx++;
+              //BitVectorHelper.setValidityBitToOne(validityBuffer, validityBufferIdx);
+            } else {
+              //BitVectorHelper.setValidityBitToOne(validityBuffer, validityBufferIdx);
+              nullabilityHolder.nullAt(bufferIdx);
+              bufferIdx++;
+            }
+          }
+          break;
+      }
+      left -= n;
+      currentCount -= n;
+    }
+  }
 
+  public void readBatchOfBooleans(
+      final FieldVector vector, final int numValsInVector, final int batchSize, NullabilityHolder nullabilityHolder, BytesReader valuesReader) {
+    int bufferIdx = numValsInVector;
+    ArrowBuf validityBuffer = vector.getValidityBuffer();
+    ArrowBuf dataBuffer = vector.getDataBuffer();
+    int left = batchSize;
+    while (left > 0) {
+      if (this.currentCount == 0) {
+        this.readNextGroup();
+      }
+      int n = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          if (currentValue == maxDefLevel) {
+            for (int i = 0; i < n; i++) {
+              ((BitVector) vector).setSafe(bufferIdx, ((valuesReader.readBoolean() == false) ? 0 : 1));
+              bufferIdx++;
+            }
+          } else {
+            for (int i = 0; i < n; i++) {
+              ((BitVector) vector).setNull(bufferIdx);
+              nullabilityHolder.nullAt(bufferIdx);
+              bufferIdx++;
+            }
+          }
+          break;
+        case PACKED:
+          for (int i = 0; i < n; ++i) {
+            if (currentBuffer[currentBufferIdx++] == maxDefLevel) {
+              ((BitVector) vector).setSafe(bufferIdx, ((valuesReader.readBoolean() == false) ? 0 : 1));
+              bufferIdx++;
+            } else {
+              ((BitVector) vector).setNull(bufferIdx);
+              nullabilityHolder.nullAt(bufferIdx);
+              bufferIdx++;
+            }
+          }
+          break;
+      }
+      left -= n;
+      currentCount -= n;
+    }
+  }
+
+  private int setBinaryInVector(VarBinaryVector vector, int typeWidth, BytesReader valuesReader, int bufferIdx) {
+    byte[] byteArray = new byte[typeWidth];
+    valuesReader.getBuffer(typeWidth).get(byteArray);
+    vector.setSafe(bufferIdx, byteArray);
+    bufferIdx++;
+    return bufferIdx;
+  }
+
+  private int fillFixWidthValueBuffer(
+      int typeWidth, int maxDefLevel, NullabilityHolder nullabilityHolder,
+      BytesReader valuesReader, int bufferIdx, ArrowBuf dataBuffer, int n) {
+    if (currentValue == maxDefLevel) {
+      // for (int i = 0; i < n; i++) {
+      //   //BitVectorHelper.setValidityBitToOne(validityBuffer, validityBufferIdx);
+      //   validityBufferIdx++;
+      // }
+      ByteBuffer buffer = valuesReader.getBuffer(n * typeWidth);
+      dataBuffer.setBytes(bufferIdx * typeWidth, buffer);
+      bufferIdx += n;
+    } else {
+      for (int i = 0; i < n; i++) {
+        //BitVectorHelper.setValidityBit(validityBuffer, validityBufferIdx, 0);
+        nullabilityHolder.nullAt(bufferIdx);
+        bufferIdx++;
+      }
+    }
+    return bufferIdx;
+  }
 }

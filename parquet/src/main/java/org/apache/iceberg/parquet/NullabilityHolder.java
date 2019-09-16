@@ -32,6 +32,16 @@ public class NullabilityHolder {
     numNulls++;
   }
 
+  public void setNulls(int idx, int num) {
+    int i = 0;
+    while (i < num) {
+      isNull[idx] = true;
+      numNulls++;
+      idx++;
+      i++;
+    }
+  }
+
   public boolean isNullAt(int idx) {
     return isNull[idx];
   }

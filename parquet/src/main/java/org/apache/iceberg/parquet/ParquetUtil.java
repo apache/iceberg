@@ -306,4 +306,44 @@ public class ParquetUtil {
     }
     return false;
   }
+
+  public static boolean isIntType(ColumnDescriptor desc) {
+    PrimitiveType primitive = desc.getPrimitiveType();
+    OriginalType originalType = primitive.getOriginalType();
+    if (originalType != null && (originalType ==  INT_8 || originalType == INT_16 || originalType == INT_32 || originalType == DATE)) {
+      return true;
+    } else if (primitive.getPrimitiveTypeName() == INT32) {
+      return true;
+    }
+    return false;
+  }
+
+  public static boolean isLongType(ColumnDescriptor desc) {
+    PrimitiveType primitive = desc.getPrimitiveType();
+    OriginalType originalType = primitive.getOriginalType();
+    if (originalType != null && (originalType ==  INT_64 || originalType == TIMESTAMP_MILLIS || originalType == TIMESTAMP_MICROS)) {
+      return true;
+    } else if (primitive.getPrimitiveTypeName() == INT64) {
+      return true;
+    }
+    return false;
+  }
+
+  public static boolean isDoubleType(ColumnDescriptor desc) {
+    PrimitiveType primitive = desc.getPrimitiveType();
+    OriginalType originalType = primitive.getOriginalType();
+    if (originalType == null && primitive.getPrimitiveTypeName() == DOUBLE) {
+      return true;
+    }
+    return false;
+  }
+
+  public static boolean isFloatType(ColumnDescriptor desc) {
+    PrimitiveType primitive = desc.getPrimitiveType();
+    OriginalType originalType = primitive.getOriginalType();
+    if (originalType == null && primitive.getPrimitiveTypeName() == FLOAT) {
+      return true;
+    }
+    return false;
+  }
 }

@@ -20,7 +20,6 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
-
 import org.apache.arrow.vector.FieldVector;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
@@ -80,12 +79,57 @@ public class BatchedColumnIterator {
   /**
    * Method for reading a batch of non-decimal numeric data types (INT32, INT64, FLOAT, DOUBLE, DATE, TIMESTAMP)
    */
-  public void nextBatchNumericNonDecimal(FieldVector fieldVector, int typeWidth, NullabilityHolder nullabilityHolder) {
+  public void nextBatchIntegers(FieldVector fieldVector, int typeWidth, NullabilityHolder holder) {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {
       advance();
-      int rowsInThisBatch = batchedPageIterator.nextBatchNumericNonDecimal(fieldVector, batchSize - rowsReadSoFar,
-              rowsReadSoFar, typeWidth, nullabilityHolder);
+      int rowsInThisBatch = batchedPageIterator.nextBatchIntegers(fieldVector, batchSize - rowsReadSoFar,
+              rowsReadSoFar, typeWidth, holder);
+      rowsReadSoFar += rowsInThisBatch;
+      this.valuesRead += rowsInThisBatch;
+      fieldVector.setValueCount(rowsReadSoFar);
+    }
+  }
+
+  /**
+   * Method for reading a batch of non-decimal numeric data types (INT32, INT64, FLOAT, DOUBLE, DATE, TIMESTAMP)
+   */
+  public void nextBatchLongs(FieldVector fieldVector, int typeWidth, NullabilityHolder holder) {
+    int rowsReadSoFar = 0;
+    while (rowsReadSoFar < batchSize && hasNext()) {
+      advance();
+      int rowsInThisBatch = batchedPageIterator.nextBatchLongs(fieldVector, batchSize - rowsReadSoFar,
+          rowsReadSoFar, typeWidth, holder);
+      rowsReadSoFar += rowsInThisBatch;
+      this.valuesRead += rowsInThisBatch;
+      fieldVector.setValueCount(rowsReadSoFar);
+    }
+  }
+
+  /**
+   * Method for reading a batch of non-decimal numeric data types (INT32, INT64, FLOAT, DOUBLE, DATE, TIMESTAMP)
+   */
+  public void nextBatchFloats(FieldVector fieldVector, int typeWidth, NullabilityHolder holder) {
+    int rowsReadSoFar = 0;
+    while (rowsReadSoFar < batchSize && hasNext()) {
+      advance();
+      int rowsInThisBatch = batchedPageIterator.nextBatchFloats(fieldVector, batchSize - rowsReadSoFar,
+          rowsReadSoFar, typeWidth, holder);
+      rowsReadSoFar += rowsInThisBatch;
+      this.valuesRead += rowsInThisBatch;
+      fieldVector.setValueCount(rowsReadSoFar);
+    }
+  }
+
+  /**
+   * Method for reading a batch of non-decimal numeric data types (INT32, INT64, FLOAT, DOUBLE, DATE, TIMESTAMP)
+   */
+  public void nextBatchDoubles(FieldVector fieldVector, int typeWidth, NullabilityHolder holder) {
+    int rowsReadSoFar = 0;
+    while (rowsReadSoFar < batchSize && hasNext()) {
+      advance();
+      int rowsInThisBatch = batchedPageIterator.nextBatchDoubles(fieldVector, batchSize - rowsReadSoFar,
+          rowsReadSoFar, typeWidth, holder);
       rowsReadSoFar += rowsInThisBatch;
       this.valuesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);

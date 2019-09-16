@@ -21,11 +21,11 @@ package org.apache.iceberg.parquet;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VarCharVector;
 
-public class IcebergVarcharVector extends VarCharVector {
+public class IcebergVarcharArrowVector extends VarCharVector {
 
   private NullabilityHolder nullabilityHolder;
 
-  public IcebergVarcharVector(
+  public IcebergVarcharArrowVector(
       String name,
       BufferAllocator allocator) {
     super(name, allocator);
