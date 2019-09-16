@@ -135,7 +135,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
                                              int numRetries) {
     // use null-safe equality check because new tables have a null metadata location
     if (!Objects.equal(currentMetadataLocation, newLocation)) {
-      LOG.info("Refreshing table metadata from new version: {}", newLocation);
+      LOG.info("Refreshing table metadata to new version: {}", newLocation);
 
       AtomicReference<TableMetadata> newMetadata = new AtomicReference<>();
       Tasks.foreach(newLocation)

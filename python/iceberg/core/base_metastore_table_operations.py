@@ -76,7 +76,7 @@ class BaseMetastoreTableOperations(TableOperations):
 
     def refresh_from_metadata_location(self, new_location, num_retries=20):
         if not self.current_metadata_location == new_location:
-            _logger.info("Refreshing table metadata from new version: %s" % new_location)
+            _logger.info("Refreshing table metadata to new version: %s" % new_location)
             self.retryable_refresh(new_location)
 
         self.should_refresh = False
