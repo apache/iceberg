@@ -465,22 +465,30 @@ String getVersionFromFile() {
 }
 
 String getProjectVersion() {
-  try {
-    return gitVersion()
-  } catch (NullPointerException e) {
-    def version = getVersionFromFile()
-    println "no .git directory available, use version $version"
-    return version
+  if (project.hasProperty("useStableVersion")) {
+    return getVersionFromFile()
+  } else {
+    try {
+      return gitVersion()
+    } catch (NullPointerException e) {
+      def version = getVersionFromFile()
+      println "no .git directory available, use version $version"
+      return version
+    }
   }
 }
 
 String getJavadocVersion() {
-  try {
-    // use the branch name in place of version in Javadoc
-    return versionDetails().branchName
-  } catch (NullPointerException e) {
-    def version = getVersionFromFile()
-    println "no .git directory available, use version $version"
-    return version
+  if (project.hasProperty("useStableVersion")) {
+    return getVersionFromFile()
+  } else {
+    try {
+      // use the branch name in place of version in Javadoc
+      return versionDetails().branchName
+    } catch (NullPointerException e) {
+      def version = getVersionFromFile()
+      println "no .git directory available, use version $version"
+      return version
+    }
   }
 }
