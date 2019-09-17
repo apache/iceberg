@@ -170,8 +170,8 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
     TableIdentifier source = new TableIdentifier("unpartitioned_table");
     Table table = catalog.createTable(
             org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "test_unpartitioned_table"),
-            SparkSchemaUtil.schemaForTable(spark, qualifiedTableName),
-            SparkSchemaUtil.specForTable(spark, qualifiedTableName));
+            SparkSchemaUtil.schemaForTable(spark, "unpartitioned_table"),
+            SparkSchemaUtil.specForTable(spark, "unpartitioned_table"));
     SparkTableUtil.importSparkTable(source, "/tmp", table);
     long count1 = spark.read().format("iceberg").load(DB_NAME + ".test_unpartitioned_table").count();
     Assert.assertEquals("three values ", 3, count1);
@@ -181,8 +181,8 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
     source = new TableIdentifier("partitioned_table");
     table = catalog.createTable(
             org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "test_partitioned_table"),
-            SparkSchemaUtil.schemaForTable(spark, qualifiedTableName),
-            SparkSchemaUtil.specForTable(spark, qualifiedTableName));
+            SparkSchemaUtil.schemaForTable(spark, "partitioned_table"),
+            SparkSchemaUtil.specForTable(spark, "partitioned_table"));
 
     SparkTableUtil.importSparkTable(source, "/tmp", table);
     long count2 = spark.read().format("iceberg").load(DB_NAME + ".test_partitioned_table").count();
