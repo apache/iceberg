@@ -171,7 +171,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
     Table table = catalog.createTable(
             org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "test_unpartitioned_table"),
             SparkSchemaUtil.schemaForTable(spark, qualifiedTableName),
-            SparkSchemaUtil.specForTable(spark, qualifiedTableName));
+            org.apache.iceberg.PartitionSpec.unpartitioned());
     SparkTableUtil.importSparkTable(source, "/tmp", table);
     long count1 = spark.read().format("iceberg").load(DB_NAME + ".test_unpartitioned_table").count();
     Assert.assertEquals("three values ", 3, count1);
