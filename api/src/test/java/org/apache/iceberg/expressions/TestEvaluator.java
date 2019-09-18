@@ -20,6 +20,7 @@
 package org.apache.iceberg.expressions;
 
 import org.apache.avro.util.Utf8;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
@@ -346,7 +347,7 @@ public class TestEvaluator {
 
   @Test
   public void testCaseSensitiveNot() {
-    TestHelpers.assertThrows(
+    AssertHelpers.assertThrows(
         "X != x when case sensitivity is on",
         ValidationException.class,
         "Cannot find field 'X' in struct",

@@ -34,61 +34,61 @@ public class TestPartitionSpecValidation {
 
   @Test
   public void testMultipleTimestampPartitions() {
-    TestHelpers.assertThrows("Should not allow year(ts) and year(ts)",
+    AssertHelpers.assertThrows("Should not allow year(ts) and year(ts)",
         IllegalArgumentException.class, "Cannot use partition name more than once",
         () -> PartitionSpec.builderFor(SCHEMA).year("ts").year("ts").build());
-    TestHelpers.assertThrows("Should not allow year(ts) and month(ts)",
+    AssertHelpers.assertThrows("Should not allow year(ts) and month(ts)",
         IllegalArgumentException.class, "Cannot add redundant partition",
         () -> PartitionSpec.builderFor(SCHEMA).year("ts").month("ts").build());
-    TestHelpers.assertThrows("Should not allow year(ts) and day(ts)",
+    AssertHelpers.assertThrows("Should not allow year(ts) and day(ts)",
         IllegalArgumentException.class, "Cannot add redundant partition",
         () -> PartitionSpec.builderFor(SCHEMA).year("ts").day("ts").build());
-    TestHelpers.assertThrows("Should not allow year(ts) and hour(ts)",
+    AssertHelpers.assertThrows("Should not allow year(ts) and hour(ts)",
         IllegalArgumentException.class, "Cannot add redundant partition",
         () -> PartitionSpec.builderFor(SCHEMA).year("ts").hour("ts").build());
 
-    TestHelpers.assertThrows("Should not allow month(ts) and month(ts)",
+    AssertHelpers.assertThrows("Should not allow month(ts) and month(ts)",
         IllegalArgumentException.class, "Cannot use partition name more than once",
         () -> PartitionSpec.builderFor(SCHEMA).month("ts").month("ts").build());
-    TestHelpers.assertThrows("Should not allow month(ts) and day(ts)",
+    AssertHelpers.assertThrows("Should not allow month(ts) and day(ts)",
         IllegalArgumentException.class, "Cannot add redundant partition",
         () -> PartitionSpec.builderFor(SCHEMA).month("ts").day("ts").build());
-    TestHelpers.assertThrows("Should not allow month(ts) and hour(ts)",
+    AssertHelpers.assertThrows("Should not allow month(ts) and hour(ts)",
         IllegalArgumentException.class, "Cannot add redundant partition",
         () -> PartitionSpec.builderFor(SCHEMA).month("ts").hour("ts").build());
 
-    TestHelpers.assertThrows("Should not allow day(ts) and day(ts)",
+    AssertHelpers.assertThrows("Should not allow day(ts) and day(ts)",
         IllegalArgumentException.class, "Cannot use partition name more than once",
         () -> PartitionSpec.builderFor(SCHEMA).day("ts").day("ts").build());
-    TestHelpers.assertThrows("Should not allow day(ts) and hour(ts)",
+    AssertHelpers.assertThrows("Should not allow day(ts) and hour(ts)",
         IllegalArgumentException.class, "Cannot add redundant partition",
         () -> PartitionSpec.builderFor(SCHEMA).day("ts").hour("ts").build());
 
-    TestHelpers.assertThrows("Should not allow hour(ts) and hour(ts)",
+    AssertHelpers.assertThrows("Should not allow hour(ts) and hour(ts)",
         IllegalArgumentException.class, "Cannot use partition name more than once",
         () -> PartitionSpec.builderFor(SCHEMA).hour("ts").hour("ts").build());
   }
 
   @Test
   public void testMultipleDatePartitions() {
-    TestHelpers.assertThrows("Should not allow year(d) and year(d)",
+    AssertHelpers.assertThrows("Should not allow year(d) and year(d)",
         IllegalArgumentException.class, "Cannot use partition name more than once",
         () -> PartitionSpec.builderFor(SCHEMA).year("d").year("d").build());
-    TestHelpers.assertThrows("Should not allow year(d) and month(d)",
+    AssertHelpers.assertThrows("Should not allow year(d) and month(d)",
         IllegalArgumentException.class, "Cannot add redundant partition",
         () -> PartitionSpec.builderFor(SCHEMA).year("d").month("d").build());
-    TestHelpers.assertThrows("Should not allow year(d) and day(d)",
+    AssertHelpers.assertThrows("Should not allow year(d) and day(d)",
         IllegalArgumentException.class, "Cannot add redundant partition",
         () -> PartitionSpec.builderFor(SCHEMA).year("d").day("d").build());
 
-    TestHelpers.assertThrows("Should not allow month(d) and month(d)",
+    AssertHelpers.assertThrows("Should not allow month(d) and month(d)",
         IllegalArgumentException.class, "Cannot use partition name more than once",
         () -> PartitionSpec.builderFor(SCHEMA).month("d").month("d").build());
-    TestHelpers.assertThrows("Should not allow month(d) and day(d)",
+    AssertHelpers.assertThrows("Should not allow month(d) and day(d)",
         IllegalArgumentException.class, "Cannot add redundant partition",
         () -> PartitionSpec.builderFor(SCHEMA).month("d").day("d").build());
 
-    TestHelpers.assertThrows("Should not allow day(d) and day(d)",
+    AssertHelpers.assertThrows("Should not allow day(d) and day(d)",
         IllegalArgumentException.class, "Cannot use partition name more than once",
         () -> PartitionSpec.builderFor(SCHEMA).day("d").day("d").build());
   }
@@ -123,25 +123,25 @@ public class TestPartitionSpecValidation {
 
   @Test
   public void testMissingSourceColumn() {
-    TestHelpers.assertThrows("Should detect missing source column",
+    AssertHelpers.assertThrows("Should detect missing source column",
         IllegalArgumentException.class, "Cannot find source column",
         () -> PartitionSpec.builderFor(SCHEMA).year("missing").build());
-    TestHelpers.assertThrows("Should detect missing source column",
+    AssertHelpers.assertThrows("Should detect missing source column",
         IllegalArgumentException.class, "Cannot find source column",
         () -> PartitionSpec.builderFor(SCHEMA).month("missing").build());
-    TestHelpers.assertThrows("Should detect missing source column",
+    AssertHelpers.assertThrows("Should detect missing source column",
         IllegalArgumentException.class, "Cannot find source column",
         () -> PartitionSpec.builderFor(SCHEMA).day("missing").build());
-    TestHelpers.assertThrows("Should detect missing source column",
+    AssertHelpers.assertThrows("Should detect missing source column",
         IllegalArgumentException.class, "Cannot find source column",
         () -> PartitionSpec.builderFor(SCHEMA).hour("missing").build());
-    TestHelpers.assertThrows("Should detect missing source column",
+    AssertHelpers.assertThrows("Should detect missing source column",
         IllegalArgumentException.class, "Cannot find source column",
         () -> PartitionSpec.builderFor(SCHEMA).bucket("missing", 4).build());
-    TestHelpers.assertThrows("Should detect missing source column",
+    AssertHelpers.assertThrows("Should detect missing source column",
         IllegalArgumentException.class, "Cannot find source column",
         () -> PartitionSpec.builderFor(SCHEMA).truncate("missing", 5).build());
-    TestHelpers.assertThrows("Should detect missing source column",
+    AssertHelpers.assertThrows("Should detect missing source column",
         IllegalArgumentException.class, "Cannot find source column",
         () -> PartitionSpec.builderFor(SCHEMA).identity("missing").build());
   }

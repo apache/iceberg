@@ -34,9 +34,9 @@ import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static org.apache.iceberg.AssertHelpers.assertThrows;
 import static org.apache.iceberg.TestHelpers.assertAndUnwrap;
 import static org.apache.iceberg.TestHelpers.assertAndUnwrapUnbound;
-import static org.apache.iceberg.TestHelpers.assertThrows;
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
