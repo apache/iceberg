@@ -80,7 +80,11 @@ public class VectorizedSparkParquetReaders {
     private final BufferAllocator rootAllocator;
     private final int recordsPerBatch;
 
-    ReadBuilderBatched(Schema tableSchema, Schema projectedIcebergSchema, MessageType parquetSchema, int recordsPerBatch) {
+    ReadBuilderBatched(
+        Schema tableSchema,
+        Schema projectedIcebergSchema,
+        MessageType parquetSchema,
+        int recordsPerBatch) {
       this.parquetSchema = parquetSchema;
       this.tableIcebergSchema = tableSchema;
       this.projectedIcebergSchema = projectedIcebergSchema;
@@ -91,13 +95,15 @@ public class VectorizedSparkParquetReaders {
     }
 
     @Override
-    public BatchedReader message(Types.StructType expected, MessageType message,
+    public BatchedReader message(
+        Types.StructType expected, MessageType message,
         List<BatchedReader> fieldReaders) {
       return struct(expected, message.asGroupType(), fieldReaders);
     }
 
     @Override
-    public BatchedReader struct(Types.StructType expected, GroupType struct,
+    public BatchedReader struct(
+        Types.StructType expected, GroupType struct,
         List<BatchedReader> fieldReaders) {
 
       // this works on struct fields and the root iceberg schema which itself is a struct.
@@ -137,9 +143,9 @@ public class VectorizedSparkParquetReaders {
       return new ColumnarBatchReader(types, expected, reorderedFields);
     }
 
-
     @Override
-    public BatchedReader primitive(org.apache.iceberg.types.Type.PrimitiveType expected,
+    public BatchedReader primitive(
+        org.apache.iceberg.types.Type.PrimitiveType expected,
         PrimitiveType primitive) {
 
       // Create arrow vector for this field

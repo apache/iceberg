@@ -26,7 +26,6 @@ import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StructType;
-import org.apache.spark.sql.types.Decimal;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;

@@ -32,8 +32,6 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 
-import static org.apache.spark.sql.functions.expr;
-
 /**
  * A benchmark that evaluates the performance of writing Parquet data with a flat schema
  * using Iceberg and the built-in file source in Spark.
