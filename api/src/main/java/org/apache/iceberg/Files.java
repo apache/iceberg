@@ -67,7 +67,7 @@ public class Files {
       try {
         return new PositionFileOutputStream(file, new RandomAccessFile(file, "rw"));
       } catch (FileNotFoundException e) {
-        throw new RuntimeIOException(e, "Failed to create file: %s", file);
+        throw new NotFoundException(e, "Failed to create file: %s", file);
       }
     }
 
