@@ -26,8 +26,14 @@ import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.DataFilesTable;
+import org.apache.iceberg.HistoryTable;
+import org.apache.iceberg.ManifestEntriesTable;
+import org.apache.iceberg.ManifestsTable;
+import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotsTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -60,10 +66,49 @@ public class HadoopTables implements Tables, Configurable {
   public Table load(String location) {
     TableOperations ops = newTableOps(location);
     if (ops.current() == null) {
-      throw new NoSuchTableException("Table does not exist at location: " + location);
+      // try to resolve a metadata table, which we encode as URI fragments
+      // e.g. hdfs:///warehouse/my_table#snapshots
+      int hashIndex = location.lastIndexOf('#');
+      if (hashIndex != -1 && location.length() - 1 != hashIndex) {
+        // we found char '#', and it is not the last char of location
+        String baseTable = location.substring(0, hashIndex);
+        String metaTable = location.substring(hashIndex + 1);
+        MetadataTableType type = MetadataTableType.from(metaTable);
+        if (type != null) {
+          return loadMetadataTable(baseTable, type);
+        } else {
+          throw new NoSuchTableException("Table does not exist at location: " + location);
+        }
+      } else {
+        throw new NoSuchTableException("Table does not exist at location: " + location);
+      }
     }
 
     return new BaseTable(ops, location);
+  }
+
+  private Table loadMetadataTable(String location, MetadataTableType type) {
+    TableOperations ops = newTableOps(location);
+    if (ops.current() == null) {
+      throw new NoSuchTableException("Table does not exist at location: " + location);
+    }
+
+    Table baseTable = new BaseTable(ops, location);
+
+    switch (type) {
+      case ENTRIES:
+        return new ManifestEntriesTable(ops, baseTable);
+      case FILES:
+        return new DataFilesTable(ops, baseTable);
+      case HISTORY:
+        return new HistoryTable(ops, baseTable);
+      case SNAPSHOTS:
+        return new SnapshotsTable(ops, baseTable);
+      case MANIFESTS:
+        return new ManifestsTable(ops, baseTable);
+      default:
+        throw new NoSuchTableException(String.format("Unknown metadata table type: %s for %s", type, location));
+    }
   }
 
   /**

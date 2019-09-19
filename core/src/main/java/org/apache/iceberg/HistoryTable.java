@@ -32,7 +32,7 @@ import org.apache.iceberg.util.SnapshotUtil;
  * <p>
  * History is based on the table's snapshot log, which logs each update to the table's current snapshot.
  */
-class HistoryTable extends BaseMetadataTable {
+public class HistoryTable extends BaseMetadataTable {
   private static final Schema HISTORY_SCHEMA = new Schema(
       Types.NestedField.required(1, "made_current_at", Types.TimestampType.withZone()),
       Types.NestedField.required(2, "snapshot_id", Types.LongType.get()),
@@ -43,7 +43,7 @@ class HistoryTable extends BaseMetadataTable {
   private final TableOperations ops;
   private final Table table;
 
-  HistoryTable(TableOperations ops, Table table) {
+  public HistoryTable(TableOperations ops, Table table) {
     this.ops = ops;
     this.table = table;
   }

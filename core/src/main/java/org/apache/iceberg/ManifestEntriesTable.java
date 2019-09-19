@@ -34,11 +34,11 @@ import org.apache.iceberg.types.TypeUtil;
  * WARNING: this table exposes internal details, like files that have been deleted. For a table of the live data files,
  * use {@link DataFilesTable}.
  */
-class ManifestEntriesTable extends BaseMetadataTable {
+public class ManifestEntriesTable extends BaseMetadataTable {
   private final TableOperations ops;
   private final Table table;
 
-  ManifestEntriesTable(TableOperations ops, Table table) {
+  public ManifestEntriesTable(TableOperations ops, Table table) {
     this.ops = ops;
     this.table = table;
   }
