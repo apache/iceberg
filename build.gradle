@@ -17,6 +17,8 @@
  * under the License.
  */
 
+import groovy.transform.Memoized
+
 buildscript {
   repositories {
     jcenter()
@@ -47,7 +49,7 @@ if (JavaVersion.current() != JavaVersion.VERSION_1_8) {
 allprojects {
   group = "org.apache.iceberg"
   apply plugin: 'com.palantir.baseline-idea'
-  version = gitVersion()
+  version = getProjectVersion()
   repositories {
     maven { url  "http://palantir.bintray.com/releases" }
     mavenCentral()
@@ -133,24 +135,23 @@ subprojects {
 }
 
 task aggregateJavadoc(type: Javadoc) {
-  // use the branch name in place of version in Javadoc
-  project.rootProject.version = versionDetails().branchName
+  project.rootProject.version = getJavadocVersion()
 
   dependsOn subprojects.javadoc
   source subprojects.javadoc.source
-  destinationDir project.rootProject.file("site/docs/javadoc/${versionDetails().branchName}")
+  destinationDir project.rootProject.file("site/docs/javadoc/${getJavadocVersion()}")
   classpath = project.rootProject.files(subprojects.javadoc.classpath)
 }
 
 task removeJavadoc(type: Exec) {
-  commandLine 'rm', '-rf', "site/docs/javadoc/${versionDetails().branchName}"
+  commandLine 'rm', '-rf', "site/docs/javadoc/${getJavadocVersion()}"
 }
 
 task refreshJavadoc(type: Exec) {
   dependsOn aggregateJavadoc
   dependsOn removeJavadoc
   aggregateJavadoc.mustRunAfter removeJavadoc
-  commandLine 'git', 'add', "site/docs/javadoc/${versionDetails().branchName}"
+  commandLine 'git', 'add', "site/docs/javadoc/${getJavadocVersion()}"
 }
 
 task deploySite(type: Exec) {
@@ -460,3 +461,37 @@ project(':iceberg-spark-runtime') {
   }
 }
 
+@Memoized
+boolean isVersionFileExists() {
+  return file('version.txt').exists()
+}
+
+@Memoized
+String getVersionFromFile() {
+  return file('version.txt').text.trim()
+}
+
+String getProjectVersion() {
+  if (isVersionFileExists()) {
+    return getVersionFromFile()
+  }
+
+  try {
+    return gitVersion()
+  } catch (NullPointerException e) {
+    throw new Exception("Neither version.txt nor git version exists")
+  }
+}
+
+String getJavadocVersion() {
+  if (isVersionFileExists()) {
+    return getVersionFromFile()
+  }
+
+  try {
+    // use the branch name in place of version in Javadoc
+    return versionDetails().branchName
+  } catch (NullPointerException e) {
+    throw new Exception("Neither version.txt nor git version exists")
+  }
+}
