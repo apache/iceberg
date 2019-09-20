@@ -21,6 +21,7 @@ package org.apache.iceberg.expressions;
 
 import com.google.common.collect.ImmutableList;
 import java.nio.ByteBuffer;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -107,7 +108,7 @@ public class TestInclusiveManifestEvaluator {
 
   @Test
   public void testMissingColumn() {
-    TestHelpers.assertThrows("Should complain about missing column in expression",
+    AssertHelpers.assertThrows("Should complain about missing column in expression",
         ValidationException.class, "Cannot find field 'missing'",
         () -> ManifestEvaluator.forRowFilter(lessThan("missing", 5), SPEC, true).eval(FILE));
   }
@@ -318,7 +319,7 @@ public class TestInclusiveManifestEvaluator {
 
   @Test
   public void testCaseSensitiveIntegerNotEqRewritten() {
-    TestHelpers.assertThrows("Should complain about missing column in expression",
+    AssertHelpers.assertThrows("Should complain about missing column in expression",
         ValidationException.class, "Cannot find field 'ID'",
         () -> ManifestEvaluator.forRowFilter(not(equal("ID", 5)), SPEC, true).eval(FILE));
   }

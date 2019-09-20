@@ -20,9 +20,9 @@
 package org.apache.iceberg.expressions;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.TestHelpers.TestDataFile;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -160,7 +160,7 @@ public class TestInclusiveMetricsEvaluator {
 
   @Test
   public void testMissingColumn() {
-    TestHelpers.assertThrows("Should complain about missing column in expression",
+    AssertHelpers.assertThrows("Should complain about missing column in expression",
         ValidationException.class, "Cannot find field 'missing'",
         () -> new InclusiveMetricsEvaluator(SCHEMA, lessThan("missing", 5)).eval(FILE));
   }
