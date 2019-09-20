@@ -460,35 +460,36 @@ project(':iceberg-spark-runtime') {
 }
 
 @Memoized
+boolean isVersionFileExists() {
+  return file('version.txt').exists()
+}
+
+@Memoized
 String getVersionFromFile() {
   return file('version.txt').text.trim()
 }
 
 String getProjectVersion() {
-  if (project.hasProperty("useStableVersion")) {
+  if (isVersionFileExists()) {
     return getVersionFromFile()
-  } else {
-    try {
-      return gitVersion()
-    } catch (NullPointerException e) {
-      def version = getVersionFromFile()
-      println "no .git directory available, use version $version"
-      return version
-    }
+  }
+
+  try {
+    return gitVersion()
+  } catch (NullPointerException e) {
+    throw new Exception("Neither version.txt nor git version exists")
   }
 }
 
 String getJavadocVersion() {
-  if (project.hasProperty("useStableVersion")) {
+  if (isVersionFileExists()) {
     return getVersionFromFile()
-  } else {
-    try {
-      // use the branch name in place of version in Javadoc
-      return versionDetails().branchName
-    } catch (NullPointerException e) {
-      def version = getVersionFromFile()
-      println "no .git directory available, use version $version"
-      return version
-    }
+  }
+
+  try {
+    // use the branch name in place of version in Javadoc
+    return versionDetails().branchName
+  } catch (NullPointerException e) {
+    throw new Exception("Neither version.txt nor git version exists")
   }
 }
