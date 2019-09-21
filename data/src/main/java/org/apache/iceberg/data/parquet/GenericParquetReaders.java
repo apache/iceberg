@@ -23,7 +23,12 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
-import java.time.*;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Iterator;
 import java.util.List;
@@ -371,7 +376,7 @@ public class GenericParquetReaders {
     }
 
     @Override
-    public LocalTime read(LocalTime reuse) { return LocalTime.MIN.plus(column.nextLong(), ChronoUnit.MICROS); }
+    public LocalTime read(LocalTime reuse) { return LocalTime.ofNanoOfDay(column.nextLong() * 1000L); }
   }
 
   private static class FixedReader extends PrimitiveReader<byte[]> {
