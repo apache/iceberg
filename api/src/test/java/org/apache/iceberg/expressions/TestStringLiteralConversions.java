@@ -19,13 +19,6 @@
 
 package org.apache.iceberg.expressions;
 
-import org.apache.avro.LogicalTypes;
-import org.apache.avro.Schema;
-import org.apache.avro.data.TimeConversions;
-import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.math.BigDecimal;
 import java.time.DateTimeException;
 import java.time.LocalDate;
@@ -33,6 +26,12 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import org.apache.avro.LogicalTypes;
+import org.apache.avro.Schema;
+import org.apache.avro.data.TimeConversions;
+import org.apache.iceberg.types.Types;
+import org.junit.Assert;
+import org.junit.Test;
 
 
 public class TestStringLiteralConversions {
