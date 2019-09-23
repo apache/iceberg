@@ -22,7 +22,6 @@ package org.apache.iceberg.data.parquet;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -376,7 +375,9 @@ public class GenericParquetReaders {
     }
 
     @Override
-    public LocalTime read(LocalTime reuse) { return LocalTime.ofNanoOfDay(column.nextLong() * 1000L); }
+    public LocalTime read(LocalTime reuse) {
+      return LocalTime.ofNanoOfDay(column.nextLong() * 1000L);
+    }
   }
 
   private static class FixedReader extends PrimitiveReader<byte[]> {
