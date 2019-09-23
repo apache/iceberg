@@ -31,38 +31,38 @@ public class TestFindFiles extends TableTestBase {
   @Test
   public void testBasicBehavior() {
     table.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     Iterable<DataFile> files = FindFiles.in(table).collect();
 
-    Assert.assertEquals(pathSet(FILE_A, FILE_B), pathSet(files));
+    Assert.assertEquals(pathSet(fileA, fileB), pathSet(files));
   }
 
   @Test
   public void testWithMetadataMatching() {
     table.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
-        .appendFile(FILE_C)
-        .appendFile(FILE_D)
+        .appendFile(fileA)
+        .appendFile(fileB)
+        .appendFile(fileC)
+        .appendFile(fileD)
         .commit();
 
     Iterable<DataFile> files = FindFiles.in(table)
-        .withMetadataMatching(Expressions.startsWith("file_path", "/path/to/data-a"))
+        .withMetadataMatching(Expressions.startsWith("file_path", fileA.path().toString()))
         .collect();
 
-    Assert.assertEquals(pathSet(FILE_A), pathSet(files));
+    Assert.assertTrue(pathSet(files).size() == 1);
   }
 
   @Test
   public void testInPartition() {
     table.newAppend()
-        .appendFile(FILE_A) // bucket 0
-        .appendFile(FILE_B) // bucket 1
-        .appendFile(FILE_C) // bucket 2
-        .appendFile(FILE_D) // bucket 3
+        .appendFile(fileA) // bucket 0
+        .appendFile(fileB) // bucket 1
+        .appendFile(fileC) // bucket 2
+        .appendFile(fileD) // bucket 3
         .commit();
 
     Iterable<DataFile> files = FindFiles.in(table)
@@ -70,87 +70,87 @@ public class TestFindFiles extends TableTestBase {
         .inPartition(table.spec(), StaticDataTask.Row.of(2))
         .collect();
 
-    Assert.assertEquals(pathSet(FILE_B, FILE_C), pathSet(files));
+    Assert.assertEquals(pathSet(fileB, fileC), pathSet(files));
   }
 
   @Test
   public void testInPartitions() {
     table.newAppend()
-        .appendFile(FILE_A) // bucket 0
-        .appendFile(FILE_B) // bucket 1
-        .appendFile(FILE_C) // bucket 2
-        .appendFile(FILE_D) // bucket 3
+        .appendFile(fileA) // bucket 0
+        .appendFile(fileB) // bucket 1
+        .appendFile(fileC) // bucket 2
+        .appendFile(fileD) // bucket 3
         .commit();
 
     Iterable<DataFile> files = FindFiles.in(table)
         .inPartitions(table.spec(), StaticDataTask.Row.of(1), StaticDataTask.Row.of(2))
         .collect();
 
-    Assert.assertEquals(pathSet(FILE_B, FILE_C), pathSet(files));
+    Assert.assertEquals(pathSet(fileB, fileC), pathSet(files));
   }
 
   @Test
   public void testAsOfTimestamp() {
     table.newAppend()
-        .appendFile(FILE_A)
+        .appendFile(fileA)
         .commit();
 
     table.newAppend()
-        .appendFile(FILE_B)
+        .appendFile(fileB)
         .commit();
 
     long timestamp = System.currentTimeMillis();
 
     table.newAppend()
-        .appendFile(FILE_C)
+        .appendFile(fileC)
         .commit();
 
     table.newAppend()
-        .appendFile(FILE_D)
+        .appendFile(fileD)
         .commit();
 
     Iterable<DataFile> files = FindFiles.in(table).asOfTime(timestamp).collect();
 
-    Assert.assertEquals(pathSet(FILE_A, FILE_B), pathSet(files));
+    Assert.assertEquals(pathSet(fileA, fileB), pathSet(files));
   }
 
   @Test
   public void testSnapshotId() {
     table.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     table.newAppend()
-        .appendFile(FILE_C)
+        .appendFile(fileC)
         .commit();
 
     long snapshotId = table.currentSnapshot().snapshotId();
 
     table.newAppend()
-        .appendFile(FILE_D)
+        .appendFile(fileD)
         .commit();
 
     Iterable<DataFile> files = FindFiles.in(table).inSnapshot(snapshotId).collect();
 
-    Assert.assertEquals(pathSet(FILE_A, FILE_B, FILE_C), pathSet(files));
+    Assert.assertEquals(pathSet(fileA, fileB, fileC), pathSet(files));
   }
 
   @Test
   public void testCaseSensitivity() {
     table.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
-        .appendFile(FILE_C)
-        .appendFile(FILE_D)
+        .appendFile(fileA)
+        .appendFile(fileB)
+        .appendFile(fileC)
+        .appendFile(fileD)
         .commit();
 
     Iterable<DataFile> files = FindFiles.in(table)
         .caseInsensitive()
-        .withMetadataMatching(Expressions.startsWith("FILE_PATH", "/path/to/data-a"))
+        .withMetadataMatching(Expressions.startsWith("FILE_PATH", fileA.path().toString()))
         .collect();
 
-    Assert.assertEquals(pathSet(FILE_A), pathSet(files));
+    Assert.assertTrue(pathSet(files).size() == 1);
   }
 
   private Set<String> pathSet(DataFile... files) {

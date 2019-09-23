@@ -24,43 +24,53 @@ import java.io.IOException;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 public class TestReplacePartitions extends TableTestBase {
 
-  static final DataFile FILE_E = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-e.parquet")
-      .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=0") // same partition as FILE_A
-      .withRecordCount(0)
-      .build();
+  static DataFile fileE;
 
-  static final DataFile FILE_F = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-f.parquet")
-      .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=1") // same partition as FILE_B
-      .withRecordCount(0)
-      .build();
+  static DataFile fileF;
 
-  static final DataFile FILE_G = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-g.parquet")
-      .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=10") // no other partition
-      .withRecordCount(0)
-      .build();
+  static DataFile fileG;
+
+  @Before
+  public void before() {
+    fileE = DataFiles.builder(SPEC, table.location())
+            .withPath("/path/to/data-e.parquet")
+            .withFileSizeInBytes(0)
+            .withPartitionPath("data_bucket=0") // same partition as FILE_A
+            .withRecordCount(0)
+            .build();
+
+    fileF = DataFiles.builder(SPEC, table.location())
+            .withPath("/path/to/data-f.parquet")
+            .withFileSizeInBytes(0)
+            .withPartitionPath("data_bucket=1") // same partition as FILE_B
+            .withRecordCount(0)
+            .build();
+
+    fileG = DataFiles.builder(SPEC, table.location())
+            .withPath("/path/to/data-g.parquet")
+            .withFileSizeInBytes(0)
+            .withPartitionPath("data_bucket=10") // no other partition
+            .withRecordCount(0)
+            .build();
+  }
 
   @Test
   public void testReplaceOnePartition() {
     table.newFastAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     TableMetadata base = readMetadata();
     long baseId = base.currentSnapshot().snapshotId();
 
     table.newReplacePartitions()
-        .addFile(FILE_E)
+        .addFile(fileE)
         .commit();
 
     long replaceId = readMetadata().currentSnapshot().snapshotId();
@@ -71,13 +81,15 @@ public class TestReplacePartitions extends TableTestBase {
     // manifest is not merged because it is less than the minimum
     validateManifestEntries(table.currentSnapshot().manifests().get(0),
         ids(replaceId),
-        files(FILE_E),
-        statuses(Status.ADDED));
+        files(fileE),
+        statuses(Status.ADDED),
+        table.location());
 
     validateManifestEntries(table.currentSnapshot().manifests().get(1),
         ids(replaceId, baseId),
-        files(FILE_A, FILE_B),
-        statuses(Status.DELETED, Status.EXISTING));
+        files(fileA, fileB),
+        statuses(Status.DELETED, Status.EXISTING),
+        table.location());
   }
 
   @Test
@@ -86,15 +98,15 @@ public class TestReplacePartitions extends TableTestBase {
     table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1").commit();
 
     table.newFastAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     TableMetadata base = readMetadata();
     long baseId = base.currentSnapshot().snapshotId();
 
     table.newReplacePartitions()
-        .addFile(FILE_E)
+        .addFile(fileE)
         .commit();
 
     long replaceId = readMetadata().currentSnapshot().snapshotId();
@@ -104,8 +116,9 @@ public class TestReplacePartitions extends TableTestBase {
 
     validateManifestEntries(table.currentSnapshot().manifests().get(0),
         ids(replaceId, replaceId, baseId),
-        files(FILE_E, FILE_A, FILE_B),
-        statuses(Status.ADDED, Status.DELETED, Status.EXISTING));
+        files(fileE, fileA, fileB),
+        statuses(Status.ADDED, Status.DELETED, Status.EXISTING),
+        table.location());
   }
 
   @Test
@@ -120,16 +133,20 @@ public class TestReplacePartitions extends TableTestBase {
         0, (long) TestTables.metadataVersion("unpartitioned"));
 
     unpartitioned.newAppend()
-        .appendFile(FILE_A)
+        .appendFile(fileA)
         .commit();
 
     // make sure the data was successfully added
     Assert.assertEquals("Table version should be 1",
         1, (long) TestTables.metadataVersion("unpartitioned"));
-    validateSnapshot(null, TestTables.readMetadata("unpartitioned").currentSnapshot(), FILE_A);
+    validateSnapshot(
+        null,
+        TestTables.readMetadata("unpartitioned").currentSnapshot(),
+        unpartitioned.location(),
+        fileA);
 
     unpartitioned.newReplacePartitions()
-        .addFile(FILE_B)
+        .addFile(fileB)
         .commit();
 
     Assert.assertEquals("Table version should be 2",
@@ -141,10 +158,12 @@ public class TestReplacePartitions extends TableTestBase {
         2, replaceMetadata.currentSnapshot().manifests().size());
 
     validateManifestEntries(replaceMetadata.currentSnapshot().manifests().get(0),
-        ids(replaceId), files(FILE_B), statuses(Status.ADDED));
+        ids(replaceId), files(fileB), statuses(Status.ADDED),
+        replaceMetadata.location());
 
     validateManifestEntries(replaceMetadata.currentSnapshot().manifests().get(1),
-        ids(replaceId), files(FILE_A), statuses(Status.DELETED));
+        ids(replaceId), files(fileA), statuses(Status.DELETED),
+        replaceMetadata.location());
   }
 
   @Test
@@ -162,16 +181,21 @@ public class TestReplacePartitions extends TableTestBase {
         1, (long) TestTables.metadataVersion("unpartitioned"));
 
     unpartitioned.newAppend()
-        .appendFile(FILE_A)
+        .appendFile(fileA)
         .commit();
 
     // make sure the data was successfully added
     Assert.assertEquals("Table version should be 2",
         2, (long) TestTables.metadataVersion("unpartitioned"));
-    validateSnapshot(null, TestTables.readMetadata("unpartitioned").currentSnapshot(), FILE_A);
+    validateSnapshot(
+        null,
+        TestTables.readMetadata("unpartitioned").currentSnapshot(),
+        unpartitioned.location(),
+        fileA
+    );
 
     unpartitioned.newReplacePartitions()
-        .addFile(FILE_B)
+        .addFile(fileB)
         .commit();
 
     Assert.assertEquals("Table version should be 3",
@@ -183,22 +207,23 @@ public class TestReplacePartitions extends TableTestBase {
         1, replaceMetadata.currentSnapshot().manifests().size());
 
     validateManifestEntries(replaceMetadata.currentSnapshot().manifests().get(0),
-        ids(replaceId, replaceId), files(FILE_B, FILE_A), statuses(Status.ADDED, Status.DELETED));
+        ids(replaceId, replaceId), files(fileB, fileA), statuses(Status.ADDED, Status.DELETED),
+        replaceMetadata.location());
   }
 
   @Test
   public void testValidationFailure() {
     table.newFastAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     TableMetadata base = readMetadata();
     long baseId = base.currentSnapshot().snapshotId();
 
     ReplacePartitions replace = table.newReplacePartitions()
-        .addFile(FILE_F)
-        .addFile(FILE_G)
+        .addFile(fileF)
+        .addFile(fileG)
         .validateAppendOnly();
 
     AssertHelpers.assertThrows("Should reject commit with file not matching delete expression",
@@ -212,15 +237,15 @@ public class TestReplacePartitions extends TableTestBase {
   @Test
   public void testValidationSuccess() {
     table.newFastAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     TableMetadata base = readMetadata();
     long baseId = base.currentSnapshot().snapshotId();
 
     table.newReplacePartitions()
-        .addFile(FILE_G)
+        .addFile(fileG)
         .validateAppendOnly()
         .commit();
 
@@ -232,12 +257,14 @@ public class TestReplacePartitions extends TableTestBase {
     // manifest is not merged because it is less than the minimum
     validateManifestEntries(table.currentSnapshot().manifests().get(0),
         ids(replaceId),
-        files(FILE_G),
-        statuses(Status.ADDED));
+        files(fileG),
+        statuses(Status.ADDED),
+        table.location());
 
     validateManifestEntries(table.currentSnapshot().manifests().get(1),
         ids(baseId, baseId),
-        files(FILE_A, FILE_B),
-        statuses(Status.ADDED, Status.ADDED));
+        files(fileA, fileB),
+        statuses(Status.ADDED, Status.ADDED),
+        table.location());
   }
 }

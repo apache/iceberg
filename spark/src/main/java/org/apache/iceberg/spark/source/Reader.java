@@ -64,6 +64,7 @@ import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.PathUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Attribute;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
@@ -166,7 +167,15 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     List<InputPartition<InternalRow>> readTasks = Lists.newArrayList();
     for (CombinedScanTask task : tasks()) {
       readTasks.add(
-          new ReadTask(task, tableSchemaString, expectedSchemaString, fileIo, encryptionManager, caseSensitive));
+          new ReadTask(
+            task,
+            tableSchemaString,
+            expectedSchemaString,
+            fileIo,
+            encryptionManager,
+            caseSensitive,
+            table.location())
+      );
     }
 
     return readTasks;
@@ -285,25 +294,27 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     private final FileIO fileIo;
     private final EncryptionManager encryptionManager;
     private final boolean caseSensitive;
+    private final String tableLocation;
 
     private transient Schema tableSchema = null;
     private transient Schema expectedSchema = null;
 
     private ReadTask(
         CombinedScanTask task, String tableSchemaString, String expectedSchemaString, FileIO fileIo,
-        EncryptionManager encryptionManager, boolean caseSensitive) {
+        EncryptionManager encryptionManager, boolean caseSensitive, String tableLocation) {
       this.task = task;
       this.tableSchemaString = tableSchemaString;
       this.expectedSchemaString = expectedSchemaString;
       this.fileIo = fileIo;
       this.encryptionManager = encryptionManager;
       this.caseSensitive = caseSensitive;
+      this.tableLocation = tableLocation;
     }
 
     @Override
     public InputPartitionReader<InternalRow> createPartitionReader() {
       return new TaskDataReader(task, lazyTableSchema(), lazyExpectedSchema(), fileIo,
-        encryptionManager, caseSensitive);
+        encryptionManager, caseSensitive, tableLocation);
     }
 
     private Schema lazyTableSchema() {
@@ -333,13 +344,15 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     private final FileIO fileIo;
     private final Map<String, InputFile> inputFiles;
     private final boolean caseSensitive;
+    private final String tableLocation;
 
     private Iterator<InternalRow> currentIterator = null;
     private Closeable currentCloseable = null;
     private InternalRow current = null;
 
     TaskDataReader(CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
-                   EncryptionManager encryptionManager, boolean caseSensitive) {
+                   EncryptionManager encryptionManager, boolean caseSensitive, String tableLocation) {
+      this.tableLocation = tableLocation;
       this.fileIo = fileIo;
       this.tasks = task.files().iterator();
       this.tableSchema = tableSchema;
@@ -347,7 +360,8 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       Iterable<InputFile> decryptedFiles = encryptionManager.decrypt(Iterables.transform(task.files(),
           fileScanTask ->
               EncryptedFiles.encryptedInput(
-                  this.fileIo.newInputFile(fileScanTask.file().path().toString()),
+                  this.fileIo.newInputFile(
+                    PathUtil.getAbsolutePath(tableLocation, fileScanTask.file().path().toString())),
                   fileScanTask.file().keyMetadata())));
       ImmutableMap.Builder<String, InputFile> inputFileBuilder = ImmutableMap.builder();
       decryptedFiles.forEach(decrypted -> inputFileBuilder.put(decrypted.location(), decrypted));
@@ -443,7 +457,8 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
         iter = newDataIterable(task.asDataTask(), readSchema);
 
       } else {
-        InputFile location = inputFiles.get(task.file().path().toString());
+        String absPath = PathUtil.getAbsolutePath(tableLocation, task.file().path().toString());
+        InputFile location = inputFiles.get(absPath);
         Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
 
         switch (task.file().format()) {

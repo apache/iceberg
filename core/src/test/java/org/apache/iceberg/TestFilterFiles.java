@@ -94,7 +94,7 @@ public class TestFilterFiles {
     Metrics metrics = new Metrics(2L, Maps.newHashMap(), Maps.newHashMap(),
         Maps.newHashMap(), lowerBounds, upperBounds);
 
-    DataFile file = DataFiles.builder(table.spec())
+    DataFile file = DataFiles.builder(table.spec(), table.location())
         .withPath("/path/to/file.parquet")
         .withFileSizeInBytes(0)
         .withMetrics(metrics)
@@ -120,7 +120,7 @@ public class TestFilterFiles {
     Metrics metrics = new Metrics(2L, Maps.newHashMap(), Maps.newHashMap(),
         Maps.newHashMap(), lowerBounds, upperBounds);
 
-    DataFile file = DataFiles.builder(table.spec())
+    DataFile file = DataFiles.builder(table.spec(), table.location())
         .withPath("/path/to/file.parquet")
         .withFileSizeInBytes(0)
         .withMetrics(metrics)

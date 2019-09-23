@@ -31,6 +31,7 @@ import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.util.ParallelIterable;
+import org.apache.iceberg.util.PathUtil;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,7 +84,9 @@ public class DataTableScan extends BaseTableScan {
     Iterable<CloseableIterable<FileScanTask>> readers = Iterables.transform(
         matchingManifests,
         manifest -> {
-          ManifestReader reader = ManifestReader.read(ops.io().newInputFile(manifest.path()), ops.current()::spec);
+          String absPath = PathUtil.getAbsolutePath(ops.current().location(), manifest.path());
+          ManifestReader reader = ManifestReader
+                  .read(ops.io().newInputFile(absPath), ops.current()::spec);
           PartitionSpec spec = ops.current().spec(manifest.partitionSpecId());
           String schemaString = SchemaParser.toJson(spec.schema());
           String specString = PartitionSpecParser.toJson(spec);

@@ -177,14 +177,14 @@ public class TestForwardCompatibility {
       writer.close();
     }
 
-    DataFile file = DataFiles.builder(FAKE_SPEC)
+    DataFile file = DataFiles.builder(FAKE_SPEC, table.location())
         .withInputFile(localInput(parquetFile))
         .withMetrics(writer.metrics())
         .withPartitionPath("id_zero=0")
         .build();
 
     OutputFile manifestFile = localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
-    ManifestWriter manifestWriter = ManifestWriter.write(FAKE_SPEC, manifestFile);
+    ManifestWriter manifestWriter = ManifestWriter.write(FAKE_SPEC, manifestFile, table.location());
     try {
       manifestWriter.add(file);
     } finally {

@@ -157,8 +157,9 @@ public class TestSplitPlanning {
 
   private DataFile newFile(long sizeInBytes) {
     String fileName = UUID.randomUUID().toString();
-    return DataFiles.builder(PartitionSpec.unpartitioned())
-        .withPath(FileFormat.PARQUET.addExtension(fileName))
+    String absPath = new File(FileFormat.PARQUET.addExtension(fileName)).getAbsolutePath();
+    return DataFiles.builder(PartitionSpec.unpartitioned(), table.location())
+        .withPath(absPath)
         .withFileSizeInBytes(sizeInBytes)
         .withRecordCount(2)
         .build();

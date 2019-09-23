@@ -33,23 +33,23 @@ public class TestSnapshotSelection extends TableTestBase {
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
 
     table.newFastAppend()
-        .appendFile(FILE_A)
+        .appendFile(fileA)
         .commit();
     Snapshot firstSnapshot = table.currentSnapshot();
 
     table.newFastAppend()
-        .appendFile(FILE_B)
+        .appendFile(fileB)
         .commit();
     Snapshot secondSnapshot = table.currentSnapshot();
 
     Assert.assertEquals("Table should have two snapshots", 2, Iterables.size(table.snapshots()));
-    validateSnapshot(null, table.snapshot(firstSnapshot.snapshotId()), FILE_A);
-    validateSnapshot(firstSnapshot, table.snapshot(secondSnapshot.snapshotId()), FILE_B);
+    validateSnapshot(null, table.snapshot(firstSnapshot.snapshotId()), fileA);
+    validateSnapshot(firstSnapshot, table.snapshot(secondSnapshot.snapshotId()), fileB);
   }
 
   @Test
   public void testSnapshotStatsForAddedFiles() {
-    DataFile fileWithStats = DataFiles.builder(SPEC)
+    DataFile fileWithStats = DataFiles.builder(SPEC, table.location())
         .withPath("/path/to/data-with-stats.parquet")
         .withFileSizeInBytes(10)
         .withPartitionPath("data_bucket=0")

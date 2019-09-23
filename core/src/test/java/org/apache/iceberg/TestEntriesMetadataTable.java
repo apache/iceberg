@@ -30,8 +30,8 @@ public class TestEntriesMetadataTable extends TableTestBase {
   @Test
   public void testEntriesTable() {
     table.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     Table entriesTable = new ManifestEntriesTable(table.ops(), table);
@@ -46,8 +46,8 @@ public class TestEntriesMetadataTable extends TableTestBase {
   @Test
   public void testEntriesTableScan() {
     table.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     Table entriesTable = new ManifestEntriesTable(table.ops(), table);

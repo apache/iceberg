@@ -38,6 +38,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.Exceptions;
+import org.apache.iceberg.util.PathUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
@@ -309,7 +310,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   private static ManifestFile addMetadata(TableOperations ops, ManifestFile manifest) {
     try (ManifestReader reader = ManifestReader.read(
-        ops.io().newInputFile(manifest.path()), ops.current()::spec)) {
+        ops.io().newInputFile(PathUtil.getAbsolutePath(ops.current().location(), manifest.path())),
+        ops.current()::spec)) {
       PartitionSummary stats = new PartitionSummary(ops.current().spec(manifest.partitionSpecId()));
       int addedFiles = 0;
       int existingFiles = 0;

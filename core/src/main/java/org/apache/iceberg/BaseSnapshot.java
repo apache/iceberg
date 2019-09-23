@@ -32,6 +32,7 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.util.PathUtil;
 
 class BaseSnapshot implements Snapshot {
   private final TableOperations ops;
@@ -52,10 +53,11 @@ class BaseSnapshot implements Snapshot {
    */
   BaseSnapshot(TableOperations ops,
                long snapshotId,
+               String tableLocation,
                String... manifestFiles) {
     this(ops, snapshotId, null, System.currentTimeMillis(), null, null,
         Lists.transform(Arrays.asList(manifestFiles),
-            path -> new GenericManifestFile(ops.io().newInputFile(path), 0)));
+            path -> new GenericManifestFile(ops.io().newInputFile(PathUtil.getAbsolutePath(tableLocation, path)), 0)));
   }
 
   BaseSnapshot(TableOperations ops,

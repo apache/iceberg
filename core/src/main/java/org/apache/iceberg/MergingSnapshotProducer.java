@@ -47,6 +47,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.BinPacking.ListPacker;
 import org.apache.iceberg.util.CharSequenceWrapper;
 import org.apache.iceberg.util.ManifestFileUtil;
+import org.apache.iceberg.util.PathUtil;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -202,10 +203,16 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void add(ManifestFile manifest) {
     // the manifest must be rewritten with this update's snapshot ID
+    String absManifestPath = PathUtil.getAbsolutePath(ops.current().location(), manifest.path());
     try (ManifestReader reader = ManifestReader.read(
-        ops.io().newInputFile(manifest.path()), ops.current()::spec)) {
+        ops.io().newInputFile(absManifestPath), ops.current()::spec)) {
       appendManifests.add(ManifestWriter.copyAppendManifest(
-          reader, manifestPath(manifestCount.getAndIncrement()), snapshotId(), summaryBuilder));
+          reader,
+          manifestPath(manifestCount.getAndIncrement()),
+          snapshotId(),
+          summaryBuilder,
+          ops.current().location())
+      );
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest);
     }
@@ -338,7 +345,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       // delete any new merged manifests that aren't in the committed list
       ManifestFile merged = entry.getValue();
       if (!committed.contains(merged)) {
-        deleteFile(merged.path());
+        String absPath = PathUtil.getAbsolutePath(ops.current().location(), merged.path());
+        deleteFile(absPath);
         // remove the deleted file from the cache
         mergeManifests.remove(entry.getKey());
       }
@@ -357,7 +365,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       if (!committed.contains(filtered)) {
         // only delete if the filtered copy was created
         if (!manifest.equals(filtered)) {
-          deleteFile(filtered.path());
+          String absPath = PathUtil.getAbsolutePath(ops.current().location(), filtered.path());
+          deleteFile(absPath);
         }
 
         // remove the entry from the cache
@@ -368,13 +377,15 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   private void cleanUncommittedAppends(Set<ManifestFile> committed) {
     if (cachedNewManifest != null && !committed.contains(cachedNewManifest)) {
-      deleteFile(cachedNewManifest.path());
+      String absPath = PathUtil.getAbsolutePath(ops.current().location(), cachedNewManifest.path());
+      deleteFile(absPath);
       this.cachedNewManifest = null;
     }
 
     for (ManifestFile manifest : appendManifests) {
       if (!committed.contains(manifest)) {
-        deleteFile(manifest.path());
+        String absPath = PathUtil.getAbsolutePath(ops.current().location(), manifest.path());
+        deleteFile(absPath);
       }
     }
   }
@@ -439,7 +450,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
 
     try (ManifestReader reader = ManifestReader.read(
-        ops.io().newInputFile(manifest.path()), ops.current()::spec)) {
+        ops.io().newInputFile(PathUtil.getAbsolutePath(ops.current().location(), manifest.path())),
+        ops.current()::spec)) {
 
       // this is reused to compare file paths with the delete set
       CharSequenceWrapper pathWrapper = CharSequenceWrapper.wrap("");
@@ -499,7 +511,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     List<DataFile> deletedFiles = Lists.newArrayList();
     Set<CharSequenceWrapper> deletedPaths = Sets.newHashSet();
     OutputFile filteredCopy = manifestPath(manifestCount.getAndIncrement());
-    ManifestWriter writer = new ManifestWriter(reader.spec(), filteredCopy, snapshotId());
+    ManifestWriter writer = new ManifestWriter(reader.spec(), filteredCopy, snapshotId(), ops.current().location());
     try {
       reader.entries().forEach(entry -> {
         DataFile file = entry.file();
@@ -612,11 +624,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     OutputFile out = manifestPath(manifestCount.getAndIncrement());
 
-    ManifestWriter writer = new ManifestWriter(ops.current().spec(specId), out, snapshotId());
+    ManifestWriter writer = new ManifestWriter(ops.current().spec(specId), out, snapshotId(), ops.current().location());
     try {
       for (ManifestFile manifest : bin) {
+        String absManifestPath = PathUtil.getAbsolutePath(ops.current().location(), manifest.path());
         try (ManifestReader reader = ManifestReader.read(
-            ops.io().newInputFile(manifest.path()), ops.current()::spec)) {
+            ops.io().newInputFile(absManifestPath), ops.current()::spec)) {
           for (ManifestEntry entry : reader.entries()) {
             if (entry.status() == Status.DELETED) {
               // suppress deletes from previous snapshots. only files deleted by this snapshot
@@ -655,7 +668,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     if (cachedNewManifest == null) {
       OutputFile out = manifestPath(manifestCount.getAndIncrement());
 
-      ManifestWriter writer = new ManifestWriter(spec, out, snapshotId());
+      ManifestWriter writer = new ManifestWriter(spec, out, snapshotId(), ops.current().location());
       try {
         writer.addAll(newFiles);
       } finally {

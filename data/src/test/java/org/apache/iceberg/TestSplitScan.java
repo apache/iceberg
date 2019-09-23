@@ -108,7 +108,7 @@ public class TestSplitScan {
     expectedRecords = RandomGenericData.generate(SCHEMA, numRecords, 0L);
     File file = writeToFile(expectedRecords, format);
 
-    DataFile dataFile = DataFiles.builder(PartitionSpec.unpartitioned())
+    DataFile dataFile = DataFiles.builder(PartitionSpec.unpartitioned(), table.location())
         .withRecordCount(expectedRecords.size())
         .withFileSizeInBytes(file.length())
         .withPath(file.toString())

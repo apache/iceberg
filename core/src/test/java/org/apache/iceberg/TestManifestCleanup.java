@@ -30,8 +30,8 @@ public class TestManifestCleanup extends TableTestBase {
         0, listManifestFiles().size());
 
     table.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     Assert.assertEquals("Table should have one append manifest",
@@ -56,8 +56,8 @@ public class TestManifestCleanup extends TableTestBase {
         0, listManifestFiles().size());
 
     table.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     Snapshot s1 = table.currentSnapshot();
@@ -65,7 +65,7 @@ public class TestManifestCleanup extends TableTestBase {
         1, s1.manifests().size());
 
     table.newDelete()
-        .deleteFile(FILE_B)
+        .deleteFile(fileB)
         .commit();
 
     Snapshot s2 = table.currentSnapshot();
@@ -85,8 +85,8 @@ public class TestManifestCleanup extends TableTestBase {
         0, listManifestFiles().size());
 
     table.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     Assert.assertEquals("Table should have one append manifest",
@@ -94,8 +94,8 @@ public class TestManifestCleanup extends TableTestBase {
 
     table.newOverwrite()
         .overwriteByRowFilter(Expressions.alwaysTrue())
-        .addFile(FILE_C)
-        .addFile(FILE_D)
+        .addFile(fileC)
+        .addFile(fileD)
         .commit();
 
     Assert.assertEquals("Table should have one delete manifest and one append manifest",
@@ -103,8 +103,8 @@ public class TestManifestCleanup extends TableTestBase {
 
     table.newOverwrite()
         .overwriteByRowFilter(Expressions.alwaysTrue())
-        .addFile(FILE_A)
-        .addFile(FILE_B)
+        .addFile(fileA)
+        .addFile(fileB)
         .commit();
 
     Assert.assertEquals("Table should have one delete manifest and one append manifest",

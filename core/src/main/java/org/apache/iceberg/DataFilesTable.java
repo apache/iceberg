@@ -29,6 +29,7 @@ import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.PathUtil;
 
 /**
  * A {@link Table} implementation that exposes a table's data files as rows.
@@ -126,8 +127,12 @@ public class DataFilesTable extends BaseMetadataTable {
       // all cases.
       return CloseableIterable.transform(manifests, manifest ->
           new ManifestReadTask(ops.io(), new BaseFileScanTask(
-              DataFiles.fromManifest(manifest), schemaString, specString, ResidualEvaluator.unpartitioned(rowFilter)),
-              fileSchema));
+                  DataFiles.fromManifest(manifest, table().location()),
+                  schemaString,
+                  specString,
+                  ResidualEvaluator.unpartitioned(rowFilter)
+          ),
+              fileSchema, table().location()));
     }
   }
 
@@ -135,17 +140,20 @@ public class DataFilesTable extends BaseMetadataTable {
     private final FileIO io;
     private final FileScanTask manifestTask;
     private final Schema schema;
+    private final String tableLocation;
 
-    private ManifestReadTask(FileIO io, FileScanTask manifestTask, Schema schema) {
+    private ManifestReadTask(FileIO io, FileScanTask manifestTask, Schema schema, String tableLocation) {
       this.io = io;
       this.manifestTask = manifestTask;
       this.schema = schema;
+      this.tableLocation = tableLocation;
     }
 
     @Override
     public CloseableIterable<StructLike> rows() {
+      String absManifestPath = PathUtil.getAbsolutePath(tableLocation, manifestTask.file().path().toString());
       return CloseableIterable.transform(
-          ManifestReader.read(io.newInputFile(manifestTask.file().path().toString())).project(schema),
+          ManifestReader.read(io.newInputFile(absManifestPath)).project(schema),
           file -> (GenericDataFile) file);
     }
 

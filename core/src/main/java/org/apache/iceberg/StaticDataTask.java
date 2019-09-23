@@ -32,16 +32,18 @@ import org.apache.iceberg.io.InputFile;
 
 class StaticDataTask implements DataTask {
 
-  static <T> DataTask of(InputFile metadata, Iterable<T> values, Function<T, Row> transform) {
-    return new StaticDataTask(metadata,
-        Lists.newArrayList(Iterables.transform(values, transform::apply)).toArray(new Row[0]));
+  static <T> DataTask of(InputFile metadata, Iterable<T> values, Function<T, Row> transform, String tableLocation) {
+    return new StaticDataTask(
+            metadata,
+            Lists.newArrayList(Iterables.transform(values, transform::apply)).toArray(new Row[0]),
+            tableLocation);
   }
 
   private final DataFile metadataFile;
   private final StructLike[] rows;
 
-  private StaticDataTask(InputFile metadata, StructLike[] rows) {
-    this.metadataFile = DataFiles.builder()
+  private StaticDataTask(InputFile metadata, StructLike[] rows, String tableLocation) {
+    this.metadataFile = DataFiles.builder(tableLocation)
         .withInputFile(metadata)
         .withRecordCount(rows.length)
         .withFormat(FileFormat.METADATA)

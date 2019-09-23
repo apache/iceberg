@@ -33,6 +33,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.util.PathUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -238,7 +239,7 @@ class BaseTransaction implements Transaction {
       Tasks.foreach(deletedFiles)
           .suppressFailureWhenFinished()
           .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
-          .run(ops.io()::deleteFile);
+          .run(path -> ops.io().deleteFile(PathUtil.getAbsolutePath(table().location(), path)));
     }
   }
 
@@ -293,7 +294,7 @@ class BaseTransaction implements Transaction {
       Tasks.foreach(deletedFiles)
           .suppressFailureWhenFinished()
           .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
-          .run(ops.io()::deleteFile);
+          .run(path -> ops.io().deleteFile(PathUtil.getAbsolutePath(table().location(), path)));
     }
   }
 
@@ -370,7 +371,7 @@ class BaseTransaction implements Transaction {
             .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
             .run(path -> {
               if (!committedFiles.contains(path)) {
-                ops.io().deleteFile(path);
+                ops.io().deleteFile(PathUtil.getAbsolutePath(table().location(), path));
               }
             });
       } else {

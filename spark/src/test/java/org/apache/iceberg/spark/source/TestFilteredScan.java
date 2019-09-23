@@ -199,7 +199,7 @@ public class TestFilteredScan {
         break;
     }
 
-    DataFile file = DataFiles.builder(PartitionSpec.unpartitioned())
+    DataFile file = DataFiles.builder(PartitionSpec.unpartitioned(), table.location())
         .withRecordCount(records.size())
         .withFileSizeInBytes(testFile.length())
         .withPath(testFile.toString())

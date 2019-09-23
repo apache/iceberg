@@ -20,6 +20,7 @@
 package org.apache.iceberg.hive;
 
 import com.google.common.util.concurrent.MoreExecutors;
+import java.io.File;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -46,11 +47,6 @@ public class TestHiveTableConcurrency extends HiveTableBaseTest {
     Table anotherIcebergTable = catalog.loadTable(TABLE_IDENTIFIER);
 
     String fileName = UUID.randomUUID().toString();
-    DataFile file = DataFiles.builder(icebergTable.spec())
-        .withPath(FileFormat.PARQUET.addExtension(fileName))
-        .withRecordCount(2)
-        .withFileSizeInBytes(0)
-        .build();
 
     ExecutorService executorService = MoreExecutors.getExitingExecutorService(
         (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
@@ -69,6 +65,12 @@ public class TestHiveTableConcurrency extends HiveTableBaseTest {
               }
             }
 
+            String absPath = new File(FileFormat.PARQUET.addExtension(fileName)).getAbsolutePath();
+            DataFile file = DataFiles.builder(icebergTable.spec(), table.location())
+                    .withPath(absPath)
+                    .withRecordCount(2)
+                    .withFileSizeInBytes(0)
+                    .build();
             table.newFastAppend().appendFile(file).commit();
             barrier.incrementAndGet();
           }
@@ -89,8 +91,9 @@ public class TestHiveTableConcurrency extends HiveTableBaseTest {
         .commit();
 
     String fileName = UUID.randomUUID().toString();
-    DataFile file = DataFiles.builder(icebergTable.spec())
-        .withPath(FileFormat.PARQUET.addExtension(fileName))
+    String absPath = new File(FileFormat.PARQUET.addExtension(fileName)).getAbsolutePath();
+    DataFile file = DataFiles.builder(icebergTable.spec(), icebergTable.location())
+        .withPath(absPath)
         .withRecordCount(2)
         .withFileSizeInBytes(0)
         .build();

@@ -251,7 +251,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
   public void testFastAppend() throws Exception {
     // first append
     table.newFastAppend()
-        .appendFile(FILE_A)
+        .appendFile(fileA)
         .commit();
 
     Assert.assertTrue("Should create v2 for the update",
@@ -267,7 +267,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     // second append
     table.newFastAppend()
-        .appendFile(FILE_B)
+        .appendFile(fileB)
         .commit();
 
     Assert.assertTrue("Should create v3 for the update",
@@ -295,7 +295,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     // third append
     table.newAppend()
-        .appendFile(FILE_C)
+        .appendFile(fileC)
         .commit();
 
     List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles());
@@ -375,7 +375,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     // do a file append
     table.newAppend()
-        .appendFile(FILE_A)
+        .appendFile(fileA)
         .commit();
 
     // since we don't generate old file extensions anymore, let's convert existing metadata to old .metadata.json.gz

@@ -119,7 +119,14 @@ class Writer implements DataSourceWriter {
   @Override
   public DataWriterFactory<InternalRow> createWriterFactory() {
     return new WriterFactory(
-        table.spec(), format, table.locationProvider(), table.properties(), fileIo, encryptionManager);
+      table.spec(),
+      format,
+      table.locationProvider(),
+      table.properties(),
+      fileIo,
+      encryptionManager,
+      table.location()
+    );
   }
 
   @Override
@@ -245,15 +252,18 @@ class Writer implements DataSourceWriter {
     private final String uuid = UUID.randomUUID().toString();
     private final FileIO fileIo;
     private final EncryptionManager encryptionManager;
+    private final String tableLocation;
 
     WriterFactory(PartitionSpec spec, FileFormat format, LocationProvider locations,
-                  Map<String, String> properties, FileIO fileIo, EncryptionManager encryptionManager) {
+                  Map<String, String> properties, FileIO fileIo, EncryptionManager encryptionManager,
+                  String tableLocation) {
       this.spec = spec;
       this.format = format;
       this.locations = locations;
       this.properties = properties;
       this.fileIo = fileIo;
       this.encryptionManager = encryptionManager;
+      this.tableLocation = tableLocation;
     }
 
     @Override
@@ -262,14 +272,14 @@ class Writer implements DataSourceWriter {
       AppenderFactory<InternalRow> factory = new SparkAppenderFactory();
       if (spec.fields().isEmpty()) {
         OutputFile outputFile = fileIo.newOutputFile(locations.newDataLocation(filename));
-        return new UnpartitionedWriter(encryptionManager.encrypt(outputFile), format, factory, fileIo);
+        return new UnpartitionedWriter(encryptionManager.encrypt(outputFile), format, factory, fileIo, tableLocation);
       } else {
         Function<PartitionKey, EncryptedOutputFile> newOutputFileForKey =
             key -> {
               OutputFile rawOutputFile = fileIo.newOutputFile(locations.newDataLocation(spec, key, filename));
               return encryptionManager.encrypt(rawOutputFile);
             };
-        return new PartitionedWriter(spec, format, factory, newOutputFileForKey, fileIo);
+        return new PartitionedWriter(spec, format, factory, newOutputFileForKey, fileIo, tableLocation);
       }
     }
 
@@ -317,15 +327,18 @@ class Writer implements DataSourceWriter {
     private Metrics metrics = null;
     private List<Long> offsetRanges = null;
     private final EncryptedOutputFile file;
+    private final String tableLocation;
 
     UnpartitionedWriter(
         EncryptedOutputFile outputFile,
         FileFormat format,
         AppenderFactory<InternalRow> factory,
-        FileIO fileIo) {
+        FileIO fileIo,
+        String tableLocation) {
       this.fileIo = fileIo;
       this.file = outputFile;
       this.appender = factory.newAppender(file.encryptingOutputFile(), format);
+      this.tableLocation = tableLocation;
     }
 
     @Override
@@ -345,7 +358,7 @@ class Writer implements DataSourceWriter {
         return new TaskCommit();
       }
 
-      DataFile dataFile = DataFiles.fromEncryptedOutputFile(file, null, metrics, offsetRanges);
+      DataFile dataFile = DataFiles.fromEncryptedOutputFile(file, null, metrics, offsetRanges, tableLocation);
 
       return new TaskCommit(dataFile);
     }
@@ -378,6 +391,7 @@ class Writer implements DataSourceWriter {
     private final Function<PartitionKey, EncryptedOutputFile> newOutputFileForKey;
     private final PartitionKey key;
     private final FileIO fileIo;
+    private final String tableLocation;
 
     private PartitionKey currentKey = null;
     private FileAppender<InternalRow> currentAppender = null;
@@ -388,13 +402,15 @@ class Writer implements DataSourceWriter {
         FileFormat format,
         AppenderFactory<InternalRow> factory,
         Function<PartitionKey, EncryptedOutputFile> newOutputFileForKey,
-        FileIO fileIo) {
+        FileIO fileIo,
+        String tableLocation) {
       this.spec = spec;
       this.format = format;
       this.factory = factory;
       this.newOutputFileForKey = newOutputFileForKey;
       this.key = new PartitionKey(spec);
       this.fileIo = fileIo;
+      this.tableLocation = tableLocation;
     }
 
     @Override
@@ -448,7 +464,7 @@ class Writer implements DataSourceWriter {
         List<Long> splitOffsets = currentAppender.splitOffsets();
         this.currentAppender = null;
 
-        DataFile dataFile = DataFiles.builder(spec)
+        DataFile dataFile = DataFiles.builder(spec, tableLocation)
             .withEncryptedOutputFile(currentFile)
             .withPartition(currentKey)
             .withMetrics(metrics)

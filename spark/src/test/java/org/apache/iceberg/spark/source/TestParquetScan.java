@@ -101,7 +101,7 @@ public class TestParquetScan extends AvroDataTest {
       writer.addAll(expected);
     }
 
-    DataFile file = DataFiles.builder(PartitionSpec.unpartitioned())
+    DataFile file = DataFiles.builder(PartitionSpec.unpartitioned(), table.location())
         .withFileSizeInBytes(parquetFile.length())
         .withPath(parquetFile.toString())
         .withRecordCount(100)

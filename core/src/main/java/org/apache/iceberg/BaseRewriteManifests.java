@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.util.PathUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 
@@ -172,8 +173,9 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
               keptManifests.add(manifest);
             } else {
               replacedManifests.add(manifest);
-              try (ManifestReader reader =
-                     ManifestReader.read(ops.io().newInputFile(manifest.path()), ops.current()::spec)) {
+              try (ManifestReader reader = ManifestReader.read(
+                      ops.io().newInputFile(PathUtil.getAbsolutePath(ops.current().location(), manifest.path())),
+                      ops.current()::spec)) {
                 FilteredManifest filteredManifest = reader.select(Arrays.asList("*"));
                 filteredManifest.liveEntries().forEach(
                     entry -> appendEntry(entry, clusterByFunc.apply(entry.file()))
@@ -216,7 +218,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
   protected void cleanUncommitted(Set<ManifestFile> committed) {
     for (ManifestFile manifest : newManifests) {
       if (!committed.contains(manifest)) {
-        deleteFile(manifest.path());
+        deleteFile(PathUtil.getAbsolutePath(ops.current().location(), manifest.path()));
       }
     }
   }
@@ -239,7 +241,12 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
     }
 
     private ManifestWriter newWriter() {
-      return new ManifestWriter(spec, manifestPath(manifestSuffix.getAndIncrement()), snapshotId());
+      return new ManifestWriter(
+              spec,
+              manifestPath(manifestSuffix.getAndIncrement()),
+              snapshotId(),
+              ops.current().location()
+      );
     }
 
     synchronized void close() {

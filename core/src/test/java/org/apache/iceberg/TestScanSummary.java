@@ -40,8 +40,8 @@ public class TestScanSummary extends TableTestBase {
     long t0 = System.currentTimeMillis();
 
     table.newAppend()
-        .appendFile(FILE_A) // data_bucket=0
-        .appendFile(FILE_B) // data_bucket=1
+        .appendFile(fileA) // data_bucket=0
+        .appendFile(fileB) // data_bucket=1
         .commit();
 
     long t1 = System.currentTimeMillis();
@@ -50,7 +50,7 @@ public class TestScanSummary extends TableTestBase {
     }
 
     table.newAppend()
-        .appendFile(FILE_C) // data_bucket=2
+        .appendFile(fileC) // data_bucket=2
         .commit();
 
     long secondSnapshotId = table.currentSnapshot().snapshotId();

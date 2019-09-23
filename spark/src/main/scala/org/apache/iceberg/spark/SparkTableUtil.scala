@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark
 
 import com.google.common.collect.Maps
+import java.io.File
 import java.nio.ByteBuffer
 import java.util
 import org.apache.hadoop.conf.Configuration
@@ -130,13 +131,13 @@ object SparkTableUtil {
      * @param spec a [[PartitionSpec]] that will be used to parse the partition key
      * @return a [[DataFile]] that can be passed to [[org.apache.iceberg.AppendFiles]]
      */
-    def toDataFile(spec: PartitionSpec): DataFile = {
+    def toDataFile(spec: PartitionSpec, tableLocation: String): DataFile = {
       // values are strings, so pass a path to let the builder coerce to the right types
       val partitionKey = spec.fields.asScala.map(_.name).map { name =>
         s"$name=${partition(name)}"
       }.mkString("/")
 
-      var builder = DataFiles.builder(spec)
+      var builder = DataFiles.builder(spec, tableLocation)
         .withPath(path)
         .withFormat(format)
         .withFileSizeInBytes(fileSize)
@@ -310,7 +311,8 @@ object SparkTableUtil {
   private def buildManifest(conf: SerializableConfiguration,
       sparkDataFiles: Seq[SparkDataFile],
       partitionSpec: PartitionSpec,
-      basePath: String): Iterator[Manifest] = {
+      basePath: String,
+      tableLocation: String): Iterator[Manifest] = {
     if (sparkDataFiles.isEmpty) {
       Seq.empty.iterator
     } else {
@@ -318,11 +320,12 @@ object SparkTableUtil {
       val ctx = TaskContext.get()
       val location = new Path(basePath,
         s"stage-${ctx.stageId()}-task-${ctx.taskAttemptId()}-manifest")
-      val outputFile = io.newOutputFile(FileFormat.AVRO.addExtension(location.toString))
-      val writer = ManifestWriter.write(partitionSpec, outputFile)
+      val absPath = new File(location.toString).getAbsolutePath;
+      val outputFile = io.newOutputFile(FileFormat.AVRO.addExtension(absPath))
+      val writer = ManifestWriter.write(partitionSpec, outputFile, tableLocation)
       try {
         sparkDataFiles.foreach { file =>
-          writer.add(file.toDataFile(partitionSpec))
+          writer.add(file.toDataFile(partitionSpec, tableLocation))
         }
       } finally {
         writer.close()
@@ -384,12 +387,13 @@ object SparkTableUtil {
     val conf = sparkSession.sparkContext.hadoopConfiguration
     val serializableConfiguration = new SerializableConfiguration(conf)
     val appender = table.newAppend()
+    val tableLocation = table.location()
 
     if (partitionSpec == PartitionSpec.unpartitioned) {
       val catalogTable = sparkSession.sessionState.catalog.getTableMetadata(source)
       val files = listPartition(Map.empty[String, String], catalogTable.location.toString,
         catalogTable.storage.serde.getOrElse("none"))
-      files.foreach{f => appender.appendFile(f.toDataFile(PartitionSpec.unpartitioned))}
+      files.foreach{f => appender.appendFile(f.toDataFile(PartitionSpec.unpartitioned, tableLocation))}
     } else {
       val partitions = partitionDF(sparkSession, s"$dbName.$tableName")
       val manifests = partitions.flatMap { row =>
@@ -397,7 +401,7 @@ object SparkTableUtil {
       }.repartition(sparkSession.sessionState.conf.numShufflePartitions)
         .orderBy($"path")
         .mapPartitions {
-        files => buildManifest(serializableConfiguration, files.toSeq, partitionSpec, stagingDir)
+        files => buildManifest(serializableConfiguration, files.toSeq, partitionSpec, stagingDir, tableLocation)
       }.collect().map(_.toManifestFile)
       manifests.foreach(appender.appendManifest)
     }

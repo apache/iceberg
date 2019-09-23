@@ -23,6 +23,7 @@ import java.io.File;
 import java.util.Collections;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.util.PathUtil;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.internal.util.collections.Sets;
@@ -42,9 +43,9 @@ public class TestRewriteFiles extends TableTestBase {
 
     AssertHelpers.assertThrows("Expected an exception",
         ValidationException.class,
-        "Missing required files to delete: /path/to/data-a.parquet",
+        String.format("Missing required files to delete: %s", fileA.path().toString()),
         () -> table.newRewrite()
-            .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_B))
+            .rewriteFiles(Sets.newSet(fileA), Sets.newSet(fileB))
             .commit());
   }
 
@@ -56,7 +57,7 @@ public class TestRewriteFiles extends TableTestBase {
         IllegalArgumentException.class,
         "Files to add can not be null or empty",
         () -> table.newRewrite()
-            .rewriteFiles(Sets.newSet(FILE_A), Collections.emptySet())
+            .rewriteFiles(Sets.newSet(fileA), Collections.emptySet())
             .apply());
   }
 
@@ -68,7 +69,7 @@ public class TestRewriteFiles extends TableTestBase {
         IllegalArgumentException.class,
         "Files to delete cannot be null or empty",
         () -> table.newRewrite()
-            .rewriteFiles(Collections.emptySet(), Sets.newSet(FILE_A))
+            .rewriteFiles(Collections.emptySet(), Sets.newSet(fileA))
             .apply());
   }
 
@@ -77,9 +78,9 @@ public class TestRewriteFiles extends TableTestBase {
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
 
     table.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     TableMetadata base = readMetadata();
@@ -89,7 +90,7 @@ public class TestRewriteFiles extends TableTestBase {
     ManifestFile initialManifest = base.currentSnapshot().manifests().get(0);
 
     Snapshot pending = table.newRewrite()
-        .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_C))
+        .rewriteFiles(Sets.newSet(fileA), Sets.newSet(fileC))
         .apply();
 
     Assert.assertEquals("Should contain 2 manifest",
@@ -101,13 +102,15 @@ public class TestRewriteFiles extends TableTestBase {
 
     validateManifestEntries(pending.manifests().get(0),
         ids(pendingId),
-        files(FILE_C),
-        statuses(ADDED));
+        files(fileC),
+        statuses(ADDED),
+        table.location());
 
     validateManifestEntries(pending.manifests().get(1),
         ids(pendingId, pendingId, baseSnapshotId),
-        files(FILE_A, FILE_A, FILE_B),
-        statuses(DELETED, DELETED, EXISTING));
+        files(fileA, fileA, fileB),
+        statuses(DELETED, DELETED, EXISTING),
+        table.location());
 
     // We should only get the 3 manifests that this test is expected to add.
     Assert.assertEquals("Only 3 manifests should exist", 3, listManifestFiles().size());
@@ -118,8 +121,8 @@ public class TestRewriteFiles extends TableTestBase {
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
 
     table.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     TableMetadata base = readMetadata();
@@ -129,7 +132,7 @@ public class TestRewriteFiles extends TableTestBase {
     ManifestFile initialManifest = base.currentSnapshot().manifests().get(0);
 
     Snapshot pending = table.newRewrite()
-        .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_C))
+        .rewriteFiles(Sets.newSet(fileA), Sets.newSet(fileC))
         .apply();
 
     Assert.assertEquals("Should contain 2 manifest",
@@ -141,13 +144,15 @@ public class TestRewriteFiles extends TableTestBase {
 
     validateManifestEntries(pending.manifests().get(0),
         ids(pendingId),
-        files(FILE_C),
-        statuses(ADDED));
+        files(fileC),
+        statuses(ADDED),
+        table.location());
 
     validateManifestEntries(pending.manifests().get(1),
         ids(pendingId, baseSnapshotId),
-        files(FILE_A, FILE_B),
-        statuses(DELETED, EXISTING));
+        files(fileA, fileB),
+        statuses(DELETED, EXISTING),
+        table.location());
 
     // We should only get the 3 manifests that this test is expected to add.
     Assert.assertEquals("Only 3 manifests should exist", 3, listManifestFiles().size());
@@ -156,13 +161,13 @@ public class TestRewriteFiles extends TableTestBase {
   @Test
   public void testFailure() {
     table.newAppend()
-        .appendFile(FILE_A)
+        .appendFile(fileA)
         .commit();
 
     table.ops().failCommits(5);
 
     RewriteFiles rewrite = table.newRewrite()
-        .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_B));
+        .rewriteFiles(Sets.newSet(fileA), Sets.newSet(fileB));
     Snapshot pending = rewrite.apply();
 
     Assert.assertEquals("Should produce 2 manifests", 2, pending.manifests().size());
@@ -170,9 +175,11 @@ public class TestRewriteFiles extends TableTestBase {
     ManifestFile manifest2 = pending.manifests().get(1);
 
     validateManifestEntries(manifest1,
-        ids(pending.snapshotId()), files(FILE_B), statuses(ADDED));
+        ids(pending.snapshotId()), files(fileB), statuses(ADDED),
+        table.location());
     validateManifestEntries(manifest2,
-        ids(pending.snapshotId()), files(FILE_A), statuses(DELETED));
+        ids(pending.snapshotId()), files(fileA), statuses(DELETED),
+        table.location());
 
     AssertHelpers.assertThrows("Should retry 4 times and throw last failure",
         CommitFailedException.class, "Injected failure", rewrite::commit);
@@ -187,12 +194,12 @@ public class TestRewriteFiles extends TableTestBase {
   @Test
   public void testRecovery() {
     table.newAppend()
-        .appendFile(FILE_A)
+        .appendFile(fileA)
         .commit();
 
     table.ops().failCommits(3);
 
-    RewriteFiles rewrite = table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_B));
+    RewriteFiles rewrite = table.newRewrite().rewriteFiles(Sets.newSet(fileA), Sets.newSet(fileB));
     Snapshot pending = rewrite.apply();
 
     Assert.assertEquals("Should produce 2 manifests", 2, pending.manifests().size());
@@ -200,14 +207,18 @@ public class TestRewriteFiles extends TableTestBase {
     ManifestFile manifest2 = pending.manifests().get(1);
 
     validateManifestEntries(manifest1,
-        ids(pending.snapshotId()), files(FILE_B), statuses(ADDED));
+        ids(pending.snapshotId()), files(fileB), statuses(ADDED),
+        table.location());
     validateManifestEntries(manifest2,
-        ids(pending.snapshotId()), files(FILE_A), statuses(DELETED));
+        ids(pending.snapshotId()), files(fileA), statuses(DELETED),
+        table.location());
 
     rewrite.commit();
 
-    Assert.assertTrue("Should reuse the manifest for appends", new File(manifest1.path()).exists());
-    Assert.assertTrue("Should reuse the manifest with deletes", new File(manifest2.path()).exists());
+    Assert.assertTrue("Should reuse the manifest for appends",
+        new File(PathUtil.getAbsolutePath(table.location(), manifest1.path())).exists());
+    Assert.assertTrue("Should reuse the manifest with deletes",
+        new File(PathUtil.getAbsolutePath(table.location(), manifest2.path())).exists());
 
     TableMetadata metadata = readMetadata();
     Assert.assertTrue("Should commit the manifest for append",
@@ -222,8 +233,8 @@ public class TestRewriteFiles extends TableTestBase {
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
 
     table.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     TableMetadata base = readMetadata();
@@ -232,9 +243,9 @@ public class TestRewriteFiles extends TableTestBase {
 
     AssertHelpers.assertThrows("Expected an exception",
         ValidationException.class,
-        "Missing required files to delete: /path/to/data-c.parquet",
+        String.format("Missing required files to delete: %s", fileC.path().toString()),
         () -> table.newRewrite()
-            .rewriteFiles(Sets.newSet(FILE_C), Sets.newSet(FILE_D))
+            .rewriteFiles(Sets.newSet(fileC), Sets.newSet(fileD))
             .commit());
 
     Assert.assertEquals("Only 1 manifests should exist", 1, listManifestFiles().size());
@@ -245,7 +256,7 @@ public class TestRewriteFiles extends TableTestBase {
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
 
     table.newAppend()
-        .appendFile(FILE_A)
+        .appendFile(fileA)
         .commit();
 
     TableMetadata base = readMetadata();
@@ -254,7 +265,7 @@ public class TestRewriteFiles extends TableTestBase {
 
     RewriteFiles rewrite = table.newRewrite();
     Snapshot pending = rewrite
-        .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_B))
+        .rewriteFiles(Sets.newSet(fileA), Sets.newSet(fileB))
         .apply();
 
     Assert.assertEquals("Should contain 2 manifest",
@@ -264,21 +275,23 @@ public class TestRewriteFiles extends TableTestBase {
 
     validateManifestEntries(pending.manifests().get(0),
         ids(pendingId),
-        files(FILE_B),
-        statuses(ADDED));
+        files(fileB),
+        statuses(ADDED),
+        table.location());
 
     validateManifestEntries(pending.manifests().get(1),
         ids(pendingId, base.currentSnapshot().snapshotId()),
-        files(FILE_A),
-        statuses(DELETED));
+        files(fileA),
+        statuses(DELETED),
+        table.location());
 
     rewrite.commit();
 
     AssertHelpers.assertThrows("Expected an exception",
         ValidationException.class,
-        "Missing required files to delete: /path/to/data-a.parquet",
+        String.format("Missing required files to delete: %s", fileA.path().toString()),
         () -> table.newRewrite()
-            .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_D))
+            .rewriteFiles(Sets.newSet(fileA), Sets.newSet(fileD))
             .commit());
 
     Assert.assertEquals("Only 3 manifests should exist", 3, listManifestFiles().size());

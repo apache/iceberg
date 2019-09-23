@@ -32,6 +32,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PathUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -103,7 +104,9 @@ public class TestParquetWrite {
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
     for (ManifestFile manifest : table.currentSnapshot().manifests()) {
-      for (DataFile file : ManifestReader.read(localInput(manifest.path()), null)) {
+      for (DataFile file :
+          ManifestReader.read(
+              localInput(PathUtil.getAbsolutePath(table.location(), manifest.path())), null)) {
         Assert.assertNotNull("Split offsets not present", file.splitOffsets());
         Assert.assertEquals("Should have reported record count as 1", 1, file.recordCount());
         Assert.assertNotNull("Column sizes metric not present", file.columnSizes());

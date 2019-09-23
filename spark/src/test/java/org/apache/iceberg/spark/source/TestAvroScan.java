@@ -93,7 +93,7 @@ public class TestAvroScan extends AvroDataTest {
       writer.addAll(expected);
     }
 
-    DataFile file = DataFiles.builder(PartitionSpec.unpartitioned())
+    DataFile file = DataFiles.builder(PartitionSpec.unpartitioned(), table.location())
         .withRecordCount(100)
         .withFileSizeInBytes(avroFile.length())
         .withPath(avroFile.toString())

@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.util.PathUtil;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -37,8 +38,8 @@ public class TestRewriteManifests extends TableTestBase {
   public void testReplaceManifestsSeparate() {
     Table table = load();
     table.newFastAppend()
-      .appendFile(FILE_A)
-      .appendFile(FILE_B)
+      .appendFile(fileA)
+      .appendFile(fileB)
       .commit();
     long appendId = table.currentSnapshot().snapshotId();
 
@@ -56,12 +57,14 @@ public class TestRewriteManifests extends TableTestBase {
 
     validateManifestEntries(manifests.get(0),
                             ids(appendId),
-                            files(FILE_A),
-                            statuses(ManifestEntry.Status.EXISTING));
+                            files(fileA),
+                            statuses(ManifestEntry.Status.EXISTING),
+                            table.location());
     validateManifestEntries(manifests.get(1),
                             ids(appendId),
-                            files(FILE_B),
-                            statuses(ManifestEntry.Status.EXISTING));
+                            files(fileB),
+                            statuses(ManifestEntry.Status.EXISTING),
+                            table.location());
   }
 
   @Test
@@ -69,11 +72,11 @@ public class TestRewriteManifests extends TableTestBase {
     Table table = load();
 
     table.newFastAppend()
-      .appendFile(FILE_A)
+      .appendFile(fileA)
       .commit();
     long appendIdA = table.currentSnapshot().snapshotId();
     table.newFastAppend()
-      .appendFile(FILE_B)
+      .appendFile(fileB)
       .commit();
     long appendIdB = table.currentSnapshot().snapshotId();
 
@@ -91,12 +94,13 @@ public class TestRewriteManifests extends TableTestBase {
     // get the file order correct
     List<DataFile> files;
     List<Long> ids;
-    try (ManifestReader reader = ManifestReader.read(localInput(manifests.get(0).path()))) {
-      if (reader.iterator().next().path().equals(FILE_A.path())) {
-        files = Arrays.asList(FILE_A, FILE_B);
+    try (ManifestReader reader =
+             ManifestReader.read(localInput(PathUtil.getAbsolutePath(table.location(), manifests.get(0).path())))) {
+      if (reader.iterator().next().path().equals(fileA.path())) {
+        files = Arrays.asList(fileA, fileB);
         ids = Arrays.asList(appendIdA, appendIdB);
       } else {
-        files = Arrays.asList(FILE_B, FILE_A);
+        files = Arrays.asList(fileB, fileA);
         ids = Arrays.asList(appendIdB, appendIdA);
       }
     }
@@ -104,7 +108,8 @@ public class TestRewriteManifests extends TableTestBase {
     validateManifestEntries(manifests.get(0),
                             ids.iterator(),
                             files.iterator(),
-                            statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING));
+                            statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING),
+                            table.location());
   }
 
   @Test
@@ -112,17 +117,17 @@ public class TestRewriteManifests extends TableTestBase {
     Table table = load();
 
     table.newFastAppend()
-      .appendFile(FILE_A)
+      .appendFile(fileA)
       .commit();
     long appendIdA = table.currentSnapshot().snapshotId();
 
     table.newFastAppend()
-      .appendFile(FILE_B)
+      .appendFile(fileB)
       .commit();
     long appendIdB = table.currentSnapshot().snapshotId();
 
     table.newFastAppend()
-      .appendFile(FILE_C)
+      .appendFile(fileC)
       .commit();
     long appendIdC = table.currentSnapshot().snapshotId();
 
@@ -133,8 +138,9 @@ public class TestRewriteManifests extends TableTestBase {
     table.rewriteManifests()
       .clusterBy(file -> "file")
       .rewriteIf(manifest -> {
-        try (ManifestReader reader = ManifestReader.read(localInput(manifest.path()))) {
-          return !reader.iterator().next().path().equals(FILE_A.path());
+        try (ManifestReader reader =
+               ManifestReader.read(localInput(PathUtil.getAbsolutePath(table.location(), manifest.path())))) {
+          return !reader.iterator().next().path().equals(fileA.path());
         } catch (IOException x) {
           throw new RuntimeIOException(x);
         }
@@ -147,12 +153,13 @@ public class TestRewriteManifests extends TableTestBase {
     // get the file order correct
     List<DataFile> files;
     List<Long> ids;
-    try (ManifestReader reader = ManifestReader.read(localInput(manifests.get(0).path()))) {
-      if (reader.iterator().next().path().equals(FILE_B.path())) {
-        files = Arrays.asList(FILE_B, FILE_C);
+    try (ManifestReader reader =
+           ManifestReader.read(localInput(PathUtil.getAbsolutePath(table.location(), manifests.get(0).path())))) {
+      if (reader.iterator().next().path().equals(fileB.path())) {
+        files = Arrays.asList(fileB, fileC);
         ids = Arrays.asList(appendIdB, appendIdC);
       } else {
-        files = Arrays.asList(FILE_C, FILE_B);
+        files = Arrays.asList(fileC, fileB);
         ids = Arrays.asList(appendIdC, appendIdB);
       }
     }
@@ -160,19 +167,21 @@ public class TestRewriteManifests extends TableTestBase {
     validateManifestEntries(manifests.get(0),
                             ids.iterator(),
                             files.iterator(),
-                            statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING));
+                            statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING),
+                            table.location());
     validateManifestEntries(manifests.get(1),
                             ids(appendIdA),
-                            files(FILE_A),
-                            statuses(ManifestEntry.Status.ADDED));
+                            files(fileA),
+                            statuses(ManifestEntry.Status.ADDED),
+                            table.location());
   }
 
   @Test
   public void testReplaceManifestsMaxSize() {
     Table table = load();
     table.newFastAppend()
-      .appendFile(FILE_A)
-      .appendFile(FILE_B)
+      .appendFile(fileA)
+      .appendFile(fileB)
       .commit();
     long appendId = table.currentSnapshot().snapshotId();
 
@@ -189,23 +198,25 @@ public class TestRewriteManifests extends TableTestBase {
 
     validateManifestEntries(manifests.get(0),
                             ids(appendId),
-                            files(FILE_A),
-                            statuses(ManifestEntry.Status.EXISTING));
+                            files(fileA),
+                            statuses(ManifestEntry.Status.EXISTING),
+                            table.location());
     validateManifestEntries(manifests.get(1),
                             ids(appendId),
-                            files(FILE_B),
-                            statuses(ManifestEntry.Status.EXISTING));
+                            files(fileB),
+                            statuses(ManifestEntry.Status.EXISTING),
+                            table.location());
   }
 
   @Test
   public void testConcurrentRewriteManifest() throws IOException {
     Table table = load();
     table.newFastAppend()
-      .appendFile(FILE_A)
+      .appendFile(fileA)
       .commit();
     long appendIdA = table.currentSnapshot().snapshotId();
     table.newFastAppend()
-      .appendFile(FILE_B)
+      .appendFile(fileB)
       .commit();
     long appendIdB = table.currentSnapshot().snapshotId();
 
@@ -217,8 +228,9 @@ public class TestRewriteManifests extends TableTestBase {
     table.rewriteManifests()
       .clusterBy(file -> "file")
       .rewriteIf(manifest -> {
-        try (ManifestReader reader = ManifestReader.read(localInput(manifest.path()))) {
-          return !reader.iterator().next().path().equals(FILE_A.path());
+        try (ManifestReader reader =
+               ManifestReader.read(localInput(PathUtil.getAbsolutePath(table.location(), manifest.path())))) {
+          return !reader.iterator().next().path().equals(fileA.path());
         } catch (IOException x) {
           throw new RuntimeIOException(x);
         }
@@ -237,12 +249,13 @@ public class TestRewriteManifests extends TableTestBase {
     // get the file order correct
     List<DataFile> files;
     List<Long> ids;
-    try (ManifestReader reader = ManifestReader.read(localInput(manifests.get(0).path()))) {
-      if (reader.iterator().next().path().equals(FILE_A.path())) {
-        files = Arrays.asList(FILE_A, FILE_B);
+    try (ManifestReader reader =
+           ManifestReader.read(localInput(PathUtil.getAbsolutePath(table.location(), manifests.get(0).path())))) {
+      if (reader.iterator().next().path().equals(fileA.path())) {
+        files = Arrays.asList(fileA, fileB);
         ids = Arrays.asList(appendIdA, appendIdB);
       } else {
-        files = Arrays.asList(FILE_B, FILE_A);
+        files = Arrays.asList(fileB, fileA);
         ids = Arrays.asList(appendIdB, appendIdA);
       }
     }
@@ -250,14 +263,15 @@ public class TestRewriteManifests extends TableTestBase {
     validateManifestEntries(manifests.get(0),
                             ids.iterator(),
                             files.iterator(),
-                            statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING));
+                            statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING),
+                            table.location());
   }
 
   @Test
   public void testAppendDuringRewriteManifest() {
     Table table = load();
     table.newFastAppend()
-      .appendFile(FILE_A)
+      .appendFile(fileA)
       .commit();
     long appendIdA = table.currentSnapshot().snapshotId();
 
@@ -267,7 +281,7 @@ public class TestRewriteManifests extends TableTestBase {
 
     // append a file
     table.newFastAppend()
-      .appendFile(FILE_B)
+      .appendFile(fileB)
       .commit();
     long appendIdB = table.currentSnapshot().snapshotId();
 
@@ -284,25 +298,27 @@ public class TestRewriteManifests extends TableTestBase {
 
     validateManifestEntries(manifests.get(0),
                             ids(appendIdA),
-                            files(FILE_A),
-                            statuses(ManifestEntry.Status.EXISTING));
+                            files(fileA),
+                            statuses(ManifestEntry.Status.EXISTING),
+                            table.location());
     validateManifestEntries(manifests.get(1),
                             ids(appendIdB),
-                            files(FILE_B),
-                            statuses(ManifestEntry.Status.ADDED));
+                            files(fileB),
+                            statuses(ManifestEntry.Status.ADDED),
+                            table.location());
   }
 
   @Test
   public void testRewriteManifestDuringAppend() {
     Table table = load();
     table.newFastAppend()
-      .appendFile(FILE_A)
+      .appendFile(fileA)
       .commit();
     long appendIdA = table.currentSnapshot().snapshotId();
 
     // start an append
     AppendFiles append = table.newFastAppend();
-    append.appendFile(FILE_B).apply();
+    append.appendFile(fileB).apply();
 
     // rewrite the manifests - only affects the first
     table.rewriteManifests()
@@ -322,11 +338,13 @@ public class TestRewriteManifests extends TableTestBase {
 
     validateManifestEntries(manifests.get(0),
                             ids(appendIdB),
-                            files(FILE_B),
-                            statuses(ManifestEntry.Status.ADDED));
+                            files(fileB),
+                            statuses(ManifestEntry.Status.ADDED),
+                            table.location());
     validateManifestEntries(manifests.get(1),
                             ids(appendIdA),
-                            files(FILE_A),
-                            statuses(ManifestEntry.Status.EXISTING));
+                            files(fileA),
+                            statuses(ManifestEntry.Status.EXISTING),
+                            table.location());
   }
 }

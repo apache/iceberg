@@ -44,6 +44,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PathUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -158,8 +159,14 @@ public class TestIcebergSourceHiveTables {
           .load("db.entries_test.entries")
           .collectAsList();
 
-      Assert.assertEquals("Should only contain one manifest", 1, table.currentSnapshot().manifests().size());
-      InputFile manifest = table.io().newInputFile(table.currentSnapshot().manifests().get(0).path());
+      Assert.assertEquals("Should only contain one manifest",
+          1,
+          table.currentSnapshot().manifests().size()
+      );
+      String absManifestPath = PathUtil.getAbsolutePath(
+          table.location(),
+          table.currentSnapshot().manifests().get(0).path());
+      InputFile manifest = table.io().newInputFile(absManifestPath);
       List<GenericData.Record> expected;
       try (CloseableIterable<GenericData.Record> rows = Avro.read(manifest).project(entriesTable.schema()).build()) {
         expected = Lists.newArrayList(rows);
@@ -210,7 +217,8 @@ public class TestIcebergSourceHiveTables {
 
       List<GenericData.Record> expected = Lists.newArrayList();
       for (ManifestFile manifest : table.currentSnapshot().manifests()) {
-        InputFile in = table.io().newInputFile(manifest.path());
+        String absManifestPath = PathUtil.getAbsolutePath(table.location(), manifest.path());
+        InputFile in = table.io().newInputFile(absManifestPath);
         try (CloseableIterable<GenericData.Record> rows = Avro.read(in).project(entriesTable.schema()).build()) {
           for (GenericData.Record record : rows) {
             if ((Integer) record.get("status") < 2 /* added or existing */) {
@@ -267,7 +275,8 @@ public class TestIcebergSourceHiveTables {
 
       List<GenericData.Record> expected = Lists.newArrayList();
       for (ManifestFile manifest : table.currentSnapshot().manifests()) {
-        InputFile in = table.io().newInputFile(manifest.path());
+        String absManifestPath = PathUtil.getAbsolutePath(table.location(), manifest.path());
+        InputFile in = table.io().newInputFile(absManifestPath);
         try (CloseableIterable<GenericData.Record> rows = Avro.read(in).project(entriesTable.schema()).build()) {
           for (GenericData.Record record : rows) {
             if ((Integer) record.get("status") < 2 /* added or existing */) {

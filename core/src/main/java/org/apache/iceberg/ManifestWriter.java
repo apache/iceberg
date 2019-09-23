@@ -25,6 +25,7 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.util.PathUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,8 +36,8 @@ public class ManifestWriter implements FileAppender<DataFile> {
   private static final Logger LOG = LoggerFactory.getLogger(ManifestWriter.class);
 
   static ManifestFile copyAppendManifest(ManifestReader reader, OutputFile outputFile, long snapshotId,
-                                         SnapshotSummary.Builder summaryBuilder) {
-    ManifestWriter writer = new ManifestWriter(reader.spec(), outputFile, snapshotId);
+                                         SnapshotSummary.Builder summaryBuilder, String tableLocation) {
+    ManifestWriter writer = new ManifestWriter(reader.spec(), outputFile, snapshotId, tableLocation);
     boolean threw = true;
     try {
       for (ManifestEntry entry : reader.entries()) {
@@ -71,8 +72,8 @@ public class ManifestWriter implements FileAppender<DataFile> {
    * @param outputFile the destination file location
    * @return a manifest writer
    */
-  public static ManifestWriter write(PartitionSpec spec, OutputFile outputFile) {
-    return new ManifestWriter(spec, outputFile, -1);
+  public static ManifestWriter write(PartitionSpec spec, OutputFile outputFile, String tableLocation) {
+    return new ManifestWriter(spec, outputFile, -1, tableLocation);
   }
 
   private final OutputFile file;
@@ -81,19 +82,21 @@ public class ManifestWriter implements FileAppender<DataFile> {
   private final long snapshotId;
   private final ManifestEntry reused;
   private final PartitionSummary stats;
+  private final String tableLocation;
 
   private boolean closed = false;
   private int addedFiles = 0;
   private int existingFiles = 0;
   private int deletedFiles = 0;
 
-  ManifestWriter(PartitionSpec spec, OutputFile file, long snapshotId) {
+  ManifestWriter(PartitionSpec spec, OutputFile file, long snapshotId, String tableLocation) {
     this.file = file;
     this.specId = spec.specId();
     this.writer = newAppender(FileFormat.AVRO, spec, file);
     this.snapshotId = snapshotId;
     this.reused = new ManifestEntry(spec.partitionType());
     this.stats = new PartitionSummary(spec);
+    this.tableLocation = tableLocation;
   }
 
   void addEntry(ManifestEntry entry) {
@@ -173,8 +176,9 @@ public class ManifestWriter implements FileAppender<DataFile> {
 
   public ManifestFile toManifestFile() {
     Preconditions.checkState(closed, "Cannot build ManifestFile, writer is not closed");
-    return new GenericManifestFile(file.location(), writer.length(), specId, snapshotId,
-        addedFiles, existingFiles, deletedFiles, stats.summaries());
+    String relativePath = PathUtil.getRelativePath(tableLocation, file.location());
+    return new GenericManifestFile(relativePath, writer.length(), specId, snapshotId,
+            addedFiles, existingFiles, deletedFiles, stats.summaries());
   }
 
   @Override

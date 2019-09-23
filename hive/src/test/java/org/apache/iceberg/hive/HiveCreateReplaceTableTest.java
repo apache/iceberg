@@ -116,7 +116,7 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
         TABLE_IDENTIFIER, SCHEMA, SPEC, tableLocation, Maps.newHashMap());
 
     AppendFiles append = txn.newAppend();
-    DataFile dataFile = DataFiles.builder(SPEC)
+    DataFile dataFile = DataFiles.builder(SPEC, tableLocation)
         .withPath("/path/to/data-a.parquet")
         .withFileSizeInBytes(0)
         .withRecordCount(1)

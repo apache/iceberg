@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PathUtil;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -52,30 +53,10 @@ public class TableTestBase {
       .bucket("data", 16)
       .build();
 
-  static final DataFile FILE_A = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-a.parquet")
-      .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=0") // easy way to set partition data for now
-      .withRecordCount(1)
-      .build();
-  static final DataFile FILE_B = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-b.parquet")
-      .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=1") // easy way to set partition data for now
-      .withRecordCount(1)
-      .build();
-  static final DataFile FILE_C = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-c.parquet")
-      .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=2") // easy way to set partition data for now
-      .withRecordCount(1)
-      .build();
-  static final DataFile FILE_D = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-d.parquet")
-      .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=3") // easy way to set partition data for now
-      .withRecordCount(1)
-      .build();
+  static DataFile fileA;
+  static DataFile fileB;
+  static DataFile fileC;
+  static DataFile fileD;
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -91,6 +72,31 @@ public class TableTestBase {
 
     this.metadataDir = new File(tableDir, "metadata");
     this.table = create(SCHEMA, SPEC);
+
+    this.fileA = DataFiles.builder(SPEC, table.location())
+            .withPath("/path/to/data-a.parquet")
+            .withFileSizeInBytes(0)
+            .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+            .withRecordCount(1)
+            .build();
+    fileB = DataFiles.builder(SPEC, table.location())
+            .withPath("/path/to/data-b.parquet")
+            .withFileSizeInBytes(0)
+            .withPartitionPath("data_bucket=1") // easy way to set partition data for now
+            .withRecordCount(1)
+            .build();
+    fileC = DataFiles.builder(SPEC, table.location())
+            .withPath("/path/to/data-c.parquet")
+            .withFileSizeInBytes(0)
+            .withPartitionPath("data_bucket=2") // easy way to set partition data for now
+            .withRecordCount(1)
+            .build();
+    fileD = DataFiles.builder(SPEC, table.location())
+            .withPath("/path/to/data-d.parquet")
+            .withFileSizeInBytes(0)
+            .withPartitionPath("data_bucket=3") // easy way to set partition data for now
+            .withRecordCount(1)
+            .build();
   }
 
   @After
@@ -128,7 +134,7 @@ public class TableTestBase {
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
-    ManifestWriter writer = ManifestWriter.write(table.spec(), outputFile);
+    ManifestWriter writer = ManifestWriter.write(table.spec(), outputFile, table.location());
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -140,7 +146,7 @@ public class TableTestBase {
     return writer.toManifestFile();
   }
 
-  void validateSnapshot(Snapshot old, Snapshot snap, DataFile... newFiles) {
+  void validateSnapshot(Snapshot old, Snapshot snap, String tableLocation, DataFile... newFiles) {
     List<ManifestFile> oldManifests = old != null ? old.manifests() : ImmutableList.of();
 
     // copy the manifests to a modifiable list and remove the existing manifests
@@ -157,13 +163,18 @@ public class TableTestBase {
     long id = snap.snapshotId();
     Iterator<String> newPaths = paths(newFiles).iterator();
 
-    for (ManifestEntry entry : ManifestReader.read(localInput(manifest.path())).entries()) {
+    for (ManifestEntry entry :
+        ManifestReader.read(localInput(PathUtil.getAbsolutePath(tableLocation, manifest.path()))).entries()) {
       DataFile file = entry.file();
       Assert.assertEquals("Path should match expected", newPaths.next(), file.path().toString());
       Assert.assertEquals("File's snapshot ID should match", id, entry.snapshotId());
     }
 
     Assert.assertFalse("Should find all files in the manifest", newPaths.hasNext());
+  }
+
+  void validateSnapshot(Snapshot old, Snapshot snap, DataFile... newFiles) {
+    validateSnapshot(old, snap, table.location(), newFiles);
   }
 
   void validateTableFiles(Table tbl, DataFile... expectedFiles) {
@@ -188,14 +199,17 @@ public class TableTestBase {
 
   static void validateManifest(ManifestFile manifest,
                                Iterator<Long> ids,
-                               Iterator<DataFile> expectedFiles) {
-    validateManifest(manifest.path(), ids, expectedFiles);
+                               Iterator<DataFile> expectedFiles,
+                               String tableLocation) {
+    validateManifest(manifest.path(), ids, expectedFiles, tableLocation);
   }
 
   static void validateManifest(String manifest,
                                Iterator<Long> ids,
-                               Iterator<DataFile> expectedFiles) {
-    for (ManifestEntry entry : ManifestReader.read(localInput(manifest)).entries()) {
+                               Iterator<DataFile> expectedFiles,
+                               String tableLocation) {
+    for (ManifestEntry entry :
+        ManifestReader.read(localInput(PathUtil.getAbsolutePath(tableLocation, manifest))).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
       Assert.assertEquals("Path should match expected",
@@ -210,15 +224,18 @@ public class TableTestBase {
   static void validateManifestEntries(ManifestFile manifest,
                                       Iterator<Long> ids,
                                       Iterator<DataFile> expectedFiles,
-                                      Iterator<ManifestEntry.Status> expectedStatuses) {
-    validateManifestEntries(manifest.path(), ids, expectedFiles, expectedStatuses);
+                                      Iterator<ManifestEntry.Status> expectedStatuses,
+                                      String tableLocation) {
+    validateManifestEntries(manifest.path(), ids, expectedFiles, expectedStatuses, tableLocation);
   }
 
   static void validateManifestEntries(String manifest,
                                       Iterator<Long> ids,
                                       Iterator<DataFile> expectedFiles,
-                                      Iterator<ManifestEntry.Status> expectedStatuses) {
-    for (ManifestEntry entry : ManifestReader.read(localInput(manifest)).entries()) {
+                                      Iterator<ManifestEntry.Status> expectedStatuses,
+                                      String tableLocation) {
+    for (ManifestEntry entry :
+        ManifestReader.read(localInput(PathUtil.getAbsolutePath(tableLocation, manifest))).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
       final ManifestEntry.Status expectedStatus = expectedStatuses.next();
@@ -245,7 +262,7 @@ public class TableTestBase {
     return Iterators.forArray(files);
   }
 
-  static Iterator<DataFile> files(ManifestFile manifest) {
-    return ManifestReader.read(localInput(manifest.path())).iterator();
+  static Iterator<DataFile> files(ManifestFile manifest, String tableLocation) {
+    return ManifestReader.read(localInput(PathUtil.getAbsolutePath(tableLocation, manifest.path()))).iterator();
   }
 }

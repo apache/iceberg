@@ -34,6 +34,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.util.PathUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
@@ -169,7 +170,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
    * @param io a FileIO to use for deletes
    * @param metadata the last valid TableMetadata instance for a dropped table.
    */
-  protected static void dropTableData(FileIO io, TableMetadata metadata) {
+  protected static void dropTableData(FileIO io, TableMetadata metadata, String tableLocation) {
     // Reads and deletes are done using Tasks.foreach(...).suppressFailureWhenFinished to complete
     // as much of the delete work as possible and avoid orphaned data or manifest files.
 
@@ -187,9 +188,10 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
     // run all of the deletes
 
-    deleteFiles(io, manifestsToDelete);
+    deleteFiles(io, manifestsToDelete, tableLocation);
 
-    Tasks.foreach(Iterables.transform(manifestsToDelete, ManifestFile::path))
+    Tasks.foreach(
+        Iterables.transform(manifestsToDelete, manifest -> PathUtil.getAbsolutePath(tableLocation, manifest.path())))
         .noRetry().suppressFailureWhenFinished()
         .onFailure((manifest, exc) -> LOG.warn("Delete failed for manifest: {}", manifest, exc))
         .run(io::deleteFile);
@@ -205,7 +207,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         .run(io::deleteFile);
   }
 
-  private static void deleteFiles(FileIO io, Set<ManifestFile> allManifests) {
+  private static void deleteFiles(FileIO io, Set<ManifestFile> allManifests, String tableLocation) {
     // keep track of deleted files in a map that can be cleaned up when memory runs low
     Map<String, Boolean> deletedFiles = new MapMaker()
         .concurrencyLevel(ThreadPools.WORKER_THREAD_POOL_SIZE)
@@ -217,10 +219,11 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         .executeWith(ThreadPools.getWorkerPool())
         .onFailure((item, exc) -> LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc))
         .run(manifest -> {
-          try (ManifestReader reader = ManifestReader.read(io.newInputFile(manifest.path()))) {
+          try (ManifestReader reader =
+                       ManifestReader.read(io.newInputFile(PathUtil.getAbsolutePath(tableLocation, manifest.path())))) {
             for (ManifestEntry entry : reader.entries()) {
               // intern the file path because the weak key map uses identity (==) instead of equals
-              String path = entry.file().path().toString().intern();
+              String path = PathUtil.getAbsolutePath(tableLocation, entry.file().path().toString()).intern();
               Boolean alreadyDeleted = deletedFiles.putIfAbsent(path, true);
               if (alreadyDeleted == null || !alreadyDeleted) {
                 try {

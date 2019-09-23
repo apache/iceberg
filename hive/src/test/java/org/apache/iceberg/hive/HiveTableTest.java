@@ -40,6 +40,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PathUtil;
 import org.apache.thrift.TException;
 import org.junit.Assert;
 import org.junit.Test;
@@ -126,7 +127,7 @@ public class HiveTableTest extends HiveTableBaseTest {
       }
     }
 
-    DataFile file = DataFiles.builder(table.spec())
+    DataFile file = DataFiles.builder(table.spec(), table.location())
         .withRecordCount(3)
         .withPath(fileLocation)
         .withFileSizeInBytes(Files.localInput(fileLocation).getLength())
@@ -177,13 +178,13 @@ public class HiveTableTest extends HiveTableBaseTest {
       }
     }
 
-    DataFile file1 = DataFiles.builder(table.spec())
+    DataFile file1 = DataFiles.builder(table.spec(), table.location())
         .withRecordCount(3)
         .withPath(location1)
         .withFileSizeInBytes(Files.localInput(location2).getLength())
         .build();
 
-    DataFile file2 = DataFiles.builder(table.spec())
+    DataFile file2 = DataFiles.builder(table.spec(), table.location())
         .withRecordCount(3)
         .withPath(location2)
         .withFileSizeInBytes(Files.localInput(location1).getLength())
@@ -211,7 +212,7 @@ public class HiveTableTest extends HiveTableBaseTest {
         new File(manifestListLocation).exists());
     for (ManifestFile manifest : manifests) {
       Assert.assertFalse("Table manifest files should not exist",
-          new File(manifest.path().replace("file:", "")).exists());
+          new File(PathUtil.getAbsolutePath(table.location(), manifest.path())).exists());
     }
     Assert.assertFalse("Table metadata file should not exist",
         new File(((HasTableOperations) table).operations().current().file().location().replace("file:", "")).exists());

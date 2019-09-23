@@ -35,6 +35,7 @@ import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PathUtil;
 
 class ManifestGroup {
   private static final Types.StructType EMPTY_STRUCT = Types.StructType.of();
@@ -163,8 +164,9 @@ class ManifestGroup {
     Iterable<CloseableIterable<ManifestEntry>> readers = Iterables.transform(
         matchingManifests,
         manifest -> {
+          String absManifestPath = PathUtil.getAbsolutePath(ops.current().location(), manifest.path());
           ManifestReader reader = ManifestReader.read(
-              ops.io().newInputFile(manifest.path()),
+              ops.io().newInputFile(absManifestPath),
               ops.current()::spec);
 
           FilteredManifest filtered = reader

@@ -122,7 +122,7 @@ public class TestSparkReadProjection extends TestReadProjection {
           break;
       }
 
-      DataFile file = DataFiles.builder(PartitionSpec.unpartitioned())
+      DataFile file = DataFiles.builder(PartitionSpec.unpartitioned(), table.location())
           .withRecordCount(100)
           .withFileSizeInBytes(testFile.length())
           .withPath(testFile.toString())

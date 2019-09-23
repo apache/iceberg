@@ -38,6 +38,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.spark.data.AvroDataTest;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.SparkAvroReader;
+import org.apache.iceberg.util.PathUtil;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.DataFrameWriter;
@@ -144,13 +145,15 @@ public class TestDataFrameWrites extends AvroDataTest {
       assertEqualsSafe(tableSchema.asStruct(), expected.get(i), actual.get(i));
     }
 
-    table.currentSnapshot().addedFiles().forEach(dataFile ->
-        Assert.assertTrue(
-            String.format(
-                "File should have the parent directory %s, but has: %s.",
-                expectedDataDir.getAbsolutePath(),
-                dataFile.path()),
-            URI.create(dataFile.path().toString()).getPath().startsWith(expectedDataDir.getAbsolutePath())));
+    table.currentSnapshot().addedFiles().forEach(dataFile -> {
+      String absPath = PathUtil.getAbsolutePath(table.location(), dataFile.path().toString());
+      Assert.assertTrue(
+              String.format(
+                      "Combined absolute path to file should have the parent directory %s, but has: %s.",
+                      expectedDataDir.getAbsolutePath(),
+                      absPath),
+              URI.create(absPath).getPath().startsWith(expectedDataDir.getAbsolutePath()));
+    });
   }
 
   private Dataset<Row> createDataset(List<Record> records, Schema schema) throws IOException {

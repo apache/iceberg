@@ -51,7 +51,7 @@ public class TestScansAndSchemaEvolution {
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
-  private DataFile createDataFile(File dataPath, String partValue) throws IOException {
+  private DataFile createDataFile(File dataPath, String partValue, String tableLocation) throws IOException {
     List<GenericData.Record> expected = RandomAvroData.generate(SCHEMA, 100, 0L);
 
     File dataFile = new File(dataPath, FileFormat.AVRO.addExtension(UUID.randomUUID().toString()));
@@ -67,7 +67,7 @@ public class TestScansAndSchemaEvolution {
 
     PartitionData partition = new PartitionData(SPEC.partitionType());
     partition.set(0, partValue);
-    return DataFiles.builder(SPEC)
+    return DataFiles.builder(SPEC, tableLocation)
         .withInputFile(Files.localInput(dataFile))
         .withPartition(partition)
         .withRecordCount(100)
@@ -87,8 +87,8 @@ public class TestScansAndSchemaEvolution {
 
     Table table = TestTables.create(location, "test", SCHEMA, SPEC);
 
-    DataFile fileOne = createDataFile(dataLocation, "one");
-    DataFile fileTwo = createDataFile(dataLocation, "two");
+    DataFile fileOne = createDataFile(dataLocation, "one", table.location());
+    DataFile fileTwo = createDataFile(dataLocation, "two", table.location());
 
     table.newAppend()
         .appendFile(fileOne)

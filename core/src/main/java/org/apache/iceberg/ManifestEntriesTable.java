@@ -71,7 +71,8 @@ public class ManifestEntriesTable extends BaseMetadataTable {
 
   @Override
   public String location() {
-    return table.currentSnapshot().manifestListLocation();
+//    return table.currentSnapshot().manifestListLocation();
+    return table.location();
   }
 
   private static class EntriesTableScan extends BaseTableScan {
@@ -119,7 +120,11 @@ public class ManifestEntriesTable extends BaseMetadataTable {
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
 
       return CloseableIterable.transform(manifests, manifest -> new BaseFileScanTask(
-          DataFiles.fromManifest(manifest), schemaString, specString, ResidualEvaluator.unpartitioned(rowFilter)));
+              DataFiles.fromManifest(manifest, table().location()),
+              schemaString,
+              specString,
+              ResidualEvaluator.unpartitioned(rowFilter))
+      );
     }
   }
 }

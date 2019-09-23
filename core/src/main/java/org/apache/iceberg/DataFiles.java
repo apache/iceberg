@@ -32,6 +32,7 @@ import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.PathUtil;
 
 public class DataFiles {
 
@@ -94,63 +95,63 @@ public class DataFiles {
     return copyPartitionData(spec, partition, null);
   }
 
-  public static DataFile fromStat(FileStatus stat, long rowCount) {
-    String location = stat.getPath().toString();
+  public static DataFile fromStat(FileStatus stat, long rowCount, String tableLocation) {
+    String location = PathUtil.getRelativePath(tableLocation, stat.getPath().toString());
     FileFormat format = FileFormat.fromFileName(location);
     return new GenericDataFile(location, format, rowCount, stat.getLen());
   }
 
-  public static DataFile fromStat(FileStatus stat, PartitionData partition, long rowCount) {
-    String location = stat.getPath().toString();
+  public static DataFile fromStat(FileStatus stat, PartitionData partition, long rowCount, String tableLocation) {
+    String location = PathUtil.getRelativePath(tableLocation, stat.getPath().toString());
     FileFormat format = FileFormat.fromFileName(location);
     return new GenericDataFile(
         location, format, partition, rowCount, stat.getLen());
   }
 
   public static DataFile fromStat(FileStatus stat, PartitionData partition, Metrics metrics,
-      EncryptionKeyMetadata keyMetadata, List<Long> splitOffsets) {
-    String location = stat.getPath().toString();
+      EncryptionKeyMetadata keyMetadata, List<Long> splitOffsets, String tableLocation) {
+    String location = PathUtil.getRelativePath(tableLocation, stat.getPath().toString());
     FileFormat format = FileFormat.fromFileName(location);
     return new GenericDataFile(
         location, format, partition, stat.getLen(), metrics, keyMetadata.buffer(), splitOffsets);
   }
 
-  public static DataFile fromInputFile(InputFile file, PartitionData partition, long rowCount) {
+  public static DataFile fromInputFile(InputFile file, PartitionData partition, long rowCount, String tableLocation) {
     if (file instanceof HadoopInputFile) {
-      return fromStat(((HadoopInputFile) file).getStat(), partition, rowCount);
+      return fromStat(((HadoopInputFile) file).getStat(), partition, rowCount, tableLocation);
     }
 
-    String location = file.location();
+    String location = PathUtil.getRelativePath(tableLocation, file.location());
     FileFormat format = FileFormat.fromFileName(location);
     return new GenericDataFile(
         location, format, partition, rowCount, file.getLength());
   }
 
-  public static DataFile fromInputFile(InputFile file, long rowCount) {
+  public static DataFile fromInputFile(InputFile file, long rowCount, String tableLocation) {
     if (file instanceof HadoopInputFile) {
-      return fromStat(((HadoopInputFile) file).getStat(), rowCount);
+      return fromStat(((HadoopInputFile) file).getStat(), rowCount, tableLocation);
     }
 
-    String location = file.location();
+    String location = PathUtil.getRelativePath(tableLocation, file.location());
     FileFormat format = FileFormat.fromFileName(location);
     return new GenericDataFile(location, format, rowCount, file.getLength());
   }
 
   public static DataFile fromEncryptedOutputFile(EncryptedOutputFile encryptedFile, PartitionData partition,
-                                                Metrics metrics, List<Long> splitOffsets) {
+                                                Metrics metrics, List<Long> splitOffsets, String tableLocation) {
     EncryptionKeyMetadata keyMetadata = encryptedFile.keyMetadata();
     InputFile file = encryptedFile.encryptingOutputFile().toInputFile();
     if (encryptedFile instanceof HadoopInputFile) {
-      return fromStat(((HadoopInputFile) file).getStat(), partition, metrics, keyMetadata, splitOffsets);
+      return fromStat(((HadoopInputFile) file).getStat(), partition, metrics, keyMetadata, splitOffsets, tableLocation);
     }
 
-    String location = file.location();
+    String location = PathUtil.getRelativePath(tableLocation, file.location());
     FileFormat format = FileFormat.fromFileName(location);
     return new GenericDataFile(
         location, format, partition, file.getLength(), metrics, keyMetadata.buffer(), splitOffsets);
   }
 
-  public static DataFile fromManifest(ManifestFile manifest) {
+  public static DataFile fromManifest(ManifestFile manifest, String tableLocation) {
     Preconditions.checkArgument(
         manifest.addedFilesCount() != null && manifest.existingFilesCount() != null,
         "Cannot create data file from manifest: data file counts are missing.");
@@ -161,17 +162,18 @@ public class DataFiles {
         manifest.length());
   }
 
-  public static Builder builder(PartitionSpec spec) {
-    return new Builder(spec);
+  public static Builder builder(PartitionSpec spec, String tableLocation) {
+    return new Builder(spec, tableLocation);
   }
 
-  static Builder builder() {
-    return new Builder();
+  static Builder builder(String tableLocation) {
+    return new Builder(tableLocation);
   }
 
   public static class Builder {
     private final PartitionSpec spec;
     private final boolean isPartitioned;
+    private final String tableLocation;
     private PartitionData partitionData;
     private String filePath = null;
     private FileFormat format = null;
@@ -187,16 +189,18 @@ public class DataFiles {
     private ByteBuffer keyMetadata = null;
     private List<Long> splitOffsets = null;
 
-    public Builder() {
+    public Builder(String tableLocation) {
       this.spec = null;
       this.partitionData = null;
       this.isPartitioned = false;
+      this.tableLocation = tableLocation;
     }
 
-    public Builder(PartitionSpec spec) {
+    public Builder(PartitionSpec spec, String tableLocation) {
       this.spec = spec;
       this.isPartitioned = spec.fields().size() > 0;
       this.partitionData = isPartitioned ? newPartitionData(spec) : null;
+      this.tableLocation = tableLocation;
     }
 
     public void clear() {
@@ -235,7 +239,7 @@ public class DataFiles {
     }
 
     public Builder withStatus(FileStatus stat) {
-      this.filePath = stat.getPath().toString();
+      this.filePath = PathUtil.getRelativePath(tableLocation, stat.getPath().toString());
       this.fileSizeInBytes = stat.getLen();
       return this;
     }
@@ -245,7 +249,7 @@ public class DataFiles {
         return withStatus(((HadoopInputFile) file).getStat());
       }
 
-      this.filePath = file.location();
+      this.filePath = PathUtil.getRelativePath(tableLocation, file.location());
       this.fileSizeInBytes = file.getLength();
       return this;
     }
@@ -257,7 +261,8 @@ public class DataFiles {
     }
 
     public Builder withPath(String newFilePath) {
-      this.filePath = newFilePath;
+      this.filePath = PathUtil.getRelativePath(tableLocation, newFilePath);
+//      this.filePath = newFilePath;
       return this;
     }
 

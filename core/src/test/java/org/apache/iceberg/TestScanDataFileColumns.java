@@ -62,8 +62,8 @@ public class TestScanDataFileColumns {
 
     // commit the test data
     table.newAppend()
-        .appendFile(DataFiles.builder(PartitionSpec.unpartitioned())
-            .withPath("file1.parquet")
+        .appendFile(DataFiles.builder(PartitionSpec.unpartitioned(), table.location())
+            .withPath(new File("file1.parquet").getAbsolutePath())
             .withFileSizeInBytes(100)
             .withMetrics(new Metrics(3L,
                 ImmutableMap.of(1, 50L), // column size
@@ -72,8 +72,8 @@ public class TestScanDataFileColumns {
                 ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
                 ImmutableMap.of(1, longToBuffer(2L)))) // upper bounds)
             .build())
-        .appendFile(DataFiles.builder(PartitionSpec.unpartitioned())
-            .withPath("file2.parquet")
+        .appendFile(DataFiles.builder(PartitionSpec.unpartitioned(), table.location())
+            .withPath(new File("file2.parquet").getAbsolutePath())
             .withFileSizeInBytes(100)
             .withMetrics(new Metrics(3L,
                 ImmutableMap.of(1, 60L), // column size
@@ -82,8 +82,8 @@ public class TestScanDataFileColumns {
                 ImmutableMap.of(1, longToBuffer(10L)), // lower bounds
                 ImmutableMap.of(1, longToBuffer(12L)))) // upper bounds)
             .build())
-        .appendFile(DataFiles.builder(PartitionSpec.unpartitioned())
-            .withPath("file3.parquet")
+        .appendFile(DataFiles.builder(PartitionSpec.unpartitioned(), table.location())
+            .withPath(new File("file3.parquet").getAbsolutePath())
             .withFileSizeInBytes(100)
             .withMetrics(new Metrics(3L,
                 ImmutableMap.of(1, 70L), // column size

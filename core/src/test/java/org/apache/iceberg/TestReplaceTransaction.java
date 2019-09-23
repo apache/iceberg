@@ -44,12 +44,12 @@ public class TestReplaceTransaction extends TableTestBase {
     Schema schema = table.schema();
 
     table.newAppend()
-        .appendFile(FILE_A)
+        .appendFile(fileA)
         .commit();
 
     Assert.assertEquals("Version should be 1", 1L, (long) version());
 
-    validateSnapshot(start, table.currentSnapshot(), FILE_A);
+    validateSnapshot(start, table.currentSnapshot(), fileA);
 
     Transaction replace = TestTables.beginReplace(tableDir, "test", newSchema, unpartitioned());
     replace.commitTransaction();
@@ -72,12 +72,12 @@ public class TestReplaceTransaction extends TableTestBase {
     Snapshot start = table.currentSnapshot();
 
     table.newAppend()
-        .appendFile(FILE_A)
+        .appendFile(fileA)
         .commit();
 
     Assert.assertEquals("Version should be 1", 1L, (long) version());
 
-    validateSnapshot(start, table.currentSnapshot(), FILE_A);
+    validateSnapshot(start, table.currentSnapshot(), fileA);
 
     Transaction replace = TestTables.beginReplace(tableDir, "test", newSchema, unpartitioned());
     replace.commitTransaction();
@@ -99,12 +99,12 @@ public class TestReplaceTransaction extends TableTestBase {
     Schema schema = table.schema();
 
     table.newAppend()
-        .appendFile(FILE_A)
+        .appendFile(fileA)
         .commit();
 
     Assert.assertEquals("Version should be 1", 1L, (long) version());
 
-    validateSnapshot(start, table.currentSnapshot(), FILE_A);
+    validateSnapshot(start, table.currentSnapshot(), fileA);
 
     Transaction replace = TestTables.beginReplace(tableDir, "test", table.schema(), newSpec);
     replace.commitTransaction();
@@ -125,19 +125,19 @@ public class TestReplaceTransaction extends TableTestBase {
     Schema schema = table.schema();
 
     table.newAppend()
-        .appendFile(FILE_A)
+        .appendFile(fileA)
         .commit();
 
     Assert.assertEquals("Version should be 1", 1L, (long) version());
 
-    validateSnapshot(start, table.currentSnapshot(), FILE_A);
+    validateSnapshot(start, table.currentSnapshot(), fileA);
 
     Transaction replace = TestTables.beginReplace(tableDir, "test", table.schema(), table.spec());
 
     replace.newAppend()
-        .appendFile(FILE_B)
-        .appendFile(FILE_C)
-        .appendFile(FILE_D)
+        .appendFile(fileB)
+        .appendFile(fileC)
+        .appendFile(fileD)
         .commit();
 
     replace.commitTransaction();
@@ -149,7 +149,7 @@ public class TestReplaceTransaction extends TableTestBase {
     Assert.assertEquals("Schema should use new schema, not compatible with previous",
         schema.asStruct(), table.schema().asStruct());
 
-    validateSnapshot(null, table.currentSnapshot(), FILE_B, FILE_C, FILE_D);
+    validateSnapshot(null, table.currentSnapshot(), fileB, fileC, fileD);
   }
 
   @Test
@@ -159,9 +159,9 @@ public class TestReplaceTransaction extends TableTestBase {
     Transaction replace = TestTables.beginReplace(tableDir, "test", table.schema(), table.spec());
 
     replace.newAppend() // not committed
-        .appendFile(FILE_B)
-        .appendFile(FILE_C)
-        .appendFile(FILE_D);
+        .appendFile(fileB)
+        .appendFile(fileC)
+        .appendFile(fileD);
 
     AssertHelpers.assertThrows("Should reject commit when last operation has not committed",
         IllegalStateException.class, "Cannot commit transaction: last operation has not committed",
@@ -177,9 +177,9 @@ public class TestReplaceTransaction extends TableTestBase {
     Transaction replace = TestTables.beginReplace(tableDir, "test", table.schema(), table.spec());
 
     replace.table().newAppend() // not committed
-        .appendFile(FILE_B)
-        .appendFile(FILE_C)
-        .appendFile(FILE_D);
+        .appendFile(fileB)
+        .appendFile(fileC)
+        .appendFile(fileD);
 
     AssertHelpers.assertThrows("Should reject commit when last operation has not committed",
         IllegalStateException.class, "Cannot commit transaction: last operation has not committed",
@@ -194,19 +194,19 @@ public class TestReplaceTransaction extends TableTestBase {
     Schema schema = table.schema();
 
     table.newAppend()
-        .appendFile(FILE_A)
+        .appendFile(fileA)
         .commit();
 
     Assert.assertEquals("Version should be 1", 1L, (long) version());
 
-    validateSnapshot(start, table.currentSnapshot(), FILE_A);
+    validateSnapshot(start, table.currentSnapshot(), fileA);
 
     Transaction replace = TestTables.beginReplace(tableDir, "test", table.schema(), table.spec());
 
     replace.newAppend()
-        .appendFile(FILE_B)
-        .appendFile(FILE_C)
-        .appendFile(FILE_D)
+        .appendFile(fileB)
+        .appendFile(fileC)
+        .appendFile(fileD)
         .commit();
 
     // trigger eventual transaction retry
@@ -221,7 +221,7 @@ public class TestReplaceTransaction extends TableTestBase {
     Assert.assertEquals("Schema should use new schema, not compatible with previous",
         schema.asStruct(), table.schema().asStruct());
 
-    validateSnapshot(null, table.currentSnapshot(), FILE_B, FILE_C, FILE_D);
+    validateSnapshot(null, table.currentSnapshot(), fileB, fileC, fileD);
   }
 
   @Test
@@ -229,20 +229,20 @@ public class TestReplaceTransaction extends TableTestBase {
     Snapshot start = table.currentSnapshot();
 
     table.newAppend()
-        .appendFile(FILE_A)
+        .appendFile(fileA)
         .commit();
 
     Assert.assertEquals("Version should be 1", 1L, (long) version());
 
-    validateSnapshot(start, table.currentSnapshot(), FILE_A);
+    validateSnapshot(start, table.currentSnapshot(), fileA);
     Set<File> manifests = Sets.newHashSet(listManifestFiles());
 
     Transaction replace = TestTables.beginReplace(tableDir, "test", table.schema(), table.spec());
 
     replace.newAppend()
-        .appendFile(FILE_B)
-        .appendFile(FILE_C)
-        .appendFile(FILE_D)
+        .appendFile(fileB)
+        .appendFile(fileC)
+        .appendFile(fileD)
         .commit();
 
     // keep failing to trigger eventual transaction failure
@@ -256,7 +256,7 @@ public class TestReplaceTransaction extends TableTestBase {
 
     table.refresh();
 
-    validateSnapshot(start, table.currentSnapshot(), FILE_A);
+    validateSnapshot(start, table.currentSnapshot(), fileA);
 
     Assert.assertEquals("Should clean up replace manifests", manifests, Sets.newHashSet(listManifestFiles()));
   }
@@ -278,8 +278,8 @@ public class TestReplaceTransaction extends TableTestBase {
         replace.table() instanceof BaseTransaction.TransactionTable);
 
     replace.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     Assert.assertNull("Appending in a transaction should not commit metadata",
@@ -301,7 +301,7 @@ public class TestReplaceTransaction extends TableTestBase {
     Assert.assertEquals("Table spec should match", unpartitioned(), meta.spec());
     Assert.assertEquals("Table should have one snapshot", 1, meta.snapshots().size());
 
-    validateSnapshot(null, meta.currentSnapshot(), FILE_A, FILE_B);
+    validateSnapshot(null, meta.currentSnapshot(), tableDir.getPath(), fileA, fileB);
   }
 
   private static Schema assignFreshIds(Schema schema) {

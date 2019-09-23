@@ -70,8 +70,8 @@ public class TestCreateTransaction extends TableTestBase {
         TestTables.metadataVersion("test_append"));
 
     txn.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     Assert.assertNull("Appending in a transaction should not commit metadata",
@@ -93,7 +93,7 @@ public class TestCreateTransaction extends TableTestBase {
     Assert.assertEquals("Table spec should match", unpartitioned(), meta.spec());
     Assert.assertEquals("Table should have one snapshot", 1, meta.snapshots().size());
 
-    validateSnapshot(null, meta.currentSnapshot(), FILE_A, FILE_B);
+    validateSnapshot(null, meta.currentSnapshot(), meta.location(), fileA, fileB);
   }
 
   @Test
@@ -112,8 +112,8 @@ public class TestCreateTransaction extends TableTestBase {
         txn.table() instanceof BaseTransaction.TransactionTable);
 
     txn.table().newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     Assert.assertNull("Appending in a transaction should not commit metadata",
@@ -135,7 +135,7 @@ public class TestCreateTransaction extends TableTestBase {
     Assert.assertEquals("Table spec should match", unpartitioned(), meta.spec());
     Assert.assertEquals("Table should have one snapshot", 1, meta.snapshots().size());
 
-    validateSnapshot(null, meta.currentSnapshot(), FILE_A, FILE_B);
+    validateSnapshot(null, meta.currentSnapshot(), meta.location(), fileA, fileB);
   }
 
   @Test
@@ -266,7 +266,7 @@ public class TestCreateTransaction extends TableTestBase {
     Transaction txn = TestTables.beginCreate(tableDir, "test_conflict", SCHEMA, SPEC);
 
     // append in the transaction to ensure a manifest file is created
-    txn.newAppend().appendFile(FILE_A).commit();
+    txn.newAppend().appendFile(fileA).commit();
 
     Assert.assertNull("Starting a create transaction should not commit metadata",
         TestTables.readMetadata("test_conflict"));

@@ -43,6 +43,7 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.util.PathUtil;
 
 class TableScanIterable extends CloseableGroup implements CloseableIterable<Record> {
   private final TableOperations ops;
@@ -71,7 +72,8 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
   }
 
   private CloseableIterable<Record> open(FileScanTask task) {
-    InputFile input = ops.io().newInputFile(task.file().path().toString());
+    String absPath = PathUtil.getAbsolutePath(ops.current().location(), task.file().path().toString());
+    InputFile input = ops.io().newInputFile(absPath);
 
     // TODO: join to partition data from the manifest file
     switch (task.file().format()) {

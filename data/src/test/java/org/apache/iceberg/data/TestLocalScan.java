@@ -141,7 +141,7 @@ public class TestLocalScan {
 
     // commit the test data
     sharedTable.newAppend()
-        .appendFile(DataFiles.builder(PartitionSpec.unpartitioned())
+        .appendFile(DataFiles.builder(PartitionSpec.unpartitioned(), sharedTableLocation)
             .withInputFile(file1)
             .withMetrics(new Metrics(3L,
                 null, // no column sizes
@@ -150,7 +150,7 @@ public class TestLocalScan {
                 ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
                 ImmutableMap.of(1, longToBuffer(2L)))) // upper bounds)
             .build())
-        .appendFile(DataFiles.builder(PartitionSpec.unpartitioned())
+        .appendFile(DataFiles.builder(PartitionSpec.unpartitioned(), sharedTableLocation)
             .withInputFile(file2)
             .withMetrics(new Metrics(3L,
                 null, // no column sizes
@@ -159,7 +159,7 @@ public class TestLocalScan {
                 ImmutableMap.of(1, longToBuffer(10L)), // lower bounds
                 ImmutableMap.of(1, longToBuffer(12L)))) // upper bounds)
             .build())
-        .appendFile(DataFiles.builder(PartitionSpec.unpartitioned())
+        .appendFile(DataFiles.builder(PartitionSpec.unpartitioned(), sharedTableLocation)
             .withInputFile(file3)
             .withMetrics(new Metrics(3L,
                 null, // no column sizes
@@ -196,7 +196,7 @@ public class TestLocalScan {
       }
 
       writeFile(location.toString(), format.addExtension("file-" + fileNum), records);
-      append.appendFile(fromInputFile(HadoopInputFile.fromPath(path, CONF), numRecords));
+      append.appendFile(fromInputFile(HadoopInputFile.fromPath(path, CONF), numRecords, table.location()));
 
       fileNum += 1;
     }

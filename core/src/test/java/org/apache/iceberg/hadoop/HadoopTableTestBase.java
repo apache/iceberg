@@ -73,30 +73,10 @@ public class HadoopTableTestBase {
 
   static final HadoopTables TABLES = new HadoopTables(new Configuration());
 
-  static final DataFile FILE_A = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-a.parquet")
-      .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=0") // easy way to set partition data for now
-      .withRecordCount(2) // needs at least one record or else metrics will filter it out
-      .build();
-  static final DataFile FILE_B = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-b.parquet")
-      .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=1") // easy way to set partition data for now
-      .withRecordCount(2) // needs at least one record or else metrics will filter it out
-      .build();
-  static final DataFile FILE_C = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-a.parquet")
-      .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=2") // easy way to set partition data for now
-      .withRecordCount(2) // needs at least one record or else metrics will filter it out
-      .build();
-  static final DataFile FILE_D = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-a.parquet")
-      .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=3") // easy way to set partition data for now
-      .withRecordCount(2) // needs at least one record or else metrics will filter it out
-      .build();
+  static DataFile fileA;
+  static DataFile fileB;
+  static DataFile fileC;
+  static DataFile fileD;
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -116,6 +96,34 @@ public class HadoopTableTestBase {
     this.metadataDir = new File(tableDir, "metadata");
     this.versionHintFile = new File(metadataDir, "version-hint.text");
     this.table = TABLES.create(SCHEMA, SPEC, tableLocation);
+
+    fileA = DataFiles.builder(SPEC, table.location())
+            .withPath("/path/to/data-a.parquet")
+            .withFileSizeInBytes(0)
+            .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+            .withRecordCount(2) // needs at least one record or else metrics will filter it out
+            .build();
+
+    fileB = DataFiles.builder(SPEC, table.location())
+            .withPath("/path/to/data-b.parquet")
+            .withFileSizeInBytes(0)
+            .withPartitionPath("data_bucket=1") // easy way to set partition data for now
+            .withRecordCount(2) // needs at least one record or else metrics will filter it out
+            .build();
+
+    fileC = DataFiles.builder(SPEC, table.location())
+            .withPath("/path/to/data-a.parquet")
+            .withFileSizeInBytes(0)
+            .withPartitionPath("data_bucket=2") // easy way to set partition data for now
+            .withRecordCount(2) // needs at least one record or else metrics will filter it out
+            .build();
+
+    fileD = DataFiles.builder(SPEC, table.location())
+            .withPath("/path/to/data-a.parquet")
+            .withFileSizeInBytes(0)
+            .withPartitionPath("data_bucket=3") // easy way to set partition data for now
+            .withRecordCount(2) // needs at least one record or else metrics will filter it out
+            .build();
   }
 
   List<File> listManifestFiles() {

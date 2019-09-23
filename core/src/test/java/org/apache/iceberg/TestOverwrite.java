@@ -50,44 +50,11 @@ public class TestOverwrite extends TableTestBase {
 
   private static final String TABLE_NAME = "overwrite_table";
 
-  private static final DataFile FILE_0_TO_4 = DataFiles.builder(PARTITION_BY_DATE)
-      .withPath("/path/to/data-1.parquet")
-      .withFileSizeInBytes(0)
-      .withPartitionPath("date=2018-06-08")
-      .withMetrics(new Metrics(5L,
-          null, // no column sizes
-          ImmutableMap.of(1, 5L, 2, 3L), // value count
-          ImmutableMap.of(1, 0L, 2, 2L), // null count
-          ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
-          ImmutableMap.of(1, longToBuffer(4L)) // upper bounds
-      ))
-      .build();
+  private static DataFile file0To4;
 
-  private static final DataFile FILE_5_TO_9 = DataFiles.builder(PARTITION_BY_DATE)
-      .withPath("/path/to/data-2.parquet")
-      .withFileSizeInBytes(0)
-      .withPartitionPath("date=2018-06-09")
-      .withMetrics(new Metrics(5L,
-          null, // no column sizes
-          ImmutableMap.of(1, 5L, 2, 3L), // value count
-          ImmutableMap.of(1, 0L, 2, 2L), // null count
-          ImmutableMap.of(1, longToBuffer(5L)), // lower bounds
-          ImmutableMap.of(1, longToBuffer(9L)) // upper bounds
-      ))
-      .build();
+  private static DataFile file6To9;
 
-  private static final DataFile FILE_10_TO_14 = DataFiles.builder(PARTITION_BY_DATE)
-      .withPath("/path/to/data-2.parquet")
-      .withFileSizeInBytes(0)
-      .withPartitionPath("date=2018-06-09")
-      .withMetrics(new Metrics(5L,
-          null, // no column sizes
-          ImmutableMap.of(1, 5L, 2, 3L), // value count
-          ImmutableMap.of(1, 0L, 2, 2L), // null count
-          ImmutableMap.of(1, longToBuffer(5L)), // lower bounds
-          ImmutableMap.of(1, longToBuffer(9L)) // upper bounds
-      ))
-      .build();
+  private static DataFile file10To14;
 
   private static ByteBuffer longToBuffer(long value) {
     return ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(0, value);
@@ -102,9 +69,46 @@ public class TestOverwrite extends TableTestBase {
 
     this.table = TestTables.create(tableDir, TABLE_NAME, DATE_SCHEMA, PARTITION_BY_DATE);
 
+    file0To4 = DataFiles.builder(PARTITION_BY_DATE, table.location())
+            .withPath("/path/to/data-1.parquet")
+            .withFileSizeInBytes(0)
+            .withPartitionPath("date=2018-06-08")
+            .withMetrics(new Metrics(5L,
+                    null, // no column sizes
+                    ImmutableMap.of(1, 5L, 2, 3L), // value count
+                    ImmutableMap.of(1, 0L, 2, 2L), // null count
+                    ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
+                    ImmutableMap.of(1, longToBuffer(4L)) // upper bounds
+            ))
+            .build();
+    file6To9 = DataFiles.builder(PARTITION_BY_DATE, table.location())
+            .withPath("/path/to/data-2.parquet")
+            .withFileSizeInBytes(0)
+            .withPartitionPath("date=2018-06-09")
+            .withMetrics(new Metrics(5L,
+                    null, // no column sizes
+                    ImmutableMap.of(1, 5L, 2, 3L), // value count
+                    ImmutableMap.of(1, 0L, 2, 2L), // null count
+                    ImmutableMap.of(1, longToBuffer(5L)), // lower bounds
+                    ImmutableMap.of(1, longToBuffer(9L)) // upper bounds
+            ))
+            .build();
+    file10To14 = DataFiles.builder(PARTITION_BY_DATE, table.location())
+            .withPath("/path/to/data-2.parquet")
+            .withFileSizeInBytes(0)
+            .withPartitionPath("date=2018-06-09")
+            .withMetrics(new Metrics(5L,
+                    null, // no column sizes
+                    ImmutableMap.of(1, 5L, 2, 3L), // value count
+                    ImmutableMap.of(1, 0L, 2, 2L), // null count
+                    ImmutableMap.of(1, longToBuffer(5L)), // lower bounds
+                    ImmutableMap.of(1, longToBuffer(9L)) // upper bounds
+            ))
+            .build();
+
     table.newAppend()
-        .appendFile(FILE_0_TO_4)
-        .appendFile(FILE_5_TO_9)
+        .appendFile(file0To4)
+        .appendFile(file6To9)
         .commit();
   }
 
@@ -125,8 +129,9 @@ public class TestOverwrite extends TableTestBase {
 
     validateManifestEntries(table.currentSnapshot().manifests().get(0),
         ids(overwriteId, baseId),
-        files(FILE_0_TO_4, FILE_5_TO_9),
-        statuses(Status.DELETED, Status.EXISTING));
+        files(file0To4, file6To9),
+        statuses(Status.DELETED, Status.EXISTING),
+        table.location());
   }
 
   @Test
@@ -152,7 +157,7 @@ public class TestOverwrite extends TableTestBase {
 
     table.newOverwrite()
         .overwriteByRowFilter(equal("date", "2018-06-08"))
-        .addFile(FILE_10_TO_14) // in 2018-06-09, NOT in 2018-06-08
+        .addFile(file10To14) // in 2018-06-09, NOT in 2018-06-08
         .commit();
 
     long overwriteId = table.currentSnapshot().snapshotId();
@@ -164,13 +169,15 @@ public class TestOverwrite extends TableTestBase {
     // manifest is not merged because it is less than the minimum
     validateManifestEntries(table.currentSnapshot().manifests().get(0),
         ids(overwriteId),
-        files(FILE_10_TO_14),
-        statuses(Status.ADDED));
+        files(file10To14),
+        statuses(Status.ADDED),
+        table.location());
 
     validateManifestEntries(table.currentSnapshot().manifests().get(1),
         ids(overwriteId, baseId),
-        files(FILE_0_TO_4, FILE_5_TO_9),
-        statuses(Status.DELETED, Status.EXISTING));
+        files(file0To4, file6To9),
+        statuses(Status.DELETED, Status.EXISTING),
+        table.location());
   }
 
   @Test
@@ -183,7 +190,7 @@ public class TestOverwrite extends TableTestBase {
 
     table.newOverwrite()
         .overwriteByRowFilter(equal("date", "2018-06-08"))
-        .addFile(FILE_10_TO_14) // in 2018-06-09, NOT in 2018-06-08
+        .addFile(file10To14) // in 2018-06-09, NOT in 2018-06-08
         .commit();
 
     long overwriteId = table.currentSnapshot().snapshotId();
@@ -194,8 +201,9 @@ public class TestOverwrite extends TableTestBase {
 
     validateManifestEntries(table.currentSnapshot().manifests().get(0),
         ids(overwriteId, overwriteId, baseId),
-        files(FILE_10_TO_14, FILE_0_TO_4, FILE_5_TO_9),
-        statuses(Status.ADDED, Status.DELETED, Status.EXISTING));
+        files(file10To14, file0To4, file6To9),
+        statuses(Status.ADDED, Status.DELETED, Status.EXISTING),
+        table.location());
   }
 
   @Test
@@ -208,7 +216,7 @@ public class TestOverwrite extends TableTestBase {
 
     OverwriteFiles overwrite = table.newOverwrite()
         .overwriteByRowFilter(equal("date", "2018-06-08"))
-        .addFile(FILE_10_TO_14) // in 2018-06-09, NOT in 2018-06-08
+        .addFile(file10To14) // in 2018-06-09, NOT in 2018-06-08
         .validateAddedFilesMatchOverwriteFilter();
 
     AssertHelpers.assertThrows("Should reject commit with file not matching delete expression",
@@ -226,7 +234,7 @@ public class TestOverwrite extends TableTestBase {
 
     OverwriteFiles overwrite = table.newOverwrite()
         .overwriteByRowFilter(and(equal("date", "2018-06-09"), lessThan("id", 10)))
-        .addFile(FILE_10_TO_14) // in 2018-06-09 matches, but IDs are outside range
+        .addFile(file10To14) // in 2018-06-09 matches, but IDs are outside range
         .validateAddedFilesMatchOverwriteFilter();
 
     AssertHelpers.assertThrows("Should reject commit with file not matching delete expression",
@@ -244,7 +252,7 @@ public class TestOverwrite extends TableTestBase {
 
     OverwriteFiles overwrite = table.newOverwrite()
         .overwriteByRowFilter(and(equal("date", "2018-06-09"), lessThan("id", 20)))
-        .addFile(FILE_10_TO_14) // in 2018-06-09 matches and IDs are inside range
+        .addFile(file10To14) // in 2018-06-09 matches and IDs are inside range
         .validateAddedFilesMatchOverwriteFilter();
 
     AssertHelpers.assertThrows("Should reject commit with file not matching delete expression",

@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.util.PathUtil;
 
 /**
  * {@link AppendFiles Append} implementation that adds a new manifest file for the write.
@@ -82,10 +83,17 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   @Override
   public FastAppend appendManifest(ManifestFile manifest) {
     // the manifest must be rewritten with this update's snapshot ID
+    String absPath = PathUtil.getAbsolutePath(ops.current().location(), manifest.path());
     try (ManifestReader reader = ManifestReader.read(
-        ops.io().newInputFile(manifest.path()), ops.current()::spec)) {
+        ops.io().newInputFile(absPath), ops.current()::spec)) {
       OutputFile newManifestPath = manifestPath(manifestCount.getAndIncrement());
-      appendManifests.add(ManifestWriter.copyAppendManifest(reader, newManifestPath, snapshotId(), summaryBuilder));
+      appendManifests.add(ManifestWriter.copyAppendManifest(
+              reader,
+              newManifestPath,
+              snapshotId(),
+              summaryBuilder,
+              ops.current().location())
+      );
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest);
     }
@@ -118,12 +126,12 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   @Override
   protected void cleanUncommitted(Set<ManifestFile> committed) {
     if (newManifest != null && !committed.contains(newManifest)) {
-      deleteFile(newManifest.path());
+      deleteFile(PathUtil.getAbsolutePath(ops.current().location(), newManifest.path()));
     }
 
     for (ManifestFile manifest : appendManifests) {
       if (!committed.contains(manifest)) {
-        deleteFile(manifest.path());
+        deleteFile(PathUtil.getAbsolutePath(ops.current().location(), manifest.path()));
       }
     }
   }
@@ -137,7 +145,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     if (newManifest == null && newFiles.size() > 0) {
       OutputFile out = manifestPath(manifestCount.getAndIncrement());
 
-      ManifestWriter writer = new ManifestWriter(spec, out, snapshotId());
+      ManifestWriter writer = new ManifestWriter(spec, out, snapshotId(), ops.current().location());
       try {
         writer.addAll(newFiles);
       } finally {

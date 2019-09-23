@@ -82,7 +82,9 @@ public class ManifestsTable extends BaseMetadataTable {
     return StaticDataTask.of(
         ops.io().newInputFile(scan.snapshot().manifestListLocation()),
         scan.snapshot().manifests(),
-        this::manifestFileToRow);
+        this::manifestFileToRow,
+        this.table.location()
+    );
   }
 
   private class SnapshotsTableScan extends StaticTableScan {

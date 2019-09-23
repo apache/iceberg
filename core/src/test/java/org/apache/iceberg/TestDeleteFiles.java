@@ -27,17 +27,17 @@ public class TestDeleteFiles extends TableTestBase {
   @Test
   public void testMultipleDeletes() {
     table.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
-        .appendFile(FILE_C)
+        .appendFile(fileA)
+        .appendFile(fileB)
+        .appendFile(fileC)
         .commit();
 
     Assert.assertEquals("Metadata should be at version 1", 1L, (long) version());
     Snapshot append = readMetadata().currentSnapshot();
-    validateSnapshot(null, append, FILE_A, FILE_B, FILE_C);
+    validateSnapshot(null, append, fileA, fileB, fileC);
 
     table.newDelete()
-        .deleteFile(FILE_A)
+        .deleteFile(fileA)
         .commit();
 
     Assert.assertEquals("Metadata should be at version 2", 2L, (long) version());
@@ -45,11 +45,12 @@ public class TestDeleteFiles extends TableTestBase {
     Assert.assertEquals("Should have 1 manifest", 1, delete.manifests().size());
     validateManifestEntries(delete.manifests().get(0),
         ids(delete.snapshotId(), append.snapshotId(), append.snapshotId()),
-        files(FILE_A, FILE_B, FILE_C),
-        statuses(Status.DELETED, Status.EXISTING, Status.EXISTING));
+        files(fileA, fileB, fileC),
+        statuses(Status.DELETED, Status.EXISTING, Status.EXISTING),
+        table.location());
 
     table.newDelete()
-        .deleteFile(FILE_B)
+        .deleteFile(fileB)
         .commit();
 
     Assert.assertEquals("Metadata should be at version 3", 3L, (long) version());
@@ -57,7 +58,8 @@ public class TestDeleteFiles extends TableTestBase {
     Assert.assertEquals("Should have 1 manifest", 1, delete2.manifests().size());
     validateManifestEntries(delete2.manifests().get(0),
         ids(delete2.snapshotId(), append.snapshotId()),
-        files(FILE_B, FILE_C),
-        statuses(Status.DELETED, Status.EXISTING));
+        files(fileB, fileC),
+        statuses(Status.DELETED, Status.EXISTING),
+        table.location());
   }
 }

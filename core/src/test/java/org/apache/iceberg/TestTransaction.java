@@ -28,6 +28,7 @@ import java.util.UUID;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.util.PathUtil;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -59,8 +60,8 @@ public class TestTransaction extends TableTestBase {
     Assert.assertEquals("Table should be on version 0 after txn create", 0, (int) version());
 
     txn.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     Assert.assertSame("Base metadata should not change when an append is committed",
@@ -69,7 +70,7 @@ public class TestTransaction extends TableTestBase {
 
     txn.commitTransaction();
 
-    validateSnapshot(base.currentSnapshot(), readMetadata().currentSnapshot(), FILE_A, FILE_B);
+    validateSnapshot(base.currentSnapshot(), readMetadata().currentSnapshot(), fileA, fileB);
     Assert.assertEquals("Table should be on version 1 after commit", 1, (int) version());
   }
 
@@ -86,8 +87,8 @@ public class TestTransaction extends TableTestBase {
     Assert.assertEquals("Table should be on version 0 after txn create", 0, (int) version());
 
     txn.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     Assert.assertSame("Base metadata should not change when commit is created",
@@ -97,7 +98,7 @@ public class TestTransaction extends TableTestBase {
     Snapshot appendSnapshot = txn.table().currentSnapshot();
 
     txn.newDelete()
-        .deleteFile(FILE_A)
+        .deleteFile(fileA)
         .commit();
 
     Snapshot deleteSnapshot = txn.table().currentSnapshot();
@@ -115,13 +116,15 @@ public class TestTransaction extends TableTestBase {
         deleteSnapshot, readMetadata().currentSnapshot());
     validateManifestEntries(readMetadata().currentSnapshot().manifests().get(0),
         ids(deleteSnapshot.snapshotId(), appendSnapshot.snapshotId()),
-        files(FILE_A, FILE_B), statuses(Status.DELETED, Status.EXISTING));
+        files(fileA, fileB), statuses(Status.DELETED, Status.EXISTING),
+        table.location());
 
     Assert.assertEquals("Table should have a snapshot for each operation",
         2, readMetadata().snapshots().size());
     validateManifestEntries(readMetadata().snapshots().get(0).manifests().get(0),
         ids(appendSnapshot.snapshotId(), appendSnapshot.snapshotId()),
-        files(FILE_A, FILE_B), statuses(Status.ADDED, Status.ADDED));
+        files(fileA, fileB), statuses(Status.ADDED, Status.ADDED),
+        table.location());
   }
 
   @Test
@@ -137,8 +140,8 @@ public class TestTransaction extends TableTestBase {
     Assert.assertEquals("Table should be on version 0 after txn create", 0, (int) version());
 
     txn.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     Assert.assertSame("Base metadata should not change when commit is created",
@@ -148,7 +151,7 @@ public class TestTransaction extends TableTestBase {
     Snapshot appendSnapshot = txn.table().currentSnapshot();
 
     txn.table().newDelete()
-        .deleteFile(FILE_A)
+        .deleteFile(fileA)
         .commit();
 
     Snapshot deleteSnapshot = txn.table().currentSnapshot();
@@ -166,13 +169,15 @@ public class TestTransaction extends TableTestBase {
         deleteSnapshot, readMetadata().currentSnapshot());
     validateManifestEntries(readMetadata().currentSnapshot().manifests().get(0),
         ids(deleteSnapshot.snapshotId(), appendSnapshot.snapshotId()),
-        files(FILE_A, FILE_B), statuses(Status.DELETED, Status.EXISTING));
+        files(fileA, fileB), statuses(Status.DELETED, Status.EXISTING),
+        table.location());
 
     Assert.assertEquals("Table should have a snapshot for each operation",
         2, readMetadata().snapshots().size());
     validateManifestEntries(readMetadata().snapshots().get(0).manifests().get(0),
         ids(appendSnapshot.snapshotId(), appendSnapshot.snapshotId()),
-        files(FILE_A, FILE_B), statuses(Status.ADDED, Status.ADDED));
+        files(fileA, fileB), statuses(Status.ADDED, Status.ADDED),
+        table.location());
   }
 
   @Test
@@ -187,7 +192,7 @@ public class TestTransaction extends TableTestBase {
         base, readMetadata());
     Assert.assertEquals("Table should be on version 0 after txn create", 0, (int) version());
 
-    txn.newAppend().appendFile(FILE_A).appendFile(FILE_B); // not committed
+    txn.newAppend().appendFile(fileA).appendFile(fileB); // not committed
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
@@ -211,7 +216,7 @@ public class TestTransaction extends TableTestBase {
         base, readMetadata());
     Assert.assertEquals("Table should be on version 0 after txn create", 0, (int) version());
 
-    txn.newAppend().appendFile(FILE_A).appendFile(FILE_B); // not committed
+    txn.newAppend().appendFile(fileA).appendFile(fileB); // not committed
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
@@ -241,8 +246,8 @@ public class TestTransaction extends TableTestBase {
     Assert.assertEquals("Table should be on version 1 after txn create", 1, (int) version());
 
     txn.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     Assert.assertSame("Base metadata should not change when commit is created",
@@ -274,8 +279,8 @@ public class TestTransaction extends TableTestBase {
     Assert.assertEquals("Table should be on version 1 after txn create", 1, (int) version());
 
     txn.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     Set<ManifestFile> appendManifests = Sets.newHashSet(txn.table().currentSnapshot().manifests());
@@ -313,8 +318,8 @@ public class TestTransaction extends TableTestBase {
     Assert.assertEquals("Table should be on version 1 after txn create", 1, (int) version());
 
     txn.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     Set<ManifestFile> appendManifests = Sets.newHashSet(txn.table().currentSnapshot().manifests());
@@ -325,8 +330,8 @@ public class TestTransaction extends TableTestBase {
 
     // cause the transaction commit to fail
     table.newAppend()
-        .appendFile(FILE_C)
-        .appendFile(FILE_D)
+        .appendFile(fileC)
+        .appendFile(fileD)
         .commit();
 
     Assert.assertEquals("Table should be on version 2 after real append", 2, (int) version());
@@ -368,8 +373,8 @@ public class TestTransaction extends TableTestBase {
         .commit();
 
     txn.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     Assert.assertEquals("Append should create one manifest",
@@ -382,8 +387,8 @@ public class TestTransaction extends TableTestBase {
 
     // cause the transaction commit to fail
     table.newAppend()
-        .appendFile(FILE_C)
-        .appendFile(FILE_D)
+        .appendFile(fileC)
+        .appendFile(fileD)
         .commit();
 
     Assert.assertEquals("Table should be on version 2 after real append", 2, (int) version());
@@ -403,7 +408,8 @@ public class TestTransaction extends TableTestBase {
     Assert.assertFalse("Should merge both commit manifests into a new manifest",
         previousManifests.contains(table.currentSnapshot().manifests().get(0)));
 
-    Assert.assertFalse("Append manifest should be deleted", new File(appendManifest.path()).exists());
+    Assert.assertFalse("Append manifest should be deleted",
+            new File(PathUtil.getAbsolutePath(table.location(), appendManifest.path())).exists());
   }
 
   @Test
@@ -425,8 +431,8 @@ public class TestTransaction extends TableTestBase {
     Assert.assertEquals("Table should be on version 1 after txn create", 1, (int) version());
 
     txn.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     Assert.assertEquals("Append should create one manifest",
@@ -439,8 +445,8 @@ public class TestTransaction extends TableTestBase {
 
     // cause the transaction commit to fail
     table.newAppend()
-        .appendFile(FILE_C)
-        .appendFile(FILE_D)
+        .appendFile(fileC)
+        .appendFile(fileD)
         .commit();
 
     Assert.assertEquals("Table should be on version 2 after real append", 2, (int) version());
@@ -460,7 +466,8 @@ public class TestTransaction extends TableTestBase {
     Assert.assertFalse("Should merge both commit manifests into a new manifest",
         previousManifests.contains(table.currentSnapshot().manifests().get(0)));
 
-    Assert.assertFalse("Append manifest should be deleted", new File(appendManifest.path()).exists());
+    Assert.assertFalse("Append manifest should be deleted",
+            new File(PathUtil.getAbsolutePath(table.location(), appendManifest.path())).exists());
   }
 
   @Test
@@ -474,8 +481,8 @@ public class TestTransaction extends TableTestBase {
     Assert.assertEquals("Table should be on version 1", 1, (int) version());
 
     table.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
+        .appendFile(fileA)
+        .appendFile(fileB)
         .commit();
 
     Assert.assertEquals("Table should be on version 2 after append", 2, (int) version());
@@ -486,9 +493,9 @@ public class TestTransaction extends TableTestBase {
 
     // create a manifest append
     OutputFile manifestLocation = Files.localOutput("/tmp/" + UUID.randomUUID().toString() + ".avro");
-    ManifestWriter writer = ManifestWriter.write(table.spec(), manifestLocation);
+    ManifestWriter writer = ManifestWriter.write(table.spec(), manifestLocation, table.location());
     try {
-      writer.add(FILE_D);
+      writer.add(fileD);
     } finally {
       writer.close();
     }
@@ -502,21 +509,26 @@ public class TestTransaction extends TableTestBase {
     Assert.assertSame("Base metadata should not change when commit is created", base, readMetadata());
     Assert.assertEquals("Table should be on version 2 after txn create", 2, (int) version());
 
-    Assert.assertEquals("Append should have one merged manifest", 1, txn.table().currentSnapshot().manifests().size());
+    Assert.assertEquals("Append should have one merged manifest",
+        1,
+        txn.table().currentSnapshot().manifests().size()
+    );
     ManifestFile mergedManifest = txn.table().currentSnapshot().manifests().get(0);
 
     // find the initial copy of the appended manifest
     String copiedAppendManifest = Iterables.getOnlyElement(Iterables.filter(
-        Iterables.transform(listManifestFiles(), File::getPath),
-        path -> !v1manifest.path().contains(path) && !mergedManifest.path().contains(path)));
+        Iterables.transform(listManifestFiles(), file -> file.getPath()),
+        path -> !v1manifest.path().contains(PathUtil.getRelativePath(table.location(), path)) &&
+            !mergedManifest.path().contains(PathUtil.getRelativePath(table.location(), path))));
 
     Assert.assertTrue("Transaction should hijack the delete of the original copied manifest",
         ((BaseTransaction) txn).deletedFiles().contains(copiedAppendManifest));
-    Assert.assertTrue("Copied append manifest should not be deleted yet", new File(copiedAppendManifest).exists());
+    Assert.assertTrue("Copied append manifest should not be deleted yet",
+        new File(PathUtil.getAbsolutePath(table.location(), copiedAppendManifest)).exists());
 
     // cause the transaction commit to fail and retry
     table.newAppend()
-        .appendFile(FILE_C)
+        .appendFile(fileC)
         .commit();
 
     Assert.assertEquals("Table should be on version 3 after real append", 3, (int) version());
@@ -529,8 +541,11 @@ public class TestTransaction extends TableTestBase {
         ((BaseTransaction) txn).deletedFiles().contains(copiedAppendManifest));
     Assert.assertFalse("Append manifest should be deleted", new File(copiedAppendManifest).exists());
     Assert.assertTrue("Transaction should hijack the delete of the first merged manifest",
-        ((BaseTransaction) txn).deletedFiles().contains(mergedManifest.path()));
-    Assert.assertFalse("Append manifest should be deleted", new File(mergedManifest.path()).exists());
+        ((BaseTransaction) txn).deletedFiles()
+          .contains(PathUtil.getAbsolutePath(table.location(), mergedManifest.path()))
+    );
+    Assert.assertFalse("Append manifest should be deleted",
+            new File(PathUtil.getAbsolutePath(table.location(), mergedManifest.path())).exists());
 
     Assert.assertEquals("Should merge all commit manifests into a single manifest",
         1, table.currentSnapshot().manifests().size());
@@ -542,8 +557,8 @@ public class TestTransaction extends TableTestBase {
         IllegalArgumentException.class, "Cannot set delete callback more than once",
         () -> table.newTransaction()
             .newAppend()
-            .appendFile(FILE_A)
-            .appendFile(FILE_B)
+            .appendFile(fileA)
+            .appendFile(fileB)
             .deleteWith(file -> { }));
   }
 
@@ -556,11 +571,11 @@ public class TestTransaction extends TableTestBase {
     Transaction txn = table.newTransaction();
 
     txn.newFastAppend()
-        .appendFile(FILE_A)
+        .appendFile(fileA)
         .commit();
 
     txn.newFastAppend()
-        .appendFile(FILE_B)
+        .appendFile(fileB)
         .commit();
 
     txn.commitTransaction();

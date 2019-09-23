@@ -65,7 +65,8 @@ public interface DataFile {
   }
 
   /**
-   * @return fully qualified path to the file, suitable for constructing a Hadoop Path
+   * @return Relative path from iceberg table to the file. In order to access the file, it needs to be combined with
+   *         table location to generate absolute path using PathUtil.getAbsolutePath().
    */
   CharSequence path();
 

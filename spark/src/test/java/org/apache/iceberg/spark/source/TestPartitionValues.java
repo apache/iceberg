@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 
 import com.google.common.collect.Lists;
 import java.io.File;
+import java.net.URLEncoder;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.DataFiles;
@@ -178,14 +179,14 @@ public class TestPartitionValues {
 
     // add the Avro data file to the source table
     source.newAppend()
-        .appendFile(DataFiles.fromInputFile(Files.localInput(avroData), 10))
+        .appendFile(DataFiles.fromInputFile(Files.localInput(avroData), 10, source.location()))
         .commit();
 
     Dataset<Row> sourceDF = spark.read().format("iceberg").load(sourceLocation);
 
     try {
       for (String column : columnNames) {
-        String desc = "partition_by_" + SUPPORTED_PRIMITIVES.findType(column).toString();
+        String desc = "partition_by_" + URLEncoder.encode(SUPPORTED_PRIMITIVES.findType(column).toString());
 
         File parent = temp.newFolder(desc);
         File location = new File(parent, "test");
