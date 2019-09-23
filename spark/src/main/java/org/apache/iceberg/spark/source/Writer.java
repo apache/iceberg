@@ -265,7 +265,7 @@ class Writer implements DataSourceWriter {
 
     @Override
     public DataWriter<InternalRow> createDataWriter(int partitionId, long taskId, long epochId) {
-      OutputFileFactory<EncryptedOutputFile> fileFactory = new EncryptedOutputFileFactory(partitionId, taskId, epochId);
+      OutputFileFactory fileFactory = new OutputFileFactory(partitionId, taskId, epochId);
       AppenderFactory<InternalRow> appenderFactory = new SparkAppenderFactory();
 
       if (spec.fields().isEmpty()) {
@@ -306,7 +306,7 @@ class Writer implements DataSourceWriter {
       }
     }
 
-    private class EncryptedOutputFileFactory implements OutputFileFactory<EncryptedOutputFile> {
+    private class OutputFileFactory {
       private final int partitionId;
       private final long taskId;
       private final long epochId;
@@ -316,14 +316,14 @@ class Writer implements DataSourceWriter {
       private final String uuid = UUID.randomUUID().toString();
       private int fileCount;
 
-      EncryptedOutputFileFactory(int partitionId, long taskId, long epochId) {
+      OutputFileFactory(int partitionId, long taskId, long epochId) {
         this.partitionId = partitionId;
         this.taskId = taskId;
         this.epochId = epochId;
         this.fileCount = 0;
       }
 
-      private synchronized String generateFilename() {
+      private String generateFilename() {
         return format.addExtension(String.format("%05d-%d-%s-%05d", partitionId, taskId, uuid, fileCount++));
       }
 
@@ -349,42 +349,43 @@ class Writer implements DataSourceWriter {
     FileAppender<T> newAppender(OutputFile file, FileFormat format);
   }
 
-  private interface OutputFileFactory<T> {
-    T newOutputFile();
-    T newOutputFile(PartitionKey key);
-  }
-
-  @SuppressWarnings("checkstyle:VisibilityModifier") // direct access desired from sub-classes for performance.
   private abstract static class BaseWriter implements DataWriter<InternalRow> {
     protected static final int ROWS_DIVISOR = 1000;
 
-    protected final Set<PartitionKey> completedPartitions = Sets.newHashSet();
-    protected final List<DataFile> completedFiles = Lists.newArrayList();
-    protected final PartitionSpec spec;
-    protected final FileFormat format;
-    protected final AppenderFactory<InternalRow> appenderFactory;
-    protected final OutputFileFactory<EncryptedOutputFile> fileFactory;
-    protected final PartitionKey key;
-    protected final FileIO fileIo;
-    protected final long targetFileSize;
-    protected PartitionKey currentKey = null;
-    protected FileAppender<InternalRow> currentAppender = null;
-    protected EncryptedOutputFile currentFile = null;
-    protected long currentRows;
+    private final List<DataFile> completedFiles = Lists.newArrayList();
+    private final PartitionSpec spec;
+    private final FileFormat format;
+    private final AppenderFactory<InternalRow> appenderFactory;
+    private final WriterFactory.OutputFileFactory fileFactory;
+    private final FileIO fileIo;
+    private final long targetFileSize;
+    private PartitionKey currentKey = null;
+    private FileAppender<InternalRow> currentAppender = null;
+    private EncryptedOutputFile currentFile = null;
+    private long currentRows = 0;
 
     BaseWriter(PartitionSpec spec, FileFormat format, AppenderFactory<InternalRow> appenderFactory,
-               OutputFileFactory<EncryptedOutputFile> fileFactory, FileIO fileIo, long targetFileSize) {
+               WriterFactory.OutputFileFactory fileFactory, FileIO fileIo, long targetFileSize) {
       this.spec = spec;
       this.format = format;
       this.appenderFactory = appenderFactory;
       this.fileFactory = fileFactory;
-      this.key = new PartitionKey(spec);
       this.fileIo = fileIo;
       this.targetFileSize = targetFileSize;
     }
 
     @Override
     public abstract void write(InternalRow row) throws IOException;
+
+    public void writeInternal(InternalRow row)  throws IOException {
+      if (currentRows % ROWS_DIVISOR == 0 && currentAppender.length() >= targetFileSize) {
+        closeCurrent();
+        openCurrent();
+      }
+
+      currentAppender.add(row);
+      currentRows++;
+    }
 
     @Override
     public WriterCommitMessage commit() throws IOException {
@@ -439,6 +440,14 @@ class Writer implements DataSourceWriter {
         this.currentFile = null;
       }
     }
+
+    protected PartitionKey getCurrentKey() {
+      return currentKey;
+    }
+
+    protected void setCurrentKey(PartitionKey currentKey) {
+      this.currentKey = currentKey;
+    }
   }
 
   private static class UnpartitionedWriter extends BaseWriter {
@@ -448,7 +457,7 @@ class Writer implements DataSourceWriter {
         PartitionSpec spec,
         FileFormat format,
         AppenderFactory<InternalRow> appenderFactory,
-        OutputFileFactory<EncryptedOutputFile> fileFactory,
+        WriterFactory.OutputFileFactory fileFactory,
         FileIO fileIo,
         long targetFileSize) {
       super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize);
@@ -457,33 +466,32 @@ class Writer implements DataSourceWriter {
     }
 
     @Override
-    public void write(InternalRow record) throws IOException {
-      if (currentRows % ROWS_DIVISOR == 0 && currentAppender.length() >= targetFileSize) {
-        closeCurrent();
-        openCurrent();
-      }
-
-      currentAppender.add(record);
-      currentRows++;
+    public void write(InternalRow row) throws IOException {
+      writeInternal(row);
     }
   }
 
   private static class PartitionedWriter extends BaseWriter {
+    private final PartitionKey key;
+    private final Set<PartitionKey> completedPartitions = Sets.newHashSet();
 
     PartitionedWriter(
         PartitionSpec spec,
         FileFormat format,
         AppenderFactory<InternalRow> appenderFactory,
-        OutputFileFactory<EncryptedOutputFile> fileFactory,
+        WriterFactory.OutputFileFactory fileFactory,
         FileIO fileIo,
         long targetFileSize) {
       super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize);
+
+      this.key = new PartitionKey(spec);
     }
 
     @Override
     public void write(InternalRow row) throws IOException {
       key.partition(row);
 
+      PartitionKey currentKey = getCurrentKey();
       if (!key.equals(currentKey)) {
         closeCurrent();
         completedPartitions.add(currentKey);
@@ -495,17 +503,11 @@ class Writer implements DataSourceWriter {
           throw new IllegalStateException("Already closed files for partition: " + key.toPath());
         }
 
-        currentKey = key.copy();
+        setCurrentKey(key.copy());
         openCurrent();
       }
 
-      if (currentRows % ROWS_DIVISOR == 0 && currentAppender.length() >= targetFileSize) {
-        closeCurrent();
-        openCurrent();
-      }
-
-      currentAppender.add(row);
-      currentRows++;
+      writeInternal(row);
     }
   }
 }
