@@ -25,6 +25,7 @@ import com.google.common.collect.Maps;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
@@ -229,6 +230,8 @@ public class GenericParquetReaders {
             } else {
               return new TimestampMillisReader(desc);
             }
+          case TIME_MICROS:
+            return new TimeReader(desc);
           case DECIMAL:
             DecimalMetadata decimal = primitive.getDecimalMetadata();
             switch (primitive.getPrimitiveTypeName()) {
@@ -363,6 +366,17 @@ public class GenericParquetReaders {
     @Override
     public OffsetDateTime read(OffsetDateTime reuse) {
       return EPOCH.plus(column.nextLong() * 1000, ChronoUnit.MICROS);
+    }
+  }
+
+  private static class TimeReader extends PrimitiveReader<LocalTime> {
+    private TimeReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public LocalTime read(LocalTime reuse) {
+      return LocalTime.ofNanoOfDay(column.nextLong() * 1000L);
     }
   }
 
