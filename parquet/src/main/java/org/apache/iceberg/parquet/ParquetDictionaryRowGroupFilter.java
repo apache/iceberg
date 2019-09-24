@@ -315,6 +315,8 @@ public class ParquetDictionaryRowGroupFilter {
 
     @SuppressWarnings("unchecked")
     private <T> Set<T> dict(int id, Comparator<T> comparator) {
+      Preconditions.checkNotNull(dictionaries, "Dictionary is required");
+
       Set<?> cached = dictCache.get(id);
       if (cached != null) {
         return (Set<T>) cached;
@@ -324,7 +326,7 @@ public class ParquetDictionaryRowGroupFilter {
       DictionaryPage page = dictionaries.readDictionaryPage(col);
       // may not be dictionary-encoded
       if (page == null) {
-        return null;
+        throw new IllegalStateException("Failed to read required dictionary page for id: " + id);
       }
 
       Function<Object, Object> conversion = conversions.get(id);
@@ -336,7 +338,7 @@ public class ParquetDictionaryRowGroupFilter {
         throw new RuntimeIOException("Failed to create reader for dictionary page");
       }
 
-      Set<T> dictSet = Sets.newTreeSet(comparator);;
+      Set<T> dictSet = Sets.newTreeSet(comparator);
 
       for (int i=0; i<=dict.getMaxId(); i++) {
         switch (col.getPrimitiveType().getPrimitiveTypeName()) {

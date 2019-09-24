@@ -683,4 +683,12 @@ public class TestDictionaryRowGroupFilter {
         .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, DICTIONARY_STORE);
     Assert.assertFalse("Should skip: contains only ''", shouldRead);
   }
+
+  @Test
+  public void testMissingDictionaryPageForColumn() {
+    TestHelpers.assertThrows("Should complain about missing dictionary",
+        IllegalStateException.class, "Failed to read required dictionary page for id: 5",
+        () -> new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("some_nulls", "some"))
+            .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA, descriptor -> null));
+  }
 }
