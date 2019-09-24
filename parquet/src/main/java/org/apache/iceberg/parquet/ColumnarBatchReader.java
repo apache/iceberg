@@ -3,10 +3,10 @@ package org.apache.iceberg.parquet;
 import java.lang.reflect.Array;
 import java.util.List;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow.IcebergArrowColumnVector;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.schema.Type;
-import org.apache.spark.sql.vectorized.ArrowColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,13 +44,10 @@ public class ColumnarBatchReader implements BatchedReader{
             NullabilityHolder nullabilityHolder = new NullabilityHolder(readers[i].batchSize());
             FieldVector vec = readers[i].read(nullabilityHolder);
             icebergArrowColumnVectors[i] = new IcebergArrowColumnVector(vec, nullabilityHolder);
-            //TODO: samarth reenable this check
-            // if (i > 0) {
-            //     //TODO: samarth time spent in this string builder!!
-            //     Preconditions.checkState(numRows == vec.getValueCount(),
-            //         "Different number of values returned by readers for columns: " +
-            //             readers[i - 1] + " and " + readers[i]);
-            // }
+            if (i > 0 && numRows != vec.getValueCount()) {
+                throw new IllegalStateException("Different number of values returned by readers" +
+                    "for columns " + readers[i - 1] + " and " + readers[i]);
+            }
             numRows = vec.getValueCount();
         }
 

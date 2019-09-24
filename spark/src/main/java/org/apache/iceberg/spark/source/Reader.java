@@ -127,7 +127,7 @@ class Reader implements DataSourceReader,
 
     } else {
 
-      this.numRecordsPerBatch = VectorReader.DEFAULT_NUM_ROWS_IN_BATCH;
+      this.numRecordsPerBatch = VectorReader.DEFAULT_BATCH_SIZE;
     }
     LOG.info("=> Set Config numRecordsPerBatch = {}", numRecordsPerBatch);
 

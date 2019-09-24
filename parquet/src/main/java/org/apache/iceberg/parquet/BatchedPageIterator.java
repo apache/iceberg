@@ -21,7 +21,6 @@ package org.apache.iceberg.parquet;
 
 import com.google.common.base.Preconditions;
 import java.io.IOException;
-import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VarBinaryVector;
@@ -43,13 +42,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static java.lang.String.format;
-import static org.apache.parquet.column.ValuesType.DEFINITION_LEVEL;
 import static org.apache.parquet.column.ValuesType.REPETITION_LEVEL;
-import static org.apache.parquet.column.ValuesType.VALUES;
 
 public class BatchedPageIterator {
     private static final Logger LOG = LoggerFactory.getLogger(BatchedPageIterator.class);
-    private VectorizedRleValuesReader vectorizedRleValuesReader;
+    private VectorizedValuesReader vectorizedValuesReader;
     private final int batchSize;
 
     public BatchedPageIterator(ColumnDescriptor desc, String writerVersion, int batchSize) {
@@ -132,7 +129,7 @@ public class BatchedPageIterator {
         if (actualBatchSize <= 0) {
             return 0;
         }
-        vectorizedRleValuesReader.readBatchOfIntegers(vector, numValsInVector, typeWidth, actualBatchSize, holder, bytesReader);
+        vectorizedValuesReader.readBatchOfIntegers(vector, numValsInVector, typeWidth, actualBatchSize, holder, bytesReader);
         triplesRead += actualBatchSize;
         this.hasNext = triplesRead < triplesCount;
         return actualBatchSize;
@@ -150,7 +147,7 @@ public class BatchedPageIterator {
         if (actualBatchSize <= 0) {
             return 0;
         }
-        vectorizedRleValuesReader.readBatchOfLongs(vector, numValsInVector, typeWidth, actualBatchSize, holder, bytesReader);
+        vectorizedValuesReader.readBatchOfLongs(vector, numValsInVector, typeWidth, actualBatchSize, holder, bytesReader);
         triplesRead += actualBatchSize;
         this.hasNext = triplesRead < triplesCount;
         return actualBatchSize;
@@ -168,7 +165,7 @@ public class BatchedPageIterator {
         if (actualBatchSize <= 0) {
             return 0;
         }
-        vectorizedRleValuesReader.readBatchOfFloats(vector, numValsInVector, typeWidth, actualBatchSize, holder, bytesReader);
+        vectorizedValuesReader.readBatchOfFloats(vector, numValsInVector, typeWidth, actualBatchSize, holder, bytesReader);
         triplesRead += actualBatchSize;
         this.hasNext = triplesRead < triplesCount;
         return actualBatchSize;
@@ -186,7 +183,7 @@ public class BatchedPageIterator {
         if (actualBatchSize <= 0) {
             return 0;
         }
-        vectorizedRleValuesReader.readBatchOfDoubles(vector, numValsInVector, typeWidth, actualBatchSize, holder, bytesReader);
+        vectorizedValuesReader.readBatchOfDoubles(vector, numValsInVector, typeWidth, actualBatchSize, holder, bytesReader);
         triplesRead += actualBatchSize;
         this.hasNext = triplesRead < triplesCount;
         return actualBatchSize;
@@ -202,7 +199,7 @@ public class BatchedPageIterator {
         if (actualBatchSize <= 0) {
             return 0;
         }
-        vectorizedRleValuesReader.readBatchOfIntLongBackedDecimals(vector, numValsInVector, typeWidth, actualBatchSize, nullabilityHolder,
+        vectorizedValuesReader.readBatchOfIntLongBackedDecimals(vector, numValsInVector, typeWidth, actualBatchSize, nullabilityHolder,
             bytesReader);
         triplesRead += actualBatchSize;
         this.hasNext = triplesRead < triplesCount;
@@ -222,7 +219,7 @@ public class BatchedPageIterator {
         if (actualBatchSize <= 0) {
             return 0;
         }
-        vectorizedRleValuesReader.readBatchOfFixedLengthDecimals(vector, numValsInVector, typeWidth, actualBatchSize, nullabilityHolder, bytesReader);
+        vectorizedValuesReader.readBatchOfFixedLengthDecimals(vector, numValsInVector, typeWidth, actualBatchSize, nullabilityHolder, bytesReader);
         triplesRead += actualBatchSize;
         this.hasNext = triplesRead < triplesCount;
         return actualBatchSize;
@@ -237,7 +234,7 @@ public class BatchedPageIterator {
         if (actualBatchSize <= 0) {
             return 0;
         }
-        vectorizedRleValuesReader.readBatchVarWidth(vector, numValsInVector, actualBatchSize, nullabilityHolder, bytesReader);
+        vectorizedValuesReader.readBatchVarWidth(vector, numValsInVector, actualBatchSize, nullabilityHolder, bytesReader);
         triplesRead += actualBatchSize;
         this.hasNext = triplesRead < triplesCount;
         return actualBatchSize;
@@ -254,7 +251,7 @@ public class BatchedPageIterator {
         if (actualBatchSize <= 0) {
             return 0;
         }
-        vectorizedRleValuesReader.readBatchOfFixedWidthBinary(vector, numValsInVector, typeWidth, actualBatchSize, nullabilityHolder, bytesReader);
+        vectorizedValuesReader.readBatchOfFixedWidthBinary(vector, numValsInVector, typeWidth, actualBatchSize, nullabilityHolder, bytesReader);
         triplesRead += actualBatchSize;
         this.hasNext = triplesRead < triplesCount;
         return actualBatchSize;
@@ -268,7 +265,7 @@ public class BatchedPageIterator {
         if (actualBatchSize <= 0) {
             return 0;
         }
-        vectorizedRleValuesReader.readBatchOfBooleans(vector, numValsInVector, actualBatchSize,
+        vectorizedValuesReader.readBatchOfBooleans(vector, numValsInVector, actualBatchSize,
             nullabilityHolder, bytesReader);
         triplesRead += actualBatchSize;
         this.hasNext = triplesRead < triplesCount;
@@ -319,17 +316,17 @@ public class BatchedPageIterator {
             this.bytesReader = dataEncoding.getDictionaryBasedValuesReader(desc, VALUES, dict); */
         } else {
             //if (ParquetUtil.isVarWidthType(desc) || ParquetUtil.isBooleanType(desc)) {
-            if (ParquetUtil.isBooleanType(desc)) {
-                this.valuesReader = dataEncoding.getValuesReader(desc, VALUES);
-                try {
-                    valuesReader.initFromPage(valueCount, in);
-                } catch (IOException e) {
-                    throw new ParquetDecodingException("could not read page in col " + desc, e);
-                }
-            } else {
+            // if (ParquetUtil.isBooleanType(desc)) {
+            //     this.valuesReader = dataEncoding.getValuesReader(desc, VALUES);
+            //     try {
+            //         valuesReader.initFromPage(valueCount, in);
+            //     } catch (IOException e) {
+            //         throw new ParquetDecodingException("could not read page in col " + desc, e);
+            //     }
+            // } else {
                 this.bytesReader = new BytesReader();
                 bytesReader.initFromPage(valueCount, in);
-            }
+            //}
         }
 
         //    if (dataEncoding.usesDictionary() && converter.hasDictionarySupport()) {
@@ -349,7 +346,7 @@ public class BatchedPageIterator {
         this.triplesCount = page.getValueCount();
         ValuesReader rlReader = page.getRlEncoding().getValuesReader(desc, REPETITION_LEVEL);
         int bitWidth = BytesUtils.getWidthFromMaxInt(desc.getMaxDefinitionLevel());
-        ValuesReader dlReader = this.vectorizedRleValuesReader = new VectorizedRleValuesReader(
+        ValuesReader dlReader = this.vectorizedValuesReader = new VectorizedValuesReader(
             bitWidth, desc.getMaxDefinitionLevel());
         this.repetitionLevels = new ValuesReaderIntIterator(rlReader);
         this.definitionLevels = new ValuesReaderIntIterator(dlReader);
@@ -371,14 +368,11 @@ public class BatchedPageIterator {
         LOG.debug("page data size {} bytes and {} records", page.getData().size(), triplesCount);
         try {
             initDataReader(page.getDataEncoding(), page.getData().toInputStream(), triplesCount);
-            if (ParquetUtil.isNumericNonDecimalType(desc)
-                || ParquetUtil.isVarWidthType(desc)
-                || ParquetUtil.isFixedLengthDecimal(desc)) {
-                int bitWidth = BytesUtils.getWidthFromMaxInt(desc.getMaxDefinitionLevel());
-                this.vectorizedRleValuesReader = new VectorizedRleValuesReader(bitWidth, false,
+            int bitWidth = BytesUtils.getWidthFromMaxInt(desc.getMaxDefinitionLevel());
+            this.vectorizedValuesReader = new VectorizedValuesReader(bitWidth, false,
                     desc.getMaxDefinitionLevel());
-                vectorizedRleValuesReader.initFromPage(triplesCount, page.getDefinitionLevels().toInputStream());
-            }
+            vectorizedValuesReader.initFromPage(triplesCount, page.getDefinitionLevels().toInputStream());
+
         } catch (IOException e) {
             throw new ParquetDecodingException("could not read page " + page + " in col " + desc, e);
         }

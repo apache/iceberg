@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.parquet;
+package org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow;
 
 import io.netty.buffer.ArrowBuf;
 import org.apache.arrow.vector.BigIntVector;
@@ -35,6 +35,7 @@ import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.holders.NullableVarCharHolder;
+import org.apache.iceberg.parquet.NullabilityHolder;
 import org.apache.spark.sql.execution.arrow.ArrowUtils;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.vectorized.ArrowColumnVector;
@@ -42,6 +43,13 @@ import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.sql.vectorized.ColumnarMap;
 import org.apache.spark.unsafe.types.UTF8String;
+
+/**
+ * Implementation of Spark's {@link ColumnVector} interface. The main purpose
+ * of this class is to prevent the expensive nullability checks made by Spark's
+ * {@link ArrowColumnVector} implementation by delegating those calls to the
+ * Iceberg's {@link NullabilityHolder}.
+ */
 
 public class IcebergArrowColumnVector extends ColumnVector {
 
@@ -52,7 +60,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
   public IcebergArrowColumnVector(ValueVector vector, NullabilityHolder nulls) {
     super(ArrowUtils.fromArrowField(vector.getField()));
     this.nullabilityHolder = nulls;
-    this.accessor = initAccessor(vector);
+    this.accessor = getAccessor(vector);
   }
 
   @Override
@@ -157,7 +165,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
   @Override
   public ArrowColumnVector getChild(int ordinal) { return childColumns[ordinal]; }
 
-  private abstract static class ArrowVectorAccessor {
+  private abstract class ArrowVectorAccessor {
 
     private final ValueVector vector;
 
@@ -167,7 +175,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
 
     // TODO: should be final after removing ArrayAccessor workaround
     boolean isNullAt(int rowId) {
-      return vector.isNull(rowId);
+      return nullabilityHolder.isNullAt(rowId);
     }
 
     final void close() {
@@ -219,7 +227,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
     }
   }
 
-  public ArrowVectorAccessor initAccessor(ValueVector vector) {
+  private ArrowVectorAccessor getAccessor(ValueVector vector) {
     if (vector instanceof BitVector) {
       return new BooleanAccessor((BitVector) vector);
     } else if (vector instanceof TinyIntVector) {
@@ -234,14 +242,12 @@ public class IcebergArrowColumnVector extends ColumnVector {
       return new FloatAccessor((Float4Vector) vector);
     } else if (vector instanceof Float8Vector) {
       return new DoubleAccessor((Float8Vector) vector);
-    } else if (vector instanceof DecimalVector) {
-      return new DecimalAccessor((DecimalVector) vector);
+    } else if (vector instanceof IcebergDecimalArrowVector) {
+      return new DecimalAccessor((IcebergDecimalArrowVector) vector);
     } else if (vector instanceof IcebergVarcharArrowVector) {
       return new StringAccessor((IcebergVarcharArrowVector) vector);
-    } else if (vector instanceof FixedSizeBinaryVector) {
-      return new FixedSizeBinaryAccessor((FixedSizeBinaryVector) vector);
-    } else if (vector instanceof VarBinaryVector) {
-      return new BinaryAccessor((VarBinaryVector) vector);
+    } else if (vector instanceof IcebergVarBinaryArrowVector) {
+      return new BinaryAccessor((IcebergVarBinaryArrowVector) vector);
     } else if (vector instanceof DateDayVector) {
       return new DateAccessor((DateDayVector) vector);
     } else if (vector instanceof TimeStampMicroTZVector) {
@@ -262,7 +268,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
     }
   }
 
-  private static class BooleanAccessor extends ArrowVectorAccessor {
+  private class BooleanAccessor extends ArrowVectorAccessor {
 
     private final BitVector vector;
 
@@ -277,7 +283,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
     }
   }
 
-  private static class ByteAccessor extends ArrowVectorAccessor {
+  private class ByteAccessor extends ArrowVectorAccessor {
 
     private final TinyIntVector vector;
 
@@ -292,7 +298,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
     }
   }
 
-  private static class ShortAccessor extends ArrowVectorAccessor {
+  private class ShortAccessor extends ArrowVectorAccessor {
 
     private final SmallIntVector vector;
 
@@ -307,7 +313,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
     }
   }
 
-  private static class IntAccessor extends ArrowVectorAccessor {
+  private class IntAccessor extends ArrowVectorAccessor {
 
     private final IntVector vector;
 
@@ -322,7 +328,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
     }
   }
 
-  private static class LongAccessor extends ArrowVectorAccessor {
+  private class LongAccessor extends ArrowVectorAccessor {
 
     private final BigIntVector vector;
 
@@ -337,7 +343,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
     }
   }
 
-  private static class FloatAccessor extends ArrowVectorAccessor {
+  private class FloatAccessor extends ArrowVectorAccessor {
 
     private final Float4Vector vector;
 
@@ -352,7 +358,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
     }
   }
 
-  private static class DoubleAccessor extends ArrowVectorAccessor {
+  private class DoubleAccessor extends ArrowVectorAccessor {
 
     private final Float8Vector vector;
 
@@ -367,11 +373,11 @@ public class IcebergArrowColumnVector extends ColumnVector {
     }
   }
 
-  private static class DecimalAccessor extends ArrowVectorAccessor {
+  private class DecimalAccessor extends ArrowVectorAccessor {
 
-    private final DecimalVector vector;
+    private final IcebergDecimalArrowVector vector;
 
-    DecimalAccessor(DecimalVector vector) {
+    DecimalAccessor(IcebergDecimalArrowVector vector) {
       super(vector);
       this.vector = vector;
     }
@@ -383,7 +389,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
     }
   }
 
-  private static class StringAccessor extends ArrowVectorAccessor {
+  private class StringAccessor extends ArrowVectorAccessor {
 
     private final IcebergVarcharArrowVector vector;
     private final NullableVarCharHolder stringResult = new NullableVarCharHolder();
@@ -406,7 +412,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
     }
   }
 
-  private static class FixedSizeBinaryAccessor extends ArrowVectorAccessor {
+  private class FixedSizeBinaryAccessor extends ArrowVectorAccessor {
 
     private final FixedSizeBinaryVector vector;
 
@@ -421,7 +427,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
     }
   }
 
-  private static class BinaryAccessor extends ArrowVectorAccessor {
+  private class BinaryAccessor extends ArrowVectorAccessor {
 
     private final VarBinaryVector vector;
 
@@ -436,7 +442,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
     }
   }
 
-  private static class DateAccessor extends ArrowVectorAccessor {
+  private class DateAccessor extends ArrowVectorAccessor {
 
     private final DateDayVector vector;
 
@@ -451,7 +457,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
     }
   }
 
-  private static class TimestampAccessor extends ArrowVectorAccessor {
+  private class TimestampAccessor extends ArrowVectorAccessor {
 
     private final TimeStampMicroTZVector vector;
 
@@ -466,7 +472,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
     }
   }
 
-  private static class ArrayAccessor extends ArrowVectorAccessor {
+  private class ArrayAccessor extends ArrowVectorAccessor {
 
     private final ListVector vector;
     private final ArrowColumnVector arrayData;
@@ -505,7 +511,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
    * bug in the code.
    *
    */
-  private static class StructAccessor extends ArrowVectorAccessor {
+  private class StructAccessor extends ArrowVectorAccessor {
 
     StructAccessor(StructVector vector) {
       super(vector);

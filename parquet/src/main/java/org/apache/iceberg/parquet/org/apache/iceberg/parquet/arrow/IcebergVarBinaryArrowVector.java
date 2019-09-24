@@ -16,16 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.parquet;
+package org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow;
 
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.VarBinaryVector;
+import org.apache.iceberg.parquet.NullabilityHolder;
 
-public class IcebergVarcharArrowVector extends VarCharVector {
-
+/**
+ * Extension of Arrow's @{@link VarBinaryVector}. The whole reason of having
+ * this implementation is to override the expensive {@link VarBinaryVector#isSet(int)} method.
+ */
+public class IcebergVarBinaryArrowVector extends VarBinaryVector {
   private NullabilityHolder nullabilityHolder;
 
-  public IcebergVarcharArrowVector(
+  public IcebergVarBinaryArrowVector(
       String name,
       BufferAllocator allocator) {
     super(name, allocator);
@@ -34,7 +38,7 @@ public class IcebergVarcharArrowVector extends VarCharVector {
   /**
    * Same as {@link #isNull(int)}.
    *
-   * @param index  position of element
+   * @param index position of element
    * @return 1 if element at given index is not null, 0 otherwise
    */
   public int isSet(int index) {

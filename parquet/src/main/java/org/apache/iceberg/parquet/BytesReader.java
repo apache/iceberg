@@ -31,6 +31,9 @@ import org.apache.parquet.io.ParquetDecodingException;
  */
 public class BytesReader extends ValuesReader {
   private ByteBufferInputStream in = null;
+  // Only used for booleans.
+  private int bitOffset;
+  private byte currentByte = 0;
 
   public BytesReader() {
   }
@@ -56,6 +59,28 @@ public class BytesReader extends ValuesReader {
   @Override
   public final int readInteger() {
     return getBuffer(4).getInt();
+  }
+
+  @Override
+  public final boolean readBoolean() {
+    if (bitOffset == 0) {
+      currentByte = getByte();
+    }
+
+    boolean v = (currentByte & (1 << bitOffset)) != 0;
+    bitOffset += 1;
+    if (bitOffset == 8) {
+      bitOffset = 0;
+    }
+    return v;
+  }
+
+  private byte getByte() {
+    try {
+      return (byte) in.read();
+    } catch (IOException e) {
+      throw new ParquetDecodingException("Failed to read a byte", e);
+    }
   }
 
 }

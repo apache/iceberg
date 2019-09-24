@@ -18,7 +18,6 @@
 package org.apache.iceberg.parquet;
 
 import io.netty.buffer.ArrowBuf;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import org.apache.arrow.vector.BaseVariableWidthVector;
@@ -44,7 +43,7 @@ import org.apache.parquet.io.ParquetDecodingException;
  * - Definition/Repetition levels
  * - Dictionary ids.
  */
-public final class VectorizedRleValuesReader extends ValuesReader {
+public final class VectorizedValuesReader extends ValuesReader {
   // Current decoding mode. The encoded data contains groups of either run length encoded data
   // (RLE) or bit packed data. Each group contains a header that indicates which group it is and
   // the number of values in the group.
@@ -77,7 +76,7 @@ public final class VectorizedRleValuesReader extends ValuesReader {
   private final boolean readLength;
   private final int maxDefLevel;
 
-  public VectorizedRleValuesReader(
+  public VectorizedValuesReader(
       int bitWidth,
       int maxDefLevel) {
     this.fixedWidth = true;
@@ -86,7 +85,7 @@ public final class VectorizedRleValuesReader extends ValuesReader {
     init(bitWidth);
   }
 
-  public VectorizedRleValuesReader(
+  public VectorizedValuesReader(
       int bitWidth,
       boolean readLength,
       int maxDefLevel) {
@@ -288,7 +287,7 @@ public final class VectorizedRleValuesReader extends ValuesReader {
               //BitVectorHelper.setValidityBitToOne(validityBuffer, validityBufferIdx);
               bufferIdx++;
             } else {
-              nullabilityHolder.nullAt(bufferIdx);
+              nullabilityHolder.setNull(bufferIdx);
               bufferIdx++;
             }
           }
@@ -332,7 +331,7 @@ public final class VectorizedRleValuesReader extends ValuesReader {
               //BitVectorHelper.setValidityBitToOne(validityBuffer, validityBufferIdx);
               bufferIdx++;
             } else {
-              nullabilityHolder.nullAt(bufferIdx);
+              nullabilityHolder.setNull(bufferIdx);
               bufferIdx++;
             }
           }
@@ -376,7 +375,7 @@ public final class VectorizedRleValuesReader extends ValuesReader {
               //BitVectorHelper.setValidityBitToOne(validityBuffer, validityBufferIdx);
               bufferIdx++;
             } else {
-              nullabilityHolder.nullAt(bufferIdx);
+              nullabilityHolder.setNull(bufferIdx);
               bufferIdx++;
             }
           }
@@ -421,7 +420,7 @@ public final class VectorizedRleValuesReader extends ValuesReader {
               //BitVectorHelper.setValidityBitToOne(validityBuffer, validityBufferIdx);
               bufferIdx++;
             } else {
-              nullabilityHolder.nullAt(bufferIdx);
+              nullabilityHolder.setNull(bufferIdx);
               bufferIdx++;
             }
           }
@@ -457,7 +456,7 @@ public final class VectorizedRleValuesReader extends ValuesReader {
           } else {
             for (int i = 0; i < n; i++) {
               //BitVectorHelper.setValidityBit(validityBuffer, validityBufferIdx, 0);
-              nullabilityHolder.nullAt(bufferIdx);
+              nullabilityHolder.setNull(bufferIdx);
               bufferIdx++;
             }
           }
@@ -468,7 +467,7 @@ public final class VectorizedRleValuesReader extends ValuesReader {
               bufferIdx = setBinaryInVector((VarBinaryVector) vector, typeWidth, valuesReader, bufferIdx);
             } else {
               //BitVectorHelper.setValidityBit(validityBuffer, validityBufferIdx, 0);
-              nullabilityHolder.nullAt(bufferIdx);
+              nullabilityHolder.setNull(bufferIdx);
               bufferIdx++;
             }
           }
@@ -509,7 +508,7 @@ public final class VectorizedRleValuesReader extends ValuesReader {
           } else {
             for (int i = 0; i < n; i++) {
               //BitVectorHelper.setValidityBit(validityBuffer, validityBufferIdx, 0);
-              nullabilityHolder.nullAt(bufferIdx);
+              nullabilityHolder.setNull(bufferIdx);
               bufferIdx++;
             }
           }
@@ -522,7 +521,7 @@ public final class VectorizedRleValuesReader extends ValuesReader {
               ((DecimalVector) vector).setBigEndian(bufferIdx, byteArray);
               bufferIdx++;
             } else {
-              nullabilityHolder.nullAt(bufferIdx);
+              nullabilityHolder.setNull(bufferIdx);
               bufferIdx++;
             }
           }
@@ -582,7 +581,7 @@ public final class VectorizedRleValuesReader extends ValuesReader {
               bufferIdx++;
             } else {
               //BitVectorHelper.setValidityBitToOne(validityBuffer, validityBufferIdx);
-              nullabilityHolder.nullAt(bufferIdx);
+              nullabilityHolder.setNull(bufferIdx);
               bufferIdx++;
             }
           }
@@ -630,7 +629,7 @@ public final class VectorizedRleValuesReader extends ValuesReader {
               //BitVectorHelper.setValidityBitToOne(validityBuffer, validityBufferIdx);
             } else {
               //BitVectorHelper.setValidityBitToOne(validityBuffer, validityBufferIdx);
-              nullabilityHolder.nullAt(bufferIdx);
+              nullabilityHolder.setNull(bufferIdx);
               bufferIdx++;
             }
           }
@@ -644,8 +643,6 @@ public final class VectorizedRleValuesReader extends ValuesReader {
   public void readBatchOfBooleans(
       final FieldVector vector, final int numValsInVector, final int batchSize, NullabilityHolder nullabilityHolder, BytesReader valuesReader) {
     int bufferIdx = numValsInVector;
-    ArrowBuf validityBuffer = vector.getValidityBuffer();
-    ArrowBuf dataBuffer = vector.getDataBuffer();
     int left = batchSize;
     while (left > 0) {
       if (this.currentCount == 0) {
@@ -662,7 +659,7 @@ public final class VectorizedRleValuesReader extends ValuesReader {
           } else {
             for (int i = 0; i < n; i++) {
               ((BitVector) vector).setNull(bufferIdx);
-              nullabilityHolder.nullAt(bufferIdx);
+              nullabilityHolder.setNull(bufferIdx);
               bufferIdx++;
             }
           }
@@ -674,7 +671,7 @@ public final class VectorizedRleValuesReader extends ValuesReader {
               bufferIdx++;
             } else {
               ((BitVector) vector).setNull(bufferIdx);
-              nullabilityHolder.nullAt(bufferIdx);
+              nullabilityHolder.setNull(bufferIdx);
               bufferIdx++;
             }
           }
@@ -707,7 +704,7 @@ public final class VectorizedRleValuesReader extends ValuesReader {
     } else {
       for (int i = 0; i < n; i++) {
         //BitVectorHelper.setValidityBit(validityBuffer, validityBufferIdx, 0);
-        nullabilityHolder.nullAt(bufferIdx);
+        nullabilityHolder.setNull(bufferIdx);
         bufferIdx++;
       }
     }

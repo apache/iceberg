@@ -27,7 +27,7 @@ public class NullabilityHolder {
   }
 
 
-  public void nullAt(int idx) {
+  public void setNull(int idx) {
     isNull[idx] =  true;
     numNulls++;
   }

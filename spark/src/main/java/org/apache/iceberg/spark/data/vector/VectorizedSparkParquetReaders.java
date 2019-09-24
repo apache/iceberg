@@ -56,7 +56,7 @@ public class VectorizedSparkParquetReaders {
       MessageType fileSchema) {
 
     return buildReader(tableSchema, expectedSchema, fileSchema,
-        VectorReader.DEFAULT_NUM_ROWS_IN_BATCH);
+        VectorReader.DEFAULT_BATCH_SIZE);
   }
 
   @SuppressWarnings("unchecked")

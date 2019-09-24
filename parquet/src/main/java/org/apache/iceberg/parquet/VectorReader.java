@@ -22,6 +22,9 @@ package org.apache.iceberg.parquet;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.*;
 import org.apache.iceberg.arrow.ArrowSchemaUtil;
+import org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow.IcebergDecimalArrowVector;
+import org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow.IcebergVarBinaryArrowVector;
+import org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow.IcebergVarcharArrowVector;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.page.PageReadStore;
@@ -44,12 +47,12 @@ import org.apache.parquet.schema.PrimitiveType;
  *   icebergField : DECIMAL   -   Field Vector Type : org.apache.arrow.vector.DecimalVector
  */
 public class VectorReader implements BatchedReader {
-  public static final int DEFAULT_NUM_ROWS_IN_BATCH = 10000;
+  public static final int DEFAULT_BATCH_SIZE = 5000;
   public static final int UNKNOWN_WIDTH = -1;
 
   private final ColumnDescriptor columnDescriptor;
   private FieldVector vec;
-  private final int rowsInBatch;
+  private final int batchSize;
   private final BatchedColumnIterator batchedColumnIterator;
   private final int typeWidth;
   private final boolean isFixedLengthDecimal;
@@ -62,15 +65,18 @@ public class VectorReader implements BatchedReader {
   private final boolean isFloatType;
   private final boolean isDoubleType;
 
+  // This value is copied from Arrow's BaseVariableWidthVector. We may need to change
+  // this value if Arrow ends up changing this default.
+  private static final int DEFAULT_RECORD_BYTE_COUNT = 8;
+
   public VectorReader(
       ColumnDescriptor desc,
       Types.NestedField icebergField,
       BufferAllocator rootAlloc,
       int batchSize) {
-    this.rowsInBatch = (batchSize == 0) ? DEFAULT_NUM_ROWS_IN_BATCH : batchSize;
+    this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
     this.columnDescriptor = desc;
     this.typeWidth = allocateFieldVector(rootAlloc, icebergField, desc);
-
     this.isFixedLengthDecimal = ParquetUtil.isFixedLengthDecimal(desc);
     this.isVarWidthType = ParquetUtil.isVarWidthType(desc);
     this.isFixedWidthBinary = ParquetUtil.isFixedWidthBinary(desc);
@@ -81,7 +87,7 @@ public class VectorReader implements BatchedReader {
     this.isFloatType = ParquetUtil.isFloatType(desc);
     this.isDoubleType = ParquetUtil.isDoubleType(desc);
     this.batchedColumnIterator = new BatchedColumnIterator(desc, "", batchSize);
-
+    //this.nullabilityHolder = new NullabilityHolder(this.batchSize);
   }
 
   private int allocateFieldVector(BufferAllocator rootAlloc, Types.NestedField icebergField, ColumnDescriptor desc) {
@@ -94,7 +100,7 @@ public class VectorReader implements BatchedReader {
         case UTF8:
         case BSON:
           this.vec = new IcebergVarcharArrowVector(icebergField.name(), rootAlloc);
-          vec.setInitialCapacity(rowsInBatch * 10);
+          vec.setInitialCapacity(batchSize * 10);
           //TODO: samarth use the uncompressed page size info here
           vec.allocateNewSafe();
           return UNKNOWN_WIDTH;
@@ -102,26 +108,26 @@ public class VectorReader implements BatchedReader {
         case INT_16:
         case INT_32:
           this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
-          ((IntVector) vec).allocateNew(rowsInBatch * IntVector.TYPE_WIDTH);
+          ((IntVector) vec).allocateNew(batchSize);
           return IntVector.TYPE_WIDTH;
         case DATE:
           this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
-          ((DateDayVector) vec).allocateNew(rowsInBatch * IntVector.TYPE_WIDTH);
+          ((DateDayVector) vec).allocateNew(batchSize);
           return IntVector.TYPE_WIDTH;
         case INT_64:
         case TIMESTAMP_MILLIS:
           this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
-          ((BigIntVector) vec).allocateNew(rowsInBatch * BigIntVector.TYPE_WIDTH);
+          ((BigIntVector) vec).allocateNew(batchSize);
           return BigIntVector.TYPE_WIDTH;
         case TIMESTAMP_MICROS:
           this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
-          ((TimeStampMicroTZVector) vec).allocateNew(rowsInBatch * BigIntVector.TYPE_WIDTH);
+          ((TimeStampMicroTZVector) vec).allocateNew(batchSize);
           return BigIntVector.TYPE_WIDTH;
         case DECIMAL:
           DecimalMetadata decimal = primitive.getDecimalMetadata();
           this.vec = new IcebergDecimalArrowVector(icebergField.name(), rootAlloc, decimal.getPrecision(),
               decimal.getScale());
-          ((DecimalVector) vec).allocateNew(rowsInBatch * DecimalVector.TYPE_WIDTH);
+          ((DecimalVector) vec).allocateNew(batchSize);
           switch (primitive.getPrimitiveTypeName()) {
             case BINARY:
             case FIXED_LEN_BYTE_ARRAY:
@@ -142,35 +148,36 @@ public class VectorReader implements BatchedReader {
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
           int len = ((Types.FixedType) icebergField.type()).length();
-          this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
-          vec.setInitialCapacity(rowsInBatch * len);
+          this.vec = new IcebergVarBinaryArrowVector(icebergField.name(), rootAlloc);
+          int factor = (len + DEFAULT_RECORD_BYTE_COUNT - 1) / (DEFAULT_RECORD_BYTE_COUNT);
+          vec.setInitialCapacity(batchSize * factor);
           vec.allocateNew();
           return len;
         case BINARY:
           this.vec = new IcebergVarBinaryArrowVector(icebergField.name(), rootAlloc);
-          vec.setInitialCapacity(rowsInBatch * 10);
+          vec.setInitialCapacity(batchSize * 10);
           //TODO: samarth use the uncompressed page size info here
           vec.allocateNewSafe();
           return UNKNOWN_WIDTH;
         case INT32:
           this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
-          ((IntVector) vec).allocateNew(rowsInBatch * IntVector.TYPE_WIDTH);
+          ((IntVector) vec).allocateNew(batchSize);
           return IntVector.TYPE_WIDTH;
         case FLOAT:
           this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
-          ((Float4Vector) vec).allocateNew(rowsInBatch * Float4Vector.TYPE_WIDTH);
+          ((Float4Vector) vec).allocateNew(batchSize);
           return Float4Vector.TYPE_WIDTH;
         case BOOLEAN:
           this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
-          ((BitVector) vec).allocateNew(rowsInBatch);
+          ((BitVector) vec).allocateNew(batchSize);
           return UNKNOWN_WIDTH;
         case INT64:
           this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
-          ((BigIntVector) vec).allocateNew(rowsInBatch * BigIntVector.TYPE_WIDTH);
+          ((BigIntVector) vec).allocateNew(batchSize);
           return BigIntVector.TYPE_WIDTH;
         case DOUBLE:
           this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
-          ((Float8Vector) vec).allocateNew(rowsInBatch * Float8Vector.TYPE_WIDTH);
+          ((Float8Vector) vec).allocateNew(batchSize);
           return Float8Vector.TYPE_WIDTH;
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
@@ -179,22 +186,20 @@ public class VectorReader implements BatchedReader {
   }
 
   public FieldVector read(NullabilityHolder nullabilityHolder) {
-    //TODO: samarth confirm this
     vec.setValueCount(0);
     if (batchedColumnIterator.hasNext()) {
       if (isFixedLengthDecimal) {
         batchedColumnIterator.nextBatchFixedLengthDecimal(vec, typeWidth, nullabilityHolder);
         ((IcebergDecimalArrowVector) vec).setNullabilityHolder(nullabilityHolder);
+      } else if (isFixedWidthBinary) {
+        batchedColumnIterator.nextBatchFixedWidthBinary(vec, typeWidth, nullabilityHolder);
       } else if (isVarWidthType) {
         if (vec instanceof IcebergVarcharArrowVector) {
-          //TODO: samarth this could possibly be a general varwidth vector and not just varchar
           ((IcebergVarcharArrowVector) vec).setNullabilityHolder(nullabilityHolder);
         } else if (vec instanceof IcebergVarBinaryArrowVector) {
           ((IcebergVarBinaryArrowVector) vec).setNullabilityHolder(nullabilityHolder);
         }
         batchedColumnIterator.nextBatchVarWidthType(vec, nullabilityHolder);
-      } else if (isFixedWidthBinary) {
-        batchedColumnIterator.nextBatchFixedWidthBinary(vec, typeWidth, nullabilityHolder);
       } else if (isBooleanType) {
         batchedColumnIterator.nextBatchBoolean(vec, nullabilityHolder);
       } else if (isPaddedDecimal) {
@@ -223,7 +228,7 @@ public class VectorReader implements BatchedReader {
   }
 
   public int batchSize() {
-    return rowsInBatch;
+    return batchSize;
   }
 }
 
