@@ -30,6 +30,7 @@ import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -246,5 +247,95 @@ public class TestParquetWrite {
     List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
+  }
+
+  @Test
+  public void testUnpartitionedCreateWithTargetFileSizeViaTableProperties() throws IOException {
+    File parent = temp.newFolder("parquet");
+    File location = new File(parent, "test");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table = tables.create(SCHEMA, spec, location.toString());
+
+    table.updateProperties()
+        .set(TableProperties.WRITE_TARGET_FILE_SIZE_BYTES, "4") // ~4 bytes; low enough to trigger
+        .commit();
+
+    List<SimpleRecord> expected = Lists.newArrayListWithCapacity(4000);
+    for (int i = 0; i < 4000; i++) {
+      expected.add(new SimpleRecord(i, "a"));
+    }
+
+    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
+
+    df.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(location.toString());
+
+    table.refresh();
+
+    Dataset<Row> result = spark.read()
+        .format("iceberg")
+        .load(location.toString());
+
+    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
+    Assert.assertEquals("Result rows should match", expected, actual);
+
+    List<DataFile> files = Lists.newArrayList();
+    for (ManifestFile manifest : table.currentSnapshot().manifests()) {
+      for (DataFile file : ManifestReader.read(localInput(manifest.path()), null)) {
+        files.add(file);
+      }
+    }
+    Assert.assertEquals("Should have 4 DataFiles", 4, files.size());
+    Assert.assertTrue("All DataFiles contain 1000 rows", files.stream().allMatch(d -> d.recordCount() == 1000));
+  }
+
+  @Test
+  public void testPartitionedCreateWithTargetFileSizeViaOption() throws IOException {
+    File parent = temp.newFolder("parquet");
+    File location = new File(parent, "test");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
+    Table table = tables.create(SCHEMA, spec, location.toString());
+
+    List<SimpleRecord> expected = Lists.newArrayListWithCapacity(8000);
+    for (int i = 0; i < 2000; i++) {
+      expected.add(new SimpleRecord(i, "a"));
+      expected.add(new SimpleRecord(i, "b"));
+      expected.add(new SimpleRecord(i, "c"));
+      expected.add(new SimpleRecord(i, "d"));
+    }
+
+    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
+
+    df.select("id", "data").sort("data").write()
+        .format("iceberg")
+        .mode("append")
+        .option("target-file-size-bytes", 4) // ~4 bytes; low enough to trigger
+        .save(location.toString());
+
+    table.refresh();
+
+    Dataset<Row> result = spark.read()
+        .format("iceberg")
+        .load(location.toString());
+
+    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
+    Assert.assertEquals("Result rows should match", expected, actual);
+
+    List<DataFile> files = Lists.newArrayList();
+    for (ManifestFile manifest : table.currentSnapshot().manifests()) {
+      for (DataFile file : ManifestReader.read(localInput(manifest.path()), null)) {
+        files.add(file);
+      }
+    }
+    Assert.assertEquals("Should have 8 DataFiles", 8, files.size());
+    Assert.assertTrue("All DataFiles contain 1000 rows", files.stream().allMatch(d -> d.recordCount() == 1000));
   }
 }
