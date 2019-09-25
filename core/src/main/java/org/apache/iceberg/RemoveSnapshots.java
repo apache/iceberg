@@ -324,6 +324,9 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   private Snapshot findNthSnapshot(int snapshotIndex) {
+    if (base.snapshots().size() < snapshotIndex) {
+      return null;
+    }
     Snapshot lastSnapshot = base.currentSnapshot();
     int snapshotCount = 1;
     while (lastSnapshot != null) {
