@@ -25,6 +25,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.metadata.compression-codec   | none               | Metadata compression codec; none or gzip           |
 | write.metadata.metrics.default     | truncate(16)       | Default metrics mode for all columns in the table; none, counts, truncate(length), or full |
 | write.metadata.metrics.column.col1 | (not set)          | Metrics mode for column 'col1' to allow per-column tuning; none, counts, truncate(length), or full |
+| write.target-file-size-bytes       | Long.MAX_VALUE     | Controls the size of files generated to target about this many bytes. |
 
 ### Table behavior properties
 
@@ -75,4 +76,5 @@ df.write
 | Spark option | Default                    | Description                                                  |
 | ------------ | -------------------------- | ------------------------------------------------------------ |
 | write-format | Table write.format.default | File format to use for this write operation; parquet or avro |
+| target-file-size-bytes | As per table property | Overrides this table's write.target-file-size-bytes     |
 
