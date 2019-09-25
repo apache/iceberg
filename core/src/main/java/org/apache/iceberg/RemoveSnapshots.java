@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Joiner;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import io.netty.util.internal.ConcurrentSet;
@@ -79,6 +80,18 @@ class RemoveSnapshots implements ExpireSnapshots {
   public ExpireSnapshots expireOlderThan(long timestampMillis) {
     LOG.info("Expiring snapshots older than: {} ({})", new Date(timestampMillis), timestampMillis);
     this.expireOlderThan = timestampMillis;
+    return this;
+  }
+
+  @Override
+  public ExpireSnapshots retainLast(int numSnapshots) {
+    Preconditions.checkArgument(1 < numSnapshots,
+            "Number of snapshots to retain must be at least 1, cannot be: %s", numSnapshots);
+    LOG.info("Retaining last {} snapshots and expiring older snapshots", numSnapshots);
+    Snapshot nthSnapshot = findNthSnapshot(numSnapshots);
+    if (nthSnapshot != null) {
+      expireOlderThan(nthSnapshot.timestampMillis());
+    }
     return this;
   }
 
@@ -308,6 +321,19 @@ class RemoveSnapshots implements ExpireSnapshots {
         });
 
     return filesToDelete;
+  }
+
+  private Snapshot findNthSnapshot(int snapshotIndex) {
+    Snapshot lastSnapshot = base.currentSnapshot();
+    int snapshotCount = 1;
+    while (lastSnapshot != null) {
+      if (snapshotCount == snapshotIndex) {
+        return lastSnapshot;
+      }
+      snapshotCount++;
+      lastSnapshot = (lastSnapshot.parentId() != null) ? base.snapshot(lastSnapshot.parentId()) : null;
+    }
+    return null;
   }
 
   private static final Schema MANIFEST_PROJECTION = ManifestFile.schema()

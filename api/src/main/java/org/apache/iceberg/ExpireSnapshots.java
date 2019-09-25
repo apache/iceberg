@@ -56,6 +56,14 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
   ExpireSnapshots expireOlderThan(long timestampMillis);
 
   /**
+   * Retains last N snapshots and expires all other older snapshots.
+   *
+   * @param numSnapshots int number of snapshots to retain
+   * @return this for method chaining
+   */
+  ExpireSnapshots retainLast(int numSnapshots);
+
+  /**
    * Passes an alternative delete implementation that will be used for manifests and data files.
    * <p>
    * Manifest files that are no longer used by valid snapshots will be deleted. Data files that were
