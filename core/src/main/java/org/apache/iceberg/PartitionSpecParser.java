@@ -39,6 +39,7 @@ public class PartitionSpecParser {
   private static final String SPEC_ID = "spec-id";
   private static final String FIELDS = "fields";
   private static final String SOURCE_ID = "source-id";
+  private static final String FIELD_ID = "field-id";
   private static final String TRANSFORM = "transform";
   private static final String NAME = "name";
 
@@ -101,6 +102,7 @@ public class PartitionSpecParser {
       generator.writeStringField(NAME, field.name());
       generator.writeStringField(TRANSFORM, field.transform().toString());
       generator.writeNumberField(SOURCE_ID, field.sourceId());
+      generator.writeNumberField(FIELD_ID, field.fieldId());
       generator.writeEndObject();
     }
     generator.writeEndArray();
@@ -138,6 +140,8 @@ public class PartitionSpecParser {
         "Cannot parse partition spec fields, not an array: %s", json);
 
     Iterator<JsonNode> elements = json.elements();
+
+    int partitionFieldId = PartitionSpec.PARTITION_DATA_ID_START - 1;
     while (elements.hasNext()) {
       JsonNode element = elements.next();
       Preconditions.checkArgument(element.isObject(),
@@ -146,8 +150,13 @@ public class PartitionSpecParser {
       String name = JsonUtil.getString(NAME, element);
       String transform = JsonUtil.getString(TRANSFORM, element);
       int sourceId = JsonUtil.getInt(SOURCE_ID, element);
-
-      builder.add(sourceId, name, transform);
+      // to handle the backward compatibility where partitionFieldId was not part of the partitionSpec schema.
+      if (element.has(FIELD_ID)) {
+        partitionFieldId = JsonUtil.getInt(FIELD_ID, element);
+      } else {
+        partitionFieldId = partitionFieldId + 1;
+      }
+      builder.add(sourceId, partitionFieldId, name, transform);
     }
   }
 }

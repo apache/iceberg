@@ -95,6 +95,7 @@ public class TableMetadataParser {
   static final String SNAPSHOT_ID = "snapshot-id";
   static final String TIMESTAMP_MS = "timestamp-ms";
   static final String SNAPSHOT_LOG = "snapshot-log";
+  static final String FIELDS = "fields";
 
   public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
     internalWrite(metadata, outputFile, true);
@@ -215,6 +216,7 @@ public class TableMetadataParser {
     String location = JsonUtil.getString(LOCATION, node);
     int lastAssignedColumnId = JsonUtil.getInt(LAST_COLUMN_ID, node);
     Schema schema = SchemaParser.fromJson(node.get(SCHEMA));
+    int lastAssignedPartitionFieldId = 0;
 
     JsonNode specArray = node.get(PARTITION_SPECS);
     List<PartitionSpec> specs;
@@ -239,6 +241,12 @@ public class TableMetadataParser {
       defaultSpecId = TableMetadata.INITIAL_SPEC_ID;
       specs = ImmutableList.of(PartitionSpecParser.fromJsonFields(
           schema, TableMetadata.INITIAL_SPEC_ID, node.get(PARTITION_SPEC)));
+    }
+    // get the last spec
+    List<PartitionField> fields = specs.get(specs.size() - 1).fields();
+    if (fields.size() > 0) {
+      // get the last lastPartitionFieldId
+      lastAssignedPartitionFieldId = fields.get(fields.size() - 1).fieldId();
     }
 
     Map<String, String> properties = JsonUtil.getStringMap(PROPERTIES, node);
@@ -267,7 +275,7 @@ public class TableMetadataParser {
     }
 
     return new TableMetadata(ops, file, uuid, location,
-        lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs, properties,
+        lastUpdatedMillis, lastAssignedColumnId, lastAssignedPartitionFieldId, schema, defaultSpecId, specs, properties,
         currentVersionId, snapshots, ImmutableList.copyOf(entries.iterator()));
   }
 }

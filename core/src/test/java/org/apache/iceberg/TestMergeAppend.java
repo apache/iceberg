@@ -23,9 +23,11 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -330,6 +332,39 @@ public class TestMergeAppend extends TableTestBase {
 
     Assert.assertEquals("Second manifest should be the initial manifest with the old spec",
         initialManifest, pending.manifests().get(1));
+  }
+
+  @Test
+  public void testUpdatePartitionSpecFieldIds() {
+    TableMetadata base = readMetadata();
+
+    // build the new spec using the table's schema, which uses fresh IDs
+    PartitionSpec newSpec = PartitionSpec.builderFor(base.schema())
+        .bucket("data", 16)
+        .bucket("id", 4)
+        .identity("data")
+        .build();
+
+    // commit the new partition spec to the table manually
+    table.ops().commit(base, base.updatePartitionSpec(newSpec));
+
+    // validate the partitionFields.
+    List<PartitionSpec> partitionSpecs = table.ops().current().specs();
+    PartitionSpec partitionSpec = partitionSpecs.get(0);
+    Types.StructType structType = partitionSpec.partitionType();
+    List<Types.NestedField> fields = structType.fields();
+    Assert.assertEquals("data_bucket", fields.get(0).name());
+    Assert.assertEquals(1000, fields.get(0).fieldId());
+
+    partitionSpec = partitionSpecs.get(1);
+    structType = partitionSpec.partitionType();
+    fields = structType.fields();
+    Assert.assertEquals("data_bucket", fields.get(0).name());
+    Assert.assertEquals(1000, fields.get(0).fieldId());
+    Assert.assertEquals("id_bucket", fields.get(1).name());
+    Assert.assertEquals(1001, fields.get(1).fieldId());
+    Assert.assertEquals("data", fields.get(2).name());
+    Assert.assertEquals(1002, fields.get(2).fieldId());
   }
 
   @Test

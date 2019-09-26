@@ -28,11 +28,13 @@ import org.apache.iceberg.transforms.Transform;
  */
 public class PartitionField implements Serializable {
   private final int sourceId;
+  private final int id;
   private final String name;
   private final Transform<?, ?> transform;
 
-  PartitionField(int sourceId, String name, Transform<?, ?> transform) {
+  PartitionField(int sourceId, int id, String name, Transform<?, ?> transform) {
     this.sourceId = sourceId;
+    this.id = id;
     this.name = name;
     this.transform = transform;
   }
@@ -42,6 +44,13 @@ public class PartitionField implements Serializable {
    */
   public int sourceId() {
     return sourceId;
+  }
+
+  /**
+   * @return the field id of the source field in the {@link PartitionSpec spec's} table schema
+   */
+  public int fieldId() {
+    return id;
   }
 
   /**
@@ -71,7 +80,7 @@ public class PartitionField implements Serializable {
     if (other == null || getClass() != other.getClass()) {
       return false;
     }
-
+    // not considering field id, as field-id will be reused.
     PartitionField that = (PartitionField) other;
     return sourceId == that.sourceId &&
         name.equals(that.name) &&

@@ -82,7 +82,7 @@ public class TestTableMetadataJson {
         .build();
 
     TableMetadata expected = new TableMetadata(ops, null, UUID.randomUUID().toString(), "s3://bucket/test/location",
-        System.currentTimeMillis(), 3, schema, 5, ImmutableList.of(spec),
+        System.currentTimeMillis(), 3, 1000, schema, 5, ImmutableList.of(spec),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), snapshotLog);
 
@@ -143,7 +143,7 @@ public class TestTableMetadataJson {
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
 
     TableMetadata expected = new TableMetadata(ops, null, UUID.randomUUID().toString(), "s3://bucket/test/location",
-        System.currentTimeMillis(), 3, schema, 5, ImmutableList.of(spec),
+        System.currentTimeMillis(), 3, 1000, schema, 5, ImmutableList.of(spec),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog);
 
@@ -186,7 +186,7 @@ public class TestTableMetadataJson {
         new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
     TableMetadata expected = new TableMetadata(ops, null, null, "s3://bucket/test/location",
-        System.currentTimeMillis(), 3, schema, 6, ImmutableList.of(spec),
+        System.currentTimeMillis(), 3, 1000, schema, 6, ImmutableList.of(spec),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), ImmutableList.of());
 
