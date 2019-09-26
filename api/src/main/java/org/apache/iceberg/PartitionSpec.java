@@ -331,7 +331,11 @@ public class PartitionSpec implements Serializable {
       this.schema = schema;
     }
 
-    private void checkAndAddPartitionName(String name) {
+    private void checkAndAddPartitionName(String name, String transform) {
+      if (!transform.equalsIgnoreCase("identity")) {
+        Preconditions.checkArgument(schema.findField(name) == null,
+            "Cannot create partition from name that exists in schema: %s", name);
+      }
       Preconditions.checkArgument(name != null && !name.isEmpty(),
           "Cannot use empty or null partition name: %s", name);
       Preconditions.checkArgument(!partitionNames.contains(name),
@@ -357,9 +361,8 @@ public class PartitionSpec implements Serializable {
       return sourceColumn;
     }
 
-
-    public Builder identity(String sourceName, String targetName) {
-      checkAndAddPartitionName(targetName);
+    Builder identity(String sourceName, String targetName) {
+      checkAndAddPartitionName(targetName, "identity");
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       fields.add(new PartitionField(
           sourceColumn.fieldId(), targetName, Transforms.identity(sourceColumn.type())));
@@ -371,8 +374,7 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder year(String sourceName, String targetName) {
-
-      checkAndAddPartitionName(targetName);
+      checkAndAddPartitionName(targetName, "year");
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
           sourceColumn.fieldId(), targetName, Transforms.year(sourceColumn.type()));
@@ -386,7 +388,7 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder month(String sourceName, String targetName) {
-      checkAndAddPartitionName(targetName);
+      checkAndAddPartitionName(targetName, "month");
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
           sourceColumn.fieldId(), targetName, Transforms.month(sourceColumn.type()));
@@ -400,7 +402,7 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder day(String sourceName, String targetName) {
-      checkAndAddPartitionName(targetName);
+      checkAndAddPartitionName(targetName, "day");
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
           sourceColumn.fieldId(), targetName, Transforms.day(sourceColumn.type()));
@@ -414,7 +416,7 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder hour(String sourceName, String targetName) {
-      checkAndAddPartitionName(targetName);
+      checkAndAddPartitionName(targetName, "hour");
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
           sourceColumn.fieldId(), targetName, Transforms.hour(sourceColumn.type()));
@@ -428,7 +430,7 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder bucket(String sourceName, int numBuckets, String targetName) {
-      checkAndAddPartitionName(targetName);
+      checkAndAddPartitionName(targetName, "bucket");
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       fields.add(new PartitionField(
           sourceColumn.fieldId(), targetName, Transforms.bucket(sourceColumn.type(), numBuckets)));
@@ -440,7 +442,7 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder truncate(String sourceName, int width, String targetName) {
-      checkAndAddPartitionName(targetName);
+      checkAndAddPartitionName(targetName, "truncate");
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       fields.add(new PartitionField(
           sourceColumn.fieldId(), targetName, Transforms.truncate(sourceColumn.type(), width)));
@@ -452,7 +454,7 @@ public class PartitionSpec implements Serializable {
     }
 
     Builder add(int sourceId, String name, String transform) {
-      checkAndAddPartitionName(name);
+      checkAndAddPartitionName(name, transform);
       Types.NestedField column = schema.findField(sourceId);
       Preconditions.checkNotNull(column, "Cannot find source column: %d", sourceId);
       fields.add(new PartitionField(sourceId, name, Transforms.fromString(column.type(), transform)));

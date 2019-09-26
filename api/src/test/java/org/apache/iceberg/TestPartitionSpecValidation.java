@@ -125,7 +125,7 @@ public class TestPartitionSpecValidation {
 
 
   @Test
-  public void testSettingPartitionTransformsWithCutomTargetNames() {
+  public void testSettingPartitionTransformsWithCustomTargetNames() {
     Assert.assertEquals(PartitionSpec.builderFor(SCHEMA).identity("ts", "timestamp")
         .build().fields().get(0).name(), "timestamp");
     Assert.assertEquals(PartitionSpec.builderFor(SCHEMA).year("ts", "custom_year")
@@ -142,6 +142,45 @@ public class TestPartitionSpecValidation {
     Assert.assertEquals(PartitionSpec.builderFor(SCHEMA)
         .truncate("s", 1, "custom_truncate")
         .build().fields().get(0).name(), "custom_truncate");
+  }
+
+  @Test
+  public void testSettingPartitionTransformsWithCustomTargetNamesThatAlreadyExist() {
+
+    AssertHelpers.assertThrows("Should not allow target column name that exists in schema",
+        IllegalArgumentException.class,
+        "Cannot create partition from name that exists in schema: another_ts",
+        () -> PartitionSpec.builderFor(SCHEMA).year("ts", "another_ts"));
+
+    AssertHelpers.assertThrows("Should not allow target column name that exists in schema",
+        IllegalArgumentException.class,
+        "Cannot create partition from name that exists in schema: another_ts",
+        () -> PartitionSpec.builderFor(SCHEMA).month("ts", "another_ts"));
+
+    AssertHelpers.assertThrows("Should not allow target column name that exists in schema",
+        IllegalArgumentException.class,
+        "Cannot create partition from name that exists in schema: another_ts",
+        () -> PartitionSpec.builderFor(SCHEMA).day("ts", "another_ts"));
+
+    AssertHelpers.assertThrows("Should not allow target column name that exists in schema",
+        IllegalArgumentException.class,
+        "Cannot create partition from name that exists in schema: another_ts",
+        () -> PartitionSpec.builderFor(SCHEMA).hour("ts", "another_ts"));
+
+    AssertHelpers.assertThrows("Should not allow target column name that exists in schema",
+        IllegalArgumentException.class,
+        "Cannot create partition from name that exists in schema: another_ts",
+        () -> PartitionSpec.builderFor(SCHEMA).truncate("ts", 2, "another_ts"));
+
+    AssertHelpers.assertThrows("Should not allow target column name that exists in schema",
+        IllegalArgumentException.class,
+        "Cannot create partition from name that exists in schema: another_ts",
+        () -> PartitionSpec.builderFor(SCHEMA).bucket("ts", 4, "another_ts"));
+
+    // allows for identity
+    Assert.assertEquals(PartitionSpec.builderFor(SCHEMA).identity("ts", "another_ts")
+            .build().fields().get(0).name(),
+        "another_ts");
   }
 
   @Test
