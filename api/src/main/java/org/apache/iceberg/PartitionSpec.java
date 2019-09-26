@@ -357,77 +357,101 @@ public class PartitionSpec implements Serializable {
       return sourceColumn;
     }
 
-    public Builder identity(String sourceName) {
-      checkAndAddPartitionName(sourceName);
+
+    public Builder identity(String sourceName, String targetName) {
+      checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       fields.add(new PartitionField(
-          sourceColumn.fieldId(), sourceName, Transforms.identity(sourceColumn.type())));
+          sourceColumn.fieldId(), targetName, Transforms.identity(sourceColumn.type())));
+      return this;
+    }
+
+    public Builder identity(String sourceName) {
+      return identity(sourceName, sourceName);
+    }
+
+    public Builder year(String sourceName, String targetName) {
+
+      checkAndAddPartitionName(targetName);
+      Types.NestedField sourceColumn = findSourceColumn(sourceName);
+      PartitionField field = new PartitionField(
+          sourceColumn.fieldId(), targetName, Transforms.year(sourceColumn.type()));
+      checkForRedundantPartitions(field);
+      fields.add(field);
       return this;
     }
 
     public Builder year(String sourceName) {
-      String name = sourceName + "_year";
-      checkAndAddPartitionName(name);
+      return year(sourceName, sourceName + "_year");
+    }
+
+    public Builder month(String sourceName, String targetName) {
+      checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
-          sourceColumn.fieldId(), name, Transforms.year(sourceColumn.type()));
+          sourceColumn.fieldId(), targetName, Transforms.month(sourceColumn.type()));
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
     }
 
     public Builder month(String sourceName) {
-      String name = sourceName + "_month";
-      checkAndAddPartitionName(name);
+      return month(sourceName, sourceName + "_month");
+    }
+
+    public Builder day(String sourceName, String targetName) {
+      checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
-          sourceColumn.fieldId(), name, Transforms.month(sourceColumn.type()));
+          sourceColumn.fieldId(), targetName, Transforms.day(sourceColumn.type()));
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
     }
 
     public Builder day(String sourceName) {
-      String name = sourceName + "_day";
-      checkAndAddPartitionName(name);
+      return day(sourceName, sourceName + "_day");
+    }
+
+    public Builder hour(String sourceName, String targetName) {
+      checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
-          sourceColumn.fieldId(), name, Transforms.day(sourceColumn.type()));
+          sourceColumn.fieldId(), targetName, Transforms.hour(sourceColumn.type()));
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
     }
 
     public Builder hour(String sourceName) {
-      String name = sourceName + "_hour";
-      checkAndAddPartitionName(name);
+      return hour(sourceName, sourceName + "_hour");
+    }
+
+    public Builder bucket(String sourceName, int numBuckets, String targetName) {
+      checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
-      PartitionField field = new PartitionField(
-          sourceColumn.fieldId(), name, Transforms.hour(sourceColumn.type()));
-      checkForRedundantPartitions(field);
-      fields.add(field);
+      fields.add(new PartitionField(
+          sourceColumn.fieldId(), targetName, Transforms.bucket(sourceColumn.type(), numBuckets)));
       return this;
     }
 
     public Builder bucket(String sourceName, int numBuckets) {
-      String name = sourceName + "_bucket";
-      checkAndAddPartitionName(name);
+      return bucket(sourceName, numBuckets, sourceName + "_bucket");
+    }
+
+    public Builder truncate(String sourceName, int width, String targetName) {
+      checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       fields.add(new PartitionField(
-          sourceColumn.fieldId(), name, Transforms.bucket(sourceColumn.type(), numBuckets)));
+          sourceColumn.fieldId(), targetName, Transforms.truncate(sourceColumn.type(), width)));
       return this;
     }
 
     public Builder truncate(String sourceName, int width) {
-      String name = sourceName + "_trunc";
-      checkAndAddPartitionName(name);
-      Types.NestedField sourceColumn = findSourceColumn(sourceName);
-      fields.add(new PartitionField(
-          sourceColumn.fieldId(), name, Transforms.truncate(sourceColumn.type(), width)));
-      return this;
+      return truncate(sourceName, width, sourceName + "_trunc");
     }
 
-    public Builder add(int sourceId, String name, String transform) {
+    Builder add(int sourceId, String name, String transform) {
       checkAndAddPartitionName(name);
       Types.NestedField column = schema.findField(sourceId);
       Preconditions.checkNotNull(column, "Cannot find source column: %d", sourceId);
