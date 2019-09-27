@@ -126,8 +126,6 @@ public class TestPartitionSpecValidation {
 
   @Test
   public void testSettingPartitionTransformsWithCustomTargetNames() {
-    Assert.assertEquals(PartitionSpec.builderFor(SCHEMA).identity("ts", "timestamp")
-        .build().fields().get(0).name(), "timestamp");
     Assert.assertEquals(PartitionSpec.builderFor(SCHEMA).year("ts", "custom_year")
         .build().fields().get(0).name(), "custom_year");
     Assert.assertEquals(PartitionSpec.builderFor(SCHEMA).month("ts", "custom_month")
@@ -178,9 +176,10 @@ public class TestPartitionSpecValidation {
         () -> PartitionSpec.builderFor(SCHEMA).bucket("ts", 4, "another_ts"));
 
     // allows for identity
-    Assert.assertEquals(PartitionSpec.builderFor(SCHEMA).identity("ts", "another_ts")
-            .build().fields().get(0).name(),
-        "another_ts");
+    AssertHelpers.assertThrows("Should not allow target column name sourced from a different column",
+        IllegalArgumentException.class,
+        "Cannot create identity partition not sourced from same field in schema: another_ts",
+        () -> PartitionSpec.builderFor(SCHEMA).identity("ts", "another_ts"));
   }
 
   @Test
