@@ -65,6 +65,10 @@ public class TestMergeAppend extends TableTestBase {
         .apply();
 
     validateSnapshot(base.currentSnapshot(), pending, FILE_A, FILE_B);
+
+    // validate that the metadata summary is correct when using appendManifest
+    Assert.assertEquals("Summary metadata should include 2 added files",
+        "2", pending.summary().get("added-data-files"));
   }
 
   @Test
