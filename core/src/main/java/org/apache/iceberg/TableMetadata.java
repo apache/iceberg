@@ -221,6 +221,10 @@ public class TableMetadata {
     return specs;
   }
 
+  public Map<Integer, PartitionSpec> specsById() {
+    return specsById;
+  }
+
   public int defaultSpecId() {
     return defaultSpecId;
   }
