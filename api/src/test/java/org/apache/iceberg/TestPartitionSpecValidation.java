@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
+import org.junit.Assert;
 import org.junit.Test;
 
 public class TestPartitionSpecValidation {
@@ -29,7 +30,8 @@ public class TestPartitionSpecValidation {
       NestedField.required(2, "ts", Types.TimestampType.withZone()),
       NestedField.required(3, "another_ts", Types.TimestampType.withZone()),
       NestedField.required(4, "d", Types.TimestampType.withZone()),
-      NestedField.required(5, "another_d", Types.TimestampType.withZone())
+      NestedField.required(5, "another_d", Types.TimestampType.withZone()),
+      NestedField.required(6, "s", Types.StringType.get())
   );
 
   @Test
@@ -119,6 +121,64 @@ public class TestPartitionSpecValidation {
     PartitionSpec.builderFor(SCHEMA).day("d").day("another_d").build();
     PartitionSpec.builderFor(SCHEMA).day("d").hour("another_d").build();
     PartitionSpec.builderFor(SCHEMA).hour("d").hour("another_d").build();
+  }
+
+
+  @Test
+  public void testSettingPartitionTransformsWithCustomTargetNames() {
+    Assert.assertEquals(PartitionSpec.builderFor(SCHEMA).year("ts", "custom_year")
+        .build().fields().get(0).name(), "custom_year");
+    Assert.assertEquals(PartitionSpec.builderFor(SCHEMA).month("ts", "custom_month")
+        .build().fields().get(0).name(), "custom_month");
+    Assert.assertEquals(PartitionSpec.builderFor(SCHEMA).day("ts", "custom_day")
+        .build().fields().get(0).name(), "custom_day");
+    Assert.assertEquals(PartitionSpec.builderFor(SCHEMA).hour("ts", "custom_hour")
+        .build().fields().get(0).name(), "custom_hour");
+    Assert.assertEquals(PartitionSpec.builderFor(SCHEMA)
+        .bucket("ts", 4, "custom_bucket")
+        .build().fields().get(0).name(), "custom_bucket");
+    Assert.assertEquals(PartitionSpec.builderFor(SCHEMA)
+        .truncate("s", 1, "custom_truncate")
+        .build().fields().get(0).name(), "custom_truncate");
+  }
+
+  @Test
+  public void testSettingPartitionTransformsWithCustomTargetNamesThatAlreadyExist() {
+
+    AssertHelpers.assertThrows("Should not allow target column name that exists in schema",
+        IllegalArgumentException.class,
+        "Cannot create partition from name that exists in schema: another_ts",
+        () -> PartitionSpec.builderFor(SCHEMA).year("ts", "another_ts"));
+
+    AssertHelpers.assertThrows("Should not allow target column name that exists in schema",
+        IllegalArgumentException.class,
+        "Cannot create partition from name that exists in schema: another_ts",
+        () -> PartitionSpec.builderFor(SCHEMA).month("ts", "another_ts"));
+
+    AssertHelpers.assertThrows("Should not allow target column name that exists in schema",
+        IllegalArgumentException.class,
+        "Cannot create partition from name that exists in schema: another_ts",
+        () -> PartitionSpec.builderFor(SCHEMA).day("ts", "another_ts"));
+
+    AssertHelpers.assertThrows("Should not allow target column name that exists in schema",
+        IllegalArgumentException.class,
+        "Cannot create partition from name that exists in schema: another_ts",
+        () -> PartitionSpec.builderFor(SCHEMA).hour("ts", "another_ts"));
+
+    AssertHelpers.assertThrows("Should not allow target column name that exists in schema",
+        IllegalArgumentException.class,
+        "Cannot create partition from name that exists in schema: another_ts",
+        () -> PartitionSpec.builderFor(SCHEMA).truncate("ts", 2, "another_ts"));
+
+    AssertHelpers.assertThrows("Should not allow target column name that exists in schema",
+        IllegalArgumentException.class,
+        "Cannot create partition from name that exists in schema: another_ts",
+        () -> PartitionSpec.builderFor(SCHEMA).bucket("ts", 4, "another_ts"));
+
+    AssertHelpers.assertThrows("Should not allow target column name sourced from a different column",
+        IllegalArgumentException.class,
+        "Cannot create identity partition sourced from different field in schema: another_ts",
+        () -> PartitionSpec.builderFor(SCHEMA).identity("ts", "another_ts"));
   }
 
   @Test
