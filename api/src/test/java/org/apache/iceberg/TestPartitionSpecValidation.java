@@ -175,10 +175,9 @@ public class TestPartitionSpecValidation {
         "Cannot create partition from name that exists in schema: another_ts",
         () -> PartitionSpec.builderFor(SCHEMA).bucket("ts", 4, "another_ts"));
 
-    // allows for identity
     AssertHelpers.assertThrows("Should not allow target column name sourced from a different column",
         IllegalArgumentException.class,
-        "Cannot create identity partition not sourced from same field in schema: another_ts",
+        "Cannot create identity partition sourced from different field in schema: another_ts",
         () -> PartitionSpec.builderFor(SCHEMA).identity("ts", "another_ts"));
   }
 

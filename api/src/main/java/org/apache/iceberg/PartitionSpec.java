@@ -341,7 +341,7 @@ public class PartitionSpec implements Serializable {
         // for identity transform case we allow  conflicts between partition and schema field name as
         //   long as they are sourced from the same schema field
         Preconditions.checkArgument(schemaField == null || schemaField.fieldId() == identitySourceColumnId,
-            "Cannot create identity partition not sourced from same field in schema: %s", name);
+            "Cannot create identity partition sourced from different field in schema: %s", name);
       } else {
         // for all other transforms we don't allow conflicts between partition name and schema field name
         Preconditions.checkArgument(schemaField == null,
