@@ -196,8 +196,6 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
 
         // element was changed, create a new array
         if (elementSchema != array.getElementType()) {
-          // TODO: we do not copy field ids here. Probably not required,
-          //  but we do at other places in this class.
           return Schema.createArray(elementSchema);
         }
 
@@ -222,7 +220,6 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
 
       // element was changed, create a new map
       if (valueSchema != map.getValueType()) {
-        // TODO: we do not copy field ids here
         return Schema.createMap(valueSchema);
       }
 
