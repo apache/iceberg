@@ -70,9 +70,4 @@ public class TestTimestampPartitions extends TableTestBase {
         files(DATA_FILE),
         statuses(ManifestEntry.Status.ADDED));
   }
-
-  private TestTables.TestTable create(Schema schema, PartitionSpec spec) {
-    return TestTables.create(tableDir, "test", schema, spec);
-  }
-
 }
