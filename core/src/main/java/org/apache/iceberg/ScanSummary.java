@@ -266,10 +266,10 @@ public class ScanSummary {
       return dataTimestampMillis;
     }
 
-    PartitionMetrics updateFromCounts(int fileCount, long recordCount, long filesSize,
+    PartitionMetrics updateFromCounts(int numFiles, long filesRecordCount, long filesSize,
                                       Long timestampMillis) {
-      this.fileCount += fileCount;
-      this.recordCount += recordCount;
+      this.fileCount += numFiles;
+      this.recordCount += filesRecordCount;
       this.totalSize += filesSize;
       if (timestampMillis != null && (dataTimestampMillis == null || dataTimestampMillis < timestampMillis)) {
         this.dataTimestampMillis = timestampMillis;
