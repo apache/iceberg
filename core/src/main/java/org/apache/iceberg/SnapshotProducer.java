@@ -366,16 +366,16 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         long newTotal = Long.parseLong(totalStr);
 
         String addedStr = currentSummary.get(addedProperty);
-        if (newTotal > 0 && addedStr != null) {
+        if (newTotal >= 0 && addedStr != null) {
           newTotal += Long.parseLong(addedStr);
         }
 
         String deletedStr = currentSummary.get(deletedProperty);
-        if (newTotal > 0 && deletedStr != null) {
+        if (newTotal >= 0 && deletedStr != null) {
           newTotal -= Long.parseLong(deletedStr);
         }
 
-        if (newTotal > 0) {
+        if (newTotal >= 0) {
           summaryBuilder.put(totalProperty, String.valueOf(newTotal));
         }
 
