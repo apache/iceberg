@@ -62,7 +62,6 @@ public class TestTimestampPartitions extends TableTestBase {
 
   @Test
   public void testPartitionAppend() {
-
     long id = table.currentSnapshot().snapshotId();
     Assert.assertEquals(table.currentSnapshot().manifests().size(), 1);
     validateManifestEntries(table.currentSnapshot().manifests().get(0),
