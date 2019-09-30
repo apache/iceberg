@@ -31,7 +31,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestTimestampPartitions extends TableTestBase {
 
-
   private static final Schema DATE_SCHEMA = new Schema(
       required(1, "id", Types.LongType.get()),
       optional(2, "timestamp", Types.TimestampType.withoutZone())
@@ -62,17 +61,15 @@ public class TestTimestampPartitions extends TableTestBase {
   }
 
   @Test
-  public void testPartitionDates() throws Exception {
+  public void testPartitionAppend() {
 
     long id = table.currentSnapshot().snapshotId();
-    // table.currentSnapshot().manifests().get(0).sta
     Assert.assertEquals(table.currentSnapshot().manifests().size(), 1);
     validateManifestEntries(table.currentSnapshot().manifests().get(0),
         ids(id),
         files(DATA_FILE),
         statuses(ManifestEntry.Status.ADDED));
   }
-
 
   private TestTables.TestTable create(Schema schema, PartitionSpec spec) {
     return TestTables.create(tableDir, "test", schema, spec);
