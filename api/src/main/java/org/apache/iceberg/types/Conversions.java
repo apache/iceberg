@@ -28,6 +28,8 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.UUID;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -66,6 +68,8 @@ public class Conversions {
         return asString.getBytes(StandardCharsets.UTF_8);
       case DECIMAL:
         return new BigDecimal(asString);
+      case DATE:
+        return (int) LocalDate.parse(asString, DateTimeFormatter.ofPattern("yyyy-MM-dd")).toEpochDay();
       default:
         throw new UnsupportedOperationException(
             "Unsupported type for fromPartitionString: " + type);
