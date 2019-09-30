@@ -87,6 +87,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final AtomicInteger manifestCount = new AtomicInteger(0);
   private final List<DataFile> newFiles = Lists.newArrayList();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
+  private final SnapshotSummary.Builder appendedManifestsSummary = SnapshotSummary.builder();
   private final Set<CharSequenceWrapper> deletePaths = Sets.newHashSet();
   private final Set<StructLikeWrapper> deleteFilePartitions = Sets.newHashSet();
   private final Set<StructLikeWrapper> dropPartitions = Sets.newHashSet();
@@ -205,7 +206,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     try (ManifestReader reader = ManifestReader.read(
         ops.io().newInputFile(manifest.path()), ops.current()::spec)) {
       appendManifests.add(ManifestWriter.copyAppendManifest(
-          reader, manifestPath(manifestCount.getAndIncrement()), snapshotId(), summaryBuilder));
+          reader, manifestPath(manifestCount.getAndIncrement()), snapshotId(), appendedManifestsSummary));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest);
     }
@@ -219,6 +220,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   @Override
   public List<ManifestFile> apply(TableMetadata base) {
     summaryBuilder.clear();
+    summaryBuilder.merge(appendedManifestsSummary);
 
     if (filterUpdated) {
       cleanUncommittedFilters(SnapshotProducer.EMPTY_SET);
