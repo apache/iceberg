@@ -28,8 +28,12 @@ import java.util.Set;
 import org.apache.avro.Schema;
 import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class PruneColumns extends AvroSchemaVisitor<Schema> {
+  private static final Logger LOG = LoggerFactory.getLogger(PruneColumns.class);
+
   private final Set<Integer> selectedIds;
   private final NameMapping nameMapping;
 
@@ -119,7 +123,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       Integer keyId = fieldId(keyValue.getField("key"));
       Integer valueId = fieldId(keyValue.getField("value"));
       if (keyId == null) {
-        Preconditions.checkState(valueId == null, "Map schema %s has value id but not key id", array);
+        LOG.warn("Map schema %s has value id but not key id", array);
         return null;
       }
 
