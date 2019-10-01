@@ -123,7 +123,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       Integer keyId = fieldId(keyValue.getField("key"));
       Integer valueId = fieldId(keyValue.getField("value"));
       if (keyId == null) {
-        LOG.warn("Map schema %s has value id but not key id", array);
+        LOG.warn("Map schema {} has value id but not key id", array);
         return null;
       }
 
