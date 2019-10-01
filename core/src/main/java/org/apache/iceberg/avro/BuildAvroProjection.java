@@ -165,14 +165,13 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
       try {
         Schema keyValueSchema = array.getElementType();
         Schema.Field keyField = keyValueSchema.getFields().get(0);
-        Schema.Field keyProjection = element.get().getField("key");
         Schema.Field valueField = keyValueSchema.getFields().get(1);
         Schema.Field valueProjection = element.get().getField("value");
 
         // element was changed, create a new array
-        if (keyProjection.schema() != keyField.schema() || valueProjection.schema() != valueField.schema()) {
+        if (valueProjection.schema() != valueField.schema()) {
           return AvroSchemaUtil.createProjectionMap(keyValueSchema.getFullName(),
-              AvroSchemaUtil.getFieldId(keyField), keyField.name(), keyProjection.schema(),
+              AvroSchemaUtil.getFieldId(keyField), keyField.name(), keyField.schema(),
               AvroSchemaUtil.getFieldId(valueField), valueField.name(), valueProjection.schema());
         } else if (!(array.getLogicalType() instanceof LogicalMap)) {
           return AvroSchemaUtil.createProjectionMap(keyValueSchema.getFullName(),

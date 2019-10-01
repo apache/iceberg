@@ -51,11 +51,16 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
   public Schema record(Schema record, List<String> names, List<Schema> fields) {
     // Then this should access the record's fields by name
     List<Schema.Field> filteredFields = Lists.newArrayListWithExpectedSize(fields.size());
+    boolean hasChange = false;
     for (Schema.Field field : record.getFields()) {
       Integer fieldId = fieldId(field);
       if (fieldId == null) {
         // both the schema and the nameMapping does not have field id. We prune this field.
         continue;
+      }
+
+      if (!AvroSchemaUtil.hasFieldId(field)) {
+        hasChange = true;
       }
 
       Schema fieldSchema = fields.get(field.pos());
@@ -72,13 +77,14 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       }
     }
 
-    if (filteredFields.size() > 0) {
+    if (hasChange) {
       return copyRecord(record, filteredFields);
-    } else if (record.getFields().isEmpty()) {
+    } else if (filteredFields.size() == record.getFields().size()) {
       return record;
+    } else if (!filteredFields.isEmpty()) {
+      return copyRecord(record, filteredFields);
     }
 
-    // No fields selected, also record has fields
     return null;
   }
 

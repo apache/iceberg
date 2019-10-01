@@ -110,11 +110,12 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
             )
         )));
 
-    // project a subset of the map's key and value columns in NameMapping
+    // project a subset of the map's value columns in NameMapping
     NameMapping nameMapping = MappingUtil.create(new Schema(
         Types.NestedField.required(5, "locations", Types.MapType.ofOptional(6, 7,
             Types.StructType.of(
-                Types.NestedField.required(3, "k1", Types.StringType.get())
+                Types.NestedField.required(3, "k1", Types.StringType.get()),
+                Types.NestedField.optional(4, "k2", Types.StringType.get())
             ),
             Types.StructType.of(
                 Types.NestedField.required(1, "lat", Types.FloatType.get())
