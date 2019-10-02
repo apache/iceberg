@@ -123,7 +123,9 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       Integer keyId = fieldId(keyValue.getField("key"));
       Integer valueId = fieldId(keyValue.getField("value"));
       if (keyId == null) {
-        LOG.warn("Map schema {} has value id but not key id", array);
+        if (valueId != null) {
+          LOG.warn("Map schema {} has value id but not key id", array);
+        }
         return null;
       }
 
@@ -167,7 +169,9 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
     Integer keyId = id(map, AvroSchemaUtil.KEY_ID_PROP, "key");
     Integer valueId = id(map, AvroSchemaUtil.VALUE_ID_PROP, "value");
     if (keyId == null) {
-      LOG.warn("Map schema {} has value-id but not key-id", map);
+      if (valueId != null) {
+        LOG.warn("Map schema {} has value-id but not key-id", map);
+      }
       return null;
     }
     // if either key or value is selected, the whole map must be projected
