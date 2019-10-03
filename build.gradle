@@ -32,12 +32,10 @@ buildscript {
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:3.14.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:2.1.0'
     classpath 'me.champeau.gradle:jmh-gradle-plugin:0.4.8'
-    classpath 'com.netflix.nebula:nebula-publishing-plugin:9.5.0'
   }
 }
 
 plugins {
-  id 'nebula.netflixoss' version '4.1.0'
   id 'com.palantir.git-version' version '0.9.1'
   id 'com.palantir.consistent-versions' version '1.9.2'
 }
@@ -60,11 +58,26 @@ allprojects {
 apply plugin: 'com.palantir.baseline-config'
 
 subprojects {
-  apply plugin: 'nebula.javadoc-jar'
-  apply plugin: 'nebula.source-jar'
   apply plugin: 'java'
   apply plugin: 'maven' // make pom files for deployment
   apply plugin: 'maven-publish'
+
+  task sourceJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+    group 'build'
+  }
+
+  task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
+    group 'build'
+  }
+
+  artifacts {
+    archives sourceJar
+    archives javadocJar
+  }
 
   compileJava {
     options.encoding = "UTF-8"
@@ -122,13 +135,46 @@ subprojects {
 
   publishing {
     publications {
-      nebula(MavenPublication) {
+      apache(MavenPublication) {
+        groupId = 'org.apache.iceberg'
+        pom {
+          name = 'Apache Iceberg (incubating)'
+          description = 'A table format for huge analytic datasets'
+          url = 'https://iceberg.apache.org'
+          licenses {
+            license {
+              name = 'The Apache Software License, Version 2.0'
+              url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+            }
+          }
+          mailingLists {
+            mailingList {
+              name = 'Dev Mailing List'
+              post = 'dev@iceberg.apache.org'
+              subscribe = 'dev-subscribe@iceberg.apache.org'
+              unsubscribe = 'dev-unsubscribe@iceberg.apache.org'
+            }
+          }
+        }
         from components.java
         versionMapping {
           allVariants {
             fromResolutionResult()
           }
         }
+      }
+    }
+
+    repositories {
+      maven {
+        credentials {
+          username "$mavenUser"
+          password "$mavenPassword"
+        }
+        // upload to the releases repository using ./gradlew -Prelease publish
+        def snapshotsRepoUrl = 'https://repository.apache.org/content/repositories/snapshots'
+        def releasesRepoUrl = 'https://repository.apache.org/service/local/staging/deploy/maven2'
+        url = project.hasProperty('release') ? releasesRepoUrl : snapshotsRepoUrl
       }
     }
   }
