@@ -29,12 +29,16 @@ setup(
     install_requires=['botocore',
                       'boto3',
                       'fastavro',
+                      'fastparquet>=0.3.1',
                       'mmh3',
                       'moz_sql_parser',
                       'pyparsing',
                       'python-dateutil',
                       'pytz',
                       'requests',
-                      'retrying'],
+                      'retrying',
+                      'pandas',
+                      'pyarrow'
+                      ],
     setup_requires=['setupmeta']
 )

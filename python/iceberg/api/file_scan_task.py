@@ -20,18 +20,23 @@ from .scan_task import ScanTask
 
 class FileScanTask(ScanTask):
 
+    @property
     def file(self):
         raise NotImplementedError()
 
+    @property
     def spec(self):
         raise NotImplementedError()
 
+    @property
     def start(self):
         raise NotImplementedError()
 
+    @property
     def length(self):
         raise NotImplementedError()
 
+    @property
     def residual(self):
         raise NotImplementedError()
 

@@ -17,7 +17,6 @@
 
 import time
 
-import fastavro
 from iceberg.api import (Filterable,
                          FilteredSnapshot,
                          ManifestFile,
@@ -56,8 +55,8 @@ class BaseSnapshot(Snapshot, SnapshotIterable, CloseableGroup):
         else:
             self._manifests = None
         self._manifest_list = manifest_list
-        self.operation = operation
-        self.summary = summary
+        self._operation = operation
+        self._summary = summary
 
         self._adds = None
         self._deletes = None
@@ -78,13 +77,22 @@ class BaseSnapshot(Snapshot, SnapshotIterable, CloseableGroup):
     def manifests(self):
         if self._manifests is None:
             # if manifest isn't set then the snapshot_file is set and should be read to get the list
-            with self._manifest_list.new_fo() as fo:
-                avro_reader = fastavro.reader(fo)
-
-                self._manifests = [GenericManifestFile.from_avro_record_json(manifest)
-                                   for manifest in AvroToIceberg.read_avro_row(ManifestFile.schema(), avro_reader)]
+            return (GenericManifestFile.from_avro_record_json(manifest)
+                    for manifest in AvroToIceberg.read_avro_file(ManifestFile.schema(), self._manifest_list))
 
         return self._manifests
+
+    @property
+    def manifest_location(self):
+        return self._manifest_list.location if self._manifest_list is not None else None
+
+    @property
+    def summary(self):
+        return self._summary
+
+    @property
+    def operation(self):
+        return self._operation
 
     def select(self, columns):
         return FilteredSnapshot(self, Expressions.always_true(), Expressions.always_true(), columns)

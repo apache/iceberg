@@ -17,6 +17,7 @@
 
 from iceberg.api import Table
 
+from .data_table_scan import DataTableScan
 from .schema_update import SchemaUpdate
 
 
@@ -30,7 +31,7 @@ class BaseTable(Table):
         self.ops.refresh()
 
     def new_scan(self):
-        raise NotImplementedError()
+        return DataTableScan(self.ops, self)
 
     def schema(self):
         return self.ops.current().schema

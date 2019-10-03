@@ -32,6 +32,7 @@ class BaseMetastoreTableOperations(TableOperations):
     TABLE_TYPE_PROP = "table_type"
     ICEBERG_TABLE_TYPE_VALUE = "iceberg"
     METADATA_LOCATION_PROP = "metadata_location"
+    PARTITION_SPEC_PROP = "partition_spec"
     PREVIOUS_METADATA_LOCATION_PROP = "previous_metadata_location"
 
     METADATA_FOLDER_NAME = "metadata"

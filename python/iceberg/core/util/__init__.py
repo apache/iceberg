@@ -15,10 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 
-__all__ = ["AtomicInteger", "PackingIterator", "str_as_bool"]
+
+__all__ = ["AtomicInteger",
+           "METAFLOW_ENABLED",
+           "METAFLOW_ROOTDIR",
+           "PackingIterator",
+           "PLANNER_THREAD_POOL_SIZE_PROP",
+           "SCAN_THREAD_POOL_ENABLED",
+           "str_as_bool",
+           "WORKER_THREAD_POOL_SIZE_PROP",
+           ]
 
 from .atomic_integer import AtomicInteger
 from .bin_packing import PackingIterator
+
+PLANNER_THREAD_POOL_SIZE_PROP = "iceberg.planner.num-threads"
+WORKER_THREAD_POOL_SIZE_PROP = "iceberg.worker.num-threads"
+SCAN_THREAD_POOL_ENABLED = "iceberg.scan.plan-in-worker-pool"
+METAFLOW_ENABLED = "iceberg.s3.use-metaflow"
+METAFLOW_ROOTDIR = "iceberg.s3.metaflow-root-dir"
 
 
 def str_as_bool(str_var):

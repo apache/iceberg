@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import fastavro
 from iceberg.api import Schema
 from iceberg.api.types import (BinaryType,
                                BooleanType,
@@ -62,8 +63,11 @@ class AvroToIceberg(object):
                                 "long": LongType.get(),
                                 "string": StringType.get(),
                                 "time-millis": TimeType.get(),
-                                "timestamp-millis": TimestampType.without_timezone()
-                                }
+                                "timestamp-millis": TimestampType.without_timezone()}
+
+    PROCESS_FUNCS = {TypeID.STRUCT: lambda avro_row, field: AvroToIceberg.get_field_from_struct(avro_row, field),
+                     TypeID.LIST: lambda avro_row, field: AvroToIceberg.get_field_from_list(avro_row, field),
+                     TypeID.MAP: lambda avro_row, field: AvroToIceberg.get_field_from_map(avro_row, field)}
 
     @staticmethod
     def convert_avro_schema_to_iceberg(avro_schema):
@@ -228,37 +232,42 @@ class AvroToIceberg(object):
         return False
 
     @staticmethod
-    def read_avro_row(iceberg_schema, avro_reader):
-        try:
-            avro_row = avro_reader.__next__()
+    def read_avro_file(iceberg_schema, data_file):
+        fo = data_file.new_fo()
+        avro_reader = fastavro.reader(fo)
+        for avro_row in avro_reader:
             iceberg_row = dict()
             for field in iceberg_schema.as_struct().fields:
                 iceberg_row[field.name] = AvroToIceberg.get_field_from_avro(avro_row, field)
             yield iceberg_row
+        fo.close()
+
+    @staticmethod
+    def read_avro_row(iceberg_schema, avro_reader):
+        try:
+            for avro_row in avro_reader:
+                iceberg_row = dict()
+                for field in iceberg_schema.as_struct().fields:
+                    iceberg_row[field.name] = AvroToIceberg.get_field_from_avro(avro_row, field)
+                yield iceberg_row
         except StopIteration:
             return
 
     @staticmethod
     def get_field_from_avro(avro_row, field):
-        process_funcs = {TypeID.STRUCT: lambda avro_row, field: AvroToIceberg.get_field_from_struct(avro_row, field),
-                         TypeID.LIST: lambda avro_row, field: AvroToIceberg.get_field_from_list(avro_row, field),
-                         TypeID.MAP: lambda avro_row, field: AvroToIceberg.get_field_from_map(avro_row, field)}
-        if field.type.is_primitive_type():
-            processing_func = AvroToIceberg.get_field_from_primitive
-        else:
-            processing_func = process_funcs.get(field.type.type_id)
-
-        if processing_func is None:
+        try:
+            return AvroToIceberg.PROCESS_FUNCS.get(field.type.type_id,
+                                                   AvroToIceberg.get_field_from_primitive)(avro_row, field)
+        except KeyError:
             raise RuntimeError("Don't know how to get field of type: %s" % field.type.type_id)
-
-        return processing_func(avro_row, field)
 
     @staticmethod
     def get_field_from_primitive(avro_row, field):
-        avro_value = avro_row.get(field.name)
-        if avro_row is None and field.is_required:
-            raise RuntimeError("Field is required but missing in source %s\n%s:" % (field, avro_row))
-        return avro_value
+        try:
+            return avro_row[field.name]
+        except KeyError:
+            if field.is_required:
+                raise RuntimeError("Field is required but missing in source %s\n%s:" % (field, avro_row))
 
     @staticmethod
     def get_field_from_struct(avro_row, field):
@@ -269,21 +278,25 @@ class AvroToIceberg(object):
 
     @staticmethod
     def get_field_from_list(avro_row, field):
-        avro_value = avro_row.get(field.name)
-        if avro_value is None:
+        try:
+            return avro_row[field.name]
+        except KeyError:
             if field.is_required:
                 raise RuntimeError("Field is required but missing in source %s\n%s:" % (field, avro_row))
-            return None
-
-        return avro_value
 
     @staticmethod
     def get_field_from_map(avro_row, field):
         val_map = dict()
-        avro_value = avro_row.get(field.name)
-        if avro_value is None and field.is_required:
-            raise RuntimeError("Field is required but missing in source %s\n%s:" % (field, avro_row))
+
+        try:
+            avro_value = avro_row[field.name]
+        except KeyError:
+            if field.is_required:
+                raise RuntimeError("Field is required but missing in source %s\n%s:" % (field, avro_row))
+            else:
+                return None
 
         for val in avro_value:
             val_map[val['key']] = val['value']
+
         return val_map
