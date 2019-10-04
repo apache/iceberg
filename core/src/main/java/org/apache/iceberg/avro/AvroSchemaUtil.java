@@ -216,7 +216,7 @@ public class AvroSchemaUtil {
     if (id != null) {
       return toInt(id);
     } else {
-      Preconditions.checkState(nameMapping != null,
+      Preconditions.checkArgument(nameMapping != null,
           "Schema does not have field id and name mapping not specified");
       MappedField mappedField = nameMapping.find(names);
       if (mappedField != null) {
@@ -286,7 +286,7 @@ public class AvroSchemaUtil {
     if (id != null) {
       return toInt(id);
     } else {
-      Preconditions.checkState(nameMapping != null, "Field schema does not have id and name mapping not specified");
+      Preconditions.checkArgument(nameMapping != null, "Field schema does not have id and name mapping not specified");
       List<String> names = Lists.newArrayList(parentFieldNames);
       names.add(field.name());
       MappedField mappedField = nameMapping.find(names);
