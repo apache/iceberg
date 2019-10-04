@@ -122,19 +122,19 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       Schema keyValue = array.getElementType();
       Integer keyId = fieldId(keyValue.getField("key"));
       Integer valueId = fieldId(keyValue.getField("value"));
-      if (keyId == null) {
-        if (valueId != null) {
-          LOG.warn("Map schema {} has value id but not key id", array);
+      if (keyId == null || valueId == null) {
+        if (keyId != null || valueId != null) {
+          LOG.warn("Map schema {} should have both key and value ids set or both unset", array);
         }
         return null;
       }
-
       // if either key or value is selected, the whole map must be projected
       if (selectedIds.contains(keyId) || selectedIds.contains(valueId)) {
         return complexMapWithIds(array, keyId, valueId);
       } else if (element != null) {
         if (keyValue.getField("key").schema() != element.getField("key").schema() ||
             keyValue.getField("value").schema() != element.getField("value").schema()) {
+          // key schemas can be different if new field ids were assigned to them
           // the value must be a projection
           return AvroSchemaUtil.createMap(
               keyId, element.getField("key").schema(),
@@ -168,15 +168,16 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
   public Schema map(Schema map, Schema value) {
     Integer keyId = id(map, AvroSchemaUtil.KEY_ID_PROP, "key");
     Integer valueId = id(map, AvroSchemaUtil.VALUE_ID_PROP, "value");
-    if (keyId == null) {
-      if (valueId != null) {
-        LOG.warn("Map schema {} has value-id but not key-id", map);
+    if (keyId == null || valueId == null) {
+      if (keyId != null || valueId != null) {
+        LOG.warn("Map schema {} should have both key and value ids set or both unset", map);
       }
       return null;
     }
     // if either key or value is selected, the whole map must be projected
     if (selectedIds.contains(keyId) || selectedIds.contains(valueId)) {
-      // Assign ids. Ids may not always be present in the schema
+      // Assign ids. Ids may not always be present in the schema,
+      // e.g if we are reading data not written by Iceberg writers
       return mapWithIds(map, keyId, valueId);
     } else if (value != null) {
       if (value != map.getValueType()) {
@@ -200,7 +201,8 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
 
   private Schema complexMapWithIds(Schema map, Integer keyId, Integer valueId) {
     Schema keyValue = map.getElementType();
-    if (!AvroSchemaUtil.hasFieldId(keyValue.getField("key"))) {
+    if (!AvroSchemaUtil.hasFieldId(keyValue.getField("key")) ||
+        !AvroSchemaUtil.hasFieldId(keyValue.getField("value"))) {
       return AvroSchemaUtil.createMap(
           keyId, keyValue.getField("key").schema(),
           valueId, keyValue.getField("value").schema());
@@ -209,7 +211,8 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
   }
 
   private Schema mapWithIds(Schema map, Integer keyId, Integer valueId) {
-    if (!AvroSchemaUtil.hasProperty(map, AvroSchemaUtil.KEY_ID_PROP)) {
+    if (!AvroSchemaUtil.hasProperty(map, AvroSchemaUtil.KEY_ID_PROP) ||
+        !AvroSchemaUtil.hasProperty(map, AvroSchemaUtil.VALUE_ID_PROP)) {
       Schema result = Schema.createMap(map.getValueType());
       result.addProp(AvroSchemaUtil.KEY_ID_PROP, keyId);
       result.addProp(AvroSchemaUtil.VALUE_ID_PROP, valueId);

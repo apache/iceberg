@@ -22,9 +22,13 @@ package org.apache.iceberg.avro;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
+
+import com.google.common.collect.Lists;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.mapping.MappedField;
+import org.apache.iceberg.mapping.MappedFields;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.types.TypeUtil;
@@ -137,9 +141,85 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
     check(fileSchema, readSchema, nameMapping);
   }
 
-  //TODO: add tests on
-  // 1. aliases in namemapping
-  // 2. arrays
+  @Test
+  public void testArrayProjections() {
+    Schema writeSchema = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get()),
+        Types.NestedField.optional(22, "points",
+            Types.ListType.ofOptional(21, Types.StructType.of(
+                Types.NestedField.required(19, "x", Types.IntegerType.get()),
+                Types.NestedField.optional(18, "y", Types.IntegerType.get())
+            ))
+        )
+    );
+
+    NameMapping nameMapping = MappingUtil.create(new Schema(
+        // Optional array field missing. Will be filled in
+        // using default values using read schema
+        Types.NestedField.required(0, "id", Types.LongType.get())));
+
+    Schema readSchema = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get()),
+        Types.NestedField.optional(22, "points",
+            Types.ListType.ofOptional(21, Types.StructType.of(
+                Types.NestedField.required(19, "x", Types.IntegerType.get())
+            ))
+        )
+    );
+
+    check(writeSchema, readSchema, nameMapping);
+
+    // points array is partially projected
+    nameMapping = MappingUtil.create( new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get()),
+        Types.NestedField.optional(22, "points",
+            Types.ListType.ofOptional(21, Types.StructType.of(
+                Types.NestedField.required(19, "x", Types.IntegerType.get())))
+        )
+    ));
+
+    check(writeSchema, readSchema, nameMapping);
+  }
+
+  @Test
+  public void testAliases() {
+    Schema fileSchema = new Schema(
+        Types.NestedField.optional(22, "points",
+            Types.ListType.ofOptional(21, Types.StructType.of(
+                Types.NestedField.required(19, "x", Types.IntegerType.get())
+            ))
+        )
+    );
+
+    NameMapping nameMapping = NameMapping.of(MappedFields.of(
+        MappedField.of(22, "points", MappedFields.of(
+            MappedField.of(19, Lists.newArrayList("x", "y", "z"))
+        ))));
+
+
+    Schema readSchema = new Schema(
+        Types.NestedField.optional(22, "points",
+            Types.ListType.ofOptional(21, Types.StructType.of(
+                // x renamed to y
+                Types.NestedField.required(19, "y", Types.IntegerType.get())
+            ))
+        )
+    );
+
+    check(fileSchema, readSchema, nameMapping);
+
+    readSchema = new Schema(
+        Types.NestedField.optional(22, "points",
+            Types.ListType.ofOptional(21, Types.StructType.of(
+                // x renamed to z
+                Types.NestedField.required(19, "z", Types.IntegerType.get())
+            ))
+        )
+    );
+
+    check(fileSchema, readSchema, nameMapping);
+  }
+
 
   private static org.apache.avro.Schema project(Schema writeSchema, Schema readSchema) {
     // Build a read schema when file schema has field ids
@@ -162,12 +242,12 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
     org.apache.avro.Schema expected = project(writeSchema, readSchema);
     org.apache.avro.Schema actual = projectWithNameMapping(writeSchema, readSchema, nameMapping);
 
-    // projected/read schema built using external mapping should match projected/read schema
-    // built with file schema having field ids
+    // projected/read schema built using external mapping should match
+    // projected/read schema built with file schema having field ids
 
     // `BuildAvroProjection` can skip adding fields ids in some cases.
-    // e.g when creating a map if the value is modified. This leads to test failures
-    // For now I've removed ids to perform equality testing.
+    // e.g when creating a map if the value is modified. This leads to
+    // test failures. For now I've removed ids to perform equality testing.
     Assert.assertEquals(removeIds(expected), removeIds(actual));
     // Projected/read schema built using external mapping will always match expected Iceberg schema
     Assert.assertEquals(removeIds(actual), removeIds(AvroSchemaUtil.convert(readSchema, "table")));
