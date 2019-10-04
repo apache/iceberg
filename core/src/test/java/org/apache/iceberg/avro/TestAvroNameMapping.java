@@ -19,11 +19,10 @@
 
 package org.apache.iceberg.avro;
 
+import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
-
-import com.google.common.collect.Lists;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
@@ -170,7 +169,7 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
     check(writeSchema, readSchema, nameMapping);
 
     // points array is partially projected
-    nameMapping = MappingUtil.create( new Schema(
+    nameMapping = MappingUtil.create(new Schema(
         Types.NestedField.required(0, "id", Types.LongType.get()),
         Types.NestedField.optional(22, "points",
             Types.ListType.ofOptional(21, Types.StructType.of(

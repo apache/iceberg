@@ -128,6 +128,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
         }
         return null;
       }
+
       // if either key or value is selected, the whole map must be projected
       if (selectedIds.contains(keyId) || selectedIds.contains(valueId)) {
         return complexMapWithIds(array, keyId, valueId);
@@ -174,6 +175,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       }
       return null;
     }
+
     // if either key or value is selected, the whole map must be projected
     if (selectedIds.contains(keyId) || selectedIds.contains(valueId)) {
       // Assign ids. Ids may not always be present in the schema,
