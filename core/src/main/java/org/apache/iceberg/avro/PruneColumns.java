@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.avro.Schema;
-import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,7 +56,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
     List<Schema.Field> filteredFields = Lists.newArrayListWithExpectedSize(fields.size());
     boolean hasChange = false;
     for (Schema.Field field : record.getFields()) {
-      Integer fieldId = fieldId(field);
+      Integer fieldId = AvroSchemaUtil.getFieldId(field, nameMapping, fieldNames());
       if (fieldId == null) {
         // both the schema and the nameMapping does not have field id. We prune this field.
         continue;
@@ -120,8 +119,8 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
   public Schema array(Schema array, Schema element) {
     if (array.getLogicalType() instanceof LogicalMap || AvroSchemaUtil.isKeyValueSchema(array.getElementType())) {
       Schema keyValue = array.getElementType();
-      Integer keyId = fieldId(keyValue.getField("key"));
-      Integer valueId = fieldId(keyValue.getField("value"));
+      Integer keyId = AvroSchemaUtil.getFieldId(keyValue.getField("key"), nameMapping, fieldNames());
+      Integer valueId = AvroSchemaUtil.getFieldId(keyValue.getField("value"), nameMapping, fieldNames());
       if (keyId == null || valueId == null) {
         if (keyId != null || valueId != null) {
           LOG.warn("Map schema {} should have both key and value ids set or both unset", array);
@@ -146,7 +145,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       }
 
     } else {
-      Integer elementId = id(array, AvroSchemaUtil.ELEMENT_ID_PROP, "element");
+      Integer elementId = AvroSchemaUtil.getElementId(array, nameMapping, fieldNames());
       if (elementId == null) {
         return null;
       }
@@ -167,8 +166,8 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
 
   @Override
   public Schema map(Schema map, Schema value) {
-    Integer keyId = id(map, AvroSchemaUtil.KEY_ID_PROP, "key");
-    Integer valueId = id(map, AvroSchemaUtil.VALUE_ID_PROP, "value");
+    Integer keyId = AvroSchemaUtil.getKeyId(map, nameMapping, fieldNames());
+    Integer valueId = AvroSchemaUtil.getValueId(map, nameMapping, fieldNames());
     if (keyId == null || valueId == null) {
       if (keyId != null || valueId != null) {
         LOG.warn("Map schema {} should have both key and value ids set or both unset", map);
@@ -227,40 +226,6 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
   public Schema primitive(Schema primitive) {
     // primitives are not selected directly
     return null;
-  }
-
-  private Integer id(Schema schema, String propertyName, String mappedName) {
-    if (AvroSchemaUtil.hasProperty(schema, propertyName)) {
-      return AvroSchemaUtil.getId(schema, propertyName);
-    } else {
-      MappedField mappedField = mappedField(mappedName);
-      if (mappedField != null) {
-        return mappedField.id();
-      } else {
-        return null;
-      }
-    }
-  }
-
-  private Integer fieldId(Schema.Field field) {
-    if (AvroSchemaUtil.hasFieldId(field)) {
-      return AvroSchemaUtil.getFieldId(field);
-    } else {
-      MappedField mappedField = mappedField(field.name());
-      if (mappedField != null) {
-        return mappedField.id();
-      } else {
-        return null;
-      }
-    }
-  }
-
-  private MappedField mappedField(String fieldName) {
-    Preconditions.checkState(nameMapping != null,
-        "Cannot find mapped field for field name %s. NameMapping is null", fieldName);
-    List<String> fieldNames = Lists.newArrayList(fieldNames());
-    fieldNames.add(fieldName);
-    return nameMapping.find(fieldNames);
   }
 
   private static Schema copyRecord(Schema record, List<Schema.Field> newFields) {
