@@ -58,11 +58,13 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
     for (Schema.Field field : record.getFields()) {
       Integer fieldId = AvroSchemaUtil.getFieldId(field, nameMapping, fieldNames());
       if (fieldId == null) {
-        // both the schema and the nameMapping does not have field id. We prune this field.
+        // Both the schema and the nameMapping does not have field id. We prune this field.
         continue;
       }
 
       if (!AvroSchemaUtil.hasFieldId(field)) {
+        // fieldId was resolved from nameMapping, we updated hasChange
+        // flag to make sure a new field is created with the field id
         hasChange = true;
       }
 
