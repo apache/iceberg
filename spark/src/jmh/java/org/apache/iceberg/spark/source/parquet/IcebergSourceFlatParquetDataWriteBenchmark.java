@@ -32,8 +32,6 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 
-import static org.apache.spark.sql.functions.expr;
-
 /**
  * A benchmark that evaluates the performance of writing Parquet data with a flat schema
  * using Iceberg and the built-in file source in Spark.
@@ -78,13 +76,13 @@ public class IcebergSourceFlatParquetDataWriteBenchmark extends IcebergSourceFla
   private Dataset<Row> benchmarkData() {
     return spark().range(NUM_ROWS)
         .withColumnRenamed("id", "longCol")
-        .withColumn("intCol", expr("CAST(longCol AS INT)"))
-        .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
-        .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
-        .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(20, 5))"))
-        .withColumn("dateCol", expr("DATE_ADD(CURRENT_DATE(), (longCol % 20))"))
-        .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
-        .withColumn("stringCol", expr("CAST(dateCol AS STRING)"))
+        // .withColumn("intCol", expr("CAST(longCol AS INT)"))
+        // .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
+        // .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
+        // .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(20, 5))"))
+        // .withColumn("dateCol", expr("DATE_ADD(CURRENT_DATE(), (longCol % 20))"))
+        // .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
+        // .withColumn("stringCol", expr("CAST(dateCol AS STRING)"))
         .coalesce(1);
   }
 }

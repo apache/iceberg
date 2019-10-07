@@ -19,23 +19,8 @@
 
 package org.apache.iceberg.spark.data;
 
-import java.io.File;
 import java.io.IOException;
-import java.util.Iterator;
-import java.util.List;
-import org.apache.avro.generic.GenericData;
-import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types;
-import org.apache.spark.sql.catalyst.InternalRow;
-import org.junit.Assert;
-import org.junit.Assume;
-
-import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 
 public class TestSparkParquetReader extends AvroDataTest {
   @Override

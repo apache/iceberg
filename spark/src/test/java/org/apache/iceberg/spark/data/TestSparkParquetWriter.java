@@ -19,19 +19,9 @@
 
 package org.apache.iceberg.spark.data;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.Iterator;
-import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.sql.catalyst.InternalRow;
-import org.junit.Assert;
 import org.junit.Rule;
-import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;

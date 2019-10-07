@@ -19,21 +19,9 @@
 
 package org.apache.iceberg.spark.data;
 
-import java.io.File;
 import java.io.IOException;
-import java.util.Iterator;
-import org.apache.avro.generic.GenericData.Record;
-import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.parquet.ParquetAvroValueReaders;
-import org.apache.iceberg.parquet.ParquetAvroWriter;
-import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.parquet.schema.MessageType;
-import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;

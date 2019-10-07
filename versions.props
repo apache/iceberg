@@ -1,7 +1,7 @@
 org.slf4j:slf4j-api = 1.7.5
 com.google.guava:guava = 28.0-jre
 org.apache.avro:avro = 1.8.2
-org.apache.arrow:arrow-vector = 0.12.0
+org.apache.arrow:arrow-vector = 0.14.1
 org.apache.hadoop:* = 2.7.3
 org.apache.hive:hive-standalone-metastore = 1.2.1
 org.apache.orc:orc-core = 1.5.5

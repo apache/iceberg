@@ -224,8 +224,7 @@ public class TestHelpers {
         //     + " , type:"+fieldType.typeId()
         //     + " , expected:"+expectedValue);
         if (actualRow.isNullAt(i)) {
-
-          Assert.assertTrue("Expect null at " + r , expectedValue == null);
+          Assert.assertTrue("Expect null at " + r, expectedValue == null);
         } else {
           Object actualValue = actualRow.get(i, convert(fieldType));
           assertEqualsUnsafe(fieldType, expectedValue, actualValue);

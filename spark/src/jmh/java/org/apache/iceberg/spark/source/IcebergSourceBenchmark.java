@@ -96,7 +96,7 @@ public abstract class IcebergSourceBenchmark {
   protected void setupSpark() {
     spark = SparkSession.builder()
         .config("spark.ui.enabled", false)
-            .config("parquet.enable.dictionary",false)
+            .config("parquet.enable.dictionary", false)
     .config(PARQUET_DICT_SIZE_BYTES, "1")
             .config("parquet.dictionary.page.size", "1")
         .master("local")
