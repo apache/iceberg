@@ -80,19 +80,20 @@ spark.sql("""select count(1) from table""").show()
 
 ### Appending data
 
-To append a dataframe to an Iceberg table, use the `iceberg` format with `DataFrameReader`:
+To append a dataframe to an Iceberg table, use the `iceberg` format with `append` mode in the `DataFrameWriter`:
 
 ```scala
 val data: DataFrame = ...
 data.write
     .format("iceberg")
+    .mode("append")
     .save("db.table")
 ```
 
 
 ### Overwriting data
 
-To overwrite values in an Iceberg table, use `overwrite` mode in the `DataFrameReader`:
+To overwrite values in an Iceberg table, use `overwrite` mode in the `DataFrameWriter`:
 
 ```scala
 val data: DataFrame = ...
