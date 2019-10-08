@@ -185,7 +185,7 @@ order by made_current_at
 
 #### Manifests
 
-To show the a table's file manifests and each file's metadata, run:
+To show a table's file manifests and each file's metadata, run:
 
 ```scala
 spark.read.format("iceberg").load("db.table.manifests").show(truncate = false)
@@ -200,7 +200,7 @@ spark.read.format("iceberg").load("db.table.manifests").show(truncate = false)
 
 #### Files
 
-To show the a table's data files and each file's metadata, run:
+To show a table's data files and each file's metadata, run:
 
 ```scala
 spark.read.format("iceberg").load("db.table.files").show(truncate = false)
