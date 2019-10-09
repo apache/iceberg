@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.avro.Schema;
+import org.apache.avro.SchemaNormalization;
 import org.apache.iceberg.mapping.NameMapping;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,6 +79,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       if (selectedIds.contains(fieldId)) {
         filteredFields.add(copyField(field, field.schema(), fieldId));
       } else if (fieldSchema != null) {
+        hasChange = true;
         filteredFields.add(copyField(field, fieldSchema, fieldId));
       }
     }
@@ -134,13 +136,16 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       if (selectedIds.contains(keyId) || selectedIds.contains(valueId)) {
         return complexMapWithIds(array, keyId, valueId);
       } else if (element != null) {
-        if (keyValue.getField("key").schema() != element.getField("key").schema() ||
-            keyValue.getField("value").schema() != element.getField("value").schema()) {
-          // key schemas can be different if new field ids were assigned to them
-          // the value must be a projection
-          return AvroSchemaUtil.createMap(
-              keyId, element.getField("key").schema(),
-              valueId, element.getField("value").schema());
+        Schema keyProjection = element.getField("key").schema();
+        Schema valueProjection = element.getField("value").schema();
+        // key schemas can be different if new field ids were assigned to them
+        if (keyValue.getField("key").schema() != keyProjection) {
+          Preconditions.checkState(
+              SchemaNormalization.parsingFingerprint64(keyValue.getField("key").schema()) ==
+                  SchemaNormalization.parsingFingerprint64(keyProjection), "Map keys should not be projected");
+          return AvroSchemaUtil.createMap(keyId, keyProjection, valueId, valueProjection);
+        } else if (keyValue.getField("value").schema() != valueProjection) {
+          return AvroSchemaUtil.createMap(keyId, keyProjection, valueId, valueProjection);
         } else {
           return complexMapWithIds(array, keyId, valueId);
         }
@@ -249,7 +254,11 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       copy.addProp(prop.getKey(), prop.getValue());
     }
 
-    if (!AvroSchemaUtil.hasFieldId(field)) {
+    if (AvroSchemaUtil.hasFieldId(field)) {
+      int existingFieldId = AvroSchemaUtil.getFieldId(field);
+      Preconditions.checkArgument(existingFieldId == fieldId,
+          "Existing field does match with that fetched from name mapping");
+    } else {
       // field may not have a fieldId if the fieldId was fetched from nameMapping
       copy.addProp(AvroSchemaUtil.FIELD_ID_PROP, fieldId);
     }

@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
+import org.apache.avro.SchemaNormalization;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
@@ -241,22 +242,20 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
     org.apache.avro.Schema expected = project(writeSchema, readSchema);
     org.apache.avro.Schema actual = projectWithNameMapping(writeSchema, readSchema, nameMapping);
 
-    // projected/read schema built using external mapping should match
-    // projected/read schema built with file schema having field ids
-
     // `BuildAvroProjection` can skip adding fields ids in some cases.
     // e.g when creating a map if the value is modified. This leads to
     // test failures. For now I've removed ids to perform equality testing.
-    Assert.assertEquals(removeIds(expected), removeIds(actual));
-    // Projected/read schema built using external mapping will always match expected Iceberg schema
-    Assert.assertEquals(removeIds(actual), removeIds(AvroSchemaUtil.convert(readSchema, "table")));
+    Assert.assertEquals(
+        "Read schema built using external mapping should match read schema built with file schema having field ids",
+        SchemaNormalization.parsingFingerprint64(expected),
+        SchemaNormalization.parsingFingerprint64(actual));
+    Assert.assertEquals(
+        "Projected/read schema built using external mapping will always match expected Iceberg schema",
+        SchemaNormalization.parsingFingerprint64(AvroSchemaUtil.convert(readSchema, "table")),
+        SchemaNormalization.parsingFingerprint64(actual));
   }
 
   private static org.apache.avro.Schema removeIds(Schema schema) {
     return AvroSchemaVisitor.visit(AvroSchemaUtil.convert(schema.asStruct(), "table"), new RemoveIds());
-  }
-
-  private static org.apache.avro.Schema removeIds(org.apache.avro.Schema schema) {
-    return AvroSchemaVisitor.visit(schema, new RemoveIds());
   }
 }

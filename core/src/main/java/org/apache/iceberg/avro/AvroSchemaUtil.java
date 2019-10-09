@@ -199,15 +199,13 @@ public class AvroSchemaUtil {
     return LogicalMap.get().addToSchema(Schema.createArray(keyValueRecord));
   }
 
-
-  static Integer getId(Schema schema, String propertyName) {
+  private static Integer getId(Schema schema, String propertyName) {
     Integer id = getId(schema, propertyName, null, null);
     Preconditions.checkNotNull(id, "Missing expected '%s' property", propertyName);
     return id;
   }
 
-  static Integer getId(Schema schema, String propertyName,
-                   NameMapping nameMapping, List<String> names) {
+  private static Integer getId(Schema schema, String propertyName, NameMapping nameMapping, List<String> names) {
     if (schema.getType() == UNION) {
       return getId(fromOption(schema), propertyName, nameMapping, names);
     }
@@ -215,15 +213,14 @@ public class AvroSchemaUtil {
     Object id = schema.getObjectProp(propertyName);
     if (id != null) {
       return toInt(id);
-    } else {
-      Preconditions.checkArgument(nameMapping != null,
-          "Schema does not have field id and name mapping not specified");
+    } else if (nameMapping != null) {
       MappedField mappedField = nameMapping.find(names);
       if (mappedField != null) {
         return mappedField.id();
       }
-      return null;
     }
+
+    return null;
   }
 
   static boolean hasProperty(Schema schema, String propertyName) {
@@ -285,8 +282,7 @@ public class AvroSchemaUtil {
     Object id = field.getObjectProp(FIELD_ID_PROP);
     if (id != null) {
       return toInt(id);
-    } else {
-      Preconditions.checkArgument(nameMapping != null, "Field schema does not have id and name mapping not specified");
+    } else if (nameMapping != null) {
       List<String> names = Lists.newArrayList(parentFieldNames);
       names.add(field.name());
       MappedField mappedField = nameMapping.find(names);
@@ -294,6 +290,7 @@ public class AvroSchemaUtil {
         return mappedField.id();
       }
     }
+
     return null;
   }
 
