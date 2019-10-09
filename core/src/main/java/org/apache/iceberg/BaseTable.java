@@ -65,6 +65,11 @@ public class BaseTable implements Table, HasTableOperations {
   }
 
   @Override
+  public Map<Integer, PartitionSpec> specs() {
+    return ops.current().specsById();
+  }
+
+  @Override
   public Map<String, String> properties() {
     return ops.current().properties();
   }

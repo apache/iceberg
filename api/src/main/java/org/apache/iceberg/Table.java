@@ -59,6 +59,13 @@ public interface Table {
   PartitionSpec spec();
 
   /**
+   * Return a map of {@link PartitionSpec partition specs} for this table.
+   *
+   * @return this table's partition specs map
+   */
+  Map<Integer, PartitionSpec> specs();
+
+  /**
    * Return a map of string properties for this table.
    *
    * @return this table's properties map
