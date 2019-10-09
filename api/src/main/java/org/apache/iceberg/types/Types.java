@@ -429,6 +429,14 @@ public class Types {
       return new NestedField(false, id, name, type, doc);
     }
 
+    public static NestedField of(int id, boolean isOptional, String name, Type type) {
+      return new NestedField(isOptional, id, name, type, null);
+    }
+
+    public static NestedField of(int id, boolean isOptional, String name, Type type, String doc) {
+      return new NestedField(isOptional, id, name, type, doc);
+    }
+
     private final boolean isOptional;
     private final int id;
     private final String name;
