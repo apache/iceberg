@@ -79,7 +79,7 @@ A **`map`** is a collection of key-value pairs with a key type and a value type.
 | **`long`**         | 64-bit signed integers                                                   |                                                  |
 | **`float`**        | [32-bit IEEE 754](https://en.wikipedia.org/wiki/IEEE_754) floating point | Can promote to double                            |
 | **`double`**       | [64-bit IEEE 754](https://en.wikipedia.org/wiki/IEEE_754) floating point |                                                  |
-| **`decimal(P,S)`** | Fixed-point decimal; precision P, scale S                                | Scale is fixed [1], Precision must be 38 or less |
+| **`decimal(P,S)`** | Fixed-point decimal; precision P, scale S                                | Scale is fixed [1], precision must be 38 or less |
 | **`date`**         | Calendar date without timezone or time                                   |                                                  |
 | **`time`**         | Time of day without date, timezone                                       | Microsecond precision [2]                        |
 | **`timestamp`**    | Timestamp without timezone                                               | Microsecond precision [2]                        |
@@ -265,7 +265,7 @@ Valid snapshots are stored as a list in table metadata. For serialization, see A
 
 Scans are planned by reading the manifest files for the current snapshot listed in the table metadata. Deleted entries in a manifest are not included in the scan.
 
-For each manifest, scan predicates, which filter data rows, are converted to partition predicates, which filter data files. These partition predicates are used select the data files in the manifest. This conversion uses the partition spec used to write the manifest file.
+For each manifest, scan predicates, which filter data rows, are converted to partition predicates, which filter data files. These partition predicates are used to select the data files in the manifest. This conversion uses the partition spec used to write the manifest file.
 
 Scan predicates are converted to partition predicates using an inclusive projection: if a scan predicate matches a row, then the partition predicate must match that row’s partition. This is an _inclusive projection_ [1] because rows that do not match the scan predicate may be included in the scan by the partition predicate.
 

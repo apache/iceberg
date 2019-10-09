@@ -32,7 +32,7 @@ If the atomic swap fails because another writer has committed, the failed writer
 
 ### Cost of retries
 
-Writers avoid expensive retry operaitions by structuring changes so that work can be reused across retries.
+Writers avoid expensive retry operations by structuring changes so that work can be reused across retries.
 
 For example, appends usually create a new manifest file for the appended data files, which can be added to the table without rewriting the manifest on every attempt.
 

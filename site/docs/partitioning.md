@@ -47,7 +47,7 @@ If the `event_date` filter were missing, Hive would scan through every file in t
 
 ### Problems with Hive partitioning
 
-Hive must be given partition values. In the logs example, it doesn't know the relationship bewteen `event_time` and `event_date`.
+Hive must be given partition values. In the logs example, it doesn't know the relationship between `event_time` and `event_date`.
 
 This leads to several problems:
 
