@@ -76,7 +76,7 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
   @SuppressWarnings("unchecked")
   public List<InputSplit> getSplits(JobContext context) throws IOException {
     if (splits != null) {
-      LOG.info("Returning cached splits: " + splits.size());
+      LOG.info("Returning cached splits: {}", splits.size());
       return splits;
     }
 
@@ -88,7 +88,7 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
     Expression filterExpression = (Expression) ObjectSerializer.deserialize(context.getConfiguration().get(ICEBERG_FILTER_EXPRESSION));
 
     if (filterExpression != null) {
-      LOG.info("Filter Expression: " + filterExpression);
+      LOG.info("Filter Expression: {}", filterExpression);
       scan = scan.filter(filterExpression);
     }
 

@@ -106,7 +106,7 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
 
   @Override
   public void setLocation(String location, Job job) {
-    LOG.info(format("[%s]: setLocation() -> %s ", signature, location));
+    LOG.info("[{}]: setLocation() -> {}", signature, location);
 
     locations.put(signature, location);
 
@@ -119,7 +119,7 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
 
   @Override
   public InputFormat getInputFormat() {
-    LOG.info(format("[%s]: getInputFormat()", signature));
+    LOG.info("[{}]: getInputFormat()", signature);
     String location = locations.get(signature);
 
     return new IcebergPigInputFormat(tables.get(location));
@@ -136,14 +136,14 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
 
   @Override
   public void prepareToRead(RecordReader reader, PigSplit split) {
-    LOG.info(format("[%s]: prepareToRead() -> %s", signature, split));
+    LOG.info("[{}]: prepareToRead() -> {}", signature, split);
 
     this.reader = (IcebergRecordReader) reader;
   }
 
   @Override
   public ResourceSchema getSchema(String location, Job job) throws IOException {
-    LOG.info(format("[%s]: getSchema() -> %s", signature, location));
+    LOG.info("[{}]: getSchema() -> {}", signature, location);
 
     Schema schema = load(location, job).schema();
     storeInUDFContext(ICEBERG_SCHEMA, schema);
@@ -154,25 +154,25 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
 
   @Override
   public ResourceStatistics getStatistics(String location, Job job) {
-    LOG.info(format("[%s]: getStatistics() -> : %s", signature, location));
+    LOG.info("[{}]: getStatistics() -> : {}", signature, location);
 
     return null;
   }
 
   @Override
   public String[] getPartitionKeys(String location, Job job) {
-    LOG.info(format("[%s]: getPartitionKeys()", signature));
+    LOG.info("[{}]: getPartitionKeys()", signature);
     return new String[0];
   }
 
   @Override
   public void setPartitionFilter(Expression partitionFilter) {
-    LOG.info(format("[%s]: setPartitionFilter() ->  %s", signature, partitionFilter));
+    LOG.info("[{}]: setPartitionFilter() -> {}", signature, partitionFilter);
   }
 
   @Override
   public List<String> getPredicateFields(String location, Job job) throws IOException {
-    LOG.info(format("[%s]: getPredicateFields() -> %s", signature, location));
+    LOG.info("[{}]: getPredicateFields() -> {}", signature, location);
     Schema schema = load(location, job).schema();
 
     List<String> result = Lists.newArrayList();
@@ -193,18 +193,18 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
 
   @Override
   public List<Expression.OpType> getSupportedExpressionTypes() {
-    LOG.info(format("[%s]: getSupportedExpressionTypes()", signature));
+    LOG.info("[{}]: getSupportedExpressionTypes()", signature);
     return asList(OP_AND, OP_OR, OP_EQ, OP_NE, OP_NOT, OP_GE, OP_GT, OP_LE, OP_LT, OP_BETWEEN, OP_IN, OP_NULL);
   }
 
   @Override
   public void setPushdownPredicate(Expression predicate) throws IOException {
-    LOG.info(format("[%s]: setPushdownPredicate()", signature));
-    LOG.info(format("[%s]: Pig predicate expression: %s", signature, predicate));
+    LOG.info("[{}]: setPushdownPredicate()", signature);
+    LOG.info("[{}]: Pig predicate expression: {}", signature, predicate);
 
     org.apache.iceberg.expressions.Expression icebergExpression = convert(predicate);
 
-    LOG.info(format("[%s]: Iceberg predicate expression: %s", signature, icebergExpression));
+    LOG.info("[{}]: Iceberg predicate expression: {}", signature, icebergExpression);
 
     storeInUDFContext(ICEBERG_FILTER_EXPRESSION, icebergExpression);
   }
@@ -230,7 +230,7 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
         case OP_IN:
           return ((InExpression) rhs).getValues().stream()
               .map((value) -> convert(OP_EQ, (Column) lhs, (Const) value))
-              .reduce(Expressions.alwaysFalse(), (m, v) -> (or(m, v)));
+              .reduce(Expressions.alwaysFalse(), (m, v) -> or(m, v));
         default:
           if (lhs instanceof Column && rhs instanceof Const) {
             return convert(op, (Column) lhs, (Const) rhs);
@@ -276,7 +276,7 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
 
   @Override
   public RequiredFieldResponse pushProjection(RequiredFieldList requiredFieldList) {
-    LOG.info(format("[%s]: pushProjection() -> %s", signature, requiredFieldList));
+    LOG.info("[{}]: pushProjection() -> {}", signature, requiredFieldList);
 
     try {
       List<String> projection = requiredFieldList.getFields().stream().map(RequiredField::getAlias).collect(Collectors.toList());
@@ -331,7 +331,7 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
 
     if (result == null) {
       try {
-        LOG.info(format("[%s]: Loading table for location: %s", signature, location));
+        LOG.info("[{}]: Loading table for location: {}", signature, location);
         result = iceberg.load(location);
         tables.put(location, result);
       } catch (Exception e) {
