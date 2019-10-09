@@ -165,7 +165,7 @@ task deploySite(type: Exec) {
 // Baseline style guide.
 def baselineProjects = [ project("iceberg-api"), project("iceberg-common"), project("iceberg-core"),
                          project("iceberg-data"), project("iceberg-orc"), project("iceberg-spark"),
-                         project("iceberg-hive") ]
+                         project("iceberg-hive"), project("iceberg-parquet") ]
 
 
 configure(subprojects - baselineProjects) {

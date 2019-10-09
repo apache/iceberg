@@ -50,15 +50,15 @@ public class ParquetTypeVisitor<T> {
         switch (annotation) {
           case LIST:
             Preconditions.checkArgument(!group.isRepetition(REPEATED),
-                "Invalid list: top-level group is repeated: " + group);
+                "Invalid list: top-level group is repeated: %s", group);
             Preconditions.checkArgument(group.getFieldCount() == 1,
-                "Invalid list: does not contain single repeated field: " + group);
+                "Invalid list: does not contain single repeated field: %s", group);
 
             GroupType repeatedElement = group.getFields().get(0).asGroupType();
             Preconditions.checkArgument(repeatedElement.isRepetition(REPEATED),
                 "Invalid list: inner group is not repeated");
             Preconditions.checkArgument(repeatedElement.getFieldCount() <= 1,
-                "Invalid list: repeated group is not a single field: " + group);
+                "Invalid list: repeated group is not a single field: %s", group);
 
             visitor.fieldNames.push(repeatedElement.getName());
             try {
@@ -75,9 +75,9 @@ public class ParquetTypeVisitor<T> {
 
           case MAP:
             Preconditions.checkArgument(!group.isRepetition(REPEATED),
-                "Invalid map: top-level group is repeated: " + group);
+                "Invalid map: top-level group is repeated: %s", group);
             Preconditions.checkArgument(group.getFieldCount() == 1,
-                "Invalid map: does not contain single repeated field: " + group);
+                "Invalid map: does not contain single repeated field: %s", group);
 
             GroupType repeatedKeyValue = group.getType(0).asGroupType();
             Preconditions.checkArgument(repeatedKeyValue.isRepetition(REPEATED),
