@@ -71,16 +71,16 @@ gpg --armor --output ${tarball}.asc --detach-sig $tarball
 sha512sum $tarball > ${tarball}.sha512
 
 # check out the Iceberg RC folder
-echo svn co --depth=empty https://dist.apache.org/repos/dist/dev/incubator/iceberg tmp
+svn co --depth=empty https://dist.apache.org/repos/dist/dev/incubator/iceberg tmp
 
 # add the release candidate for the tag
-echo mkdir -p tmp/$tagrc
-echo cp ${tarball}* tmp/$tagrc
-echo svn add tmp/$tagrc
-echo svn ci -m "Apache Iceberg $version RC${rc}" tmp/$tagrc
+mkdir -p tmp/$tagrc
+cp ${tarball}* tmp/$tagrc
+svn add tmp/$tagrc
+svn ci -m "Apache Iceberg $version RC${rc}" tmp/$tagrc
 
 # clean up
-echo rm -rf tmp
+rm -rf tmp
 
 echo "Success! The release candidate is available here:"
 echo "  https://dist.apache.org/repos/dist/dev/incubator/iceberg/$tagrc"
