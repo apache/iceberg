@@ -223,7 +223,7 @@ org.scala-lang.modules:scala-parser-combinators_2.11:1.1.0 (1 constraints: cf0e7
 org.scala-lang.modules:scala-xml_2.11:1.0.6 (1 constraints: 080b84e9)
 org.slf4j:jcl-over-slf4j:1.7.16 (1 constraints: 500d1d44)
 org.slf4j:jul-to-slf4j:1.7.16 (1 constraints: 500d1d44)
-org.slf4j:slf4j-api:1.7.22 (47 constraints: 26a3ad5d)
+org.slf4j:slf4j-api:1.7.22 (47 constraints: 29a3d574)
 org.sonatype.sisu.inject:cglib:2.2.1-v20090111 (1 constraints: aa0cfd36)
 org.spark-project.hive:hive-exec:1.2.1.spark2 (1 constraints: 990fa09c)
 org.spark-project.hive:hive-metastore:1.2.1.spark2 (1 constraints: 990fa09c)
