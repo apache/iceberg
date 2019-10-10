@@ -171,6 +171,10 @@ subprojects {
               unsubscribe = 'dev-unsubscribe@iceberg.apache.org'
             }
           }
+          issueManagement {
+            system = 'GitHub'
+            url = 'https://github.com/apache/incubator-iceberg/issues'
+          }
         }
 
         // maven publication signature code is based on
