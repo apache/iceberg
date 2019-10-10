@@ -209,8 +209,8 @@ subprojects {
     repositories {
       maven {
         credentials {
-          username "$mavenUser"
-          password "$mavenPassword"
+          username project.hasProperty('mavenUser') ? "$mavenUser" : ""
+          password project.hasProperty('mavenPassword') ? "$mavenPassword" : ""
         }
         // upload to the releases repository using ./gradlew -Prelease publish
         def snapshotsRepoUrl = 'https://repository.apache.org/content/repositories/snapshots'
