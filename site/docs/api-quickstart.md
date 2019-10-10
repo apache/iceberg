@@ -113,7 +113,7 @@ import org.apache.avro.Schema.Parser
 val avroSchema = new Parser().parse(
     """{ "type": "record", "name": "com.example.AvroType",
       |  "fields": [ ... ]
-      |}""".stripMargin
+      |}""".stripMargin)
 
 val schema = AvroSchemaUtil.convert(avroSchema)
 ```
