@@ -63,7 +63,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
     this.batchSize = batchSize;
     this.schema = schema;
 
-    TypeDescription orcSchema = ORCSchemaUtil.toOrc(this.schema);
+    TypeDescription orcSchema = ORCSchemaUtil.convert(this.schema);
     batch = orcSchema.createRowBatch(this.batchSize);
 
     OrcFile.WriterOptions options = OrcFile.writerOptions(conf);

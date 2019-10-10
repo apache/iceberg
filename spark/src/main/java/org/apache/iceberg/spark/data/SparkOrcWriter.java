@@ -216,7 +216,7 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
         TimestampColumnVector cv = (TimestampColumnVector) output;
         long micros = data.getLong(column);
         cv.time[rowId] = micros / 1_000; // millis
-        cv.nanos[rowId] = (int) (micros % 1_000_000) * 1_000; // nanos withing 1 sec
+        cv.nanos[rowId] = (int) (micros % 1_000_000) * 1_000; // nanos
       }
     }
   }

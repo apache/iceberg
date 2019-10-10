@@ -24,6 +24,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
 import org.junit.Test;
 
+import static org.apache.iceberg.AssertHelpers.assertThrows;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.junit.Assert.assertEquals;
@@ -39,8 +40,8 @@ public class TestORCSchemaUtil {
         optional(20, "intCol3", Types.IntegerType.get()),
         required(9, "doubleCol", Types.DoubleType.get())
     );
-    TypeDescription orcSchema = ORCSchemaUtil.toOrc(expectedSchema);
-    assertEquals(expectedSchema.asStruct(), ORCSchemaUtil.toIceberg(orcSchema).asStruct());
+    TypeDescription orcSchema = ORCSchemaUtil.convert(expectedSchema);
+    assertEquals(expectedSchema.asStruct(), ORCSchemaUtil.convert(orcSchema).asStruct());
   }
 
   @Test
@@ -61,8 +62,8 @@ public class TestORCSchemaUtil {
         optional(8, "intCol3", Types.IntegerType.get()),
         optional(9, "doubleCol", Types.DoubleType.get())
     );
-    TypeDescription orcSchema = ORCSchemaUtil.toOrc(expectedSchema);
-    assertEquals(expectedSchema.asStruct(), ORCSchemaUtil.toIceberg(orcSchema).asStruct());
+    TypeDescription orcSchema = ORCSchemaUtil.convert(expectedSchema);
+    assertEquals(expectedSchema.asStruct(), ORCSchemaUtil.convert(orcSchema).asStruct());
   }
 
   @Test
@@ -73,7 +74,7 @@ public class TestORCSchemaUtil {
     );
 
     // Original mapping (stored in ORC)
-    TypeDescription orcSchema = ORCSchemaUtil.toOrc(originalSchema);
+    TypeDescription orcSchema = ORCSchemaUtil.convert(originalSchema);
     assertEquals(2, orcSchema.getChildren().size());
     assertEquals(1, orcSchema.findSubtype("a").getId());
     assertEquals(TypeDescription.Category.INT, orcSchema.findSubtype("a").getCategory());
@@ -89,7 +90,7 @@ public class TestORCSchemaUtil {
     );
 
     // Original mapping (stored in ORC)
-    TypeDescription orcSchema = ORCSchemaUtil.toOrc(originalSchema);
+    TypeDescription orcSchema = ORCSchemaUtil.convert(originalSchema);
 
     // Evolve schema
     Schema evolveSchema = new Schema(
@@ -97,7 +98,7 @@ public class TestORCSchemaUtil {
         optional(3, "c", Types.DateType.get())
     );
 
-    TypeDescription newOrcSchema = ORCSchemaUtil.toOrc(evolveSchema, orcSchema);
+    TypeDescription newOrcSchema = ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema);
     assertEquals(2, newOrcSchema.getChildren().size());
     assertEquals(1, newOrcSchema.findSubtype("b").getId());
     assertEquals(TypeDescription.Category.STRING, newOrcSchema.findSubtype("b").getCategory());
@@ -116,9 +117,9 @@ public class TestORCSchemaUtil {
     );
 
     // Original mapping (stored in ORC)
-    TypeDescription orcSchema = ORCSchemaUtil.toOrc(originalSchema);
+    TypeDescription orcSchema = ORCSchemaUtil.convert(originalSchema);
 
-    TypeDescription newOrcSchema = ORCSchemaUtil.toOrc(originalSchema, orcSchema);
+    TypeDescription newOrcSchema = ORCSchemaUtil.buildOrcProjection(originalSchema, orcSchema);
     assertEquals(1, newOrcSchema.getChildren().size());
     assertEquals(TypeDescription.Category.STRUCT, newOrcSchema.findSubtype("a").getCategory());
     TypeDescription nestedCol = newOrcSchema.findSubtype("a");
@@ -139,7 +140,7 @@ public class TestORCSchemaUtil {
     );
 
     // Original mapping (stored in ORC)
-    TypeDescription orcSchema = ORCSchemaUtil.toOrc(originalSchema);
+    TypeDescription orcSchema = ORCSchemaUtil.convert(originalSchema);
 
     // Evolve schema
     Types.StructType newNestedStructType = Types.StructType.of(
@@ -150,7 +151,7 @@ public class TestORCSchemaUtil {
         optional(1, "aa", newNestedStructType)
     );
 
-    TypeDescription newOrcSchema = ORCSchemaUtil.toOrc(evolveSchema, orcSchema);
+    TypeDescription newOrcSchema = ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema);
     assertEquals(1, newOrcSchema.getChildren().size());
     assertEquals(TypeDescription.Category.STRUCT, newOrcSchema.findSubtype("a").getCategory());
     TypeDescription nestedCol = newOrcSchema.findSubtype("a");
@@ -169,7 +170,7 @@ public class TestORCSchemaUtil {
     );
 
     // Original mapping (stored in ORC)
-    TypeDescription orcSchema = ORCSchemaUtil.toOrc(originalSchema);
+    TypeDescription orcSchema = ORCSchemaUtil.convert(originalSchema);
 
     // Evolve schema
     Schema evolveSchema = new Schema(
@@ -178,7 +179,7 @@ public class TestORCSchemaUtil {
         optional(3, "c", Types.DecimalType.of(15, 2))
     );
 
-    TypeDescription newOrcSchema = ORCSchemaUtil.toOrc(evolveSchema, orcSchema);
+    TypeDescription newOrcSchema = ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema);
     assertEquals(3, newOrcSchema.getChildren().size());
     assertEquals(1, newOrcSchema.findSubtype("a").getId());
     assertEquals(TypeDescription.Category.LONG, newOrcSchema.findSubtype("a").getCategory());
@@ -191,17 +192,20 @@ public class TestORCSchemaUtil {
     assertEquals(2, decimalC.getScale());
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void testInvalidTypePromotions() {
     Schema originalSchema = new Schema(
         optional(1, "a", Types.LongType.get())
     );
 
-    TypeDescription orcSchema = ORCSchemaUtil.toOrc(originalSchema);
+    TypeDescription orcSchema = ORCSchemaUtil.convert(originalSchema);
     Schema evolveSchema = new Schema(
         optional(1, "a", Types.IntegerType.get())
     );
 
-    ORCSchemaUtil.toOrc(evolveSchema, orcSchema);
+    assertThrows("Should not allow invalid type promotion",
+        IllegalArgumentException.class, "Can not promote", () -> {
+          ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema);
+        });
   }
 }

@@ -33,7 +33,6 @@ import org.apache.orc.OrcFile;
 import org.apache.orc.Reader;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * Iterable used to read rows from ORC.
@@ -57,15 +56,14 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
     this.config = config;
   }
 
-  @NotNull
   @SuppressWarnings("unchecked")
   @Override
   public Iterator<T> iterator() {
     Reader orcFileReader = newFileReader(file, config);
-    TypeDescription readOrcSchema = ORCSchemaUtil.toOrc(schema, orcFileReader.getSchema());
+    TypeDescription readOrcSchema = ORCSchemaUtil.buildOrcProjection(schema, orcFileReader.getSchema());
 
     return new OrcIterator(
-        newOrcIterator(file, readOrcSchema, start, length, newFileReader(file, config)),
+        newOrcIterator(file, readOrcSchema, start, length, orcFileReader),
         readerFunction.apply(readOrcSchema));
   }
 
