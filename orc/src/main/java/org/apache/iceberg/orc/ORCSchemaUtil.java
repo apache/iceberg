@@ -170,8 +170,24 @@ final class ORCSchemaUtil {
 
   /**
    * Converts an Iceberg schema to a corresponding ORC schema within the context of an existing
-   * ORC file schema. This method also handles schema evolution from the original ORC file schema
-   * to the given Iceberg schema.
+   * ORC file schema.
+   * This method also handles schema evolution from the original ORC file schema
+   * to the given Iceberg schema. It builds the desired reader schema with the schema
+   * evolution rules and pass that down to the ORC reader,
+   * which would then use its schema evolution to map that to the writer’s schema.
+   *
+   * Example:
+   * <code>
+   * Iceberg writer                                        ORC writer
+   * struct&lt;a (1): int, b (2): string&gt;                     struct&lt;a: int, b: string&gt;
+   * struct&lt;a (1): struct&lt;b (2): string, c (3): date&gt;&gt;     struct&lt;a: struct&lt;b:string, c:date&gt;&gt;
+   * </code>
+   *
+   * Iceberg reader                                        ORC reader
+   * <code>
+   * struct&lt;a (2): string, c (3): date&gt;                    struct&lt;b: string, c: date&gt;
+   * struct&lt;aa (1): struct&lt;cc (3): date, bb (2): string&gt;&gt;  struct&lt;a: struct&lt;c:date, b:string&gt;&gt;
+   * </code>
    *
    * @param schema an Iceberg schema
    * @param originalOrcSchema an existing ORC file schema
