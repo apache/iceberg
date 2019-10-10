@@ -40,8 +40,15 @@ public class TestORCSchemaUtil {
         optional(20, "intCol3", Types.IntegerType.get()),
         required(9, "doubleCol", Types.DoubleType.get()),
         required(10, "uuidCol", Types.UUIDType.get()),
+        optional(2, "booleanCol", Types.BooleanType.get()),
         optional(21, "fixedCol", Types.FixedType.ofLength(4096)),
-        required(22, "binaryCol", Types.BinaryType.get())
+        required(22, "binaryCol", Types.BinaryType.get()),
+        required(23, "stringCol", Types.StringType.get()),
+        required(24, "decimalCol", Types.DecimalType.of(15, 3)),
+        required(25, "floatCol", Types.FloatType.get()),
+        optional(30, "dateCol", Types.DateType.get()),
+        required(32, "timeCol", Types.TimeType.get()),
+        required(34, "timestampCol", Types.TimestampType.withZone())
     );
     TypeDescription orcSchema = ORCSchemaUtil.convert(expectedSchema);
     assertEquals(expectedSchema.asStruct(), ORCSchemaUtil.convert(orcSchema).asStruct());
@@ -63,7 +70,17 @@ public class TestORCSchemaUtil {
         optional(2, "longCol", Types.LongType.get()),
         optional(3, "nestedStructCol", nestedStructType),
         optional(8, "intCol3", Types.IntegerType.get()),
-        optional(9, "doubleCol", Types.DoubleType.get())
+        optional(9, "doubleCol", Types.DoubleType.get()),
+        required(10, "uuidCol", Types.UUIDType.get()),
+        optional(2, "booleanCol", Types.BooleanType.get()),
+        optional(21, "fixedCol", Types.FixedType.ofLength(4096)),
+        required(22, "binaryCol", Types.BinaryType.get()),
+        required(23, "stringCol", Types.StringType.get()),
+        required(24, "decimalCol", Types.DecimalType.of(15, 3)),
+        required(25, "floatCol", Types.FloatType.get()),
+        optional(30, "dateCol", Types.DateType.get()),
+        required(32, "timeCol", Types.TimeType.get()),
+        required(34, "timestampCol", Types.TimestampType.withZone())
     );
     TypeDescription orcSchema = ORCSchemaUtil.convert(expectedSchema);
     assertEquals(expectedSchema.asStruct(), ORCSchemaUtil.convert(orcSchema).asStruct());

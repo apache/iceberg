@@ -44,6 +44,10 @@ final class ORCSchemaUtil {
     UUID, FIXED, BINARY
   }
 
+  private enum IntegerType {
+    TIME, INTEGER
+  }
+
   private static class OrcField {
     private final String name;
     private final TypeDescription type;
@@ -66,6 +70,7 @@ final class ORCSchemaUtil {
   private static final String ICEBERG_REQUIRED_ATTRIBUTE = "iceberg.required";
 
   private static final String ICEBERG_BINARY_TYPE_ATTRIBUTE = "iceberg.binary-type";
+  private static final String ICEBERG_INTEGER_TYPE_ATTRIBUTE = "iceberg.integer-type";
   private static final String ICEBERG_FIELD_LENGTH = "iceberg.length";
 
   private static final Map<Type.TypeID, TypeDescription.Category> TYPE_MAPPING =
@@ -105,8 +110,12 @@ final class ORCSchemaUtil {
         orcType = TypeDescription.createBoolean();
         break;
       case INTEGER:
+        orcType = TypeDescription.createInt();
+        orcType.setAttribute(ICEBERG_INTEGER_TYPE_ATTRIBUTE, IntegerType.INTEGER.toString());
+        break;
       case TIME:
         orcType = TypeDescription.createInt();
+        orcType.setAttribute(ICEBERG_INTEGER_TYPE_ATTRIBUTE, IntegerType.TIME.toString());
         break;
       case LONG:
         orcType = TypeDescription.createLong();
@@ -379,7 +388,17 @@ final class ORCSchemaUtil {
       case BYTE:
       case SHORT:
       case INT:
-        return getIcebergType(icebergID, name, Types.IntegerType.get(), isRequired);
+        IntegerType integerType = IntegerType.valueOf(
+            orcType.getAttributeValue(ICEBERG_INTEGER_TYPE_ATTRIBUTE)
+        );
+        switch (integerType) {
+          case TIME:
+            return getIcebergType(icebergID, name, Types.TimeType.get(), isRequired);
+          case INTEGER:
+            return getIcebergType(icebergID, name, Types.IntegerType.get(), isRequired);
+          default:
+            throw new IllegalStateException("Invalid Integer type found in ORC type attribute");
+        }
       case LONG:
         return getIcebergType(icebergID, name, Types.LongType.get(), isRequired);
       case FLOAT:
@@ -401,6 +420,8 @@ final class ORCSchemaUtil {
             return getIcebergType(icebergID, name, Types.FixedType.ofLength(fixedLength), isRequired);
           case BINARY:
             return getIcebergType(icebergID, name, Types.BinaryType.get(), isRequired);
+          default:
+            throw new IllegalStateException("Invalid Binary type found in ORC type attribute");
         }
       case DATE:
         return getIcebergType(icebergID, name, Types.DateType.get(), isRequired);
