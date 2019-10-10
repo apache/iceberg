@@ -38,7 +38,10 @@ public class TestORCSchemaUtil {
         optional(3, "longCol", Types.LongType.get()),
         optional(6, "intCol2", Types.IntegerType.get()),
         optional(20, "intCol3", Types.IntegerType.get()),
-        required(9, "doubleCol", Types.DoubleType.get())
+        required(9, "doubleCol", Types.DoubleType.get()),
+        required(10, "uuidCol", Types.UUIDType.get()),
+        optional(21, "fixedCol", Types.FixedType.ofLength(4096)),
+        required(22, "binaryCol", Types.BinaryType.get())
     );
     TypeDescription orcSchema = ORCSchemaUtil.convert(expectedSchema);
     assertEquals(expectedSchema.asStruct(), ORCSchemaUtil.convert(orcSchema).asStruct());

@@ -40,8 +40,33 @@ import org.apache.orc.TypeDescription;
  */
 final class ORCSchemaUtil {
 
+  private enum BinaryType {
+    UUID, FIXED, BINARY
+  }
+
+  private static class OrcField {
+    private final String name;
+    private final TypeDescription type;
+
+    OrcField(String name, TypeDescription type) {
+      this.name = name;
+      this.type = type;
+    }
+
+    public String name() {
+      return name;
+    }
+
+    public TypeDescription type() {
+      return type;
+    }
+  }
+
   private static final String ICEBERG_ID_ATTRIBUTE = "iceberg.id";
   private static final String ICEBERG_REQUIRED_ATTRIBUTE = "iceberg.required";
+
+  private static final String ICEBERG_BINARY_TYPE_ATTRIBUTE = "iceberg.binary-type";
+  private static final String ICEBERG_FIELD_LENGTH = "iceberg.length";
 
   private static final Map<Type.TypeID, TypeDescription.Category> TYPE_MAPPING =
       ImmutableMap.<Type.TypeID, TypeDescription.Category>builder()
@@ -102,9 +127,17 @@ final class ORCSchemaUtil {
         orcType = TypeDescription.createString();
         break;
       case UUID:
+        orcType = TypeDescription.createBinary();
+        orcType.setAttribute(ICEBERG_BINARY_TYPE_ATTRIBUTE, BinaryType.UUID.toString());
+        break;
       case FIXED:
+        orcType = TypeDescription.createBinary();
+        orcType.setAttribute(ICEBERG_BINARY_TYPE_ATTRIBUTE, BinaryType.FIXED.toString());
+        orcType.setAttribute(ICEBERG_FIELD_LENGTH, Integer.toString(((Types.FixedType) type).length()));
+        break;
       case BINARY:
         orcType = TypeDescription.createBinary();
+        orcType.setAttribute(ICEBERG_BINARY_TYPE_ATTRIBUTE, BinaryType.BINARY.toString());
         break;
       case DECIMAL: {
         Types.DecimalType decimal = (Types.DecimalType) type;
@@ -358,7 +391,17 @@ final class ORCSchemaUtil {
       case VARCHAR:
         return getIcebergType(icebergID, name, Types.StringType.get(), isRequired);
       case BINARY:
-        return getIcebergType(icebergID, name, Types.BinaryType.get(), isRequired);
+        BinaryType binaryType = BinaryType.valueOf(
+            orcType.getAttributeValue(ICEBERG_BINARY_TYPE_ATTRIBUTE));
+        switch (binaryType) {
+          case UUID:
+            return getIcebergType(icebergID, name, Types.UUIDType.get(), isRequired);
+          case FIXED:
+            int fixedLength = Integer.parseInt(orcType.getAttributeValue(ICEBERG_FIELD_LENGTH));
+            return getIcebergType(icebergID, name, Types.FixedType.ofLength(fixedLength), isRequired);
+          case BINARY:
+            return getIcebergType(icebergID, name, Types.BinaryType.get(), isRequired);
+        }
       case DATE:
         return getIcebergType(icebergID, name, Types.DateType.get(), isRequired);
       case TIMESTAMP:
@@ -406,24 +449,6 @@ final class ORCSchemaUtil {
       default:
         // We don't have an answer for union types.
         throw new IllegalArgumentException("Can't handle " + orcType);
-    }
-  }
-
-  private static class OrcField {
-    private final String name;
-    private final TypeDescription type;
-
-    OrcField(String name, TypeDescription type) {
-      this.name = name;
-      this.type = type;
-    }
-
-    public String name() {
-      return name;
-    }
-
-    public TypeDescription type() {
-      return type;
     }
   }
 }
