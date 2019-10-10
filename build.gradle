@@ -133,10 +133,6 @@ subprojects {
     }
   }
 
-  signing {
-    sign configurations.archives
-  }
-
   publishing {
     publications {
       apache(MavenPublication) {
@@ -176,33 +172,6 @@ subprojects {
             url = 'https://github.com/apache/incubator-iceberg/issues'
           }
         }
-
-        // maven publication signature code is based on
-        // https://medium.com/@nmauti/sign-and-publish-on-maven-central-a-project-with-the-new-maven-publish-gradle-plugin-22a72a4bfd4b
-
-        // sign pom files
-        pom.withXml {
-          def pomFile = file("${project.buildDir}/generated-pom.xml")
-          writeTo(pomFile)
-          def pomAscFile = signing.sign(pomFile).signatureFiles[0]
-          artifact(pomAscFile) {
-            classifier = null
-            extension = 'pom.asc'
-          }
-        }
-
-        // add signature files as published archives
-        project.tasks.signArchives.signatureFiles.each {
-          artifact(it) {
-            def matcher = it.file =~ /-(tests|sources|javadoc)\.jar\.asc$/
-            if (matcher.find()) {
-              classifier = matcher.group(1)
-            } else {
-              classifier = null
-            }
-            extension = 'jar.asc'
-          }
-        }
       }
     }
 
@@ -220,16 +189,8 @@ subprojects {
     }
   }
 
-  model {
-    tasks.generatePomFileForApachePublication {
-      destination = file("$buildDir/generated-pom.xml")
-    }
-    tasks.publishApachePublicationToMavenLocal {
-      dependsOn project.tasks.signArchives
-    }
-    tasks.publishApachePublicationToMavenRepository {
-      dependsOn project.tasks.signArchives
-    }
+  signing {
+    sign publishing.publications.apache
   }
 }
 
