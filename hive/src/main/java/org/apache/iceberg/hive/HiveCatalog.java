@@ -19,8 +19,10 @@
 
 package org.apache.iceberg.hive;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import java.io.Closeable;
+import java.util.Arrays;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
@@ -32,15 +34,22 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.thrift.TException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
+  private static final Logger LOG = LoggerFactory.getLogger(HiveCatalog.class);
 
   private final HiveClientPool clients;
   private final Configuration conf;
+  private final StackTraceElement[] createStack;
+  private boolean closed;
 
   public HiveCatalog(Configuration conf) {
     this.clients = new HiveClientPool(2, conf);
     this.conf = conf;
+    this.createStack = Thread.currentThread().getStackTrace();
+    this.closed = false;
   }
 
   @Override
@@ -149,6 +158,21 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
 
   @Override
   public void close() {
-    clients.close();
+    if (!closed) {
+      clients.close();
+      closed = true;
+    }
+  }
+
+  @SuppressWarnings("checkstyle:NoFinalizer")
+  @Override
+  protected void finalize() throws Throwable {
+    super.finalize();
+    if (!closed) {
+      close(); // releasing resources is more important than printing the warning
+      String trace = Joiner.on("\n\t").join(
+          Arrays.copyOfRange(createStack, 1, createStack.length));
+      LOG.warn("Unclosed input stream created by:\n\t{}", trace);
+    }
   }
 }
