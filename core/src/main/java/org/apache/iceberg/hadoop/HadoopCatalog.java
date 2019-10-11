@@ -20,27 +20,30 @@
 package org.apache.iceberg.hadoop;
 
 import com.google.common.base.Preconditions;
-import org.apache.iceberg.*;
-import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
-
-import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.BaseMetastoreCatalog;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+
 
 public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
-  private final String ICEBERG_HADOOP_WAREHOUSE_BASE = "iceberg/warehouse";
-  private final org.apache.hadoop.conf.Configuration conf;
+  private static final String ICEBERG_HADOOP_WAREHOUSE_BASE = "iceberg/warehouse";
+  private final Configuration conf;
   private String hdfsRoot;
 
   public HadoopCatalog(Configuration conf) {
     this.conf = conf;
-    String hdfsRoot = conf.get("fs.defaultFS");
+    hdfsRoot = conf.get("fs.defaultFS");
     Path warehousePath = new Path(hdfsRoot + ICEBERG_HADOOP_WAREHOUSE_BASE);
     try {
       FileSystem fs = Util.getFs(warehousePath, conf);
@@ -51,13 +54,13 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
       }
       this.hdfsRoot = hdfsRoot + "/" + ICEBERG_HADOOP_WAREHOUSE_BASE;
     } catch (IOException e) {
-        throw new RuntimeIOException("failed to create directory for warehouse", e);
+      throw new RuntimeIOException("failed to create directory for warehouse", e);
     }
   }
 
   @Override
   public org.apache.iceberg.Table createTable(
-    TableIdentifier identifier, Schema schema, PartitionSpec spec, String location, Map<String, String> properties) {
+      TableIdentifier identifier, Schema schema, PartitionSpec spec, String location, Map<String, String> properties) {
     Preconditions.checkArgument(identifier.namespace().levels().length == 1,
             "Missing database in table identifier: %s", identifier);
     Path tablePath = new Path(defaultWarehouseLocation(identifier));
@@ -69,7 +72,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
         throw new AlreadyExistsException("the table already exists: " + identifier);
       }
     } catch (IOException e) {
-        throw new RuntimeIOException("failed to create directory", e);
+      throw new RuntimeIOException("failed to create directory", e);
     }
     return super.createTable(identifier, schema, spec, null, properties);
   }
@@ -99,7 +102,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
   protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
     String dbName = tableIdentifier.namespace().level(0);
     String tableName = tableIdentifier.name();
-    return this.hdfsRoot + "/" + dbName+ ".db" + "/"+ tableName;
+    return this.hdfsRoot + "/" + dbName + ".db" + "/" + tableName;
   }
 
   @Override
