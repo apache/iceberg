@@ -21,13 +21,14 @@ package org.apache.iceberg.hive;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 
 public final class HiveCatalogs {
 
   private static final Cache<String, HiveCatalog> CATALOG_CACHE = Caffeine.newBuilder()
-      .weakValues()
+      .expireAfterAccess(10, TimeUnit.MINUTES)
       .build();
 
   private HiveCatalogs() {}
