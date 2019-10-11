@@ -44,7 +44,7 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
   private final GroupType root;
   private int nextId = 1;
 
-  public MessageTypeToType(GroupType root) {
+  MessageTypeToType(GroupType root) {
     this.root = root;
     this.nextId = 1_000; // use ids that won't match other than for root
   }

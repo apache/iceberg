@@ -87,12 +87,11 @@ public class ParquetValueWriters {
   }
 
   public abstract static class PrimitiveWriter<T> implements ParquetValueWriter<T> {
-    private final ColumnDescriptor desc;
+    @SuppressWarnings("checkstyle:VisibilityModifier")
     protected final ColumnWriter<T> column;
     private final List<TripleWriter<?>> children;
 
     protected PrimitiveWriter(ColumnDescriptor desc) {
-      this.desc = desc;
       this.column = ColumnWriter.newWriter(desc);
       this.children = ImmutableList.of(column);
     }
@@ -360,7 +359,7 @@ public class ParquetValueWriters {
       this.definitionLevel = definitionLevel;
       this.repetitionLevel = repetitionLevel;
       this.keyWriter = keyWriter;
-      this.valueWriter= valueWriter;
+      this.valueWriter = valueWriter;
       this.children = ImmutableList.<TripleWriter<?>>builder()
           .addAll(keyWriter.columns())
           .addAll(valueWriter.columns())

@@ -21,12 +21,12 @@ package org.apache.iceberg.parquet;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
-import com.google.common.collect.Sets;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
@@ -69,7 +69,7 @@ public class Parquet {
   private Parquet() {
   }
 
-  private static Collection<String> READ_PROPERTIES_TO_REMOVE = Sets.newHashSet(
+  private static final Collection<String> READ_PROPERTIES_TO_REMOVE = Sets.newHashSet(
       "parquet.read.filter", "parquet.private.read.filter.predicate", "parquet.read.support.class");
 
   public static WriteBuilder write(OutputFile file) {
@@ -98,18 +98,18 @@ public class Parquet {
       return this;
     }
 
-    public WriteBuilder schema(Schema schema) {
-      this.schema = schema;
+    public WriteBuilder schema(Schema setSchema) {
+      this.schema = setSchema;
       return this;
     }
 
-    public WriteBuilder named(String name) {
-      this.name = name;
+    public WriteBuilder named(String setName) {
+      this.name = setName;
       return this;
     }
 
-    public WriteBuilder writeSupport(WriteSupport<?> writeSupport) {
-      this.writeSupport = writeSupport;
+    public WriteBuilder writeSupport(WriteSupport<?> setWriteSupport) {
+      this.writeSupport = setWriteSupport;
       return this;
     }
 
@@ -128,9 +128,8 @@ public class Parquet {
       return this;
     }
 
-    public WriteBuilder createWriterFunc(
-        Function<MessageType, ParquetValueWriter<?>> createWriterFunc) {
-      this.createWriterFunc = createWriterFunc;
+    public WriteBuilder createWriterFunc(Function<MessageType, ParquetValueWriter<?>> setCreateWriterFunc) {
+      this.createWriterFunc = setCreateWriterFunc;
       return this;
     }
 
@@ -299,18 +298,18 @@ public class Parquet {
     /**
      * Restricts the read to the given range: [start, start + length).
      *
-     * @param start the start position for this read
-     * @param length the length of the range this read should scan
+     * @param setStart the start position for this read
+     * @param setLength the length of the range this read should scan
      * @return this builder for method chaining
      */
-    public ReadBuilder split(long start, long length) {
-      this.start = start;
-      this.length = length;
+    public ReadBuilder split(long setStart, long setLength) {
+      this.start = setStart;
+      this.length = setLength;
       return this;
     }
 
-    public ReadBuilder project(Schema schema) {
-      this.schema = schema;
+    public ReadBuilder project(Schema setSchema) {
+      this.schema = setSchema;
       return this;
     }
 
@@ -318,28 +317,28 @@ public class Parquet {
       return caseSensitive(false);
     }
 
-    public ReadBuilder caseSensitive(boolean caseSensitive) {
-      this.caseSensitive = caseSensitive;
+    public ReadBuilder caseSensitive(boolean setCaseSensitive) {
+      this.caseSensitive = setCaseSensitive;
       return this;
     }
 
-    public ReadBuilder filterRecords(boolean filterRecords) {
-      this.filterRecords = filterRecords;
+    public ReadBuilder filterRecords(boolean setFilterRecords) {
+      this.filterRecords = setFilterRecords;
       return this;
     }
 
-    public ReadBuilder filter(Expression filter) {
-      this.filter = filter;
+    public ReadBuilder filter(Expression setFilter) {
+      this.filter = setFilter;
       return this;
     }
 
-    public ReadBuilder readSupport(ReadSupport<?> readSupport) {
-      this.readSupport = readSupport;
+    public ReadBuilder readSupport(ReadSupport<?> setReadSupport) {
+      this.readSupport = setReadSupport;
       return this;
     }
 
-    public ReadBuilder createReaderFunc(Function<MessageType, ParquetValueReader<?>> readerFunc) {
-      this.readerFunc = readerFunc;
+    public ReadBuilder createReaderFunc(Function<MessageType, ParquetValueReader<?>> setReaderFunction) {
+      this.readerFunc = setReaderFunction;
       return this;
     }
 
@@ -448,13 +447,13 @@ public class Parquet {
       super(file);
     }
 
-    public ParquetReadBuilder<T> project(Schema schema) {
-      this.schema = schema;
+    public ParquetReadBuilder<T> project(Schema setSchema) {
+      this.schema = setSchema;
       return this;
     }
 
-    public ParquetReadBuilder<T> readSupport(ReadSupport<T> readSupport) {
-      this.readSupport = readSupport;
+    public ParquetReadBuilder<T> readSupport(ReadSupport<T> setReadSupport) {
+      this.readSupport = setReadSupport;
       return this;
     }
 

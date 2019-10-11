@@ -37,11 +37,6 @@ import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.schema.MessageType;
 
-import static org.apache.iceberg.parquet.ParquetSchemaUtil.addFallbackIds;
-import static org.apache.iceberg.parquet.ParquetSchemaUtil.hasIds;
-import static org.apache.iceberg.parquet.ParquetSchemaUtil.pruneColumns;
-import static org.apache.iceberg.parquet.ParquetSchemaUtil.pruneColumnsFallback;
-
 public class ParquetReader<T> extends CloseableGroup implements CloseableIterable<T> {
   private final InputFile input;
   private final Schema expectedSchema;
@@ -85,12 +80,12 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
       MessageType fileSchema = reader.getFileMetaData().getSchema();
 
-      boolean hasIds = hasIds(fileSchema);
-      MessageType typeWithIds = hasIds ? fileSchema : addFallbackIds(fileSchema);
+      boolean hasIds = ParquetSchemaUtil.hasIds(fileSchema);
+      MessageType typeWithIds = hasIds ? fileSchema : ParquetSchemaUtil.addFallbackIds(fileSchema);
 
       this.projection = hasIds ?
-          pruneColumns(fileSchema, expectedSchema) :
-          pruneColumnsFallback(fileSchema, expectedSchema);
+          ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema) :
+          ParquetSchemaUtil.pruneColumnsFallback(fileSchema, expectedSchema);
       this.model = (ParquetValueReader<T>) readerFunc.apply(typeWithIds);
       this.rowGroups = reader.getRowGroups();
       this.shouldSkip = new boolean[rowGroups.size()];
@@ -102,7 +97,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
         dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive);
       }
 
-      long totalValues = 0L;
+      long computedTotalValues = 0L;
       for (int i = 0; i < shouldSkip.length; i += 1) {
         BlockMetaData rowGroup = rowGroups.get(i);
         boolean shouldRead = filter == null || (
@@ -110,11 +105,11 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
             dictFilter.shouldRead(typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup)));
         this.shouldSkip[i] = !shouldRead;
         if (shouldRead) {
-          totalValues += rowGroup.getRowCount();
+          computedTotalValues += rowGroup.getRowCount();
         }
       }
 
-      this.totalValues = totalValues;
+      this.totalValues = computedTotalValues;
       this.reuseContainers = reuseContainers;
     }
 
@@ -174,10 +169,10 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
   private ReadConf<T> init() {
     if (conf == null) {
-      ReadConf<T> conf = new ReadConf<>(
+      ReadConf<T> readConf = new ReadConf<>(
           input, options, expectedSchema, filter, readerFunc, reuseContainers, caseSensitive);
-      this.conf = conf.copy();
-      return conf;
+      this.conf = readConf.copy();
+      return readConf;
     }
 
     return conf;

@@ -53,8 +53,6 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
-import static org.apache.iceberg.parquet.ParquetValueReaders.option;
-
 public class ParquetAvroValueReaders {
   private ParquetAvroValueReaders() {
   }
@@ -95,9 +93,9 @@ public class ParquetAvroValueReaders {
       List<Type> fields = struct.getFields();
       for (int i = 0; i < fields.size(); i += 1) {
         Type fieldType = fields.get(i);
-        int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName()))-1;
+        int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName())) - 1;
         int id = fieldType.getId().intValue();
-        readersById.put(id, option(fieldType, fieldD, fieldReaders.get(i)));
+        readersById.put(id, ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
         typesById.put(id, fieldType);
       }
 
@@ -127,13 +125,13 @@ public class ParquetAvroValueReaders {
       GroupType repeated = array.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
-      int repeatedD = type.getMaxDefinitionLevel(repeatedPath)-1;
-      int repeatedR = type.getMaxRepetitionLevel(repeatedPath)-1;
+      int repeatedD = type.getMaxDefinitionLevel(repeatedPath) - 1;
+      int repeatedR = type.getMaxRepetitionLevel(repeatedPath) - 1;
 
       Type elementType = repeated.getType(0);
-      int elementD = type.getMaxDefinitionLevel(path(elementType.getName()))-1;
+      int elementD = type.getMaxDefinitionLevel(path(elementType.getName())) - 1;
 
-      return new ListReader<>(repeatedD, repeatedR, option(elementType, elementD, elementReader));
+      return new ListReader<>(repeatedD, repeatedR, ParquetValueReaders.option(elementType, elementD, elementReader));
     }
 
     @Override
@@ -143,16 +141,17 @@ public class ParquetAvroValueReaders {
       GroupType repeatedKeyValue = map.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
-      int repeatedD = type.getMaxDefinitionLevel(repeatedPath)-1;
-      int repeatedR = type.getMaxRepetitionLevel(repeatedPath)-1;
+      int repeatedD = type.getMaxDefinitionLevel(repeatedPath) - 1;
+      int repeatedR = type.getMaxRepetitionLevel(repeatedPath) - 1;
 
       Type keyType = repeatedKeyValue.getType(0);
-      int keyD = type.getMaxDefinitionLevel(path(keyType.getName()))-1;
+      int keyD = type.getMaxDefinitionLevel(path(keyType.getName())) - 1;
       Type valueType = repeatedKeyValue.getType(1);
-      int valueD = type.getMaxDefinitionLevel(path(valueType.getName()))-1;
+      int valueD = type.getMaxDefinitionLevel(path(valueType.getName())) - 1;
 
       return new MapReader<>(repeatedD, repeatedR,
-          option(keyType, keyD, keyReader), option(valueType, valueD, valueReader));
+          ParquetValueReaders.option(keyType, keyD, keyReader),
+          ParquetValueReaders.option(valueType, valueD, valueReader));
     }
 
     @Override

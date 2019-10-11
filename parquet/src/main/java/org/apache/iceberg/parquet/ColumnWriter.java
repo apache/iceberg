@@ -71,8 +71,8 @@ public abstract class ColumnWriter<T> implements TripleWriter<T> {
           }
         };
       default:
-        throw new UnsupportedOperationException("Unsupported primitive type: "
-                + desc.getPrimitiveType().getPrimitiveTypeName());
+        throw new UnsupportedOperationException("Unsupported primitive type: " +
+            desc.getPrimitiveType().getPrimitiveTypeName());
     }
   }
 

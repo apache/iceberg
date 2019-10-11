@@ -38,9 +38,6 @@ import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.io.SeekableInputStream;
 
-import static org.apache.parquet.hadoop.util.HadoopInputFile.fromStatus;
-import static org.apache.parquet.hadoop.util.HadoopOutputFile.fromPath;
-
 /**
  * Methods in this class translate from the IO API to Parquet's IO API.
  */
@@ -54,7 +51,7 @@ class ParquetIO {
     if (file instanceof HadoopInputFile) {
       HadoopInputFile hfile = (HadoopInputFile) file;
       try {
-        return fromStatus(hfile.getStat(), hfile.getConf());
+        return org.apache.parquet.hadoop.util.HadoopInputFile.fromStatus(hfile.getStat(), hfile.getConf());
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to create Parquet input file for %s", file);
       }
@@ -66,7 +63,7 @@ class ParquetIO {
     if (file instanceof HadoopOutputFile) {
       HadoopOutputFile hfile = (HadoopOutputFile) file;
       try {
-        return fromPath(hfile.getPath(), hfile.getConf());
+        return org.apache.parquet.hadoop.util.HadoopOutputFile.fromPath(hfile.getPath(), hfile.getConf());
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to create Parquet output file for %s", file);
       }
@@ -78,7 +75,7 @@ class ParquetIO {
     if (file instanceof HadoopOutputFile) {
       HadoopOutputFile hfile = (HadoopOutputFile) file;
       try {
-        return fromPath(hfile.getPath(), conf);
+        return org.apache.parquet.hadoop.util.HadoopOutputFile.fromPath(hfile.getPath(), conf);
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to create Parquet output file for %s", file);
       }
