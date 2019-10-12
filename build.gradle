@@ -390,6 +390,8 @@ project(':iceberg-pig') {
     compile project(':iceberg-core')
     compile project(':iceberg-parquet')
 
+    compile "org.apache.commons:commons-lang3"
+
     compileOnly("org.apache.pig:pig") {
       exclude group: "junit", module: "junit"
     }
