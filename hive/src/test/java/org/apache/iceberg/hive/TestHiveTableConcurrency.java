@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.hive;
 
+import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.MoreExecutors;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -43,7 +44,6 @@ public class TestHiveTableConcurrency extends HiveTableBaseTest {
   @Test
   public synchronized void testConcurrentFastAppends() {
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
-    Table anotherIcebergTable = catalog.loadTable(TABLE_IDENTIFIER);
 
     String fileName = UUID.randomUUID().toString();
     DataFile file = DataFiles.builder(icebergTable.spec())
@@ -56,10 +56,10 @@ public class TestHiveTableConcurrency extends HiveTableBaseTest {
         (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
 
     AtomicInteger barrier = new AtomicInteger(0);
-    Tasks.foreach(icebergTable, anotherIcebergTable)
+    Tasks.range(2)
         .stopOnFailure().throwFailureWhenFinished()
         .executeWith(executorService)
-        .run(table -> {
+        .run(index -> {
           for (int numCommittedFiles = 0; numCommittedFiles < 10; numCommittedFiles++) {
             while (barrier.get() < numCommittedFiles * 2) {
               try {
@@ -69,7 +69,7 @@ public class TestHiveTableConcurrency extends HiveTableBaseTest {
               }
             }
 
-            table.newFastAppend().appendFile(file).commit();
+            icebergTable.newFastAppend().appendFile(file).commit();
             barrier.incrementAndGet();
           }
         });
@@ -96,13 +96,14 @@ public class TestHiveTableConcurrency extends HiveTableBaseTest {
         .build();
 
     ExecutorService executorService = MoreExecutors.getExitingExecutorService(
-        (ThreadPoolExecutor) Executors.newFixedThreadPool(10));
+        (ThreadPoolExecutor) Executors.newFixedThreadPool(7));
 
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 7; i++) {
       executorService.submit(() -> icebergTable.newAppend().appendFile(file).commit());
     }
 
     executorService.shutdown();
-    Assert.assertTrue("Timeout", executorService.awaitTermination(1, TimeUnit.MINUTES));
+    Assert.assertTrue("Timeout", executorService.awaitTermination(2, TimeUnit.MINUTES));
+    Assert.assertEquals(7, Iterables.size(icebergTable.snapshots()));
   }
 }

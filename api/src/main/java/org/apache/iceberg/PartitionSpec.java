@@ -482,6 +482,8 @@ public class PartitionSpec implements Serializable {
   static void checkCompatibility(PartitionSpec spec, Schema schema) {
     for (PartitionField field : spec.fields) {
       Type sourceType = schema.findType(field.sourceId());
+      ValidationException.check(sourceType != null,
+          "Cannot find source column for partition field: %s", field);
       ValidationException.check(sourceType.isPrimitiveType(),
           "Cannot partition by non-primitive source field: %s", sourceType);
       ValidationException.check(

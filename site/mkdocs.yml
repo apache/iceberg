@@ -40,7 +40,9 @@ markdown_extensions:
   - pymdownx.tilde
 nav:
   - About: index.md
-  - Community: community.md
+  - Community:
+    - Information: community.md
+    - Disclaimer: disclaimer.md
   - User docs:
     - Schemas: schemas.md
     - Partitioning: partitioning.md

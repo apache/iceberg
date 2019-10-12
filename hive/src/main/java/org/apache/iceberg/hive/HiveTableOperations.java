@@ -151,11 +151,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       }
 
       tbl.setSd(storageDescriptor(metadata)); // set to pickup any schema changes
-      final String metadataLocation = tbl.getParameters().get(METADATA_LOCATION_PROP);
-      if (!Objects.equals(currentMetadataLocation(), metadataLocation)) {
-        String errMsg = String.format("metadataLocation = %s is not same as table metadataLocation %s for %s.%s",
-            currentMetadataLocation(), metadataLocation, database, tableName);
-        throw new CommitFailedException(errMsg);
+      String metadataLocation = tbl.getParameters().get(METADATA_LOCATION_PROP);
+      String baseMetadataLocation = base != null ? base.file().location() : null;
+      if (!Objects.equals(baseMetadataLocation, metadataLocation)) {
+        throw new CommitFailedException(
+            "Base metadata location '%s' is not same as the current table metadata location '%s' for %s.%s",
+            baseMetadataLocation, metadataLocation, database, tableName);
       }
 
       setParameters(newMetadataLocation, tbl);
