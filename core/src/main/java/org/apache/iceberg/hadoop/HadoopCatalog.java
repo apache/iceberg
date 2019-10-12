@@ -39,23 +39,32 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
   private static final String ICEBERG_HADOOP_WAREHOUSE_BASE = "iceberg/warehouse";
   private final Configuration conf;
-  private String hdfsRoot;
+  private String warehouseUri;
+
+  public HadoopCatalog(Configuration conf, String warehouseUri) {
+    this.conf = conf;
+
+    if (warehouseUri != null) {
+      this.warehouseUri = warehouseUri;
+    } else {
+      String fsRoot = conf.get("fs.defaultFS");
+      Path warehousePath = new Path(fsRoot, ICEBERG_HADOOP_WAREHOUSE_BASE);
+      try {
+        FileSystem fs = Util.getFs(warehousePath, conf);
+        if (!fs.isDirectory(warehousePath)) {
+          if (!fs.mkdirs(warehousePath)) {
+            throw new IOException("failed to create warehouse for hadoop catalog");
+          }
+        }
+        this.warehouseUri = fsRoot + "/" + ICEBERG_HADOOP_WAREHOUSE_BASE;
+      } catch (IOException e) {
+        throw new RuntimeIOException("failed to create directory for warehouse", e);
+      }
+    }
+  }
 
   public HadoopCatalog(Configuration conf) {
-    this.conf = conf;
-    hdfsRoot = conf.get("fs.defaultFS");
-    Path warehousePath = new Path(hdfsRoot + ICEBERG_HADOOP_WAREHOUSE_BASE);
-    try {
-      FileSystem fs = Util.getFs(warehousePath, conf);
-      if (!fs.isDirectory(warehousePath)) {
-        if (!fs.mkdirs(warehousePath)) {
-          throw new IOException("failed to create warehouse for hadoop catalog");
-        }
-      }
-      this.hdfsRoot = hdfsRoot + "/" + ICEBERG_HADOOP_WAREHOUSE_BASE;
-    } catch (IOException e) {
-      throw new RuntimeIOException("failed to create directory for warehouse", e);
-    }
+    this(conf, null);
   }
 
   @Override
@@ -102,7 +111,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
   protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
     String dbName = tableIdentifier.namespace().level(0);
     String tableName = tableIdentifier.name();
-    return this.hdfsRoot + "/" + dbName + ".db" + "/" + tableName;
+    return this.warehouseUri + "/" + dbName + ".db" + "/" + tableName;
   }
 
   @Override
