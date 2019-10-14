@@ -38,7 +38,7 @@ setup(
                       'requests',
                       'retrying',
                       'pandas',
-                      'pyarrow'
+                      'pyarrow==0.14.1'
                       ],
     setup_requires=['setupmeta']
 )

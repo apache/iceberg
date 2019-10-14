@@ -49,7 +49,7 @@ def test_lt():
 def test_lte():
     expected_expr = Expressions.less_than_or_equal("col_a", 1)
     conv_expr = Expressions.convert_string_to_expr("col_a <= 1")
-    assert expected_expr == conv_expr\
+    assert expected_expr == conv_expr
 
 
 def test_and():
