@@ -94,9 +94,10 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
 
       } else {
         Preconditions.checkArgument(field.isOptional(), "Missing required field: %s", field.name());
-        // create a field that will be defaulted to null
+        // Create a field that will be defaulted to null. We assign a unique suffix to the field
+        // to make sure that even if records in the file have the field it is not projected.
         Schema.Field newField = new Schema.Field(
-            field.name(),
+            field.name() + "_r" + field.fieldId(),
             AvroSchemaUtil.toOption(AvroSchemaUtil.convert(field.type())), null, JsonProperties.NULL_VALUE);
         newField.addProp(AvroSchemaUtil.FIELD_ID_PROP, field.fieldId());
         updatedFields.add(newField);
@@ -115,7 +116,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
   public Schema.Field field(Schema.Field field, Supplier<Schema> fieldResult) {
     Types.StructType struct = current.asNestedType().asStructType();
     int fieldId = AvroSchemaUtil.getFieldId(field);
-    Types.NestedField expectedField = struct.field(fieldId); // TODO: what if there are no ids?
+    Types.NestedField expectedField = struct.field(fieldId);
 
     // if the field isn't present, it was not selected
     if (expectedField == null) {
