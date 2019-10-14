@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.pig;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -165,9 +165,9 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
   }
 
   @Override
-  public List<Expression.OpType> getSupportedExpressionTypes() {
+  public ImmutableList<OpType> getSupportedExpressionTypes() {
     LOG.info("[{}]: getSupportedExpressionTypes()", signature);
-    return Arrays.asList(OpType.OP_AND, OpType.OP_OR, OpType.OP_EQ, OpType.OP_NE, OpType.OP_NOT, OpType.OP_GE,
+    return ImmutableList.of(OpType.OP_AND, OpType.OP_OR, OpType.OP_EQ, OpType.OP_NE, OpType.OP_NOT, OpType.OP_GE,
         OpType.OP_GT, OpType.OP_LE, OpType.OP_LT, OpType.OP_BETWEEN, OpType.OP_IN, OpType.OP_NULL);
   }
 
@@ -265,8 +265,8 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
   }
 
   @Override
-  public void setUDFContextSignature(String setSignature) {
-    this.signature = setSignature;
+  public void setUDFContextSignature(String newSignature) {
+    this.signature = newSignature;
   }
 
   private void storeInUDFContext(String key, Serializable value) throws IOException {

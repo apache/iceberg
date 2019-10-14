@@ -383,7 +383,7 @@ public class PigParquetReader {
   }
 
   private static class ArrayReader<T> extends RepeatedReader<DataBag, DataBag, T> {
-    private final BagFactory bagFActory = BagFactory.getInstance();
+    private final BagFactory bagFactory = BagFactory.getInstance();
     private final TupleFactory tupleFactory = TupleFactory.getInstance();
 
     ArrayReader(int definitionLevel, int repetitionLevel, ParquetValueReader<T> reader) {
@@ -392,7 +392,7 @@ public class PigParquetReader {
 
     @Override
     protected DataBag newListData(DataBag reuse) {
-      return bagFActory.newDefaultBag();
+      return bagFactory.newDefaultBag();
     }
 
     @Override
