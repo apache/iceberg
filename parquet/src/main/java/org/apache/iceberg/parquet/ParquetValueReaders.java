@@ -585,9 +585,9 @@ public class ParquetValueReaders {
     private K key = null;
     private V value = null;
 
-    public void set(K setKey, V setValue) {
-      this.key = setKey;
-      this.value = setValue;
+    public void set(K newKey, V  newValue) {
+      this.key = newKey;
+      this.value =  newValue;
     }
 
     @Override
@@ -601,9 +601,9 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public V setValue(V setValue) {
+    public V setValue(V newValue) {
       V lastValue = this.value;
-      this.value = setValue;
+      this.value = newValue;
       return lastValue;
     }
   }
@@ -615,7 +615,6 @@ public class ParquetValueReaders {
 
     private final ParquetValueReader<?>[] readers;
     private final TripleIterator<?> column;
-    private final Setter<I>[] setters;
     private final List<TripleIterator<?>> children;
 
     @SuppressWarnings("unchecked")
@@ -623,14 +622,14 @@ public class ParquetValueReaders {
       this.readers = (ParquetValueReader<?>[]) Array.newInstance(
           ParquetValueReader.class, readers.size());
       TripleIterator<?>[] columns = (TripleIterator<?>[]) Array.newInstance(TripleIterator.class, readers.size());
-      this.setters = (Setter<I>[]) Array.newInstance(Setter.class, readers.size());
+      Setter<I>[] setters = (Setter<I>[]) Array.newInstance(Setter.class, readers.size());
 
       ImmutableList.Builder<TripleIterator<?>> columnsBuilder = ImmutableList.builder();
       for (int i = 0; i < readers.size(); i += 1) {
         ParquetValueReader<?> reader = readers.get(i);
         this.readers[i] = readers.get(i);
         columns[i] = reader.column();
-        this.setters[i] = newSetter(reader, types.get(i));
+        setters[i] = newSetter(reader, types.get(i));
         columnsBuilder.addAll(reader.columns());
       }
 

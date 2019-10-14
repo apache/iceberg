@@ -93,8 +93,8 @@ public class ParquetDictionaryRowGroupFilter {
     private Map<Integer, Function<Object, Object>> conversions = null;
 
     private boolean eval(MessageType fileSchema, BlockMetaData rowGroup,
-                         DictionaryPageReadStore dict) {
-      this.dictionaries = dict;
+                         DictionaryPageReadStore dictionaryReadStore) {
+      this.dictionaries = dictionaryReadStore;
       this.dictCache = Maps.newHashMap();
       this.isFallback = Maps.newHashMap();
       this.mayContainNulls = Maps.newHashMap();
@@ -379,7 +379,8 @@ public class ParquetDictionaryRowGroupFilter {
       encodings.remove(Encoding.RLE);
       encodings.remove(Encoding.BIT_PACKED);
 
-      return !encodings.isEmpty(); // no encodings other than dictionary or rep/def levels
+      // when empty, no encodings other than dictionary or rep/def levels
+      return !encodings.isEmpty();
     } else {
       // if PLAIN_DICTIONARY wasn't present, then either the column is not
       // dictionary-encoded, or the 2.0 encoding, RLE_DICTIONARY, was used.
