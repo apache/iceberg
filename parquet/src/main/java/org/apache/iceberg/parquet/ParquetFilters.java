@@ -170,8 +170,8 @@ class ParquetFilters {
   }
 
   @SuppressWarnings("checkstyle:MethodTypeParameterName")
-  private static <C extends Comparable<C>, COL extends Operators.Column<C> & Operators.SupportsLtGt> FilterPredicate
-      pred(Operation op, COL col, C value) {
+  private static <C extends Comparable<C>, COL extends Operators.Column<C> & Operators.SupportsLtGt>
+      FilterPredicate pred(Operation op, COL col, C value) {
     switch (op) {
       case IS_NULL:
         return FilterApi.eq(col, null);
