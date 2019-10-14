@@ -103,21 +103,21 @@ public class TestDictionaryRowGroupFilter {
     TOO_LONG_FOR_STATS = sb.toString();
   }
 
-  private static final File parquetFile = new File("/tmp/stats-row-group-filter-test.parquet");
+  private static final File PARQUET_FILE = new File("/tmp/stats-row-group-filter-test.parquet");
   private static MessageType parquetSchema = null;
   private static BlockMetaData rowGroupMetadata = null;
   private static DictionaryPageReadStore dictionaryStore = null;
 
   @BeforeClass
   public static void createInputFile() throws IOException {
-    if (parquetFile.exists()) {
-      Assert.assertTrue(parquetFile.delete());
+    if (PARQUET_FILE.exists()) {
+      Assert.assertTrue(PARQUET_FILE.delete());
     }
 
     // build struct field schema
     org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(_structFieldType);
 
-    OutputFile outFile = Files.localOutput(parquetFile);
+    OutputFile outFile = Files.localOutput(PARQUET_FILE);
     try (FileAppender<Record> appender = Parquet.write(outFile)
         .schema(FILE_SCHEMA)
         .build()) {
@@ -143,7 +143,7 @@ public class TestDictionaryRowGroupFilter {
       }
     }
 
-    InputFile inFile = Files.localInput(parquetFile);
+    InputFile inFile = Files.localInput(PARQUET_FILE);
 
     ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inFile));
 
@@ -152,7 +152,7 @@ public class TestDictionaryRowGroupFilter {
     parquetSchema = reader.getFileMetaData().getSchema();
     dictionaryStore = reader.getNextDictionaryReader();
 
-    parquetFile.deleteOnExit();
+    PARQUET_FILE.deleteOnExit();
   }
 
   @Test
