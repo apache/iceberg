@@ -21,7 +21,7 @@ package org.apache.iceberg.parquet;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-import java.util.LinkedList;
+import java.util.Deque;
 import java.util.List;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
@@ -30,8 +30,8 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 public class ParquetTypeVisitor<T> {
-  @SuppressWarnings({"checkstyle:IllegalType", "checkstyle:VisibilityModifier"})
-  protected LinkedList<String> fieldNames = Lists.newLinkedList();
+  @SuppressWarnings("checkstyle:VisibilityModifier")
+  protected Deque<String> fieldNames = Lists.newLinkedList();
 
   public static <T> T visit(Type type, ParquetTypeVisitor<T> visitor) {
     if (type instanceof MessageType) {
