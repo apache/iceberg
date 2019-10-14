@@ -25,6 +25,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -191,7 +192,10 @@ public class FindFiles {
       Snapshot snapshot = snapshotId != null ?
           ops.current().snapshot(snapshotId) : ops.current().currentSnapshot();
 
-      CloseableIterable<ManifestEntry> entries = new ManifestGroup(ops, snapshot.manifests())
+      // snapshot could be null when the table just gets created
+      Iterable<ManifestFile> manifests = (snapshot != null) ? snapshot.manifests() : new HashSet<>(0);
+
+      CloseableIterable<ManifestEntry> entries = new ManifestGroup(ops, manifests)
           .filterData(rowFilter)
           .filterFiles(fileFilter)
           .filterPartitions(partitionFilter)
