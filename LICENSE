@@ -245,6 +245,16 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
+This product includes code from kryo-serializers.
+
+* Kryo serializers for immutable collections
+
+Copyright 2010 Martin Grotzke
+Home page: https://github.com/magro/kryo-serializers
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
 This product includes code from Presto.
 
 * Retry wait and jitter logic in Tasks.java

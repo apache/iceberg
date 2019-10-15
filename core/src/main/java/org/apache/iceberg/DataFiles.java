@@ -20,7 +20,7 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
+import com.google.common.collect.ImmutableList;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Locale;
@@ -230,7 +230,7 @@ public class DataFiles {
       this.upperBounds = toCopy.upperBounds();
       this.keyMetadata = toCopy.keyMetadata() == null ? null
           : ByteBuffers.copy(toCopy.keyMetadata());
-      this.splitOffsets = toCopy.splitOffsets() == null ? null : copyList(toCopy.splitOffsets());
+      this.splitOffsets = toCopy.splitOffsets() == null ? null : ImmutableList.copyOf(toCopy.splitOffsets());
       return this;
     }
 
@@ -307,11 +307,7 @@ public class DataFiles {
     }
 
     public Builder withSplitOffsets(List<Long> offsets) {
-      if (offsets != null) {
-        this.splitOffsets = copyList(offsets);
-      } else {
-        this.splitOffsets = null;
-      }
+      this.splitOffsets = offsets == null ? null : ImmutableList.copyOf(offsets);
       return this;
     }
 
@@ -339,11 +335,5 @@ public class DataFiles {
               recordCount, columnSizes, valueCounts, nullValueCounts, lowerBounds, upperBounds),
           keyMetadata, splitOffsets);
     }
-  }
-
-  private static <E> List<E> copyList(List<E> toCopy) {
-    List<E> copy = Lists.newArrayListWithExpectedSize(toCopy.size());
-    copy.addAll(toCopy);
-    return copy;
   }
 }

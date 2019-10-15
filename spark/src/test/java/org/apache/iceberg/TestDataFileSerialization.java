@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.spark.IcebergKryoRegistrator;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.SparkParquetWriters;
 import org.apache.iceberg.types.Types;
@@ -88,6 +89,11 @@ public class TestDataFileSerialization {
       .withEncryptionKeyMetadata(ByteBuffer.allocate(4).putInt(34))
       .build();
 
+  private SparkConf sparkConf = new SparkConf()
+      .set("spark.kryo.registrator", IcebergKryoRegistrator.class.getName());
+
+  private Kryo kryo = new KryoSerializer(sparkConf).newKryo();
+
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
@@ -95,7 +101,6 @@ public class TestDataFileSerialization {
   public void testDataFileKryoSerialization() throws Exception {
     File data = temp.newFile();
     Assert.assertTrue(data.delete());
-    Kryo kryo = new KryoSerializer(new SparkConf()).newKryo();
 
     try (Output out = new Output(new FileOutputStream(data))) {
       kryo.writeClassAndObject(out, DATA_FILE);
@@ -172,7 +177,6 @@ public class TestDataFileSerialization {
       writer.close();
     }
 
-    Kryo kryo = new KryoSerializer(new SparkConf()).newKryo();
     File dataFile = temp.newFile();
     try (Output out = new Output(new FileOutputStream(dataFile))) {
       kryo.writeClassAndObject(out, writer.splitOffsets());

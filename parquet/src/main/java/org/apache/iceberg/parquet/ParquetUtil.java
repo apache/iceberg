@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.parquet;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import java.io.IOException;
@@ -140,7 +141,7 @@ public class ParquetUtil {
       splitOffsets.add(blockMetaData.getStartingPos());
     }
     Collections.sort(splitOffsets);
-    return splitOffsets;
+    return ImmutableList.copyOf(splitOffsets);
   }
 
   // we allow struct nesting, but not maps or arrays
