@@ -157,16 +157,10 @@ public class TestFindFiles extends TableTestBase {
   public void testNoSnapshot() {
     // a table has no snapshot when it just gets created and no data is loaded yet
 
-    // verify NPE is NOT thrown
-    Iterable<DataFile> files = null;
-    try {
-      files = FindFiles.in(table).collect();
-    } catch (NullPointerException npe) {
-      npe.printStackTrace();
-      Assert.assertTrue("NullPointerException is caught but no expected", false);
-    }
+    // if not handled properly, NPE will be thrown in collect()
+    Iterable<DataFile> files = FindFiles.in(table).collect();
 
-    // verify no data file is returned
+    // verify an empty collection of data file is returned
     Assert.assertEquals(0, Sets.newHashSet(files).size());
   }
 
