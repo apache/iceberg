@@ -20,13 +20,15 @@
 package org.apache.iceberg;
 
 import com.google.common.base.MoreObjects;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.generic.IndexedRecord;
@@ -434,14 +436,18 @@ class GenericDataFile
 
   private static <K, V> Map<K, V> copy(Map<K, V> map) {
     if (map != null) {
-      return ImmutableMap.copyOf(map);
+      Map<K, V> copy = Maps.newHashMapWithExpectedSize(map.size());
+      copy.putAll(map);
+      return Collections.unmodifiableMap(copy);
     }
     return null;
   }
 
   private static <E> List<E> copy(List<E> list) {
     if (list != null) {
-      return ImmutableList.copyOf(list);
+      List<E> copy = Lists.newArrayListWithExpectedSize(list.size());
+      copy.addAll(list);
+      return Collections.unmodifiableList(copy);
     }
     return null;
   }
