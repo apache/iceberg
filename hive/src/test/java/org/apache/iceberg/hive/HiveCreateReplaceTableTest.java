@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.hive;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import java.io.IOException;
 import org.apache.iceberg.AppendFiles;
@@ -278,5 +279,28 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
     Assert.assertEquals("Partition spec should match", PartitionSpec.unpartitioned(), table.spec());
     Assert.assertEquals("Table props should match", "value", table.properties().get("prop"));
+  }
+
+  @Test
+  public void testCreateTableTxnWithGlobalTableLocation() {
+    Assert.assertFalse("Table should not exist", catalog.tableExists(TABLE_IDENTIFIER));
+
+    Transaction txn = catalog.newCreateTableTransaction(
+        TABLE_IDENTIFIER, SCHEMA, SPEC, "file:///" + tableLocation, Maps.newHashMap());
+    txn.commitTransaction();
+
+    Table table = catalog.loadTable(TABLE_IDENTIFIER);
+
+    DataFile dataFile = DataFiles.builder(SPEC)
+        .withPath("/path/to/data-a.parquet")
+        .withFileSizeInBytes(0)
+        .withRecordCount(1)
+        .build();
+
+    table.newAppend()
+        .appendFile(dataFile)
+        .commit();
+
+    Assert.assertEquals("Write should succeed", 1, Iterables.size(table.snapshots()));
   }
 }
