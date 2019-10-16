@@ -62,6 +62,9 @@ nav:
     - Custom Catalog: custom-catalog.md
   - Python:
     - Git Repo: https://github.com/apache/incubator-iceberg/tree/master/python
+    - Quickstart: python-quickstart.md
+    - API intro: python-api-intro.md
+    - Feature Support: python-feature-support.md
   - Format:
     - Definitions: terms.md
     - Spec: spec.md
