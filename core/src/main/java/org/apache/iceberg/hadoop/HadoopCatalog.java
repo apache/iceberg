@@ -69,7 +69,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
 
   @Override
   public org.apache.iceberg.Table createTable(
-      TableIdentifier identifier, Schema schema, PartitionSpec spec, String location, Map<String, String> properties) {
+      TableIdentifier identifier, Schema schema, PartitionSpec spec, Map<String, String> properties) {
     Preconditions.checkArgument(identifier.namespace().levels().length == 1,
             "Missing database in table identifier: %s", identifier);
     Path tablePath = new Path(defaultWarehouseLocation(identifier));
@@ -84,13 +84,6 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
       throw new RuntimeIOException("failed to create directory", e);
     }
     return super.createTable(identifier, schema, spec, null, properties);
-  }
-
-  public org.apache.iceberg.Table createTable(
-          TableIdentifier identifier, Schema schema, PartitionSpec spec, Map<String, String> properties) {
-    Preconditions.checkArgument(identifier.namespace().levels().length == 1,
-            "Missing database in table identifier: %s", identifier);
-    return createTable(identifier, schema, spec, null, properties);
   }
 
   public org.apache.iceberg.Table createTable(
