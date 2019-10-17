@@ -362,7 +362,6 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    */
   UpdateSchema moveAfter(String name, String afterName);
 
-
   /**
    * Applies all field additions and updates from the provided new schema to the existing schema so
    * to create a union schema.
@@ -384,4 +383,13 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    *                                  with other additions, renames, or updates.
    */
   UpdateSchema unionByNameWith(Schema newSchema);
+
+  /**
+   * Applies all the additions and updates [type widening, field documentation]
+   * from the input schema
+   *
+   * @param newSchema - Input schema from which updates are applied
+   * @return this for method chaining
+   */
+  UpdateSchema updateSchema(Schema newSchema);
 }

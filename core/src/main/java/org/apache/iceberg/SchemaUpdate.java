@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.util.Collection;
+import java.util.Deque;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +28,7 @@ import java.util.Objects;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -346,6 +348,99 @@ class SchemaUpdate implements UpdateSchema {
 
       moves.put(TABLE_ROOT_ID, move);
     }
+  }
+
+  public UpdateSchema updateSchema(Schema newSchema) {
+    TypeUtil.visit(newSchema, new ApplyUpdates(schema, this));
+    return this;
+  }
+
+  private static final Joiner DOT = Joiner.on(".");
+
+  private static class ApplyUpdates extends TypeUtil.SchemaVisitor<Void> {
+    private final Schema schema;
+    private final UpdateSchema updateSchema;
+    private final Map<String, Integer> indexByName;
+    private final Deque<String> fieldNames = Lists.newLinkedList();
+
+    private ApplyUpdates(Schema schema, UpdateSchema updateSchema) {
+      this.schema = schema;
+      this.updateSchema = updateSchema;
+      this.indexByName = TypeUtil.indexByName(schema.asStruct());
+    }
+
+    @Override
+    public void beforeField(Types.NestedField field) {
+      fieldNames.push(field.name());
+    }
+
+    @Override
+    public void afterField(Types.NestedField field) {
+      fieldNames.pop();
+    }
+
+    @Override
+    public void beforeListElement(Types.NestedField elementField) {
+    }
+
+    @Override
+    public void afterListElement(Types.NestedField elementField) {
+    }
+
+    @Override
+    public void beforeMapKey(Types.NestedField keyField) {
+    }
+
+    @Override
+    public void afterMapKey(Types.NestedField keyField) {
+    }
+
+    @Override
+    public void beforeMapValue(Types.NestedField valueField) {
+    }
+
+    @Override
+    public void afterMapValue(Types.NestedField valueField) {
+    }
+
+    @Override
+    public Void struct(Types.StructType struct, List<Void> fieldResults) {
+      for (Types.NestedField newField : struct.fields()) {
+        Types.NestedField field = schema.findField(newField.fieldId());
+        String parents = DOT.join(fieldNames);
+        if (field == null) {
+          String name = join(parents, newField.name());
+          // found new field
+          if (parents.isEmpty()) {
+            // top level field
+            updateSchema.addColumn(null, name, newField.type());
+          } else if (indexByName.containsKey(parents)) {
+            // parent struct present
+            updateSchema.addColumn(parents, newField.name(), newField.type());
+          }
+          // else parent struct not present, so we will
+          // backtrack until we find a parent or reach top level
+        } else {
+          // updates
+          String name = join(parents, field.name());
+          if (field.type().isPrimitiveType() && !field.type().equals(newField.type())) {
+            Preconditions.checkState(newField.type().isPrimitiveType(), "%s is not a primitive type", field);
+            updateSchema.updateColumn(name, newField.type().asPrimitiveType());
+          }
+          if (newField.doc() != null && !newField.doc().equals(field.doc())) {
+            updateSchema.updateColumnDoc(name, newField.doc());
+          }
+        }
+      }
+      return null;
+    }
+  }
+
+  private static String join(String parent, String name) {
+    if (parent.isEmpty()) {
+      return name;
+    }
+    return DOT.join(parent, name);
   }
 
   /**
