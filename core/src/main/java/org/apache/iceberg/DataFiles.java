@@ -289,7 +289,9 @@ public class DataFiles {
     public Builder withPartitionPath(String newPartitionPath) {
       Preconditions.checkArgument(isPartitioned || newPartitionPath.isEmpty(),
           "Cannot add partition data for an unpartitioned table");
-      this.partitionData = fillFromPath(spec, newPartitionPath, partitionData);
+      if (!newPartitionPath.isEmpty()) {
+        this.partitionData = fillFromPath(spec, newPartitionPath, partitionData);
+      }
       return this;
     }
 
