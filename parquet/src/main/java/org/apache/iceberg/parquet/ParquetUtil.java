@@ -141,7 +141,7 @@ public class ParquetUtil {
       splitOffsets.add(blockMetaData.getStartingPos());
     }
     Collections.sort(splitOffsets);
-    return ImmutableList.copyOf(splitOffsets);
+    return splitOffsets;
   }
 
   // we allow struct nesting, but not maps or arrays
