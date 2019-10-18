@@ -24,10 +24,14 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Map;
@@ -48,7 +52,7 @@ import org.junit.rules.TemporaryFolder;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-public class TestKryoSerialization {
+public class TestDataFileSerialization {
 
   private static final Schema DATE_SCHEMA = new Schema(
       required(1, "id", Types.LongType.get()),
@@ -60,6 +64,30 @@ public class TestKryoSerialization {
       .identity("date")
       .build();
 
+  private static final Map<Integer, Long> VALUE_COUNTS = Maps.newHashMap();
+  private static final Map<Integer, Long> NULL_VALUE_COUNTS = Maps.newHashMap();
+  private static final Map<Integer, ByteBuffer> LOWER_BOUNDS = Maps.newHashMap();
+  private static final Map<Integer, ByteBuffer> UPPER_BOUNDS = Maps.newHashMap();
+
+  static {
+    VALUE_COUNTS.put(1, 5L);
+    VALUE_COUNTS.put(2, 3L);
+    NULL_VALUE_COUNTS.put(1, 0L);
+    NULL_VALUE_COUNTS.put(2, 2L);
+    LOWER_BOUNDS.put(1, longToBuffer(0L));
+    UPPER_BOUNDS.put(1, longToBuffer(4L));
+  }
+
+  private static final DataFile DATA_FILE = DataFiles
+      .builder(PARTITION_SPEC)
+      .withPath("/path/to/data-1.parquet")
+      .withFileSizeInBytes(1234)
+      .withPartitionPath("date=2018-06-08")
+      .withMetrics(new Metrics(5L, null, VALUE_COUNTS, NULL_VALUE_COUNTS, LOWER_BOUNDS, UPPER_BOUNDS))
+      .withSplitOffsets(ImmutableList.of(4L))
+      .withEncryptionKeyMetadata(ByteBuffer.allocate(4).putInt(34))
+      .build();
+
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
@@ -69,63 +97,62 @@ public class TestKryoSerialization {
     Assert.assertTrue(data.delete());
     Kryo kryo = new KryoSerializer(new SparkConf()).newKryo();
 
-    Map<Integer, Long> valueCounts = Maps.newHashMap();
-    valueCounts.put(1, 5L);
-    valueCounts.put(2, 3L);
-
-    Map<Integer, Long> nullValueCounts = Maps.newHashMap();
-    nullValueCounts.put(1, 0L);
-    nullValueCounts.put(2, 2L);
-
-    Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
-    lowerBounds.put(1, longToBuffer(0L));
-
-    Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
-    upperBounds.put(1, longToBuffer(4L));
-
-    DataFile dataFile = DataFiles
-        .builder(PARTITION_SPEC)
-        .withPath("/path/to/data-1.parquet")
-        .withFileSizeInBytes(1234)
-        .withPartitionPath("date=2018-06-08")
-        .withMetrics(new Metrics(5L, null, valueCounts, nullValueCounts, lowerBounds, upperBounds))
-        .withSplitOffsets(ImmutableList.of(4L))
-        .build();
-
     try (Output out = new Output(new FileOutputStream(data))) {
-      kryo.writeClassAndObject(out, dataFile);
-      kryo.writeClassAndObject(out, dataFile.copy());
+      kryo.writeClassAndObject(out, DATA_FILE);
+      kryo.writeClassAndObject(out, DATA_FILE.copy());
     }
 
     try (Input in = new Input(new FileInputStream(data))) {
       for (int i = 0; i < 2; i += 1) {
         Object obj = kryo.readClassAndObject(in);
         Assert.assertTrue("Should be a DataFile", obj instanceof DataFile);
-        DataFile result = (DataFile) obj;
-        Assert.assertEquals("Should match the serialized record path",
-            dataFile.path(), result.path());
-        Assert.assertEquals("Should match the serialized record format",
-            dataFile.format(), result.format());
-        Assert.assertEquals("Should match the serialized record partition",
-            dataFile.partition().get(0, Object.class), result.partition().get(0, Object.class));
-        Assert.assertEquals("Should match the serialized record count",
-            dataFile.recordCount(), result.recordCount());
-        Assert.assertEquals("Should match the serialized record size",
-            dataFile.fileSizeInBytes(), result.fileSizeInBytes());
-        Assert.assertEquals("Should match the serialized record value counts",
-            dataFile.valueCounts(), result.valueCounts());
-        Assert.assertEquals("Should match the serialized record null value counts",
-            dataFile.nullValueCounts(), result.nullValueCounts());
-        Assert.assertEquals("Should match the serialized record lower bounds",
-            dataFile.lowerBounds(), result.lowerBounds());
-        Assert.assertEquals("Should match the serialized record upper bounds",
-            dataFile.upperBounds(), result.upperBounds());
-        Assert.assertEquals("Should match the serialized record key metadata",
-            dataFile.keyMetadata(), result.keyMetadata());
-        Assert.assertEquals("Should match the serialized record offsets",
-            dataFile.splitOffsets(), result.splitOffsets());
+        checkDataFile(DATA_FILE, (DataFile) obj);
       }
     }
+  }
+
+  @Test
+  public void testDataFileJavaSerialization() throws Exception {
+    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    try (ObjectOutputStream out = new ObjectOutputStream(bytes)) {
+      out.writeObject(DATA_FILE);
+      out.writeObject(DATA_FILE.copy());
+    }
+
+    try (ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
+      for (int i = 0; i < 2; i += 1) {
+        Object obj = in.readObject();
+        Assert.assertTrue("Should be a DataFile", obj instanceof DataFile);
+        checkDataFile(DATA_FILE, (DataFile) obj);
+      }
+    }
+  }
+
+  private void checkDataFile(DataFile expected, DataFile actual) {
+    Assert.assertEquals("Should match the serialized record path",
+        expected.path(), actual.path());
+    Assert.assertEquals("Should match the serialized record format",
+        expected.format(), actual.format());
+    Assert.assertEquals("Should match the serialized record partition",
+        expected.partition().get(0, Object.class), actual.partition().get(0, Object.class));
+    Assert.assertEquals("Should match the serialized record count",
+        expected.recordCount(), actual.recordCount());
+    Assert.assertEquals("Should match the serialized record size",
+        expected.fileSizeInBytes(), actual.fileSizeInBytes());
+    Assert.assertEquals("Should match the serialized record value counts",
+        expected.valueCounts(), actual.valueCounts());
+    Assert.assertEquals("Should match the serialized record null value counts",
+        expected.nullValueCounts(), actual.nullValueCounts());
+    Assert.assertEquals("Should match the serialized record lower bounds",
+        expected.lowerBounds(), actual.lowerBounds());
+    Assert.assertEquals("Should match the serialized record upper bounds",
+        expected.upperBounds(), actual.upperBounds());
+    Assert.assertEquals("Should match the serialized record key metadata",
+        expected.keyMetadata(), actual.keyMetadata());
+    Assert.assertEquals("Should match the serialized record offsets",
+        expected.splitOffsets(), actual.splitOffsets());
+    Assert.assertEquals("Should match the serialized record offsets",
+        expected.keyMetadata(), actual.keyMetadata());
   }
 
   @Test
