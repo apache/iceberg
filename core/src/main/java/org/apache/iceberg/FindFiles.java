@@ -192,9 +192,12 @@ public class FindFiles {
           ops.current().snapshot(snapshotId) : ops.current().currentSnapshot();
 
       // snapshot could be null when the table just gets created
-      Iterable<ManifestFile> manifests = (snapshot != null) ? snapshot.manifests() : CloseableIterable.empty();
+      if (snapshot == null) {
+        return CloseableIterable.empty();
+      }
 
-      CloseableIterable<ManifestEntry> entries = new ManifestGroup(ops, manifests)
+      // when snapshot is not null
+      CloseableIterable<ManifestEntry> entries = new ManifestGroup(ops, snapshot.manifests())
           .filterData(rowFilter)
           .filterFiles(fileFilter)
           .filterPartitions(partitionFilter)
