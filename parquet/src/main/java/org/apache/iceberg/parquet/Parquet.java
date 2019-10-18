@@ -98,18 +98,18 @@ public class Parquet {
       return this;
     }
 
-    public WriteBuilder schema(Schema setSchema) {
-      this.schema = setSchema;
+    public WriteBuilder schema(Schema newSchema) {
+      this.schema = newSchema;
       return this;
     }
 
-    public WriteBuilder named(String setName) {
-      this.name = setName;
+    public WriteBuilder named(String newName) {
+      this.name = newName;
       return this;
     }
 
-    public WriteBuilder writeSupport(WriteSupport<?> setWriteSupport) {
-      this.writeSupport = setWriteSupport;
+    public WriteBuilder writeSupport(WriteSupport<?> newWriteSupport) {
+      this.writeSupport = newWriteSupport;
       return this;
     }
 
@@ -128,8 +128,8 @@ public class Parquet {
       return this;
     }
 
-    public WriteBuilder createWriterFunc(Function<MessageType, ParquetValueWriter<?>> setCreateWriterFunc) {
-      this.createWriterFunc = setCreateWriterFunc;
+    public WriteBuilder createWriterFunc(Function<MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
+      this.createWriterFunc = newCreateWriterFunc;
       return this;
     }
 
