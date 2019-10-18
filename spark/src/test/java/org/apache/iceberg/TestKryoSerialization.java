@@ -27,12 +27,19 @@ import com.google.common.collect.Maps;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Map;
+import java.util.UUID;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.spark.data.RandomData;
+import org.apache.iceberg.spark.data.SparkParquetWriters;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.SparkConf;
 import org.apache.spark.serializer.KryoSerializer;
+import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -118,6 +125,33 @@ public class TestKryoSerialization {
         Assert.assertEquals("Should match the serialized record offsets",
             dataFile.splitOffsets(), result.splitOffsets());
       }
+    }
+  }
+
+  @Test
+  public void testParquetWriterSplitOffsets() throws IOException {
+    Iterable<InternalRow> records = RandomData.generateSpark(DATE_SCHEMA, 1, 33L);
+    File parquetFile = new File(
+        temp.getRoot(),
+        FileFormat.PARQUET.addExtension(UUID.randomUUID().toString()));
+    FileAppender<InternalRow> writer =
+        Parquet.write(Files.localOutput(parquetFile))
+            .schema(DATE_SCHEMA)
+            .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(DATE_SCHEMA, msgType))
+            .build();
+    try {
+      writer.addAll(records);
+    } finally {
+      writer.close();
+    }
+
+    Kryo kryo = new KryoSerializer(new SparkConf()).newKryo();
+    File dataFile = temp.newFile();
+    try (Output out = new Output(new FileOutputStream(dataFile))) {
+      kryo.writeClassAndObject(out, writer.splitOffsets());
+    }
+    try (Input in = new Input(new FileInputStream(dataFile))) {
+      kryo.readClassAndObject(in);
     }
   }
 
