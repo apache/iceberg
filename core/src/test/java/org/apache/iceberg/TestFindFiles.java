@@ -153,6 +153,17 @@ public class TestFindFiles extends TableTestBase {
     Assert.assertEquals(pathSet(FILE_A), pathSet(files));
   }
 
+  @Test
+  public void testNoSnapshot() {
+    // a table has no snapshot when it just gets created and no data is loaded yet
+
+    // if not handled properly, NPE will be thrown in collect()
+    Iterable<DataFile> files = FindFiles.in(table).collect();
+
+    // verify an empty collection of data file is returned
+    Assert.assertEquals(0, Sets.newHashSet(files).size());
+  }
+
   private Set<String> pathSet(DataFile... files) {
     return Sets.newHashSet(Iterables.transform(Arrays.asList(files), file -> file.path().toString()));
   }
