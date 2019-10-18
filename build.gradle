@@ -189,9 +189,11 @@ subprojects {
     }
   }
 
-  signing {
-    useGpgCmd()
-    sign publishing.publications.apache
+  if (project.hasProperty('release')) {
+    signing {
+      useGpgCmd()
+      sign publishing.publications.apache
+    }
   }
 }
 
