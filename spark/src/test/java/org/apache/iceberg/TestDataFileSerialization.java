@@ -68,6 +68,7 @@ public class TestDataFileSerialization {
   private static final Map<Integer, Long> NULL_VALUE_COUNTS = Maps.newHashMap();
   private static final Map<Integer, ByteBuffer> LOWER_BOUNDS = Maps.newHashMap();
   private static final Map<Integer, ByteBuffer> UPPER_BOUNDS = Maps.newHashMap();
+
   static {
     VALUE_COUNTS.put(1, 5L);
     VALUE_COUNTS.put(2, 3L);
