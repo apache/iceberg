@@ -262,7 +262,7 @@ class GenericDataFile
 
   @Override
   public ByteBuffer keyMetadata() {
-    return ByteBuffer.wrap(keyMetadata);
+    return keyMetadata != null ? ByteBuffer.wrap(keyMetadata) : null;
   }
 
   @Override
