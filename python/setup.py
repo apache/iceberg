@@ -30,6 +30,7 @@ setup(
                       'boto3',
                       'fastavro',
                       'fastparquet>=0.3.1',
+                      'hmsclient',
                       'mmh3',
                       'moz_sql_parser',
                       'pyparsing',
