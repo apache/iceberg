@@ -10,9 +10,6 @@ out
 # web site build
 site/site
 
-# vscode
-.project
-
 __pycache__/
 *.py[cod]
 .eggs/
@@ -28,6 +25,3 @@ sdist/
 coverage.xml
 .pytest_cache/
 spark/tmp/
-
-# gradle
-gradle/

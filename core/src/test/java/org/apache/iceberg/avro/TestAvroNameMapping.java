@@ -106,7 +106,6 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
     NameMapping nameMapping = MappingUtil.create(new Schema(
         Types.NestedField.optional(18, "y", Types.IntegerType.get())));
 
-
     Schema readSchema = writeSchema;
     AssertHelpers.assertThrows("Missing required field in nameMapping",
         IllegalArgumentException.class, "Missing required field: x",
@@ -138,15 +137,7 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
         // Optional array field missing.
         Types.NestedField.required(0, "id", Types.LongType.get())));
 
-    Schema readSchema = new Schema(
-        Types.NestedField.required(0, "id", Types.LongType.get()),
-        Types.NestedField.optional(22, "point",
-            Types.ListType.ofOptional(21, Types.StructType.of(
-                Types.NestedField.required(19, "x", Types.IntegerType.get()),
-                Types.NestedField.optional(18, "y", Types.IntegerType.get())
-            ))
-        )
-    );
+    Schema readSchema = writeSchema;
 
     Record projected = writeAndRead(writeSchema, readSchema, record, nameMapping);
     Assert.assertNotNull("Field missing from table mapping is renamed", projected.getSchema().getField("point_r22"));
@@ -188,8 +179,7 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
         MappedFields.of(
             MappedField.of(22, "points", MappedFields.of(
                 MappedField.of(21, "element", MappedFields.of(
-                    // Name mapping has aliases for field x
-                    MappedField.of(19, Lists.newArrayList("x", "y", "z"))))))));
+                    MappedField.of(19, Lists.newArrayList("x"))))))));
 
     Schema readSchema = new Schema(
         Types.NestedField.optional(22, "points",
