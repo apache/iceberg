@@ -37,6 +37,10 @@ import org.apache.iceberg.avro.UUIDConversion;
 import org.apache.iceberg.types.TypeUtil;
 
 class ParquetAvro {
+
+  private ParquetAvro() {
+  }
+
   static Schema parquetAvroSchema(Schema avroSchema) {
     return AvroSchemaVisitor.visit(avroSchema, new ParquetDecimalSchemaConverter());
   }
@@ -85,6 +89,7 @@ class ParquetAvro {
         case LONG:
           Preconditions.checkArgument(precision <= 18,
               "Long cannot hold decimal precision: %s", precision);
+          break;
         case FIXED:
           break;
         default:
@@ -173,7 +178,7 @@ class ParquetAvro {
     }
   }
 
-  static GenericData DEFAULT_MODEL = new SpecificData() {
+  static final GenericData DEFAULT_MODEL = new SpecificData() {
     private final Conversion<?> fixedDecimalConversion = new FixedDecimalConversion();
     private final Conversion<?> intDecimalConversion = new IntDecimalConversion();
     private final Conversion<?> longDecimalConversion = new LongDecimalConversion();

@@ -23,6 +23,10 @@ import java.util.concurrent.Callable;
 import org.junit.Assert;
 
 public class TestHelpers {
+
+  private TestHelpers() {
+  }
+
   /**
    * A convenience method to avoid a large number of @Test(expected=...) tests
    * @param message A String message to describe this assertion

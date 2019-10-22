@@ -19,9 +19,9 @@
 
 package org.apache.iceberg.parquet;
 
-import avro.shaded.com.google.common.collect.Sets;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -35,8 +35,8 @@ import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
@@ -49,12 +49,7 @@ import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 
-import static org.apache.iceberg.expressions.Expressions.rewriteNot;
-import static org.apache.iceberg.parquet.ParquetConversions.converterFromParquet;
-
 public class ParquetDictionaryRowGroupFilter {
-  private final Schema schema;
-  private final StructType struct;
   private final Expression expr;
   private transient ThreadLocal<EvalVisitor> visitors = null;
 
@@ -70,9 +65,8 @@ public class ParquetDictionaryRowGroupFilter {
   }
 
   public ParquetDictionaryRowGroupFilter(Schema schema, Expression unbound, boolean caseSensitive) {
-    this.schema = schema;
-    this.struct = schema.asStruct();
-    this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
+    StructType struct = schema.asStruct();
+    this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), caseSensitive);
   }
 
   /**
@@ -99,8 +93,8 @@ public class ParquetDictionaryRowGroupFilter {
     private Map<Integer, Function<Object, Object>> conversions = null;
 
     private boolean eval(MessageType fileSchema, BlockMetaData rowGroup,
-                         DictionaryPageReadStore dictionaries) {
-      this.dictionaries = dictionaries;
+                         DictionaryPageReadStore dictionaryReadStore) {
+      this.dictionaries = dictionaryReadStore;
       this.dictCache = Maps.newHashMap();
       this.isFallback = Maps.newHashMap();
       this.mayContainNulls = Maps.newHashMap();
@@ -112,7 +106,7 @@ public class ParquetDictionaryRowGroupFilter {
         if (colType.getId() != null) {
           int id = colType.getId().intValue();
           cols.put(id, desc);
-          conversions.put(id, converterFromParquet(colType));
+          conversions.put(id, ParquetConversions.converterFromParquet(colType));
         }
       }
 
@@ -167,7 +161,7 @@ public class ParquetDictionaryRowGroupFilter {
 
     @Override
     public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
       if (hasNonDictPage == null || hasNonDictPage) {
@@ -189,7 +183,7 @@ public class ParquetDictionaryRowGroupFilter {
 
     @Override
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
       if (hasNonDictPage == null || hasNonDictPage) {
@@ -211,7 +205,7 @@ public class ParquetDictionaryRowGroupFilter {
 
     @Override
     public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
       if (hasNonDictPage == null || hasNonDictPage) {
@@ -233,7 +227,7 @@ public class ParquetDictionaryRowGroupFilter {
 
     @Override
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
       if (hasNonDictPage == null || hasNonDictPage) {
@@ -255,7 +249,7 @@ public class ParquetDictionaryRowGroupFilter {
 
     @Override
     public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
       if (hasNonDictPage == null || hasNonDictPage) {
@@ -269,7 +263,7 @@ public class ParquetDictionaryRowGroupFilter {
 
     @Override
     public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
       if (hasNonDictPage == null || hasNonDictPage) {
@@ -296,7 +290,7 @@ public class ParquetDictionaryRowGroupFilter {
 
     @Override
     public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
       if (hasNonDictPage == null || hasNonDictPage) {
@@ -340,7 +334,7 @@ public class ParquetDictionaryRowGroupFilter {
 
       Set<T> dictSet = Sets.newTreeSet(comparator);
 
-      for (int i=0; i<=dict.getMaxId(); i++) {
+      for (int i = 0; i <= dict.getMaxId(); i++) {
         switch (col.getPrimitiveType().getPrimitiveTypeName()) {
           case BINARY: dictSet.add((T) conversion.apply(dict.decodeToBinary(i)));
             break;
@@ -385,12 +379,8 @@ public class ParquetDictionaryRowGroupFilter {
       encodings.remove(Encoding.RLE);
       encodings.remove(Encoding.BIT_PACKED);
 
-      if (encodings.isEmpty()) {
-        return false; // no encodings other than dictionary or rep/def levels
-      }
-
-      return true;
-
+      // when empty, no encodings other than dictionary or rep/def levels
+      return !encodings.isEmpty();
     } else {
       // if PLAIN_DICTIONARY wasn't present, then either the column is not
       // dictionary-encoded, or the 2.0 encoding, RLE_DICTIONARY, was used.

@@ -40,6 +40,8 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.BinaryUtil;
+import org.apache.iceberg.util.UnicodeUtil;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
@@ -47,12 +49,6 @@ import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.schema.MessageType;
-
-import static org.apache.iceberg.parquet.ParquetConversions.fromParquetPrimitive;
-import static org.apache.iceberg.util.BinaryUtil.truncateBinaryMax;
-import static org.apache.iceberg.util.BinaryUtil.truncateBinaryMin;
-import static org.apache.iceberg.util.UnicodeUtil.truncateStringMax;
-import static org.apache.iceberg.util.UnicodeUtil.truncateStringMin;
 
 public class ParquetUtil {
   // not meant to be instantiated
@@ -108,9 +104,11 @@ public class ParquetUtil {
           if (metricsMode != MetricsModes.Counts.get()) {
             Types.NestedField field = fileSchema.findField(fieldId);
             if (field != null && stats.hasNonNullValue() && shouldStoreBounds(path, fileSchema)) {
-              Literal<?> min = fromParquetPrimitive(field.type(), column.getPrimitiveType(), stats.genericGetMin());
+              Literal<?> min = ParquetConversions.fromParquetPrimitive(
+                  field.type(), column.getPrimitiveType(), stats.genericGetMin());
               updateMin(lowerBounds, fieldId, field.type(), min, metricsMode);
-              Literal<?> max = fromParquetPrimitive(field.type(), column.getPrimitiveType(), stats.genericGetMax());
+              Literal<?> max = ParquetConversions.fromParquetPrimitive(
+                  field.type(), column.getPrimitiveType(), stats.genericGetMax());
               updateMax(upperBounds, fieldId, field.type(), max, metricsMode);
             }
           }
@@ -181,11 +179,11 @@ public class ParquetUtil {
         int truncateLength = truncateMode.length();
         switch (type.typeId()) {
           case STRING:
-            lowerBounds.put(id, truncateStringMin((Literal<CharSequence>) min, truncateLength));
+            lowerBounds.put(id, UnicodeUtil.truncateStringMin((Literal<CharSequence>) min, truncateLength));
             break;
           case FIXED:
           case BINARY:
-            lowerBounds.put(id, truncateBinaryMin((Literal<ByteBuffer>) min, truncateLength));
+            lowerBounds.put(id, BinaryUtil.truncateBinaryMin((Literal<ByteBuffer>) min, truncateLength));
             break;
           default:
             lowerBounds.put(id, min);
@@ -206,11 +204,11 @@ public class ParquetUtil {
         int truncateLength = truncateMode.length();
         switch (type.typeId()) {
           case STRING:
-            upperBounds.put(id, truncateStringMax((Literal<CharSequence>) max, truncateLength));
+            upperBounds.put(id, UnicodeUtil.truncateStringMax((Literal<CharSequence>) max, truncateLength));
             break;
           case FIXED:
           case BINARY:
-            upperBounds.put(id, truncateBinaryMax((Literal<ByteBuffer>) max, truncateLength));
+            upperBounds.put(id, BinaryUtil.truncateBinaryMax((Literal<ByteBuffer>) max, truncateLength));
             break;
           default:
             upperBounds.put(id, max);

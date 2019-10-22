@@ -101,8 +101,8 @@ public class TestMetricsRowGroupFilterTypes {
   );
 
   private static final File PARQUET_FILE = new File("/tmp/stats-row-group-filter-types-test.parquet");
-  private static MessageType PARQUET_SCHEMA = null;
-  private static BlockMetaData ROW_GROUP_METADATA = null;
+  private static MessageType parquetSchema = null;
+  private static BlockMetaData rowGroupMetadata = null;
 
   private static final UUID uuid = UUID.randomUUID();
   private static final Integer date = (Integer) Literal.of("2018-06-29").to(DateType.get()).value();
@@ -149,8 +149,8 @@ public class TestMetricsRowGroupFilterTypes {
     InputFile inFile = Files.localInput(PARQUET_FILE);
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inFile))) {
       Assert.assertEquals("Should create only one row group", 1, reader.getRowGroups().size());
-      ROW_GROUP_METADATA = reader.getRowGroups().get(0);
-      PARQUET_SCHEMA = reader.getFileMetaData().getSchema();
+      rowGroupMetadata = reader.getRowGroups().get(0);
+      parquetSchema = reader.getFileMetaData().getSchema();
     }
 
     PARQUET_FILE.deleteOnExit();
@@ -195,11 +195,11 @@ public class TestMetricsRowGroupFilterTypes {
   @Test
   public void testEq() {
     boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal(column, readValue))
-        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+        .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: value is in the row group: " + readValue, shouldRead);
 
     shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal(column, skipValue))
-        .shouldRead(PARQUET_SCHEMA, ROW_GROUP_METADATA);
+        .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should skip: value is not in the row group: " + skipValue, shouldRead);
   }
 }

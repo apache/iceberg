@@ -30,6 +30,7 @@ import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
@@ -42,12 +43,8 @@ import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 
-import static org.apache.iceberg.expressions.Expressions.rewriteNot;
-import static org.apache.iceberg.parquet.ParquetConversions.converterFromParquet;
-
 public class ParquetMetricsRowGroupFilter {
   private final Schema schema;
-  private final StructType struct;
   private final Expression expr;
   private transient ThreadLocal<MetricsEvalVisitor> visitors = null;
 
@@ -64,8 +61,8 @@ public class ParquetMetricsRowGroupFilter {
 
   public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound, boolean caseSensitive) {
     this.schema = schema;
-    this.struct = schema.asStruct();
-    this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
+    StructType struct = schema.asStruct();
+    this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), caseSensitive);
   }
 
   /**
@@ -101,7 +98,7 @@ public class ParquetMetricsRowGroupFilter {
           int id = colType.getId().intValue();
           stats.put(id, col.getStatistics());
           valueCounts.put(id, col.getValueCount());
-          conversions.put(id, converterFromParquet(colType));
+          conversions.put(id, ParquetConversions.converterFromParquet(colType));
         }
       }
 
@@ -384,13 +381,13 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @SuppressWarnings("unchecked")
-    private <T> T min(Statistics<?> stats, int id) {
-      return (T) conversions.get(id).apply(stats.genericGetMin());
+    private <T> T min(Statistics<?> statistics, int id) {
+      return (T) conversions.get(id).apply(statistics.genericGetMin());
     }
 
     @SuppressWarnings("unchecked")
-    private <T> T max(Statistics<?> stats, int id) {
-      return (T) conversions.get(id).apply(stats.genericGetMax());
+    private <T> T max(Statistics<?> statistics, int id) {
+      return (T) conversions.get(id).apply(statistics.genericGetMax());
     }
   }
 }
