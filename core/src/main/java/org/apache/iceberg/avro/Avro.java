@@ -38,6 +38,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.mapping.NameMapping;
 
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_DEFAULT;
@@ -170,6 +171,7 @@ public class Avro {
     private final ClassLoader defaultLoader = Thread.currentThread().getContextClassLoader();
     private final InputFile file;
     private final Map<String, String> renames = Maps.newLinkedHashMap();
+    private NameMapping nameMapping;
     private boolean reuseContainers = false;
     private org.apache.iceberg.Schema schema = null;
     private Function<Schema, DatumReader<?>> createReaderFunc = readSchema -> {
@@ -223,10 +225,15 @@ public class Avro {
       return this;
     }
 
+    public ReadBuilder nameMapping(NameMapping newNameMapping) {
+      this.nameMapping = newNameMapping;
+      return this;
+    }
+
     public <D> AvroIterable<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
       return new AvroIterable<>(file,
-          new ProjectionDatumReader<>(createReaderFunc, schema, renames),
+          new ProjectionDatumReader<>(createReaderFunc, schema, renames, nameMapping),
           start, length, reuseContainers);
     }
   }

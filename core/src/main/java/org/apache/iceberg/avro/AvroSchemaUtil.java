@@ -22,6 +22,7 @@ package org.apache.iceberg.avro;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,6 +30,8 @@ import org.apache.avro.JsonProperties;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
+import org.apache.iceberg.mapping.MappedField;
+import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -83,8 +86,8 @@ public class AvroSchemaUtil {
     return ImmutableMap.copyOf(converter.getConversionMap());
   }
 
-  public static Schema pruneColumns(Schema schema, Set<Integer> selectedIds) {
-    return new PruneColumns(selectedIds).rootSchema(schema);
+  public static Schema pruneColumns(Schema schema, Set<Integer> selectedIds, NameMapping nameMapping) {
+    return new PruneColumns(selectedIds, nameMapping).rootSchema(schema);
   }
 
   public static Schema buildAvroProjection(Schema schema, org.apache.iceberg.Schema expected,
@@ -196,15 +199,35 @@ public class AvroSchemaUtil {
     return LogicalMap.get().addToSchema(Schema.createArray(keyValueRecord));
   }
 
-  private static int getId(Schema schema, String propertyName) {
+  private static Integer getId(Schema schema, String propertyName) {
+    Integer id = getId(schema, propertyName, null, null);
+    Preconditions.checkNotNull(id, "Missing expected '%s' property", propertyName);
+    return id;
+  }
+
+  private static Integer getId(Schema schema, String propertyName, NameMapping nameMapping, List<String> names) {
     if (schema.getType() == UNION) {
-      return getId(fromOption(schema), propertyName);
+      return getId(fromOption(schema), propertyName, nameMapping, names);
     }
 
     Object id = schema.getObjectProp(propertyName);
-    Preconditions.checkNotNull(id, "Missing expected '%s' property", propertyName);
+    if (id != null) {
+      return toInt(id);
+    } else if (nameMapping != null) {
+      MappedField mappedField = nameMapping.find(names);
+      if (mappedField != null) {
+        return mappedField.id();
+      }
+    }
 
-    return toInt(id);
+    return null;
+  }
+
+  static boolean hasProperty(Schema schema, String propertyName) {
+    if (schema.getType() == UNION) {
+      return hasProperty(fromOption(schema), propertyName);
+    }
+    return schema.getObjectProp(propertyName) != null;
   }
 
   public static int getKeyId(Schema schema) {
@@ -213,10 +236,26 @@ public class AvroSchemaUtil {
     return getId(schema, KEY_ID_PROP);
   }
 
+  static Integer getKeyId(Schema schema, NameMapping nameMapping, Iterable<String> parentFieldNames) {
+    Preconditions.checkArgument(schema.getType() == MAP,
+        "Cannot get map key id for non-map schema: %s", schema);
+    List<String> names = Lists.newArrayList(parentFieldNames);
+    names.add("key");
+    return getId(schema, KEY_ID_PROP, nameMapping, names);
+  }
+
   public static int getValueId(Schema schema) {
     Preconditions.checkArgument(schema.getType() == MAP,
         "Cannot get map value id for non-map schema: %s", schema);
     return getId(schema, VALUE_ID_PROP);
+  }
+
+  static Integer getValueId(Schema schema, NameMapping nameMapping, Iterable<String> parentFieldNames) {
+    Preconditions.checkArgument(schema.getType() == MAP,
+        "Cannot get map value id for non-map schema: %s", schema);
+    List<String> names = Lists.newArrayList(parentFieldNames);
+    names.add("value");
+    return getId(schema, VALUE_ID_PROP, nameMapping, names);
   }
 
   public static int getElementId(Schema schema) {
@@ -225,11 +264,38 @@ public class AvroSchemaUtil {
     return getId(schema, ELEMENT_ID_PROP);
   }
 
-  public static int getFieldId(Schema.Field field) {
-    Object id = field.getObjectProp(FIELD_ID_PROP);
-    Preconditions.checkNotNull(id, "Missing expected '%s' property", FIELD_ID_PROP);
+  static Integer getElementId(Schema schema, NameMapping nameMapping, Iterable<String> parentFieldNames) {
+    Preconditions.checkArgument(schema.getType() == ARRAY,
+        "Cannot get array element id for non-array schema: %s", schema);
+    List<String> names = Lists.newArrayList(parentFieldNames);
+    names.add("element");
+    return getId(schema, ELEMENT_ID_PROP, nameMapping, names);
+  }
 
-    return toInt(id);
+  public static int getFieldId(Schema.Field field) {
+    Integer id = getFieldId(field, null, null);
+    Preconditions.checkNotNull(id, "Missing expected '%s' property", FIELD_ID_PROP);
+    return id;
+  }
+
+  static Integer getFieldId(Schema.Field field, NameMapping nameMapping, Iterable<String> parentFieldNames) {
+    Object id = field.getObjectProp(FIELD_ID_PROP);
+    if (id != null) {
+      return toInt(id);
+    } else if (nameMapping != null) {
+      List<String> names = Lists.newArrayList(parentFieldNames);
+      names.add(field.name());
+      MappedField mappedField = nameMapping.find(names);
+      if (mappedField != null) {
+        return mappedField.id();
+      }
+    }
+
+    return null;
+  }
+
+  public static boolean hasFieldId(Schema.Field field) {
+    return field.getObjectProp(FIELD_ID_PROP) != null;
   }
 
   private static int toInt(Object value) {
