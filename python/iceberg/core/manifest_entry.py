@@ -76,7 +76,7 @@ class ManifestEntry():
 
     def put(self, i, v):
         if i == 0:
-            self.status = Status.from_id(i)
+            self.status = Status.from_id(v)
         elif i == 1:
             self.snapshot_id = v
         elif i == 2:

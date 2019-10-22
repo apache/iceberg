@@ -15,14 +15,12 @@
  - limitations under the License.
  -->
 
-# Iceberg Python
 
-Iceberg is a python library for programatic access to iceberg table metadata as well as data access. The intention is to provide a functional subset of the java library.
+# Getting Started
 
-## Getting Started
+## Installation
 
 Iceberg python is currently in development, for development and testing purposes the best way to install the library is to perform the following steps:
-
 ```
 git clone https://github.com/apache/incubator-iceberg.git
 cd incubator-iceberg/python
@@ -37,11 +35,26 @@ Testing is done using tox. The config can be found in `tox.ini` within the pytho
 tox
 ```
 
-## Get in Touch
+# Examples
 
-- Email:
-    * [dev@iceberg.apache.org](mailto:dev@iceberg.apache.org)
+## Inspect Table Metadata
+``` python
 
-- Issues
-    * [File a github incident](https://github.com/apache/incubator-iceberg/issues)
+from iceberg.hive import HiveTables
 
+# instantiate Hive Tables
+conf = {"hive.metastore.uris": 'thrift://{hms_host}:{hms_port}'}
+tables = HiveTables(conf)
+
+# load table
+tbl = tables.load("iceberg_db.iceberg_test_table")
+
+# inspect metadata
+print(tbl.schema())
+print(tbl.spec())
+print(tbl.location())
+
+# get table level record count
+from pprint import pprint
+pprint(int(tbl.current_snapshot().summary.get("total-records")))
+```

@@ -1,3 +1,4 @@
+#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,23 +15,4 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-
-__all__ = ["AtomicInteger",
-           "PackingIterator",
-           "PLANNER_THREAD_POOL_SIZE_PROP",
-           "SCAN_THREAD_POOL_ENABLED",
-           "str_as_bool",
-           "WORKER_THREAD_POOL_SIZE_PROP",
-           ]
-
-from .atomic_integer import AtomicInteger
-from .bin_packing import PackingIterator
-
-PLANNER_THREAD_POOL_SIZE_PROP = "iceberg.planner.num-threads"
-WORKER_THREAD_POOL_SIZE_PROP = "iceberg.worker.num-threads"
-SCAN_THREAD_POOL_ENABLED = "iceberg.scan.plan-in-worker-pool"
-
-
-def str_as_bool(str_var):
-    return str_var is not None and str_var.lower() == "true"
+#

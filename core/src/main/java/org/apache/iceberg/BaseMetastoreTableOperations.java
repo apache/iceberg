@@ -120,7 +120,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     // always unique because it includes a UUID.
     TableMetadataParser.overwrite(metadata, newMetadataLocation);
 
-    return newTableMetadataFilePath;
+    return newMetadataLocation.location();
   }
 
   protected void refreshFromMetadataLocation(String newLocation) {

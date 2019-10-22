@@ -40,9 +40,10 @@ markdown_extensions:
   - pymdownx.tilde
 nav:
   - About: index.md
-  - Community:
-    - Information: community.md
+  - Project:
+    - Community: community.md
     - Disclaimer: disclaimer.md
+    - How to Release: how-to-release.md
   - User docs:
     - Schemas: schemas.md
     - Partitioning: partitioning.md
@@ -62,6 +63,9 @@ nav:
     - Custom Catalog: custom-catalog.md
   - Python:
     - Git Repo: https://github.com/apache/incubator-iceberg/tree/master/python
+    - Quickstart: python-quickstart.md
+    - API intro: python-api-intro.md
+    - Feature Support: python-feature-support.md
   - Format:
     - Definitions: terms.md
     - Spec: spec.md

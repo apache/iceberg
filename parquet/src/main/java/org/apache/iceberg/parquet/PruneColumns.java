@@ -143,7 +143,7 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
   }
 
   private int getId(Type type) {
-    Preconditions.checkNotNull(type.getId(), "Missing id for type: " + type);
+    Preconditions.checkNotNull(type.getId(), "Missing id for type: %s", type);
     return type.getId().intValue();
   }
 }

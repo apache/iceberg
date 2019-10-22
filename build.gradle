@@ -189,9 +189,11 @@ subprojects {
     }
   }
 
-  signing {
-    useGpgCmd()
-    sign publishing.publications.apache
+  if (project.hasProperty('release')) {
+    signing {
+      useGpgCmd()
+      sign publishing.publications.apache
+    }
   }
 }
 
@@ -219,15 +221,6 @@ task deploySite(type: Exec) {
   workingDir 'site'
   commandLine 'mkdocs', 'gh-deploy'
 }
-
-// The following code is temporary to allow for incrementally migrating projects to use Baseline.
-
-// We enable baseline-idea everywhere so that everyone can use IntelliJ to build code against the
-// Baseline style guide.
-def baselineProjects = [ project("iceberg-api"), project("iceberg-common"), project("iceberg-core"),
-                         project("iceberg-data"), project("iceberg-orc"), project("iceberg-spark"),
-                         project("iceberg-hive"), project("iceberg-pig") ]
-
 
 configure(subprojects - baselineProjects) {
   // error-prone is brought in with baseline-idea, but we're not prepared to handle error-prone

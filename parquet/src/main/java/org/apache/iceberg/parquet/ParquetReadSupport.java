@@ -32,10 +32,6 @@ import org.apache.parquet.hadoop.api.ReadSupport;
 import org.apache.parquet.io.api.RecordMaterializer;
 import org.apache.parquet.schema.MessageType;
 
-import static org.apache.iceberg.parquet.ParquetSchemaUtil.hasIds;
-import static org.apache.iceberg.parquet.ParquetSchemaUtil.pruneColumns;
-import static org.apache.iceberg.parquet.ParquetSchemaUtil.pruneColumnsFallback;
-
 /**
  * Parquet {@link ReadSupport} that handles column projection based on {@link Schema} column IDs.
  *
@@ -59,9 +55,9 @@ class ParquetReadSupport<T> extends ReadSupport<T> {
     // matching to the file's columns by full path, so this must select columns by using the path
     // in the file's schema.
 
-    MessageType projection = hasIds(fileSchema) ?
-      pruneColumns(fileSchema, expectedSchema) :
-      pruneColumnsFallback(fileSchema, expectedSchema);
+    MessageType projection = ParquetSchemaUtil.hasIds(fileSchema) ?
+        ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema) :
+        ParquetSchemaUtil.pruneColumnsFallback(fileSchema, expectedSchema);
 
     // override some known backward-compatibility options
     configuration.set("parquet.strict.typing", "false");
