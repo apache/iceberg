@@ -222,17 +222,7 @@ task deploySite(type: Exec) {
   commandLine 'mkdocs', 'gh-deploy'
 }
 
-configure(subprojects - baselineProjects) {
-  // error-prone is brought in with baseline-idea, but we're not prepared to handle error-prone
-  // linting errors everywhere yet.
-  pluginManager.withPlugin("com.palantir.baseline-error-prone") {
-    tasks.withType(JavaCompile).configureEach { task ->
-      options.errorprone.enabled = false
-    }
-  }
-}
-
-configure(baselineProjects) {
+configure(subprojects) {
   // Currently, if any subproject applies the blanket Baseline plugin, it forces the Baseline plugin
   // to be applied to ALL projects. And we are not prepared to address all of the build errors that
   // occur as a result at this time. Furthermore, baseline-format will not work out of the box for
