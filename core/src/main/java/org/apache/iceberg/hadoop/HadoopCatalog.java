@@ -35,7 +35,18 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 
-
+/**
+ * The HadoopCatalog provides a way to manage the path-based table just like catalog. It uses
+ * a specified directory under a specified filesystem as the warehouse directory, and organizes
+ * two levels directories that mapped to the database and the table respectively. The HadoopCatalog
+ * takes a URI as its root directory, and creates a child directory "iceberg/warehouse" as the
+ * warehouse directory. When creating a table such as $db.$tbl, it creates $db.db/$tbl under
+ * iceberg/warehouse, and put the table metadata into the directory.
+ *
+ * The HadoopCatalog now supports createtable, droptable, the renametable is not supported yet.
+ *
+ * Note: The HadoopCatalog requires the rename operation of the filesystem is an atomic operation.
+ */
 public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
   private static final String ICEBERG_HADOOP_WAREHOUSE_BASE = "iceberg/warehouse";
   private final Configuration conf;
@@ -78,7 +89,8 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
       if (!fs.isDirectory(tablePath)) {
         fs.mkdirs(tablePath);
       } else {
-        throw new AlreadyExistsException("the table already exists: " + identifier);
+        throw new AlreadyExistsException("the directory %s for table %s is already exists.",
+          tablePath.toString(), identifier.toString());
       }
     } catch (IOException e) {
       throw new RuntimeIOException("failed to create directory", e);
@@ -124,6 +136,8 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
     FileSystem fs = Util.getFs(tablePath, conf);
     try {
       if (purge && lastMetadata != null) {
+        // Since the data files and the metadata files may store in different locations,
+        // so it has to call dropTableData to force delete the data file.
         dropTableData(ops.io(), lastMetadata);
       }
       fs.delete(tablePath, true /* recursive */);
@@ -135,7 +149,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
-    throw new RuntimeException("rename a hadoop table is not supported");
+    throw new UnsupportedOperationException("Cannot rename Hadoop tables");
   }
 
   @Override
