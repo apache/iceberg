@@ -42,18 +42,6 @@ public class TestTypeUtil {
     Assert.assertEquals(sourceSchema.asStruct(), actualSchema.asStruct());
   }
 
-  @Test(expected = IllegalArgumentException.class)
-  public void testReassignIdsIllegalArgumentException() {
-    Schema schema = new Schema(
-        required(1, "a", Types.IntegerType.get()),
-        required(2, "b", Types.IntegerType.get())
-    );
-    Schema sourceSchema = new Schema(
-        required(1, "a", Types.IntegerType.get())
-    );
-    TypeUtil.reassignIds(schema, sourceSchema);
-  }
-
   @Test(expected = RuntimeException.class)
   public void testValidateSchemaViaIndexByName() {
     Types.NestedField nestedType = Types.NestedField
@@ -68,3 +56,4 @@ public class TestTypeUtil {
     TypeUtil.indexByName(Types.StructType.of(nestedType));
   }
 }
+

@@ -185,6 +185,11 @@ public class TypeUtil {
 
   /**
    * Reassigns ids in a schema from another schema.
+   * For newer fields assigns increasing unique ids
+   * TODO: Newer fields can be assigned duplicate ids if an existing field was dropped,
+   * but since we never drop fields, this should not affect us. This does still need
+   * fixing once we decide to push this upstream
+   *
    * <p>
    * Ids are determined by field names. If a field in the schema cannot be found in the source
    * schema, this will throw IllegalArgumentException.
