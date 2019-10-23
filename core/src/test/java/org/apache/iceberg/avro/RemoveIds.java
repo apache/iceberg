@@ -66,4 +66,8 @@ class RemoveIds extends AvroSchemaVisitor<Schema> {
     }
     return copy;
   }
+
+  static org.apache.avro.Schema removeIds(org.apache.iceberg.Schema schema) {
+    return AvroSchemaVisitor.visit(AvroSchemaUtil.convert(schema.asStruct(), "table"), new RemoveIds());
+  }
 }

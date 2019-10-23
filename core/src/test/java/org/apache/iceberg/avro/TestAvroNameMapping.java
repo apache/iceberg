@@ -200,6 +200,22 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
     Assert.assertEquals("x is read as z", 1, ((List<Record>) projected.get("points")).get(0).get("z"));
   }
 
+  @Test
+  public void testInferredMapping() throws IOException {
+    Schema writeSchema = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get()),
+        Types.NestedField.optional(1, "data", Types.StringType.get()));
+
+    Record record = new Record(AvroSchemaUtil.convert(writeSchema, "table"));
+    record.put("id", 34L);
+    record.put("data", "data");
+
+    Schema readSchema = writeSchema;
+    // Pass null for nameMapping so that it is automatically inferred from read schema
+    Record projected = writeAndRead(writeSchema, readSchema, record, null);
+    Assert.assertEquals(record, projected);
+  }
+
   @Override
   protected Record writeAndRead(String desc,
                                 Schema writeSchema,
@@ -225,7 +241,7 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
 
     File file = temp.newFile();
     // Write without file ids
-    org.apache.avro.Schema writeAvroSchema = removeIds(writeSchema);
+    org.apache.avro.Schema writeAvroSchema = RemoveIds.removeIds(writeSchema);
     DatumWriter<Record> datumWriter = new GenericDatumWriter<>(writeAvroSchema);
     try (DataFileWriter<Record> dataFileWriter = new DataFileWriter<>(datumWriter)) {
       dataFileWriter.create(writeAvroSchema, file);
@@ -239,9 +255,4 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
 
     return Iterables.getOnlyElement(records);
   }
-
-  private static org.apache.avro.Schema removeIds(Schema schema) {
-    return AvroSchemaVisitor.visit(AvroSchemaUtil.convert(schema.asStruct(), "table"), new RemoveIds());
-  }
-
 }
