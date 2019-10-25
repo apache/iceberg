@@ -279,7 +279,8 @@ public interface Catalog {
    *
    * @param from identifier of the table to rename
    * @param to new table name
-   * @throws NoSuchTableException if the table does not exist
+   * @throws NoSuchTableException if the from table does not exist
+   * @throws AlreadyExistsException if the to table already exists
    */
   void renameTable(TableIdentifier from, TableIdentifier to);
 

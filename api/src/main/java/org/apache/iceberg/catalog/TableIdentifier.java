@@ -23,6 +23,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
 import com.google.common.collect.Iterables;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * Identifies a table in iceberg catalog.
@@ -74,6 +75,25 @@ public class TableIdentifier {
    */
   public String name() {
     return name;
+  }
+
+  @Override
+  public boolean equals(Object other) {
+    if (this == other) {
+      return true;
+    }
+
+    if (other == null || getClass() != other.getClass()) {
+      return false;
+    }
+
+    TableIdentifier that = (TableIdentifier) other;
+    return namespace.equals(that.namespace) && name.equals(that.name);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(namespace, name);
   }
 
   @Override
