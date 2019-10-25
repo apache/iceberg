@@ -44,8 +44,9 @@ public class TestScanSummary extends TableTestBase {
         .appendFile(FILE_B) // data_bucket=1
         .commit();
 
+    // Busy wait for our click to tick forward.
     long t1 = System.currentTimeMillis();
-    while (t1 == t0) {
+    while (t1 <= t0 + 1) {
       t1 = System.currentTimeMillis();
     }
 
@@ -55,8 +56,9 @@ public class TestScanSummary extends TableTestBase {
 
     long secondSnapshotId = table.currentSnapshot().snapshotId();
 
+    // Busy wait for our click to tick forward.
     long t2 = System.currentTimeMillis();
-    while (t2 == t1) {
+    while (t2 <= t1 + 1) {
       t2 = System.currentTimeMillis();
     }
 
