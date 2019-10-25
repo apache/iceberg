@@ -31,9 +31,26 @@ public final class HiveCatalogs {
   private HiveCatalogs() {
   }
 
+  private static final Cache<String, HiveMetadataPreservingCatalog> HIVE_METADATA_PRESERVING_CATALOG_CACHE =
+      Caffeine.newBuilder().build();
+
   public static HiveCatalog loadCatalog(Configuration conf) {
     // metastore URI can be null in local mode
     String metastoreUri = conf.get(HiveConf.ConfVars.METASTOREURIS.varname, "");
     return CATALOG_CACHE.get(metastoreUri, uri -> new HiveCatalog(conf));
+  }
+
+  /**
+   * @deprecated Use {@link #loadHiveMetadataPreservingCatalog(Configuration)} instead
+   */
+  @Deprecated
+  public static HiveCatalog loadCustomCatalog(Configuration conf) {
+    return loadHiveMetadataPreservingCatalog(conf);
+  }
+
+  public static HiveCatalog loadHiveMetadataPreservingCatalog(Configuration conf) {
+    // metastore URI can be null in local mode
+    String metastoreUri = conf.get(HiveConf.ConfVars.METASTOREURIS.varname, "");
+    return HIVE_METADATA_PRESERVING_CATALOG_CACHE.get(metastoreUri, uri -> new HiveMetadataPreservingCatalog(conf));
   }
 }
