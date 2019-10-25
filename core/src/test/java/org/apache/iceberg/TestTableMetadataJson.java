@@ -67,6 +67,12 @@ public class TestTableMetadataJson {
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).withSpecId(5).build();
 
+    SortOrder sortOrder = SortOrder.builderFor(schema)
+        .withOrderId(3)
+        .natural("y")
+        .natural("z")
+        .build();
+
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
         ops, previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
@@ -83,8 +89,8 @@ public class TestTableMetadataJson {
 
     TableMetadata expected = new TableMetadata(ops, null, UUID.randomUUID().toString(), "s3://bucket/test/location",
         System.currentTimeMillis(), 3, schema, 5, ImmutableList.of(spec),
-        ImmutableMap.of("property", "value"), currentSnapshotId,
-        Arrays.asList(previousSnapshot, currentSnapshot), snapshotLog);
+        3, ImmutableList.of(sortOrder), ImmutableMap.of("property", "value"),
+        currentSnapshotId, Arrays.asList(previousSnapshot, currentSnapshot), snapshotLog);
 
     String asJson = TableMetadataParser.toJson(expected);
     TableMetadata metadata = TableMetadataParser.fromJson(ops, null,
@@ -131,6 +137,8 @@ public class TestTableMetadataJson {
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).withSpecId(5).build();
 
+    SortOrder sortOrder = SortOrder.builderFor(schema).withOrderId(3).build();
+
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
         ops, previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
@@ -144,8 +152,8 @@ public class TestTableMetadataJson {
 
     TableMetadata expected = new TableMetadata(ops, null, UUID.randomUUID().toString(), "s3://bucket/test/location",
         System.currentTimeMillis(), 3, schema, 5, ImmutableList.of(spec),
-        ImmutableMap.of("property", "value"), currentSnapshotId,
-        Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog);
+        3, ImmutableList.of(sortOrder), ImmutableMap.of("property", "value"),
+        currentSnapshotId, Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog);
 
     // add the entries after creating TableMetadata to avoid the sorted check
     reversedSnapshotLog.add(
@@ -176,6 +184,8 @@ public class TestTableMetadataJson {
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).identity("x").withSpecId(6).build();
 
+    SortOrder sortOrder = SortOrder.builderFor(schema).withOrderId(2).natural("z").build();
+
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
         ops, previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
@@ -187,8 +197,8 @@ public class TestTableMetadataJson {
 
     TableMetadata expected = new TableMetadata(ops, null, null, "s3://bucket/test/location",
         System.currentTimeMillis(), 3, schema, 6, ImmutableList.of(spec),
-        ImmutableMap.of("property", "value"), currentSnapshotId,
-        Arrays.asList(previousSnapshot, currentSnapshot), ImmutableList.of());
+        2, ImmutableList.of(sortOrder), ImmutableMap.of("property", "value"),
+        currentSnapshotId, Arrays.asList(previousSnapshot, currentSnapshot), ImmutableList.of());
 
     String asJson = toJsonWithoutSpecList(expected);
     TableMetadata metadata = TableMetadataParser

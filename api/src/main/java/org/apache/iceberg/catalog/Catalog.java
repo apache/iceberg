@@ -22,6 +22,7 @@ package org.apache.iceberg.catalog;
 import java.util.Map;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -38,6 +39,7 @@ public interface Catalog {
    * @param identifier a table identifier
    * @param schema a schema
    * @param spec a partition spec
+   * @param sortOrder a sort order
    * @param location a location for the table; leave null if unspecified
    * @param properties a string map of table properties
    * @return a Table instance
@@ -47,8 +49,49 @@ public interface Catalog {
       TableIdentifier identifier,
       Schema schema,
       PartitionSpec spec,
+      SortOrder sortOrder,
       String location,
       Map<String, String> properties);
+
+  /**
+   * Create a table.
+   *
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @param spec a partition spec
+   * @param location a location for the table; leave null if unspecified
+   * @param properties a string map of table properties
+   * @return a Table instance
+   * @throws AlreadyExistsException if the table already exists
+   */
+  default Table createTable(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec,
+      String location,
+      Map<String, String> properties) {
+    return createTable(identifier, schema, spec, SortOrder.unsorted(), location, properties);
+  }
+
+  /**
+   * Create a table.
+   *
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @param spec a partition spec
+   * @param sortOrder a sort order
+   * @param properties a string map of table properties
+   * @return a Table instance
+   * @throws AlreadyExistsException if the table already exists
+   */
+  default Table createTable(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder sortOrder,
+      Map<String, String> properties) {
+    return createTable(identifier, schema, spec, sortOrder, null, properties);
+  }
 
   /**
    * Create a table.
@@ -65,7 +108,25 @@ public interface Catalog {
       Schema schema,
       PartitionSpec spec,
       Map<String, String> properties) {
-    return createTable(identifier, schema, spec, null, properties);
+    return createTable(identifier, schema, spec, SortOrder.unsorted(), null, properties);
+  }
+
+  /**
+   * Create a table.
+   *
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @param spec a partition spec
+   * @param sortOrder a sort order
+   * @return a Table instance
+   * @throws AlreadyExistsException if the table already exists
+   */
+  default Table createTable(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder sortOrder) {
+    return createTable(identifier, schema, spec, sortOrder, null, null);
   }
 
   /**
@@ -81,7 +142,7 @@ public interface Catalog {
       TableIdentifier identifier,
       Schema schema,
       PartitionSpec spec) {
-    return createTable(identifier, schema, spec, null, null);
+    return createTable(identifier, schema, spec, SortOrder.unsorted(), null, null);
   }
 
   /**
@@ -95,8 +156,28 @@ public interface Catalog {
   default Table createTable(
       TableIdentifier identifier,
       Schema schema) {
-    return createTable(identifier, schema, PartitionSpec.unpartitioned(), null, null);
+    return createTable(identifier, schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, null);
   }
+
+  /**
+   * Start a transaction to create a table.
+   *
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @param spec a partition spec
+   * @param sortOrder a sort order
+   * @param location a location for the table; leave null if unspecified
+   * @param properties a string map of table properties
+   * @return a {@link Transaction} to create the table
+   * @throws AlreadyExistsException if the table already exists
+   */
+  Transaction newCreateTableTransaction(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder sortOrder,
+      String location,
+      Map<String, String> properties);
 
   /**
    * Start a transaction to create a table.
@@ -109,12 +190,34 @@ public interface Catalog {
    * @return a {@link Transaction} to create the table
    * @throws AlreadyExistsException if the table already exists
    */
-  Transaction newCreateTableTransaction(
+  default Transaction newCreateTableTransaction(
       TableIdentifier identifier,
       Schema schema,
       PartitionSpec spec,
       String location,
-      Map<String, String> properties);
+      Map<String, String> properties) {
+    return newCreateTableTransaction(identifier, schema, spec, SortOrder.unsorted(), location, properties);
+  }
+
+  /**
+   * Start a transaction to create a table.
+   *
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @param spec a partition spec
+   * @param sortOrder a sort order
+   * @param properties a string map of table properties
+   * @return a {@link Transaction} to create the table
+   * @throws AlreadyExistsException if the table already exists
+   */
+  default Transaction newCreateTableTransaction(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder sortOrder,
+      Map<String, String> properties) {
+    return newCreateTableTransaction(identifier, schema, spec, sortOrder, null, properties);
+  }
 
   /**
    * Start a transaction to create a table.
@@ -131,7 +234,25 @@ public interface Catalog {
       Schema schema,
       PartitionSpec spec,
       Map<String, String> properties) {
-    return newCreateTableTransaction(identifier, schema, spec, null, properties);
+    return newCreateTableTransaction(identifier, schema, spec, SortOrder.unsorted(), null, properties);
+  }
+
+  /**
+   * Start a transaction to create a table.
+   *
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @param spec a partition spec
+   * @param sortOrder a sort order
+   * @return a {@link Transaction} to create the table
+   * @throws AlreadyExistsException if the table already exists
+   */
+  default Transaction newCreateTableTransaction(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder sortOrder) {
+    return newCreateTableTransaction(identifier, schema, spec, sortOrder, null, null);
   }
 
   /**
@@ -147,7 +268,7 @@ public interface Catalog {
       TableIdentifier identifier,
       Schema schema,
       PartitionSpec spec) {
-    return newCreateTableTransaction(identifier, schema, spec, null, null);
+    return newCreateTableTransaction(identifier, schema, spec, SortOrder.unsorted(), null, null);
   }
 
   /**
@@ -161,8 +282,32 @@ public interface Catalog {
   default Transaction newCreateTableTransaction(
       TableIdentifier identifier,
       Schema schema) {
-    return newCreateTableTransaction(identifier, schema, PartitionSpec.unpartitioned(), null, null);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    SortOrder sortOrder = SortOrder.unsorted();
+    return newCreateTableTransaction(identifier, schema, spec, sortOrder, null, null);
   }
+
+  /**
+   * Start a transaction to replace a table.
+   *
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @param spec a partition spec
+   * @param sortOrder a sort order
+   * @param location a location for the table; leave null if unspecified
+   * @param properties a string map of table properties
+   * @param orCreate whether to create the table if not exists
+   * @return a {@link Transaction} to replace the table
+   * @throws NoSuchTableException if the table doesn't exist and orCreate is false
+   */
+  Transaction newReplaceTableTransaction(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder sortOrder,
+      String location,
+      Map<String, String> properties,
+      boolean orCreate);
 
   /**
    * Start a transaction to replace a table.
@@ -176,13 +321,37 @@ public interface Catalog {
    * @return a {@link Transaction} to replace the table
    * @throws NoSuchTableException if the table doesn't exist and orCreate is false
    */
-  Transaction newReplaceTableTransaction(
+  default Transaction newReplaceTableTransaction(
       TableIdentifier identifier,
       Schema schema,
       PartitionSpec spec,
       String location,
       Map<String, String> properties,
-      boolean orCreate);
+      boolean orCreate) {
+    return newReplaceTableTransaction(identifier, schema, spec, SortOrder.unsorted(), location, properties, orCreate);
+  }
+
+  /**
+   * Start a transaction to replace a table.
+   *
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @param spec a partition spec
+   * @param sortOrder a sort order
+   * @param properties a string map of table properties
+   * @param orCreate whether to create the table if not exists
+   * @return a {@link Transaction} to replace the table
+   * @throws NoSuchTableException if the table doesn't exist and orCreate is false
+   */
+  default Transaction newReplaceTableTransaction(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder sortOrder,
+      Map<String, String> properties,
+      boolean orCreate) {
+    return newReplaceTableTransaction(identifier, schema, spec, sortOrder, null, properties, orCreate);
+  }
 
   /**
    * Start a transaction to replace a table.
@@ -201,7 +370,27 @@ public interface Catalog {
       PartitionSpec spec,
       Map<String, String> properties,
       boolean orCreate) {
-    return newReplaceTableTransaction(identifier, schema, spec, null, properties, orCreate);
+    return newReplaceTableTransaction(identifier, schema, spec, SortOrder.unsorted(), null, properties, orCreate);
+  }
+
+  /**
+   * Start a transaction to replace a table.
+   *
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @param spec a partition spec
+   * @param sortOrder a sort order
+   * @param orCreate whether to create the table if not exists
+   * @return a {@link Transaction} to replace the table
+   * @throws NoSuchTableException if the table doesn't exist and orCreate is false
+   */
+  default Transaction newReplaceTableTransaction(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder sortOrder,
+      boolean orCreate) {
+    return newReplaceTableTransaction(identifier, schema, spec, sortOrder, null, null, orCreate);
   }
 
   /**
@@ -219,7 +408,7 @@ public interface Catalog {
       Schema schema,
       PartitionSpec spec,
       boolean orCreate) {
-    return newReplaceTableTransaction(identifier, schema, spec, null, null, orCreate);
+    return newReplaceTableTransaction(identifier, schema, spec, SortOrder.unsorted(), null, null, orCreate);
   }
 
   /**
@@ -235,7 +424,9 @@ public interface Catalog {
       TableIdentifier identifier,
       Schema schema,
       boolean orCreate) {
-    return newReplaceTableTransaction(identifier, schema, PartitionSpec.unpartitioned(), null, null, orCreate);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    SortOrder sortOrder = SortOrder.unsorted();
+    return newReplaceTableTransaction(identifier, schema, spec, sortOrder, null, null, orCreate);
   }
 
   /**

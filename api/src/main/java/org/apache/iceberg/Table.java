@@ -66,6 +66,20 @@ public interface Table {
   Map<Integer, PartitionSpec> specs();
 
   /**
+   * Return the {@link SortOrder sort order} for this table.
+   *
+   * @return this table's sort order
+   */
+  SortOrder sortOrder();
+
+  /**
+   * Return a map of {@link SortOrder sort orders} for this table.
+   *
+   * @return this table's sort orders map
+   */
+  Map<Integer, SortOrder> sortOrders();
+
+  /**
    * Return a map of string properties for this table.
    *
    * @return this table's properties map

@@ -45,17 +45,35 @@ import org.apache.iceberg.util.PropertyUtil;
 public class TableMetadata {
   static final int TABLE_FORMAT_VERSION = 1;
   static final int INITIAL_SPEC_ID = 0;
+  static final int INITIAL_SORT_ORDER_ID = 0;
 
   public static TableMetadata newTableMetadata(TableOperations ops,
                                                Schema schema,
                                                PartitionSpec spec,
+                                               SortOrder sortOrder,
                                                String location) {
-    return newTableMetadata(ops, schema, spec, location, ImmutableMap.of());
+    return newTableMetadata(ops, schema, spec, sortOrder, location, ImmutableMap.of());
   }
 
   public static TableMetadata newTableMetadata(TableOperations ops,
                                                Schema schema,
                                                PartitionSpec spec,
+                                               String location) {
+    return newTableMetadata(ops, schema, spec, SortOrder.unsorted(), location, ImmutableMap.of());
+  }
+
+  public static TableMetadata newTableMetadata(TableOperations ops,
+                                               Schema schema,
+                                               PartitionSpec spec,
+                                               String location,
+                                               Map<String, String> properties) {
+    return newTableMetadata(ops, schema, spec, SortOrder.unsorted(), location, properties);
+  }
+
+  public static TableMetadata newTableMetadata(TableOperations ops,
+                                               Schema schema,
+                                               PartitionSpec spec,
+                                               SortOrder sortOrder,
                                                String location,
                                                Map<String, String> properties) {
     // reassign all column ids to ensure consistency
@@ -75,10 +93,26 @@ public class TableMetadata {
     }
     PartitionSpec freshSpec = specBuilder.build();
 
+    // rebuild the sort order using the new column ids
+    SortOrder.Builder sortOrderBuilder = SortOrder.builderFor(freshSchema)
+        .withOrderId(INITIAL_SORT_ORDER_ID);
+    for (SortField field : sortOrder.fields()) {
+      int[] sourceIds = field.sourceIds();
+      int[] freshSourceIds = new int[sourceIds.length];
+      for (int i = 0; i < sourceIds.length; i++) {
+        // look up the name of the source field in the old schema to get the new schema's id
+        String sourceName = schema.findColumnName(sourceIds[i]);
+        freshSourceIds[i] = freshSchema.findField(sourceName).fieldId();
+      }
+      sortOrderBuilder.add(field.name(), field.direction(), field.nullOrder(), field.transform(), freshSourceIds);
+    }
+    SortOrder freshSortOrder = sortOrderBuilder.build();
+
     return new TableMetadata(ops, null, UUID.randomUUID().toString(), location,
         System.currentTimeMillis(),
-        lastColumnId.get(), freshSchema, INITIAL_SPEC_ID, ImmutableList.of(freshSpec),
-        ImmutableMap.copyOf(properties), -1, ImmutableList.of(), ImmutableList.of());
+        lastColumnId.get(), freshSchema, INITIAL_SPEC_ID, ImmutableList.of(freshSpec), INITIAL_SORT_ORDER_ID,
+        ImmutableList.of(freshSortOrder), ImmutableMap.copyOf(properties), -1,
+        ImmutableList.of(), ImmutableList.of());
   }
 
   public static class SnapshotLogEntry implements HistoryEntry {
@@ -137,11 +171,14 @@ public class TableMetadata {
   private final Schema schema;
   private final int defaultSpecId;
   private final List<PartitionSpec> specs;
+  private final int defaultSortOrderId;
+  private final List<SortOrder> sortOrders;
   private final Map<String, String> properties;
   private final long currentSnapshotId;
   private final List<Snapshot> snapshots;
   private final Map<Long, Snapshot> snapshotsById;
   private final Map<Integer, PartitionSpec> specsById;
+  private final Map<Integer, SortOrder> sortOrdersById;
   private final List<HistoryEntry> snapshotLog;
 
   TableMetadata(TableOperations ops,
@@ -153,6 +190,8 @@ public class TableMetadata {
                 Schema schema,
                 int defaultSpecId,
                 List<PartitionSpec> specs,
+                int defaultSortOrderId,
+                List<SortOrder> sortOrders,
                 Map<String, String> properties,
                 long currentSnapshotId,
                 List<Snapshot> snapshots,
@@ -166,6 +205,8 @@ public class TableMetadata {
     this.schema = schema;
     this.specs = specs;
     this.defaultSpecId = defaultSpecId;
+    this.defaultSortOrderId = defaultSortOrderId;
+    this.sortOrders = sortOrders;
     this.properties = properties;
     this.currentSnapshotId = currentSnapshotId;
     this.snapshots = snapshots;
@@ -173,6 +214,7 @@ public class TableMetadata {
 
     this.snapshotsById = indexSnapshots(snapshots);
     this.specsById = indexSpecs(specs);
+    this.sortOrdersById = indexSortOders(sortOrders);
 
     HistoryEntry last = null;
     for (HistoryEntry logEntry : snapshotLog) {
@@ -229,6 +271,22 @@ public class TableMetadata {
     return defaultSpecId;
   }
 
+  public int defaultSortOrderId() {
+    return defaultSortOrderId;
+  }
+
+  public SortOrder sortOrder() {
+    return sortOrdersById.get(defaultSortOrderId);
+  }
+
+  public List<SortOrder> sortOrders() {
+    return sortOrders;
+  }
+
+  public Map<Integer, SortOrder> sortOrdersById() {
+    return sortOrdersById;
+  }
+
   public String location() {
     return location;
   }
@@ -274,26 +332,29 @@ public class TableMetadata {
       return this;
     } else {
       return new TableMetadata(ops, null, UUID.randomUUID().toString(), location,
-          lastUpdatedMillis, lastColumnId, schema, defaultSpecId, specs, properties,
-          currentSnapshotId, snapshots, snapshotLog);
+          lastUpdatedMillis, lastColumnId, schema, defaultSpecId, specs, defaultSortOrderId, sortOrders,
+          properties, currentSnapshotId, snapshots, snapshotLog);
     }
   }
 
   public TableMetadata updateTableLocation(String newLocation) {
     return new TableMetadata(ops, null, uuid, newLocation,
-        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
-        currentSnapshotId, snapshots, snapshotLog);
+        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, defaultSortOrderId,
+        sortOrders, properties, currentSnapshotId, snapshots, snapshotLog);
   }
 
+  // TODO: update sort order
   public TableMetadata updateSchema(Schema newSchema, int newLastColumnId) {
     PartitionSpec.checkCompatibility(spec(), newSchema);
     // rebuild all of the partition specs for the new current schema
     List<PartitionSpec> updatedSpecs = Lists.transform(specs,
         spec -> updateSpecSchema(newSchema, spec));
     return new TableMetadata(ops, null, uuid, location,
-        System.currentTimeMillis(), newLastColumnId, newSchema, defaultSpecId, updatedSpecs, properties,
-        currentSnapshotId, snapshots, snapshotLog);
+        System.currentTimeMillis(), newLastColumnId, newSchema, defaultSpecId, updatedSpecs,
+        defaultSortOrderId, sortOrders, properties, currentSnapshotId, snapshots, snapshotLog);
   }
+
+  // TODO: update sort order
 
   public TableMetadata updatePartitionSpec(PartitionSpec newPartitionSpec) {
     PartitionSpec.checkCompatibility(newPartitionSpec, schema);
@@ -321,7 +382,7 @@ public class TableMetadata {
 
     return new TableMetadata(ops, null, uuid, location,
         System.currentTimeMillis(), lastColumnId, schema, newDefaultSpecId,
-        builder.build(), properties,
+        builder.build(), defaultSortOrderId, sortOrders, properties,
         currentSnapshotId, snapshots, snapshotLog);
   }
 
@@ -331,8 +392,8 @@ public class TableMetadata {
         .add(snapshot)
         .build();
     return new TableMetadata(ops, null, uuid, location,
-        snapshot.timestampMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
-        currentSnapshotId, newSnapshots, snapshotLog);
+        snapshot.timestampMillis(), lastColumnId, schema, defaultSpecId, specs, defaultSortOrderId,
+        sortOrders, properties, currentSnapshotId, newSnapshots, snapshotLog);
   }
 
   public TableMetadata replaceCurrentSnapshot(Snapshot snapshot) {
@@ -345,8 +406,8 @@ public class TableMetadata {
         .add(new SnapshotLogEntry(snapshot.timestampMillis(), snapshot.snapshotId()))
         .build();
     return new TableMetadata(ops, null, uuid, location,
-        snapshot.timestampMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
-        snapshot.snapshotId(), newSnapshots, newSnapshotLog);
+        snapshot.timestampMillis(), lastColumnId, schema, defaultSpecId, specs, defaultSortOrderId,
+        sortOrders, properties, snapshot.snapshotId(), newSnapshots, newSnapshotLog);
   }
 
   public TableMetadata removeSnapshotsIf(Predicate<Snapshot> removeIf) {
@@ -376,8 +437,8 @@ public class TableMetadata {
     }
 
     return new TableMetadata(ops, null, uuid, location,
-        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
-        currentSnapshotId, filtered, ImmutableList.copyOf(newSnapshotLog));
+        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, defaultSortOrderId,
+        sortOrders, properties, currentSnapshotId, filtered, ImmutableList.copyOf(newSnapshotLog));
   }
 
   public TableMetadata rollbackTo(Snapshot snapshot) {
@@ -391,15 +452,15 @@ public class TableMetadata {
         .build();
 
     return new TableMetadata(ops, null, uuid, location,
-        nowMillis, lastColumnId, schema, defaultSpecId, specs, properties,
-        snapshot.snapshotId(), snapshots, newSnapshotLog);
+        nowMillis, lastColumnId, schema, defaultSpecId, specs, defaultSortOrderId, sortOrders,
+        properties, snapshot.snapshotId(), snapshots, newSnapshotLog);
   }
 
   public TableMetadata replaceProperties(Map<String, String> newProperties) {
     ValidationException.check(newProperties != null, "Cannot set properties to null");
     return new TableMetadata(ops, null, uuid, location,
-        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, newProperties,
-        currentSnapshotId, snapshots, snapshotLog);
+        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, defaultSortOrderId,
+        sortOrders, newProperties, currentSnapshotId, snapshots, snapshotLog);
   }
 
   public TableMetadata removeSnapshotLogEntries(Set<Long> snapshotIds) {
@@ -415,10 +476,11 @@ public class TableMetadata {
             Iterables.getLast(newSnapshotLog).snapshotId() == currentSnapshotId,
         "Cannot set invalid snapshot log: latest entry is not the current snapshot");
     return new TableMetadata(ops, null, uuid, location,
-        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
-        currentSnapshotId, snapshots, newSnapshotLog);
+        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, defaultSortOrderId,
+        sortOrders, properties, currentSnapshotId, snapshots, newSnapshotLog);
   }
 
+  // TODO: handle sort orders
   public TableMetadata buildReplacement(Schema updatedSchema, PartitionSpec updatedPartitionSpec,
                                         Map<String, String> updatedProperties) {
     AtomicInteger nextLastColumnId = new AtomicInteger(0);
@@ -455,14 +517,14 @@ public class TableMetadata {
 
     return new TableMetadata(ops, null, uuid, location,
         System.currentTimeMillis(), nextLastColumnId.get(), freshSchema,
-        specId, builder.build(), ImmutableMap.copyOf(newProperties),
+        specId, builder.build(), defaultSortOrderId, sortOrders, ImmutableMap.copyOf(newProperties),
         -1, snapshots, ImmutableList.of());
   }
 
   public TableMetadata updateLocation(String newLocation) {
     return new TableMetadata(ops, null, uuid, newLocation,
-        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
-        currentSnapshotId, snapshots, snapshotLog);
+        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, defaultSortOrderId,
+        sortOrders, properties, currentSnapshotId, snapshots, snapshotLog);
   }
 
   private static PartitionSpec updateSpecSchema(Schema schema, PartitionSpec partitionSpec) {
@@ -505,6 +567,14 @@ public class TableMetadata {
     ImmutableMap.Builder<Integer, PartitionSpec> builder = ImmutableMap.builder();
     for (PartitionSpec spec : specs) {
       builder.put(spec.specId(), spec);
+    }
+    return builder.build();
+  }
+
+  private static Map<Integer, SortOrder> indexSortOders(List<SortOrder> sortOrders) {
+    ImmutableMap.Builder<Integer, SortOrder> builder = ImmutableMap.builder();
+    for (SortOrder sortOrder : sortOrders) {
+      builder.put(sortOrder.orderId(), sortOrder);
     }
     return builder.build();
   }

@@ -34,6 +34,7 @@ import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotsTable;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -117,12 +118,13 @@ public class HadoopTables implements Tables, Configurable {
    *
    * @param schema iceberg schema used to create the table
    * @param spec partitioning spec, if null the table will be unpartitioned
+   * @param order sort order, if null the table will be ununsorted
    * @param properties a string map of table properties, initialized to empty if null
    * @param location a path URI (e.g. hdfs:///warehouse/my_table)
    * @return newly created table implementation
    */
   @Override
-  public Table create(Schema schema, PartitionSpec spec, Map<String, String> properties,
+  public Table create(Schema schema, PartitionSpec spec, SortOrder order, Map<String, String> properties,
                       String location) {
     Preconditions.checkNotNull(schema, "A table schema is required");
 
@@ -133,7 +135,10 @@ public class HadoopTables implements Tables, Configurable {
 
     Map<String, String> tableProps = properties == null ? ImmutableMap.of() : properties;
     PartitionSpec partitionSpec = spec == null ? PartitionSpec.unpartitioned() : spec;
-    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, partitionSpec, location, tableProps);
+    SortOrder sortOrder = order == null ? SortOrder.unsorted() : order;
+    TableMetadata metadata = TableMetadata.newTableMetadata(
+        ops, schema, partitionSpec, sortOrder, location, tableProps);
+
     ops.commit(null, metadata);
 
     return new BaseTable(ops, location);

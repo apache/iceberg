@@ -20,9 +20,9 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Joiner;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.MapMaker;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.util.Map;
@@ -47,6 +47,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       TableIdentifier identifier,
       Schema schema,
       PartitionSpec spec,
+      SortOrder sortOrder,
       String location,
       Map<String, String> properties) {
     TableOperations ops = newTableOps(identifier);
@@ -61,8 +62,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       baseLocation = defaultWarehouseLocation(identifier);
     }
 
-    TableMetadata metadata = TableMetadata.newTableMetadata(
-        ops, schema, spec, baseLocation, properties == null ? Maps.newHashMap() : properties);
+    Map<String, String> tableProps = properties != null ? properties : ImmutableMap.of();
+    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, sortOrder, baseLocation, tableProps);
 
     ops.commit(null, metadata);
 
@@ -78,6 +79,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       TableIdentifier identifier,
       Schema schema,
       PartitionSpec spec,
+      SortOrder sortOrder,
       String location,
       Map<String, String> properties) {
 
@@ -87,8 +89,9 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     }
 
     String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
-    Map<String, String> tableProperties = properties != null ? properties : Maps.newHashMap();
-    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, baseLocation, tableProperties);
+    Map<String, String> tableProps = properties != null ? properties : ImmutableMap.of();
+    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, sortOrder, baseLocation, tableProps);
+
     return Transactions.createTableTransaction(ops, metadata);
   }
 
@@ -97,6 +100,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       TableIdentifier identifier,
       Schema schema,
       PartitionSpec spec,
+      SortOrder sortOrder,
       String location,
       Map<String, String> properties,
       boolean orCreate) {
@@ -107,8 +111,9 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     }
 
     String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
-    Map<String, String> tableProperties = properties != null ? properties : Maps.newHashMap();
-    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, baseLocation, tableProperties);
+    Map<String, String> tableProps = properties != null ? properties : ImmutableMap.of();
+    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, sortOrder, baseLocation, tableProps);
+
     if (orCreate) {
       return Transactions.createOrReplaceTableTransaction(ops, metadata);
     } else {

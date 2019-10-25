@@ -30,6 +30,7 @@ import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -53,11 +54,11 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
   }
 
   @Override
-  public org.apache.iceberg.Table createTable(
-      TableIdentifier identifier, Schema schema, PartitionSpec spec, String location, Map<String, String> properties) {
+  public org.apache.iceberg.Table createTable(TableIdentifier identifier, Schema schema, PartitionSpec spec,
+                                              SortOrder sortOrder, String location, Map<String, String> properties) {
     Preconditions.checkArgument(identifier.namespace().levels().length == 1,
         "Missing database in table identifier: %s", identifier);
-    return super.createTable(identifier, schema, spec, location, properties);
+    return super.createTable(identifier, schema, spec, sortOrder, location, properties);
   }
 
   @Override

@@ -28,6 +28,7 @@ import org.apache.iceberg.io.LocationProvider;
 
 abstract class BaseMetadataTable implements Table {
   private PartitionSpec spec = PartitionSpec.unpartitioned();
+  private SortOrder sortOrder = SortOrder.unsorted();
 
   abstract Table table();
   abstract String metadataTableName();
@@ -60,6 +61,16 @@ abstract class BaseMetadataTable implements Table {
   @Override
   public Map<Integer, PartitionSpec> specs() {
     return ImmutableMap.of(spec.specId(), spec);
+  }
+
+  @Override
+  public SortOrder sortOrder() {
+    return sortOrder;
+  }
+
+  @Override
+  public Map<Integer, SortOrder> sortOrders() {
+    return ImmutableMap.of(sortOrder.orderId(), sortOrder);
   }
 
   @Override
