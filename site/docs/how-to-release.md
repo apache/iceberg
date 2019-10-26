@@ -110,7 +110,52 @@ Please download, verify, and test.
 
 Please vote in the next 72 hours.
 
-[ ] +1 Release this as Apache Parquet <VERSION>
+[ ] +1 Release this as Apache Iceberg <VERSION>
 [ ] +0
 [ ] -1 Do not release this because...
+```
+
+### Finishing the release
+
+After the release vote has passed, you need to release the last candidate's artifacts.
+
+First, copy the source release directory to releases:
+
+```bash
+mkdir iceberg
+cd iceberg
+svn co https://dist.apache.org/repos/dist/dev/incubator/iceberg candidates
+svn co https://dist.apache.org/repos/dist/release/incubator/iceberg releases
+cp -r candidates/apache-iceberg-<VERSION>-rcN/ releases/apache-iceberg-<VERSION>
+cd releases
+svn add apache-iceberg-<VERSION>
+svn ci -m 'Iceberg: Add release <VERSION>'
+```
+
+Next, add a release tag to the git repository based on the passing candidate tag:
+
+```bash
+git tag -am 'Release Apache Iceberg <VERSION>' apache-iceberg-<VERSION> apache-iceberg-<VERSION>-rcN
+```
+
+Then release the candidate repository in [Nexus](https://repository.apache.org/#stagingRepositories).
+
+To announce the release, wait until Maven central has mirrored the Apache binaries, then update the Iceberg site and send an announcement email:
+
+```text
+[ANNOUNCE] Apache Iceberg release <VERSION>
+```
+```text
+I'm please to announce the release of Apache Iceberg <VERSION>!
+
+Apache Iceberg is an open table format for huge analytic datasets. Iceberg
+delivers high query performance for tables with tens of petabytes of data,
+along with atomic commits, concurrent writes, and SQL-compatible table
+evolution.
+
+This release can be downloaded from: https://www.apache.org/dyn/closer.cgi/incubator/iceberg/<TARBALL NAME WITHOUT .tar.gz>/<TARBALL NAME>
+
+Java artifacts are available from Maven Central.
+
+Thanks to everyone for contributing!
 ```

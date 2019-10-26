@@ -42,6 +42,7 @@ nav:
   - About: index.md
   - Project:
     - Community: community.md
+    - Releases: releases.md
     - Disclaimer: disclaimer.md
     - How to Release: how-to-release.md
   - User docs:
