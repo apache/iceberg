@@ -135,6 +135,7 @@ project(':iceberg-data') {
     compile project(':iceberg-api')
     compile project(':iceberg-core')
     compileOnly project(':iceberg-parquet')
+    compileOnly project(':iceberg-orc')
 
     testCompile("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -199,6 +200,7 @@ project(':iceberg-orc') {
       exclude group: 'com.google.protobuf', module: 'protobuf-java'
       exclude group: 'org.apache.hive', module: 'hive-storage-api'
     }
+    compile("org.apache.hadoop:hadoop-common")
 
     compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
