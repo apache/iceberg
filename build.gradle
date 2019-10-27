@@ -222,26 +222,7 @@ task deploySite(type: Exec) {
   commandLine 'mkdocs', 'gh-deploy'
 }
 
-// The following code is temporary to allow for incrementally migrating projects to use Baseline.
-
-// We enable baseline-idea everywhere so that everyone can use IntelliJ to build code against the
-// Baseline style guide.
-def baselineProjects = [ project("iceberg-api"), project("iceberg-common"), project("iceberg-core"),
-                         project("iceberg-data"), project("iceberg-orc"), project("iceberg-spark"),
-                         project("iceberg-hive"), project("iceberg-parquet") ]
-
-
-configure(subprojects - baselineProjects) {
-  // error-prone is brought in with baseline-idea, but we're not prepared to handle error-prone
-  // linting errors everywhere yet.
-  pluginManager.withPlugin("com.palantir.baseline-error-prone") {
-    tasks.withType(JavaCompile).configureEach { task ->
-      options.errorprone.enabled = false
-    }
-  }
-}
-
-configure(baselineProjects) {
+configure(subprojects) {
   // Currently, if any subproject applies the blanket Baseline plugin, it forces the Baseline plugin
   // to be applied to ALL projects. And we are not prepared to address all of the build errors that
   // occur as a result at this time. Furthermore, baseline-format will not work out of the box for
@@ -452,6 +433,8 @@ project(':iceberg-pig') {
     compile project(':iceberg-common')
     compile project(':iceberg-core')
     compile project(':iceberg-parquet')
+
+    compile "org.apache.commons:commons-lang3"
 
     compileOnly("org.apache.pig:pig") {
       exclude group: "junit", module: "junit"

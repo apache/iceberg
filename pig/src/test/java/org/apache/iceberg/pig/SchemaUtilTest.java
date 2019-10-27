@@ -50,13 +50,14 @@ public class SchemaUtilTest {
         optional(2, "l", LongType.get()),
         optional(3, "f", FloatType.get()),
         optional(4, "d", DoubleType.get()),
-        optional(5, "dec", DecimalType.of(0,2)),
+        optional(5, "dec", DecimalType.of(0, 2)),
         optional(5, "s", StringType.get()),
-        optional(6,"bi", BinaryType.get())
+        optional(6, "bi", BinaryType.get())
     );
 
     ResourceSchema pigSchema = SchemaUtil.convert(icebergSchema);
-    assertEquals("b:boolean,i:int,l:long,f:float,d:double,dec:bigdecimal,s:chararray,bi:bytearray", pigSchema.toString());
+    assertEquals(
+        "b:boolean,i:int,l:long,f:float,d:double,dec:bigdecimal,s:chararray,bi:bytearray", pigSchema.toString());
   }
 
   @Test
@@ -64,16 +65,17 @@ public class SchemaUtilTest {
     convertToPigSchema(
         new Schema(
             optional(1, "bag", ListType.ofOptional(2, BooleanType.get())),
-            optional(3, "map", MapType.ofOptional(4,5, StringType.get(), DoubleType.get())),
-            optional(6, "tuple", StructType.of(optional(7, "i", IntegerType.get()), optional(8,"f", FloatType.get())))
-        ),"bag:{(boolean)},map:[double],tuple:(i:int,f:float)", null
+            optional(3, "map", MapType.ofOptional(4, 5, StringType.get(), DoubleType.get())),
+            optional(6, "tuple",
+                StructType.of(optional(7, "i", IntegerType.get()), optional(8, "f", FloatType.get())))
+        ), "bag:{(boolean)},map:[double],tuple:(i:int,f:float)", null
     );
   }
 
   @Test(expected = FrontendException.class)
   public void invalidMap() throws IOException {
     convertToPigSchema(new Schema(
-        optional(1, "invalid", MapType.ofOptional(2,3, IntegerType.get(), DoubleType.get()))
+        optional(1, "invalid", MapType.ofOptional(2, 3, IntegerType.get(), DoubleType.get()))
     ), "", "");
   }
 
@@ -81,10 +83,10 @@ public class SchemaUtilTest {
   public void nestedMaps() throws IOException {
     convertToPigSchema(new Schema(
         optional(1, "nested",
-            MapType.ofOptional(2,3, StringType.get(),
-                MapType.ofOptional(4,5, StringType.get(),
-                    MapType.ofOptional(6,7, StringType.get(), DecimalType.of(10,2)))))
-    ),"nested:[[[bigdecimal]]]", "");
+            MapType.ofOptional(2, 3, StringType.get(),
+                MapType.ofOptional(4, 5, StringType.get(),
+                    MapType.ofOptional(6, 7, StringType.get(), DecimalType.of(10, 2)))))
+    ), "nested:[[[bigdecimal]]]", "");
   }
 
   @Test
@@ -100,7 +102,7 @@ public class SchemaUtilTest {
   @Test
   public void nestedTuples() throws IOException {
     convertToPigSchema(new Schema(
-        optional(1,"first", StructType.of(
+        optional(1, "first", StructType.of(
             optional(2, "second", StructType.of(
                 optional(3, "third", StructType.of(
                     optional(4, "val", StringType.get())
@@ -113,18 +115,18 @@ public class SchemaUtilTest {
   @Test
   public void complexNested() throws IOException {
     convertToPigSchema(new Schema(
-        optional(1,"t", StructType.of(
-            optional(2, "b", ListType.ofOptional(3,StructType.of(
+        optional(1, "t", StructType.of(
+            optional(2, "b", ListType.ofOptional(3, StructType.of(
                 optional(4, "i", IntegerType.get()),
-                optional(5,"s", StringType.get())
+                optional(5, "s", StringType.get())
             )))
         )),
-        optional(6, "m1", MapType.ofOptional(7,8, StringType.get(), StructType.of(
-            optional(9, "b", ListType.ofOptional(10, BinaryType.get()) ),
-            optional(11, "m2", MapType.ofOptional(12,13, StringType.get(), IntegerType.get()))
+        optional(6, "m1", MapType.ofOptional(7, 8, StringType.get(), StructType.of(
+            optional(9, "b", ListType.ofOptional(10, BinaryType.get())),
+            optional(11, "m2", MapType.ofOptional(12, 13, StringType.get(), IntegerType.get()))
         ))),
         optional(14, "b1", ListType.ofOptional(15,
-            MapType.ofOptional(16,17, StringType.get(),
+            MapType.ofOptional(16, 17, StringType.get(),
                 ListType.ofOptional(18, FloatType.get()))))
     ), "t:(b:{(i:int,s:chararray)}),m1:[(b:{(bytearray)},m2:[int])],b1:{([{(float)}])}", "");
   }
@@ -175,7 +177,8 @@ public class SchemaUtilTest {
                         optional(6, "data", StringType.get()))))));
 
     ResourceSchema pigSchema = SchemaUtil.convert(icebergSchema);
-    assertEquals("nested_list:[{(id:long,data:chararray)}]", pigSchema.toString()); // The output should contain a nested struct within a list within a map, I think.
+    // The output should contain a nested struct within a list within a map, I think.
+    assertEquals("nested_list:[{(id:long,data:chararray)}]", pigSchema.toString());
   }
 
   @Test
@@ -196,7 +199,8 @@ public class SchemaUtilTest {
     convertToPigSchema(
         new Schema(
             StructType.of(
-                required(1, "a", ListType.ofRequired(2, StructType.of(required(3, "b", StringType.get()))))
+                required(1, "a",
+                    ListType.ofRequired(2, StructType.of(required(3, "b", StringType.get()))))
             ).fields()),
         "a:{(b:chararray)}",
         "A tuple inside a bag should not be double wrapped");
@@ -208,7 +212,8 @@ public class SchemaUtilTest {
     );
   }
 
-  private static void convertToPigSchema(Schema icebergSchema, String expectedPigSchema, String assertMessage) throws IOException {
+  private static void convertToPigSchema(Schema icebergSchema, String expectedPigSchema, String assertMessage)
+      throws IOException {
     ResourceSchema pigSchema = SchemaUtil.convert(icebergSchema);
     assertEquals(assertMessage, expectedPigSchema, pigSchema.toString());
   }
