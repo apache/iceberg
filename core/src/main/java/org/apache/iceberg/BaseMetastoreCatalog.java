@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Joiner;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.MapMaker;
 import com.google.common.collect.Maps;
@@ -49,6 +50,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       PartitionSpec spec,
       String location,
       Map<String, String> properties) {
+    Preconditions.checkArgument(isValidIdentifier(identifier), "Invalid table identifier: %s", identifier);
+
     TableOperations ops = newTableOps(identifier);
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table already exists: " + identifier);
@@ -80,6 +83,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       PartitionSpec spec,
       String location,
       Map<String, String> properties) {
+    Preconditions.checkArgument(isValidIdentifier(identifier), "Invalid table identifier: %s", identifier);
 
     TableOperations ops = newTableOps(identifier);
     if (ops.current() != null) {
@@ -118,42 +122,67 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
   @Override
   public Table loadTable(TableIdentifier identifier) {
-    TableOperations ops = newTableOps(identifier);
-    if (ops.current() == null) {
-      String name = identifier.name();
-      MetadataTableType type = MetadataTableType.from(name);
-      if (type != null) {
-        return loadMetadataTable(TableIdentifier.of(identifier.namespace().levels()), type);
-      } else {
-        throw new NoSuchTableException("Table does not exist: " + identifier);
-      }
-    }
+    if (isValidIdentifier(identifier)) {
+      TableOperations ops = newTableOps(identifier);
+      if (ops.current() == null) {
+        // the identifier may be valid for both tables and metadata tables
+        if (isValidMetadataIdentifier(identifier)) {
+          return loadMetadataTable(identifier);
+        }
 
-    return new BaseTable(ops, identifier.toString());
+        throw new NoSuchTableException("Table does not exist: %s", identifier);
+      }
+
+      return new BaseTable(ops, identifier.toString());
+
+    } else if (isValidMetadataIdentifier(identifier)) {
+      return loadMetadataTable(identifier);
+
+    } else {
+      throw new NoSuchTableException("Invalid table identifier: %s", identifier);
+    }
   }
 
-  private Table loadMetadataTable(TableIdentifier identifier, MetadataTableType type) {
-    TableOperations ops = newTableOps(identifier);
-    if (ops.current() == null) {
+  private Table loadMetadataTable(TableIdentifier identifier) {
+    String name = identifier.name();
+    MetadataTableType type = MetadataTableType.from(name);
+    if (type != null) {
+      TableIdentifier baseTableIdentifier = TableIdentifier.of(identifier.namespace().levels());
+      TableOperations ops = newTableOps(baseTableIdentifier);
+      if (ops.current() == null) {
+        throw new NoSuchTableException("Table does not exist: " + baseTableIdentifier);
+      }
+
+      Table baseTable = new BaseTable(ops, baseTableIdentifier.toString());
+
+      switch (type) {
+        case ENTRIES:
+          return new ManifestEntriesTable(ops, baseTable);
+        case FILES:
+          return new DataFilesTable(ops, baseTable);
+        case HISTORY:
+          return new HistoryTable(ops, baseTable);
+        case SNAPSHOTS:
+          return new SnapshotsTable(ops, baseTable);
+        case MANIFESTS:
+          return new ManifestsTable(ops, baseTable);
+        default:
+          throw new NoSuchTableException("Unknown metadata table type: %s for %s", type, baseTableIdentifier);
+      }
+
+    } else {
       throw new NoSuchTableException("Table does not exist: " + identifier);
     }
+  }
 
-    Table baseTable = new BaseTable(ops, identifier.toString());
+  private boolean isValidMetadataIdentifier(TableIdentifier identifier) {
+    return MetadataTableType.from(identifier.name()) != null &&
+        isValidIdentifier(TableIdentifier.of(identifier.namespace().levels()));
+  }
 
-    switch (type) {
-      case ENTRIES:
-        return new ManifestEntriesTable(ops, baseTable);
-      case FILES:
-        return new DataFilesTable(ops, baseTable);
-      case HISTORY:
-        return new HistoryTable(ops, baseTable);
-      case SNAPSHOTS:
-        return new SnapshotsTable(ops, baseTable);
-      case MANIFESTS:
-        return new ManifestsTable(ops, baseTable);
-      default:
-        throw new NoSuchTableException(String.format("Unknown metadata table type: %s for %s", type, identifier));
-    }
+  protected boolean isValidIdentifier(TableIdentifier tableIdentifier) {
+    // by default allow all identifiers
+    return true;
   }
 
   protected abstract TableOperations newTableOps(TableIdentifier tableIdentifier);
