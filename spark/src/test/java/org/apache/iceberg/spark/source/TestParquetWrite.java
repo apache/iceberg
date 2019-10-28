@@ -32,6 +32,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -408,5 +409,66 @@ public class TestParquetWrite {
     List<ThreeColumnRecord> actual = result.orderBy("c1").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
+  }
+
+  @Test
+  public void testNestedPartitioning() throws IOException {
+    Schema nestedSchema = new Schema(
+        optional(1, "id", Types.IntegerType.get()),
+        optional(2, "data", Types.StringType.get()),
+        optional(3, "nestedData", Types.StructType.of(
+            optional(4, "id", Types.IntegerType.get()),
+            optional(5, "moreData", Types.StringType.get())))
+    );
+
+    File parent = temp.newFolder("parquet");
+    File location = new File(parent, "test");
+
+    HadoopTables tables = new HadoopTables(new Configuration());
+    PartitionSpec spec = PartitionSpec.builderFor(nestedSchema)
+        .identity("id")
+        .identity("nestedData.moreData")
+        .build();
+    Table table = tables.create(nestedSchema, spec, location.toString());
+
+    List<String> jsons = Lists.newArrayList(
+        "{ \"id\": 1, \"data\": \"a\", \"nestedData\": { \"id\": 100, \"moreData\": \"p1\"} }",
+        "{ \"id\": 2, \"data\": \"b\", \"nestedData\": { \"id\": 200, \"moreData\": \"p1\"} }",
+        "{ \"id\": 3, \"data\": \"c\", \"nestedData\": { \"id\": 300, \"moreData\": \"p2\"} }",
+        "{ \"id\": 4, \"data\": \"d\", \"nestedData\": { \"id\": 400, \"moreData\": \"p2\"} }"
+    );
+    Dataset<Row> df = spark.read().schema(SparkSchemaUtil.convert(nestedSchema))
+        .json(spark.createDataset(jsons, Encoders.STRING()));
+
+    // TODO: incoming columns must be ordered according to the table's schema
+    df.select("id", "data", "nestedData").write()
+        .format("iceberg")
+        .mode("append")
+        .save(location.toString());
+
+    table.refresh();
+
+    Dataset<Row> result = spark.read()
+        .format("iceberg")
+        .load(location.toString());
+
+    List<Row> actual = result.orderBy("id").collectAsList();
+    Assert.assertEquals("Number of rows should match", jsons.size(), actual.size());
+    Assert.assertEquals("Row 1 col 1 is 1", 1, actual.get(0).getInt(0));
+    Assert.assertEquals("Row 1 col 2 is a", "a", actual.get(0).getString(1));
+    Assert.assertEquals("Row 1 col 3,1 is 100", 100, actual.get(0).getStruct(2).getInt(0));
+    Assert.assertEquals("Row 1 col 3,2 is p1", "p1", actual.get(0).getStruct(2).getString(1));
+    Assert.assertEquals("Row 2 col 1 is 2", 2, actual.get(1).getInt(0));
+    Assert.assertEquals("Row 2 col 2 is b", "b", actual.get(1).getString(1));
+    Assert.assertEquals("Row 2 col 3,1 is 200", 200, actual.get(1).getStruct(2).getInt(0));
+    Assert.assertEquals("Row 2 col 3,2 is p1", "p1", actual.get(1).getStruct(2).getString(1));
+    Assert.assertEquals("Row 3 col 1 is 3", 3, actual.get(2).getInt(0));
+    Assert.assertEquals("Row 3 col 2 is c", "c", actual.get(2).getString(1));
+    Assert.assertEquals("Row 3 col 3,1 is 300", 300, actual.get(2).getStruct(2).getInt(0));
+    Assert.assertEquals("Row 3 col 3,2 is p2", "p2", actual.get(2).getStruct(2).getString(1));
+    Assert.assertEquals("Row 4 col 1 is 4", 4, actual.get(3).getInt(0));
+    Assert.assertEquals("Row 4 col 2 is d", "d", actual.get(3).getString(1));
+    Assert.assertEquals("Row 4 col 3,1 is 400", 400, actual.get(3).getStruct(2).getInt(0));
+    Assert.assertEquals("Row 4 col 3,2 is p2", "p2", actual.get(3).getStruct(2).getString(1));
   }
 }

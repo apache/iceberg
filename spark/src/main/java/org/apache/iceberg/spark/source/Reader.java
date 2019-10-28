@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.Serializable;
@@ -396,7 +397,15 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       // schema or rows returned by readers
       Schema finalSchema = expectedSchema;
       PartitionSpec spec = task.spec();
-      Set<Integer> idColumns = spec.identitySourceIds();
+
+      Set<Integer> idColumns = Sets.newHashSet();
+      for (Integer i : spec.identitySourceIds()) {
+        if (spec.schema().columns().stream()
+            .noneMatch(j -> j.type().isStructType() && j.type().asStructType().field(i) != null)
+        ) {
+          idColumns.add(i);
+        }
+      }
 
       // schema needed for the projection and filtering
       StructType sparkType = SparkSchemaUtil.convert(finalSchema);
