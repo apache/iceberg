@@ -108,14 +108,32 @@ To create an Iceberg schema from an existing Avro schema, use converters in `Avr
 
 ```scala
 import org.apache.iceberg.avro.AvroSchemaUtil
-import org.apache.avro.Schema.Parser
+import org.apache.iceberg.Schema
+import org.apache.iceberg.shaded.org.apache.avro.Schema.Parser
+import org.apache.iceberg.types.Type
 
-val avroSchema = new Parser().parse(
-    """{ "type": "record", "name": "com.example.AvroType",
-      |  "fields": [ ... ]
-      |}""".stripMargin
+val avroSchemaString = """{
+	"type": "record",
+	"name": "person",
+	"fields": [{
+		"name": "name",
+		"type": ["string", "null"]
+	}]
+}
+"""
 
-val schema = AvroSchemaUtil.convert(avroSchema)
+val avroSchema = new Parser().parse(avroSchemaString)
+
+val schemaType: Type = AvroSchemaUtil.convert(avroSchema)
+
+val fields = schemaType.asNestedType().asStructType().fields()
+
+val icebergSchema = new Schema(fields)
+
+icebergSchema: org.apache.iceberg.Schema =
+table {
+  0: name: optional string
+}
 ```
 
 ### Convert a schema from Spark

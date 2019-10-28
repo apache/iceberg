@@ -15,9 +15,9 @@
  - limitations under the License.
  -->
 
-# Spark
+# Apache Spark
 
-Iceberg uses Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions.
+Apache Iceberg uses Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions.
 
 | Feature support                              | Spark 2.4 | Spark 3.0 (unreleased) | Notes                                          |
 |----------------------------------------------|-----------|------------------------|------------------------------------------------|
@@ -38,12 +38,25 @@ Iceberg uses Spark's DataSourceV2 API for data source and catalog implementation
     Spark 2.4 can't create Iceberg tables with DDL, instead use the [Iceberg API](../api-quickstart).
 
 
-## Spark 2.4
+## Apache Spark 2.4
 
 To use Iceberg in Spark 2.4, add the `iceberg-spark-runtime` Jar to Spark's `jars` folder.
 
 Spark 2.4 is limited to reading and writing existing Iceberg tables. Use the [Iceberg API](../api) to create Iceberg tables.
 
+Recommended way is to include Iceberg's latest released using the `--packages` option:
+```sh
+spark-shell --packages org.apache.iceberg:iceberg-spark:0.7.0-incubating
+```
+
+You can also build Iceberg locally, and add the jar to Spark's classpath. This can be helpful to test unreleased features or while developing something new:
+
+```sh
+./gradlew assemble
+spark-shell --jars runtime/build/libs/iceberg-spark-runtime-fa64197.jar
+```
+
+Where you have to replace `fa64197` with the git hash that you're using.
 
 ### Reading an Iceberg table
 
