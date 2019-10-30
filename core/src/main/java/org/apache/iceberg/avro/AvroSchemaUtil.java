@@ -80,6 +80,10 @@ public class AvroSchemaUtil {
     return AvroSchemaVisitor.visit(schema, new SchemaToType(schema));
   }
 
+  static boolean hasIds(Schema schema) {
+    return AvroCustomOrderSchemaVisitor.visit(schema, new HasIds());
+  }
+
   public static Map<Type, Schema> convertTypes(Types.StructType type, String name) {
     TypeToSchema converter = new TypeToSchema(ImmutableMap.of(type, name));
     TypeUtil.visit(type, converter);
