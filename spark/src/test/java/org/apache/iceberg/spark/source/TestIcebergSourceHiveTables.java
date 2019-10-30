@@ -504,4 +504,75 @@ public class TestIcebergSourceHiveTables {
       });
     }
   }
+
+  @Test
+  public synchronized void testHivePartitionsTable() throws Exception {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "partitions_test");
+    try {
+      Table table = catalog.createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
+      Table partitionsTable = catalog.loadTable(TableIdentifier.of("db", "partitions_test", "partitions"));
+
+      Dataset<Row> df1 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
+      Dataset<Row> df2 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(2, "b")), SimpleRecord.class);
+
+      df1.select("id", "data").write()
+          .format("iceberg")
+          .mode("append")
+          .save(tableIdentifier.toString());
+
+      table.refresh();
+      long firstCommitId = table.currentSnapshot().snapshotId();
+
+      // add a second file
+      df2.select("id", "data").write()
+          .format("iceberg")
+          .mode("append")
+          .save(tableIdentifier.toString());
+
+      List<Row> actual = spark.read()
+          .format("iceberg")
+          .load("db.partitions_test.partitions")
+          .orderBy("partition.id")
+          .collectAsList();
+
+      GenericRecordBuilder builder = new GenericRecordBuilder(AvroSchemaUtil.convert(
+          partitionsTable.schema(), "partitions"));
+      GenericRecordBuilder partitionBuilder = new GenericRecordBuilder(AvroSchemaUtil.convert(
+          partitionsTable.schema().findType("partition").asStructType(), "partition"));
+      List<GenericData.Record> expected = Lists.newArrayList();
+      expected.add(builder
+          .set("partition", partitionBuilder.set("id", 1).build())
+          .set("record_count", 1L)
+          .set("file_count", 1)
+          .build());
+      expected.add(builder
+          .set("partition", partitionBuilder.set("id", 2).build())
+          .set("record_count", 1L)
+          .set("file_count", 1)
+          .build());
+
+      Assert.assertEquals("Partitions table should have two rows", 2, expected.size());
+      Assert.assertEquals("Actual results should have two rows", 2, actual.size());
+      for (int i = 0; i < 2; i += 1) {
+        TestHelpers.assertEqualsSafe(partitionsTable.schema().asStruct(), expected.get(i), actual.get(i));
+      }
+
+      // check time travel
+      List<Row> actualAfterFirstCommit = spark.read()
+          .format("iceberg")
+          .option("snapshot-id", String.valueOf(firstCommitId))
+          .load("db.partitions_test.partitions")
+          .orderBy("partition.id")
+          .collectAsList();
+
+      Assert.assertEquals("Actual results should have one row", 1, actualAfterFirstCommit.size());
+      TestHelpers.assertEqualsSafe(partitionsTable.schema().asStruct(), expected.get(0), actualAfterFirstCommit.get(0));
+
+    } finally {
+      clients.run(client -> {
+        client.dropTable(tableIdentifier.namespace().level(0), tableIdentifier.name());
+        return null;
+      });
+    }
+  }
 }
