@@ -192,7 +192,7 @@ class SchemaUpdate implements UpdateSchema {
     Preconditions.checkArgument(field != null, "Cannot update missing column: %s", name);
 
     if ((!isOptional && field.isRequired()) || (isOptional && field.isOptional())) {
-      // if the change is a noop, avoid failing if it updating to required is not allowed
+      // if the change is a noop, allow it even if allowIncompatibleChanges is false
       return;
     }
 

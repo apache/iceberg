@@ -136,7 +136,7 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    * <p>
    * Because "." may be interpreted as a column path separator or may be used in field names, it is
    * not allowed in names passed to this method. To add to nested structures or to add fields with
-   * names that contain ".", use {@link #addColumn(String, String, Type)}.
+   * names that contain ".", use {@link #addRequiredColumn(String, String, Type)}.
    * <p>
    * If type is a nested type, its field IDs are reassigned when added to the existing schema.
    *
@@ -157,7 +157,7 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    * <p>
    * Because "." may be interpreted as a column path separator or may be used in field names, it is
    * not allowed in names passed to this method. To add to nested structures or to add fields with
-   * names that contain ".", use {@link #addColumn(String, String, Type)}.
+   * names that contain ".", use {@link #addRequiredColumn(String, String, Type)}.
    * <p>
    * If type is a nested type, its field IDs are reassigned when added to the existing schema.
    *
