@@ -85,9 +85,9 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
 
     Configuration conf = job.getConfiguration();
 
-    copyUDFContextToConfiguration(conf, IcebergPigInputFormat.ICEBERG_SCHEMA);
-    copyUDFContextToConfiguration(conf, IcebergPigInputFormat.ICEBERG_PROJECTED_FIELDS);
-    copyUDFContextToConfiguration(conf, IcebergPigInputFormat.ICEBERG_FILTER_EXPRESSION);
+    copyUDFContextToScopedConfiguration(conf, IcebergPigInputFormat.ICEBERG_SCHEMA);
+    copyUDFContextToScopedConfiguration(conf, IcebergPigInputFormat.ICEBERG_PROJECTED_FIELDS);
+    copyUDFContextToScopedConfiguration(conf, IcebergPigInputFormat.ICEBERG_FILTER_EXPRESSION);
   }
 
   @Override
@@ -95,7 +95,7 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
     LOG.info("[{}]: getInputFormat()", signature);
     String location = locations.get(signature);
 
-    return new IcebergPigInputFormat(tables.get(location));
+    return new IcebergPigInputFormat(tables.get(location), signature);
   }
 
   @Override
@@ -275,25 +275,18 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
     properties.setProperty(key, ObjectSerializer.serialize(value));
   }
 
-  private void copyUDFContextToConfiguration(Configuration conf, String key) {
+  private void copyUDFContextToScopedConfiguration(Configuration conf, String key) {
     String value = UDFContext.getUDFContext()
         .getUDFProperties(this.getClass(), new String[]{signature}).getProperty(key);
 
     if (value != null) {
-      conf.set(key, value);
+      conf.set(key + '.' + signature, value);
     }
   }
 
   @Override
   public String relativeToAbsolutePath(String location, Path curDir) throws IOException {
     return location;
-  }
-
-  @SuppressWarnings("unchecked")
-  public <T extends Serializable> T getFromUDFContext(String key, Class<T> clazz) throws IOException {
-    Properties properties = UDFContext.getUDFContext().getUDFProperties(this.getClass(), new String[]{signature});
-
-    return (T) ObjectSerializer.deserialize(properties.getProperty(key));
   }
 
   private Table load(String location, Job job) throws IOException {

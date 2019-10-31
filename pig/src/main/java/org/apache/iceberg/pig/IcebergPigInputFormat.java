@@ -64,10 +64,12 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
   static final String ICEBERG_FILTER_EXPRESSION = "iceberg.filter.expression";
 
   private Table table;
+  private String signature;
   private List<InputSplit> splits;
 
-  IcebergPigInputFormat(Table table) {
+  IcebergPigInputFormat(Table table, String signature) {
     this.table = table;
+    this.signature = signature;
   }
 
   @Override
@@ -84,7 +86,8 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
 
     //Apply Filters
     Expression filterExpression =
-        (Expression) ObjectSerializer.deserialize(context.getConfiguration().get(ICEBERG_FILTER_EXPRESSION));
+        (Expression) ObjectSerializer.deserialize(context.getConfiguration().get(scope(ICEBERG_FILTER_EXPRESSION)));
+    LOG.info("[{}]: iceberg filter expressions: {}", signature, filterExpression);
 
     if (filterExpression != null) {
       LOG.info("Filter Expression: {}", filterExpression);
@@ -139,7 +142,11 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
     }
   }
 
-  public static class IcebergRecordReader<T> extends RecordReader<Void, T> {
+  private String scope(String key) {
+    return key + '.' + signature;
+  }
+
+  public class IcebergRecordReader<T> extends RecordReader<Void, T> {
     private TaskAttemptContext context;
 
     private Iterator<FileScanTask> tasks;
@@ -170,9 +177,12 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
 
       FileScanTask currentTask = tasks.next();
 
-      Schema tableSchema = (Schema) ObjectSerializer.deserialize(context.getConfiguration().get(ICEBERG_SCHEMA));
+      Schema tableSchema = (Schema) ObjectSerializer.deserialize(context.getConfiguration().get(scope(ICEBERG_SCHEMA)));
+      LOG.debug("[{}]: Task table schema: {}", signature, tableSchema);
+
       List<String> projectedFields =
-          (List<String>) ObjectSerializer.deserialize(context.getConfiguration().get(ICEBERG_PROJECTED_FIELDS));
+          (List<String>) ObjectSerializer.deserialize(context.getConfiguration().get(scope(ICEBERG_PROJECTED_FIELDS)));
+      LOG.debug("[{}]: Task projected fields: {}", signature, projectedFields);
 
       Schema projectedSchema = projectedFields != null ? SchemaUtil.project(tableSchema, projectedFields) : tableSchema;
 
