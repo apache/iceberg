@@ -19,12 +19,13 @@
 
 package org.apache.iceberg.util;
 
+import java.io.Serializable;
 import org.apache.iceberg.types.Comparators;
 
 /**
  * Wrapper class to adapt CharSequence for use in maps and sets.
  */
-public class CharSequenceWrapper {
+public class CharSequenceWrapper implements CharSequence, Serializable {
   public static CharSequenceWrapper wrap(CharSequence seq) {
     return new CharSequenceWrapper(seq);
   }
@@ -65,5 +66,20 @@ public class CharSequenceWrapper {
       result = 31 * result + (int) ch;
     }
     return result;
+  }
+
+  @Override
+  public int length() {
+    return wrapped.length();
+  }
+
+  @Override
+  public char charAt(int index) {
+    return wrapped.charAt(index);
+  }
+
+  @Override
+  public CharSequence subSequence(int start, int end) {
+    return wrapped.subSequence(start, end);
   }
 }

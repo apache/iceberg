@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.expressions;
 
+import java.util.Set;
+
 /**
  * Utils for traversing {@link Expression expressions}.
  */
@@ -49,6 +51,11 @@ public class ExpressionVisitors {
 
     public <T> R predicate(BoundPredicate<T> pred) {
       return null;
+    }
+
+    public <T> R predicate(BoundSetPredicate<T> pred) {
+      throw new UnsupportedOperationException(
+          "predicate for BoundSetPredicate is not supported by the visitor");
     }
 
     public <T> R predicate(UnboundPredicate<T> pred) {
@@ -89,12 +96,12 @@ public class ExpressionVisitors {
       return null;
     }
 
-    public <T> R in(BoundReference<T> ref, Literal<T> lit) {
-      return null;
+    public <T> R in(BoundReference<T> ref, Set<T> literalSet) {
+      throw new UnsupportedOperationException("In operation is not supported by the visitor");
     }
 
-    public <T> R notIn(BoundReference<T> ref, Literal<T> lit) {
-      return null;
+    public <T> R notIn(BoundReference<T> ref, Set<T> literalSet) {
+      throw new UnsupportedOperationException("notIn operation is not supported by the visitor");
     }
 
     public <T> R startsWith(BoundReference<T> ref, Literal<T> lit) {
@@ -120,15 +127,24 @@ public class ExpressionVisitors {
           return eq(pred.ref(), pred.literal());
         case NOT_EQ:
           return notEq(pred.ref(), pred.literal());
-        case IN:
-          return in(pred.ref(), pred.literal());
-        case NOT_IN:
-          return notIn(pred.ref(), pred.literal());
         case STARTS_WITH:
           return startsWith(pred.ref(),  pred.literal());
         default:
           throw new UnsupportedOperationException(
-              "Unknown operation for predicate: " + pred.op());
+              "Unknown operation for BoundPredicate: " + pred.op());
+      }
+    }
+
+    @Override
+    public <T> R predicate(BoundSetPredicate<T> pred) {
+      switch (pred.op()) {
+        case IN:
+          return in(pred.ref(), pred.literalSet());
+        case NOT_IN:
+          return notIn(pred.ref(), pred.literalSet());
+        default:
+          throw new UnsupportedOperationException(
+              "Unknown operation for BoundSetPredicate: " + pred.op());
       }
     }
 
@@ -153,6 +169,8 @@ public class ExpressionVisitors {
     if (expr instanceof Predicate) {
       if (expr instanceof BoundPredicate) {
         return visitor.predicate((BoundPredicate<?>) expr);
+      } else if (expr instanceof BoundSetPredicate) {
+        return visitor.predicate((BoundSetPredicate<?>) expr);
       } else {
         return visitor.predicate((UnboundPredicate<?>) expr);
       }
@@ -193,6 +211,8 @@ public class ExpressionVisitors {
     if (expr instanceof Predicate) {
       if (expr instanceof BoundPredicate) {
         return visitor.predicate((BoundPredicate<?>) expr);
+      } else if (expr instanceof BoundSetPredicate) {
+        return visitor.predicate((BoundSetPredicate<?>) expr);
       } else {
         return visitor.predicate((UnboundPredicate<?>) expr);
       }

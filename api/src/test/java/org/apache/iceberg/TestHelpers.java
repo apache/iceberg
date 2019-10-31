@@ -28,6 +28,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.BoundSetPredicate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.UnboundPredicate;
@@ -48,6 +49,13 @@ public class TestHelpers {
     Assert.assertTrue("Expression should be a bound predicate: " + expr,
         expr instanceof BoundPredicate);
     return (BoundPredicate<T>) expr;
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T> BoundSetPredicate<T> assertAndUnwrapBoundSet(Expression expr) {
+    Assert.assertTrue("Expression should be a bound set predicate: " + expr,
+        expr instanceof BoundSetPredicate);
+    return (BoundSetPredicate<T>) expr;
   }
 
   @SuppressWarnings("unchecked")

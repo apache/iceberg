@@ -23,6 +23,7 @@ import com.google.common.collect.Maps;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
@@ -330,12 +331,12 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean in(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean notIn(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
       return ROWS_MIGHT_MATCH;
     }
 

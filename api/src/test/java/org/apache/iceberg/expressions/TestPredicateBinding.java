@@ -22,6 +22,7 @@ package org.apache.iceberg.expressions;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
@@ -29,13 +30,16 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import static org.apache.iceberg.TestHelpers.assertAndUnwrap;
+import static org.apache.iceberg.TestHelpers.assertAndUnwrapBoundSet;
 import static org.apache.iceberg.expressions.Expression.Operation.EQ;
 import static org.apache.iceberg.expressions.Expression.Operation.GT;
 import static org.apache.iceberg.expressions.Expression.Operation.GT_EQ;
+import static org.apache.iceberg.expressions.Expression.Operation.IN;
 import static org.apache.iceberg.expressions.Expression.Operation.IS_NULL;
 import static org.apache.iceberg.expressions.Expression.Operation.LT;
 import static org.apache.iceberg.expressions.Expression.Operation.LT_EQ;
 import static org.apache.iceberg.expressions.Expression.Operation.NOT_EQ;
+import static org.apache.iceberg.expressions.Expression.Operation.NOT_IN;
 import static org.apache.iceberg.expressions.Expression.Operation.NOT_NULL;
 import static org.apache.iceberg.expressions.Expressions.ref;
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -301,5 +305,203 @@ public class TestPredicateBinding {
     StructType required = StructType.of(required(22, "s", Types.StringType.get()));
     Assert.assertEquals("NotNull inclusive a required field should be alwaysTrue",
         Expressions.alwaysTrue(), unbound.bind(required));
+  }
+
+  @Test
+  public void testInPredicateBinding() {
+    StructType struct = StructType.of(
+        required(10, "x", Types.IntegerType.get()),
+        required(11, "y", Types.IntegerType.get()),
+        required(12, "z", Types.IntegerType.get())
+    );
+
+    UnboundPredicate<Integer> unbound = Expressions.in("y", 6, 7, 11);
+
+    Expression expr = unbound.bind(struct);
+    BoundSetPredicate<Integer> bound = assertAndUnwrapBoundSet(expr);
+
+    Assert.assertEquals("Should reference correct field ID", 11, bound.ref().fieldId());
+    Assert.assertEquals("Should not change the IN operation", IN, bound.op());
+    Assert.assertArrayEquals("Should not alter literal set values",
+        new Integer[]{6, 7, 11},
+        bound.literalSet().stream().sorted()
+            .collect(Collectors.toList()).toArray(new Integer[2]));
+  }
+
+  @Test
+  public void testInPredicateBindingConversion() {
+    StructType struct = StructType.of(required(15, "d", Types.DecimalType.of(9, 2)));
+    UnboundPredicate<String> unbound = Expressions.in("d", "12.40", "1.23", "99.99", "1.23");
+    Expression expr = unbound.bind(struct);
+    BoundSetPredicate<BigDecimal> bound = assertAndUnwrapBoundSet(expr);
+    Assert.assertArrayEquals("Should convert literal set values to decimal",
+        new BigDecimal[]{new BigDecimal("1.23"), new BigDecimal("12.40"), new BigDecimal("99.99")},
+        bound.literalSet().stream().sorted()
+            .collect(Collectors.toList()).toArray(new BigDecimal[2]));
+    Assert.assertEquals("Should reference correct field ID", 15, bound.ref().fieldId());
+    Assert.assertEquals("Should not change the IN operation", IN, bound.op());
+  }
+
+  @Test
+  public void testInToEqPredicate() {
+    StructType struct = StructType.of(required(14, "x", Types.IntegerType.get()));
+
+    UnboundPredicate<Integer> unbound = Expressions.in("x", 5);
+
+    Assert.assertEquals("Should create an IN predicate with a single item", IN, unbound.op());
+    Assert.assertEquals("Should create an IN predicate with a single item",
+        1, unbound.literals().size());
+
+    Expression expr = unbound.bind(struct);
+    BoundPredicate<Integer> bound = assertAndUnwrap(expr);
+
+    Assert.assertEquals("Should not alter literal value",
+        Integer.valueOf(5), bound.literal().value());
+    Assert.assertEquals("Should reference correct field ID", 14, bound.ref().fieldId());
+    Assert.assertEquals("Should change the operation from IN to EQ", EQ, bound.op());
+  }
+
+  @Test
+  public void testInPredicateBindingConversionToEq() {
+    StructType struct = StructType.of(required(14, "x", Types.IntegerType.get()));
+
+    UnboundPredicate<Long> unbound = Expressions.in("x", 5L, Long.MAX_VALUE);
+
+    Expression.Operation op = unbound.op();
+    Assert.assertEquals("Should create an IN unbound predicate", IN, op);
+
+    Expression expr = unbound.bind(struct);
+    BoundPredicate<Integer> bound = assertAndUnwrap(expr);
+
+    Assert.assertEquals("Should remove aboveMax literal value",
+        Integer.valueOf(5), bound.literal().value());
+    Assert.assertEquals("Should reference correct field ID", 14, bound.ref().fieldId());
+    Assert.assertEquals("Should change the IN operation to EQ", EQ, bound.op());
+  }
+
+  @Test
+  public void testInPredicateBindingConversionDedupToEq() {
+    StructType struct = StructType.of(required(15, "d", Types.DecimalType.of(9, 2)));
+    UnboundPredicate<Double> unbound = Expressions.in("d", 12.40, 12.401, 12.402);
+    Assert.assertEquals("Should create an IN unbound predicate", IN, unbound.op());
+
+    Expression expr = unbound.bind(struct);
+    BoundPredicate<BigDecimal> bound = assertAndUnwrap(expr);
+    Assert.assertEquals("Should convert literal set values to a single decimal",
+        new BigDecimal("12.40"), bound.literal().value());
+    Assert.assertEquals("Should reference correct field ID", 15, bound.ref().fieldId());
+    Assert.assertEquals("Should change the IN operation to EQ", EQ, bound.op());
+  }
+
+  @Test
+  public void testInPredicateBindingConversionToExpression() {
+    StructType struct = StructType.of(required(14, "x", Types.IntegerType.get()));
+
+    UnboundPredicate<Long> unbound = Expressions.in("x", Long.MAX_VALUE - 1, Long.MAX_VALUE);
+
+    Expression.Operation op = unbound.op();
+    Assert.assertEquals("Should create an IN predicate", IN, op);
+
+    Expression expr = unbound.bind(struct);
+    Assert.assertEquals("Should change IN to alwaysFalse expression", Expressions.alwaysFalse(), expr);
+  }
+
+  @Test
+  public void testNotInPredicateBinding() {
+    StructType struct = StructType.of(
+        required(10, "x", Types.IntegerType.get()),
+        required(11, "y", Types.IntegerType.get()),
+        required(12, "z", Types.IntegerType.get())
+    );
+
+    UnboundPredicate<Integer> unbound = Expressions.notIn("y", 6, 7, 11);
+
+    Expression expr = unbound.bind(struct);
+    BoundSetPredicate<Integer> bound = assertAndUnwrapBoundSet(expr);
+
+    Assert.assertEquals("Should reference correct field ID", 11, bound.ref().fieldId());
+    Assert.assertEquals("Should not change the NOT_IN operation", NOT_IN, bound.op());
+    Assert.assertArrayEquals("Should not alter literal set values",
+        new Integer[]{6, 7, 11},
+        bound.literalSet().stream().sorted()
+            .collect(Collectors.toList()).toArray(new Integer[2]));
+  }
+
+  @Test
+  public void testNotInPredicateBindingConversion() {
+    StructType struct = StructType.of(required(15, "d", Types.DecimalType.of(9, 2)));
+    UnboundPredicate<String> unbound = Expressions.notIn("d", "12.40", "1.23", "99.99", "1.23");
+    Expression expr = unbound.bind(struct);
+    BoundSetPredicate<BigDecimal> bound = assertAndUnwrapBoundSet(expr);
+    Assert.assertArrayEquals("Should convert literal set values to decimal",
+        new BigDecimal[]{new BigDecimal("1.23"), new BigDecimal("12.40"), new BigDecimal("99.99")},
+        bound.literalSet().stream().sorted()
+            .collect(Collectors.toList()).toArray(new BigDecimal[2]));
+    Assert.assertEquals("Should reference correct field ID", 15, bound.ref().fieldId());
+    Assert.assertEquals("Should not change the NOT_IN operation", NOT_IN, bound.op());
+  }
+
+  @Test
+  public void testNotInToNotEqPredicate() {
+    StructType struct = StructType.of(required(14, "x", Types.IntegerType.get()));
+
+    UnboundPredicate<Integer> unbound = Expressions.notIn("x", 5);
+
+    Assert.assertEquals("Should create a NOT_IN predicate with a single item", NOT_IN, unbound.op());
+    Assert.assertEquals("Should create a NOT_IN predicate with a single item",
+        1, unbound.literals().size());
+
+    Expression expr = unbound.bind(struct);
+    BoundPredicate<Integer> bound = assertAndUnwrap(expr);
+
+    Assert.assertEquals("Should not alter literal value",
+        Integer.valueOf(5), bound.literal().value());
+    Assert.assertEquals("Should reference correct field ID", 14, bound.ref().fieldId());
+    Assert.assertEquals("Should change the operation from NOT_IN to NOT_EQ", NOT_EQ, bound.op());
+  }
+
+  @Test
+  public void testNotInPredicateBindingConversionToNotEq() {
+    StructType struct = StructType.of(required(14, "x", Types.IntegerType.get()));
+
+    UnboundPredicate<Long> unbound = Expressions.notIn("x", 5L, Long.MAX_VALUE);
+
+    Expression.Operation op = unbound.op();
+    Assert.assertEquals("Should create a NOT_IN unbound predicate", NOT_IN, op);
+
+    Expression expr = unbound.bind(struct);
+    BoundPredicate<Integer> bound = assertAndUnwrap(expr);
+
+    Assert.assertEquals("Should remove aboveMax literal value",
+        Integer.valueOf(5), bound.literal().value());
+    Assert.assertEquals("Should reference correct field ID", 14, bound.ref().fieldId());
+    Assert.assertEquals("Should change the NOT_IN operation to NOT_EQ", NOT_EQ, bound.op());
+  }
+
+  @Test
+  public void testNotInPredicateBindingConversionDedupToNotEq() {
+    StructType struct = StructType.of(required(15, "d", Types.DecimalType.of(9, 2)));
+    UnboundPredicate<Double> unbound = Expressions.notIn("d", 12.40, 12.401, 12.402);
+    Assert.assertEquals("Should create a NOT_IN unbound predicate", NOT_IN, unbound.op());
+
+    Expression expr = unbound.bind(struct);
+    BoundPredicate<BigDecimal> bound = assertAndUnwrap(expr);
+    Assert.assertEquals("Should convert literal set values to a single decimal",
+        new BigDecimal("12.40"), bound.literal().value());
+    Assert.assertEquals("Should reference correct field ID", 15, bound.ref().fieldId());
+    Assert.assertEquals("Should change the NOT_IN operation to NOT_EQ", NOT_EQ, bound.op());
+  }
+
+  @Test
+  public void testNotInPredicateBindingConversionToExpression() {
+    StructType struct = StructType.of(required(14, "x", Types.IntegerType.get()));
+
+    UnboundPredicate<Long> unbound = Expressions.notIn("x", Long.MAX_VALUE - 1, Long.MAX_VALUE);
+
+    Expression.Operation op = unbound.op();
+    Assert.assertEquals("Should create an NOT_IN predicate", NOT_IN, op);
+
+    Expression expr = unbound.bind(struct);
+    Assert.assertEquals("Should change NOT_IN to alwaysTrue expression", Expressions.alwaysTrue(), expr);
   }
 }

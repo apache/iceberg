@@ -20,6 +20,9 @@
 package org.apache.iceberg.expressions;
 
 import com.google.common.base.Preconditions;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression.Operation;
 
@@ -109,16 +112,40 @@ public class Expressions {
     return new UnboundPredicate<>(Expression.Operation.STARTS_WITH, ref(name), value);
   }
 
+  public static <T> UnboundPredicate<T> in(String name, T... values) {
+    return predicate(Operation.IN, name,
+        Stream.of(values).map(Literals::from).collect(Collectors.toSet()));
+  }
+
+  public static <T> UnboundPredicate<T> in(String name, Collection<T> values) {
+    Preconditions.checkNotNull(values, "Values cannot be null for IN predicate.");
+    return predicate(Operation.IN, name,
+        values.stream().map(Literals::from).collect(Collectors.toSet()));
+  }
+
+  public static <T> UnboundPredicate<T> notIn(String name, T... values) {
+    return predicate(Operation.NOT_IN, name,
+        Stream.of(values).map(Literals::from).collect(Collectors.toSet()));
+  }
+
+  public static <T> UnboundPredicate<T> notIn(String name, Collection<T> values) {
+    Preconditions.checkNotNull(values, "Values cannot be null for NOT_IN predicate.");
+    return predicate(Operation.NOT_IN, name,
+        values.stream().map(Literals::from).collect(Collectors.toSet()));
+  }
+
   public static <T> UnboundPredicate<T> predicate(Operation op, String name, T value) {
-    Preconditions.checkArgument(op != Operation.IS_NULL && op != Operation.NOT_NULL,
-        "Cannot create %s predicate inclusive a value", op);
-    return new UnboundPredicate<>(op, ref(name), value);
+    return predicate(op, name, Literals.from(value));
   }
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name, Literal<T> lit) {
     Preconditions.checkArgument(op != Operation.IS_NULL && op != Operation.NOT_NULL,
         "Cannot create %s predicate inclusive a value", op);
-    return new UnboundPredicate<>(op, ref(name), lit);
+    return predicate(op, name, Collections.singleton(lit));
+  }
+
+  private static <T> UnboundPredicate<T> predicate(Operation op, String name, Collection<Literal<T>> lits) {
+    return new UnboundPredicate<>(op, ref(name), lits);
   }
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name) {
