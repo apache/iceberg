@@ -76,7 +76,12 @@ public class AvroSchemaUtil {
     return TypeUtil.visit(type, new TypeToSchema(names));
   }
 
-  public static Type convert(Schema schema) {
+  public static Schema convert(Schema schema) {
+    final Type t = convertToType(schema);
+    return convert(t);
+  }
+
+  public static Type convertToType(Schema schema) {
     return AvroSchemaVisitor.visit(schema, new SchemaToType(schema));
   }
 
