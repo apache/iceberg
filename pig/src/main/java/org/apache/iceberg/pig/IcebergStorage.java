@@ -276,7 +276,8 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
   }
 
   private void copyUDFContextToScopedConfiguration(Configuration conf, String key) {
-    String value = UDFContext.getUDFContext().getUDFProperties(this.getClass(), new String[]{signature}).getProperty(key);
+    String value = UDFContext.getUDFContext()
+        .getUDFProperties(this.getClass(), new String[]{signature}).getProperty(key);
 
     if (value != null) {
       conf.set(key + '.' + signature, value);
