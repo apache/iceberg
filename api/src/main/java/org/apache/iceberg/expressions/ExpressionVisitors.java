@@ -211,6 +211,8 @@ public class ExpressionVisitors {
     if (expr instanceof Predicate) {
       if (expr instanceof BoundPredicate) {
         return visitor.predicate((BoundPredicate<?>) expr);
+      } else if (expr instanceof BoundSetPredicate) {
+        return visitor.predicate((BoundSetPredicate<?>) expr);
       } else {
         return visitor.predicate((UnboundPredicate<?>) expr);
       }

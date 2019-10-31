@@ -428,43 +428,43 @@ public class TestEvaluator {
 
   @Test
   public void testInExceptions() {
-    TestHelpers.assertThrows(
+    AssertHelpers.assertThrows(
         "Throw exception if value is null",
         NullPointerException.class,
         "Cannot create expression literal from null",
         () -> in("x", (Literal) null));
 
-    TestHelpers.assertThrows(
+    AssertHelpers.assertThrows(
         "Throw exception if value is null",
         NullPointerException.class,
         "Values cannot be null for IN predicate",
         () -> in("x", (Collection<?>) null));
 
-    TestHelpers.assertThrows(
+    AssertHelpers.assertThrows(
         "Throw exception if calling literal() for IN predicate",
         IllegalArgumentException.class,
         "IN predicate cannot return a literal",
         () -> in("x", 5, 6).literal());
 
-    TestHelpers.assertThrows(
+    AssertHelpers.assertThrows(
         "Throw exception if any value in the input is null",
         NullPointerException.class,
         "Cannot create expression literal from null",
         () -> in("x", 1, 2, null));
 
-    TestHelpers.assertThrows(
+    AssertHelpers.assertThrows(
         "Throw exception if binding fails for any element in the set",
         ValidationException.class,
         "Invalid value for comparison inclusive type int",
         () -> new Evaluator(STRUCT, in("x", 7, 8, 9.1)));
 
-    TestHelpers.assertThrows(
+    AssertHelpers.assertThrows(
         "Throw exception if no input value",
         IllegalArgumentException.class,
         "Cannot create IN predicate without a value",
         () -> predicate(Expression.Operation.IN, "x"));
 
-    TestHelpers.assertThrows(
+    AssertHelpers.assertThrows(
         "Implicit conversion IN to EQ and throw exception if binding fails",
         ValidationException.class,
         "Invalid value for comparison inclusive type int",
@@ -525,43 +525,43 @@ public class TestEvaluator {
 
   @Test
   public void testNotInExceptions() {
-    TestHelpers.assertThrows(
+    AssertHelpers.assertThrows(
         "Throw exception if value is null",
         NullPointerException.class,
         "Cannot create expression literal from null",
         () -> notIn("x", (Literal) null));
 
-    TestHelpers.assertThrows(
+    AssertHelpers.assertThrows(
         "Throw exception if value is null",
         NullPointerException.class,
         "Values cannot be null for NOT_IN predicate",
         () -> notIn("x", (Collection<?>) null));
 
-    TestHelpers.assertThrows(
+    AssertHelpers.assertThrows(
         "Throw exception if calling literal() for IN predicate",
         IllegalArgumentException.class,
         "NOT_IN predicate cannot return a literal",
         () -> notIn("x", 5, 6).literal());
 
-    TestHelpers.assertThrows(
+    AssertHelpers.assertThrows(
         "Throw exception if any value in the input is null",
         NullPointerException.class,
         "Cannot create expression literal from null",
         () -> notIn("x", 1, 2, null));
 
-    TestHelpers.assertThrows(
+    AssertHelpers.assertThrows(
         "Throw exception if binding fails for any element in the set",
         ValidationException.class,
         "Invalid value for comparison inclusive type int",
         () -> new Evaluator(STRUCT, notIn("x", 7, 8, 9.1)));
 
-    TestHelpers.assertThrows(
+    AssertHelpers.assertThrows(
         "Throw exception if no input value",
         IllegalArgumentException.class,
         "Cannot create NOT_IN predicate without a value",
         () -> predicate(Expression.Operation.NOT_IN, "x"));
 
-    TestHelpers.assertThrows(
+    AssertHelpers.assertThrows(
         "Implicit conversion NOT_IN to NOT_EQ and throw exception if binding fails",
         ValidationException.class,
         "Invalid value for comparison inclusive type int",
