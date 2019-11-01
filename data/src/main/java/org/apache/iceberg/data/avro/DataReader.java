@@ -33,7 +33,6 @@ import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.ResolvingDecoder;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.avro.AvroSchemaWithTypeVisitor;
-import org.apache.iceberg.avro.LogicalMap;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
 import org.apache.iceberg.exceptions.RuntimeIOException;
