@@ -36,27 +36,7 @@ public abstract class AvroSchemaWithTypeVisitor<T> {
     switch (schema.getType()) {
       case RECORD:
         Types.StructType struct = iType != null ? iType.asStructType() : null;
-
-        // check to make sure this hasn't been visited before
-        String name = schema.getFullName();
-        Preconditions.checkState(!visitor.recordLevels.contains(name),
-            "Cannot process recursive Avro record %s", name);
-
-        visitor.recordLevels.push(name);
-
-        List<Schema.Field> fields = schema.getFields();
-        List<String> names = Lists.newArrayListWithExpectedSize(fields.size());
-        List<T> results = Lists.newArrayListWithExpectedSize(fields.size());
-        for (Schema.Field field : schema.getFields()) {
-          int fieldId = AvroSchemaUtil.getFieldId(field);
-          Types.NestedField iField = struct != null ? struct.field(fieldId) : null;
-          names.add(field.name());
-          results.add(visit(iField != null ? iField.type() : null, field.schema(), visitor));
-        }
-
-        visitor.recordLevels.pop();
-
-        return visitor.record(struct, schema, names, results);
+        return visitRecord(struct, schema, visitor);
 
       case UNION:
         List<Schema> types = schema.getTypes();
@@ -83,6 +63,29 @@ public abstract class AvroSchemaWithTypeVisitor<T> {
       default:
         return visitor.primitive(iType != null ? iType.asPrimitiveType() : null, schema);
     }
+  }
+
+  private static <T> T visitRecord(Types.StructType struct, Schema record, AvroSchemaWithTypeVisitor<T> visitor) {
+    // check to make sure this hasn't been visited before
+    String name = record.getFullName();
+    Preconditions.checkState(!visitor.recordLevels.contains(name),
+        "Cannot process recursive Avro record %s", name);
+
+    visitor.recordLevels.push(name);
+
+    List<Schema.Field> fields = record.getFields();
+    List<String> names = Lists.newArrayListWithExpectedSize(fields.size());
+    List<T> results = Lists.newArrayListWithExpectedSize(fields.size());
+    for (Schema.Field field : fields) {
+      int fieldId = AvroSchemaUtil.getFieldId(field);
+      Types.NestedField iField = struct != null ? struct.field(fieldId) : null;
+      names.add(field.name());
+      results.add(visit(iField != null ? iField.type() : null, field.schema(), visitor));
+    }
+
+    visitor.recordLevels.pop();
+
+    return visitor.record(struct, record, names, results);
   }
 
   private Deque<String> recordLevels = Lists.newLinkedList();
