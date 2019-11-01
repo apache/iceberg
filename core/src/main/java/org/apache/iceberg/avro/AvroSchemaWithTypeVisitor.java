@@ -51,9 +51,18 @@ public abstract class AvroSchemaWithTypeVisitor<T> {
         return visitor.union(iType, schema, options);
 
       case ARRAY:
-        Types.ListType list = iType != null ? iType.asListType() : null;
-        return visitor.array(list, schema,
-            visit(list != null ? list.elementType() : null, schema.getElementType(), visitor));
+        if (schema.getLogicalType() instanceof LogicalMap) {
+          Types.MapType map = iType != null ? iType.asMapType() : null;
+          List<Schema.Field> keyValueFields = schema.getElementType().getFields();
+          return visitor.map(map, schema,
+              visit(map != null ? map.keyType() : null, keyValueFields.get(0).schema(), visitor),
+              visit(map != null ? map.valueType() : null, keyValueFields.get(1).schema(), visitor));
+
+        } else {
+          Types.ListType list = iType != null ? iType.asListType() : null;
+          return visitor.array(list, schema,
+              visit(list != null ? list.elementType() : null, schema.getElementType(), visitor));
+        }
 
       case MAP:
         Types.MapType map = iType != null ? iType.asMapType() : null;
@@ -99,6 +108,10 @@ public abstract class AvroSchemaWithTypeVisitor<T> {
   }
 
   public T array(Types.ListType iList, Schema array, T element) {
+    return null;
+  }
+
+  public T map(Types.MapType iMap, Schema map, T key, T value) {
     return null;
   }
 

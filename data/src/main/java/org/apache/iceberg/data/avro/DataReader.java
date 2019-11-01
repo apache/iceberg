@@ -114,15 +114,12 @@ public class DataReader<T> implements DatumReader<T> {
 
     @Override
     public ValueReader<?> array(Types.ListType ignored, Schema array, ValueReader<?> elementReader) {
-      if (array.getLogicalType() instanceof LogicalMap) {
-        ValueReaders.StructReader<?> keyValueReader = (ValueReaders.StructReader) elementReader;
-        ValueReader<?> keyReader = keyValueReader.reader(0);
-        ValueReader<?> valueReader = keyValueReader.reader(1);
-
-        return ValueReaders.arrayMap(keyReader, valueReader);
-      }
-
       return ValueReaders.array(elementReader);
+    }
+
+    @Override
+    public ValueReader<?> map(Types.MapType iMap, Schema map, ValueReader<?> keyReader, ValueReader<?> valueReader) {
+      return ValueReaders.arrayMap(keyReader, valueReader);
     }
 
     @Override

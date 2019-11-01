@@ -66,7 +66,8 @@ public class TestParquetAvroWriter {
       optional(19, "renovate", Types.MapType.ofRequired(20, 21,
           Types.StringType.get(), Types.StructType.of(
               optional(22, "jumpy", Types.DoubleType.get()),
-              required(23, "koala", Types.TimeType.get())
+              required(23, "koala", Types.TimeType.get()),
+              required(24, "couch rope", Types.IntegerType.get())
           ))),
       optional(2, "slide", Types.StringType.get())
   );
