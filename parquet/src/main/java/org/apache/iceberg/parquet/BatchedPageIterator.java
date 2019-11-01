@@ -95,6 +95,7 @@ public class BatchedPageIterator {
         advance();
     }
 
+    // Dictionary is set per row group
     public void setDictionary(Dictionary dict) {
         this.dict = dict;
     }
@@ -125,7 +126,7 @@ public class BatchedPageIterator {
     public int nextBatchIntegers(final FieldVector vector, final int expectedBatchSize,
         final int numValsInVector,
         final int typeWidth, NullabilityHolder holder) {
-        final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
+        final int actualBatchSize = getActualBatchSize(expectedBatchSize);
         if (actualBatchSize <= 0) {
             return 0;
         }
@@ -135,6 +136,14 @@ public class BatchedPageIterator {
         return actualBatchSize;
     }
 
+    // ok so if the dictionary is available here, what do we do?
+    // the dicitonary needs to be set only once I think?
+    // we use the dictionary and set it in the value vector?
+    // we also know that all we need to do is read integers
+
+
+
+
     /**
      * Method for reading a batch of non-decimal numeric data types (INT32, INT64, FLOAT, DOUBLE, DATE, TIMESTAMP)
      * This method reads batches of bytes from Parquet and writes them into the data buffer underneath the Arrow
@@ -143,7 +152,7 @@ public class BatchedPageIterator {
     public int nextBatchLongs(final FieldVector vector, final int expectedBatchSize,
         final int numValsInVector,
         final int typeWidth, NullabilityHolder holder) {
-        final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
+        final int actualBatchSize = getActualBatchSize(expectedBatchSize);
         if (actualBatchSize <= 0) {
             return 0;
         }
@@ -161,7 +170,7 @@ public class BatchedPageIterator {
     public int nextBatchFloats(final FieldVector vector, final int expectedBatchSize,
         final int numValsInVector,
         final int typeWidth, NullabilityHolder holder) {
-        final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
+        final int actualBatchSize = getActualBatchSize(expectedBatchSize);
         if (actualBatchSize <= 0) {
             return 0;
         }
@@ -179,7 +188,7 @@ public class BatchedPageIterator {
     public int nextBatchDoubles(final FieldVector vector, final int expectedBatchSize,
         final int numValsInVector,
         final int typeWidth, NullabilityHolder holder) {
-        final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
+        final int actualBatchSize = getActualBatchSize(expectedBatchSize);
         if (actualBatchSize <= 0) {
             return 0;
         }
@@ -189,13 +198,17 @@ public class BatchedPageIterator {
         return actualBatchSize;
     }
 
+    private int getActualBatchSize(int expectedBatchSize) {
+        return Math.min(expectedBatchSize, triplesCount - triplesRead);
+    }
+
     /**
      * Method for reading a batch of decimals backed by INT32 and INT64 parquet data types.
      * Arrow stores all decimals in 16 bytes. This method provides the necessary padding to the decimals read.
      */
     public int nextBatchIntLongBackedDecimal(final FieldVector vector, final int expectedBatchSize, final int numValsInVector,
                                              final int typeWidth, NullabilityHolder nullabilityHolder) {
-        final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
+        final int actualBatchSize = getActualBatchSize(expectedBatchSize);
         if (actualBatchSize <= 0) {
             return 0;
         }
@@ -215,7 +228,7 @@ public class BatchedPageIterator {
      */
     public int nextBatchFixedLengthDecimal(final FieldVector vector, final int expectedBatchSize, final int numValsInVector,
                                            final int typeWidth, NullabilityHolder nullabilityHolder) {
-        final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
+        final int actualBatchSize = getActualBatchSize(expectedBatchSize);
         if (actualBatchSize <= 0) {
             return 0;
         }
@@ -230,7 +243,7 @@ public class BatchedPageIterator {
      */
     public int nextBatchVarWidthType(final FieldVector vector, final int expectedBatchSize, final int numValsInVector
         , NullabilityHolder nullabilityHolder) {
-        final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
+        final int actualBatchSize = getActualBatchSize(expectedBatchSize);
         if (actualBatchSize <= 0) {
             return 0;
         }
@@ -247,7 +260,7 @@ public class BatchedPageIterator {
      */
     public int nextBatchFixedWidthBinary(final FieldVector vector, final int expectedBatchSize, final int numValsInVector,
                                          final int typeWidth, NullabilityHolder nullabilityHolder) {
-        final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
+        final int actualBatchSize = getActualBatchSize(expectedBatchSize);
         if (actualBatchSize <= 0) {
             return 0;
         }
@@ -261,7 +274,7 @@ public class BatchedPageIterator {
      * Method for reading batches of booleans.
      */
     public int nextBatchBoolean(final FieldVector vector, final int expectedBatchSize, final int numValsInVector, NullabilityHolder nullabilityHolder) {
-        final int actualBatchSize = Math.min(expectedBatchSize, triplesCount - triplesRead);
+        final int actualBatchSize = getActualBatchSize(expectedBatchSize);
         if (actualBatchSize <= 0) {
             return 0;
         }
@@ -308,12 +321,9 @@ public class BatchedPageIterator {
         // TODO: May want to change this so that this class is not dictionary-aware.
         // For dictionary columns, this class could rely on wrappers to correctly handle dictionaries
         // This isn't currently possible because RLE must be read by getDictionaryBasedValuesReader
-        if (dataEncoding.usesDictionary()) {
-            /*if (dict == null) {
+        if (dataEncoding.usesDictionary() && dict == null) {
                 throw new ParquetDecodingException(
                         "could not read page in col " + desc + " as the dictionary was missing for encoding " + dataEncoding);
-            }
-            this.bytesReader = dataEncoding.getDictionaryBasedValuesReader(desc, VALUES, dict); */
         } else {
             //if (ParquetUtil.isVarWidthType(desc) || ParquetUtil.isBooleanType(desc)) {
             // if (ParquetUtil.isBooleanType(desc)) {

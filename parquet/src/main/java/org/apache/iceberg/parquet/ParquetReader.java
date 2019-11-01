@@ -21,8 +21,10 @@ package org.apache.iceberg.parquet;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -32,9 +34,12 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.parquet.ParquetReadOptions;
+import org.apache.parquet.column.page.DictionaryPageReadStore;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
@@ -114,6 +119,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
         boolean shouldRead = filter == null || (
             statsFilter.shouldRead(typeWithIds, rowGroup) &&
                 dictFilter.shouldRead(typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup)));
+
         this.shouldSkip[i] = !shouldRead;
         if (shouldRead) {
           totalValues += rowGroup.getRowCount();
@@ -244,16 +250,27 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       }
 
       PageReadStore pages;
+      DictionaryPageReadStore dictionaryPageReadStore;
       try {
         pages = reader.readNextRowGroup();
+        dictionaryPageReadStore = reader.getNextDictionaryReader();
       } catch (IOException e) {
         throw new RuntimeIOException(e);
       }
 
       nextRowGroupStart += pages.getRowCount();
       nextRowGroup += 1;
+      model.setRowGroupInfo(pages, dictionaryPageReadStore, buildColumnDictEncodedMap(reader.getRowGroups()));
+    }
 
-      model.setPageSource(pages);
+    private static Map<ColumnPath, Boolean> buildColumnDictEncodedMap(List<BlockMetaData> blockMetaData) {
+      Map<ColumnPath, Boolean> map = new HashMap<>();
+      for (BlockMetaData b : blockMetaData) {
+        for (ColumnChunkMetaData c : b.getColumns()) {
+          map.put(c.getPath(), ParquetUtil.hasNonDictionaryPages(c));
+        }
+      }
+      return map;
     }
 
     @Override

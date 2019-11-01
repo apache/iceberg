@@ -254,6 +254,7 @@ public final class VectorizedValuesReader extends ValuesReader {
     throw new RuntimeException("Unreachable");
   }
 
+  // the same method will be used for reading in the data pages that are dictionary encoded
   public void readBatchOfIntegers(
       final FieldVector vector, final int numValsInVector,
       final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder, BytesReader valuesReader) {
@@ -297,6 +298,10 @@ public final class VectorizedValuesReader extends ValuesReader {
       currentCount -= n;
     }
   }
+
+  // ok this is the point where we fill the arrow vector. If dictionary is available to us, what we need to do
+  // is to take in batch of dictionary ids through the bytes reader, and set it in the arrow vector. So instead
+  // of writing values to the dataBuffer, we instead will be writing array indices.
 
   public void readBatchOfLongs(
       final FieldVector vector, final int numValsInVector,

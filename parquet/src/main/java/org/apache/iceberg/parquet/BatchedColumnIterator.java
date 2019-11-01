@@ -20,13 +20,17 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.apache.arrow.vector.FieldVector;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
-import org.apache.parquet.column.page.DataPage;
-import org.apache.parquet.column.page.DictionaryPage;
-import org.apache.parquet.column.page.PageReadStore;
-import org.apache.parquet.column.page.PageReader;
+import org.apache.parquet.column.page.*;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.io.ParquetDecodingException;
 
 public class BatchedColumnIterator {
@@ -40,6 +44,7 @@ public class BatchedColumnIterator {
   private long valuesRead = 0L;
   private long advanceNextPageCount = 0L;
   private final int batchSize;
+  private Map<Integer, Object> dictionaryMap;
 
   public BatchedColumnIterator(ColumnDescriptor desc, String writerVersion, int batchSize) {
     this.desc = desc;
@@ -47,14 +52,18 @@ public class BatchedColumnIterator {
     this.batchedPageIterator = new BatchedPageIterator(desc, writerVersion, batchSize);
   }
 
-  public void setPageSource(PageReadStore store) {
+  public Dictionary setPageSource(PageReadStore store,
+                                  DictionaryPageReadStore dictionaryPageReadStore,
+                                  Map<ColumnPath, Boolean> columnDictEncoded) {
     this.pageSource = store.getPageReader(desc);
     this.totalValuesCount = pageSource.getTotalValueCount();
     this.valuesRead = 0L;
     this.advanceNextPageCount = 0L;
     this.batchedPageIterator.reset();
-    this.batchedPageIterator.setDictionary(readDictionary(desc, pageSource));
+    Dictionary dict = readDictionary(desc, columnDictEncoded, dictionaryPageReadStore);
+    this.batchedPageIterator.setDictionary(dict);
     advance();
+    return dict;
   }
 
   private void advance() {
@@ -211,18 +220,21 @@ public class BatchedColumnIterator {
     }
   }
 
-  private static Dictionary readDictionary(ColumnDescriptor desc, PageReader pageSource) {
-    DictionaryPage dictionaryPage = pageSource.readDictionaryPage();
-    if (dictionaryPage != null) {
-      try {
-        return dictionaryPage.getEncoding().initDictionary(desc, dictionaryPage);
-//        if (converter.hasDictionarySupport()) {
-//          converter.setDictionary(dictionary);
-//        }
-      } catch (IOException e) {
-        throw new ParquetDecodingException("could not decode the dictionary for " + desc, e);
+  private Dictionary readDictionary(ColumnDescriptor desc,
+                                    Map<ColumnPath, Boolean> columnDictEncoded,
+                                    DictionaryPageReadStore dictionaryPageReadStore) {
+    boolean areAllPagesDictEncoded = columnDictEncoded.get(ColumnPath.get(desc.getPath()));
+    if (areAllPagesDictEncoded) {
+      DictionaryPage dictionaryPage = dictionaryPageReadStore.readDictionaryPage(desc);
+      if (dictionaryPage != null) {
+        try {
+          return dictionaryPage.getEncoding().initDictionary(desc, dictionaryPage);
+        } catch (IOException e) {
+          throw new ParquetDecodingException("could not decode the dictionary for " + desc, e);
+        }
       }
     }
     return null;
   }
+
 }

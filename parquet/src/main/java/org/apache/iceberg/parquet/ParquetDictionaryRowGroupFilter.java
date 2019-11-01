@@ -20,11 +20,9 @@
 package org.apache.iceberg.parquet;
 
 import avro.shaded.com.google.common.collect.Sets;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import java.io.IOException;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -36,12 +34,9 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.expressions.Literal;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
-import org.apache.parquet.column.Encoding;
-import org.apache.parquet.column.EncodingStats;
 import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.DictionaryPageReadStore;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
@@ -120,7 +115,7 @@ public class ParquetDictionaryRowGroupFilter {
         PrimitiveType colType = fileSchema.getType(meta.getPath().toArray()).asPrimitiveType();
         if (colType.getId() != null) {
           int id = colType.getId().intValue();
-          isFallback.put(id, hasNonDictionaryPages(meta));
+          isFallback.put(id, ParquetUtil.hasNonDictionaryPages(meta));
           mayContainNulls.put(id, mayContainNull(meta));
         }
       }
@@ -347,35 +342,4 @@ public class ParquetDictionaryRowGroupFilter {
     return meta.getStatistics() == null || meta.getStatistics().getNumNulls() != 0;
   }
 
-  @SuppressWarnings("deprecation")
-  private static boolean hasNonDictionaryPages(ColumnChunkMetaData meta) {
-    EncodingStats stats = meta.getEncodingStats();
-    if (stats != null) {
-      return stats.hasNonDictionaryEncodedPages();
-    }
-
-    // without EncodingStats, fall back to testing the encoding list
-    Set<Encoding> encodings = new HashSet<Encoding>(meta.getEncodings());
-    if (encodings.remove(Encoding.PLAIN_DICTIONARY)) {
-      // if remove returned true, PLAIN_DICTIONARY was present, which means at
-      // least one page was dictionary encoded and 1.0 encodings are used
-
-      // RLE and BIT_PACKED are only used for repetition or definition levels
-      encodings.remove(Encoding.RLE);
-      encodings.remove(Encoding.BIT_PACKED);
-
-      if (encodings.isEmpty()) {
-        return false; // no encodings other than dictionary or rep/def levels
-      }
-
-      return true;
-
-    } else {
-      // if PLAIN_DICTIONARY wasn't present, then either the column is not
-      // dictionary-encoded, or the 2.0 encoding, RLE_DICTIONARY, was used.
-      // for 2.0, this cannot determine whether a page fell back without
-      // page encoding stats
-      return true;
-    }
-  }
 }
