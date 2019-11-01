@@ -39,5 +39,4 @@ public class VectorizedReadIntegersTwentyPercentNullBenchmark extends Vectorized
       appendAsFile(df);
     }
   }
-  ;
 }

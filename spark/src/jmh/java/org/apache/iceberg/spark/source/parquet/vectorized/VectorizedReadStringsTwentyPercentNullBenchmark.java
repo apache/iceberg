@@ -33,8 +33,7 @@ public class VectorizedReadStringsTwentyPercentNullBenchmark extends VectorizedR
   protected void appendData() {
     for (int fileNum = 1; fileNum <= NUM_FILES; fileNum++) {
       Dataset<Row> df = spark().range(NUM_ROWS)
-          .withColumn("longCol", when(pmod(col("id"), lit(2)).equalTo(lit(0)), lit(null)).otherwise(col("id")))
-          .drop("id")
+          .withColumn("id", when(pmod(col("id"), lit(2)).equalTo(lit(0)), lit(null)).otherwise(col("id")))
           .withColumn("stringCol", expr("CAST(longCol AS STRING)"));
 
       appendAsFile(df);

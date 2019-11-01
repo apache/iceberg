@@ -37,14 +37,15 @@ public class VectorizedReadStringsBenchmark extends VectorizedIcebergSourceBench
   @Override
   protected final Table initTable() {
     Schema schema = new Schema(
-        optional(1, "longCol", Types.LongType.get())
-        .optional(2, "stringCol", Types.StringType.get()));
+        optional(1, "longCol", Types.LongType.get()),
+        optional(2, "stringCol", Types.StringType.get()));
     PartitionSpec partitionSpec = PartitionSpec.unpartitioned();
     HadoopTables tables = new HadoopTables(hadoopConf());
     Map<String, String> properties = Maps.newHashMap();
     properties.put(TableProperties.METADATA_COMPRESSION, "gzip");
     properties.put(TableProperties.PARQUET_DICT_SIZE_BYTES, "1");
-    return tables.create(schema, partitionSpec, properties, newTableLocation());
+    Table t = tables.create(schema, partitionSpec, properties, newTableLocation());
+    return t;
   }
 
   @Override

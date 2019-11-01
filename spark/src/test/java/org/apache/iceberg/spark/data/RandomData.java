@@ -22,17 +22,6 @@ package org.apache.iceberg.spark.data;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.nio.ByteBuffer;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.Random;
-import java.util.Set;
-import java.util.UUID;
-import java.util.function.Supplier;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.Schema;
@@ -47,6 +36,12 @@ import org.apache.spark.sql.catalyst.util.GenericArrayData;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.util.*;
+import java.util.function.Supplier;
+
 public class RandomData {
 
   private RandomData() {}
@@ -57,6 +52,17 @@ public class RandomData {
     for (int i = 0; i < numRecords; i += 1) {
       Record rec = (Record) TypeUtil.visit(schema, generator);
       //System.out.println("Add record "+rec);
+      records.add(rec);
+    }
+
+    return records;
+  }
+
+  public static List<Record> generateListWithFallBackDictionaryEncodingForStrings(Schema schema, int numRecords, long seed, float fraction) {
+    RandomDataGenerator generator = new FallbackDictionaryEncodedDataGenerator(schema, seed, numRecords, fraction);
+    List<Record> records = Lists.newArrayListWithExpectedSize(numRecords);
+    for (int i = 0; i < numRecords; i += 1) {
+      Record rec = (Record) TypeUtil.visit(schema, generator);
       records.add(rec);
     }
 
@@ -203,6 +209,34 @@ public class RandomData {
         default:
           return result;
       }
+    }
+  }
+
+  private static class FallbackDictionaryEncodedDataGenerator extends RandomDataGenerator {
+
+    private final int numRecords;
+    private final float fraction;
+    private int current;
+
+    private FallbackDictionaryEncodedDataGenerator(Schema schema, long seed, int numRecords, float fraction) {
+      super(schema, seed);
+      this.numRecords = numRecords;
+      this.fraction = fraction;
+    }
+
+    @Override
+    public Object primitive(Type.PrimitiveType primitive) {
+      switch (primitive.typeId()) {
+        case STRING:
+          if (current < fraction * numRecords) {
+            current++;
+            return "ABC";
+          } else {
+            current++;
+            return super.primitive(primitive);
+          }
+      }
+      return super.primitive(primitive);
     }
   }
 
@@ -425,7 +459,6 @@ public class RandomData {
     for (int i = 0; i < length; i += 1) {
       buffer[i] = (byte) CHARS.charAt(random.nextInt(CHARS.length()));
     }
-
     return UTF8String.fromBytes(buffer);
   }
 

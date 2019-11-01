@@ -19,23 +19,19 @@
 package org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow;
 
 import io.netty.buffer.ArrowBuf;
-import org.apache.arrow.vector.BigIntVector;
-import org.apache.arrow.vector.BitVector;
-import org.apache.arrow.vector.DateDayVector;
-import org.apache.arrow.vector.DecimalVector;
-import org.apache.arrow.vector.FixedSizeBinaryVector;
-import org.apache.arrow.vector.Float4Vector;
-import org.apache.arrow.vector.Float8Vector;
-import org.apache.arrow.vector.IntVector;
-import org.apache.arrow.vector.SmallIntVector;
-import org.apache.arrow.vector.TimeStampMicroTZVector;
-import org.apache.arrow.vector.TinyIntVector;
-import org.apache.arrow.vector.ValueVector;
-import org.apache.arrow.vector.VarBinaryVector;
+import org.apache.arrow.vector.*;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.holders.NullableVarCharHolder;
 import org.apache.iceberg.parquet.NullabilityHolder;
+import org.apache.iceberg.parquet.ParquetUtil;
+import org.apache.iceberg.parquet.VectorReader;
+import org.apache.parquet.Preconditions;
+import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.Dictionary;
+import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.DecimalMetadata;
+import org.apache.parquet.schema.PrimitiveType;
 import org.apache.spark.sql.execution.arrow.ArrowUtils;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.vectorized.ArrowColumnVector;
@@ -43,6 +39,8 @@ import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.sql.vectorized.ColumnarMap;
 import org.apache.spark.unsafe.types.UTF8String;
+
+import java.math.BigInteger;
 
 /**
  * Implementation of Spark's {@link ColumnVector} interface. The main purpose
@@ -55,12 +53,18 @@ public class IcebergArrowColumnVector extends ColumnVector {
 
   private final ArrowVectorAccessor accessor;
   private final NullabilityHolder nullabilityHolder;
+  private final ColumnDescriptor columnDescriptor;
+  private final Dictionary dictionary;
+  private final boolean isVectorDictEncoded;
   private ArrowColumnVector[] childColumns;
 
-  public IcebergArrowColumnVector(ValueVector vector, NullabilityHolder nulls) {
-    super(ArrowUtils.fromArrowField(vector.getField()));
+  public IcebergArrowColumnVector(VectorReader.VectorHolder holder, NullabilityHolder nulls) {
+    super(ArrowUtils.fromArrowField(holder.getVector().getField()));
     this.nullabilityHolder = nulls;
-    this.accessor = getAccessor(vector);
+    this.columnDescriptor = holder.getDescriptor();
+    this.dictionary = holder.getDictionary();
+    this.isVectorDictEncoded = holder.isDictionaryEncoded();
+    this.accessor = getVectorAccessor(columnDescriptor, holder.getVector());
   }
 
   @Override
@@ -227,45 +231,104 @@ public class IcebergArrowColumnVector extends ColumnVector {
     }
   }
 
-  private ArrowVectorAccessor getAccessor(ValueVector vector) {
-    if (vector instanceof BitVector) {
-      return new BooleanAccessor((BitVector) vector);
-    } else if (vector instanceof TinyIntVector) {
-      return new ByteAccessor((TinyIntVector) vector);
-    } else if (vector instanceof SmallIntVector) {
-      return new ShortAccessor((SmallIntVector) vector);
-    } else if (vector instanceof IntVector) {
-      return new IntAccessor((IntVector) vector);
-    } else if (vector instanceof BigIntVector) {
-      return new LongAccessor((BigIntVector) vector);
-    } else if (vector instanceof Float4Vector) {
-      return new FloatAccessor((Float4Vector) vector);
-    } else if (vector instanceof Float8Vector) {
-      return new DoubleAccessor((Float8Vector) vector);
-    } else if (vector instanceof IcebergDecimalArrowVector) {
-      return new DecimalAccessor((IcebergDecimalArrowVector) vector);
-    } else if (vector instanceof IcebergVarcharArrowVector) {
-      return new StringAccessor((IcebergVarcharArrowVector) vector);
-    } else if (vector instanceof IcebergVarBinaryArrowVector) {
-      return new BinaryAccessor((IcebergVarBinaryArrowVector) vector);
-    } else if (vector instanceof DateDayVector) {
-      return new DateAccessor((DateDayVector) vector);
-    } else if (vector instanceof TimeStampMicroTZVector) {
-      return new TimestampAccessor((TimeStampMicroTZVector) vector);
-    } else if (vector instanceof ListVector) {
-      ListVector listVector = (ListVector) vector;
-      return new ArrayAccessor(listVector);
-    } else if (vector instanceof StructVector) {
-      StructVector structVector = (StructVector) vector;
-      ArrowVectorAccessor accessor = new StructAccessor(structVector);
-      childColumns = new ArrowColumnVector[structVector.size()];
-      for (int i = 0; i < childColumns.length; ++i) {
-        childColumns[i] = new ArrowColumnVector(structVector.getVectorById(i));
+  private ArrowVectorAccessor getVectorAccessor(ColumnDescriptor desc, ValueVector vector) {
+    PrimitiveType primitive = desc.getPrimitiveType();
+    if (isVectorDictEncoded) {
+      Preconditions.checkState(vector instanceof IntVector, "Dictionary ids should be stored in IntVectors only");
+      if (primitive.getOriginalType() != null) {
+        switch (desc.getPrimitiveType().getOriginalType()) {
+          case ENUM:
+          case JSON:
+          case UTF8:
+          case BSON:
+            return new DictionaryStringAccessor((IntVector) vector);
+          case INT_8:
+          case INT_16:
+          case INT_32:
+          case DATE:
+            return new DictionaryIntAccessor((IntVector) vector);
+          case INT_64:
+          case TIMESTAMP_MILLIS:
+          case TIMESTAMP_MICROS:
+            return new DictionaryLongAccessor((IntVector) vector);
+          case DECIMAL:
+            DecimalMetadata decimal = primitive.getDecimalMetadata();
+            switch (primitive.getPrimitiveTypeName()) {
+              case BINARY:
+              case FIXED_LEN_BYTE_ARRAY:
+                return new DictionaryDecimalBinaryAccessor((IntVector) vector, decimal.getPrecision(), decimal.getScale());
+              case INT64:
+                return new DictionaryDecimalLongAccessor((IntVector) vector, decimal.getPrecision(), decimal.getScale());
+              case INT32:
+                return new DictionaryDecimalIntAccessor((IntVector) vector, decimal.getPrecision(), decimal.getScale());
+              default:
+                throw new UnsupportedOperationException(
+                        "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
+            }
+          default:
+            throw new UnsupportedOperationException(
+                    "Unsupported logical type: " + primitive.getOriginalType());
+        }
+      } else {
+        switch (primitive.getPrimitiveTypeName()) {
+          case FIXED_LEN_BYTE_ARRAY:
+          case BINARY:
+            return new DictionaryBinaryAccessor((IntVector) vector);
+          case INT32:
+            return new DictionaryIntAccessor((IntVector) vector);
+          case FLOAT:
+            return new DictionaryFloatAccessor((IntVector) vector);
+//        case BOOLEAN:
+//          this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
+//          ((BitVector) vec).allocateNew(batchSize);
+//          return UNKNOWN_WIDTH;
+          case INT64:
+            return new DictionaryLongAccessor((IntVector) vector);
+          case DOUBLE:
+            return new DictionaryDoubleAccessor((IntVector) vector);
+          default:
+            throw new UnsupportedOperationException("Unsupported type: " + primitive);
+        }
       }
-      return accessor;
     } else {
-      throw new UnsupportedOperationException();
+      if (vector instanceof BitVector) {
+        return new BooleanAccessor((BitVector) vector);
+      } else if (vector instanceof TinyIntVector) {
+        return new ByteAccessor((TinyIntVector) vector);
+      } else if (vector instanceof SmallIntVector) {
+        return new ShortAccessor((SmallIntVector) vector);
+      } else if (vector instanceof IntVector) {
+        return new IntAccessor((IntVector) vector);
+      } else if (vector instanceof BigIntVector) {
+        return new LongAccessor((BigIntVector) vector);
+      } else if (vector instanceof Float4Vector) {
+        return new FloatAccessor((Float4Vector) vector);
+      } else if (vector instanceof Float8Vector) {
+        return new DoubleAccessor((Float8Vector) vector);
+      } else if (vector instanceof IcebergDecimalArrowVector) {
+        return new DecimalAccessor((IcebergDecimalArrowVector) vector);
+      } else if (vector instanceof IcebergVarcharArrowVector) {
+        return new StringAccessor((IcebergVarcharArrowVector) vector);
+      } else if (vector instanceof IcebergVarBinaryArrowVector) {
+        return new BinaryAccessor((IcebergVarBinaryArrowVector) vector);
+      } else if (vector instanceof DateDayVector) {
+        return new DateAccessor((DateDayVector) vector);
+      } else if (vector instanceof TimeStampMicroTZVector) {
+        return new TimestampAccessor((TimeStampMicroTZVector) vector);
+      } else if (vector instanceof ListVector) {
+        ListVector listVector = (ListVector) vector;
+        return new ArrayAccessor(listVector);
+      } else if (vector instanceof StructVector) {
+        StructVector structVector = (StructVector) vector;
+        ArrowVectorAccessor accessor = new StructAccessor(structVector);
+        childColumns = new ArrowColumnVector[structVector.size()];
+        for (int i = 0; i < childColumns.length; ++i) {
+          childColumns[i] = new ArrowColumnVector(structVector.getVectorById(i));
+        }
+        return accessor;
+      }
     }
+    throw new UnsupportedOperationException();
   }
 
   private class BooleanAccessor extends ArrowVectorAccessor {
@@ -328,6 +391,21 @@ public class IcebergArrowColumnVector extends ColumnVector {
     }
   }
 
+  private class DictionaryIntAccessor extends ArrowVectorAccessor {
+
+    private final IntVector vector;
+
+    DictionaryIntAccessor(IntVector vector) {
+      super(vector);
+      this.vector = vector;
+    }
+
+    @Override
+    final int getInt(int rowId) {
+      return dictionary.decodeToInt(vector.get(rowId));
+    }
+  }
+
   private class LongAccessor extends ArrowVectorAccessor {
 
     private final BigIntVector vector;
@@ -340,6 +418,21 @@ public class IcebergArrowColumnVector extends ColumnVector {
     @Override
     final long getLong(int rowId) {
       return vector.get(rowId);
+    }
+  }
+
+  private class DictionaryLongAccessor extends ArrowVectorAccessor {
+
+    private final IntVector vector;
+
+    DictionaryLongAccessor(IntVector vector) {
+      super(vector);
+      this.vector = vector;
+    }
+
+    @Override
+    final long getLong(int rowId) {
+      return dictionary.decodeToLong(vector.get(rowId));
     }
   }
 
@@ -358,6 +451,21 @@ public class IcebergArrowColumnVector extends ColumnVector {
     }
   }
 
+  private class DictionaryFloatAccessor extends ArrowVectorAccessor {
+
+    private final IntVector vector;
+
+    DictionaryFloatAccessor(IntVector vector) {
+      super(vector);
+      this.vector = vector;
+    }
+
+    @Override
+    final float getFloat(int rowId) {
+      return dictionary.decodeToFloat(vector.get(rowId));
+    }
+  }
+
   private class DoubleAccessor extends ArrowVectorAccessor {
 
     private final Float8Vector vector;
@@ -370,6 +478,21 @@ public class IcebergArrowColumnVector extends ColumnVector {
     @Override
     final double getDouble(int rowId) {
       return vector.get(rowId);
+    }
+  }
+
+  private class DictionaryDoubleAccessor extends ArrowVectorAccessor {
+
+    private final IntVector vector;
+
+    DictionaryDoubleAccessor(IntVector vector) {
+      super(vector);
+      this.vector = vector;
+    }
+
+    @Override
+    final double getDouble(int rowId) {
+      return dictionary.decodeToDouble(vector.get(rowId));
     }
   }
 
@@ -412,6 +535,25 @@ public class IcebergArrowColumnVector extends ColumnVector {
     }
   }
 
+  private class DictionaryStringAccessor extends ArrowVectorAccessor {
+
+    private final IntVector vector;
+
+    DictionaryStringAccessor(IntVector vector) {
+      super(vector);
+      this.vector = vector;
+    }
+
+    @Override
+    final UTF8String getUTF8String(int rowId) {
+      if (isNullAt(rowId)) {
+        return null;
+      }
+      Binary binary = dictionary.decodeToBinary(vector.get(rowId));
+      return UTF8String.fromBytes(binary.getBytesUnsafe());
+    }
+  }
+
   private class FixedSizeBinaryAccessor extends ArrowVectorAccessor {
 
     private final FixedSizeBinaryVector vector;
@@ -442,6 +584,23 @@ public class IcebergArrowColumnVector extends ColumnVector {
     }
   }
 
+  private class DictionaryBinaryAccessor extends ArrowVectorAccessor {
+
+    private final IntVector vector;
+
+    DictionaryBinaryAccessor(IntVector vector) {
+      super(vector);
+      this.vector = vector;
+    }
+
+    @Override
+    final byte[] getBinary(int rowId) {
+      Binary binary = dictionary.decodeToBinary(vector.get(rowId));
+      return binary.getBytesUnsafe();
+    }
+  }
+
+
   private class DateAccessor extends ArrowVectorAccessor {
 
     private final DateDayVector vector;
@@ -457,6 +616,12 @@ public class IcebergArrowColumnVector extends ColumnVector {
     }
   }
 
+  private class DictionaryDateAccessor extends DictionaryIntAccessor {
+    DictionaryDateAccessor(IntVector vector) {
+      super(vector);
+    }
+  }
+
   private class TimestampAccessor extends ArrowVectorAccessor {
 
     private final TimeStampMicroTZVector vector;
@@ -469,6 +634,12 @@ public class IcebergArrowColumnVector extends ColumnVector {
     @Override
     final long getLong(int rowId) {
       return vector.get(rowId);
+    }
+  }
+
+  private class DictionaryTimestampAccessor extends DictionaryLongAccessor {
+    DictionaryTimestampAccessor(IntVector vector) {
+      super(vector);
     }
   }
 
@@ -518,4 +689,56 @@ public class IcebergArrowColumnVector extends ColumnVector {
     }
   }
 
+  private class DictionaryDecimalBinaryAccessor extends ArrowVectorAccessor {
+    private final IntVector vector;
+
+    public DictionaryDecimalBinaryAccessor(IntVector vector, int precision, int scale) {
+      super(vector);
+      this.vector = vector;
+    }
+
+    //TODO: samarth not sure this is efficient or correct.
+    //TODO: samarth refer to decodeDictionaryIds in VectorizedColumnReader
+    @Override
+    final Decimal getDecimal(int rowId, int precision, int scale) {
+      if (isNullAt(rowId)) return null;
+      Binary value = dictionary.decodeToBinary(vector.get(rowId));
+      BigInteger unscaledValue = new BigInteger(value.getBytesUnsafe());
+      return Decimal.apply(unscaledValue.longValue(), precision, scale);
+    }
+  }
+
+  private class DictionaryDecimalLongAccessor extends ArrowVectorAccessor {
+    private final IntVector vector;
+
+    public DictionaryDecimalLongAccessor(IntVector vector, int precision, int scale) {
+      super(vector);
+      this.vector = vector;
+    }
+
+    //TODO: samarth not sure this is efficient or correct
+    @Override
+    final Decimal getDecimal(int rowId, int precision, int scale) {
+      if (isNullAt(rowId)) return null;
+      long unscaledValue = dictionary.decodeToLong(vector.get(rowId));
+      return Decimal.apply(unscaledValue, precision, scale);
+    }
+  }
+
+  private class DictionaryDecimalIntAccessor extends ArrowVectorAccessor {
+    private final IntVector vector;
+
+    public DictionaryDecimalIntAccessor(IntVector vector, int precision, int scale) {
+      super(vector);
+      this.vector = vector;
+    }
+
+    //TODO: samarth not sure this is efficient or correct
+    @Override
+    final Decimal getDecimal(int rowId, int precision, int scale) {
+      if (isNullAt(rowId)) return null;
+      int unscaledValue = dictionary.decodeToInt(vector.get(rowId));
+      return Decimal.apply(unscaledValue, precision, scale);
+    }
+  }
 }

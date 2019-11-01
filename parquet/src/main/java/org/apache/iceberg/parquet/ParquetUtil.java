@@ -22,23 +22,11 @@ package org.apache.iceberg.parquet;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import org.apache.arrow.vector.BigIntVector;
-import org.apache.arrow.vector.DateDayVector;
-import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
 import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.arrow.ArrowSchemaUtil;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.InputFile;
@@ -46,6 +34,9 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.Dictionary;
+import org.apache.parquet.column.Encoding;
+import org.apache.parquet.column.EncodingStats;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
@@ -55,7 +46,10 @@ import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.OriginalType;
 import org.apache.parquet.schema.PrimitiveType;
-import org.apache.spark.sql.catalog.Column;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.*;
 
 import static org.apache.iceberg.parquet.ParquetConversions.fromParquetPrimitive;
 import static org.apache.iceberg.util.BinaryUtil.truncateBinaryMax;
@@ -63,7 +57,6 @@ import static org.apache.iceberg.util.BinaryUtil.truncateBinaryMin;
 import static org.apache.iceberg.util.UnicodeUtil.truncateStringMax;
 import static org.apache.iceberg.util.UnicodeUtil.truncateStringMin;
 import static org.apache.parquet.schema.OriginalType.*;
-import static org.apache.parquet.schema.OriginalType.BSON;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.*;
 
 public class ParquetUtil {
@@ -345,5 +338,37 @@ public class ParquetUtil {
       return true;
     }
     return false;
+  }
+
+  @SuppressWarnings("deprecation")
+  public static boolean hasNonDictionaryPages(ColumnChunkMetaData meta) {
+    EncodingStats stats = meta.getEncodingStats();
+    if (stats != null) {
+      return stats.hasNonDictionaryEncodedPages();
+    }
+
+    // without EncodingStats, fall back to testing the encoding list
+    Set<Encoding> encodings = new HashSet<Encoding>(meta.getEncodings());
+    if (encodings.remove(Encoding.PLAIN_DICTIONARY)) {
+      // if remove returned true, PLAIN_DICTIONARY was present, which means at
+      // least one page was dictionary encoded and 1.0 encodings are used
+
+      // RLE and BIT_PACKED are only used for repetition or definition levels
+      encodings.remove(Encoding.RLE);
+      encodings.remove(Encoding.BIT_PACKED);
+
+      if (encodings.isEmpty()) {
+        return false; // no encodings other than dictionary or rep/def levels
+      }
+
+      return true;
+
+    } else {
+      // if PLAIN_DICTIONARY wasn't present, then either the column is not
+      // dictionary-encoded, or the 2.0 encoding, RLE_DICTIONARY, was used.
+      // for 2.0, this cannot determine whether a page fell back without
+      // page encoding stats
+      return true;
+    }
   }
 }
