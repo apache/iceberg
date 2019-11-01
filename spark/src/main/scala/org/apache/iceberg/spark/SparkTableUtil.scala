@@ -27,16 +27,18 @@ import org.apache.hadoop.fs.{Path, PathFilter}
 import org.apache.iceberg.{DataFile, DataFiles, FileFormat, ManifestFile, ManifestWriter}
 import org.apache.iceberg.{Metrics, MetricsConfig, PartitionSpec, Table}
 import org.apache.iceberg.exceptions.NoSuchTableException
-import org.apache.iceberg.hadoop.{HadoopFileIO, HadoopInputFile, HadoopTables, SerializableConfiguration}
+import org.apache.iceberg.hadoop.{HadoopFileIO, HadoopInputFile, SerializableConfiguration}
 import org.apache.iceberg.orc.OrcMetrics
 import org.apache.iceberg.parquet.ParquetUtil
-import org.apache.iceberg.spark.hacks.Hive
 import org.apache.parquet.hadoop.ParquetFileReader
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.catalyst.TableIdentifier
-import org.apache.spark.sql.catalyst.catalog.CatalogTablePartition
+import org.apache.spark.sql.catalyst.analysis.UnresolvedAttribute
+import org.apache.spark.sql.catalyst.catalog.{CatalogTable, CatalogTablePartition}
+import org.apache.spark.sql.catalyst.expressions.Expression
 import scala.collection.JavaConverters._
+import scala.util.Try
 
 object SparkTableUtil {
   /**
@@ -52,11 +54,7 @@ object SparkTableUtil {
   def partitionDF(spark: SparkSession, table: String): DataFrame = {
     import spark.implicits._
 
-    val partitions: Seq[(Map[String, String], Option[String], Option[String])] =
-      Hive.partitions(spark, table).map { p: CatalogTablePartition =>
-        (p.spec, p.storage.locationUri.map(String.valueOf(_)), p.storage.serde)
-      }
-
+    val partitions = getPartitions(spark, table)
     partitions.toDF("partition", "uri", "format")
   }
 
@@ -71,41 +69,135 @@ object SparkTableUtil {
   def partitionDFByFilter(spark: SparkSession, table: String, expression: String): DataFrame = {
     import spark.implicits._
 
-    val expr = spark.sessionState.sqlParser.parseExpression(expression)
-    val partitions: Seq[(Map[String, String], Option[String], Option[String])] =
-      Hive.partitionsByFilter(spark, table, expr).map { p: CatalogTablePartition =>
-        (p.spec, p.storage.locationUri.map(String.valueOf(_)), p.storage.serde)
-      }
-
+    val partitions = getPartitionsByFilter(spark, table, expression)
     partitions.toDF("partition", "uri", "format")
+  }
+
+  /**
+   * Returns all partitions in the table.
+   *
+   * @param spark a Spark session
+   * @param table a table name and (optional) database
+   * @return all table's partitions
+   */
+  def getPartitions(spark: SparkSession, table: String): Seq[SparkPartition] = {
+    val tableIdent = spark.sessionState.sqlParser.parseTableIdentifier(table)
+    getPartitions(spark, tableIdent)
+  }
+
+  /**
+   * Returns all partitions in the table.
+   *
+   * @param spark a Spark session
+   * @param tableIdent a table identifier
+   * @return all table's partitions
+   */
+  def getPartitions(spark: SparkSession, tableIdent: TableIdentifier): Seq[SparkPartition] = {
+    val catalog = spark.sessionState.catalog
+    val catalogTable = catalog.getTableMetadata(tableIdent)
+
+    catalog
+      .listPartitions(tableIdent)
+      .map(catalogPartition => toSparkPartition(catalogPartition, catalogTable))
+  }
+
+  /**
+   * Returns partitions that match the specified 'predicate'.
+   *
+   * @param spark a Spark session
+   * @param table a table name and (optional) database
+   * @param predicate a predicate on partition columns
+   * @return matching table's partitions
+   */
+  def getPartitionsByFilter(spark: SparkSession, table: String, predicate: String): Seq[SparkPartition] = {
+    val tableIdent = spark.sessionState.sqlParser.parseTableIdentifier(table)
+    val unresolvedPredicateExpr = spark.sessionState.sqlParser.parseExpression(predicate)
+    val resolvedPredicateExpr = resolveAttrs(spark, table, unresolvedPredicateExpr)
+    getPartitionsByFilter(spark, tableIdent, resolvedPredicateExpr)
+  }
+
+  /**
+   * Returns partitions that match the specified 'predicate'.
+   *
+   * @param spark a Spark session
+   * @param tableIdent a table identifier
+   * @param predicateExpr a predicate expression on partition columns
+   * @return matching table's partitions
+   */
+  def getPartitionsByFilter(
+      spark: SparkSession,
+      tableIdent: TableIdentifier,
+      predicateExpr: Expression): Seq[SparkPartition] = {
+
+    val catalog = spark.sessionState.catalog
+    val catalogTable = catalog.getTableMetadata(tableIdent)
+
+    val resolvedPredicateExpr = if (!predicateExpr.resolved) {
+      resolveAttrs(spark, tableIdent.quotedString, predicateExpr)
+    } else {
+      predicateExpr
+    }
+
+    catalog
+      .listPartitionsByFilter(tableIdent, Seq(resolvedPredicateExpr))
+      .map(catalogPartition => toSparkPartition(catalogPartition, catalogTable))
   }
 
   /**
    * Returns the data files in a partition by listing the partition location.
    *
-   * For Parquet partitions, this will read metrics from the file footer. For Avro partitions,
+   * For Parquet and ORC partitions, this will read metrics from the file footer. For Avro partitions,
+   * metrics are set to null.
+   *
+   * @param partition a partition
+   * @param conf a serializable Hadoop conf
+   * @param metricsConfig a metrics conf
+   * @return a Seq of [[SparkDataFile]]
+   */
+  def listPartition(
+      partition: SparkPartition,
+      conf: SerializableConfiguration,
+      metricsConfig: MetricsConfig): Seq[SparkDataFile] = {
+
+    listPartition(partition.values, partition.uri, partition.format, conf.get(), metricsConfig)
+  }
+
+  /**
+   * Returns the data files in a partition by listing the partition location.
+   *
+   * For Parquet and ORC partitions, this will read metrics from the file footer. For Avro partitions,
    * metrics are set to null.
    *
    * @param partition partition key, e.g., "a=1/b=2"
    * @param uri partition location URI
    * @param format partition format, avro or parquet
+   * @param conf a Hadoop conf
+   * @param metricsConfig a metrics conf
    * @return a seq of [[SparkDataFile]]
    */
   def listPartition(
       partition: Map[String, String],
       uri: String,
       format: String,
-      conf: Configuration = new Configuration()): Seq[SparkDataFile] = {
+      conf: Configuration = new Configuration(),
+      metricsConfig: MetricsConfig = MetricsConfig.getDefault): Seq[SparkDataFile] = {
+
     if (format.contains("avro")) {
       listAvroPartition(partition, uri, conf)
     } else if (format.contains("parquet")) {
-      listParquetPartition(partition, uri, conf)
+      listParquetPartition(partition, uri, conf, metricsConfig)
     } else if (format.contains("orc")) {
+      // TODO: use MetricsConfig in listOrcPartition
       listOrcPartition(partition, uri, conf)
     } else {
       throw new UnsupportedOperationException(s"Unknown partition format: $format")
     }
   }
+
+  /**
+   * Case class representing a table partition.
+   */
+  case class SparkPartition(values: Map[String, String], uri: String, format: String)
 
   /**
    * Case class representing a data file.
@@ -259,7 +351,7 @@ object SparkTableUtil {
       partitionPath: Map[String, String],
       partitionUri: String,
       conf: Configuration,
-      metricsSpec: MetricsConfig = MetricsConfig.getDefault): Seq[SparkDataFile] = {
+      metricsSpec: MetricsConfig): Seq[SparkDataFile] = {
     val partition = new Path(partitionUri)
     val fs = partition.getFileSystem(conf)
 
@@ -303,22 +395,41 @@ object SparkTableUtil {
     }
   }
 
-  private def buildManifest(conf: SerializableConfiguration,
-      sparkDataFiles: Seq[SparkDataFile],
-      partitionSpec: PartitionSpec,
-      basePath: String): Iterator[Manifest] = {
-    if (sparkDataFiles.isEmpty) {
-      Seq.empty.iterator
-    } else {
+  private def toSparkPartition(partition: CatalogTablePartition, table: CatalogTable): SparkPartition = {
+    val uri = partition.storage.locationUri.map(String.valueOf(_))
+    require(uri.nonEmpty, "Partition URI should be defined")
+
+    val format = partition.storage.serde.orElse(table.provider)
+    require(format.nonEmpty, "Partition format should be defined")
+
+    SparkPartition(partition.spec, uri.get, format.get)
+  }
+
+  private def resolveAttrs(spark: SparkSession, table: String, expr: Expression): Expression = {
+    val resolver = spark.sessionState.analyzer.resolver
+    val plan = spark.table(table).queryExecution.analyzed
+    expr.transform {
+      case attr: UnresolvedAttribute =>
+        plan.resolve(attr.nameParts, resolver) match {
+          case Some(resolvedAttr) => resolvedAttr
+          case None => throw new IllegalArgumentException(s"Could not resolve $attr using columns: ${plan.output}")
+        }
+    }
+  }
+
+  private def buildManifest(
+      conf: SerializableConfiguration,
+      spec: PartitionSpec,
+      basePath: String): Iterator[SparkDataFile] => Iterator[Manifest] = { files =>
+    if (files.hasNext) {
       val io = new HadoopFileIO(conf.get())
       val ctx = TaskContext.get()
-      val location = new Path(basePath,
-        s"stage-${ctx.stageId()}-task-${ctx.taskAttemptId()}-manifest")
+      val location = new Path(basePath, s"stage-${ctx.stageId()}-task-${ctx.taskAttemptId()}-manifest")
       val outputFile = io.newOutputFile(FileFormat.AVRO.addExtension(location.toString))
-      val writer = ManifestWriter.write(partitionSpec, outputFile)
+      val writer = ManifestWriter.write(spec, outputFile)
       try {
-        sparkDataFiles.foreach { file =>
-          writer.add(file.toDataFile(partitionSpec))
+        files.foreach { file =>
+          writer.add(file.toDataFile(spec))
         }
       } finally {
         writer.close()
@@ -326,6 +437,8 @@ object SparkTableUtil {
 
       val manifestFile = writer.toManifestFile
       Seq(Manifest(manifestFile.path, manifestFile.length, manifestFile.partitionSpecId)).iterator
+    } else {
+      Seq.empty.iterator
     }
   }
 
@@ -352,54 +465,93 @@ object SparkTableUtil {
   }
 
   /**
-   * Import a spark table to a iceberg table.
+   * Import files from an existing Spark table to an Iceberg table.
    *
-   * The import uses the spark session to get table metadata. It assumes no
-   * operation is going on original table and target table and thus is not
+   * The import uses the Spark session to get table metadata. It assumes no
+   * operation is going on the original and target table and thus is not
    * thread-safe.
    *
-   * @param source the database name of the table to be import
-   * @param stagingDir the staging directory to store temporary manifest file
-   * @param table the target table to import
+   * @param spark a Spark session
+   * @param sourceTableIdent an identifier of the source Spark table
+   * @param targetTable an Iceberg table where to import the data
+   * @param stagingDir a staging directory to store temporary manifest files
    */
   def importSparkTable(
-      source: TableIdentifier,
-      stagingDir: String,
-      table: Table): Unit = {
-    val sparkSession = SparkSession.builder().getOrCreate()
-    import sparkSession.sqlContext.implicits._
+      spark: SparkSession,
+      sourceTableIdent: TableIdentifier,
+      targetTable: Table,
+      stagingDir: String): Unit = {
 
-    val dbName = source.database.getOrElse("default")
-    val tableName = source.table
+    val catalog = spark.sessionState.catalog
 
-    if (!sparkSession.catalog.tableExists(dbName, tableName)) {
-      throw new NoSuchTableException(s"Table $dbName.$tableName does not exist")
+    val db = sourceTableIdent.database.getOrElse(catalog.getCurrentDatabase)
+    val sourceTableIdentWithDB = sourceTableIdent.copy(database = Some(db))
+
+    if (!catalog.tableExists(sourceTableIdentWithDB)) {
+      throw new NoSuchTableException(s"Table $sourceTableIdentWithDB does not exist")
     }
 
-    val partitionSpec = SparkSchemaUtil.specForTable(sparkSession, s"$dbName.$tableName")
-    val conf = sparkSession.sparkContext.hadoopConfiguration
-    val serializableConfiguration = new SerializableConfiguration(conf)
-    val appender = table.newAppend()
+    val spec = SparkSchemaUtil.specForTable(spark, sourceTableIdentWithDB.unquotedString)
 
-    if (partitionSpec == PartitionSpec.unpartitioned) {
-      val catalogTable = sparkSession.sessionState.catalog.getTableMetadata(source)
-      val files = listPartition(Map.empty[String, String], catalogTable.location.toString,
-        catalogTable.storage.serde.getOrElse("none"))
-      files.foreach{f => appender.appendFile(f.toDataFile(PartitionSpec.unpartitioned))}
+    if (spec == PartitionSpec.unpartitioned) {
+      importUnpartitionedSparkTable(spark, sourceTableIdentWithDB, targetTable)
     } else {
-      val partitions = partitionDF(sparkSession, s"$dbName.$tableName")
-      val manifests = partitions.flatMap { row =>
-        listPartition(row.getMap[String, String](0).toMap, row.getString(1), row.getString(2))
-      }.repartition(sparkSession.sessionState.conf.numShufflePartitions)
-        .orderBy($"path")
-        .mapPartitions {
-        files => buildManifest(serializableConfiguration, files.toSeq, partitionSpec, stagingDir)
-      }.collect().map(_.toManifestFile)
-      manifests.foreach(appender.appendManifest)
+      importPartitionedSparkTable(spark, sourceTableIdentWithDB, targetTable, spec, stagingDir)
     }
-
-    appender.commit()
   }
 
-}
+  private def importUnpartitionedSparkTable(
+      spark: SparkSession,
+      sourceTableIdent: TableIdentifier,
+      targetTable: Table): Unit = {
 
+    val sourceTable = spark.sessionState.catalog.getTableMetadata(sourceTableIdent)
+    val format = sourceTable.storage.serde.orElse(sourceTable.provider)
+    require(format.nonEmpty, "Could not determine table format")
+
+    val conf = spark.sparkContext.hadoopConfiguration
+    val metricsConfig = MetricsConfig.fromProperties(targetTable.properties)
+
+    val files = listPartition(Map.empty, sourceTable.location.toString, format.get, conf, metricsConfig)
+
+    val append = targetTable.newAppend()
+    files.foreach(file => append.appendFile(file.toDataFile(PartitionSpec.unpartitioned)))
+    append.commit()
+  }
+
+  private def importPartitionedSparkTable(
+      spark: SparkSession,
+      sourceTableIdent: TableIdentifier,
+      targetTable: Table,
+      spec: PartitionSpec,
+      stagingDir: String): Unit = {
+
+    import spark.implicits._
+
+    val conf = spark.sparkContext.hadoopConfiguration
+    val serializableConf = new SerializableConfiguration(conf)
+    val partitions = getPartitions(spark, sourceTableIdent)
+    val parallelism = Math.min(partitions.size, spark.sessionState.conf.parallelPartitionDiscoveryParallelism)
+    val partitionDS = spark.sparkContext.parallelize(partitions, parallelism).toDS()
+    val numShufflePartitions = spark.sessionState.conf.numShufflePartitions
+    val metricsConfig = MetricsConfig.fromProperties(targetTable.properties)
+
+    val manifests = partitionDS
+      .flatMap(partition => listPartition(partition, serializableConf, metricsConfig))
+      .repartition(numShufflePartitions)
+      .orderBy($"path")
+      .mapPartitions(buildManifest(serializableConf, spec, stagingDir))
+      .collect()
+
+    try {
+      val append = targetTable.newAppend()
+      manifests.foreach(manifest => append.appendManifest(manifest.toManifestFile))
+      append.commit()
+    } finally {
+      val io = new HadoopFileIO(conf)
+      manifests.foreach { manifest =>
+        Try(io.deleteFile(manifest.location))
+      }
+    }
+  }
+}

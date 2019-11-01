@@ -32,6 +32,7 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveTableBaseTest;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
+import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SQLContext;
@@ -45,6 +46,7 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import scala.collection.Seq;
 
 public class TestSparkTableUtil extends HiveTableBaseTest {
   private static final Configuration CONF = HiveTableBaseTest.hiveConf;
@@ -119,12 +121,18 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
 
   @Test
   public void testPartitionScan() {
+    Seq<SparkPartition> partitions = SparkTableUtil.getPartitions(spark, qualifiedTableName);
+    Assert.assertEquals("There should be 3 partitions", 3, partitions.size());
+
     Dataset<Row> partitionDF = SparkTableUtil.partitionDF(spark, qualifiedTableName);
     Assert.assertEquals("There should be 3 partitions", 3, partitionDF.count());
   }
 
   @Test
   public void testPartitionScanByFilter() {
+    Seq<SparkPartition> partitions = SparkTableUtil.getPartitionsByFilter(spark, qualifiedTableName, "data = 'a'");
+    Assert.assertEquals("There should be 1 matching partition", 1, partitions.size());
+
     Dataset<Row> partitionDF = SparkTableUtil.partitionDFByFilter(spark, qualifiedTableName, "data = 'a'");
     Assert.assertEquals("There should be 1 matching partition", 1, partitionDF.count());
   }
@@ -141,7 +149,8 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
             SparkSchemaUtil.specForTable(spark, qualifiedTableName),
             ImmutableMap.of(),
             location.getCanonicalPath());
-    SparkTableUtil.importSparkTable(source, "tmp", table);
+    File stagingDir = temp.newFolder("staging-dir");
+    SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
     long count = spark.read().format("iceberg").load(location.toString()).count();
     Assert.assertEquals("three values ", 3, count);
   }
@@ -158,7 +167,8 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
             SparkSchemaUtil.specForTable(spark, qualifiedTableName),
             ImmutableMap.of(),
             location.getCanonicalPath());
-    SparkTableUtil.importSparkTable(source, "/tmp", table);
+    File stagingDir = temp.newFolder("staging-dir");
+    SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
     long count = spark.read().format("iceberg").load(location.toString()).count();
     Assert.assertEquals("three values ", 3, count);
   }
@@ -172,7 +182,8 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
             org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "test_unpartitioned_table"),
             SparkSchemaUtil.schemaForTable(spark, "unpartitioned_table"),
             SparkSchemaUtil.specForTable(spark, "unpartitioned_table"));
-    SparkTableUtil.importSparkTable(source, "/tmp", table);
+    File stagingDir = temp.newFolder("staging-dir");
+    SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
     long count1 = spark.read().format("iceberg").load(DB_NAME + ".test_unpartitioned_table").count();
     Assert.assertEquals("three values ", 3, count1);
 
@@ -184,7 +195,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
             SparkSchemaUtil.schemaForTable(spark, "partitioned_table"),
             SparkSchemaUtil.specForTable(spark, "partitioned_table"));
 
-    SparkTableUtil.importSparkTable(source, "/tmp", table);
+    SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
     long count2 = spark.read().format("iceberg").load(DB_NAME + ".test_partitioned_table").count();
     Assert.assertEquals("three values ", 3, count2);
   }

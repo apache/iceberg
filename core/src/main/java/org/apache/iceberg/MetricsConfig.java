@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import com.google.common.collect.Maps;
+import java.io.Serializable;
 import java.util.Map;
 import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.slf4j.Logger;
@@ -28,7 +29,7 @@ import org.slf4j.LoggerFactory;
 import static org.apache.iceberg.TableProperties.DEFAULT_WRITE_METRICS_MODE;
 import static org.apache.iceberg.TableProperties.DEFAULT_WRITE_METRICS_MODE_DEFAULT;
 
-public class MetricsConfig {
+public class MetricsConfig implements Serializable {
 
   private static final Logger LOG = LoggerFactory.getLogger(MetricsConfig.class);
 
