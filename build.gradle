@@ -40,10 +40,6 @@ plugins {
   id 'com.palantir.consistent-versions' version '1.9.2'
 }
 
-if (JavaVersion.current() != JavaVersion.VERSION_1_8) {
-  throw new GradleException("This build must be run with Java 8")
-}
-
 allprojects {
   group = "org.apache.iceberg"
   version = getProjectVersion()
