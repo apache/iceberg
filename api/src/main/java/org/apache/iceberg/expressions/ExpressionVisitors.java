@@ -66,6 +66,10 @@ public class ExpressionVisitors {
    */
   @Deprecated
   public abstract static class BoundExpressionVisitor<R> extends ExpressionVisitor<R> {
+    protected <T> Literal<T> toLiteral(T val) {
+      return Literals.from(val);
+    }
+
     public <T> R isNull(BoundReference<T> ref) {
       return null;
     }

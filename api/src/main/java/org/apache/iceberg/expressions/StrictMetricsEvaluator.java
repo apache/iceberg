@@ -308,11 +308,19 @@ public class StrictMetricsEvaluator {
 
     @Override
     public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
+      // in(col, {X, Y}) => eq(col, x) OR eq(col, x)
+      if (literalSet.stream().anyMatch(v -> eq(ref, toLiteral(v)))) {
+        return ROWS_MUST_MATCH;
+      }
       return ROWS_MIGHT_NOT_MATCH;
     }
 
     @Override
     public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
+      // notIn(col, {X, Y}) => notEq(col, x) AND notEq(col, x)
+      if (literalSet.stream().allMatch(v -> notEq(ref, toLiteral(v)))) {
+        return ROWS_MUST_MATCH;
+      }
       return ROWS_MIGHT_NOT_MATCH;
     }
 

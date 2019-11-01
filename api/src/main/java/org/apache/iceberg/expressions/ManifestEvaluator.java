@@ -250,11 +250,16 @@ public class ManifestEvaluator {
 
     @Override
     public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
-      return ROWS_MIGHT_MATCH;
+      // in(col, {X, Y}) => eq(col, x) OR eq(col, x)
+      if (literalSet.stream().anyMatch(v -> eq(ref, toLiteral(v)))) {
+        return ROWS_MIGHT_MATCH;
+      }
+      return ROWS_CANNOT_MATCH;
     }
 
     @Override
     public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
+      // notIn(col, {X, Y}) => notEq(col, x) AND notEq(col, x)
       return ROWS_MIGHT_MATCH;
     }
 
