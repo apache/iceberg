@@ -35,34 +35,13 @@ public abstract class AvroSchemaWithTypeVisitor<T> {
   public static <T> T visit(Type iType, Schema schema, AvroSchemaWithTypeVisitor<T> visitor) {
     switch (schema.getType()) {
       case RECORD:
-        Types.StructType struct = iType != null ? iType.asStructType() : null;
-        return visitRecord(struct, schema, visitor);
+        return visitRecord(iType != null ? iType.asStructType() : null, schema, visitor);
 
       case UNION:
-        List<Schema> types = schema.getTypes();
-        List<T> options = Lists.newArrayListWithExpectedSize(types.size());
-        for (Schema type : types) {
-          if (type.getType() == Schema.Type.NULL) {
-            options.add(visit((Type) null, type, visitor));
-          } else {
-            options.add(visit(iType, type, visitor));
-          }
-        }
-        return visitor.union(iType, schema, options);
+        return visitUnion(iType, schema, visitor);
 
       case ARRAY:
-        if (schema.getLogicalType() instanceof LogicalMap) {
-          Types.MapType map = iType != null ? iType.asMapType() : null;
-          List<Schema.Field> keyValueFields = schema.getElementType().getFields();
-          return visitor.map(map, schema,
-              visit(map != null ? map.keyType() : null, keyValueFields.get(0).schema(), visitor),
-              visit(map != null ? map.valueType() : null, keyValueFields.get(1).schema(), visitor));
-
-        } else {
-          Types.ListType list = iType != null ? iType.asListType() : null;
-          return visitor.array(list, schema,
-              visit(list != null ? list.elementType() : null, schema.getElementType(), visitor));
-        }
+        return visitArray(iType, schema, visitor);
 
       case MAP:
         Types.MapType map = iType != null ? iType.asMapType() : null;
@@ -95,6 +74,34 @@ public abstract class AvroSchemaWithTypeVisitor<T> {
     visitor.recordLevels.pop();
 
     return visitor.record(struct, record, names, results);
+  }
+
+  private static <T> T visitUnion(Type type, Schema union, AvroSchemaWithTypeVisitor<T> visitor) {
+    List<Schema> types = union.getTypes();
+    List<T> options = Lists.newArrayListWithExpectedSize(types.size());
+    for (Schema branch : types) {
+      if (branch.getType() == Schema.Type.NULL) {
+        options.add(visit((Type) null, branch, visitor));
+      } else {
+        options.add(visit(type, branch, visitor));
+      }
+    }
+    return visitor.union(type, union, options);
+  }
+
+  private static <T> T visitArray(Type type, Schema array, AvroSchemaWithTypeVisitor<T> visitor) {
+    if (array.getLogicalType() instanceof LogicalMap) {
+      Types.MapType map = type != null ? type.asMapType() : null;
+      List<Schema.Field> keyValueFields = array.getElementType().getFields();
+      return visitor.map(map, array,
+          visit(map != null ? map.keyType() : null, keyValueFields.get(0).schema(), visitor),
+          visit(map != null ? map.valueType() : null, keyValueFields.get(1).schema(), visitor));
+
+    } else {
+      Types.ListType list = type != null ? type.asListType() : null;
+      return visitor.array(list, array,
+          visit(list != null ? list.elementType() : null, array.getElementType(), visitor));
+    }
   }
 
   private Deque<String> recordLevels = Lists.newLinkedList();
