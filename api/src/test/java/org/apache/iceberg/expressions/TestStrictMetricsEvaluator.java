@@ -35,11 +35,13 @@ import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.in;
 import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
+import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
@@ -371,5 +373,48 @@ public class TestStrictMetricsEvaluator {
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA, not(equal("id", 85))).eval(FILE);
     Assert.assertTrue("Should read: no values == 85", shouldRead);
+  }
+
+
+  @Test
+  public void testIntegerIn() {
+    boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, in("id", 5, 6)).eval(FILE);
+    Assert.assertFalse("Should not match: all values !=5 and !=6", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, in("id", 30, 31)).eval(FILE);
+    Assert.assertFalse("Should not match: some values != 30 and !=31", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, in("id", 75, 76)).eval(FILE);
+    Assert.assertFalse("Should not match: some values != 75 and !=76", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, in("id", 78, 79)).eval(FILE);
+    Assert.assertFalse("Should not match: some values != 78 and !=79", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, in("id", 80, 81)).eval(FILE);
+    Assert.assertFalse("Should not match: some values != 80 and !=81)", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, in("always_5", 5, 6)).eval(FILE);
+    Assert.assertTrue("Should match: all values == 5", shouldRead);
+  }
+
+  @Test
+  public void testIntegernotIn() {
+    boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, notIn("id", 5, 6)).eval(FILE);
+    Assert.assertTrue("Should not match: all values !=5 and !=6", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notIn("id", 30, 31)).eval(FILE);
+    Assert.assertFalse("Should not match: some values may be == 30 or == 31", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notIn("id", 75, 76)).eval(FILE);
+    Assert.assertFalse("Should not match: some value may be == 75 or == 76", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notIn("id", 78, 79)).eval(FILE);
+    Assert.assertFalse("Should not match: some value may be == 78 or == 79", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notIn("id", 80, 81)).eval(FILE);
+    Assert.assertTrue("Should match: no values == 80 or == 81", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notIn("always_5", 5, 6)).eval(FILE);
+    Assert.assertFalse("Should not match: all values == 5", shouldRead);
   }
 }

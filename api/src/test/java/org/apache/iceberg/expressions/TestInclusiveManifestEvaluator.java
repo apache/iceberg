@@ -35,11 +35,13 @@ import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.in;
 import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
+import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
@@ -346,5 +348,53 @@ public class TestInclusiveManifestEvaluator {
 
     shouldRead = ManifestEvaluator.forRowFilter(startsWith("some_nulls", "1"), SPEC, false).eval(FILE);
     Assert.assertFalse("Should skip: range doesn't match", shouldRead);
+  }
+
+  @Test
+  public void testIntegerIn() {
+    boolean shouldRead = ManifestEvaluator.forRowFilter(in("id", 5, 6), SPEC, true).eval(FILE);
+    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(in("id", 28, 29), SPEC, true).eval(FILE);
+    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(in("id", 30, 31), SPEC, true).eval(FILE);
+    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(in("id", 75, 76), SPEC, true).eval(FILE);
+    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(in("id", 79, 80), SPEC, true).eval(FILE);
+    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(in("id", 80, 81), SPEC, true).eval(FILE);
+    Assert.assertFalse("Should not read: id above upper bound", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(in("id", 85, 86), SPEC, true).eval(FILE);
+    Assert.assertFalse("Should not read: id above upper bound", shouldRead);
+  }
+
+  @Test
+  public void testIntegerNotIn() {
+    boolean shouldRead = ManifestEvaluator.forRowFilter(notIn("id", 5, 6), SPEC, true).eval(FILE);
+    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(notIn("id", 28, 29), SPEC, true).eval(FILE);
+    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(notIn("id", 30, 31), SPEC, true).eval(FILE);
+    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(notIn("id", 75, 76), SPEC, true).eval(FILE);
+    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(notIn("id", 79, 80), SPEC, true).eval(FILE);
+    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(notIn("id", 80, 81), SPEC, true).eval(FILE);
+    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(notIn("id", 85, 86), SPEC, true).eval(FILE);
+    Assert.assertTrue("Should read: id above upper bound", shouldRead);
   }
 }
