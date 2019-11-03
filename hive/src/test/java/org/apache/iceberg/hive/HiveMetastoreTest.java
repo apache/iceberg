@@ -49,13 +49,19 @@ public abstract class HiveMetastoreTest {
 
   @AfterClass
   public static void stopMetastore() {
-    catalog.close();
-    HiveMetastoreTest.catalog = null;
+    if(catalog != null) {
+      catalog.close();
+      HiveMetastoreTest.catalog = null;
+    }
 
-    metastoreClient.close();
-    HiveMetastoreTest.metastoreClient = null;
+    if(metastoreClient != null) {
+      metastoreClient.close();
+      HiveMetastoreTest.metastoreClient = null;
+    }
 
-    metastore.stop();
-    HiveMetastoreTest.metastore = null;
+    if(metastore != null) {
+      metastore.stop();
+      HiveMetastoreTest.metastore = null;
+    }
   }
 }
