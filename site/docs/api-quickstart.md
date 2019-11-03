@@ -42,6 +42,7 @@ val table = catalog.createTable(name, schema, spec)
 // write into the new logs table with Spark 2.4
 logsDF.write
     .format("iceberg")
+    .mode("overwrite")
     .save("logging.logs")
 ```
 
@@ -63,6 +64,7 @@ val table = tables.create(schema, spec, "hdfs:/tables/logging/logs")
 // write into the new logs table with Spark 2.4
 logsDF.write
     .format("iceberg")
+    .mode("overwrite")
     .save("hdfs:/tables/logging/logs")
 ```
 
