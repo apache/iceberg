@@ -68,6 +68,7 @@ public class DataTableScan extends BaseTableScan {
         ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, options);
   }
 
+  @Override
   public CloseableIterable<FileScanTask> planFiles(TableOperations ops, Snapshot snapshot,
                                                    Expression rowFilter, boolean caseSensitive, boolean colStats) {
     LoadingCache<Integer, ManifestEvaluator> evalCache = Caffeine.newBuilder().build(specId -> {
@@ -105,6 +106,7 @@ public class DataTableScan extends BaseTableScan {
     }
   }
 
+  @Override
   protected long targetSplitSize(TableOperations ops) {
     return ops.current().propertyAsLong(
         TableProperties.SPLIT_SIZE, TableProperties.SPLIT_SIZE_DEFAULT);

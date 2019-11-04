@@ -76,6 +76,7 @@ public class TableIdentifier {
     return name;
   }
 
+  @Override
   public String toString() {
     return namespace.toString() + "." + name;
   }
