@@ -33,7 +33,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceWrapper;
 
 public class FileHistory {
-  private static final List<String> HISTORY_COLUMNS = ImmutableList.of("file_path");
+  private static final ImmutableList<String> HISTORY_COLUMNS = ImmutableList.of("file_path");
 
   private FileHistory() {
   }

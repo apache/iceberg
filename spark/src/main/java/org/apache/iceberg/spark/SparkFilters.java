@@ -23,7 +23,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import java.sql.Date;
 import java.sql.Timestamp;
-import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
@@ -59,7 +58,7 @@ public class SparkFilters {
   private SparkFilters() {
   }
 
-  private static final Map<Class<? extends Filter>, Operation> FILTERS = ImmutableMap
+  private static final ImmutableMap<Class<? extends Filter>, Operation> FILTERS = ImmutableMap
       .<Class<? extends Filter>, Operation>builder()
       .put(EqualTo.class, Operation.EQ)
       .put(EqualNullSafe.class, Operation.EQ)

@@ -51,7 +51,7 @@ public class ScanSummary {
   private ScanSummary() {
   }
 
-  private static final List<String> SCAN_SUMMARY_COLUMNS = ImmutableList.of(
+  private static final ImmutableList<String> SCAN_SUMMARY_COLUMNS = ImmutableList.of(
       "partition", "record_count", "file_size_in_bytes");
 
   /**

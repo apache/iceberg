@@ -59,7 +59,7 @@ public class ParquetValueReaders {
 
   private static class NullReader<T> implements ParquetValueReader<T> {
     private static final NullReader<Void> INSTANCE = new NullReader<>();
-    private static final List<TripleIterator<?>> COLUMNS = ImmutableList.of();
+    private static final ImmutableList<TripleIterator<?>> COLUMNS = ImmutableList.of();
     private static final TripleIterator<?> NULL_COLUMN = new TripleIterator<Object>() {
       @Override
       public int currentDefinitionLevel() {

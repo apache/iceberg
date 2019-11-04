@@ -23,7 +23,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.iceberg.Schema;
@@ -214,7 +213,7 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
     return primitive;
   }
 
-  private static final Map<TypeID, Class<? extends DataType>> TYPES = ImmutableMap
+  private static final ImmutableMap<TypeID, Class<? extends DataType>> TYPES = ImmutableMap
       .<TypeID, Class<? extends DataType>>builder()
       .put(TypeID.BOOLEAN, BooleanType.class)
       .put(TypeID.INTEGER, IntegerType.class)

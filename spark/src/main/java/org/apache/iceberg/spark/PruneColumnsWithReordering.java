@@ -240,7 +240,7 @@ public class PruneColumnsWithReordering extends TypeUtil.CustomOrderSchemaVisito
     return primitive;
   }
 
-  private static final Map<TypeID, Class<? extends DataType>> TYPES = ImmutableMap
+  private static final ImmutableMap<TypeID, Class<? extends DataType>> TYPES = ImmutableMap
       .<TypeID, Class<? extends DataType>>builder()
       .put(TypeID.BOOLEAN, BooleanType.class)
       .put(TypeID.INTEGER, IntegerType.class)
