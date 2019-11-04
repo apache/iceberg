@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.data.orc;
 
+import com.google.common.collect.Iterables;
 import java.io.File;
 import java.io.IOException;
 import org.apache.iceberg.Files;
@@ -36,7 +37,7 @@ public class TestGenericReadProjection extends TestReadProjection {
   protected Record writeAndRead(String desc,
                                 Schema writeSchema, Schema readSchema,
                                 Record record) throws IOException {
-    File file = temp.newFile(desc + ".parquet");
+    File file = temp.newFile(desc + ".orc");
     file.delete();
 
     try (FileAppender<Record> appender = ORC.write(Files.localOutput(file))
@@ -46,6 +47,11 @@ public class TestGenericReadProjection extends TestReadProjection {
       appender.add(record);
     }
 
-    return record;
+    Iterable<Record> records = ORC.read(Files.localInput(file))
+        .schema(readSchema)
+        .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(readSchema, fileSchema))
+        .build();
+
+    return Iterables.getOnlyElement(records);
   }
 }

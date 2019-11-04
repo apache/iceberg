@@ -38,7 +38,7 @@ import org.apache.orc.TypeDescription;
 /**
  * Utilities for mapping Iceberg to ORC schemas.
  */
-final class ORCSchemaUtil {
+public final class ORCSchemaUtil {
 
   private enum BinaryType {
     UUID, FIXED, BINARY
@@ -92,7 +92,7 @@ final class ORCSchemaUtil {
 
   private ORCSchemaUtil() {}
 
-  static TypeDescription convert(Schema schema) {
+  public static TypeDescription convert(Schema schema) {
     final TypeDescription root = TypeDescription.createStruct();
     final Types.StructType schemaRoot = schema.asStruct();
     for (Types.NestedField field : schemaRoot.asStructType().fields()) {
@@ -194,7 +194,7 @@ final class ORCSchemaUtil {
    *
    * @return the Iceberg schema
    */
-  static Schema convert(TypeDescription orcSchema) {
+  public static Schema convert(TypeDescription orcSchema) {
     List<TypeDescription> children = orcSchema.getChildren();
     List<String> childrenNames = orcSchema.getFieldNames();
     Preconditions.checkState(children.size() == childrenNames.size(),
@@ -235,7 +235,8 @@ final class ORCSchemaUtil {
    * @param originalOrcSchema an existing ORC file schema
    * @return the resulting ORC schema
    */
-  static TypeDescription buildOrcProjection(Schema schema, TypeDescription originalOrcSchema) {
+  public static TypeDescription buildOrcProjection(Schema schema,
+                                                   TypeDescription originalOrcSchema) {
     AtomicInteger lastColumnId = new AtomicInteger(originalOrcSchema.getMaximumId());
     final Map<Integer, OrcField> icebergToOrc = icebergToOrcMapping("root",
         originalOrcSchema, lastColumnId::incrementAndGet);

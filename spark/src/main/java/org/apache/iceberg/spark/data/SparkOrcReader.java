@@ -419,7 +419,8 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
         writer.setNullAt(column);
       } else {
         BytesColumnVector bytesVector = (BytesColumnVector) vector;
-        writer.write(column, bytesVector.vector[rowIndex], bytesVector.start[rowIndex], bytesVector.length[rowIndex]);
+        writer.write(column, bytesVector.vector[rowIndex],
+            bytesVector.start[rowIndex], bytesVector.length[rowIndex]);
       }
     }
 
@@ -521,7 +522,6 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
       for (int c = 0; c < children.length; ++c) {
         children[c] = buildConverter(schema.getChildren().get(c));
       }
-
     }
 
     int writeStruct(UnsafeWriter parentWriter, StructColumnVector vector, int row) {
