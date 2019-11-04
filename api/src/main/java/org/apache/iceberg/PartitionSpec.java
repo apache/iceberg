@@ -215,7 +215,7 @@ public class PartitionSpec implements Serializable {
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(Arrays.hashCode(fields));
+    return Integer.hashCode(Arrays.hashCode(fields));
   }
 
   private List<PartitionField> lazyFieldList() {
