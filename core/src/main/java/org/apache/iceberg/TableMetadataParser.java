@@ -209,7 +209,7 @@ public class TableMetadataParser {
 
     int formatVersion = JsonUtil.getInt(FORMAT_VERSION, node);
     Preconditions.checkArgument(formatVersion == TableMetadata.TABLE_FORMAT_VERSION,
-        "Cannot read unsupported version %d", formatVersion);
+        "Cannot read unsupported version %s", formatVersion);
 
     String uuid = JsonUtil.getStringOrNull(TABLE_UUID, node);
     String location = JsonUtil.getString(LOCATION, node);
