@@ -406,7 +406,7 @@ abstract class Truncate<T> implements Transform<T, T> {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      } if (!(o instanceof TruncateDecimal)) {
+      } else if (!(o instanceof TruncateDecimal)) {
         return false;
       }
 
