@@ -55,7 +55,7 @@ public class Avro {
     BROTLI(null),
     ZSTD(null);
 
-    private CodecFactory avroCodec;
+    private final CodecFactory avroCodec;
 
     CodecName(CodecFactory avroCodec) {
       this.avroCodec = avroCodec;
