@@ -26,6 +26,7 @@ import java.util.function.Function;
 import org.apache.avro.Schema;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
+import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.types.TypeUtil;
 
@@ -33,7 +34,7 @@ public class ProjectionDatumReader<D> implements DatumReader<D> {
   private final Function<Schema, DatumReader<?>> getReader;
   private final org.apache.iceberg.Schema expectedSchema;
   private final Map<String, String> renames;
-  private final NameMapping nameMapping;
+  private NameMapping nameMapping;
   private Schema readSchema = null;
   private Schema fileSchema = null;
   private DatumReader<D> wrapped = null;
@@ -51,6 +52,9 @@ public class ProjectionDatumReader<D> implements DatumReader<D> {
   @Override
   public void setSchema(Schema newFileSchema) {
     this.fileSchema = newFileSchema;
+    if (nameMapping == null && !AvroSchemaUtil.hasIds(fileSchema)) {
+      nameMapping = MappingUtil.create(expectedSchema);
+    }
     Set<Integer> projectedIds = TypeUtil.getProjectedIds(expectedSchema);
     Schema prunedSchema = AvroSchemaUtil.pruneColumns(newFileSchema, projectedIds, nameMapping);
     this.readSchema = AvroSchemaUtil.buildAvroProjection(prunedSchema, expectedSchema, renames);

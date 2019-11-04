@@ -21,6 +21,7 @@ package org.apache.iceberg.expressions;
 
 import java.io.Serializable;
 import java.util.Comparator;
+import java.util.Set;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.types.Types;
@@ -134,13 +135,13 @@ public class Evaluator implements Serializable {
     }
 
     @Override
-    public <T> Boolean in(BoundReference<T> ref, Literal<T> lit) {
-      throw new UnsupportedOperationException("In is not supported yet");
+    public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
+      return literalSet.contains(ref.get(struct));
     }
 
     @Override
-    public <T> Boolean notIn(BoundReference<T> ref, Literal<T> lit) {
-      return !in(ref, lit);
+    public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
+      return !in(ref, literalSet);
     }
 
     @Override

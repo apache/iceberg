@@ -19,15 +19,13 @@
 
 package org.apache.iceberg.expressions;
 
-public abstract class Predicate<T, R extends Reference> implements Expression {
+public abstract class Predicate<R extends Reference> implements Expression {
   private final Operation op;
   private final R ref;
-  private final Literal<T> literal;
 
-  Predicate(Operation op, R ref, Literal<T> lit) {
+  Predicate(Operation op, R ref) {
     this.op = op;
     this.ref = ref;
-    this.literal = lit;
   }
 
   @Override
@@ -39,9 +37,7 @@ public abstract class Predicate<T, R extends Reference> implements Expression {
     return ref;
   }
 
-  public Literal<T> literal() {
-    return literal;
-  }
+  abstract String literalString();
 
   @Override
   public String toString() {
@@ -51,23 +47,23 @@ public abstract class Predicate<T, R extends Reference> implements Expression {
       case NOT_NULL:
         return "not_null(" + ref() + ")";
       case LT:
-        return String.valueOf(ref()) + " < " + literal();
+        return String.valueOf(ref()) + " < " + literalString();
       case LT_EQ:
-        return String.valueOf(ref()) + " <= " + literal();
+        return String.valueOf(ref()) + " <= " + literalString();
       case GT:
-        return String.valueOf(ref()) + " > " + literal();
+        return String.valueOf(ref()) + " > " + literalString();
       case GT_EQ:
-        return String.valueOf(ref()) + " >= " + literal();
+        return String.valueOf(ref()) + " >= " + literalString();
       case EQ:
-        return String.valueOf(ref()) + " == " + literal();
+        return String.valueOf(ref()) + " == " + literalString();
       case NOT_EQ:
-        return String.valueOf(ref()) + " != " + literal();
+        return String.valueOf(ref()) + " != " + literalString();
       case STARTS_WITH:
-        return ref() + " startsWith \"" + literal() + "\"";
-//      case IN:
-//        break;
-//      case NOT_IN:
-//        break;
+        return ref() + " startsWith \"" + literalString() + "\"";
+      case IN:
+        return ref() + " in { " + literalString() + " }";
+      case NOT_IN:
+        return ref() + " not in { " + literalString() + " }";
       default:
         return "Invalid predicate: operation = " + op;
     }

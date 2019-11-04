@@ -165,7 +165,7 @@ class ManifestGroup {
         manifest -> {
           ManifestReader reader = ManifestReader.read(
               ops.io().newInputFile(manifest.path()),
-              ops.current()::spec);
+              ops.current().specsById());
 
           FilteredManifest filtered = reader
               .filterRows(dataFilter)

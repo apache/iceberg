@@ -19,6 +19,9 @@
 
 package org.apache.iceberg.expressions;
 
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.TestHelpers;
@@ -34,20 +37,23 @@ import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.in;
 import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
+import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.predicate;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestEvaluator {
   private static final StructType STRUCT = StructType.of(
       required(13, "x", Types.IntegerType.get()),
-      required(14, "y", Types.IntegerType.get()),
+      required(14, "y", Types.DoubleType.get()),
       optional(15, "z", Types.IntegerType.get()),
       optional(16, "s1", Types.StructType.of(
           Types.NestedField.required(17, "s2", Types.StructType.of(
@@ -164,6 +170,8 @@ public class TestEvaluator {
 
   @Test
   public void testEqual() {
+    Assert.assertEquals(1, equal("x", 5).literals().size());
+
     Evaluator evaluator = new Evaluator(STRUCT, equal("x", 7));
     Assert.assertTrue("7 == 7 => true", evaluator.eval(TestHelpers.Row.of(7, 8, null)));
     Assert.assertFalse("6 == 7 => false", evaluator.eval(TestHelpers.Row.of(6, 8, null)));
@@ -185,6 +193,8 @@ public class TestEvaluator {
 
   @Test
   public void testNotEqual() {
+    Assert.assertEquals(1, notEqual("x", 5).literals().size());
+
     Evaluator evaluator = new Evaluator(STRUCT, notEqual("x", 7));
     Assert.assertFalse("7 != 7 => false", evaluator.eval(TestHelpers.Row.of(7, 8, null)));
     Assert.assertTrue("6 != 7 => true", evaluator.eval(TestHelpers.Row.of(6, 8, null)));
@@ -362,5 +372,199 @@ public class TestEvaluator {
         evaluator.eval(TestHelpers.Row.of(new Utf8("abc"))));
     Assert.assertFalse("string(abc) == utf8(abcd) => false",
         evaluator.eval(TestHelpers.Row.of(new Utf8("abcd"))));
+  }
+
+  @Test
+  public void testIn() {
+    Assert.assertEquals(3, in("s", 7, 8, 9).literals().size());
+    Assert.assertEquals(3, in("s", 7, 8.1, Long.MAX_VALUE).literals().size());
+    Assert.assertEquals(2, in("s", "abc", "abd", "abc").literals().size());
+    Assert.assertEquals(0, in("s").literals().size());
+    Assert.assertEquals(1, in("s", 5).literals().size());
+    Assert.assertEquals(1, in("s", 5, 5).literals().size());
+    Assert.assertEquals(1, in("s", Arrays.asList(5, 5)).literals().size());
+    Assert.assertEquals(0, in("s", Collections.emptyList()).literals().size());
+
+    Evaluator evaluator = new Evaluator(STRUCT, in("x", 7, 8, Long.MAX_VALUE));
+    Assert.assertTrue("7 in [7, 8] => true", evaluator.eval(TestHelpers.Row.of(7, 8, null)));
+    Assert.assertFalse("9 in [7, 8]  => false", evaluator.eval(TestHelpers.Row.of(9, 8, null)));
+
+    Evaluator intSetEvaluator = new Evaluator(STRUCT,
+        in("x", Long.MAX_VALUE, Integer.MAX_VALUE, Long.MIN_VALUE));
+    Assert.assertTrue("Integer.MAX_VALUE in [Integer.MAX_VALUE] => true",
+        intSetEvaluator.eval(TestHelpers.Row.of(Integer.MAX_VALUE, 7.0, null)));
+    Assert.assertFalse("6 in [Integer.MAX_VALUE]  => false",
+        intSetEvaluator.eval(TestHelpers.Row.of(6, 6.8, null)));
+
+    Evaluator integerEvaluator = new Evaluator(STRUCT, in("y", 7, 8, 9.1));
+    Assert.assertTrue("7.0 in [7, 8, 9.1] => true",
+        integerEvaluator.eval(TestHelpers.Row.of(0, 7.0, null)));
+    Assert.assertTrue("9.1 in [7, 8, 9.1] => true",
+        integerEvaluator.eval(TestHelpers.Row.of(7, 9.1, null)));
+    Assert.assertFalse("6.8 in [7, 8, 9.1]  => false",
+        integerEvaluator.eval(TestHelpers.Row.of(6, 6.8, null)));
+
+    Evaluator structEvaluator = new Evaluator(STRUCT, in("s1.s2.s3.s4.i", 7, 8, 9));
+    Assert.assertTrue("7 in [7, 8, 9] => true",
+            structEvaluator.eval(TestHelpers.Row.of(7, 8, null,
+                    TestHelpers.Row.of(
+                            TestHelpers.Row.of(
+                                    TestHelpers.Row.of(
+                                            TestHelpers.Row.of(7)))))));
+    Assert.assertFalse("6 in [7, 8, 9]  => false",
+            structEvaluator.eval(TestHelpers.Row.of(6, 8, null,
+                    TestHelpers.Row.of(
+                            TestHelpers.Row.of(
+                                    TestHelpers.Row.of(
+                                            TestHelpers.Row.of(6)))))));
+
+    StructType charSeqStruct = StructType.of(required(34, "s", Types.StringType.get()));
+    Evaluator charSeqEvaluator = new Evaluator(charSeqStruct, in("s", "abc", "abd", "abc"));
+    Assert.assertTrue("utf8(abc) in [string(abc), string(abd)] => true",
+            charSeqEvaluator.eval(TestHelpers.Row.of(new Utf8("abc"))));
+    Assert.assertFalse("utf8(abcd) in [string(abc), string(abd)] => false",
+            charSeqEvaluator.eval(TestHelpers.Row.of(new Utf8("abcd"))));
+  }
+
+  @Test
+  public void testInExceptions() {
+    AssertHelpers.assertThrows(
+        "Throw exception if value is null",
+        NullPointerException.class,
+        "Cannot create expression literal from null",
+        () -> in("x", (Literal) null));
+
+    AssertHelpers.assertThrows(
+        "Throw exception if value is null",
+        NullPointerException.class,
+        "Values cannot be null for IN predicate",
+        () -> in("x", (Collection<?>) null));
+
+    AssertHelpers.assertThrows(
+        "Throw exception if calling literal() for IN predicate",
+        IllegalArgumentException.class,
+        "IN predicate cannot return a literal",
+        () -> in("x", 5, 6).literal());
+
+    AssertHelpers.assertThrows(
+        "Throw exception if any value in the input is null",
+        NullPointerException.class,
+        "Cannot create expression literal from null",
+        () -> in("x", 1, 2, null));
+
+    AssertHelpers.assertThrows(
+        "Throw exception if binding fails for any element in the set",
+        ValidationException.class,
+        "Invalid value for comparison inclusive type int",
+        () -> new Evaluator(STRUCT, in("x", 7, 8, 9.1)));
+
+    AssertHelpers.assertThrows(
+        "Throw exception if no input value",
+        IllegalArgumentException.class,
+        "Cannot create IN predicate without a value",
+        () -> predicate(Expression.Operation.IN, "x"));
+
+    AssertHelpers.assertThrows(
+        "Implicit conversion IN to EQ and throw exception if binding fails",
+        ValidationException.class,
+        "Invalid value for comparison inclusive type int",
+        () -> new Evaluator(STRUCT, predicate(Expression.Operation.IN, "x", 5.1)));
+  }
+
+  @Test
+  public void testNotIn() {
+    Assert.assertEquals(3, notIn("s", 7, 8, 9).literals().size());
+    Assert.assertEquals(3, notIn("s", 7, 8.1, Long.MAX_VALUE).literals().size());
+    Assert.assertEquals(2, notIn("s", "abc", "abd", "abc").literals().size());
+    Assert.assertEquals(0, notIn("s").literals().size());
+    Assert.assertEquals(1, notIn("s", 5).literals().size());
+    Assert.assertEquals(1, notIn("s", 5, 5).literals().size());
+    Assert.assertEquals(1, notIn("s", Arrays.asList(5, 5)).literals().size());
+    Assert.assertEquals(0, notIn("s", Collections.emptyList()).literals().size());
+
+    Evaluator evaluator = new Evaluator(STRUCT, notIn("x", 7, 8, Long.MAX_VALUE));
+    Assert.assertFalse("7 not in [7, 8] => false", evaluator.eval(TestHelpers.Row.of(7, 8, null)));
+    Assert.assertTrue("6 not in [7, 8]  => true", evaluator.eval(TestHelpers.Row.of(9, 8, null)));
+
+    Evaluator intSetEvaluator = new Evaluator(STRUCT,
+        notIn("x", Long.MAX_VALUE, Integer.MAX_VALUE, Long.MIN_VALUE));
+    Assert.assertFalse("Integer.MAX_VALUE not_in [Integer.MAX_VALUE] => false",
+        intSetEvaluator.eval(TestHelpers.Row.of(Integer.MAX_VALUE, 7.0, null)));
+    Assert.assertTrue("6 not_in [Integer.MAX_VALUE]  => true",
+        intSetEvaluator.eval(TestHelpers.Row.of(6, 6.8, null)));
+
+    Evaluator integerEvaluator = new Evaluator(STRUCT, notIn("y", 7, 8, 9.1));
+    Assert.assertFalse("7.0 not in [7, 8, 9] => false",
+        integerEvaluator.eval(TestHelpers.Row.of(0, 7.0, null)));
+    Assert.assertFalse("9.1 not in [7, 8, 9.1] => false",
+        integerEvaluator.eval(TestHelpers.Row.of(7, 9.1, null)));
+    Assert.assertTrue("6.8 not in [7, 8, 9.1]  => true",
+        integerEvaluator.eval(TestHelpers.Row.of(6, 6.8, null)));
+
+    Evaluator structEvaluator = new Evaluator(STRUCT, notIn("s1.s2.s3.s4.i", 7, 8, 9));
+    Assert.assertFalse("7 not in [7, 8, 9] => false",
+            structEvaluator.eval(TestHelpers.Row.of(7, 8, null,
+                    TestHelpers.Row.of(
+                            TestHelpers.Row.of(
+                                    TestHelpers.Row.of(
+                                            TestHelpers.Row.of(7)))))));
+    Assert.assertTrue("6 not in [7, 8, 9]  => true",
+            structEvaluator.eval(TestHelpers.Row.of(6, 8, null,
+                    TestHelpers.Row.of(
+                            TestHelpers.Row.of(
+                                    TestHelpers.Row.of(
+                                            TestHelpers.Row.of(6)))))));
+
+    StructType charSeqStruct = StructType.of(required(34, "s", Types.StringType.get()));
+    Evaluator charSeqEvaluator = new Evaluator(charSeqStruct, notIn("s", "abc", "abd", "abc"));
+    Assert.assertFalse("utf8(abc) not in [string(abc), string(abd)] => false",
+            charSeqEvaluator.eval(TestHelpers.Row.of(new Utf8("abc"))));
+    Assert.assertTrue("utf8(abcd) not in [string(abc), string(abd)] => true",
+            charSeqEvaluator.eval(TestHelpers.Row.of(new Utf8("abcd"))));
+  }
+
+  @Test
+  public void testNotInExceptions() {
+    AssertHelpers.assertThrows(
+        "Throw exception if value is null",
+        NullPointerException.class,
+        "Cannot create expression literal from null",
+        () -> notIn("x", (Literal) null));
+
+    AssertHelpers.assertThrows(
+        "Throw exception if value is null",
+        NullPointerException.class,
+        "Values cannot be null for NOT_IN predicate",
+        () -> notIn("x", (Collection<?>) null));
+
+    AssertHelpers.assertThrows(
+        "Throw exception if calling literal() for IN predicate",
+        IllegalArgumentException.class,
+        "NOT_IN predicate cannot return a literal",
+        () -> notIn("x", 5, 6).literal());
+
+    AssertHelpers.assertThrows(
+        "Throw exception if any value in the input is null",
+        NullPointerException.class,
+        "Cannot create expression literal from null",
+        () -> notIn("x", 1, 2, null));
+
+    AssertHelpers.assertThrows(
+        "Throw exception if binding fails for any element in the set",
+        ValidationException.class,
+        "Invalid value for comparison inclusive type int",
+        () -> new Evaluator(STRUCT, notIn("x", 7, 8, 9.1)));
+
+    AssertHelpers.assertThrows(
+        "Throw exception if no input value",
+        IllegalArgumentException.class,
+        "Cannot create NOT_IN predicate without a value",
+        () -> predicate(Expression.Operation.NOT_IN, "x"));
+
+    AssertHelpers.assertThrows(
+        "Implicit conversion NOT_IN to NOT_EQ and throw exception if binding fails",
+        ValidationException.class,
+        "Invalid value for comparison inclusive type int",
+        () -> new Evaluator(STRUCT, predicate(Expression.Operation.NOT_IN, "x", 5.1)));
   }
 }

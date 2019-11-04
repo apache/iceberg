@@ -19,17 +19,36 @@
 
 package org.apache.iceberg.expressions;
 
-public class BoundPredicate<T> extends Predicate<T, BoundReference<T>> {
+import com.google.common.base.Preconditions;
+
+public class BoundPredicate<T> extends Predicate<BoundReference<T>> {
+  private final Literal<T> literal;
+
   BoundPredicate(Operation op, BoundReference<T> ref, Literal<T> lit) {
-    super(op, ref, lit);
+    super(op, ref);
+    Preconditions.checkArgument(op != Operation.IN && op != Operation.NOT_IN,
+        "Bound predicate does not support %s operation", op);
+    this.literal = lit;
   }
 
   BoundPredicate(Operation op, BoundReference<T> ref) {
-    super(op, ref, null);
+    super(op, ref);
+    Preconditions.checkArgument(op == Operation.IS_NULL || op == Operation.NOT_NULL,
+        "Cannot create %s predicate without a value", op);
+    this.literal = null;
   }
 
   @Override
   public Expression negate() {
     return new BoundPredicate<>(op().negate(), ref(), literal());
+  }
+
+  public Literal<T> literal() {
+    return literal;
+  }
+
+  @Override
+  String literalString() {
+    return literal.toString();
   }
 }

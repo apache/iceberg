@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.expressions;
 
+import java.util.Collection;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.expressions.Expression.Operation;
@@ -41,6 +42,8 @@ public class TestExpressionSerialization {
         Expressions.greaterThan("z", 0),
         Expressions.greaterThanOrEqual("t", 129),
         Expressions.equal("col", "data"),
+        Expressions.in("col", "a", "b"),
+        Expressions.notIn("col", 1, 2, 3),
         Expressions.notEqual("col", "abc"),
         Expressions.notNull("maybeNull"),
         Expressions.isNull("maybeNull2"),
@@ -106,8 +109,38 @@ public class TestExpressionSerialization {
       return true;
     }
 
-    return left.literal().comparator()
-        .compare(left.literal().value(), right.literal().value()) == 0;
+    if (left.getClass() != right.getClass()) {
+      return false;
+    }
+
+    if (left instanceof UnboundPredicate) {
+      UnboundPredicate lpred = (UnboundPredicate) left;
+      UnboundPredicate rpred = (UnboundPredicate) right;
+      if (left.op() == Operation.IN || left.op() == Operation.NOT_IN) {
+        return equals(lpred.literals(), rpred.literals());
+      }
+      return lpred.literal().comparator()
+          .compare(lpred.literal().value(), rpred.literal().value()) == 0;
+    } else if (left instanceof BoundPredicate) {
+      BoundPredicate lpred = (BoundPredicate) left;
+      BoundPredicate rpred = (BoundPredicate) right;
+      return lpred.literal().comparator()
+          .compare(lpred.literal().value(), rpred.literal().value()) == 0;
+    } else if (left instanceof BoundSetPredicate) {
+      BoundSetPredicate lpred = (BoundSetPredicate) left;
+      BoundSetPredicate rpred = (BoundSetPredicate) right;
+      return equals(lpred.literalSet(), rpred.literalSet());
+    } else {
+      throw new UnsupportedOperationException(String.format(
+          "Predicate equality check for %s is not supported", left.getClass()));
+    }
+  }
+
+  private static boolean equals(Collection<Literal<?>> left, Collection<Literal<?>> right) {
+    if (left.size() != right.size()) {
+      return false;
+    }
+    return left.containsAll(right);
   }
 
   private static boolean equals(Reference left, Reference right) {
