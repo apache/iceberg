@@ -36,9 +36,7 @@ public class ManifestWriter implements FileAppender<DataFile> {
 
   static ManifestFile copyAppendManifest(ManifestReader reader, OutputFile outputFile, long snapshotId,
                                          SnapshotSummary.Builder summaryBuilder) {
-    ManifestWriter writer = new ManifestWriter(reader.spec(), outputFile, snapshotId);
-    boolean threw = true;
-    try {
+    try (ManifestWriter writer = new ManifestWriter(reader.spec(), outputFile, snapshotId)) {
       for (ManifestEntry entry : reader.entries()) {
         Preconditions.checkArgument(entry.status() == ManifestEntry.Status.ADDED,
             "Cannot append manifest: contains existing files");
@@ -46,19 +44,10 @@ public class ManifestWriter implements FileAppender<DataFile> {
         writer.add(entry);
       }
 
-      threw = false;
-
-    } finally {
-      try {
-        writer.close();
-      } catch (IOException e) {
-        if (!threw) {
-          throw new RuntimeIOException(e, "Failed to close manifest: %s", outputFile);
-        }
-      }
+      return writer.toManifestFile();
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to close manifest: %s", outputFile, e);
     }
-
-    return writer.toManifestFile();
   }
 
   /**
