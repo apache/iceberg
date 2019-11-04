@@ -112,14 +112,13 @@ public class MetricsModes {
     }
 
     @Override
-    public boolean equals(Object obj) {
-      if (this == obj) {
+    public boolean equals(Object other) {
+      if (this == other) {
         return true;
-      }
-      if (obj == null || getClass() != obj.getClass()) {
+      } else if (!(other instanceof Truncate)) {
         return false;
       }
-      Truncate truncate = (Truncate) obj;
+      Truncate truncate = (Truncate) other;
       return length == truncate.length;
     }
 

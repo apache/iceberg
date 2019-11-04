@@ -282,8 +282,7 @@ public class GenericManifestFile
   public boolean equals(Object other) {
     if (this == other) {
       return true;
-    }
-    if (other == null || getClass() != other.getClass()) {
+    } else if (!(other instanceof GenericManifestFile)) {
       return false;
     }
     GenericManifestFile that = (GenericManifestFile) other;

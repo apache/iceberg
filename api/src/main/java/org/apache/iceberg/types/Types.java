@@ -247,7 +247,7 @@ public class Types {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      } else if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof TimestampType)) {
         return false;
       }
 
@@ -326,7 +326,7 @@ public class Types {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      } else if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof FixedType)) {
         return false;
       }
 
@@ -395,7 +395,7 @@ public class Types {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      } else if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof DecimalType)) {
         return false;
       }
 
@@ -480,7 +480,7 @@ public class Types {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      } else if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof NestedField)) {
         return false;
       }
 
@@ -581,7 +581,7 @@ public class Types {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      } else if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof StructType)) {
         return false;
       }
 
@@ -716,7 +716,7 @@ public class Types {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      } else if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof ListType)) {
         return false;
       }
 
@@ -834,7 +834,7 @@ public class Types {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      } else if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof MapType)) {
         return false;
       }
 

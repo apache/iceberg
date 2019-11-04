@@ -108,8 +108,7 @@ class Identity<T> implements Transform<T, T> {
   public boolean equals(Object o) {
     if (this == o) {
       return true;
-    }
-    if (o == null || getClass() != o.getClass()) {
+    } else if (!(o instanceof Identity)) {
       return false;
     }
 
