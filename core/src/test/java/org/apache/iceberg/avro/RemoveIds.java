@@ -38,12 +38,26 @@ class RemoveIds extends AvroSchemaVisitor<Schema> {
 
   @Override
   public Schema map(Schema map, Schema valueType) {
-    return Schema.createMap(valueType);
+    Schema result = Schema.createMap(valueType);
+    for (Map.Entry<String, Object> prop : map.getObjectProps().entrySet()) {
+      String key = prop.getKey();
+      if (!key.equals(AvroSchemaUtil.KEY_ID_PROP) && !key.equals(AvroSchemaUtil.VALUE_ID_PROP)) {
+        result.addProp(key, prop.getValue());
+      }
+    }
+    return result;
   }
 
   @Override
   public Schema array(Schema array, Schema element) {
-    return Schema.createArray(element);
+    Schema result = Schema.createArray(element);
+    for (Map.Entry<String, Object> prop : array.getObjectProps().entrySet()) {
+      String key = prop.getKey();
+      if (!key.equals(AvroSchemaUtil.ELEMENT_ID_PROP)) {
+        result.addProp(key, prop.getValue());
+      }
+    }
+    return result;
   }
 
   @Override
