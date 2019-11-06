@@ -55,7 +55,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
   @Override
   public org.apache.iceberg.Table createTable(
       TableIdentifier identifier, Schema schema, PartitionSpec spec, String location, Map<String, String> properties) {
-    Preconditions.checkArgument(identifier.namespace().levels().length == 1,
+    Preconditions.checkArgument(identifier.namespace().levels().length >= 1,
         "Missing database in table identifier: %s", identifier);
     return super.createTable(identifier, schema, spec, location, properties);
   }
@@ -69,7 +69,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
 
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
-    Preconditions.checkArgument(identifier.namespace().levels().length == 1,
+    Preconditions.checkArgument(identifier.namespace().levels().length >= 1,
         "Missing database in table identifier: %s", identifier);
     String database = identifier.namespace().level(0);
 
@@ -109,9 +109,9 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
-    Preconditions.checkArgument(from.namespace().levels().length == 1,
+    Preconditions.checkArgument(from.namespace().levels().length >= 1,
         "Missing database in table identifier: %s", from);
-    Preconditions.checkArgument(to.namespace().levels().length == 1,
+    Preconditions.checkArgument(to.namespace().levels().length >= 1,
         "Missing database in table identifier: %s", to);
 
     String toDatabase = to.namespace().level(0);
