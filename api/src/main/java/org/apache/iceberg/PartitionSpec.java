@@ -33,7 +33,6 @@ import java.net.URLEncoder;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.transforms.Transforms;
@@ -214,7 +213,7 @@ public class PartitionSpec implements Serializable {
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(Arrays.hashCode(fields));
+    return Integer.hashCode(Arrays.hashCode(fields));
   }
 
   private List<PartitionField> lazyFieldList() {
