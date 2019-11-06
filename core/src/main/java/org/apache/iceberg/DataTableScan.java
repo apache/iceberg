@@ -25,7 +25,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import java.util.Collection;
-import java.util.List;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.ResidualEvaluator;
@@ -38,11 +37,11 @@ import org.slf4j.LoggerFactory;
 public class DataTableScan extends BaseTableScan {
   private static final Logger LOG = LoggerFactory.getLogger(DataTableScan.class);
 
-  private static final List<String> SCAN_COLUMNS = ImmutableList.of(
+  private static final ImmutableList<String> SCAN_COLUMNS = ImmutableList.of(
       "snapshot_id", "file_path", "file_ordinal", "file_format", "block_size_in_bytes",
       "file_size_in_bytes", "record_count", "partition", "key_metadata"
   );
-  private static final List<String> SCAN_WITH_STATS_COLUMNS = ImmutableList.<String>builder()
+  private static final ImmutableList<String> SCAN_WITH_STATS_COLUMNS = ImmutableList.<String>builder()
       .addAll(SCAN_COLUMNS)
       .add("value_counts", "null_value_counts", "lower_bounds", "upper_bounds", "column_sizes")
       .build();

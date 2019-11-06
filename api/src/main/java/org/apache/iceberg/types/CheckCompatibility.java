@@ -52,7 +52,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
     return TypeUtil.visit(readSchema, new CheckCompatibility(writeSchema, false));
   }
 
-  private static final List<String> NO_ERRORS = ImmutableList.of();
+  private static final ImmutableList<String> NO_ERRORS = ImmutableList.of();
 
   private final Schema schema;
   private final boolean checkOrdering;
