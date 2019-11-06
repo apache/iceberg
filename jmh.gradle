@@ -30,5 +30,9 @@ configure(jmhProjects) {
     humanOutputFile = file(jmhOutputPath)
     include = [jmhIncludeRegex]
   }
+
+  jmhCompileGeneratedClasses {
+    options.errorprone.enabled = false
+  }
 }
 
