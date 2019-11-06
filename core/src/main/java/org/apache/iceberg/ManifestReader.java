@@ -152,6 +152,7 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
     return new FilteredManifest(this, alwaysTrue(), expr, fileSchema, ALL_COLUMNS, true);
   }
 
+  @Override
   public FilteredManifest caseSensitive(boolean caseSensitive) {
     return new FilteredManifest(this, alwaysTrue(), alwaysTrue(), fileSchema, ALL_COLUMNS, caseSensitive);
   }

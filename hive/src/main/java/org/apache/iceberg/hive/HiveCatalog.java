@@ -144,6 +144,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
     return new HiveTableOperations(conf, clients, dbName, tableName);
   }
 
+  @Override
   protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
     String warehouseLocation = conf.get("hive.metastore.warehouse.dir");
     Preconditions.checkNotNull(
