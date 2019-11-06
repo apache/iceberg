@@ -89,8 +89,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
   public boolean equals(Object o) {
     if (this == o) {
       return true;
-    }
-    if (o == null || getClass() != o.getClass()) {
+    } else if (!(o instanceof Bucket)) {
       return false;
     }
 

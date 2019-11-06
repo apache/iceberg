@@ -104,8 +104,7 @@ public class TableMetadata {
     public boolean equals(Object other) {
       if (this == other) {
         return true;
-      }
-      if (other == null || getClass() != other.getClass()) {
+      } else if (!(other instanceof SnapshotLogEntry)) {
         return false;
       }
       SnapshotLogEntry that = (SnapshotLogEntry) other;

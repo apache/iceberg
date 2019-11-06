@@ -111,8 +111,7 @@ abstract class Truncate<T> implements Transform<T, T> {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      }
-      if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof TruncateInteger)) {
         return false;
       }
 
@@ -177,8 +176,7 @@ abstract class Truncate<T> implements Transform<T, T> {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      }
-      if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof TruncateLong)) {
         return false;
       }
 
@@ -260,8 +258,7 @@ abstract class Truncate<T> implements Transform<T, T> {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      }
-      if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof TruncateString)) {
         return false;
       }
 
@@ -330,8 +327,7 @@ abstract class Truncate<T> implements Transform<T, T> {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      }
-      if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof TruncateByteBuffer)) {
         return false;
       }
 
@@ -410,8 +406,7 @@ abstract class Truncate<T> implements Transform<T, T> {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      }
-      if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof TruncateDecimal)) {
         return false;
       }
 
