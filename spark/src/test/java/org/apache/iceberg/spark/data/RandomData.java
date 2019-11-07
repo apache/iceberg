@@ -425,8 +425,8 @@ public class RandomData {
     for (int i = 0; i < length; i += 1) {
       buffer[i] = (byte) CHARS.charAt(random.nextInt(CHARS.length()));
     }
-
-    return UTF8String.fromBytes(buffer);
+    return UTF8String.fromString("ABC");
+    //return UTF8String.fromBytes(buffer);
   }
 
   private static final String DIGITS = "0123456789";

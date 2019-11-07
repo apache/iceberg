@@ -545,6 +545,9 @@ public class IcebergArrowColumnVector extends ColumnVector {
 
     @Override
     final UTF8String getUTF8String(int rowId) {
+      if (isNullAt(rowId)) {
+        return null;
+      }
       Binary binary = dictionary.decodeToBinary(vector.get(rowId));
       return UTF8String.fromBytes(binary.getBytesUnsafe());
     }
@@ -693,7 +696,8 @@ public class IcebergArrowColumnVector extends ColumnVector {
       this.vector = vector;
     }
 
-    //TODO: samarth not sure this is efficient or correct
+    //TODO: samarth not sure this is efficient or correct.
+    //TODO: samarth refer to decodeDictionaryIds in VectorizedColumnReader
     @Override
     final Decimal getDecimal(int rowId, int precision, int scale) {
       if (isNullAt(rowId)) return null;

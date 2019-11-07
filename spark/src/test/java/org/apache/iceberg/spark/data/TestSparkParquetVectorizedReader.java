@@ -51,7 +51,7 @@ public class TestSparkParquetVectorizedReader extends AvroDataTest {
     Assume.assumeTrue("Parquet Avro cannot write non-string map keys", null == TypeUtil.find(schema,
         type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()));
 
-    List<GenericData.Record> expected = RandomData.generateList(schema, 1000000, 0L);
+    List<GenericData.Record> expected = RandomData.generateList(schema, 100000, 0L);
 
     // write a test parquet file using iceberg writer
     File testFile = temp.newFile();
@@ -63,7 +63,7 @@ public class TestSparkParquetVectorizedReader extends AvroDataTest {
             /*.set("parquet.dictionary.page.size", "0")
             .set("parquet.writer.encoding-override.double", "plain")
             .set("parquet.enable.dictionary", "false")*/
-            .set(PARQUET_DICT_SIZE_BYTES, "1")
+            //.set(PARQUET_DICT_SIZE_BYTES, "1")
             .build()) {
       writer.addAll(expected);
     }

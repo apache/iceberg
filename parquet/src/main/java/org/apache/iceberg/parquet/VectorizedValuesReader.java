@@ -18,20 +18,19 @@
 package org.apache.iceberg.parquet;
 
 import io.netty.buffer.ArrowBuf;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import org.apache.arrow.vector.BaseVariableWidthVector;
-import org.apache.arrow.vector.BitVector;
-import org.apache.arrow.vector.DecimalVector;
-import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.VarBinaryVector;
+import org.apache.arrow.vector.*;
 import org.apache.parquet.Preconditions;
 import org.apache.parquet.bytes.ByteBufferInputStream;
 import org.apache.parquet.bytes.BytesUtils;
+import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.column.values.bitpacking.BytePacker;
 import org.apache.parquet.column.values.bitpacking.Packer;
+import org.apache.parquet.column.values.dictionary.DictionaryValuesReader;
 import org.apache.parquet.io.ParquetDecodingException;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
 
 /**
  * A values reader for Parquet's run-length encoded data. This is based off of the version in
@@ -254,7 +253,71 @@ public final class VectorizedValuesReader extends ValuesReader {
     throw new RuntimeException("Unreachable");
   }
 
-  // the same method will be used for reading in the data pages that are dictionary encoded
+  public void readBatchOfDictionaryIds(
+          final IntVector vector, final int numValsInVector, final int batchSize, NullabilityHolder nullabilityHolder, VectorizedValuesReader vectorizedValuesReader) {
+    int idx = numValsInVector;
+    int left = batchSize;
+    while (left > 0) {
+      if (this.currentCount == 0) {
+        this.readNextGroup();
+      }
+      int n = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          if (currentValue == maxDefLevel) {
+            vectorizedValuesReader.readDictionaryIdsInternal(vector, numValsInVector, n);
+            idx += n;
+          } else {
+            for (int i = 0; i < n; i++) {
+              nullabilityHolder.setNull(idx);
+              idx++;
+            }
+          }
+          break;
+        case PACKED:
+          for (int i = 0; i < n; i++) {
+            if (currentBuffer[currentBufferIdx++] == maxDefLevel) {
+              vector.set(idx, vectorizedValuesReader.readInteger());
+              idx++;
+            } else {
+              nullabilityHolder.setNull(idx);
+              idx++;
+            }
+          }
+          break;
+      }
+      left -= n;
+      currentCount -= n;
+    }
+  }
+
+  // Used for reading dictionary ids in a vectorized fashion. Unlike other methods, this doesn't
+  // check definition level.
+  private void readDictionaryIdsInternal(final IntVector c, final int numValsInVector, final int numValuesToRead) {
+    int left = numValuesToRead;
+    int idx = numValsInVector;
+    while (left > 0) {
+      if (this.currentCount == 0) this.readNextGroup();
+      int n = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          for (int i = 0; i < n; i++) {
+            c.set(idx, currentValue);
+            idx++;
+          }
+          break;
+        case PACKED:
+          for (int i = 0; i < n; i++) {
+            c.set(idx, currentBuffer[currentBufferIdx++]);
+            idx++;
+          }
+          break;
+      }
+      left -= n;
+      currentCount -= n;
+    }
+  }
+
   public void readBatchOfIntegers(
       final FieldVector vector, final int numValsInVector,
       final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder, BytesReader valuesReader) {
@@ -299,10 +362,6 @@ public final class VectorizedValuesReader extends ValuesReader {
     }
   }
 
-  // ok this is the point where we fill the arrow vector. If dictionary is available to us, what we need to do
-  // is to take in batch of dictionary ids through the bytes reader, and set it in the arrow vector. So instead
-  // of writing values to the dataBuffer, we instead will be writing array indices.
-
   public void readBatchOfLongs(
       final FieldVector vector, final int numValsInVector,
       final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder, BytesReader valuesReader) {
@@ -339,6 +398,70 @@ public final class VectorizedValuesReader extends ValuesReader {
               nullabilityHolder.setNull(bufferIdx);
               bufferIdx++;
             }
+          }
+          break;
+      }
+      left -= n;
+      currentCount -= n;
+    }
+  }
+
+  public void readBatchOfDictionaryEncodedLongs(
+          final FieldVector vector, final int numValsInVector,
+          final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder, VectorizedValuesReader valuesReader, Dictionary dict) {
+    int idx = numValsInVector;
+    int left = batchSize;
+    while (left > 0) {
+      if (this.currentCount == 0) {
+        this.readNextGroup();
+      }
+      int n = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          if (currentValue == maxDefLevel) {
+            valuesReader.readBatchOfDictionaryEncodedLongsInternal(vector, typeWidth, numValsInVector, n, dict);
+            idx += n;
+          } else {
+            for (int i = 0; i < n; i++) {
+              nullabilityHolder.setNull(idx);
+              idx++;
+            }
+          }
+          break;
+        case PACKED:
+          for (int i = 0; i < n; i++) {
+            if (currentBuffer[currentBufferIdx++] == maxDefLevel) {
+              vector.getDataBuffer().setLong(idx * typeWidth, dict.decodeToLong(valuesReader.readInteger()));
+              idx++;
+            } else {
+              nullabilityHolder.setNull(idx);
+              idx++;
+            }
+          }
+          break;
+      }
+      left -= n;
+      currentCount -= n;
+    }
+  }
+
+  private void readBatchOfDictionaryEncodedLongsInternal(FieldVector vector, int typeWidth, int numValsInVector, int numValuesToRead, Dictionary dict) {
+    int left = numValuesToRead;
+    int idx = numValsInVector;
+    while (left > 0) {
+      if (this.currentCount == 0) this.readNextGroup();
+      int n = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          for (int i = 0; i < n; i++) {
+            vector.getDataBuffer().setLong(idx * typeWidth, dict.decodeToLong(currentValue));
+            idx++;
+          }
+          break;
+        case PACKED:
+          for (int i = 0; i < n; i++) {
+            vector.getDataBuffer().setLong(idx * typeWidth, dict.decodeToLong(currentBuffer[currentBufferIdx++]));
+            idx++;
           }
           break;
       }
@@ -391,6 +514,70 @@ public final class VectorizedValuesReader extends ValuesReader {
     }
   }
 
+  public void readBatchOfDictionaryEncodedFloats(
+          final FieldVector vector, final int numValsInVector,
+          final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder, VectorizedValuesReader valuesReader, Dictionary dict) {
+    int idx = numValsInVector;
+    int left = batchSize;
+    while (left > 0) {
+      if (this.currentCount == 0) {
+        this.readNextGroup();
+      }
+      int n = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          if (currentValue == maxDefLevel) {
+            valuesReader.readBatchOfDictionaryEncodedFloatsInternal(vector, typeWidth, numValsInVector, n, dict);
+            idx += n;
+          } else {
+            for (int i = 0; i < n; i++) {
+              nullabilityHolder.setNull(idx);
+              idx++;
+            }
+          }
+          break;
+        case PACKED:
+          for (int i = 0; i < n; i++) {
+            if (currentBuffer[currentBufferIdx++] == maxDefLevel) {
+              vector.getDataBuffer().setFloat(idx * typeWidth, dict.decodeToFloat(valuesReader.readInteger()));
+              idx++;
+            } else {
+              nullabilityHolder.setNull(idx);
+              idx++;
+            }
+          }
+          break;
+      }
+      left -= n;
+      currentCount -= n;
+    }
+  }
+
+  private void readBatchOfDictionaryEncodedFloatsInternal(FieldVector vector, int typeWidth, int numValsInVector, int numValuesToRead, Dictionary dict) {
+    int left = numValuesToRead;
+    int idx = numValsInVector;
+    while (left > 0) {
+      if (this.currentCount == 0) this.readNextGroup();
+      int n = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          for (int i = 0; i < n; i++) {
+            vector.getDataBuffer().setFloat(idx * typeWidth, dict.decodeToFloat(currentValue));
+            idx++;
+          }
+          break;
+        case PACKED:
+          for (int i = 0; i < n; i++) {
+            vector.getDataBuffer().setFloat(idx * typeWidth, dict.decodeToFloat(currentBuffer[currentBufferIdx++]));
+            idx++;
+          }
+          break;
+      }
+      left -= n;
+      currentCount -= n;
+    }
+  }
+
   public void readBatchOfDoubles(
       final FieldVector vector, final int numValsInVector,
       final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder,
@@ -428,6 +615,70 @@ public final class VectorizedValuesReader extends ValuesReader {
               nullabilityHolder.setNull(bufferIdx);
               bufferIdx++;
             }
+          }
+          break;
+      }
+      left -= n;
+      currentCount -= n;
+    }
+  }
+
+  public void readBatchOfDictionaryEncodedDoubles(
+          final FieldVector vector, final int numValsInVector,
+          final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder, VectorizedValuesReader valuesReader, Dictionary dict) {
+    int idx = numValsInVector;
+    int left = batchSize;
+    while (left > 0) {
+      if (this.currentCount == 0) {
+        this.readNextGroup();
+      }
+      int n = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          if (currentValue == maxDefLevel) {
+            valuesReader.readBatchOfDictionaryEncodedDoublesInternal(vector, typeWidth, numValsInVector, n, dict);
+            idx += n;
+          } else {
+            for (int i = 0; i < n; i++) {
+              nullabilityHolder.setNull(idx);
+              idx++;
+            }
+          }
+          break;
+        case PACKED:
+          for (int i = 0; i < n; i++) {
+            if (currentBuffer[currentBufferIdx++] == maxDefLevel) {
+              vector.getDataBuffer().setDouble(idx * typeWidth, dict.decodeToDouble(valuesReader.readInteger()));
+              idx++;
+            } else {
+              nullabilityHolder.setNull(idx);
+              idx++;
+            }
+          }
+          break;
+      }
+      left -= n;
+      currentCount -= n;
+    }
+  }
+
+  private void readBatchOfDictionaryEncodedDoublesInternal(FieldVector vector, int typeWidth, int numValsInVector, int numValuesToRead, Dictionary dict) {
+    int left = numValuesToRead;
+    int idx = numValsInVector;
+    while (left > 0) {
+      if (this.currentCount == 0) this.readNextGroup();
+      int n = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          for (int i = 0; i < n; i++) {
+            vector.getDataBuffer().setDouble(idx * typeWidth, dict.decodeToDouble(currentValue));
+            idx++;
+          }
+          break;
+        case PACKED:
+          for (int i = 0; i < n; i++) {
+            vector.getDataBuffer().setDouble(idx * typeWidth, dict.decodeToDouble(currentBuffer[currentBufferIdx++]));
+            idx++;
           }
           break;
       }
@@ -483,6 +734,70 @@ public final class VectorizedValuesReader extends ValuesReader {
     }
   }
 
+  public void readBatchOfDictionaryEncodedFixedWidthBinary(
+          final FieldVector vector, final int numValsInVector,
+          final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder, VectorizedValuesReader valuesReader, Dictionary dict) {
+    int idx = numValsInVector;
+    int left = batchSize;
+    while (left > 0) {
+      if (this.currentCount == 0) {
+        this.readNextGroup();
+      }
+      int n = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          if (currentValue == maxDefLevel) {
+            valuesReader.readBatchOfDictionaryEncodedFixedWidthBinaryInternal(vector, typeWidth, numValsInVector, n, dict);
+            idx += n;
+          } else {
+            for (int i = 0; i < n; i++) {
+              nullabilityHolder.setNull(idx);
+              idx++;
+            }
+          }
+          break;
+        case PACKED:
+          for (int i = 0; i < n; i++) {
+            if (currentBuffer[currentBufferIdx++] == maxDefLevel) {
+              vector.getDataBuffer().setBytes(idx * typeWidth, dict.decodeToBinary(valuesReader.readInteger()).getBytesUnsafe());
+              idx++;
+            } else {
+              nullabilityHolder.setNull(idx);
+              idx++;
+            }
+          }
+          break;
+      }
+      left -= n;
+      currentCount -= n;
+    }
+  }
+
+  private void readBatchOfDictionaryEncodedFixedWidthBinaryInternal(FieldVector vector, int typeWidth, int numValsInVector, int numValuesToRead, Dictionary dict) {
+    int left = numValuesToRead;
+    int idx = numValsInVector;
+    while (left > 0) {
+      if (this.currentCount == 0) this.readNextGroup();
+      int n = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          for (int i = 0; i < n; i++) {
+            vector.getDataBuffer().setBytes(idx * typeWidth, dict.decodeToBinary(currentValue).getBytesUnsafe());
+            idx++;
+          }
+          break;
+        case PACKED:
+          for (int i = 0; i < n; i++) {
+            vector.getDataBuffer().setBytes(idx * typeWidth, dict.decodeToBinary(currentBuffer[currentBufferIdx++]).getBytesUnsafe());
+            idx++;
+          }
+          break;
+      }
+      left -= n;
+      currentCount -= n;
+    }
+  }
+
   public void readBatchOfFixedLengthDecimals(
       final FieldVector vector, final int numValsInVector,
       final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder,
@@ -529,6 +844,81 @@ public final class VectorizedValuesReader extends ValuesReader {
               nullabilityHolder.setNull(bufferIdx);
               bufferIdx++;
             }
+          }
+          break;
+      }
+      left -= n;
+      currentCount -= n;
+    }
+  }
+
+  public void readBatchOfDictionaryEncodedFixedLengthDecimals(
+          final FieldVector vector, final int numValsInVector,
+          final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder, VectorizedValuesReader valuesReader, Dictionary dict) {
+    int idx = numValsInVector;
+    int left = batchSize;
+    while (left > 0) {
+      if (this.currentCount == 0) {
+        this.readNextGroup();
+      }
+      int n = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          if (currentValue == maxDefLevel) {
+            valuesReader.readBatchOfDictionaryEncodedFixedLengthDecimalsInternal(vector, typeWidth, numValsInVector, n, dict);
+            idx += n;
+          } else {
+            for (int i = 0; i < n; i++) {
+              nullabilityHolder.setNull(idx);
+              idx++;
+            }
+          }
+          break;
+        case PACKED:
+          for (int i = 0; i < n; i++) {
+            if (currentBuffer[currentBufferIdx++] == maxDefLevel) {
+              byte[] decimalBytes = dict.decodeToBinary(valuesReader.readInteger()).getBytesUnsafe();
+              byte[] vectorBytes = new byte[DecimalVector.TYPE_WIDTH];
+              System.arraycopy(decimalBytes, 0, vectorBytes, DecimalVector.TYPE_WIDTH - typeWidth, typeWidth);
+              ((DecimalVector) vector).setBigEndian(idx, vectorBytes);
+              idx++;
+            } else {
+              nullabilityHolder.setNull(idx);
+              idx++;
+            }
+          }
+          break;
+      }
+      left -= n;
+      currentCount -= n;
+    }
+  }
+
+  private void readBatchOfDictionaryEncodedFixedLengthDecimalsInternal(FieldVector vector, int typeWidth, int numValsInVector, int numValuesToRead, Dictionary dict) {
+    int left = numValuesToRead;
+    int idx = numValsInVector;
+    while (left > 0) {
+      if (this.currentCount == 0) this.readNextGroup();
+      int n = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          for (int i = 0; i < n; i++) {
+            // TODO: samarth I am assuming/hopeful that the decimalBytes array has typeWidth length
+            byte[] decimalBytes = dict.decodeToBinary(currentValue).getBytesUnsafe();
+            byte[] vectorBytes = new byte[DecimalVector.TYPE_WIDTH];
+            System.arraycopy(decimalBytes, 0, vectorBytes, DecimalVector.TYPE_WIDTH - typeWidth, typeWidth);
+            ((DecimalVector) vector).setBigEndian(idx, vectorBytes);
+            idx++;
+          }
+          break;
+        case PACKED:
+          for (int i = 0; i < n; i++) {
+            // TODO: samarth I am assuming/hopeful that the decimal bytes has typeWidth length
+            byte[] decimalBytes = dict.decodeToBinary(currentBuffer[currentBufferIdx++]).getBytesUnsafe();
+            byte[] vectorBytes = new byte[DecimalVector.TYPE_WIDTH];
+            System.arraycopy(decimalBytes, 0, vectorBytes, DecimalVector.TYPE_WIDTH - typeWidth, typeWidth);
+            ((DecimalVector) vector).setBigEndian(idx, vectorBytes);
+            idx++;
           }
           break;
       }
@@ -597,6 +987,70 @@ public final class VectorizedValuesReader extends ValuesReader {
     }
   }
 
+  public void readBatchOfDictionaryEncodedVarWidth(
+          final FieldVector vector, final int numValsInVector,
+          final int batchSize, NullabilityHolder nullabilityHolder, VectorizedValuesReader valuesReader, Dictionary dict) {
+    int idx = numValsInVector;
+    int left = batchSize;
+    while (left > 0) {
+      if (this.currentCount == 0) {
+        this.readNextGroup();
+      }
+      int n = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          if (currentValue == maxDefLevel) {
+            valuesReader.readBatchOfDictionaryEncodedVarWidthBinaryInternal(vector, numValsInVector, n, dict);
+            idx += n;
+          } else {
+            for (int i = 0; i < n; i++) {
+              nullabilityHolder.setNull(idx);
+              idx++;
+            }
+          }
+          break;
+        case PACKED:
+          for (int i = 0; i < n; i++) {
+            if (currentBuffer[currentBufferIdx++] == maxDefLevel) {
+              ((BaseVariableWidthVector)vector).setSafe(idx, dict.decodeToBinary(valuesReader.readInteger()).getBytesUnsafe());
+              idx++;
+            } else {
+              nullabilityHolder.setNull(idx);
+              idx++;
+            }
+          }
+          break;
+      }
+      left -= n;
+      currentCount -= n;
+    }
+  }
+
+  private void readBatchOfDictionaryEncodedVarWidthBinaryInternal(FieldVector vector, int numValsInVector, int numValuesToRead, Dictionary dict) {
+    int left = numValuesToRead;
+    int idx = numValsInVector;
+    while (left > 0) {
+      if (this.currentCount == 0) this.readNextGroup();
+      int n = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          for (int i = 0; i < n; i++) {
+            ((BaseVariableWidthVector)vector).setSafe(idx, dict.decodeToBinary(currentValue).getBytesUnsafe());
+            idx++;
+          }
+          break;
+        case PACKED:
+          for (int i = 0; i < n; i++) {
+            ((BaseVariableWidthVector)vector).setSafe(idx, dict.decodeToBinary(currentBuffer[currentBufferIdx++]).getBytesUnsafe());
+            idx++;
+          }
+          break;
+      }
+      left -= n;
+      currentCount -= n;
+    }
+  }
+
   public void readBatchOfIntLongBackedDecimals(
       final FieldVector vector, final int numValsInVector,
       final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder,
@@ -637,6 +1091,70 @@ public final class VectorizedValuesReader extends ValuesReader {
               nullabilityHolder.setNull(bufferIdx);
               bufferIdx++;
             }
+          }
+          break;
+      }
+      left -= n;
+      currentCount -= n;
+    }
+  }
+
+  public void readBatchOfDictionaryEncodedIntLongBackedDecimals(
+          final FieldVector vector, final int numValsInVector,
+          final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder, VectorizedValuesReader valuesReader, Dictionary dict) {
+    int idx = numValsInVector;
+    int left = batchSize;
+    while (left > 0) {
+      if (this.currentCount == 0) {
+        this.readNextGroup();
+      }
+      int n = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          if (currentValue == maxDefLevel) {
+            valuesReader.readBatchOfDictionaryEncodedIntLongBackedDecimalsInternal(vector, typeWidth, numValsInVector, n, dict);
+            idx += n;
+          } else {
+            for (int i = 0; i < n; i++) {
+              nullabilityHolder.setNull(idx);
+              idx++;
+            }
+          }
+          break;
+        case PACKED:
+          for (int i = 0; i < n; i++) {
+            if (currentBuffer[currentBufferIdx++] == maxDefLevel) {
+              ((DecimalVector) vector).set(idx, (typeWidth == Integer.BYTES ? dict.decodeToInt(valuesReader.readInteger()) : dict.decodeToLong(valuesReader.readInteger())));
+              idx++;
+            } else {
+              nullabilityHolder.setNull(idx);
+              idx++;
+            }
+          }
+          break;
+      }
+      left -= n;
+      currentCount -= n;
+    }
+  }
+
+  private void readBatchOfDictionaryEncodedIntLongBackedDecimalsInternal(FieldVector vector, final int typeWidth, int numValsInVector, int numValuesToRead, Dictionary dict) {
+    int left = numValuesToRead;
+    int idx = numValsInVector;
+    while (left > 0) {
+      if (this.currentCount == 0) this.readNextGroup();
+      int n = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          for (int i = 0; i < n; i++) {
+            ((DecimalVector) vector).set(idx, typeWidth == Integer.BYTES ? dict.decodeToInt(currentValue) : dict.decodeToLong(currentValue));
+            idx++;
+          }
+          break;
+        case PACKED:
+          for (int i = 0; i < n; i++) {
+            ((DecimalVector) vector).set(idx, (typeWidth == Integer.BYTES ? dict.decodeToInt(currentValue) : dict.decodeToLong(currentBuffer[currentBufferIdx++])));
+            idx++;
           }
           break;
       }
@@ -714,5 +1232,53 @@ public final class VectorizedValuesReader extends ValuesReader {
       }
     }
     return bufferIdx;
+  }
+
+  //TODO: samarth see if there is way to fetch n-bytes
+  private int writeBatchOfDictIdsToVector(
+          int typeWidth, int maxDefLevel, NullabilityHolder nullabilityHolder,
+          VectorizedValuesReader valuesReader, int idx, IntVector vector, int n) {
+    if (currentValue == maxDefLevel) {
+      // for (int i = 0; i < n; i++) {
+      //   //BitVectorHelper.setValidityBitToOne(validityBuffer, validityBufferIdx);
+      //   validityBufferIdx++;
+      // }
+      for (int i = 0; i < n; i++) {
+        int dictId = currentValue;
+        vector.set(idx, dictId);
+        idx++;
+      }
+    } else {
+      for (int i = 0; i < n; i++) {
+        //BitVectorHelper.setValidityBit(validityBuffer, validityBufferIdx, 0);
+        nullabilityHolder.setNull(idx);
+        idx++;
+      }
+    }
+    return idx;
+  }
+
+  //TODO: samarth see if there is way to fetch n-bytes
+  private int writeBatchOfDictIdsToVector2(
+          int typeWidth, int maxDefLevel, NullabilityHolder nullabilityHolder,
+          DictionaryValuesReader valuesReader, int idx, IntVector vector, int n) {
+    if (currentValue == maxDefLevel) {
+      // for (int i = 0; i < n; i++) {
+      //   //BitVectorHelper.setValidityBitToOne(validityBuffer, validityBufferIdx);
+      //   validityBufferIdx++;
+      // }
+      for (int i = 0; i < n; i++) {
+        int dictId = valuesReader.readValueDictionaryId();
+        vector.set(idx, dictId);
+        idx++;
+      }
+    } else {
+      for (int i = 0; i < n; i++) {
+        //BitVectorHelper.setValidityBit(validityBuffer, validityBufferIdx, 0);
+        nullabilityHolder.setNull(idx);
+        idx++;
+      }
+    }
+    return idx;
   }
 }

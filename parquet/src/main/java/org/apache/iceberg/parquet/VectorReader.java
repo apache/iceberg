@@ -29,18 +29,15 @@ import org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow.IcebergDecima
 import org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow.IcebergVarBinaryArrowVector;
 import org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow.IcebergVarcharArrowVector;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.Pair;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.page.DictionaryPageReadStore;
 import org.apache.parquet.column.page.PageReadStore;
-import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.PrimitiveType;
 
 import javax.annotation.Nullable;
-import java.util.List;
 import java.util.Map;
 
 /***
@@ -78,7 +75,12 @@ public class VectorReader implements BatchedReader {
   private final BufferAllocator rootAlloc;
   private FieldVector vec;
   private int typeWidth;
+
+  // In cases when Parquet employs fall back encoding, we eagerly decode the dictionary encoded data
+  // before storing the values in the Arrow vector. This means even if the dictionary is present, data
+  // present in the vector may not be dictionary encoded.
   private Dictionary dictionary;
+  private boolean allPagesDictEncoded;
 
   // This value is copied from Arrow's BaseVariableWidthVector. We may need to change
   // this value if Arrow ends up changing this default.
@@ -111,8 +113,8 @@ public class VectorReader implements BatchedReader {
     }
     vec.setValueCount(0);
     if (batchedColumnIterator.hasNext()) {
-      if (dictionary != null) {
-        batchedColumnIterator.nextBatchIntegers(vec, typeWidth, nullabilityHolder);
+      if (allPagesDictEncoded) {
+        batchedColumnIterator.nextBatchDictionaryIds((IntVector) vec, nullabilityHolder);
       } else {
         if (isFixedLengthDecimal) {
           batchedColumnIterator.nextBatchFixedLengthDecimal(vec, typeWidth, nullabilityHolder);
@@ -142,11 +144,11 @@ public class VectorReader implements BatchedReader {
         }
       }
     }
-    return new VectorHolder(columnDescriptor, vec, dictionary);
+    return new VectorHolder(columnDescriptor, vec, allPagesDictEncoded, dictionary);
   }
 
   private int allocateFieldVector(BufferAllocator rootAlloc, Types.NestedField icebergField, ColumnDescriptor desc) {
-    if (dictionary != null) {
+    if (allPagesDictEncoded) {
       Field field = new Field(icebergField.name(), new FieldType(icebergField.isOptional(), new ArrowType.Int(Integer.SIZE, true), null, null), null);
       this.vec = field.createVector(rootAlloc);
       ((IntVector) vec).allocateNew(batchSize);
@@ -249,7 +251,8 @@ public class VectorReader implements BatchedReader {
   public void setRowGroupInfo(PageReadStore source,
                               DictionaryPageReadStore dictionaryPageReadStore,
                               Map<ColumnPath, Boolean> columnDictEncoded) {
-    dictionary = batchedColumnIterator.setPageSource(source, dictionaryPageReadStore, columnDictEncoded);
+    allPagesDictEncoded = columnDictEncoded.get(ColumnPath.get(columnDescriptor.getPath()));
+    dictionary = batchedColumnIterator.setRowGroupInfo(source, dictionaryPageReadStore, allPagesDictEncoded);
   }
 
   @Override
@@ -268,14 +271,16 @@ public class VectorReader implements BatchedReader {
   public static class VectorHolder {
     private final ColumnDescriptor columnDescriptor;
     private final FieldVector vector;
+    private final boolean isDictionaryEncoded;
 
     @Nullable
     private final Dictionary dictionary;
 
 
-    public VectorHolder(ColumnDescriptor columnDescriptor, FieldVector vector, Dictionary dictionary) {
+    public VectorHolder(ColumnDescriptor columnDescriptor, FieldVector vector, boolean isDictionaryEncoded, Dictionary dictionary) {
       this.columnDescriptor = columnDescriptor;
       this.vector = vector;
+      this.isDictionaryEncoded = isDictionaryEncoded;
       this.dictionary = dictionary;
     }
 
@@ -285,6 +290,10 @@ public class VectorReader implements BatchedReader {
 
     public FieldVector getVector() {
       return vector;
+    }
+
+    public boolean isDictionaryEncoded() {
+      return isDictionaryEncoded;
     }
 
     public Dictionary getDictionary() {

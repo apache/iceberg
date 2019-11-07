@@ -21,11 +21,10 @@ package org.apache.iceberg.parquet;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
+
+import com.google.common.collect.ImmutableList;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
@@ -210,6 +209,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     private final ColumnarBatchReader model;
     private final long totalValues;
     private final boolean reuseContainers;
+    //private final List<BlockMetaData> blockMetaDataList;
 
     private int nextRowGroup = 0;
     private long nextRowGroupStart = 0;
@@ -222,6 +222,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       this.model = conf.model();
       this.totalValues = conf.totalValues();
       this.reuseContainers = conf.reuseContainers();
+      //this.blockMetaDataList = new ArrayList<>(reader.getRowGroups());
     }
 
     @Override
@@ -252,22 +253,25 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       PageReadStore pages;
       DictionaryPageReadStore dictionaryPageReadStore;
       try {
-        pages = reader.readNextRowGroup();
         dictionaryPageReadStore = reader.getNextDictionaryReader();
+        pages = reader.readNextRowGroup();
       } catch (IOException e) {
         throw new RuntimeIOException(e);
       }
 
       nextRowGroupStart += pages.getRowCount();
       nextRowGroup += 1;
-      model.setRowGroupInfo(pages, dictionaryPageReadStore, buildColumnDictEncodedMap(reader.getRowGroups()));
+      model.setRowGroupInfo(pages, dictionaryPageReadStore, dictionaryPageReadStore == null ? null : buildColumnDictEncodedMap(reader.getRowGroups()));
     }
 
+    /**
+     * Retuns a map of {@link ColumnPath} -> whether all the pages in the row group for this column are dictionary encoded
+     */
     private static Map<ColumnPath, Boolean> buildColumnDictEncodedMap(List<BlockMetaData> blockMetaData) {
       Map<ColumnPath, Boolean> map = new HashMap<>();
       for (BlockMetaData b : blockMetaData) {
         for (ColumnChunkMetaData c : b.getColumns()) {
-          map.put(c.getPath(), ParquetUtil.hasNonDictionaryPages(c));
+          map.put(c.getPath(), !ParquetUtil.hasNonDictionaryPages(c));
         }
       }
       return map;
