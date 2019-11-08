@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -237,10 +238,21 @@ public final class ORCSchemaUtil {
    */
   public static TypeDescription buildOrcProjection(Schema schema,
                                                    TypeDescription originalOrcSchema) {
-    AtomicInteger lastColumnId = new AtomicInteger(originalOrcSchema.getMaximumId());
+    AtomicInteger lastColumnId = new AtomicInteger(getMaxIcebergId(originalOrcSchema));
     final Map<Integer, OrcField> icebergToOrc = icebergToOrcMapping("root",
         originalOrcSchema, lastColumnId::incrementAndGet);
     return buildOrcProjection(Integer.MIN_VALUE, schema.asStruct(), true, icebergToOrc);
+  }
+
+  private static int getMaxIcebergId(TypeDescription originalOrcSchema) {
+    int maxId = icebergID(originalOrcSchema).orElse(0);
+    final List<TypeDescription> children = Optional.ofNullable(originalOrcSchema.getChildren())
+        .orElse(Collections.emptyList());
+    for (TypeDescription child : children) {
+      maxId = Math.max(maxId, getMaxIcebergId(child));
+    }
+
+    return maxId;
   }
 
   private static TypeDescription buildOrcProjection(Integer fieldId, Type type, boolean isRequired,
