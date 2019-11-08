@@ -22,6 +22,7 @@ package org.apache.iceberg.hadoop;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.junit.Assert;
@@ -33,7 +34,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     Configuration conf = new Configuration();
     String warehousePath = temp.newFolder().getAbsolutePath();
     HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
-    TableIdentifier testTable = TableIdentifier.of("db", "tbl");
+    TableIdentifier testTable = TableIdentifier.of("db", "ns1", "ns2", "tbl");
     catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
@@ -42,5 +43,35 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     catalog.dropTable(testTable);
     Assert.assertFalse(fs.isDirectory(new Path(metaLocation)));
+  }
+
+  @Test
+  public void testDropTable() throws Exception {
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    TableIdentifier testTable = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
+    String metaLocation = catalog.defaultWarehouseLocation(testTable);
+
+    FileSystem fs = Util.getFs(new Path(metaLocation), conf);
+    Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
+
+    catalog.dropTable(testTable);
+    Assert.assertFalse(fs.isDirectory(new Path(metaLocation)));
+  }
+
+  @Test
+  public void testRenameTable() throws Exception {
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    TableIdentifier testTable = TableIdentifier.of("db", "tbl1");
+    catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
+    AssertHelpers.assertThrows("should throw exception", UnsupportedOperationException.class,
+        "Cannot rename Hadoop tables", ()-> {
+          catalog.renameTable(testTable, TableIdentifier.of("db", "tbl2"));
+        }
+    );
   }
 }

@@ -19,9 +19,12 @@
 
 package org.apache.iceberg.hadoop;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -81,7 +84,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
   @Override
   public org.apache.iceberg.Table createTable(
       TableIdentifier identifier, Schema schema, PartitionSpec spec, Map<String, String> properties) {
-    Preconditions.checkArgument(identifier.namespace().levels().length == 1,
+    Preconditions.checkArgument(identifier.namespace().levels().length >= 1,
             "Missing database in table identifier: %s", identifier);
     Path tablePath = new Path(defaultWarehouseLocation(identifier));
     try {
@@ -100,28 +103,37 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
 
   public org.apache.iceberg.Table createTable(
           TableIdentifier identifier, Schema schema, PartitionSpec spec) {
-    Preconditions.checkArgument(identifier.namespace().levels().length == 1,
+    Preconditions.checkArgument(identifier.namespace().levels().length >= 1,
             "Missing database in table identifier: %s", identifier);
     return createTable(identifier, schema, spec, null, null);
   }
 
   @Override
   protected TableOperations newTableOps(TableIdentifier identifier) {
-    Preconditions.checkArgument(identifier.namespace().levels().length == 1,
+    Preconditions.checkArgument(identifier.namespace().levels().length >= 1,
                 "Missing database in table identifier: %s", identifier);
     return new HadoopTableOperations(new Path(defaultWarehouseLocation(identifier)), conf);
   }
 
   @Override
   protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
-    String dbName = tableIdentifier.namespace().level(0);
+    String[] levels = tableIdentifier.namespace().levels();
     String tableName = tableIdentifier.name();
-    return this.warehouseUri + "/" + dbName + ".db" + "/" + tableName;
+    
+    List<String> path = new ArrayList<>();
+    path.add(warehouseUri);
+    path.add(levels[0] + ".db");
+    for (int i = 1; i < levels.length; i++){
+      path.add(levels[i]);
+    }
+    path.add(tableName);
+
+    return Joiner.on("/").join(path.iterator());
   }
 
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
-    Preconditions.checkArgument(identifier.namespace().levels().length == 1,
+    Preconditions.checkArgument(identifier.namespace().levels().length >= 1,
                 "Missing database in table identifier: %s", identifier);
 
     Path tablePath = new Path(defaultWarehouseLocation(identifier));
