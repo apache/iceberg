@@ -39,6 +39,7 @@ import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.transforms.UnknownTransform;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.StructType;
 
 /**
  * Represents how to produce partition data for a table.
@@ -99,9 +100,9 @@ public class PartitionSpec implements Serializable {
   }
 
   /**
-   * @return a {@link Types.StructType} for partition data defined by this spec.
+   * @return a {@link StructType} for partition data defined by this spec.
    */
-  public Types.StructType partitionType() {
+  public StructType partitionType() {
     List<Types.NestedField> structFields = Lists.newArrayListWithExpectedSize(fields.length);
 
     for (int i = 0; i < fields.length; i += 1) {

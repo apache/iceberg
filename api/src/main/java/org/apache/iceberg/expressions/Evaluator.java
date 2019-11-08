@@ -24,10 +24,10 @@ import java.util.Comparator;
 import java.util.Set;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.StructType;
 
 /**
- * Evaluates an {@link Expression} for data described by a {@link Types.StructType}.
+ * Evaluates an {@link Expression} for data described by a {@link StructType}.
  * <p>
  * Data rows must implement {@link StructLike} and are passed to {@link #eval(StructLike)}.
  * <p>
@@ -44,11 +44,11 @@ public class Evaluator implements Serializable {
     return visitors.get();
   }
 
-  public Evaluator(Types.StructType struct, Expression unbound) {
+  public Evaluator(StructType struct, Expression unbound) {
     this.expr = Binder.bind(struct, unbound, true);
   }
 
-  public Evaluator(Types.StructType struct, Expression unbound, boolean caseSensitive) {
+  public Evaluator(StructType struct, Expression unbound, boolean caseSensitive) {
     this.expr = Binder.bind(struct, unbound, caseSensitive);
   }
 
