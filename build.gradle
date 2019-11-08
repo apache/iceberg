@@ -200,7 +200,9 @@ project(':iceberg-orc') {
       exclude group: 'com.google.protobuf', module: 'protobuf-java'
       exclude group: 'org.apache.hive', module: 'hive-storage-api'
     }
-    compile("org.apache.hadoop:hadoop-common")
+    compile("org.apache.hadoop:hadoop-common") {
+      exclude group: 'commons-beanutils'
+    }
 
     compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
