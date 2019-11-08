@@ -398,7 +398,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
         Map<String, Object> map = (Map<String, Object>) data;
         List<String> keys = Lists.newArrayListWithExpectedSize(map.size());
         List<Object> values = Lists.newArrayListWithExpectedSize(map.size());
-        for(Map.Entry<String, ?> entry: map.entrySet()){
+        for (Map.Entry<String, ?> entry : map.entrySet()) {
           keys.add(entry.getKey());
           values.add(entry.getValue());
         }

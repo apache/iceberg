@@ -244,19 +244,8 @@ public final class ORCSchemaUtil {
     return buildOrcProjection(Integer.MIN_VALUE, schema.asStruct(), true, icebergToOrc);
   }
 
-  private static int getMaxIcebergId(TypeDescription originalOrcSchema) {
-    int maxId = icebergID(originalOrcSchema).orElse(0);
-    final List<TypeDescription> children = Optional.ofNullable(originalOrcSchema.getChildren())
-        .orElse(Collections.emptyList());
-    for (TypeDescription child : children) {
-      maxId = Math.max(maxId, getMaxIcebergId(child));
-    }
-
-    return maxId;
-  }
-
   private static TypeDescription buildOrcProjection(Integer fieldId, Type type, boolean isRequired,
-                                         Map<Integer, OrcField> mapping) {
+                                                    Map<Integer, OrcField> mapping) {
     final TypeDescription orcType;
 
     switch (type.typeId()) {
@@ -484,5 +473,16 @@ public final class ORCSchemaUtil {
         // We don't have an answer for union types.
         throw new IllegalArgumentException("Can't handle " + orcType);
     }
+  }
+
+  private static int getMaxIcebergId(TypeDescription originalOrcSchema) {
+    int maxId = icebergID(originalOrcSchema).orElse(0);
+    final List<TypeDescription> children = Optional.ofNullable(originalOrcSchema.getChildren())
+        .orElse(Collections.emptyList());
+    for (TypeDescription child : children) {
+      maxId = Math.max(maxId, getMaxIcebergId(child));
+    }
+
+    return maxId;
   }
 }

@@ -32,7 +32,6 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.orc.OrcValueReader;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
@@ -47,6 +46,7 @@ import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
 /**
+ * ORC reader for Generic Record.
  */
 public class GenericOrcReader implements OrcValueReader<Record> {
 
@@ -364,7 +364,7 @@ public class GenericOrcReader implements OrcValueReader<Record> {
       case TIMESTAMP:
         return new TimestampConverter();
       case DECIMAL:
-          return new DecimalConverter();
+        return new DecimalConverter();
       case BINARY:
         return new BinaryConverter();
       case STRING:
