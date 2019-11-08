@@ -19,15 +19,19 @@
 
 package org.apache.iceberg;
 
+import com.google.common.collect.Iterables;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.junit.Assert;
 import org.junit.Test;
 
 import static org.apache.iceberg.Files.localInput;
+import static org.apache.iceberg.TableProperties.MANIFEST_MERGE_ENABLED;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -328,5 +332,415 @@ public class TestRewriteManifests extends TableTestBase {
                             ids(appendIdA),
                             files(FILE_A),
                             statuses(ManifestEntry.Status.EXISTING));
+  }
+
+  @Test
+  public void testBasicManifestReplacement() throws IOException {
+    Assert.assertNull("Table should be empty", table.currentSnapshot());
+
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+    List<ManifestFile> firstSnapshotManifests = firstSnapshot.manifests();
+    Assert.assertEquals(1, firstSnapshotManifests.size());
+    ManifestFile firstSnapshotManifest = firstSnapshotManifests.get(0);
+
+    table.newFastAppend()
+        .appendFile(FILE_C)
+        .appendFile(FILE_D)
+        .commit();
+    Snapshot secondSnapshot = table.currentSnapshot();
+
+    ManifestFile firstNewManifest = writeManifest(
+        "manifest-file-1.avro",
+        manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_A));
+    ManifestFile secondNewManifest = writeManifest(
+        "manifest-file-2.avro",
+        manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_B));
+
+    RewriteManifests rewriteManifests = table.rewriteManifests();
+    rewriteManifests.deleteManifest(firstSnapshotManifest);
+    rewriteManifests.addManifest(firstNewManifest);
+    rewriteManifests.addManifest(secondNewManifest);
+    rewriteManifests.commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    List<ManifestFile> manifests = snapshot.manifests();
+    Assert.assertEquals(3, manifests.size());
+
+    validateSummary(snapshot, 1, 1, 2, 0);
+
+    validateManifestEntries(
+        manifests.get(0),
+        ids(firstSnapshot.snapshotId()),
+        files(FILE_A),
+        statuses(ManifestEntry.Status.EXISTING));
+
+    validateManifestEntries(
+        manifests.get(1),
+        ids(firstSnapshot.snapshotId()),
+        files(FILE_B),
+        statuses(ManifestEntry.Status.EXISTING));
+
+    validateManifestEntries(
+        manifests.get(2),
+        ids(secondSnapshot.snapshotId(), secondSnapshot.snapshotId()),
+        files(FILE_C, FILE_D),
+        statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
+  }
+
+  @Test
+  public void testManifestReplacementConcurrentAppend() throws IOException {
+    Assert.assertNull("Table should be empty", table.currentSnapshot());
+
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+    List<ManifestFile> firstSnapshotManifests = firstSnapshot.manifests();
+    Assert.assertEquals(1, firstSnapshotManifests.size());
+    ManifestFile firstSnapshotManifest = firstSnapshotManifests.get(0);
+
+    ManifestFile firstNewManifest = writeManifest(
+        "manifest-file-1.avro",
+        manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_A));
+    ManifestFile secondNewManifest = writeManifest(
+        "manifest-file-2.avro",
+        manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_B));
+
+    RewriteManifests rewriteManifests = table.rewriteManifests();
+    rewriteManifests.deleteManifest(firstSnapshotManifest);
+    rewriteManifests.addManifest(firstNewManifest);
+    rewriteManifests.addManifest(secondNewManifest);
+
+    table.newFastAppend()
+        .appendFile(FILE_C)
+        .appendFile(FILE_D)
+        .commit();
+    Snapshot secondSnapshot = table.currentSnapshot();
+
+    Assert.assertEquals(2, table.currentSnapshot().manifests().size());
+
+    rewriteManifests.commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    List<ManifestFile> manifests = snapshot.manifests();
+    Assert.assertEquals(3, manifests.size());
+
+    validateSummary(snapshot, 1, 1, 2, 0);
+
+    validateManifestEntries(
+        manifests.get(0),
+        ids(firstSnapshot.snapshotId()),
+        files(FILE_A),
+        statuses(ManifestEntry.Status.EXISTING));
+
+    validateManifestEntries(
+        manifests.get(1),
+        ids(firstSnapshot.snapshotId()),
+        files(FILE_B),
+        statuses(ManifestEntry.Status.EXISTING));
+
+    validateManifestEntries(
+        manifests.get(2),
+        ids(secondSnapshot.snapshotId(), secondSnapshot.snapshotId()),
+        files(FILE_C, FILE_D),
+        statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
+  }
+
+  @Test
+  public void testManifestReplacementConcurrentDelete() throws IOException {
+    Assert.assertNull("Table should be empty", table.currentSnapshot());
+
+    table.updateProperties()
+        .set(MANIFEST_MERGE_ENABLED, "false")
+        .commit();
+
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+    List<ManifestFile> firstSnapshotManifests = firstSnapshot.manifests();
+    Assert.assertEquals(1, firstSnapshotManifests.size());
+    ManifestFile firstSnapshotManifest = firstSnapshotManifests.get(0);
+
+    table.newFastAppend()
+        .appendFile(FILE_C)
+        .appendFile(FILE_D)
+        .commit();
+    long secondSnapshotId = table.currentSnapshot().snapshotId();
+
+    ManifestFile firstNewManifest = writeManifest(
+        "manifest-file-1.avro",
+        manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_A));
+    ManifestFile secondNewManifest = writeManifest(
+        "manifest-file-2.avro",
+        manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_B));
+
+    RewriteManifests rewriteManifests = table.rewriteManifests();
+    rewriteManifests.deleteManifest(firstSnapshotManifest);
+    rewriteManifests.addManifest(firstNewManifest);
+    rewriteManifests.addManifest(secondNewManifest);
+
+    table.newDelete()
+        .deleteFile(FILE_C)
+        .commit();
+    long thirdSnapshotId = table.currentSnapshot().snapshotId();
+
+    rewriteManifests.commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    List<ManifestFile> manifests = snapshot.manifests();
+    Assert.assertEquals(3, manifests.size());
+
+    validateSummary(snapshot, 1, 1, 2, 0);
+
+    validateManifestEntries(
+        manifests.get(0),
+        ids(firstSnapshot.snapshotId()),
+        files(FILE_A),
+        statuses(ManifestEntry.Status.EXISTING));
+
+    validateManifestEntries(
+        manifests.get(1),
+        ids(firstSnapshot.snapshotId()),
+        files(FILE_B),
+        statuses(ManifestEntry.Status.EXISTING));
+
+    validateManifestEntries(
+        manifests.get(2),
+        ids(thirdSnapshotId, secondSnapshotId),
+        files(FILE_C, FILE_D),
+        statuses(ManifestEntry.Status.DELETED, ManifestEntry.Status.EXISTING));
+  }
+
+  @Test
+  public void testManifestReplacementConcurrentConflictingDelete() throws IOException {
+    Assert.assertNull("Table should be empty", table.currentSnapshot());
+
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+    List<ManifestFile> firstSnapshotManifests = firstSnapshot.manifests();
+    Assert.assertEquals(1, firstSnapshotManifests.size());
+    ManifestFile firstSnapshotManifest = firstSnapshotManifests.get(0);
+
+    ManifestFile firstNewManifest = writeManifest(
+        "manifest-file-1.avro",
+        manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_A));
+    ManifestFile secondNewManifest = writeManifest(
+        "manifest-file-2.avro",
+        manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_B));
+
+    RewriteManifests rewriteManifests = table.rewriteManifests();
+    rewriteManifests.deleteManifest(firstSnapshotManifest);
+    rewriteManifests.addManifest(firstNewManifest);
+    rewriteManifests.addManifest(secondNewManifest);
+
+    table.newDelete()
+        .deleteFile(FILE_A)
+        .commit();
+
+    AssertHelpers.assertThrows("Should reject commit",
+        ValidationException.class, "Manifest is missing",
+        rewriteManifests::commit);
+  }
+
+  @Test
+  public void testManifestReplacementCombinedWithRewrite() throws IOException {
+    Assert.assertNull("Table should be empty", table.currentSnapshot());
+
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+    List<ManifestFile> firstSnapshotManifests = firstSnapshot.manifests();
+    Assert.assertEquals(1, firstSnapshotManifests.size());
+    ManifestFile firstSnapshotManifest = firstSnapshotManifests.get(0);
+
+    table.newFastAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    Snapshot secondSnapshot = table.currentSnapshot();
+
+    table.newFastAppend()
+        .appendFile(FILE_C)
+        .commit();
+
+    table.newFastAppend()
+        .appendFile(FILE_D)
+        .commit();
+
+    Assert.assertEquals(4, Iterables.size(table.snapshots()));
+
+    ManifestFile newManifest = writeManifest(
+        "manifest-file-1.avro",
+        manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_A));
+
+    table.rewriteManifests()
+        .deleteManifest(firstSnapshotManifest)
+        .addManifest(newManifest)
+        .clusterBy(dataFile -> "const-value")
+        .rewriteIf(manifest -> {
+          try (ManifestReader reader = ManifestReader.read(localInput(manifest.path()))) {
+            return !reader.iterator().next().path().equals(FILE_B.path());
+          } catch (IOException x) {
+            throw new RuntimeIOException(x);
+          }
+        })
+        .commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    List<ManifestFile> manifests = snapshot.manifests();
+    Assert.assertEquals(3, manifests.size());
+
+    validateSummary(snapshot, 3, 1, 2, 2);
+
+    validateManifestEntries(
+        manifests.get(1),
+        ids(firstSnapshot.snapshotId()),
+        files(FILE_A),
+        statuses(ManifestEntry.Status.EXISTING));
+
+    validateManifestEntries(
+        manifests.get(2),
+        ids(secondSnapshot.snapshotId()),
+        files(FILE_B),
+        statuses(ManifestEntry.Status.ADDED));
+  }
+
+  @Test
+  public void testManifestReplacementCombinedWithRewriteConcurrentDelete() throws IOException {
+    Assert.assertNull("Table should be empty", table.currentSnapshot());
+
+    table.updateProperties()
+        .set(MANIFEST_MERGE_ENABLED, "false")
+        .commit();
+
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+    List<ManifestFile> firstSnapshotManifests = firstSnapshot.manifests();
+    Assert.assertEquals(1, firstSnapshotManifests.size());
+    ManifestFile firstSnapshotManifest = firstSnapshotManifests.get(0);
+
+    table.newFastAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    Snapshot secondSnapshot = table.currentSnapshot();
+
+    table.newFastAppend()
+        .appendFile(FILE_C)
+        .commit();
+
+    Assert.assertEquals(3, Iterables.size(table.snapshots()));
+
+    ManifestFile newManifest = writeManifest(
+        "manifest-file-1.avro",
+        manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_A));
+
+    RewriteManifests rewriteManifests = table.rewriteManifests()
+        .deleteManifest(firstSnapshotManifest)
+        .addManifest(newManifest)
+        .clusterBy(dataFile -> "const-value");
+
+    rewriteManifests.apply();
+
+    table.newDelete()
+        .deleteFile(FILE_C)
+        .commit();
+
+    rewriteManifests.commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    List<ManifestFile> manifests = snapshot.manifests();
+    Assert.assertEquals(2, manifests.size());
+
+    validateSummary(snapshot, 3, 0, 2, 1);
+
+    validateManifestEntries(
+        manifests.get(0),
+        ids(secondSnapshot.snapshotId()),
+        files(FILE_B),
+        statuses(ManifestEntry.Status.EXISTING));
+
+    validateManifestEntries(
+        manifests.get(1),
+        ids(firstSnapshot.snapshotId()),
+        files(FILE_A),
+        statuses(ManifestEntry.Status.EXISTING));
+  }
+
+  @Test
+  public void testInvalidUsage() throws IOException {
+    Assert.assertNull("Table should be empty", table.currentSnapshot());
+
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    List<ManifestFile> manifests = snapshot.manifests();
+    Assert.assertEquals(1, manifests.size());
+    ManifestFile manifest = manifests.get(0);
+
+    ManifestFile invalidAddedFileManifest = writeManifest(
+        "manifest-file-2.avro",
+        manifestEntry(ManifestEntry.Status.ADDED, snapshot.snapshotId(), FILE_A));
+
+    AssertHelpers.assertThrows("Should reject commit",
+        IllegalArgumentException.class, "Cannot append manifest: Invalid manifest",
+        () -> table.rewriteManifests()
+            .deleteManifest(manifest)
+            .addManifest(invalidAddedFileManifest)
+            .commit());
+
+    ManifestFile invalidDeletedFileManifest = writeManifest(
+        "manifest-file-3.avro",
+        manifestEntry(ManifestEntry.Status.DELETED, snapshot.snapshotId(), FILE_A));
+
+    AssertHelpers.assertThrows("Should reject commit",
+        IllegalArgumentException.class, "Cannot append manifest: Invalid manifest",
+        () -> table.rewriteManifests()
+            .deleteManifest(manifest)
+            .addManifest(invalidDeletedFileManifest)
+            .commit());
+
+    AssertHelpers.assertThrows("Should reject commit",
+        ValidationException.class, "must have the same number of active files",
+        () -> table.rewriteManifests()
+            .deleteManifest(manifest)
+            .commit());
+  }
+
+  private void validateSummary(Snapshot snapshot, int replaced, int kept, int created, int entryCount) {
+    Map<String, String> summary = snapshot.summary();
+    Assert.assertEquals(
+        "Replaced manifest count should match",
+        replaced, Integer.parseInt(summary.get("manifests-replaced")));
+    Assert.assertEquals(
+        "Kept manifest count should match",
+        kept, Integer.parseInt(summary.get("manifests-kept")));
+    Assert.assertEquals(
+        "Created manifest count should match",
+        created, Integer.parseInt(summary.get("manifests-created")));
+    Assert.assertEquals(
+        "Entry count should match",
+        entryCount, Integer.parseInt(summary.get("entries-processed")));
   }
 }

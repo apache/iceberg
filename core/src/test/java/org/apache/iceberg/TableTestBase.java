@@ -140,6 +140,37 @@ public class TableTestBase {
     return writer.toManifestFile();
   }
 
+  ManifestFile writeManifest(String fileName, ManifestEntry... entries) throws IOException {
+    File manifestFile = temp.newFile(fileName);
+    Assert.assertTrue(manifestFile.delete());
+    OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
+
+    ManifestWriter writer = ManifestWriter.write(table.spec(), outputFile);
+    try {
+      for (ManifestEntry entry : entries) {
+        writer.addEntry(entry);
+      }
+    } finally {
+      writer.close();
+    }
+
+    return writer.toManifestFile();
+  }
+
+  ManifestEntry manifestEntry(ManifestEntry.Status status, long snapshotId, DataFile file) {
+    ManifestEntry entry = new ManifestEntry(table.spec().partitionType());
+    switch (status) {
+      case ADDED:
+        return entry.wrapAppend(snapshotId, file);
+      case EXISTING:
+        return entry.wrapExisting(snapshotId, file);
+      case DELETED:
+        return entry.wrapDelete(snapshotId, file);
+      default:
+        throw new IllegalArgumentException("Unexpected entry status: " + status);
+    }
+  }
+
   void validateSnapshot(Snapshot old, Snapshot snap, DataFile... newFiles) {
     List<ManifestFile> oldManifests = old != null ? old.manifests() : ImmutableList.of();
 
