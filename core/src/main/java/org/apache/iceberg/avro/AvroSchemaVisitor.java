@@ -58,7 +58,7 @@ public abstract class AvroSchemaVisitor<T> {
         return visitor.union(schema, options);
 
       case ARRAY:
-        if (schema.getLogicalType() instanceof LogicalMap || AvroSchemaUtil.isKeyValueSchema(schema.getElementType())) {
+        if (schema.getLogicalType() instanceof LogicalMap) {
           return visitor.array(schema, visit(schema.getElementType(), visitor));
         } else {
           return visitor.array(schema, visitWithName("element", schema.getElementType(), visitor));

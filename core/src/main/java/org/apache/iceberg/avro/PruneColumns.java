@@ -121,7 +121,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
   @Override
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Schema array(Schema array, Schema element) {
-    if (array.getLogicalType() instanceof LogicalMap || AvroSchemaUtil.isKeyValueSchema(array.getElementType())) {
+    if (array.getLogicalType() instanceof LogicalMap) {
       Schema keyValue = array.getElementType();
       Integer keyId = AvroSchemaUtil.getFieldId(keyValue.getField("key"), nameMapping, fieldNames());
       Integer valueId = AvroSchemaUtil.getFieldId(keyValue.getField("value"), nameMapping, fieldNames());

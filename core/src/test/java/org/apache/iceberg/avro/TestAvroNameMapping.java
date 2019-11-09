@@ -38,6 +38,7 @@ import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.MappedFields;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
@@ -90,6 +91,70 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
     Record projectedL1 = ((Map<String, Record>) projected.get("location")).get("l1");
     Assert.assertNotNull("Field missing from table mapping is renamed", projectedL1.getSchema().getField("long_r2"));
     Assert.assertNull("location.value.long, should not be read", projectedL1.get("long_r2"));
+  }
+
+  @Test
+  public void testComplexMapKeys() throws IOException {
+    Schema writeSchema = new Schema(
+        Types.NestedField.required(5, "location", Types.MapType.ofRequired(6, 7,
+            Types.StructType.of(
+                Types.NestedField.required(3, "k1", Types.StringType.get()),
+                Types.NestedField.required(4, "k2", Types.StringType.get())
+            ),
+            Types.StructType.of(
+                Types.NestedField.required(1, "lat", Types.FloatType.get()),
+                Types.NestedField.optional(2, "long", Types.FloatType.get())
+            )
+        )));
+
+    Record record = new Record(AvroSchemaUtil.convert(writeSchema, "table"));
+    org.apache.avro.Schema locationSchema = record.getSchema().getField("location").schema();
+    Record locationElement = new Record(locationSchema.getElementType());
+    Record locationKey = new Record(locationElement.getSchema().getField("key").schema());
+    Record locationValue = new Record(locationElement.getSchema().getField("value").schema());
+
+    locationKey.put("k1", "k1");
+    locationKey.put("k2", "k2");
+    locationValue.put("lat", 52.995143f);
+    locationValue.put("long", -1.539054f);
+    locationElement.put("key", locationKey);
+    locationElement.put("value", locationValue);
+    record.put("location", ImmutableList.of(locationElement));
+
+    // project a subset of the map's value columns in NameMapping
+    NameMapping nameMapping = MappingUtil.create(new Schema(
+        Types.NestedField.required(5, "location", Types.MapType.ofOptional(6, 7,
+            Types.StructType.of(
+                Types.NestedField.required(3, "k1", Types.StringType.get()),
+                Types.NestedField.optional(4, "k2", Types.StringType.get())
+            ),
+            Types.StructType.of(
+                Types.NestedField.required(1, "lat", Types.FloatType.get())
+            )
+        ))));
+
+    Schema readSchema = new Schema(
+        Types.NestedField.required(5, "location", Types.MapType.ofOptional(6, 7,
+            Types.StructType.of(
+                Types.NestedField.required(3, "k1", Types.StringType.get()),
+                Types.NestedField.optional(4, "k2", Types.StringType.get())
+            ),
+            Types.StructType.of(
+                Types.NestedField.required(1, "lat", Types.FloatType.get()),
+                Types.NestedField.optional(2, "long", Types.FloatType.get())
+            )
+        )));
+
+    Record projected = writeAndRead(writeSchema, readSchema, record, nameMapping);
+    // The data is read back as a map
+    Map<Record, Record> projectedLocation = (Map<Record, Record>) projected.get("location");
+    Record projectedKey = projectedLocation.keySet().iterator().next();
+    Record projectedValue = projectedLocation.values().iterator().next();
+    Assert.assertEquals(0, Comparators.charSequences().compare("k1", (CharSequence) projectedKey.get("k1")));
+    Assert.assertEquals(0, Comparators.charSequences().compare("k2", (CharSequence) projectedKey.get("k2")));
+    Assert.assertEquals(52.995143f, projectedValue.get("lat"));
+    Assert.assertNotNull(projectedValue.getSchema().getField("long_r2"));
+    Assert.assertNull(projectedValue.get("long_r2"));
   }
 
   @Test
