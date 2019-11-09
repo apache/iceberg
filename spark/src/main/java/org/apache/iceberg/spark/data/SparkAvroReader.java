@@ -182,6 +182,8 @@ public class SparkAvroReader implements DatumReader<InternalRow> {
           return ValueReaders.fixed(primitive.getFixedSize());
         case BYTES:
           return ValueReaders.bytes();
+        case ENUM:
+          return SparkValueReaders.enums(primitive.getEnumSymbols());
         default:
           throw new IllegalArgumentException("Unsupported type: " + primitive);
       }

@@ -25,6 +25,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
 import org.apache.avro.Schema;
@@ -46,6 +47,10 @@ public class SparkValueReaders {
 
   static ValueReader<UTF8String> strings() {
     return StringReader.INSTANCE;
+  }
+
+  static ValueReader<UTF8String> enums(List<String> symbols) {
+    return new EnumReader(symbols);
   }
 
   static ValueReader<UTF8String> uuids() {
@@ -93,6 +98,23 @@ public class SparkValueReaders {
 //      byte[] bytes = new byte[length];
 //      decoder.readFixed(bytes, 0, length);
 //      return UTF8String.fromBytes(bytes);
+    }
+  }
+
+  private static class EnumReader implements ValueReader<UTF8String> {
+    private final UTF8String[] symbols;
+
+    private EnumReader(List<String> symbols) {
+      this.symbols = new UTF8String[symbols.size()];
+      for (int i = 0; i < this.symbols.length; i += 1) {
+        this.symbols[i] = UTF8String.fromBytes(symbols.get(i).getBytes(StandardCharsets.UTF_8));
+      }
+    }
+
+    @Override
+    public UTF8String read(Decoder decoder, Object ignore) throws IOException {
+      int index = decoder.readEnum();
+      return symbols[index];
     }
   }
 

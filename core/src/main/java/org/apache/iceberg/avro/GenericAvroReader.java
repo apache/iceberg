@@ -211,6 +211,8 @@ class GenericAvroReader<T> implements DatumReader<T> {
           return ValueReaders.fixed(primitive);
         case BYTES:
           return ValueReaders.byteBuffers();
+        case ENUM:
+          return ValueReaders.enums(primitive.getEnumSymbols());
         default:
           throw new IllegalArgumentException("Unsupported type: " + primitive);
       }
