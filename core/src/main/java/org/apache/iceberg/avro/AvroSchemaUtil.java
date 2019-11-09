@@ -347,6 +347,13 @@ public class AvroSchemaUtil {
     return copy;
   }
 
+  public static String makeCompatibleName(String name) {
+    if (!validAvroName(name)) {
+      return sanitize(name);
+    }
+    return name;
+  }
+
   static boolean validAvroName(String name) {
     int length = name.length();
     Preconditions.checkArgument(length > 0, "Empty name");

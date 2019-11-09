@@ -166,7 +166,9 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
      * @param writeSchema the schema used to decode buffers
      */
     private RawDecoder(org.apache.iceberg.Schema readSchema, org.apache.avro.Schema writeSchema) {
-      this.reader = new ProjectionDatumReader<>(DataReader::create, readSchema, ImmutableMap.of(), null);
+      this.reader = new ProjectionDatumReader<>(
+          avroSchema -> DataReader.create(readSchema, avroSchema),
+          readSchema, ImmutableMap.of(), null);
       this.reader.setSchema(writeSchema);
     }
 

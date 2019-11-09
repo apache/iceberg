@@ -87,7 +87,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
         hasChange = true;
       }
 
-      Schema.Field avroField = updateMap.get(field.name());
+      Schema.Field avroField = updateMap.get(AvroSchemaUtil.makeCompatibleName(field.name()));
 
       if (avroField != null) {
         updatedFields.add(avroField);
@@ -131,7 +131,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
 
       if (schema != field.schema() || !expectedName.equals(field.name())) {
         // add an alias for the field
-        return AvroSchemaUtil.copyField(field, schema, expectedName);
+        return AvroSchemaUtil.copyField(field, schema, AvroSchemaUtil.makeCompatibleName(expectedName));
       } else {
         // always copy because fields can't be reused
         return AvroSchemaUtil.copyField(field, field.schema(), field.name());
