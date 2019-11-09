@@ -102,22 +102,21 @@ public class SparkValueReaders {
   }
 
   private static class EnumReader implements ValueReader<UTF8String> {
-    private final byte[][] symbols;
+    private final UTF8String[] symbols;
 
     private EnumReader(List<String> symbols) {
-      this.symbols = new byte[symbols.size()][];
+      this.symbols = new UTF8String[symbols.size()];
       for (int i = 0; i < this.symbols.length; i += 1) {
-        this.symbols[i] = symbols.get(i).getBytes(StandardCharsets.UTF_8);
+        this.symbols[i] = UTF8String.fromBytes(symbols.get(i).getBytes(StandardCharsets.UTF_8));
       }
     }
 
     @Override
     public UTF8String read(Decoder decoder, Object ignore) throws IOException {
       int index = decoder.readEnum();
-      return UTF8String.fromBytes(symbols[index], 0, symbols[index].length);
+      return symbols[index];
     }
   }
-
 
   private static class UUIDReader implements ValueReader<UTF8String> {
     private static final ThreadLocal<ByteBuffer> BUFFER = ThreadLocal.withInitial(() -> {
