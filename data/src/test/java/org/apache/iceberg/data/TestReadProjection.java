@@ -81,7 +81,7 @@ public abstract class TestReadProjection {
         0,
         Comparators.charSequences().compare("test", (CharSequence) full.getField("data%0")));
 
-    Record projected = writeAndRead("full_projection", schema, schema.select("data%0"), record);
+    Record projected = writeAndRead("special_characters", schema, schema.select("data%0"), record);
 
     Assert.assertNull("Should not contain id value", projected.getField("user id"));
     Assert.assertEquals("Should contain the correct data value",
