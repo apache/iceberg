@@ -19,12 +19,9 @@
 
 package org.apache.iceberg.hadoop;
 
-import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -32,109 +29,106 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 
 /**
- * The HadoopCatalog provides a way to manage the path-based table just like catalog. It uses
- * a specified directory under a specified filesystem as the warehouse directory, and organizes
+ * HadoopCatalog provides a way to use table names like db.table to work with path-based tables under a common
+ * location. It uses a specified directory under a specified filesystem as the warehouse directory, and organizes
  * two levels directories that mapped to the database and the table respectively. The HadoopCatalog
- * takes a URI as its root directory, and creates a child directory "iceberg/warehouse" as the
- * warehouse directory. When creating a table such as $db.$tbl, it creates $db.db/$tbl under
+ * takes a URI as the warehouse directory. When creating a table such as $db.$tbl, it creates $db/$tbl under
  * iceberg/warehouse, and put the table metadata into the directory.
  *
- * The HadoopCatalog now supports createtable, droptable, the renametable is not supported yet.
+ * The HadoopCatalog now supports {@link org.apache.iceberg.catalog.Catalog#createTable},
+ * {@link org.apache.iceberg.catalog.Catalog#dropTable}, the {@link org.apache.iceberg.catalog.Catalog#renameTable}
+ * is not supported yet.
  *
- * Note: The HadoopCatalog requires the rename operation of the filesystem is an atomic operation.
+ * Note: The HadoopCatalog requires that the underlying file system supports atomic rename.
  */
 public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
   private static final String ICEBERG_HADOOP_WAREHOUSE_BASE = "iceberg/warehouse";
   private final Configuration conf;
-  private String warehouseUri;
+  private String warehouseLocation;
 
-  public HadoopCatalog(Configuration conf, String warehouseUri) {
+  public HadoopCatalog(Configuration conf, String warehouseLocation) {
+    Preconditions.checkArgument(warehouseLocation != null && !warehouseLocation.equals(""),
+        "no location provided for warehouse");
+
     this.conf = conf;
-
-    if (warehouseUri != null) {
-      this.warehouseUri = warehouseUri;
-    } else {
-      String fsRoot = conf.get("fs.defaultFS");
-      Path warehousePath = new Path(fsRoot, ICEBERG_HADOOP_WAREHOUSE_BASE);
-      try {
-        FileSystem fs = Util.getFs(warehousePath, conf);
-        if (!fs.isDirectory(warehousePath)) {
-          if (!fs.mkdirs(warehousePath)) {
-            throw new IOException("failed to create warehouse for hadoop catalog");
-          }
-        }
-        this.warehouseUri = fsRoot + "/" + ICEBERG_HADOOP_WAREHOUSE_BASE;
-      } catch (IOException e) {
-        throw new RuntimeIOException("failed to create directory for warehouse", e);
-      }
-    }
+    this.warehouseLocation = warehouseLocation.replaceAll("/$", "");
   }
 
   public HadoopCatalog(Configuration conf) {
-    this(conf, null);
+    String fsRoot = conf.get("fs.defaultFS");
+    Path warehousePath = new Path(fsRoot, ICEBERG_HADOOP_WAREHOUSE_BASE);
+
+    try {
+      FileSystem fs = Util.getFs(warehousePath, conf);
+      if (!fs.isDirectory(warehousePath)) {
+        if (!fs.mkdirs(warehousePath)) {
+          throw new IOException("failed to create warehouse for hadoop catalog");
+        }
+      }
+    } catch (IOException e) {
+      throw new RuntimeIOException("failed to create directory for warehouse", e);
+    }
+
+    this.conf = conf;
+    this.warehouseLocation = fsRoot + "/" + ICEBERG_HADOOP_WAREHOUSE_BASE;
   }
 
   @Override
-  public org.apache.iceberg.Table createTable(
+  public Table createTable(
+      TableIdentifier identifier, Schema schema, PartitionSpec spec, String location, Map<String, String> properties) {
+    Preconditions.checkArgument(identifier.namespace().levels().length >= 1,
+        "Missing database in table identifier: %s", identifier);
+    Preconditions.checkArgument(location == null, "Cannot set a custom location for a path-based table");
+    return createTable(identifier, schema, spec, properties);
+  }
+
+  @Override
+  public Table createTable(
       TableIdentifier identifier, Schema schema, PartitionSpec spec, Map<String, String> properties) {
     Preconditions.checkArgument(identifier.namespace().levels().length >= 1,
-            "Missing database in table identifier: %s", identifier);
-    Path tablePath = new Path(defaultWarehouseLocation(identifier));
-    try {
-      FileSystem fs = Util.getFs(tablePath, conf);
-      if (!fs.isDirectory(tablePath)) {
-        fs.mkdirs(tablePath);
-      } else {
-        throw new AlreadyExistsException("the directory %s for table %s is already exists.",
-          tablePath.toString(), identifier.toString());
-      }
-    } catch (IOException e) {
-      throw new RuntimeIOException("failed to create directory", e);
-    }
+        "Missing database in table identifier: %s", identifier);
     return super.createTable(identifier, schema, spec, null, properties);
   }
 
-  public org.apache.iceberg.Table createTable(
-          TableIdentifier identifier, Schema schema, PartitionSpec spec) {
+  public Table createTable(
+      TableIdentifier identifier, Schema schema, PartitionSpec spec) {
     Preconditions.checkArgument(identifier.namespace().levels().length >= 1,
-            "Missing database in table identifier: %s", identifier);
+        "Missing database in table identifier: %s", identifier);
     return createTable(identifier, schema, spec, null, null);
   }
 
   @Override
   protected TableOperations newTableOps(TableIdentifier identifier) {
     Preconditions.checkArgument(identifier.namespace().levels().length >= 1,
-                "Missing database in table identifier: %s", identifier);
+        "Missing database in table identifier: %s", identifier);
     return new HadoopTableOperations(new Path(defaultWarehouseLocation(identifier)), conf);
   }
 
   @Override
   protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
-    String[] levels = tableIdentifier.namespace().levels();
     String tableName = tableIdentifier.name();
-    
-    List<String> path = new ArrayList<>();
-    path.add(warehouseUri);
-    path.add(levels[0] + ".db");
-    for (int i = 1; i < levels.length; i++){
-      path.add(levels[i]);
-    }
-    path.add(tableName);
+    StringBuilder sb = new StringBuilder();
 
-    return Joiner.on("/").join(path.iterator());
+    sb.append(warehouseLocation).append('/');
+    for (String level : tableIdentifier.namespace().levels()) {
+      sb.append(level).append('/');
+    }
+    sb.append(tableName);
+
+    return sb.toString();
   }
 
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
     Preconditions.checkArgument(identifier.namespace().levels().length >= 1,
-                "Missing database in table identifier: %s", identifier);
+        "Missing database in table identifier: %s", identifier);
 
     Path tablePath = new Path(defaultWarehouseLocation(identifier));
     TableOperations ops = newTableOps(identifier);
@@ -165,6 +159,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
   }
 
   @Override
-  public void close() throws IOException { }
+  public void close() throws IOException {
+  }
 
 }

@@ -69,7 +69,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     TableIdentifier testTable = TableIdentifier.of("db", "tbl1");
     catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
     AssertHelpers.assertThrows("should throw exception", UnsupportedOperationException.class,
-        "Cannot rename Hadoop tables", ()-> {
+        "Cannot rename Hadoop tables", () -> {
           catalog.renameTable(testTable, TableIdentifier.of("db", "tbl2"));
         }
     );
