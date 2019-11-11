@@ -20,7 +20,6 @@
 package org.apache.iceberg.types;
 
 import com.google.common.base.Joiner;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.util.Deque;
@@ -44,7 +43,9 @@ public class IndexByName extends TypeUtil.CustomOrderSchemaVisitor<Map<String, I
   @Override
   public Map<String, Integer> struct(Types.StructType struct, Iterable<Map<String, Integer>> fieldResults) {
     // iterate through the fields to update the index for each one
-    Iterables.size(fieldResults);
+    for (Map<String, Integer> result : fieldResults) {
+      result.size();
+    }
     return nameToId;
   }
 
