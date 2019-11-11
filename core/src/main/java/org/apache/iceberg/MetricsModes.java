@@ -20,6 +20,8 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
+import java.io.ObjectStreamException;
+import java.io.Serializable;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.regex.Matcher;
@@ -53,12 +55,12 @@ public class MetricsModes {
     throw new IllegalArgumentException("Invalid metrics mode: " + mode);
   }
 
-  public interface MetricsMode {}
+  public interface MetricsMode extends Serializable {}
 
   /**
    * Under this mode, value_counts, null_value_counts, lower_bounds, upper_bounds are not persisted.
    */
-  public static class None implements MetricsMode {
+  public static class None extends ProxySerializableMetricsMode {
     private static final None INSTANCE = new None();
 
     public static None get() {
@@ -74,7 +76,7 @@ public class MetricsModes {
   /**
    * Under this mode, only value_counts, null_value_counts are persisted.
    */
-  public static class Counts implements MetricsMode {
+  public static class Counts extends ProxySerializableMetricsMode {
     private static final Counts INSTANCE = new Counts();
 
     public static Counts get() {
@@ -90,7 +92,7 @@ public class MetricsModes {
   /**
    * Under this mode, value_counts, null_value_counts and truncated lower_bounds, upper_bounds are persisted.
    */
-  public static class Truncate implements MetricsMode {
+  public static class Truncate extends ProxySerializableMetricsMode {
     private final int length;
 
     private Truncate(int length) {
@@ -131,7 +133,7 @@ public class MetricsModes {
   /**
    * Under this mode, value_counts, null_value_counts and full lower_bounds, upper_bounds are persisted.
    */
-  public static class Full implements MetricsMode {
+  public static class Full extends ProxySerializableMetricsMode {
     private static final Full INSTANCE = new Full();
 
     public static Full get() {
@@ -141,6 +143,25 @@ public class MetricsModes {
     @Override
     public String toString() {
       return "full";
+    }
+  }
+
+  // we cannot serialize/deserialize MetricsMode directly as it breaks reference equality used in metrics utils
+  private abstract static class ProxySerializableMetricsMode implements MetricsMode {
+    Object writeReplace() throws ObjectStreamException {
+      return new MetricsModeProxy(toString());
+    }
+  }
+
+  private static class MetricsModeProxy implements Serializable {
+    private String modeAsString;
+
+    MetricsModeProxy(String modeAsString) {
+      this.modeAsString = modeAsString;
+    }
+
+    Object readResolve() throws ObjectStreamException {
+      return MetricsModes.fromString(modeAsString);
     }
   }
 }
