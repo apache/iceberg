@@ -23,12 +23,17 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+
+import static org.apache.iceberg.expressions.Expression.Operation.IN;
+import static org.apache.iceberg.expressions.Expression.Operation.NOT_IN;
+import static org.apache.iceberg.expressions.Expressions.predicate;
 
 enum Timestamps implements Transform<Long, Integer> {
   YEAR(ChronoUnit.YEARS, "year"),
@@ -82,6 +87,9 @@ enum Timestamps implements Transform<Long, Integer> {
       return Expressions.predicate(pred.op(), fieldName);
     } else if (pred.isLiteralPredicate()) {
       return ProjectionUtil.truncateLong(fieldName, pred.asLiteralPredicate(), this);
+    } else if (pred.isSetPredicate() && pred.op() == IN) {
+      return predicate(pred.op(), fieldName, pred.asSetPredicate().literalSet()
+              .stream().map(this::apply).collect(Collectors.toList()));
     }
     return null;
   }
@@ -96,6 +104,10 @@ enum Timestamps implements Transform<Long, Integer> {
       return Expressions.predicate(pred.op(), fieldName);
     } else if (pred.isLiteralPredicate()) {
       return ProjectionUtil.truncateLongStrict(fieldName, pred.asLiteralPredicate(), this);
+    } else if (pred.isSetPredicate() && pred.op() == NOT_IN) {
+      return predicate(pred.op(), fieldName,
+          pred.asSetPredicate().literalSet()
+              .stream().map(this::apply).collect(Collectors.toList()));
     }
     return null;
   }

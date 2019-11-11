@@ -28,10 +28,15 @@ import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.BoundUnaryPredicate;
 import org.apache.iceberg.expressions.Expression;
+import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.UnicodeUtil;
+
+import static org.apache.iceberg.expressions.Expression.Operation.IN;
+import static org.apache.iceberg.expressions.Expression.Operation.NOT_IN;
+import static org.apache.iceberg.expressions.Expressions.predicate;
 
 abstract class Truncate<T> implements Transform<T, T> {
   @SuppressWarnings("unchecked")
@@ -99,6 +104,10 @@ abstract class Truncate<T> implements Transform<T, T> {
         return Expressions.predicate(pred.op(), name);
       } else if (pred.isLiteralPredicate()) {
         return ProjectionUtil.truncateInteger(name, pred.asLiteralPredicate(), this);
+      } else if (pred.isSetPredicate() && pred.op() == IN) {
+        return predicate(pred.op(), name,
+            pred.asSetPredicate().literalSet()
+                .stream().map(this::apply).collect(Collectors.toList()));
       }
       return null;
     }
@@ -116,6 +125,10 @@ abstract class Truncate<T> implements Transform<T, T> {
         return Expressions.predicate(pred.op(), name);
       } else if (pred instanceof BoundLiteralPredicate) {
         return ProjectionUtil.truncateIntegerStrict(name, pred.asLiteralPredicate(), this);
+      } else if (pred.isSetPredicate() && pred.op() == NOT_IN) {
+        return predicate(pred.op(), name,
+            pred.asSetPredicate().literalSet()
+                .stream().map(this::apply).collect(Collectors.toList()));
       }
       return null;
     }
@@ -179,6 +192,10 @@ abstract class Truncate<T> implements Transform<T, T> {
         return Expressions.predicate(pred.op(), name);
       } else if (pred.isLiteralPredicate()) {
         return ProjectionUtil.truncateLong(name, pred.asLiteralPredicate(), this);
+      } else if (pred.isSetPredicate() && pred.op() == IN) {
+        return predicate(pred.op(), name,
+            pred.asSetPredicate().literalSet()
+                .stream().map(this::apply).collect(Collectors.toList()));
       }
       return null;
     }
@@ -193,6 +210,10 @@ abstract class Truncate<T> implements Transform<T, T> {
         return Expressions.predicate(pred.op(), name);
       } else if (pred.isLiteralPredicate()) {
         return ProjectionUtil.truncateLongStrict(name, pred.asLiteralPredicate(), this);
+      } else if (pred.isSetPredicate() && pred.op() == NOT_IN) {
+        return predicate(pred.op(), name,
+            pred.asSetPredicate().literalSet()
+                .stream().map(this::apply).collect(Collectors.toList()));
       }
       return null;
     }
@@ -257,6 +278,10 @@ abstract class Truncate<T> implements Transform<T, T> {
         return Expressions.predicate(predicate.op(), name);
       } else if (predicate.isLiteralPredicate()) {
         return ProjectionUtil.truncateArray(name, predicate.asLiteralPredicate(), this);
+      } else if (predicate.isSetPredicate() && predicate.op() == IN) {
+        return predicate(predicate.op(), name,
+            predicate.asSetPredicate().literalSet()
+                .stream().map(this::apply).collect(Collectors.toList()));
       }
       return null;
     }
@@ -281,6 +306,10 @@ abstract class Truncate<T> implements Transform<T, T> {
         } else {
           return ProjectionUtil.truncateArrayStrict(name, pred, this);
         }
+      } else if (predicate.isSetPredicate() && predicate.op() == NOT_IN) {
+        return predicate(predicate.op(), name,
+            predicate.asSetPredicate().literalSet()
+                .stream().map(this::apply).collect(Collectors.toList()));
       }
       return null;
     }
@@ -347,6 +376,10 @@ abstract class Truncate<T> implements Transform<T, T> {
         return Expressions.predicate(pred.op(), name);
       } else if (pred.isLiteralPredicate()) {
         return ProjectionUtil.truncateArray(name, pred.asLiteralPredicate(), this);
+      } else if (pred.isSetPredicate() && pred.op() == IN) {
+        return predicate(pred.op(), name,
+            pred.asSetPredicate().literalSet()
+                .stream().map(this::apply).collect(Collectors.toList()));
       }
       return null;
     }
@@ -362,6 +395,10 @@ abstract class Truncate<T> implements Transform<T, T> {
         return Expressions.predicate(pred.op(), name);
       } else if (pred.isLiteralPredicate()) {
         return ProjectionUtil.truncateArrayStrict(name, pred.asLiteralPredicate(), this);
+      } else if (pred.isSetPredicate() && pred.op() == NOT_IN) {
+        return predicate(pred.op(), name,
+            pred.asSetPredicate().literalSet()
+                .stream().map(this::apply).collect(Collectors.toList()));
       }
       return null;
     }
@@ -438,6 +475,10 @@ abstract class Truncate<T> implements Transform<T, T> {
         return Expressions.predicate(pred.op(), name);
       } else if (pred.isLiteralPredicate()) {
         return ProjectionUtil.truncateDecimal(name, pred.asLiteralPredicate(), this);
+      } else if (pred.isSetPredicate() && pred.op() == IN) {
+        return predicate(pred.op(), name,
+            pred.asSetPredicate().literalSet()
+                .stream().map(this::apply).collect(Collectors.toList()));
       }
       return null;
     }
@@ -453,6 +494,10 @@ abstract class Truncate<T> implements Transform<T, T> {
         return Expressions.predicate(pred.op(), name);
       } else if (pred.isLiteralPredicate()) {
         return ProjectionUtil.truncateDecimalStrict(name, pred.asLiteralPredicate(), this);
+      } else if (pred.isSetPredicate() && pred.op() == NOT_IN) {
+        return predicate(pred.op(), name,
+            pred.asSetPredicate().literalSet()
+                .stream().map(this::apply).collect(Collectors.toList()));
       }
       return null;
     }
