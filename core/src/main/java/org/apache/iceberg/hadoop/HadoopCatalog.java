@@ -38,9 +38,9 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 /**
  * HadoopCatalog provides a way to use table names like db.table to work with path-based tables under a common
  * location. It uses a specified directory under a specified filesystem as the warehouse directory, and organizes
- * two levels directories that mapped to the database and the table respectively. The HadoopCatalog
- * takes a URI as the warehouse directory. When creating a table such as $db.$tbl, it creates $db/$tbl under
- * iceberg/warehouse, and put the table metadata into the directory.
+ * multiple levels directories that mapped to the database, namespace and the table respectively. The HadoopCatalog
+ * takes a location as the warehouse directory. When creating a table such as $db.$tbl, it creates $db/$tbl
+ * directory under the warehouse directory, and put the table metadata into that directory.
  *
  * The HadoopCatalog now supports {@link org.apache.iceberg.catalog.Catalog#createTable},
  * {@link org.apache.iceberg.catalog.Catalog#dropTable}, the {@link org.apache.iceberg.catalog.Catalog#renameTable}
@@ -53,31 +53,30 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
   private final Configuration conf;
   private String warehouseLocation;
 
+  /**
+   * The constructor of the HadoopCatalog. It uses the passed location as its warehouse directory.
+   *
+   * @param conf The Hadoop configuration
+   * @param warehouseLocation The location used as warehouse directory
+   */
   public HadoopCatalog(Configuration conf, String warehouseLocation) {
     Preconditions.checkArgument(warehouseLocation != null && !warehouseLocation.equals(""),
         "no location provided for warehouse");
 
     this.conf = conf;
-    this.warehouseLocation = warehouseLocation.replaceAll("/$", "");
+    this.warehouseLocation = warehouseLocation.replaceAll("/*$", "");
   }
 
+  /**
+   * The constructor of the HadoopCatalog. It gets the value of <code>fs.defaultFS</code> property
+   * from the passed Hadoop configuration as its default file system, and use the default directory
+   * <code>iceberg/warehouse</code> as the warehouse directory.
+   *
+   * @param conf The Hadoop configuration
+   */
   public HadoopCatalog(Configuration conf) {
-    String fsRoot = conf.get("fs.defaultFS");
-    Path warehousePath = new Path(fsRoot, ICEBERG_HADOOP_WAREHOUSE_BASE);
-
-    try {
-      FileSystem fs = Util.getFs(warehousePath, conf);
-      if (!fs.isDirectory(warehousePath)) {
-        if (!fs.mkdirs(warehousePath)) {
-          throw new IOException("failed to create warehouse for hadoop catalog");
-        }
-      }
-    } catch (IOException e) {
-      throw new RuntimeIOException("failed to create directory for warehouse", e);
-    }
-
     this.conf = conf;
-    this.warehouseLocation = fsRoot + "/" + ICEBERG_HADOOP_WAREHOUSE_BASE;
+    this.warehouseLocation = conf.get("fs.defaultFS") + "/" + ICEBERG_HADOOP_WAREHOUSE_BASE;
   }
 
   @Override
@@ -86,22 +85,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
     Preconditions.checkArgument(identifier.namespace().levels().length >= 1,
         "Missing database in table identifier: %s", identifier);
     Preconditions.checkArgument(location == null, "Cannot set a custom location for a path-based table");
-    return createTable(identifier, schema, spec, properties);
-  }
-
-  @Override
-  public Table createTable(
-      TableIdentifier identifier, Schema schema, PartitionSpec spec, Map<String, String> properties) {
-    Preconditions.checkArgument(identifier.namespace().levels().length >= 1,
-        "Missing database in table identifier: %s", identifier);
     return super.createTable(identifier, schema, spec, null, properties);
-  }
-
-  public Table createTable(
-      TableIdentifier identifier, Schema schema, PartitionSpec spec) {
-    Preconditions.checkArgument(identifier.namespace().levels().length >= 1,
-        "Missing database in table identifier: %s", identifier);
-    return createTable(identifier, schema, spec, null, null);
   }
 
   @Override
