@@ -98,8 +98,11 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
       LOG.info("Nothing to commit.");
       return;
     }
+    TableMetadata updated = (base != null && base.file() != null) ?
+            metadata.addPreviousMetadata(base.file().location(), base.lastUpdatedMillis()) : metadata;
 
-    doCommit(base, metadata);
+    doCommit(base, updated);
+    deleteRemovedMetadata(updated);
     requestRefresh();
   }
 
@@ -239,6 +242,26 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     } catch (NumberFormatException e) {
       LOG.warn("Unable to parse version from metadata location: {}", metadataLocation, e);
       return -1;
+    }
+  }
+
+  /**
+   * Deletes the oldest metadata files if {@link TableProperties#METADATA_DELETE_AFTER_COMMIT_ENABLED} is true.
+   *
+   * @param metadata the table metadata with removed metadata log entry.
+   */
+  private void deleteRemovedMetadata(TableMetadata metadata) {
+
+    boolean deleteAfterCommit = metadata.propertyAsBoolean(
+            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
+            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
+
+    if (deleteAfterCommit && metadata.removedPreviousMetadata() != null) {
+      Tasks.foreach(metadata.removedPreviousMetadata())
+              .noRetry().suppressFailureWhenFinished()
+              .onFailure((previousMetadata, exc) ->
+                      LOG.warn("Delete failed for previous metadata file: {}", previousMetadata, exc))
+              .run(previousMetadata -> io().deleteFile(previousMetadata.file()));
     }
   }
 }

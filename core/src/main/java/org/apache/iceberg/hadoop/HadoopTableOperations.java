@@ -39,6 +39,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -123,12 +124,15 @@ public class HadoopTableOperations implements TableOperations {
         !metadata.properties().containsKey(TableProperties.WRITE_METADATA_LOCATION),
         "Hadoop path-based tables cannot relocate metadata");
 
-    String codecName = metadata.property(
+    TableMetadata updated = (base != null && base.file() != null) ?
+            metadata.addPreviousMetadata(base.file().location(), base.lastUpdatedMillis()) : metadata;
+
+    String codecName = updated.property(
         TableProperties.METADATA_COMPRESSION, TableProperties.METADATA_COMPRESSION_DEFAULT);
     TableMetadataParser.Codec codec = TableMetadataParser.Codec.fromName(codecName);
     String fileExtension = TableMetadataParser.getFileExtension(codec);
     Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + fileExtension);
-    TableMetadataParser.write(metadata, io().newOutputFile(tempMetadataFile.toString()));
+    TableMetadataParser.write(updated, io().newOutputFile(tempMetadataFile.toString()));
 
     int nextVersion = (version != null ? version : 0) + 1;
     Path finalMetadataFile = metadataFilePath(nextVersion, codec);
@@ -149,6 +153,8 @@ public class HadoopTableOperations implements TableOperations {
 
     // update the best-effort version pointer
     writeVersionHint(nextVersion);
+
+    deleteRemovedMetadata(updated);
 
     this.shouldRefresh = true;
   }
@@ -284,5 +290,25 @@ public class HadoopTableOperations implements TableOperations {
 
   protected FileSystem getFileSystem(Path path, Configuration hadoopConf) {
     return Util.getFs(path, hadoopConf);
+  }
+
+  /**
+   * Deletes the oldest metadata files if {@link TableProperties#METADATA_DELETE_AFTER_COMMIT_ENABLED} is true.
+   *
+   * @param metadata the table metadata with removed metadata log entry.
+   */
+  private void deleteRemovedMetadata(TableMetadata metadata) {
+
+    boolean deleteAfterCommit = metadata.propertyAsBoolean(
+            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
+            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
+
+    if (deleteAfterCommit && metadata.removedPreviousMetadata() != null) {
+      Tasks.foreach(metadata.removedPreviousMetadata())
+              .noRetry().suppressFailureWhenFinished()
+              .onFailure((previousMetadata, exc) ->
+                      LOG.warn("Delete failed for previous metadata file: {}", previousMetadata, exc))
+              .run(previousMetadata -> io().deleteFile(previousMetadata.file()));
+    }
   }
 }
