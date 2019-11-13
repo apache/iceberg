@@ -85,10 +85,6 @@ public class TypeUtil {
     return visit(struct, new IndexByName());
   }
 
-  public static List<String> validateFields(Types.StructType struct) {
-    return visit(struct, new SchemaValidator());
-  }
-
   public static Map<String, Integer> indexByLowerCaseName(Types.StructType struct) {
     Map<String, Integer> indexByLowerCaseName = Maps.newHashMap();
     indexByName(struct).forEach((name, integer) ->
