@@ -28,7 +28,7 @@ The Hive catalog connects to a Hive MetaStore to keep track of Iceberg tables. T
 ```scala
 import org.apache.iceberg.hive.HiveCatalog
 
-val catalog = new HiveCatalog(spark.sparkContext.hadoopConfiguration)
+val catalog = new HiveCatalog(spark.sessionState.newHadoopConf())
 ```
 
 The `Catalog` interface defines methods for working with tables, like `createTable`, `loadTable`, `renameTable`, and `dropTable`.

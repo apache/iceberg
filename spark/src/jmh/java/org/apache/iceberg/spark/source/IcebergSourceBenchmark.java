@@ -97,7 +97,7 @@ public abstract class IcebergSourceBenchmark {
         .config("spark.ui.enabled", false)
         .master("local")
         .getOrCreate();
-    Configuration sparkHadoopConf = spark.sparkContext().hadoopConfiguration();
+    Configuration sparkHadoopConf = spark.sessionState().newHadoopConf();
     hadoopConf.forEach(entry -> sparkHadoopConf.set(entry.getKey(), entry.getValue()));
   }
 

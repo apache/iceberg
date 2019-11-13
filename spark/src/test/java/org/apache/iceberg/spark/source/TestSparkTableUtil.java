@@ -144,7 +144,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
             .saveAsTable("test_partitioned_table");
     TableIdentifier source = spark.sessionState().sqlParser()
             .parseTableIdentifier("test_partitioned_table");
-    HadoopTables tables = new HadoopTables(spark.sparkContext().hadoopConfiguration());
+    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
     Table table = tables.create(SparkSchemaUtil.schemaForTable(spark, qualifiedTableName),
             SparkSchemaUtil.specForTable(spark, qualifiedTableName),
             ImmutableMap.of(),
@@ -162,7 +162,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
             .saveAsTable("test_unpartitioned_table");
     TableIdentifier source = spark.sessionState().sqlParser()
             .parseTableIdentifier("test_unpartitioned_table");
-    HadoopTables tables = new HadoopTables(spark.sparkContext().hadoopConfiguration());
+    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
     Table table = tables.create(SparkSchemaUtil.schemaForTable(spark, qualifiedTableName),
             SparkSchemaUtil.specForTable(spark, qualifiedTableName),
             ImmutableMap.of(),

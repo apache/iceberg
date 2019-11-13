@@ -133,7 +133,7 @@ public class TestDataSourceOptions {
   @Test
   public void testHadoopOptions() throws IOException {
     String tableLocation = temp.newFolder("iceberg-table").toString();
-    Configuration sparkHadoopConf = spark.sparkContext().hadoopConfiguration();
+    Configuration sparkHadoopConf = spark.sessionState().newHadoopConf();
     String originalDefaultFS = sparkHadoopConf.get("fs.default.name");
 
     try {
