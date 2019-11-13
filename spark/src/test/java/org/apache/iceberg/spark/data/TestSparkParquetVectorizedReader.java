@@ -45,13 +45,12 @@ public class TestSparkParquetVectorizedReader extends AvroDataTest {
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    System.setProperty("arrow.enable_unsafe_memory_access", "true");
-    System.setProperty("arrow.enable_null_check_for_get", "false");
+    setupArrowFlags();
     // Write test data
     Assume.assumeTrue("Parquet Avro cannot write non-string map keys", null == TypeUtil.find(schema,
         type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()));
 
-    List<GenericData.Record> expected = RandomData.generateList(schema, 1000000, 0L);
+    List<GenericData.Record> expected = RandomData.generateList(schema, 100000, 0L);
 
     // write a test parquet file using iceberg writer
     File testFile = temp.newFile();
@@ -60,15 +59,13 @@ public class TestSparkParquetVectorizedReader extends AvroDataTest {
     try (FileAppender<GenericData.Record> writer = Parquet.write(Files.localOutput(testFile))
             .schema(schema)
             .named("test")
-            /*.set("parquet.dictionary.page.size", "0")
-            .set("parquet.writer.encoding-override.double", "plain")
-            .set("parquet.enable.dictionary", "false")*/
-            .set(PARQUET_DICT_SIZE_BYTES, "1")
             .build()) {
       writer.addAll(expected);
     }
+    assertRecordsMatch(schema, expected, testFile);
+  }
 
-
+  void assertRecordsMatch(Schema schema, List<GenericData.Record> expected, File testFile) throws IOException {
     try (CloseableIterable<ColumnarBatch> batchReader = Parquet.read(Files.localInput(testFile))
         .project(schema)
         .createReaderFunc(type -> VectorizedSparkParquetReaders.buildReader(schema, schema, type, 10000))
@@ -134,5 +131,10 @@ public class TestSparkParquetVectorizedReader extends AvroDataTest {
   @Test
   public void testMixedTypes() throws IOException {
     System.out.println("Not Supported");
+  }
+
+  void setupArrowFlags() {
+    System.setProperty("arrow.enable_unsafe_memory_access", "true");
+    System.setProperty("arrow.enable_null_check_for_get", "false");
   }
 }
