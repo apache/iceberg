@@ -275,7 +275,7 @@ public class TestHelpers {
       case DOUBLE:
       case DATE:
       case TIMESTAMP:
-        Assert.assertEquals("Primitive value should be equal to expected", expected, actual);
+        Assert.assertEquals("Primitive value of type " + type + " should be equal to expected", expected, actual);
         break;
       case STRING:
         Assert.assertTrue("Should be a UTF8String", actual instanceof UTF8String);
