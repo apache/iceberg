@@ -9,6 +9,7 @@
 build
 gradle/
 out
+gradle/wrapper/gradle-wrapper.jar
 
 # web site build
 site/site
