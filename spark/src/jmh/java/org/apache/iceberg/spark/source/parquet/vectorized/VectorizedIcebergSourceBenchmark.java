@@ -40,7 +40,7 @@ import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
  * <p>
  * To run all the the benchmarks that extend this class:
  * <code>
- * ./gradlew :iceberg-spark:jmh
+   * ./gradlew :iceberg-spark:jmh
  * -PjmhIncludeRegex=VectorizedRead*Benchmark
  * -PjmhOutputPath=benchmark/iceberg-source-flat-parquet-data-read-benchmark-result.txt
  * </code>

@@ -55,6 +55,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
   private final NullabilityHolder nullabilityHolder;
   private final ColumnDescriptor columnDescriptor;
   private final Dictionary dictionary;
+  private final boolean isVectorDictEncoded;
   private ArrowColumnVector[] childColumns;
 
   public IcebergArrowColumnVector(VectorReader.VectorHolder holder, NullabilityHolder nulls) {
@@ -62,6 +63,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
     this.nullabilityHolder = nulls;
     this.columnDescriptor = holder.getDescriptor();
     this.dictionary = holder.getDictionary();
+    this.isVectorDictEncoded = holder.isDictionaryEncoded();
     this.accessor = getVectorAccessor(columnDescriptor, holder.getVector());
   }
 
@@ -231,8 +233,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
 
   private ArrowVectorAccessor getVectorAccessor(ColumnDescriptor desc, ValueVector vector) {
     PrimitiveType primitive = desc.getPrimitiveType();
-    boolean isDictionaryEncoded = dictionary != null;
-    if (isDictionaryEncoded) {
+    if (isVectorDictEncoded) {
       Preconditions.checkState(vector instanceof IntVector, "Dictionary ids should be stored in IntVectors only");
       if (primitive.getOriginalType() != null) {
         switch (desc.getPrimitiveType().getOriginalType()) {
