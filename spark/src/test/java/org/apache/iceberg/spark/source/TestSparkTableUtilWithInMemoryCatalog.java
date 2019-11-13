@@ -32,6 +32,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.spark.SparkTableUtil;
+import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -45,6 +46,7 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import scala.collection.Seq;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
@@ -183,6 +185,47 @@ public class TestSparkTableUtilWithInMemoryCatalog {
       // 'data' is a partition column and is not physically present in files written by Spark
       Types.NestedField dataField = table.schema().findField("data");
       checkFieldMetrics(fileDF, dataField, true);
+    } finally {
+      spark.sql("DROP TABLE parquet_table");
+    }
+  }
+
+  @Test
+  public void testImportPartitions() throws IOException {
+    Table table = TABLES.create(SCHEMA, SPEC, tableLocation);
+
+    List<SimpleRecord> records = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b"),
+        new SimpleRecord(3, "c")
+    );
+
+    File parquetTableDir = temp.newFolder("parquet_table");
+    String parquetTableLocation = parquetTableDir.toURI().toString();
+
+    try {
+      Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
+      inputDF.select("id", "data").write()
+          .format("parquet")
+          .mode("append")
+          .option("path", parquetTableLocation)
+          .partitionBy("data")
+          .saveAsTable("parquet_table");
+
+      File stagingDir = temp.newFolder("staging-dir");
+      Seq<SparkPartition> partitions = SparkTableUtil.getPartitionsByFilter(spark, "parquet_table", "data = 'a'");
+      SparkTableUtil.importSparkPartitions(spark, partitions, table, table.spec(), stagingDir.toString());
+
+      List<SimpleRecord> expectedRecords = Lists.newArrayList(new SimpleRecord(1, "a"));
+
+      List<SimpleRecord> actualRecords = spark.read()
+          .format("iceberg")
+          .load(tableLocation)
+          .orderBy("id")
+          .as(Encoders.bean(SimpleRecord.class))
+          .collectAsList();
+
+      Assert.assertEquals("Result rows should match", expectedRecords, actualRecords);
     } finally {
       spark.sql("DROP TABLE parquet_table");
     }
