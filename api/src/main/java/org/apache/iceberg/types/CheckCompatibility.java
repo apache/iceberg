@@ -32,13 +32,28 @@ import org.apache.iceberg.Schema;
 public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<String>> {
   /**
    * Returns a list of compatibility errors for writing with the given write schema.
+   * This includes nullability: writing optional (nullable) values to a required field is an error.
    *
    * @param readSchema a read schema
    * @param writeSchema a write schema
    * @return a list of error details, or an empty list if there are no compatibility problems
    */
   public static List<String> writeCompatibilityErrors(Schema readSchema, Schema writeSchema) {
-    return TypeUtil.visit(readSchema, new CheckCompatibility(writeSchema, true));
+    return TypeUtil.visit(readSchema, new CheckCompatibility(writeSchema, true, true));
+  }
+
+  /**
+   * Returns a list of compatibility errors for writing with the given write schema.
+   * This checks type compatibility and not nullability: writing optional (nullable) values
+   * to a required field is not an error. To check nullability as well as types,
+   * use {@link #writeCompatibilityErrors(Schema, Schema)}.
+   *
+   * @param readSchema a read schema
+   * @param writeSchema a write schema
+   * @return a list of error details, or an empty list if there are no compatibility problems
+   */
+  public static List<String> typeCompatibilityErrors(Schema readSchema, Schema writeSchema) {
+    return TypeUtil.visit(readSchema, new CheckCompatibility(writeSchema, true, false));
   }
 
   /**
@@ -49,20 +64,22 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
    * @return a list of error details, or an empty list if there are no compatibility problems
    */
   public static List<String> readCompatibilityErrors(Schema readSchema, Schema writeSchema) {
-    return TypeUtil.visit(readSchema, new CheckCompatibility(writeSchema, false));
+    return TypeUtil.visit(readSchema, new CheckCompatibility(writeSchema, false, true));
   }
 
   private static final ImmutableList<String> NO_ERRORS = ImmutableList.of();
 
   private final Schema schema;
   private final boolean checkOrdering;
+  private final boolean checkNullability;
 
   // the current file schema, maintained while traversing a write schema
   private Type currentType;
 
-  private CheckCompatibility(Schema schema, boolean checkOrdering) {
+  private CheckCompatibility(Schema schema, boolean checkOrdering, boolean checkNullability) {
     this.schema = schema;
     this.checkOrdering = checkOrdering;
+    this.checkNullability = checkNullability;
   }
 
   @Override
@@ -132,7 +149,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
 
     this.currentType = field.type();
     try {
-      if (readField.isRequired() && field.isOptional()) {
+      if (checkNullability && readField.isRequired() && field.isOptional()) {
         errors.add(readField.name() + " should be required, but is optional");
       }
 
