@@ -509,7 +509,7 @@ object SparkTableUtil {
     val format = sourceTable.storage.serde.orElse(sourceTable.provider)
     require(format.nonEmpty, "Could not determine table format")
 
-    val conf = spark.sparkContext.hadoopConfiguration
+    val conf = spark.sessionState.newHadoopConf()
     val metricsConfig = MetricsConfig.fromProperties(targetTable.properties)
 
     val files = listPartition(Map.empty, sourceTable.location.toString, format.get, conf, metricsConfig)
@@ -528,7 +528,7 @@ object SparkTableUtil {
 
     import spark.implicits._
 
-    val conf = spark.sparkContext.hadoopConfiguration
+    val conf = spark.sessionState.newHadoopConf()
     val serializableConf = new SerializableConfiguration(conf)
     val partitions = getPartitions(spark, sourceTableIdent)
     val parallelism = Math.min(partitions.size, spark.sessionState.conf.parallelPartitionDiscoveryParallelism)

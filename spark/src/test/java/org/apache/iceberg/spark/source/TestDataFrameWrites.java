@@ -240,7 +240,7 @@ public class TestDataFrameWrites extends AvroDataTest {
         .write().parquet(sourcePath);
 
     // this is our iceberg dataset to which we will append data
-    new HadoopTables(spark.sparkContext().hadoopConfiguration())
+    new HadoopTables(spark.sessionState().newHadoopConf())
         .create(
             icebergSchema,
             PartitionSpec.builderFor(icebergSchema).identity("requiredField").build(),
@@ -290,7 +290,7 @@ public class TestDataFrameWrites extends AvroDataTest {
         .getOrCreate();
 
     // this is our iceberg dataset to which we will append data
-    new HadoopTables(newSparkSession.sparkContext().hadoopConfiguration())
+    new HadoopTables(newSparkSession.sessionState().newHadoopConf())
         .create(
             icebergSchema,
             PartitionSpec.builderFor(icebergSchema).identity("requiredField").build(),

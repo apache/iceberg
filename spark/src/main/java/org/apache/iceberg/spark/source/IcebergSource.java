@@ -125,7 +125,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
 
   private Configuration lazyBaseConf() {
     if (lazyConf == null) {
-      this.lazyConf = lazySparkSession().sparkContext().hadoopConfiguration();
+      this.lazyConf = lazySparkSession().sessionState().newHadoopConf();
     }
     return lazyConf;
   }
