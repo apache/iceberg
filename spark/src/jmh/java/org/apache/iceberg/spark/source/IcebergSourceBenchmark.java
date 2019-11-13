@@ -48,8 +48,8 @@ import static org.apache.iceberg.TableProperties.WRITE_NEW_DATA_LOCATION;
 
 @Fork(1)
 @State(Scope.Benchmark)
-@Warmup(iterations = 3)
-@Measurement(iterations = 5)
+@Warmup(iterations = 2)
+@Measurement(iterations = 3)
 @BenchmarkMode(Mode.SingleShotTime)
 public abstract class IcebergSourceBenchmark {
 
@@ -93,16 +93,21 @@ public abstract class IcebergSourceBenchmark {
     }
   }
 
-  protected void setupSpark() {
-    spark = SparkSession.builder()
-        .config("spark.ui.enabled", false)
-            .config("parquet.enable.dictionary", false)
-    .config(PARQUET_DICT_SIZE_BYTES, "1")
-            .config("parquet.dictionary.page.size", "1")
-        .master("local")
-        .getOrCreate();
+  protected void setupSpark(boolean enableDictionaryEncoding) {
+    SparkSession.Builder builder = SparkSession.builder()
+            .config("spark.ui.enabled", false);
+    if (!enableDictionaryEncoding) {
+      builder.config("parquet.dictionary.page.size", "1")
+              .config("parquet.enable.dictionary", false)
+              .config(PARQUET_DICT_SIZE_BYTES, "1");
+    }
+    builder.master("local");
+    spark = builder.getOrCreate();
     Configuration sparkHadoopConf = spark.sparkContext().hadoopConfiguration();
     hadoopConf.forEach(entry -> sparkHadoopConf.set(entry.getKey(), entry.getValue()));
+  }
+  protected void setupSpark() {
+    setupSpark(false);
   }
 
   protected void tearDownSpark() {

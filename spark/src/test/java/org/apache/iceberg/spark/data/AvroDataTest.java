@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.data;
 
 import java.io.IOException;
+
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.ListType;
@@ -35,132 +36,132 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 public abstract class AvroDataTest {
 
-  protected abstract void writeAndValidate(Schema schema) throws IOException;
+    protected abstract void writeAndValidate(Schema schema) throws IOException;
 
-  protected static final StructType SUPPORTED_PRIMITIVES = StructType.of(
+    protected StructType getSupportedPrimitives() {
+        return StructType.of(
+                required(100, "id", LongType.get()),
+                required(101, "data", Types.StringType.get()),
+                required(102, "b", Types.BooleanType.get()),
+                optional(103, "i", Types.IntegerType.get()),
+                required(104, "l", LongType.get()),
+                optional(105, "f", Types.FloatType.get()),
+                optional(106, "d", Types.DoubleType.get()),
+                optional(107, "date", Types.DateType.get()),
+                optional(108, "ts", Types.TimestampType.withZone()),
+                optional(110, "s", Types.StringType.get()),
+                optional(112, "fixed", Types.FixedType.ofLength(7)),
+                optional(113, "bytes", Types.BinaryType.get()),
+                optional(114, "dec_9_0", Types.DecimalType.of(9, 0)),
+                optional(115, "dec_11_2", Types.DecimalType.of(11, 2)),
+                optional(116, "dec_38_10", Types.DecimalType.of(38, 10)),
+                optional(117, "dec_38_0", Types.DecimalType.of(38, 0)));
+    }
 
-         required(100, "id", LongType.get()),
-         required(101, "data", Types.StringType.get()),
-         required(102, "b", Types.BooleanType.get()),
-         optional(103, "i", Types.IntegerType.get()),
-         required(104, "l", LongType.get()),
-         optional(105, "f", Types.FloatType.get()),
-         optional(106, "d", Types.DoubleType.get()),
-         optional(107, "date", Types.DateType.get()),
-         optional(108, "ts", Types.TimestampType.withZone()),
-         optional(110, "s", Types.StringType.get()),
-         // //required(111, "uuid", Types.UUIDType.get()),
-         optional(112, "fixed", Types.FixedType.ofLength(7)),
-         optional(113, "bytes", Types.BinaryType.get()),
-         required(114, "dec_9_0", Types.DecimalType.of(9, 0)),
-         required(115, "dec_11_2", Types.DecimalType.of(11, 2)),
-         optional(116, "dec_38_10", Types.DecimalType.of(38, 10)),
-         required(117, "dec_38_0", Types.DecimalType.of(38, 0)));
+    @Rule
+    public TemporaryFolder temp = new TemporaryFolder();
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+    @Test
+    public void testSimpleStruct() throws IOException {
+        writeAndValidate(new Schema(getSupportedPrimitives().fields()));
+    }
 
-  @Test
-  public void testSimpleStruct() throws IOException {
-    writeAndValidate(new Schema(SUPPORTED_PRIMITIVES.fields()));
-  }
+    @Test
+    public void testArray() throws IOException {
+        Schema schema = new Schema(
+                required(0, "id", LongType.get()),
+                optional(1, "data", ListType.ofOptional(2, Types.StringType.get())));
 
-  @Test
-  public void testArray() throws IOException {
-    Schema schema = new Schema(
-        required(0, "id", LongType.get()),
-        optional(1, "data", ListType.ofOptional(2, Types.StringType.get())));
+        writeAndValidate(schema);
+    }
 
-    writeAndValidate(schema);
-  }
+    @Test
+    public void testArrayOfStructs() throws IOException {
+        Schema schema = new Schema(
+                required(0, "id", LongType.get()),
+                optional(1, "data", ListType.ofOptional(2, getSupportedPrimitives())));
 
-  @Test
-  public void testArrayOfStructs() throws IOException {
-    Schema schema = new Schema(
-        required(0, "id", LongType.get()),
-        optional(1, "data", ListType.ofOptional(2, SUPPORTED_PRIMITIVES)));
+        writeAndValidate(schema);
+    }
 
-    writeAndValidate(schema);
-  }
+    @Test
+    public void testMap() throws IOException {
+        Schema schema = new Schema(
+                required(0, "id", LongType.get()),
+                optional(1, "data", MapType.ofOptional(2, 3,
+                        Types.StringType.get(),
+                        Types.StringType.get())));
 
-  @Test
-  public void testMap() throws IOException {
-    Schema schema = new Schema(
-        required(0, "id", LongType.get()),
-        optional(1, "data", MapType.ofOptional(2, 3,
-            Types.StringType.get(),
-            Types.StringType.get())));
+        writeAndValidate(schema);
+    }
 
-    writeAndValidate(schema);
-  }
+    @Test
+    public void testNumericMapKey() throws IOException {
+        Schema schema = new Schema(
+                required(0, "id", LongType.get()),
+                optional(1, "data", MapType.ofOptional(2, 3,
+                        Types.LongType.get(),
+                        Types.StringType.get())));
 
-  @Test
-  public void testNumericMapKey() throws IOException {
-    Schema schema = new Schema(
-        required(0, "id", LongType.get()),
-        optional(1, "data", MapType.ofOptional(2, 3,
-            Types.LongType.get(),
-            Types.StringType.get())));
+        writeAndValidate(schema);
+    }
 
-    writeAndValidate(schema);
-  }
+    @Test
+    public void testComplexMapKey() throws IOException {
+        Schema schema = new Schema(
+                required(0, "id", LongType.get()),
+                optional(1, "data", MapType.ofOptional(2, 3,
+                        Types.StructType.of(
+                                required(4, "i", Types.IntegerType.get()),
+                                optional(5, "s", Types.StringType.get())),
+                        Types.StringType.get())));
 
-  @Test
-  public void testComplexMapKey() throws IOException {
-    Schema schema = new Schema(
-        required(0, "id", LongType.get()),
-        optional(1, "data", MapType.ofOptional(2, 3,
-            Types.StructType.of(
-                required(4, "i", Types.IntegerType.get()),
-                optional(5, "s", Types.StringType.get())),
-            Types.StringType.get())));
+        writeAndValidate(schema);
+    }
 
-    writeAndValidate(schema);
-  }
+    @Test
+    public void testMapOfStructs() throws IOException {
+        Schema schema = new Schema(
+                required(0, "id", LongType.get()),
+                optional(1, "data", MapType.ofOptional(2, 3,
+                        Types.StringType.get(),
+                        getSupportedPrimitives())));
 
-  @Test
-  public void testMapOfStructs() throws IOException {
-    Schema schema = new Schema(
-        required(0, "id", LongType.get()),
-        optional(1, "data", MapType.ofOptional(2, 3,
-            Types.StringType.get(),
-            SUPPORTED_PRIMITIVES)));
+        writeAndValidate(schema);
+    }
 
-    writeAndValidate(schema);
-  }
+    @Test
+    public void testMixedTypes() throws IOException {
+        Schema schema = new Schema(
+                required(0, "id", LongType.get()),
+                optional(1, "list_of_maps",
+                        ListType.ofOptional(2, MapType.ofOptional(3, 4,
+                                Types.StringType.get(),
+                                getSupportedPrimitives()))),
+                optional(5, "map_of_lists",
+                        MapType.ofOptional(6, 7,
+                                Types.StringType.get(),
+                                ListType.ofOptional(8, getSupportedPrimitives()))),
+                required(9, "list_of_lists",
+                        ListType.ofOptional(10, ListType.ofOptional(11, getSupportedPrimitives()))),
+                required(12, "map_of_maps",
+                        MapType.ofOptional(13, 14,
+                                Types.StringType.get(),
+                                MapType.ofOptional(15, 16,
+                                        Types.StringType.get(),
+                                        getSupportedPrimitives()))),
+                required(17, "list_of_struct_of_nested_types", ListType.ofOptional(19, StructType.of(
+                        Types.NestedField.required(20, "m1", MapType.ofOptional(21, 22,
+                                Types.StringType.get(),
+                                getSupportedPrimitives())),
+                        Types.NestedField.optional(23, "l1", ListType.ofRequired(24, getSupportedPrimitives())),
+                        Types.NestedField.required(25, "l2", ListType.ofRequired(26, getSupportedPrimitives())),
+                        Types.NestedField.optional(27, "m2", MapType.ofOptional(28, 29,
+                                Types.StringType.get(),
+                                getSupportedPrimitives()))
+                )))
+        );
 
-  @Test
-  public void testMixedTypes() throws IOException {
-    Schema schema = new Schema(
-        required(0, "id", LongType.get()),
-        optional(1, "list_of_maps",
-            ListType.ofOptional(2, MapType.ofOptional(3, 4,
-                Types.StringType.get(),
-                SUPPORTED_PRIMITIVES))),
-        optional(5, "map_of_lists",
-            MapType.ofOptional(6, 7,
-                Types.StringType.get(),
-                ListType.ofOptional(8, SUPPORTED_PRIMITIVES))),
-        required(9, "list_of_lists",
-            ListType.ofOptional(10, ListType.ofOptional(11, SUPPORTED_PRIMITIVES))),
-        required(12, "map_of_maps",
-            MapType.ofOptional(13, 14,
-                Types.StringType.get(),
-                MapType.ofOptional(15, 16,
-                    Types.StringType.get(),
-                    SUPPORTED_PRIMITIVES))),
-        required(17, "list_of_struct_of_nested_types", ListType.ofOptional(19, StructType.of(
-            Types.NestedField.required(20, "m1", MapType.ofOptional(21, 22,
-                Types.StringType.get(),
-                SUPPORTED_PRIMITIVES)),
-            Types.NestedField.optional(23, "l1", ListType.ofRequired(24, SUPPORTED_PRIMITIVES)),
-            Types.NestedField.required(25, "l2", ListType.ofRequired(26, SUPPORTED_PRIMITIVES)),
-            Types.NestedField.optional(27, "m2", MapType.ofOptional(28, 29,
-                Types.StringType.get(),
-                SUPPORTED_PRIMITIVES))
-        )))
-    );
-
-    writeAndValidate(schema);
-  }
+        writeAndValidate(schema);
+    }
 }
