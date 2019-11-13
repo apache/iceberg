@@ -45,7 +45,7 @@ public class TestScanSummary extends TableTestBase {
         .commit();
 
     long t1 = System.currentTimeMillis();
-    while (t1 == t0) {
+    while (t1 <= table.currentSnapshot().timestampMillis()) {
       t1 = System.currentTimeMillis();
     }
 
@@ -56,7 +56,7 @@ public class TestScanSummary extends TableTestBase {
     long secondSnapshotId = table.currentSnapshot().snapshotId();
 
     long t2 = System.currentTimeMillis();
-    while (t2 == t1) {
+    while (t2 <= table.currentSnapshot().timestampMillis()) {
       t2 = System.currentTimeMillis();
     }
 
