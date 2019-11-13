@@ -200,6 +200,67 @@ public class TestStructuredStreaming {
   }
 
   @Test
+  public void testStreamingWriteCompleteModeWithProjection() throws IOException {
+    File parent = temp.newFolder("parquet");
+    File location = new File(parent, "test-table");
+    File checkpoint = new File(parent, "checkpoint");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table = tables.create(SCHEMA, spec, location.toString());
+
+    List<SimpleRecord> expected = Lists.newArrayList(
+        new SimpleRecord(1, null),
+        new SimpleRecord(2, null),
+        new SimpleRecord(3, null)
+    );
+
+    MemoryStream<Integer> inputStream = new MemoryStream<>(1, spark.sqlContext(), Encoders.INT());
+    DataStreamWriter<Row> streamWriter = inputStream.toDF()
+        .groupBy("value")
+        .count()
+        .selectExpr("CAST(count AS INT) AS id") // select only id column
+        .writeStream()
+        .outputMode("complete")
+        .format("iceberg")
+        .option("checkpointLocation", checkpoint.toString())
+        .option("path", location.toString());
+
+    try {
+      // start the original query with checkpointing
+      StreamingQuery query = streamWriter.start();
+      List<Integer> batch1 = Lists.newArrayList(1, 2);
+      inputStream.addData(JavaConversions.asScalaBuffer(batch1));
+      query.processAllAvailable();
+      List<Integer> batch2 = Lists.newArrayList(1, 2, 2, 3);
+      inputStream.addData(JavaConversions.asScalaBuffer(batch2));
+      query.processAllAvailable();
+      query.stop();
+
+      // remove the last commit to force Spark to reprocess batch #1
+      File lastCommitFile = new File(checkpoint.toString() + "/commits/1");
+      Assert.assertTrue("The commit file must be deleted", lastCommitFile.delete());
+
+      // restart the query from the checkpoint
+      StreamingQuery restartedQuery = streamWriter.start();
+      restartedQuery.processAllAvailable();
+
+      // ensure the write was idempotent
+      Dataset<Row> result = spark.read()
+          .format("iceberg")
+          .load(location.toString());
+      List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+      Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
+      Assert.assertEquals("Result rows should match", expected, actual);
+      Assert.assertEquals("Number of snapshots should match", 2, Iterables.size(table.snapshots()));
+    } finally {
+      for (StreamingQuery query : spark.streams().active()) {
+        query.stop();
+      }
+    }
+  }
+
+  @Test
   public void testStreamingWriteUpdateMode() throws IOException {
     exceptionRule.expect(StreamingQueryException.class);
     exceptionRule.expectMessage("Output mode Update is not supported");

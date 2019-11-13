@@ -90,12 +90,14 @@ class Writer implements DataSourceWriter {
   private final String applicationId;
   private final String wapId;
   private final long targetFileSize;
+  private final Schema dsSchema;
 
-  Writer(Table table, DataSourceOptions options, boolean replacePartitions, String applicationId) {
-    this(table, options, replacePartitions, applicationId, null);
+  Writer(Table table, DataSourceOptions options, boolean replacePartitions, String applicationId, Schema dsSchema) {
+    this(table, options, replacePartitions, applicationId, null, dsSchema);
   }
 
-  Writer(Table table, DataSourceOptions options, boolean replacePartitions, String applicationId, String wapId) {
+  Writer(Table table, DataSourceOptions options, boolean replacePartitions, String applicationId, String wapId,
+      Schema dsSchema) {
     this.table = table;
     this.format = getFileFormat(table.properties(), options);
     this.fileIo = table.io();
@@ -103,6 +105,7 @@ class Writer implements DataSourceWriter {
     this.replacePartitions = replacePartitions;
     this.applicationId = applicationId;
     this.wapId = wapId;
+    this.dsSchema = dsSchema;
 
     long tableTargetFileSize = PropertyUtil.propertyAsLong(
         table.properties(), WRITE_TARGET_FILE_SIZE_BYTES, WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
@@ -124,7 +127,8 @@ class Writer implements DataSourceWriter {
   @Override
   public DataWriterFactory<InternalRow> createWriterFactory() {
     return new WriterFactory(
-        table.spec(), format, table.locationProvider(), table.properties(), fileIo, encryptionManager, targetFileSize);
+        table.spec(), format, table.locationProvider(), table.properties(), fileIo, encryptionManager, targetFileSize,
+        dsSchema);
   }
 
   @Override
@@ -250,10 +254,11 @@ class Writer implements DataSourceWriter {
     private final FileIO fileIo;
     private final EncryptionManager encryptionManager;
     private final long targetFileSize;
+    private final Schema dsSchema;
 
     WriterFactory(PartitionSpec spec, FileFormat format, LocationProvider locations,
                   Map<String, String> properties, FileIO fileIo, EncryptionManager encryptionManager,
-                  long targetFileSize) {
+                  long targetFileSize, Schema dsSchema) {
       this.spec = spec;
       this.format = format;
       this.locations = locations;
@@ -261,6 +266,7 @@ class Writer implements DataSourceWriter {
       this.fileIo = fileIo;
       this.encryptionManager = encryptionManager;
       this.targetFileSize = targetFileSize;
+      this.dsSchema = dsSchema;
     }
 
     @Override
@@ -278,24 +284,23 @@ class Writer implements DataSourceWriter {
     private class SparkAppenderFactory implements AppenderFactory<InternalRow> {
       @Override
       public FileAppender<InternalRow> newAppender(OutputFile file, FileFormat fileFormat) {
-        Schema schema = spec.schema();
         MetricsConfig metricsConfig = MetricsConfig.fromProperties(properties);
         try {
           switch (fileFormat) {
             case PARQUET:
               return Parquet.write(file)
-                  .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(schema, msgType))
+                  .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(dsSchema, msgType))
                   .setAll(properties)
                   .metricsConfig(metricsConfig)
-                  .schema(schema)
+                  .schema(dsSchema)
                   .overwrite()
                   .build();
 
             case AVRO:
               return Avro.write(file)
-                  .createWriterFunc(ignored -> new SparkAvroWriter(schema))
+                  .createWriterFunc(ignored -> new SparkAvroWriter(dsSchema))
                   .setAll(properties)
-                  .schema(schema)
+                  .schema(dsSchema)
                   .overwrite()
                   .build();
 

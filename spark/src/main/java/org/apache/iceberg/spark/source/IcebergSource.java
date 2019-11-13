@@ -78,11 +78,12 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
         "Save mode %s is not supported", mode);
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
-    validateWriteSchema(table.schema(), dsStruct, checkNullability(options));
+    Schema dsSchema = SparkSchemaUtil.convert(table.schema(), dsStruct);
+    validateWriteSchema(table.schema(), dsSchema, checkNullability(options));
     validatePartitionTransforms(table.spec());
     String appId = lazySparkSession().sparkContext().applicationId();
     String wapId = lazySparkSession().conf().get("spark.wap.id", null);
-    return Optional.of(new Writer(table, options, mode == SaveMode.Overwrite, appId, wapId));
+    return Optional.of(new Writer(table, options, mode == SaveMode.Overwrite, appId, wapId, dsSchema));
   }
 
   @Override
@@ -93,13 +94,14 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
         "Output mode %s is not supported", mode);
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
-    validateWriteSchema(table.schema(), dsStruct, checkNullability(options));
+    Schema dsSchema = SparkSchemaUtil.convert(table.schema(), dsStruct);
+    validateWriteSchema(table.schema(), dsSchema, checkNullability(options));
     validatePartitionTransforms(table.spec());
     // Spark 2.4.x passes runId to createStreamWriter instead of real queryId,
     // so we fetch it directly from sparkContext to make writes idempotent
     String queryId = lazySparkSession().sparkContext().getLocalProperty(StreamExecution.QUERY_ID_KEY());
     String appId = lazySparkSession().sparkContext().applicationId();
-    return new StreamingWriter(table, options, queryId, mode, appId);
+    return new StreamingWriter(table, options, queryId, mode, appId, dsSchema);
   }
 
   protected Table findTable(DataSourceOptions options, Configuration conf) {
@@ -149,8 +151,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
         .forEach(key -> baseConf.set(key.replaceFirst("hadoop.", ""), options.get(key)));
   }
 
-  private void validateWriteSchema(Schema tableSchema, StructType dsStruct, Boolean checkNullability) {
-    Schema dsSchema = SparkSchemaUtil.convert(tableSchema, dsStruct);
+  private void validateWriteSchema(Schema tableSchema, Schema dsSchema, Boolean checkNullability) {
     List<String> errors;
     if (checkNullability) {
       errors = CheckCompatibility.writeCompatibilityErrors(tableSchema, dsSchema);
