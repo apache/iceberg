@@ -615,10 +615,10 @@ public class TestSchemaUpdate {
 
   @Test
   public void testAlterMapKey() {
-    AssertHelpers.assertThrows("Should reject add sub-field to map key",
+    AssertHelpers.assertThrows("Should reject alter sub-field of map key",
         IllegalArgumentException.class, "Cannot alter map keys", () -> {
           new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
-              .updateColumn("locations.zip", Types.LongType.get()).apply();
+              .updateColumn("locations.key.zip", Types.LongType.get()).apply();
         }
     );
   }

@@ -190,7 +190,6 @@ public class TypeUtil {
   }
 
   public static class SchemaVisitor<T> {
-    private final Deque<String> fieldNames = Lists.newLinkedList();
     private final Deque<Integer> fieldIds = Lists.newLinkedList();
 
     public T schema(Schema schema, T structResult) {
@@ -217,10 +216,6 @@ public class TypeUtil {
       return null;
     }
 
-    protected Deque<String> fieldNames() {
-      return fieldNames;
-    }
-
     protected Deque<Integer> fieldIds() {
       return fieldIds;
     }
@@ -237,13 +232,11 @@ public class TypeUtil {
         List<T> results = Lists.newArrayListWithExpectedSize(struct.fields().size());
         for (Types.NestedField field : struct.fields()) {
           visitor.fieldIds.push(field.fieldId());
-          visitor.fieldNames.push(field.name());
           T result;
           try {
             result = visit(field.type(), visitor);
           } finally {
             visitor.fieldIds.pop();
-            visitor.fieldNames.pop();
           }
           results.add(visitor.field(field, result));
         }
