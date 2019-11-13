@@ -26,6 +26,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -68,21 +69,27 @@ public class SparkParquetReaders {
 
   @SuppressWarnings("unchecked")
   public static ParquetValueReader<InternalRow> buildReader(Schema expectedSchema,
-                                                            MessageType fileSchema) {
+                                                            MessageType fileSchema,
+                                                            Map<Integer, Object> partitionValues) {
     if (ParquetSchemaUtil.hasIds(fileSchema)) {
       return (ParquetValueReader<InternalRow>)
           TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
-              new ReadBuilder(fileSchema));
+              new ReadBuilder(fileSchema, partitionValues));
     } else {
       return (ParquetValueReader<InternalRow>)
           TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
-              new FallbackReadBuilder(fileSchema));
+              new FallbackReadBuilder(fileSchema, partitionValues));
     }
   }
 
+  public static ParquetValueReader<InternalRow> buildReader(Schema expectedSchema,
+                                                            MessageType fileSchema) {
+    return SparkParquetReaders.buildReader(expectedSchema, fileSchema, Collections.emptyMap());
+  }
+
   private static class FallbackReadBuilder extends ReadBuilder {
-    FallbackReadBuilder(MessageType type) {
-      super(type);
+    FallbackReadBuilder(MessageType type, Map<Integer, Object> partitionValues) {
+      super(type, partitionValues);
     }
 
     @Override
@@ -113,9 +120,11 @@ public class SparkParquetReaders {
 
   private static class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
     private final MessageType type;
+    private final Map<Integer, Object> partitionValues;
 
-    ReadBuilder(MessageType type) {
+    ReadBuilder(MessageType type, Map<Integer, Object> partitionValues) {
       this.type = type;
+      this.partitionValues = partitionValues;
     }
 
     @Override
@@ -146,13 +155,18 @@ public class SparkParquetReaders {
       List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
-        ParquetValueReader<?> reader = readersById.get(id);
-        if (reader != null) {
-          reorderedFields.add(reader);
-          types.add(typesById.get(id));
-        } else {
-          reorderedFields.add(ParquetValueReaders.nulls());
+        if (partitionValues.containsKey(id)) {
+          reorderedFields.add(ParquetValueReaders.constant(partitionValues.get(id)));
           types.add(null);
+        } else {
+          ParquetValueReader<?> reader = readersById.get(id);
+          if (reader != null) {
+            reorderedFields.add(reader);
+            types.add(typesById.get(id));
+          } else {
+            reorderedFields.add(ParquetValueReaders.nulls());
+            types.add(null);
+          }
         }
       }
 
