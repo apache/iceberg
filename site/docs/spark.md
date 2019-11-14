@@ -15,9 +15,9 @@
  - limitations under the License.
  -->
 
-# Apache Spark
+# Spark
 
-Apache Iceberg uses Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions.
+Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions.
 
 | Feature support                              | Spark 2.4 | Spark 3.0 (unreleased) | Notes                                          |
 |----------------------------------------------|-----------|------------------------|------------------------------------------------|
@@ -244,5 +244,3 @@ spark.read.format("iceberg").load("db.table.files").show(truncate = false)
 | s3:/.../table/data/00002-5-8d6d60e8-d427-4809-bcf0-f5d45a4aad96.parquet | PARQUET     | 1            | 597                | [1 -> 90, 2 -> 62] | [1 -> 1, 2 -> 1] | [1 -> 0, 2 -> 0]  | [1 -> , 2 -> a] | [1 -> , 2 -> a] | null         | [4]           |
 +-------------------------------------------------------------------------+-------------+--------------+--------------------+--------------------+------------------+-------------------+-----------------+-----------------+--------------+---------------+
 ```
-
-

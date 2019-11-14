@@ -111,7 +111,7 @@ To create an Iceberg schema from an existing Avro schema, use converters in `Avr
 ```scala
 import org.apache.iceberg.avro.AvroSchemaUtil
 import org.apache.iceberg.Schema
-import org.apache.iceberg.shaded.org.apache.avro.Schema.Parser
+import org.apache.avro.Schema.Parser
 import org.apache.iceberg.types.Type
 
 val avroSchemaString = """{
