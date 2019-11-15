@@ -192,6 +192,7 @@ public class TestMergeAppend extends TableTestBase {
     Assert.assertEquals("Summary metadata should include 3 added files",
         "3", readMetadata().currentSnapshot().summary().get("added-data-files"));
   }
+
   @Test
   public void testManifestDoNotMergeMinCount() throws IOException {
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());

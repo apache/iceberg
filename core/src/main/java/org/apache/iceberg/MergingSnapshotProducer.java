@@ -595,21 +595,20 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             outputManifests.add(bin.get(0));
             return;
           }
-          // if the bin has a new manifest (the new data files) then only merge it if the number of
-          // manifests is above the minimum count. this is applied only to bins with an in-memory
+
+          // if the bin has a new manifest (the new data files) or appended manifest file then only merge it
+          // if the number of manifests is above the minimum count. this is applied only to bins with an in-memory
           // manifest so that large manifests don't prevent merging older groups.
-          if (bin.contains(cachedNewManifest) && bin.size() < minManifestsCountToMerge) {
+          if ((bin.contains(cachedNewManifest) || bin.contains(firstAppendedManifest)) &&
+              bin.size() < minManifestsCountToMerge) {
             // not enough to merge, add all manifest files to the output list
-            outputManifests.addAll(bin);
-          } else if (bin.contains(firstAppendedManifest) && bin.size() < minManifestsCountToMerge) {
-            // its first bin with first appended manifest, not enough to merge,
-            // so add all manifest files to the output list
             outputManifests.addAll(bin);
           } else {
             // merge the group
             outputManifests.add(createManifest(specId, bin));
           }
         }, IOException.class);
+
     return Iterables.concat(binResults);
   }
 
