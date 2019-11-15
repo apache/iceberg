@@ -92,8 +92,8 @@ public class TableProperties {
   public static final String METADATA_COMPRESSION = "write.metadata.compression-codec";
   public static final String METADATA_COMPRESSION_DEFAULT = "none";
 
-  public static final String PREVIOUS_METADATA_LOG_MAX_COUNT = "write.metadata.previous-log-max-count";
-  public static final int PREVIOUS_METADATA_LOG_MAX_COUNT_DEFAULT = 100;
+  public static final String METADATA_PREVIOUS_VERSIONS_MAX = "write.metadata.previous-versions-max";
+  public static final int METADATA_PREVIOUS_VERSIONS_MAX_DEFAULT = 100;
 
   // This enables to delete the oldest metadata file after commit.
   public static final String METADATA_DELETE_AFTER_COMMIT_ENABLED = "write.metadata.delete-after-commit.enabled";

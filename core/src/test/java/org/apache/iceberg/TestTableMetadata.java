@@ -356,7 +356,7 @@ public class TestTableMetadata {
     previousMetadataLog.add(latestPreviousMetadata);
 
     TableMetadata metadata = base.replaceProperties(
-        ImmutableMap.of(TableProperties.PREVIOUS_METADATA_LOG_MAX_COUNT, "5"));
+        ImmutableMap.of(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "5"));
     Set<MetadataLogEntry> removedPreviousMetadata = Sets.newHashSet(base.previousMetadata());
     removedPreviousMetadata.removeAll(metadata.previousMetadata());
 
@@ -409,7 +409,7 @@ public class TestTableMetadata {
     previousMetadataLog.add(latestPreviousMetadata);
 
     TableMetadata metadata = base.replaceProperties(
-        ImmutableMap.of(TableProperties.PREVIOUS_METADATA_LOG_MAX_COUNT, "5"));
+        ImmutableMap.of(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "5"));
 
     SortedSet<MetadataLogEntry> removedPreviousMetadata =
         Sets.newTreeSet(Comparator.comparingLong(MetadataLogEntry::timestampMillis));
@@ -467,7 +467,7 @@ public class TestTableMetadata {
     previousMetadataLog.add(latestPreviousMetadata);
 
     TableMetadata metadata = base.replaceProperties(
-        ImmutableMap.of(TableProperties.PREVIOUS_METADATA_LOG_MAX_COUNT, "2"));
+        ImmutableMap.of(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "2"));
 
     SortedSet<MetadataLogEntry> removedPreviousMetadata =
         Sets.newTreeSet(Comparator.comparingLong(MetadataLogEntry::timestampMillis));

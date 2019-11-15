@@ -239,6 +239,7 @@ public class TableMetadata {
       }
       previous = metadataEntry;
     }
+
     Preconditions.checkArgument(
         currentSnapshotId < 0 || snapshotsById.containsKey(currentSnapshotId),
         "Invalid table metadata: Cannot find current version");
@@ -535,8 +536,8 @@ public class TableMetadata {
       return previousMetadata;
     }
 
-    int maxSize = PropertyUtil.propertyAsInt(updatedProperties,
-            TableProperties.PREVIOUS_METADATA_LOG_MAX_COUNT, TableProperties.PREVIOUS_METADATA_LOG_MAX_COUNT_DEFAULT);
+    int maxSize = Math.max(1, PropertyUtil.propertyAsInt(updatedProperties,
+            TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, TableProperties.METADATA_PREVIOUS_VERSIONS_MAX_DEFAULT));
 
     List<MetadataLogEntry> newMetadataLog = null;
     if (previousMetadata.size() >= maxSize) {
