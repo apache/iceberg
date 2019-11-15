@@ -21,6 +21,8 @@ package org.apache.iceberg;
 
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
@@ -98,11 +100,9 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
       LOG.info("Nothing to commit.");
       return;
     }
-    TableMetadata updated = (base != null && base.file() != null) ?
-            metadata.addPreviousMetadata(base.file().location(), base.lastUpdatedMillis()) : metadata;
 
-    doCommit(base, updated);
-    deleteRemovedMetadata(updated);
+    doCommit(base, metadata);
+    deleteRemovedMetadata(base, metadata);
     requestRefresh();
   }
 
@@ -123,7 +123,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     // always unique because it includes a UUID.
     TableMetadataParser.overwrite(metadata, newMetadataLocation);
 
-    return newMetadataLocation.location();
+    return newTableMetadataFilePath;
   }
 
   protected void refreshFromMetadataLocation(String newLocation) {
@@ -250,18 +250,24 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
    *
    * @param metadata the table metadata with removed metadata log entry.
    */
-  private void deleteRemovedMetadata(TableMetadata metadata) {
+  private void deleteRemovedMetadata(TableMetadata base, TableMetadata metadata) {
+    if (base == null) {
+      return;
+    }
 
     boolean deleteAfterCommit = metadata.propertyAsBoolean(
-            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
-            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
+        TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
+        TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
 
-    if (deleteAfterCommit && metadata.removedPreviousMetadata() != null) {
-      Tasks.foreach(metadata.removedPreviousMetadata())
-              .noRetry().suppressFailureWhenFinished()
-              .onFailure((previousMetadata, exc) ->
-                      LOG.warn("Delete failed for previous metadata file: {}", previousMetadata, exc))
-              .run(previousMetadata -> io().deleteFile(previousMetadata.file()));
+    Set<TableMetadata.MetadataLogEntry> removedPreviousMetadata = Sets.newHashSet(base.previousMetadata());
+    removedPreviousMetadata.removeAll(metadata.previousMetadata());
+
+    if (deleteAfterCommit && removedPreviousMetadata != null) {
+      Tasks.foreach(removedPreviousMetadata)
+          .noRetry().suppressFailureWhenFinished()
+          .onFailure((previousMetadata, exc) ->
+              LOG.warn("Delete failed for previous metadata file: {}", previousMetadata, exc))
+          .run(previousMetadata -> io().deleteFile(previousMetadata.file()));
     }
   }
 }

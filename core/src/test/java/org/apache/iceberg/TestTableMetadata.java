@@ -24,12 +24,16 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
+import java.util.SortedSet;
 import java.util.UUID;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
@@ -85,7 +89,7 @@ public class TestTableMetadata {
     TableMetadata expected = new TableMetadata(ops, null, UUID.randomUUID().toString(), "s3://bucket/test/location",
         System.currentTimeMillis(), 3, schema, 5, ImmutableList.of(spec),
         ImmutableMap.of("property", "value"), currentSnapshotId,
-        Arrays.asList(previousSnapshot, currentSnapshot), snapshotLog, ImmutableList.of(), null);
+        Arrays.asList(previousSnapshot, currentSnapshot), snapshotLog, ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(expected);
     TableMetadata metadata = TableMetadataParser.fromJson(ops, null,
@@ -146,7 +150,7 @@ public class TestTableMetadata {
     TableMetadata expected = new TableMetadata(ops, null, UUID.randomUUID().toString(), "s3://bucket/test/location",
         System.currentTimeMillis(), 3, schema, 5, ImmutableList.of(spec),
         ImmutableMap.of("property", "value"), currentSnapshotId,
-        Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog, ImmutableList.of(), null);
+        Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog, ImmutableList.of());
 
     // add the entries after creating TableMetadata to avoid the sorted check
     reversedSnapshotLog.add(
@@ -189,7 +193,7 @@ public class TestTableMetadata {
     TableMetadata expected = new TableMetadata(ops, null, null, "s3://bucket/test/location",
         System.currentTimeMillis(), 3, schema, 6, ImmutableList.of(spec),
         ImmutableMap.of("property", "value"), currentSnapshotId,
-        Arrays.asList(previousSnapshot, currentSnapshot), ImmutableList.of(), ImmutableList.of(), null);
+        Arrays.asList(previousSnapshot, currentSnapshot), ImmutableList.of(), ImmutableList.of());
 
     String asJson = toJsonWithoutSpecList(expected);
     TableMetadata metadata = TableMetadataParser
@@ -227,6 +231,8 @@ public class TestTableMetadata {
     Assert.assertEquals("Previous snapshot files should match",
         previousSnapshot.manifests(),
         metadata.snapshot(previousSnapshotId).manifests());
+    Assert.assertEquals("Snapshot logs should match",
+            expected.previousMetadata(), metadata.previousMetadata());
   }
 
   public static String toJsonWithoutSpecList(TableMetadata metadata) {
@@ -262,7 +268,6 @@ public class TestTableMetadata {
         SnapshotParser.toJson(snapshot, generator);
       }
       generator.writeEndArray();
-
       // skip the snapshot log
 
       generator.writeEndObject(); // end table metadata object
@@ -277,190 +282,202 @@ public class TestTableMetadata {
   @Test
   public void testJsonWithPreviousMetadataLog() throws Exception {
     Schema schema = new Schema(
-            Types.NestedField.required(1, "x", Types.LongType.get()),
-            Types.NestedField.required(2, "y", Types.LongType.get()),
-            Types.NestedField.required(3, "z", Types.LongType.get())
+        Types.NestedField.required(1, "x", Types.LongType.get()),
+        Types.NestedField.required(2, "y", Types.LongType.get()),
+        Types.NestedField.required(3, "z", Types.LongType.get())
     );
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).withSpecId(5).build();
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-            ops, previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
-            new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), spec.specId())));
+        ops, previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
+        new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), spec.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-            ops, currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
-            new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
+        ops, currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
+        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     long currentTimestamp = System.currentTimeMillis();
     List<MetadataLogEntry> previousMetadataLog = Lists.newArrayList();
     previousMetadataLog.add(new MetadataLogEntry(currentTimestamp,
-            "file:/tmp/000001-" + UUID.randomUUID().toString() + ".metadata.json"));
+        "/tmp/000001-" + UUID.randomUUID().toString() + ".metadata.json"));
 
     TableMetadata base = new TableMetadata(ops, null, UUID.randomUUID().toString(), "s3://bucket/test/location",
-            System.currentTimeMillis(), 3, schema, 5, ImmutableList.of(spec),
-            ImmutableMap.of("property", "value"), currentSnapshotId,
-            Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
-            ImmutableList.copyOf(previousMetadataLog), null);
+        System.currentTimeMillis(), 3, schema, 5, ImmutableList.of(spec),
+        ImmutableMap.of("property", "value"), currentSnapshotId,
+        Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
+        ImmutableList.copyOf(previousMetadataLog));
 
     String asJson = TableMetadataParser.toJson(base);
     TableMetadata metadataFromJson = TableMetadataParser.fromJson(ops, null,
-            JsonUtil.mapper().readValue(asJson, JsonNode.class));
+        JsonUtil.mapper().readValue(asJson, JsonNode.class));
 
-    Assert.assertEquals("Metadata logs should match",
-            previousMetadataLog, metadataFromJson.previousMetadata());
+    Assert.assertEquals("Metadata logs should match", previousMetadataLog, metadataFromJson.previousMetadata());
   }
 
   @Test
   public void testAddPreviousMetadataRemoveNone() throws Exception {
     Schema schema = new Schema(
-            Types.NestedField.required(1, "x", Types.LongType.get()),
-            Types.NestedField.required(2, "y", Types.LongType.get()),
-            Types.NestedField.required(3, "z", Types.LongType.get())
+        Types.NestedField.required(1, "x", Types.LongType.get()),
+        Types.NestedField.required(2, "y", Types.LongType.get()),
+        Types.NestedField.required(3, "z", Types.LongType.get())
     );
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).withSpecId(5).build();
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-            ops, previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
-            new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), spec.specId())));
+        ops, previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
+        new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), spec.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-            ops, currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
-            new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
+        ops, currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
+        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     long currentTimestamp = System.currentTimeMillis();
     List<MetadataLogEntry> previousMetadataLog = Lists.newArrayList();
     previousMetadataLog.add(new MetadataLogEntry(currentTimestamp - 100,
-            "file:/tmp/000001-" + UUID.randomUUID().toString() + ".metadata.json"));
+        "/tmp/000001-" + UUID.randomUUID().toString() + ".metadata.json"));
     previousMetadataLog.add(new MetadataLogEntry(currentTimestamp - 90,
-            "file:/tmp/000002-" + UUID.randomUUID().toString() + ".metadata.json"));
-
-    TableMetadata base = new TableMetadata(ops, null, UUID.randomUUID().toString(), "s3://bucket/test/location",
-            System.currentTimeMillis(), 3, schema, 5, ImmutableList.of(spec),
-            ImmutableMap.of(TableProperties.PREVIOUS_METADATA_LOG_MAX_COUNT, "5"), currentSnapshotId,
-            Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
-            ImmutableList.copyOf(previousMetadataLog), null);
+        "/tmp/000002-" + UUID.randomUUID().toString() + ".metadata.json"));
 
     MetadataLogEntry latestPreviousMetadata = new MetadataLogEntry(currentTimestamp - 80,
-            "file:/tmp/000003-" + UUID.randomUUID().toString() + ".metadata.json");
+        "/tmp/000003-" + UUID.randomUUID().toString() + ".metadata.json");
+
+    TableMetadata base = new TableMetadata(ops, localInput(latestPreviousMetadata.file()), UUID.randomUUID().toString(),
+        "s3://bucket/test/location", currentTimestamp - 80, 3, schema, 5, ImmutableList.of(spec),
+        ImmutableMap.of("property", "value"), currentSnapshotId,
+        Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
+        ImmutableList.copyOf(previousMetadataLog));
+
     previousMetadataLog.add(latestPreviousMetadata);
 
-    TableMetadata updated = base.addPreviousMetadata(
-            latestPreviousMetadata.file(), latestPreviousMetadata.timestampMillis());
+    TableMetadata metadata = base.replaceProperties(
+        ImmutableMap.of(TableProperties.PREVIOUS_METADATA_LOG_MAX_COUNT, "5"));
+    Set<MetadataLogEntry> removedPreviousMetadata = Sets.newHashSet(base.previousMetadata());
+    removedPreviousMetadata.removeAll(metadata.previousMetadata());
 
-    Assert.assertEquals("Metadata logs should match",
-            previousMetadataLog, updated.previousMetadata());
-    Assert.assertEquals("Removed Metadata logs should be empty",
-            0, updated.removedPreviousMetadata().size());
+    Assert.assertEquals("Metadata logs should match", previousMetadataLog, metadata.previousMetadata());
+    Assert.assertEquals("Removed Metadata logs should be empty", 0, removedPreviousMetadata.size());
   }
 
   @Test
   public void testAddPreviousMetadataRemoveOne() throws Exception {
     Schema schema = new Schema(
-            Types.NestedField.required(1, "x", Types.LongType.get()),
-            Types.NestedField.required(2, "y", Types.LongType.get()),
-            Types.NestedField.required(3, "z", Types.LongType.get())
+        Types.NestedField.required(1, "x", Types.LongType.get()),
+        Types.NestedField.required(2, "y", Types.LongType.get()),
+        Types.NestedField.required(3, "z", Types.LongType.get())
     );
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).withSpecId(5).build();
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-            ops, previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
-            new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), spec.specId())));
+        ops, previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
+        new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), spec.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-            ops, currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
-            new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
+        ops, currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
+        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     long currentTimestamp = System.currentTimeMillis();
     List<MetadataLogEntry> previousMetadataLog = Lists.newArrayList();
     previousMetadataLog.add(new MetadataLogEntry(currentTimestamp - 100,
-            "file:/tmp/000001-" + UUID.randomUUID().toString() + ".metadata.json"));
+        "/tmp/000001-" + UUID.randomUUID().toString() + ".metadata.json"));
     previousMetadataLog.add(new MetadataLogEntry(currentTimestamp - 90,
-            "file:/tmp/000002-" + UUID.randomUUID().toString() + ".metadata.json"));
+        "/tmp/000002-" + UUID.randomUUID().toString() + ".metadata.json"));
     previousMetadataLog.add(new MetadataLogEntry(currentTimestamp - 80,
-            "file:/tmp/000003-" + UUID.randomUUID().toString() + ".metadata.json"));
+        "/tmp/000003-" + UUID.randomUUID().toString() + ".metadata.json"));
     previousMetadataLog.add(new MetadataLogEntry(currentTimestamp - 70,
-            "file:/tmp/000004-" + UUID.randomUUID().toString() + ".metadata.json"));
+        "/tmp/000004-" + UUID.randomUUID().toString() + ".metadata.json"));
     previousMetadataLog.add(new MetadataLogEntry(currentTimestamp - 60,
-            "file:/tmp/000005-" + UUID.randomUUID().toString() + ".metadata.json"));
-
-    TableMetadata base = new TableMetadata(ops, null, UUID.randomUUID().toString(), "s3://bucket/test/location",
-            System.currentTimeMillis(), 3, schema, 5, ImmutableList.of(spec),
-            ImmutableMap.of(TableProperties.PREVIOUS_METADATA_LOG_MAX_COUNT, "5"), currentSnapshotId,
-            Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
-            ImmutableList.copyOf(previousMetadataLog), null);
+        "/tmp/000005-" + UUID.randomUUID().toString() + ".metadata.json"));
 
     MetadataLogEntry latestPreviousMetadata = new MetadataLogEntry(currentTimestamp - 50,
-            "file:/tmp/000006-" + UUID.randomUUID().toString() + ".metadata.json");
+        "/tmp/000006-" + UUID.randomUUID().toString() + ".metadata.json");
+
+    TableMetadata base = new TableMetadata(ops, localInput(latestPreviousMetadata.file()), UUID.randomUUID().toString(),
+        "s3://bucket/test/location", currentTimestamp - 50, 3, schema, 5,
+        ImmutableList.of(spec), ImmutableMap.of("property", "value"), currentSnapshotId,
+        Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
+        ImmutableList.copyOf(previousMetadataLog));
+
     previousMetadataLog.add(latestPreviousMetadata);
 
-    TableMetadata updated = base.addPreviousMetadata(
-            latestPreviousMetadata.file(), latestPreviousMetadata.timestampMillis());
+    TableMetadata metadata = base.replaceProperties(
+        ImmutableMap.of(TableProperties.PREVIOUS_METADATA_LOG_MAX_COUNT, "5"));
 
-    Assert.assertEquals("Metadata logs should match",
-            previousMetadataLog.subList(1, 6), updated.previousMetadata());
-    Assert.assertEquals("Removed Metadata logs should contain 1",
-            previousMetadataLog.subList(0, 1), updated.removedPreviousMetadata());
+    SortedSet<MetadataLogEntry> removedPreviousMetadata =
+        Sets.newTreeSet(Comparator.comparingLong(MetadataLogEntry::timestampMillis));
+    removedPreviousMetadata.addAll(base.previousMetadata());
+    removedPreviousMetadata.removeAll(metadata.previousMetadata());
+
+    Assert.assertEquals("Metadata logs should match", previousMetadataLog.subList(1, 6),
+        metadata.previousMetadata());
+    Assert.assertEquals("Removed Metadata logs should contain 1", previousMetadataLog.subList(0, 1),
+        ImmutableList.copyOf(removedPreviousMetadata));
   }
 
   @Test
   public void testAddPreviousMetadataRemoveMultiple() throws Exception {
     Schema schema = new Schema(
-            Types.NestedField.required(1, "x", Types.LongType.get()),
-            Types.NestedField.required(2, "y", Types.LongType.get()),
-            Types.NestedField.required(3, "z", Types.LongType.get())
+        Types.NestedField.required(1, "x", Types.LongType.get()),
+        Types.NestedField.required(2, "y", Types.LongType.get()),
+        Types.NestedField.required(3, "z", Types.LongType.get())
     );
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).withSpecId(5).build();
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-            ops, previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
-            new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), spec.specId())));
+        ops, previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
+        new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), spec.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-            ops, currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
-            new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
+        ops, currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
+        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     long currentTimestamp = System.currentTimeMillis();
     List<MetadataLogEntry> previousMetadataLog = Lists.newArrayList();
     previousMetadataLog.add(new MetadataLogEntry(currentTimestamp - 100,
-            "file:/tmp/000001-" + UUID.randomUUID().toString() + ".metadata.json"));
+        "/tmp/000001-" + UUID.randomUUID().toString() + ".metadata.json"));
     previousMetadataLog.add(new MetadataLogEntry(currentTimestamp - 90,
-            "file:/tmp/000002-" + UUID.randomUUID().toString() + ".metadata.json"));
+        "/tmp/000002-" + UUID.randomUUID().toString() + ".metadata.json"));
     previousMetadataLog.add(new MetadataLogEntry(currentTimestamp - 80,
-            "file:/tmp/000003-" + UUID.randomUUID().toString() + ".metadata.json"));
+        "/tmp/000003-" + UUID.randomUUID().toString() + ".metadata.json"));
     previousMetadataLog.add(new MetadataLogEntry(currentTimestamp - 70,
-            "file:/tmp/000004-" + UUID.randomUUID().toString() + ".metadata.json"));
+        "/tmp/000004-" + UUID.randomUUID().toString() + ".metadata.json"));
     previousMetadataLog.add(new MetadataLogEntry(currentTimestamp - 60,
-            "file:/tmp/000005-" + UUID.randomUUID().toString() + ".metadata.json"));
-
-    TableMetadata base = new TableMetadata(ops, null, UUID.randomUUID().toString(), "s3://bucket/test/location",
-            System.currentTimeMillis(), 3, schema, 2, ImmutableList.of(spec),
-            ImmutableMap.of(TableProperties.PREVIOUS_METADATA_LOG_MAX_COUNT, "2"), currentSnapshotId,
-            Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
-            ImmutableList.copyOf(previousMetadataLog), null);
+        "/tmp/000005-" + UUID.randomUUID().toString() + ".metadata.json"));
 
     MetadataLogEntry latestPreviousMetadata = new MetadataLogEntry(currentTimestamp - 50,
-            "file:/tmp/000006-" + UUID.randomUUID().toString() + ".metadata.json");
+        "/tmp/000006-" + UUID.randomUUID().toString() + ".metadata.json");
+
+    TableMetadata base = new TableMetadata(ops, localInput(latestPreviousMetadata.file()), UUID.randomUUID().toString(),
+        "s3://bucket/test/location", currentTimestamp - 50, 3, schema, 2,
+        ImmutableList.of(spec), ImmutableMap.of("property", "value"), currentSnapshotId,
+        Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
+        ImmutableList.copyOf(previousMetadataLog));
+
     previousMetadataLog.add(latestPreviousMetadata);
 
-    TableMetadata updated = base.addPreviousMetadata(
-            latestPreviousMetadata.file(), latestPreviousMetadata.timestampMillis());
+    TableMetadata metadata = base.replaceProperties(
+        ImmutableMap.of(TableProperties.PREVIOUS_METADATA_LOG_MAX_COUNT, "2"));
 
-    Assert.assertEquals("Metadata logs should match",
-            previousMetadataLog.subList(4, 6), updated.previousMetadata());
-    Assert.assertEquals("Removed Metadata logs should be null",
-            previousMetadataLog.subList(0, 4), updated.removedPreviousMetadata());
+    SortedSet<MetadataLogEntry> removedPreviousMetadata =
+        Sets.newTreeSet(Comparator.comparingLong(MetadataLogEntry::timestampMillis));
+    removedPreviousMetadata.addAll(base.previousMetadata());
+    removedPreviousMetadata.removeAll(metadata.previousMetadata());
+
+    Assert.assertEquals("Metadata logs should match", previousMetadataLog.subList(4, 6),
+        metadata.previousMetadata());
+    Assert.assertEquals("Removed Metadata logs should contain 4", previousMetadataLog.subList(0, 4),
+        ImmutableList.copyOf(removedPreviousMetadata));
   }
 
 }

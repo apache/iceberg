@@ -292,6 +292,6 @@ public class TableMetadataParser {
     return new TableMetadata(ops, file, uuid, location,
         lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs, properties,
         currentVersionId, snapshots, ImmutableList.copyOf(entries.iterator()),
-        ImmutableList.copyOf(metadataEntries.iterator()), null);
+        ImmutableList.copyOf(metadataEntries.iterator()));
   }
 }
