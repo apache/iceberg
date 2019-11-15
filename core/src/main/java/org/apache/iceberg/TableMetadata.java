@@ -163,9 +163,9 @@ public class TableMetadata {
     @Override
     public String toString() {
       return MoreObjects.toStringHelper(this)
-              .add("timestampMillis", timestampMillis)
-              .add("file", file)
-              .toString();
+          .add("timestampMillis", timestampMillis)
+          .add("file", file)
+          .toString();
     }
   }
 
@@ -186,7 +186,7 @@ public class TableMetadata {
   private final Map<Long, Snapshot> snapshotsById;
   private final Map<Integer, PartitionSpec> specsById;
   private final List<HistoryEntry> snapshotLog;
-  private final List<MetadataLogEntry> previousMetadata;
+  private final List<MetadataLogEntry> previousFiles;
 
   TableMetadata(TableOperations ops,
                 InputFile file,
@@ -201,7 +201,7 @@ public class TableMetadata {
                 long currentSnapshotId,
                 List<Snapshot> snapshots,
                 List<HistoryEntry> snapshotLog,
-                List<MetadataLogEntry> previousMetadata) {
+                List<MetadataLogEntry> previousFiles) {
     this.ops = ops;
     this.file = file;
     this.uuid = uuid;
@@ -215,7 +215,7 @@ public class TableMetadata {
     this.currentSnapshotId = currentSnapshotId;
     this.snapshots = snapshots;
     this.snapshotLog = snapshotLog;
-    this.previousMetadata = previousMetadata;
+    this.previousFiles = previousFiles;
 
     this.snapshotsById = indexSnapshots(snapshots);
     this.specsById = indexSpecs(specs);
@@ -231,11 +231,11 @@ public class TableMetadata {
     }
 
     MetadataLogEntry previous = null;
-    for (MetadataLogEntry metadataEntry : previousMetadata) {
+    for (MetadataLogEntry metadataEntry : previousFiles) {
       if (previous != null) {
         Preconditions.checkArgument(
-                (metadataEntry.timestampMillis() - previous.timestampMillis()) >= 0,
-                "[BUG] Expected sorted previous metadata log entries.");
+            (metadataEntry.timestampMillis() - previous.timestampMillis()) >= 0,
+            "[BUG] Expected sorted previous metadata log entries.");
       }
       previous = metadataEntry;
     }
@@ -325,8 +325,8 @@ public class TableMetadata {
     return snapshotLog;
   }
 
-  public List<MetadataLogEntry> previousMetadata() {
-    return previousMetadata;
+  public List<MetadataLogEntry> previousFiles() {
+    return previousFiles;
   }
 
   public TableMetadata withUUID() {
@@ -335,14 +335,14 @@ public class TableMetadata {
     } else {
       return new TableMetadata(ops, null, UUID.randomUUID().toString(), location,
           lastUpdatedMillis, lastColumnId, schema, defaultSpecId, specs, properties,
-          currentSnapshotId, snapshots, snapshotLog, addPreviousMetadata(file, lastUpdatedMillis));
+          currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
     }
   }
 
   public TableMetadata updateTableLocation(String newLocation) {
     return new TableMetadata(ops, null, uuid, newLocation,
         System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
-        currentSnapshotId, snapshots, snapshotLog, addPreviousMetadata(file, lastUpdatedMillis));
+        currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   public TableMetadata updateSchema(Schema newSchema, int newLastColumnId) {
@@ -352,7 +352,7 @@ public class TableMetadata {
         spec -> updateSpecSchema(newSchema, spec));
     return new TableMetadata(ops, null, uuid, location,
         System.currentTimeMillis(), newLastColumnId, newSchema, defaultSpecId, updatedSpecs, properties,
-        currentSnapshotId, snapshots, snapshotLog, addPreviousMetadata(file, lastUpdatedMillis));
+        currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   public TableMetadata updatePartitionSpec(PartitionSpec newPartitionSpec) {
@@ -382,7 +382,7 @@ public class TableMetadata {
     return new TableMetadata(ops, null, uuid, location,
         System.currentTimeMillis(), lastColumnId, schema, newDefaultSpecId,
         builder.build(), properties,
-        currentSnapshotId, snapshots, snapshotLog, addPreviousMetadata(file, lastUpdatedMillis));
+        currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   public TableMetadata addStagedSnapshot(Snapshot snapshot) {
@@ -392,7 +392,7 @@ public class TableMetadata {
         .build();
     return new TableMetadata(ops, null, uuid, location,
         snapshot.timestampMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
-        currentSnapshotId, newSnapshots, snapshotLog, addPreviousMetadata(file, lastUpdatedMillis));
+        currentSnapshotId, newSnapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   public TableMetadata replaceCurrentSnapshot(Snapshot snapshot) {
@@ -406,7 +406,7 @@ public class TableMetadata {
         .build();
     return new TableMetadata(ops, null, uuid, location,
         snapshot.timestampMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
-        snapshot.snapshotId(), newSnapshots, newSnapshotLog, addPreviousMetadata(file, lastUpdatedMillis));
+        snapshot.snapshotId(), newSnapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   public TableMetadata removeSnapshotsIf(Predicate<Snapshot> removeIf) {
@@ -438,7 +438,7 @@ public class TableMetadata {
     return new TableMetadata(ops, null, uuid, location,
         System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
         currentSnapshotId, filtered, ImmutableList.copyOf(newSnapshotLog),
-        addPreviousMetadata(file, lastUpdatedMillis));
+        addPreviousFile(file, lastUpdatedMillis));
   }
 
   public TableMetadata rollbackTo(Snapshot snapshot) {
@@ -453,14 +453,14 @@ public class TableMetadata {
 
     return new TableMetadata(ops, null, uuid, location,
         nowMillis, lastColumnId, schema, defaultSpecId, specs, properties,
-        snapshot.snapshotId(), snapshots, newSnapshotLog, addPreviousMetadata(file, lastUpdatedMillis));
+        snapshot.snapshotId(), snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   public TableMetadata replaceProperties(Map<String, String> newProperties) {
     ValidationException.check(newProperties != null, "Cannot set properties to null");
     return new TableMetadata(ops, null, uuid, location,
         System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, newProperties,
-        currentSnapshotId, snapshots, snapshotLog, addPreviousMetadata(file, lastUpdatedMillis, newProperties));
+        currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis, newProperties));
   }
 
   public TableMetadata removeSnapshotLogEntries(Set<Long> snapshotIds) {
@@ -477,7 +477,7 @@ public class TableMetadata {
         "Cannot set invalid snapshot log: latest entry is not the current snapshot");
     return new TableMetadata(ops, null, uuid, location,
         System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
-        currentSnapshotId, snapshots, newSnapshotLog, addPreviousMetadata(file, lastUpdatedMillis));
+        currentSnapshotId, snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   public TableMetadata buildReplacement(Schema updatedSchema, PartitionSpec updatedPartitionSpec,
@@ -517,34 +517,34 @@ public class TableMetadata {
     return new TableMetadata(ops, null, uuid, location,
         System.currentTimeMillis(), nextLastColumnId.get(), freshSchema,
         specId, builder.build(), ImmutableMap.copyOf(newProperties),
-        -1, snapshots, ImmutableList.of(), addPreviousMetadata(file, lastUpdatedMillis, newProperties));
+        -1, snapshots, ImmutableList.of(), addPreviousFile(file, lastUpdatedMillis, newProperties));
   }
 
   public TableMetadata updateLocation(String newLocation) {
     return new TableMetadata(ops, null, uuid, newLocation,
         System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
-        currentSnapshotId, snapshots, snapshotLog, addPreviousMetadata(file, lastUpdatedMillis));
+        currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
-  private List<MetadataLogEntry> addPreviousMetadata(InputFile previousFile, long timestampMillis) {
-    return addPreviousMetadata(previousFile, timestampMillis, properties);
+  private List<MetadataLogEntry> addPreviousFile(InputFile previousFile, long timestampMillis) {
+    return addPreviousFile(previousFile, timestampMillis, properties);
   }
 
-  private List<MetadataLogEntry> addPreviousMetadata(InputFile previousFile, long timestampMillis,
-                                                     Map<String, String> updatedProperties) {
+  private List<MetadataLogEntry> addPreviousFile(InputFile previousFile, long timestampMillis,
+                                                 Map<String, String> updatedProperties) {
     if (previousFile == null) {
-      return previousMetadata;
+      return previousFiles;
     }
 
     int maxSize = Math.max(1, PropertyUtil.propertyAsInt(updatedProperties,
             TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, TableProperties.METADATA_PREVIOUS_VERSIONS_MAX_DEFAULT));
 
     List<MetadataLogEntry> newMetadataLog = null;
-    if (previousMetadata.size() >= maxSize) {
-      int removeIndex = previousMetadata.size() - maxSize + 1;
-      newMetadataLog = Lists.newArrayList(previousMetadata.subList(removeIndex, previousMetadata.size()));
+    if (previousFiles.size() >= maxSize) {
+      int removeIndex = previousFiles.size() - maxSize + 1;
+      newMetadataLog = Lists.newArrayList(previousFiles.subList(removeIndex, previousFiles.size()));
     } else {
-      newMetadataLog = Lists.newArrayList(previousMetadata);
+      newMetadataLog = Lists.newArrayList(previousFiles);
     }
     newMetadataLog.add(new MetadataLogEntry(timestampMillis, previousFile.location()));
 

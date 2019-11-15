@@ -195,7 +195,7 @@ public class TableMetadataParser {
     generator.writeEndArray();
 
     generator.writeArrayFieldStart(METADATA_LOG);
-    for (MetadataLogEntry logEntry : metadata.previousMetadata()) {
+    for (MetadataLogEntry logEntry : metadata.previousFiles()) {
       generator.writeStartObject();
       generator.writeNumberField(TIMESTAMP_MS, logEntry.timestampMillis());
       generator.writeStringField(METADATA_FILE, logEntry.file());

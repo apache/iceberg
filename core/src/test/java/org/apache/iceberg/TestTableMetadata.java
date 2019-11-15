@@ -232,7 +232,7 @@ public class TestTableMetadata {
         previousSnapshot.manifests(),
         metadata.snapshot(previousSnapshotId).manifests());
     Assert.assertEquals("Snapshot logs should match",
-            expected.previousMetadata(), metadata.previousMetadata());
+            expected.previousFiles(), metadata.previousFiles());
   }
 
   public static String toJsonWithoutSpecList(TableMetadata metadata) {
@@ -314,7 +314,7 @@ public class TestTableMetadata {
     TableMetadata metadataFromJson = TableMetadataParser.fromJson(ops, null,
         JsonUtil.mapper().readValue(asJson, JsonNode.class));
 
-    Assert.assertEquals("Metadata logs should match", previousMetadataLog, metadataFromJson.previousMetadata());
+    Assert.assertEquals("Metadata logs should match", previousMetadataLog, metadataFromJson.previousFiles());
   }
 
   @Test
@@ -357,10 +357,10 @@ public class TestTableMetadata {
 
     TableMetadata metadata = base.replaceProperties(
         ImmutableMap.of(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "5"));
-    Set<MetadataLogEntry> removedPreviousMetadata = Sets.newHashSet(base.previousMetadata());
-    removedPreviousMetadata.removeAll(metadata.previousMetadata());
+    Set<MetadataLogEntry> removedPreviousMetadata = Sets.newHashSet(base.previousFiles());
+    removedPreviousMetadata.removeAll(metadata.previousFiles());
 
-    Assert.assertEquals("Metadata logs should match", previousMetadataLog, metadata.previousMetadata());
+    Assert.assertEquals("Metadata logs should match", previousMetadataLog, metadata.previousFiles());
     Assert.assertEquals("Removed Metadata logs should be empty", 0, removedPreviousMetadata.size());
   }
 
@@ -413,11 +413,11 @@ public class TestTableMetadata {
 
     SortedSet<MetadataLogEntry> removedPreviousMetadata =
         Sets.newTreeSet(Comparator.comparingLong(MetadataLogEntry::timestampMillis));
-    removedPreviousMetadata.addAll(base.previousMetadata());
-    removedPreviousMetadata.removeAll(metadata.previousMetadata());
+    removedPreviousMetadata.addAll(base.previousFiles());
+    removedPreviousMetadata.removeAll(metadata.previousFiles());
 
     Assert.assertEquals("Metadata logs should match", previousMetadataLog.subList(1, 6),
-        metadata.previousMetadata());
+        metadata.previousFiles());
     Assert.assertEquals("Removed Metadata logs should contain 1", previousMetadataLog.subList(0, 1),
         ImmutableList.copyOf(removedPreviousMetadata));
   }
@@ -471,11 +471,11 @@ public class TestTableMetadata {
 
     SortedSet<MetadataLogEntry> removedPreviousMetadata =
         Sets.newTreeSet(Comparator.comparingLong(MetadataLogEntry::timestampMillis));
-    removedPreviousMetadata.addAll(base.previousMetadata());
-    removedPreviousMetadata.removeAll(metadata.previousMetadata());
+    removedPreviousMetadata.addAll(base.previousFiles());
+    removedPreviousMetadata.removeAll(metadata.previousFiles());
 
     Assert.assertEquals("Metadata logs should match", previousMetadataLog.subList(4, 6),
-        metadata.previousMetadata());
+        metadata.previousFiles());
     Assert.assertEquals("Removed Metadata logs should contain 4", previousMetadataLog.subList(0, 4),
         ImmutableList.copyOf(removedPreviousMetadata));
   }

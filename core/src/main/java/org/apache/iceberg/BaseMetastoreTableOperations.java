@@ -102,7 +102,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     }
 
     doCommit(base, metadata);
-    deleteRemovedMetadata(base, metadata);
+    deleteRemovedMetadataFiles(base, metadata);
     requestRefresh();
   }
 
@@ -248,9 +248,10 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   /**
    * Deletes the oldest metadata files if {@link TableProperties#METADATA_DELETE_AFTER_COMMIT_ENABLED} is true.
    *
-   * @param metadata the table metadata with removed metadata log entry.
+   * @param base     table metadata on which previous versions were based
+   * @param metadata new table metadata with updated previous versions
    */
-  private void deleteRemovedMetadata(TableMetadata base, TableMetadata metadata) {
+  private void deleteRemovedMetadataFiles(TableMetadata base, TableMetadata metadata) {
     if (base == null) {
       return;
     }
@@ -259,15 +260,15 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
         TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
         TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
 
-    Set<TableMetadata.MetadataLogEntry> removedPreviousMetadata = Sets.newHashSet(base.previousMetadata());
-    removedPreviousMetadata.removeAll(metadata.previousMetadata());
+    Set<TableMetadata.MetadataLogEntry> removedPreviousMetadataFiles = Sets.newHashSet(base.previousFiles());
+    removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
 
-    if (deleteAfterCommit && removedPreviousMetadata != null) {
-      Tasks.foreach(removedPreviousMetadata)
+    if (deleteAfterCommit) {
+      Tasks.foreach(removedPreviousMetadataFiles)
           .noRetry().suppressFailureWhenFinished()
-          .onFailure((previousMetadata, exc) ->
-              LOG.warn("Delete failed for previous metadata file: {}", previousMetadata, exc))
-          .run(previousMetadata -> io().deleteFile(previousMetadata.file()));
+          .onFailure((previousMetadataFile, exc) ->
+              LOG.warn("Delete failed for previous metadata file: {}", previousMetadataFile, exc))
+          .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
     }
   }
 }
