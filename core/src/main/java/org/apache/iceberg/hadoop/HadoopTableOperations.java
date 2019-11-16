@@ -20,10 +20,12 @@
 package org.apache.iceberg.hadoop;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
 import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -39,6 +41,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -149,6 +152,8 @@ public class HadoopTableOperations implements TableOperations {
 
     // update the best-effort version pointer
     writeVersionHint(nextVersion);
+
+    deleteRemovedMetadataFiles(base, metadata);
 
     this.shouldRefresh = true;
   }
@@ -284,5 +289,32 @@ public class HadoopTableOperations implements TableOperations {
 
   protected FileSystem getFileSystem(Path path, Configuration hadoopConf) {
     return Util.getFs(path, hadoopConf);
+  }
+
+  /**
+   * Deletes the oldest metadata files if {@link TableProperties#METADATA_DELETE_AFTER_COMMIT_ENABLED} is true.
+   *
+   * @param base     table metadata on which previous versions were based
+   * @param metadata new table metadata with updated previous versions
+   */
+  private void deleteRemovedMetadataFiles(TableMetadata base, TableMetadata metadata) {
+    if (base == null) {
+      return;
+    }
+
+    boolean deleteAfterCommit = metadata.propertyAsBoolean(
+        TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
+        TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
+
+    Set<TableMetadata.MetadataLogEntry> removedPreviousMetadataFiles = Sets.newHashSet(base.previousFiles());
+    removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
+
+    if (deleteAfterCommit) {
+      Tasks.foreach(removedPreviousMetadataFiles)
+          .noRetry().suppressFailureWhenFinished()
+          .onFailure((previousMetadataFile, exc) ->
+              LOG.warn("Delete failed for previous metadata file: {}", previousMetadataFile, exc))
+          .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
+    }
   }
 }

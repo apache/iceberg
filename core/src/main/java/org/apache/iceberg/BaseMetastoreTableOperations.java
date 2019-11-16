@@ -21,6 +21,8 @@ package org.apache.iceberg;
 
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
@@ -100,6 +102,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     }
 
     doCommit(base, metadata);
+    deleteRemovedMetadataFiles(base, metadata);
     requestRefresh();
   }
 
@@ -239,6 +242,33 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     } catch (NumberFormatException e) {
       LOG.warn("Unable to parse version from metadata location: {}", metadataLocation, e);
       return -1;
+    }
+  }
+
+  /**
+   * Deletes the oldest metadata files if {@link TableProperties#METADATA_DELETE_AFTER_COMMIT_ENABLED} is true.
+   *
+   * @param base     table metadata on which previous versions were based
+   * @param metadata new table metadata with updated previous versions
+   */
+  private void deleteRemovedMetadataFiles(TableMetadata base, TableMetadata metadata) {
+    if (base == null) {
+      return;
+    }
+
+    boolean deleteAfterCommit = metadata.propertyAsBoolean(
+        TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
+        TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
+
+    Set<TableMetadata.MetadataLogEntry> removedPreviousMetadataFiles = Sets.newHashSet(base.previousFiles());
+    removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
+
+    if (deleteAfterCommit) {
+      Tasks.foreach(removedPreviousMetadataFiles)
+          .noRetry().suppressFailureWhenFinished()
+          .onFailure((previousMetadataFile, exc) ->
+              LOG.warn("Delete failed for previous metadata file: {}", previousMetadataFile, exc))
+          .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
     }
   }
 }

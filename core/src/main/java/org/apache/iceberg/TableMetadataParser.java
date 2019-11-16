@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.SortedSet;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
+import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
@@ -95,6 +96,8 @@ public class TableMetadataParser {
   static final String SNAPSHOT_ID = "snapshot-id";
   static final String TIMESTAMP_MS = "timestamp-ms";
   static final String SNAPSHOT_LOG = "snapshot-log";
+  static final String METADATA_FILE = "metadata-file";
+  static final String METADATA_LOG = "metadata-log";
 
   public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
     internalWrite(metadata, outputFile, true);
@@ -191,6 +194,15 @@ public class TableMetadataParser {
     }
     generator.writeEndArray();
 
+    generator.writeArrayFieldStart(METADATA_LOG);
+    for (MetadataLogEntry logEntry : metadata.previousFiles()) {
+      generator.writeStartObject();
+      generator.writeNumberField(TIMESTAMP_MS, logEntry.timestampMillis());
+      generator.writeStringField(METADATA_FILE, logEntry.file());
+      generator.writeEndObject();
+    }
+    generator.writeEndArray();
+
     generator.writeEndObject();
   }
 
@@ -266,8 +278,20 @@ public class TableMetadataParser {
       }
     }
 
+    SortedSet<MetadataLogEntry> metadataEntries =
+            Sets.newTreeSet(Comparator.comparingLong(MetadataLogEntry::timestampMillis));
+    if (node.has(METADATA_LOG)) {
+      Iterator<JsonNode> logIterator = node.get(METADATA_LOG).elements();
+      while (logIterator.hasNext()) {
+        JsonNode entryNode = logIterator.next();
+        metadataEntries.add(new MetadataLogEntry(
+                JsonUtil.getLong(TIMESTAMP_MS, entryNode), JsonUtil.getString(METADATA_FILE, entryNode)));
+      }
+    }
+
     return new TableMetadata(ops, file, uuid, location,
         lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs, properties,
-        currentVersionId, snapshots, ImmutableList.copyOf(entries.iterator()));
+        currentVersionId, snapshots, ImmutableList.copyOf(entries.iterator()),
+        ImmutableList.copyOf(metadataEntries.iterator()));
   }
 }
