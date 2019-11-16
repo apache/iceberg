@@ -157,6 +157,23 @@ public class TableTestBase {
     return writer.toManifestFile();
   }
 
+  ManifestFile writeManifestWithName(String name, DataFile... files) throws IOException {
+    File manifestFile = temp.newFile(name + ".avro");
+    Assert.assertTrue(manifestFile.delete());
+    OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
+
+    ManifestWriter writer = ManifestWriter.write(table.spec(), outputFile);
+    try {
+      for (DataFile file : files) {
+        writer.add(file);
+      }
+    } finally {
+      writer.close();
+    }
+
+    return writer.toManifestFile();
+  }
+
   ManifestEntry manifestEntry(ManifestEntry.Status status, long snapshotId, DataFile file) {
     ManifestEntry entry = new ManifestEntry(table.spec().partitionType());
     switch (status) {
