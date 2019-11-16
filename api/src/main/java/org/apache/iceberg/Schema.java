@@ -56,12 +56,12 @@ public class Schema implements Serializable {
     this.aliasToId = aliases != null ? ImmutableBiMap.copyOf(aliases) : null;
 
     // validate the schema through IndexByName visitor
-    TypeUtil.indexByName(struct);
+    lazyNameToId();
   }
 
   public Schema(List<NestedField> columns) {
     this.struct = StructType.of(columns);
-    TypeUtil.indexByName(struct);
+    lazyNameToId();
   }
 
   public Schema(NestedField... columns) {

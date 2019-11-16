@@ -142,10 +142,10 @@ public class TestSerializableTypes {
             Types.StringType.get(),
             Types.StringType.get()
         )),
-        required(8, "complex_key_map", Types.MapType.ofOptional(20, 21,
+        required(20, "complex_key_map", Types.MapType.ofOptional(21, 22,
             Types.StructType.of(
-                required(22, "x", Types.LongType.get()),
-                optional(23, "y", Types.LongType.get())),
+                required(23, "x", Types.LongType.get()),
+                optional(24, "y", Types.LongType.get())),
             Types.StringType.get()))
     );
 

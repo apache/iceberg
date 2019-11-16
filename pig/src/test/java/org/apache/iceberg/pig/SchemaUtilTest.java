@@ -46,13 +46,13 @@ public class SchemaUtilTest {
   public void testPrimitive() throws IOException {
     Schema icebergSchema = new Schema(
         optional(1, "b", BooleanType.get()),
-        optional(1, "i", IntegerType.get()),
-        optional(2, "l", LongType.get()),
-        optional(3, "f", FloatType.get()),
-        optional(4, "d", DoubleType.get()),
-        optional(5, "dec", DecimalType.of(0, 2)),
-        optional(5, "s", StringType.get()),
-        optional(6, "bi", BinaryType.get())
+        optional(2, "i", IntegerType.get()),
+        optional(3, "l", LongType.get()),
+        optional(4, "f", FloatType.get()),
+        optional(5, "d", DoubleType.get()),
+        optional(6, "dec", DecimalType.of(0, 2)),
+        optional(7, "s", StringType.get()),
+        optional(8, "bi", BinaryType.get())
     );
 
     ResourceSchema pigSchema = SchemaUtil.convert(icebergSchema);

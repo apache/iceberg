@@ -38,6 +38,8 @@ public abstract class AvroDataTest {
 
   protected abstract void writeAndValidate(Schema schema) throws IOException;
 
+  private int lastAssignId;
+
   protected static final StructType SUPPORTED_PRIMITIVES = StructType.of(
       required(100, "id", LongType.get()),
       optional(101, "data", Types.StringType.get()),
@@ -56,6 +58,12 @@ public abstract class AvroDataTest {
       required(115, "dec_11_2", Types.DecimalType.of(11, 2)),
       required(116, "dec_38_10", Types.DecimalType.of(38, 10)) // spark's maximum precision
   );
+
+  private int assignNewId() {
+    int next = lastAssignId + 1;
+    this.lastAssignId = next;
+    return next;
+  }
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -131,7 +139,7 @@ public abstract class AvroDataTest {
 
   @Test
   public void testMixedTypes() throws IOException {
-    Schema schema = TypeUtil.assignIncreasingFreshIds(new Schema(
+    StructType structType = StructType.of(
         required(0, "id", LongType.get()),
         optional(1, "list_of_maps",
             ListType.ofOptional(2, MapType.ofOptional(3, 4,
@@ -159,7 +167,9 @@ public abstract class AvroDataTest {
                 Types.StringType.get(),
                 SUPPORTED_PRIMITIVES))
         )))
-    ));
+    );
+
+    Schema schema = new Schema(TypeUtil.assignFreshIds(structType, this::assignNewId).asStructType().fields());
 
     writeAndValidate(schema);
   }
