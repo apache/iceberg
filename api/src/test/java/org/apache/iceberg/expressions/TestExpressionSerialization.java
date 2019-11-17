@@ -99,7 +99,7 @@ public class TestExpressionSerialization {
     }
   }
 
-  @SuppressWarnings("unchecked")
+  @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
   private static boolean equals(Predicate left, Predicate right) {
     if (left.op() != right.op()) {
       return false;
@@ -134,7 +134,9 @@ public class TestExpressionSerialization {
             .compare(lpred.asLiteralPredicate().literal().value(), rpred.asLiteralPredicate().literal().value()) == 0;
       } else if (lpred.isSetPredicate() && rpred.isSetPredicate()) {
         return equals(lpred.asSetPredicate().literalSet(), rpred.asSetPredicate().literalSet());
-      } else return lpred.isUnaryPredicate() && rpred.isUnaryPredicate();
+      } else {
+        return lpred.isUnaryPredicate() && rpred.isUnaryPredicate();
+      }
 
     } else {
       throw new UnsupportedOperationException(String.format(

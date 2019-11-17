@@ -76,10 +76,10 @@ public class CharSequenceSet implements Set<CharSequence>, Serializable {
     }
 
     Iterator<CharSequence> iter = iterator();
-    int i = 0;
+    int ind = 0;
     while (iter.hasNext()) {
-      destArray[i] = (T) iter.next();
-      i += 1;
+      destArray[ind] = (T) iter.next();
+      ind += 1;
     }
 
     if (destArray.length > size) {

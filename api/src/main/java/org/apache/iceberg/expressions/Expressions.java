@@ -21,7 +21,6 @@ package org.apache.iceberg.expressions;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-import java.util.Collection;
 import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression.Operation;
 
