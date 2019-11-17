@@ -196,6 +196,6 @@ public class TestDataSourceOptions {
         .option("split-size", String.valueOf(562L)) // 562 bytes is the size of SimpleRecord(1,"a")
         .load(tableLocation);
 
-    Assert.assertEquals("Spark partitions should match", 2, resultDf.javaRDD().getNumPartitions());
+    Assert.assertEquals("Spark partitions should match", 4, resultDf.javaRDD().getNumPartitions());
   }
 }
