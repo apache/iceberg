@@ -20,6 +20,7 @@
 package org.apache.iceberg.avro;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -169,7 +170,8 @@ public abstract class AvroDataTest {
         )))
     );
 
-    Schema schema = new Schema(TypeUtil.assignFreshIds(structType, this::assignNewId).asStructType().fields());
+    Schema schema = new Schema(TypeUtil.assignFreshIds(structType, new AtomicInteger(0)::incrementAndGet)
+        .asStructType().fields());
 
     writeAndValidate(schema);
   }

@@ -20,6 +20,7 @@
 package org.apache.iceberg.data;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -37,8 +38,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 public abstract class DataTest {
 
   protected abstract void writeAndValidate(Schema schema) throws IOException;
-
-  private int lastAssignId;
 
   private static final StructType SUPPORTED_PRIMITIVES = StructType.of(
       required(100, "id", LongType.get()),
@@ -58,12 +57,6 @@ public abstract class DataTest {
       required(116, "dec_38_10", Types.DecimalType.of(38, 10)), // maximum precision
       required(117, "time", Types.TimeType.get())
   );
-
-  private int assignNewId() {
-    int next = lastAssignId + 1;
-    this.lastAssignId = next;
-    return next;
-  }
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -169,7 +162,8 @@ public abstract class DataTest {
         )))
     );
 
-    Schema schema = new Schema(TypeUtil.assignFreshIds(structType, this::assignNewId).asStructType().fields());
+    Schema schema = new Schema(TypeUtil.assignFreshIds(structType, new AtomicInteger(0)::incrementAndGet)
+        .asStructType().fields());
 
     writeAndValidate(schema);
   }

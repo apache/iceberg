@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.data;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -37,8 +38,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 public abstract class AvroDataTest {
 
   protected abstract void writeAndValidate(Schema schema) throws IOException;
-
-  private int lastAssignId;
 
   protected static final StructType SUPPORTED_PRIMITIVES = StructType.of(
       required(100, "id", LongType.get()),
@@ -58,12 +57,6 @@ public abstract class AvroDataTest {
       required(115, "dec_11_2", Types.DecimalType.of(11, 2)),
       required(116, "dec_38_10", Types.DecimalType.of(38, 10)) // spark's maximum precision
   );
-
-  private int assignNewId() {
-    int next = lastAssignId + 1;
-    this.lastAssignId = next;
-    return next;
-  }
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -169,7 +162,8 @@ public abstract class AvroDataTest {
         )))
     );
 
-    Schema schema = new Schema(TypeUtil.assignFreshIds(structType, this::assignNewId).asStructType().fields());
+    Schema schema = new Schema(TypeUtil.assignFreshIds(structType, new AtomicInteger(0)::incrementAndGet)
+        .asStructType().fields());
 
     writeAndValidate(schema);
   }
