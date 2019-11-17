@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundReference;
+import org.apache.iceberg.expressions.BoundUnaryPredicate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.expressions.ExpressionVisitors;
@@ -30,6 +31,7 @@ import org.apache.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.types.Type;
 import org.apache.parquet.filter2.compat.FilterCompat;
 import org.apache.parquet.filter2.predicate.FilterApi;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
@@ -113,17 +115,24 @@ class ParquetFilters {
     public <T> FilterPredicate predicate(BoundPredicate<T> pred) {
       Operation op = pred.op();
       BoundReference<T> ref = pred.ref();
-      Literal<T> lit = pred.literal();
       String path = schema.idToAlias(ref.fieldId());
+      Literal<T> lit;
+      if (pred.isUnaryPredicate()) {
+        lit = null;
+      } else if (pred.isLiteralPredicate()) {
+        lit = pred.asLiteralPredicate().literal();
+      } else {
+        throw new UnsupportedOperationException("Cannot convert to Parquet filter: " + pred);
+      }
 
       switch (ref.type().typeId()) {
         case BOOLEAN:
-          Operators.BooleanColumn col = FilterApi.booleanColumn(schema.idToAlias(ref.fieldId()));
+          Operators.BooleanColumn col = FilterApi.booleanColumn(path);
           switch (op) {
             case EQ:
               return FilterApi.eq(col, getParquetPrimitive(lit));
             case NOT_EQ:
-              return FilterApi.eq(col, getParquetPrimitive(lit));
+              return FilterApi.notEq(col, getParquetPrimitive(lit));
           }
 
         case INTEGER:

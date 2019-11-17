@@ -378,11 +378,11 @@ public class TestEvaluator {
   public void testIn() {
     Assert.assertEquals(3, in("s", 7, 8, 9).literals().size());
     Assert.assertEquals(3, in("s", 7, 8.1, Long.MAX_VALUE).literals().size());
-    Assert.assertEquals(2, in("s", "abc", "abd", "abc").literals().size());
+    Assert.assertEquals(3, in("s", "abc", "abd", "abc").literals().size());
     Assert.assertEquals(0, in("s").literals().size());
     Assert.assertEquals(1, in("s", 5).literals().size());
-    Assert.assertEquals(1, in("s", 5, 5).literals().size());
-    Assert.assertEquals(1, in("s", Arrays.asList(5, 5)).literals().size());
+    Assert.assertEquals(2, in("s", 5, 5).literals().size());
+    Assert.assertEquals(2, in("s", Arrays.asList(5, 5)).literals().size());
     Assert.assertEquals(0, in("s", Collections.emptyList()).literals().size());
 
     Evaluator evaluator = new Evaluator(STRUCT, in("x", 7, 8, Long.MAX_VALUE));
@@ -455,7 +455,7 @@ public class TestEvaluator {
     AssertHelpers.assertThrows(
         "Throw exception if binding fails for any element in the set",
         ValidationException.class,
-        "Invalid value for comparison inclusive type int",
+        "Invalid value for conversion to type int",
         () -> new Evaluator(STRUCT, in("x", 7, 8, 9.1)));
 
     AssertHelpers.assertThrows(
@@ -467,7 +467,7 @@ public class TestEvaluator {
     AssertHelpers.assertThrows(
         "Implicit conversion IN to EQ and throw exception if binding fails",
         ValidationException.class,
-        "Invalid value for comparison inclusive type int",
+        "Invalid value for conversion to type int",
         () -> new Evaluator(STRUCT, predicate(Expression.Operation.IN, "x", 5.1)));
   }
 
@@ -475,11 +475,11 @@ public class TestEvaluator {
   public void testNotIn() {
     Assert.assertEquals(3, notIn("s", 7, 8, 9).literals().size());
     Assert.assertEquals(3, notIn("s", 7, 8.1, Long.MAX_VALUE).literals().size());
-    Assert.assertEquals(2, notIn("s", "abc", "abd", "abc").literals().size());
+    Assert.assertEquals(3, notIn("s", "abc", "abd", "abc").literals().size());
     Assert.assertEquals(0, notIn("s").literals().size());
     Assert.assertEquals(1, notIn("s", 5).literals().size());
-    Assert.assertEquals(1, notIn("s", 5, 5).literals().size());
-    Assert.assertEquals(1, notIn("s", Arrays.asList(5, 5)).literals().size());
+    Assert.assertEquals(2, notIn("s", 5, 5).literals().size());
+    Assert.assertEquals(2, notIn("s", Arrays.asList(5, 5)).literals().size());
     Assert.assertEquals(0, notIn("s", Collections.emptyList()).literals().size());
 
     Evaluator evaluator = new Evaluator(STRUCT, notIn("x", 7, 8, Long.MAX_VALUE));
@@ -552,7 +552,7 @@ public class TestEvaluator {
     AssertHelpers.assertThrows(
         "Throw exception if binding fails for any element in the set",
         ValidationException.class,
-        "Invalid value for comparison inclusive type int",
+        "Invalid value for conversion to type int",
         () -> new Evaluator(STRUCT, notIn("x", 7, 8, 9.1)));
 
     AssertHelpers.assertThrows(
@@ -564,7 +564,7 @@ public class TestEvaluator {
     AssertHelpers.assertThrows(
         "Implicit conversion NOT_IN to NOT_EQ and throw exception if binding fails",
         ValidationException.class,
-        "Invalid value for comparison inclusive type int",
+        "Invalid value for conversion to type int",
         () -> new Evaluator(STRUCT, predicate(Expression.Operation.NOT_IN, "x", 5.1)));
   }
 }

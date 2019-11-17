@@ -81,4 +81,9 @@ public class CharSequenceWrapper implements CharSequence, Serializable {
   public CharSequence subSequence(int start, int end) {
     return wrapped.subSequence(start, end);
   }
+
+  @Override
+  public String toString() {
+    return wrapped.toString();
+  }
 }

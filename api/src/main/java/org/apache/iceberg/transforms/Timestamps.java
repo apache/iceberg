@@ -76,18 +76,22 @@ enum Timestamps implements Transform<Long, Integer> {
 
   @Override
   public UnboundPredicate<Integer> project(String fieldName, BoundPredicate<Long> pred) {
-    if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
+    if (pred.isUnaryPredicate()) {
       return Expressions.predicate(pred.op(), fieldName);
+    } else if (pred.isLiteralPredicate()) {
+      return ProjectionUtil.truncateLong(fieldName, pred.asLiteralPredicate(), this);
     }
-    return ProjectionUtil.truncateLong(fieldName, pred, this);
+    return null;
   }
 
   @Override
   public UnboundPredicate<Integer> projectStrict(String fieldName, BoundPredicate<Long> pred) {
-    if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
+    if (pred.isUnaryPredicate()) {
       return Expressions.predicate(pred.op(), fieldName);
+    } else if (pred.isLiteralPredicate()) {
+      return ProjectionUtil.truncateLongStrict(fieldName, pred.asLiteralPredicate(), this);
     }
-    return ProjectionUtil.truncateLongStrict(fieldName, pred, this);
+    return null;
   }
 
   @Override

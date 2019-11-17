@@ -21,7 +21,7 @@ package org.apache.iceberg.transforms;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.BoundLiteralPredicate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.UnboundPredicate;
 
@@ -32,7 +32,7 @@ class ProjectionUtil {
   private ProjectionUtil() {}
 
   static <T> UnboundPredicate<T> truncateInteger(
-      String name, BoundPredicate<Integer> pred, Transform<Integer, T> transform) {
+      String name, BoundLiteralPredicate<Integer> pred, Transform<Integer, T> transform) {
     int boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
@@ -53,7 +53,7 @@ class ProjectionUtil {
   }
 
   static <T> UnboundPredicate<T> truncateIntegerStrict(
-      String name, BoundPredicate<Integer> pred, Transform<Integer, T> transform) {
+      String name, BoundLiteralPredicate<Integer> pred, Transform<Integer, T> transform) {
     int boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
@@ -75,7 +75,7 @@ class ProjectionUtil {
   }
 
   static <T> UnboundPredicate<T> truncateLongStrict(
-      String name, BoundPredicate<Long> pred, Transform<Long, T> transform) {
+      String name, BoundLiteralPredicate<Long> pred, Transform<Long, T> transform) {
     long boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
@@ -97,7 +97,7 @@ class ProjectionUtil {
   }
 
   static <T> UnboundPredicate<T> truncateLong(
-      String name, BoundPredicate<Long> pred, Transform<Long, T> transform) {
+      String name, BoundLiteralPredicate<Long> pred, Transform<Long, T> transform) {
     long boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
@@ -118,7 +118,7 @@ class ProjectionUtil {
   }
 
   static <T> UnboundPredicate<T> truncateDecimal(
-      String name, BoundPredicate<BigDecimal> pred,
+      String name, BoundLiteralPredicate<BigDecimal> pred,
       Transform<BigDecimal, T> transform) {
     BigDecimal boundary = pred.literal().value();
     switch (pred.op()) {
@@ -146,7 +146,7 @@ class ProjectionUtil {
   }
 
   static <T> UnboundPredicate<T> truncateDecimalStrict(
-      String name, BoundPredicate<BigDecimal> pred,
+      String name, BoundLiteralPredicate<BigDecimal> pred,
       Transform<BigDecimal, T> transform) {
     BigDecimal boundary = pred.literal().value();
 
@@ -178,7 +178,7 @@ class ProjectionUtil {
   }
 
   static <S, T> UnboundPredicate<T> truncateArray(
-      String name, BoundPredicate<S> pred, Transform<S, T> transform) {
+      String name, BoundLiteralPredicate<S> pred, Transform<S, T> transform) {
     S boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
@@ -199,7 +199,7 @@ class ProjectionUtil {
   }
 
   static <S, T> UnboundPredicate<T> truncateArrayStrict(
-      String name, BoundPredicate<S> pred, Transform<S, T> transform) {
+      String name, BoundLiteralPredicate<S> pred, Transform<S, T> transform) {
     S boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
