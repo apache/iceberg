@@ -70,6 +70,16 @@ public class JsonUtil {
     return pNode.asLong();
   }
 
+  public static Long getLongOrNull(String property, JsonNode node) {
+    if (!node.has(property)) {
+      return null;
+    }
+    JsonNode pNode = node.get(property);
+    Preconditions.checkArgument(pNode != null && !pNode.isNull() && pNode.isNumber() && pNode.canConvertToLong(),
+        "Cannot parse %s from non-string value: %s", property, pNode);
+    return pNode.asLong();
+  }
+
   public static boolean getBool(String property, JsonNode node) {
     Preconditions.checkArgument(node.has(property), "Cannot parse missing boolean %s", property);
     JsonNode pNode = node.get(property);

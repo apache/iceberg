@@ -42,6 +42,7 @@ class BaseSnapshot implements Snapshot {
   private final InputFile manifestList;
   private final String operation;
   private final Map<String, String> summary;
+  private Long sequenceNumber;
 
   // lazily initialized
   private List<ManifestFile> manifests = null;
@@ -76,6 +77,31 @@ class BaseSnapshot implements Snapshot {
   }
 
   BaseSnapshot(FileIO io,
+               long snapshotId,
+               Long parentId,
+               long timestampMillis,
+               String operation,
+               Map<String, String> summary,
+               InputFile manifestList,
+               Long sequenceNumber) {
+    this(ops, snapshotId, parentId, timestampMillis, operation, summary, manifestList);
+    this.sequenceNumber = sequenceNumber;
+  }
+
+  BaseSnapshot(TableOperations ops,
+               long snapshotId,
+               Long parentId,
+               long timestampMillis,
+               String operation,
+               Map<String, String> summary,
+               List<ManifestFile> manifests,
+               Long sequenceNumber) {
+    this(ops, snapshotId, parentId, timestampMillis, operation, summary, (InputFile) null);
+    this.manifests = manifests;
+    this.sequenceNumber = sequenceNumber;
+  }
+
+  BaseSnapshot(TableOperations ops,
                long snapshotId,
                Long parentId,
                long timestampMillis,
@@ -187,6 +213,15 @@ class BaseSnapshot implements Snapshot {
   }
 
   @Override
+  public Long sequenceNumber() {
+    if (sequenceNumber == null) {
+      return 0L;
+    }
+
+    return sequenceNumber;
+  }
+
+  @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("id", snapshotId)
@@ -194,6 +229,7 @@ class BaseSnapshot implements Snapshot {
         .add("operation", operation)
         .add("summary", summary)
         .add("manifests", manifests())
+        .add("sequence_number", sequenceNumber())
         .toString();
   }
 }

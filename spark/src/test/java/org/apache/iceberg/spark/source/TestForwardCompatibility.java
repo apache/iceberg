@@ -257,5 +257,10 @@ public class TestForwardCompatibility {
     public String manifestListLocation() {
       return null;
     }
+
+    @Override
+    public Long sequenceNumber() {
+      return null;
+    }
   }
 }

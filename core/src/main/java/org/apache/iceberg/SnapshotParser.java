@@ -44,6 +44,7 @@ public class SnapshotParser {
   private static final String OPERATION = "operation";
   private static final String MANIFESTS = "manifests";
   private static final String MANIFEST_LIST = "manifest-list";
+  private static final String SEQUENCE_NUMBER = "sequence-number";
 
   static void toJson(Snapshot snapshot, JsonGenerator generator)
       throws IOException {
@@ -53,6 +54,10 @@ public class SnapshotParser {
       generator.writeNumberField(PARENT_SNAPSHOT_ID, snapshot.parentId());
     }
     generator.writeNumberField(TIMESTAMP_MS, snapshot.timestampMillis());
+
+    if (snapshot.sequenceNumber() != null) {
+      generator.writeNumberField(SEQUENCE_NUMBER, snapshot.sequenceNumber());
+    }
 
     // if there is an operation, write the summary map
     if (snapshot.operation() != null) {
@@ -109,6 +114,7 @@ public class SnapshotParser {
       parentId = JsonUtil.getLong(PARENT_SNAPSHOT_ID, node);
     }
     long timestamp = JsonUtil.getLong(TIMESTAMP_MS, node);
+    Long sequenceNumber = JsonUtil.getLongOrNull(SEQUENCE_NUMBER, node);
 
     Map<String, String> summary = null;
     String operation = null;
@@ -135,14 +141,14 @@ public class SnapshotParser {
       String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
       return new BaseSnapshot(
           io, versionId, parentId, timestamp, operation, summary,
-          io.newInputFile(manifestList));
+          io.newInputFile(manifestList), sequenceNumber);
 
     } else {
       // fall back to an embedded manifest list. pass in the manifest's InputFile so length can be
       // loaded lazily, if it is needed
       List<ManifestFile> manifests = Lists.transform(JsonUtil.getStringList(MANIFESTS, node),
           location -> new GenericManifestFile(io.newInputFile(location), 0));
-      return new BaseSnapshot(io, versionId, parentId, timestamp, operation, summary, manifests);
+      return new BaseSnapshot(io, versionId, parentId, timestamp, operation, summary, manifests, sequenceNumber);
     }
   }
 

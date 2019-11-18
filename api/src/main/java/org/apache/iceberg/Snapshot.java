@@ -104,4 +104,11 @@ public interface Snapshot {
    * @return the location of the manifest list for this Snapshot
    */
   String manifestListLocation();
+
+  /**
+   * Return this snapshot's sequence number, or 0 if the table has no snapshot yet.
+   *
+   * @return the sequence number of this Snapshot
+   */
+  Long sequenceNumber();
 }

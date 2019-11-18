@@ -144,6 +144,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         base.currentSnapshot().snapshotId() : null;
 
     List<ManifestFile> manifests = apply(base);
+    long newSequenceNumber = base.currentSnapshot() == null ? 1 : base.currentSnapshot().sequenceNumber() + 1;
 
     if (base.propertyAsBoolean(MANIFEST_LISTS_ENABLED, MANIFEST_LISTS_ENABLED_DEFAULT)) {
       OutputFile manifestList = manifestListPath();
@@ -170,12 +171,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
       return new BaseSnapshot(ops.io(),
           snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
-          ops.io().newInputFile(manifestList.location()));
+          ops.io().newInputFile(manifestList.location()), newSequenceNumber);
 
     } else {
       return new BaseSnapshot(ops.io(),
           snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
-          manifests);
+          manifests, newSequenceNumber);
     }
   }
 
