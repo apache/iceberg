@@ -53,7 +53,7 @@ public class CachingCatalog implements Catalog {
   public Table createTable(TableIdentifier ident, Schema schema, PartitionSpec spec, String location,
                            Map<String, String> properties) {
     AtomicBoolean created = new AtomicBoolean(false);
-    Table table = tableCache.get(ident, (identifier) -> {
+    Table table = tableCache.get(ident, identifier -> {
       created.set(true);
       return catalog.createTable(identifier, schema, spec, location, properties);
     });
