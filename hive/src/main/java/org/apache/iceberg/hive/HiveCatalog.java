@@ -23,16 +23,20 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import java.io.Closeable;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.api.UnknownDBException;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,6 +54,30 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
     this.conf = conf;
     this.createStack = Thread.currentThread().getStackTrace();
     this.closed = false;
+  }
+
+  @Override
+  public TableIdentifier[] listTables(Namespace namespace) {
+    Preconditions.checkArgument(namespace.levels().length == 1,
+        "Missing database in namespace: %s", namespace);
+    String database = namespace.level(0);
+
+    try {
+      List<String> tables = clients.run(client -> client.getAllTables(database));
+      return tables.stream()
+          .map(t -> TableIdentifier.of(namespace, t))
+          .toArray(TableIdentifier[]::new);
+
+    } catch (UnknownDBException e) {
+      throw new NotFoundException(e, "Unknown namespace " + namespace.toString());
+
+    } catch (TException e) {
+      throw new RuntimeException("Failed to list all tables under namespace " + namespace.toString(), e);
+
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException("Interrupted in call to listTables", e);
+    }
   }
 
   @Override

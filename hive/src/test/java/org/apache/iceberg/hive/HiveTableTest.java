@@ -22,6 +22,7 @@ package org.apache.iceberg.hive;
 import com.google.common.collect.Lists;
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -250,5 +251,16 @@ public class HiveTableTest extends HiveTableBaseTest {
     icebergTable.updateSchema()
         .addColumn("data", Types.LongType.get())
         .commit();
+  }
+
+  @Test
+  public void testListTables() {
+    TableIdentifier[] tableIdents = catalog.listTables(TABLE_IDENTIFIER.namespace());
+    TableIdentifier[] expectedIdents = Arrays.stream(tableIdents)
+        .filter(t -> t.namespace().level(0).equals(DB_NAME) && t.name().equals(TABLE_NAME))
+        .toArray(TableIdentifier[]::new);
+
+    Assert.assertEquals(1, expectedIdents.length);
+    Assert.assertTrue(catalog.tableExists(TABLE_IDENTIFIER));
   }
 }
