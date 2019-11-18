@@ -507,9 +507,9 @@ public class TestIcebergSourceHiveTables {
 
   @Test
   public synchronized void testHivePartitionsTable() throws Exception {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "partitions_test");
+    TableIdentifier ident = TableIdentifier.of("db", "partitions_test");
     try {
-      Table table = catalog.createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
+      Table table = catalog.createTable(ident, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
       Table partitionsTable = catalog.loadTable(TableIdentifier.of("db", "partitions_test", "partitions"));
 
       Dataset<Row> df1 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
@@ -518,7 +518,7 @@ public class TestIcebergSourceHiveTables {
       df1.select("id", "data").write()
           .format("iceberg")
           .mode("append")
-          .save(tableIdentifier.toString());
+          .save(ident.toString());
 
       table.refresh();
       long firstCommitId = table.currentSnapshot().snapshotId();
@@ -527,7 +527,7 @@ public class TestIcebergSourceHiveTables {
       df2.select("id", "data").write()
           .format("iceberg")
           .mode("append")
-          .save(tableIdentifier.toString());
+          .save(ident.toString());
 
       List<Row> actual = spark.read()
           .format("iceberg")
@@ -570,7 +570,7 @@ public class TestIcebergSourceHiveTables {
 
     } finally {
       clients.run(client -> {
-        client.dropTable(tableIdentifier.namespace().level(0), tableIdentifier.name());
+        client.dropTable(ident.namespace().level(0), ident.name());
         return null;
       });
     }
