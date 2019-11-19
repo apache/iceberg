@@ -58,7 +58,8 @@ public class GenericManifestFile
     this.avroSchema = avroSchema;
 
     List<Types.NestedField> fields = AvroSchemaUtil.convert(avroSchema)
-        .asStruct()
+        .asNestedType()
+        .asStructType()
         .fields();
     List<Types.NestedField> allFields = ManifestFile.schema().asStruct().fields();
 

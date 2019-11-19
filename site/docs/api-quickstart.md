@@ -109,14 +109,12 @@ When a table is created, all IDs in the schema are re-assigned to ensure uniquen
 To create an Iceberg schema from an existing Avro schema, use converters in `AvroSchemaUtil`:
 
 ```scala
-import org.apache.iceberg.avro.AvroSchemaUtil
-import org.apache.iceberg.Schema
 import org.apache.avro.Schema.Parser
-import org.apache.iceberg.types.Type
+import org.apache.iceberg.avro.AvroSchemaUtil
 
 val avroSchema = new Parser().parse("""{"type": "record", ... }""")
 
-val icebergSchema = AvroSchemaUtil.convert(avroSchema)
+val icebergSchema = AvroSchemaUtil.toIceberg(avroSchema)
 ```
 
 ### Convert a schema from Spark

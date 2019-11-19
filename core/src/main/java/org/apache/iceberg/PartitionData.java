@@ -53,7 +53,7 @@ class PartitionData
    * Used by Avro reflection to instantiate this class when reading manifest files.
    */
   PartitionData(Schema schema) {
-    this.partitionType = AvroSchemaUtil.convert(schema).asStruct();
+    this.partitionType = AvroSchemaUtil.convert(schema).asNestedType().asStructType();
     this.size = partitionType.fields().size();
     this.data = new Object[size];
     this.stringSchema = schema.toString();
