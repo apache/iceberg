@@ -157,6 +157,68 @@ public class TestMergeAppend extends TableTestBase {
   }
 
   @Test
+  public void testManifestMergeMinCount() throws IOException {
+    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "2")
+        // each manifest file is 4554 bytes, so 10000 bytes limit will give us 2 bins with 3 manifest/data files.
+        .set(TableProperties.MANIFEST_TARGET_SIZE_BYTES, "10000")
+        .commit();
+
+    TableMetadata base = readMetadata();
+    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
+
+    ManifestFile manifest = writeManifest(FILE_A);
+    ManifestFile manifest2 = writeManifestWithName("FILE_C", FILE_C);
+    ManifestFile manifest3 = writeManifestWithName("FILE_D", FILE_D);
+    table.newAppend()
+        .appendManifest(manifest)
+        .appendManifest(manifest2)
+        .appendManifest(manifest3)
+        .commit();
+
+    Assert.assertEquals("Should contain 2 merged manifest for first write",
+        2, readMetadata().currentSnapshot().manifests().size());
+
+    table.newAppend()
+        .appendManifest(manifest)
+        .appendManifest(manifest2)
+        .appendManifest(manifest3)
+        .commit();
+
+    Assert.assertEquals("Should contain 3 merged manifest for second write",
+        3, readMetadata().currentSnapshot().manifests().size());
+
+    // validate that the metadata summary is correct when using appendManifest
+    Assert.assertEquals("Summary metadata should include 3 added files",
+        "3", readMetadata().currentSnapshot().summary().get("added-data-files"));
+  }
+
+  @Test
+  public void testManifestDoNotMergeMinCount() throws IOException {
+    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    table.updateProperties().set("commit.manifest.min-count-to-merge", "4").commit();
+
+    TableMetadata base = readMetadata();
+    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
+
+    ManifestFile manifest = writeManifest(FILE_A, FILE_B);
+    ManifestFile manifest2 = writeManifestWithName("FILE_C", FILE_C);
+    ManifestFile manifest3 = writeManifestWithName("FILE_D", FILE_D);
+    Snapshot pending = table.newAppend()
+        .appendManifest(manifest)
+        .appendManifest(manifest2)
+        .appendManifest(manifest3)
+        .apply();
+
+    Assert.assertEquals("Should contain 3 merged manifest after 1st write write",
+        3, pending.manifests().size());
+
+    // validate that the metadata summary is correct when using appendManifest
+    Assert.assertEquals("Summary metadata should include 4 added files",
+        "4", pending.summary().get("added-data-files"));
+  }
+
+  @Test
   public void testMergeWithExistingManifestAfterDelete() {
     // merge all manifests for this test
     table.updateProperties().set("commit.manifest.min-count-to-merge", "1").commit();

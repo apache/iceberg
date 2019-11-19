@@ -19,11 +19,17 @@
 
 package org.apache.iceberg.hadoop;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.BaseMetastoreCatalog;
@@ -32,7 +38,9 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 
 /**
@@ -77,6 +85,43 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
   public HadoopCatalog(Configuration conf) {
     this.conf = conf;
     this.warehouseLocation = conf.get("fs.defaultFS") + "/" + ICEBERG_HADOOP_WAREHOUSE_BASE;
+  }
+
+  @Override
+  public List<TableIdentifier> listTables(Namespace namespace) {
+    Preconditions.checkArgument(namespace.levels().length >= 1,
+        "Missing database in table identifier: %s", namespace);
+
+    Joiner slash = Joiner.on("/");
+    Path nsPath = new Path(slash.join(warehouseLocation, slash.join(namespace.levels())));
+    FileSystem fs = Util.getFs(nsPath, conf);
+    Set<TableIdentifier> tblIdents = Sets.newHashSet();
+
+    try {
+      if (!fs.exists(nsPath) || !fs.isDirectory(nsPath)) {
+        throw new NotFoundException("Unknown namespace " + namespace);
+      }
+
+      for (FileStatus s : fs.listStatus(nsPath)) {
+        Path path = s.getPath();
+        if (!fs.isDirectory(path)) {
+          // Ignore the path which is not a directory.
+          continue;
+        }
+
+        Path metadataPath = new Path(path, "metadata");
+        if (fs.exists(metadataPath) && fs.isDirectory(metadataPath)) {
+          // Only the path which contains metadata is the path for table, otherwise it could be
+          // still a namespace.
+          TableIdentifier tblIdent = TableIdentifier.of(namespace, path.getName());
+          tblIdents.add(tblIdent);
+        }
+      }
+    } catch (IOException ioe) {
+      throw new RuntimeException("Failed to list tables under " + namespace, ioe);
+    }
+
+    return Lists.newArrayList(tblIdents);
   }
 
   @Override

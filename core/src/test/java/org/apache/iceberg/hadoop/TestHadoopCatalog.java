@@ -19,12 +19,18 @@
 
 package org.apache.iceberg.hadoop;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+import java.util.List;
+import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -73,5 +79,35 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
           catalog.renameTable(testTable, TableIdentifier.of("db", "tbl2"));
         }
     );
+  }
+
+  @Test
+  public void testListTables() throws Exception {
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+
+    TableIdentifier tbl1 = TableIdentifier.of("db", "tbl1");
+    TableIdentifier tbl2 = TableIdentifier.of("db", "tbl2");
+    TableIdentifier tbl3 = TableIdentifier.of("db", "ns1", "tbl3");
+
+    Lists.newArrayList(tbl1, tbl2, tbl3).forEach(t ->
+        catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned())
+    );
+
+    List<TableIdentifier> tbls1 = catalog.listTables(Namespace.of("db"));
+    Set<String> tblSet = Sets.newHashSet(tbls1.stream().map(t -> t.name()).iterator());
+    Assert.assertEquals(tblSet.size(), 2);
+    Assert.assertTrue(tblSet.contains("tbl1"));
+    Assert.assertTrue(tblSet.contains("tbl2"));
+
+    List<TableIdentifier> tbls2 = catalog.listTables(Namespace.of("db", "ns1"));
+    Assert.assertEquals(tbls2.size(), 1);
+    Assert.assertTrue(tbls2.get(0).name().equals("tbl3"));
+
+    AssertHelpers.assertThrows("should throw exception", NotFoundException.class,
+        "Unknown namespace", () -> {
+        catalog.listTables(Namespace.of("db", "ns1", "ns2"));
+      });
   }
 }
