@@ -76,8 +76,10 @@ public class AvroSchemaUtil {
     return TypeUtil.visit(type, new TypeToSchema(names));
   }
 
-  public static Type convert(Schema schema) {
-    return AvroSchemaVisitor.visit(schema, new SchemaToType(schema));
+  public static org.apache.iceberg.Schema convert(Schema schema) {
+    final Type type = AvroSchemaVisitor.visit(schema, new SchemaToType(schema));
+    final List<Types.NestedField> fields = type.asNestedType().asStructType().fields();
+    return new org.apache.iceberg.Schema(fields);
   }
 
   static boolean hasIds(Schema schema) {

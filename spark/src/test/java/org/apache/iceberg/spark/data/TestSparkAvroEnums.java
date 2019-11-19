@@ -75,7 +75,7 @@ public class TestSparkAvroEnums {
       writer.append(enumRecord3);
     }
 
-    Schema schema = new Schema(AvroSchemaUtil.convert(avroSchema).asStructType().fields());
+    Schema schema = new Schema(AvroSchemaUtil.convert(avroSchema).asStruct().fields());
     List<InternalRow> rows;
     try (AvroIterable<InternalRow> reader = Avro.read(Files.localInput(testFile))
         .createReaderFunc(SparkAvroReader::new)

@@ -46,17 +46,17 @@ Spark 2.4 is limited to reading and writing existing Iceberg tables. Use the [Ic
 
 Recommended way is to include Iceberg's latest released using the `--packages` option:
 ```sh
-spark-shell --packages org.apache.iceberg:iceberg-spark:0.7.0-incubating
+spark-shell --packages org.apache.iceberg:iceberg-spark-runtime:0.7.0-incubating
 ```
 
 You can also build Iceberg locally, and add the jar to Spark's classpath. This can be helpful to test unreleased features or while developing something new:
 
 ```sh
 ./gradlew assemble
-spark-shell --jars spark-runtime/build/libs/iceberg-spark-runtime-c0bf88a3.jar
+spark-shell --jars spark-runtime/build/libs/iceberg-spark-runtime-93990904.jar
 ```
 
-Where you have to replace `fa64197` with the git hash that you're using.
+Where you have to replace `93990904` with the git hash that you're using.
 
 ### Reading an Iceberg table
 

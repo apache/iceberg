@@ -78,7 +78,7 @@ class GenericDataFile
   public GenericDataFile(org.apache.avro.Schema avroSchema) {
     this.avroSchema = avroSchema;
 
-    Types.StructType schema = AvroSchemaUtil.convert(avroSchema).asNestedType().asStructType();
+    Types.StructType schema = AvroSchemaUtil.convert(avroSchema).asStruct();
 
     // partition type may be null if the field was not projected
     Type partType = schema.fieldType("partition");

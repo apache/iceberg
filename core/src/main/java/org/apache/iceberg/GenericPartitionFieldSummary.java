@@ -50,8 +50,7 @@ public class GenericPartitionFieldSummary
     this.avroSchema = avroSchema;
 
     List<Types.NestedField> fields = AvroSchemaUtil.convert(avroSchema)
-        .asNestedType()
-        .asStructType()
+        .asStruct()
         .fields();
     List<Types.NestedField> allFields = PartitionFieldSummary.getType().fields();
 

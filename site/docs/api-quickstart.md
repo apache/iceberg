@@ -42,7 +42,7 @@ val table = catalog.createTable(name, schema, spec)
 // write into the new logs table with Spark 2.4
 logsDF.write
     .format("iceberg")
-    .mode("overwrite")
+    .mode("append")
     .save("logging.logs")
 ```
 
@@ -57,14 +57,14 @@ To create a table in HDFS, use `HadoopTables`:
 ```scala
 import org.apache.iceberg.hadoop.HadoopTables
 
-val tables = new HadoopTables(conf)
+val tables = new HadoopTables(spark.sessionState.newHadoopConf())
 
 val table = tables.create(schema, spec, "hdfs:/tables/logging/logs")
 
 // write into the new logs table with Spark 2.4
 logsDF.write
     .format("iceberg")
-    .mode("overwrite")
+    .mode("append")
     .save("hdfs:/tables/logging/logs")
 ```
 
@@ -114,28 +114,9 @@ import org.apache.iceberg.Schema
 import org.apache.avro.Schema.Parser
 import org.apache.iceberg.types.Type
 
-val avroSchemaString = """{
-	"type": "record",
-	"name": "person",
-	"fields": [{
-		"name": "name",
-		"type": ["string", "null"]
-	}]
-}
-"""
+val avroSchema = new Parser().parse("{"type": "record", ... }")
 
-val avroSchema = new Parser().parse(avroSchemaString)
-
-val schemaType: Type = AvroSchemaUtil.convert(avroSchema)
-
-val fields = schemaType.asNestedType().asStructType().fields()
-
-val icebergSchema = new Schema(fields)
-
-icebergSchema: org.apache.iceberg.Schema =
-table {
-  0: name: optional string
-}
+val icebergSchema = AvroSchemaUtil.convert(avroSchema)
 ```
 
 ### Convert a schema from Spark
