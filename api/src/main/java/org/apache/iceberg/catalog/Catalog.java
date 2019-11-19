@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.catalog;
 
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -26,11 +27,21 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NotFoundException;
 
 /**
  * A Catalog API for table create, drop, and load operations.
  */
 public interface Catalog {
+
+  /**
+   * Return all the identifiers under this namespace.
+   *
+   * @param namespace a namespace
+   * @return a list of identifiers for tables
+   * @throws  NotFoundException if the namespace is not found
+   */
+  List<TableIdentifier> listTables(Namespace namespace);
 
   /**
    * Create a table.

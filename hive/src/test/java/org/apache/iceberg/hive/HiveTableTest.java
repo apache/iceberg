@@ -251,4 +251,15 @@ public class HiveTableTest extends HiveTableBaseTest {
         .addColumn("data", Types.LongType.get())
         .commit();
   }
+
+  @Test
+  public void testListTables() {
+    List<TableIdentifier> tableIdents = catalog.listTables(TABLE_IDENTIFIER.namespace());
+    List<TableIdentifier> expectedIdents = tableIdents.stream()
+        .filter(t -> t.namespace().level(0).equals(DB_NAME) && t.name().equals(TABLE_NAME))
+        .collect(Collectors.toList());
+
+    Assert.assertEquals(1, expectedIdents.size());
+    Assert.assertTrue(catalog.tableExists(TABLE_IDENTIFIER));
+  }
 }
