@@ -38,7 +38,7 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
     Spark 2.4 can't create Iceberg tables with DDL, instead use the [Iceberg API](../api-quickstart).
 
 
-## Apache Spark 2.4
+## Spark 2.4
 
 To use Iceberg in Spark 2.4, add the `iceberg-spark-runtime` Jar to Spark's `jars` folder.
 
@@ -53,7 +53,7 @@ You can also build Iceberg locally, and add the jar to Spark's classpath. This c
 
 ```sh
 ./gradlew assemble
-spark-shell --jars runtime/build/libs/iceberg-spark-runtime-fa64197.jar
+spark-shell --jars spark-runtime/build/libs/iceberg-spark-runtime-c0bf88a3.jar
 ```
 
 Where you have to replace `fa64197` with the git hash that you're using.
