@@ -114,7 +114,7 @@ import org.apache.iceberg.Schema
 import org.apache.avro.Schema.Parser
 import org.apache.iceberg.types.Type
 
-val avroSchema = new Parser().parse("{"type": "record", ... }")
+val avroSchema = new Parser().parse("""{"type": "record", ... }""")
 
 val icebergSchema = AvroSchemaUtil.convert(avroSchema)
 ```
