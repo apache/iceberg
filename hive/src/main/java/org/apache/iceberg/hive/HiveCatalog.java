@@ -25,6 +25,7 @@ import java.io.Closeable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Table;
@@ -57,7 +58,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
   }
 
   @Override
-  public TableIdentifier[] listTables(Namespace namespace) {
+  public List<TableIdentifier> listTables(Namespace namespace) {
     Preconditions.checkArgument(namespace.levels().length == 1,
         "Missing database in namespace: %s", namespace);
     String database = namespace.level(0);
@@ -66,7 +67,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
       List<String> tables = clients.run(client -> client.getAllTables(database));
       return tables.stream()
           .map(t -> TableIdentifier.of(namespace, t))
-          .toArray(TableIdentifier[]::new);
+          .collect(Collectors.toList());
 
     } catch (UnknownDBException e) {
       throw new NotFoundException(e, "Unknown namespace " + namespace.toString());

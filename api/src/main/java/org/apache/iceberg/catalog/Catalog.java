@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.catalog;
 
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -37,10 +38,10 @@ public interface Catalog {
    * Return all the identifiers under this namespace.
    *
    * @param namespace a namespace
-   * @return an array of identifiers for tables
+   * @return a list of identifiers for tables
    * @throws  NotFoundException if the namespace is not found
    */
-  TableIdentifier[] listTables(Namespace namespace);
+  List<TableIdentifier> listTables(Namespace namespace);
 
   /**
    * Create a table.

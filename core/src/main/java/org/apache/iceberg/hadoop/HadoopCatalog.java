@@ -21,9 +21,11 @@ package org.apache.iceberg.hadoop;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
@@ -86,7 +88,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
   }
 
   @Override
-  public TableIdentifier[] listTables(Namespace namespace) {
+  public List<TableIdentifier> listTables(Namespace namespace) {
     Preconditions.checkArgument(namespace.levels().length >= 1,
         "Missing database in table identifier: %s", namespace);
 
@@ -119,7 +121,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
       throw new RuntimeException("Failed to list tables under " + namespace, ioe);
     }
 
-    return tblIdents.toArray(new TableIdentifier[0]);
+    return Lists.newArrayList(tblIdents);
   }
 
   @Override
