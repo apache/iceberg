@@ -82,7 +82,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
 
   @Override
   protected String name() {
-    return conf.get("hive.metastore.uris");
+    return "hive";
   }
 
   @Override
