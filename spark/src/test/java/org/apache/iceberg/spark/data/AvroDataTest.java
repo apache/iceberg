@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.data;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -131,7 +132,7 @@ public abstract class AvroDataTest {
 
   @Test
   public void testMixedTypes() throws IOException {
-    Schema schema = TypeUtil.assignIncreasingFreshIds(new Schema(
+    StructType structType = StructType.of(
         required(0, "id", LongType.get()),
         optional(1, "list_of_maps",
             ListType.ofOptional(2, MapType.ofOptional(3, 4,
@@ -159,7 +160,10 @@ public abstract class AvroDataTest {
                 Types.StringType.get(),
                 SUPPORTED_PRIMITIVES))
         )))
-    ));
+    );
+
+    Schema schema = new Schema(TypeUtil.assignFreshIds(structType, new AtomicInteger(0)::incrementAndGet)
+        .asStructType().fields());
 
     writeAndValidate(schema);
   }

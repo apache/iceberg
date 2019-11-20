@@ -39,4 +39,18 @@ public class TestTypeUtil {
     );
     TypeUtil.reassignIds(schema, sourceSchema);
   }
+
+  @Test(expected = RuntimeException.class)
+  public void testValidateSchemaViaIndexByName() {
+    Types.NestedField nestedType = Types.NestedField
+        .required(1, "a", Types.StructType.of(
+            required(2, "b", Types.StructType.of(
+                required(3, "c", Types.BooleanType.get())
+            )),
+            required(4, "b.c", Types.BooleanType.get())
+            )
+        );
+
+    TypeUtil.indexByName(Types.StructType.of(nestedType));
+  }
 }

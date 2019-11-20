@@ -159,13 +159,11 @@ public class TestNameMapping {
   @Test
   public void testFailsDuplicateId() {
     // the schema can be created because ID indexing is lazy
-    Schema schema = new Schema(
-        required(1, "id", Types.LongType.get()),
-        required(1, "data", Types.StringType.get()));
-
     AssertHelpers.assertThrows("Should fail if IDs are reused",
-        IllegalArgumentException.class, "Multiple entries with same key",
-        () -> MappingUtil.create(schema));
+        IllegalArgumentException.class, "Multiple entries with same",
+        () -> new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(1, "data", Types.StringType.get())));
   }
 
   @Test

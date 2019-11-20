@@ -20,7 +20,9 @@
 package org.apache.iceberg.data;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.LongType;
@@ -130,7 +132,7 @@ public abstract class DataTest {
 
   @Test
   public void testMixedTypes() throws IOException {
-    Schema schema = new Schema(
+    StructType structType = StructType.of(
         required(0, "id", LongType.get()),
         optional(1, "list_of_maps",
             ListType.ofOptional(2, MapType.ofOptional(3, 4,
@@ -159,6 +161,9 @@ public abstract class DataTest {
                 SUPPORTED_PRIMITIVES))
         )))
     );
+
+    Schema schema = new Schema(TypeUtil.assignFreshIds(structType, new AtomicInteger(0)::incrementAndGet)
+        .asStructType().fields());
 
     writeAndValidate(schema);
   }
