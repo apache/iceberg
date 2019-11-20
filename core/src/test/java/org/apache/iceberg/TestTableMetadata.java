@@ -74,11 +74,11 @@ public class TestTableMetadata {
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        ops, previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
+        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), spec.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        ops, currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
+        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
     List<HistoryEntry> snapshotLog = ImmutableList.<HistoryEntry>builder()
@@ -86,13 +86,13 @@ public class TestTableMetadata {
         .add(new SnapshotLogEntry(currentSnapshot.timestampMillis(), currentSnapshot.snapshotId()))
         .build();
 
-    TableMetadata expected = new TableMetadata(ops, null, UUID.randomUUID().toString(), "s3://bucket/test/location",
+    TableMetadata expected = new TableMetadata(null, UUID.randomUUID().toString(), "s3://bucket/test/location",
         System.currentTimeMillis(), 3, schema, 5, ImmutableList.of(spec),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), snapshotLog, ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(expected);
-    TableMetadata metadata = TableMetadataParser.fromJson(ops, null,
+    TableMetadata metadata = TableMetadataParser.fromJson(ops.io(), null,
         JsonUtil.mapper().readValue(asJson, JsonNode.class));
 
     Assert.assertEquals("Table UUID should match",
@@ -138,16 +138,16 @@ public class TestTableMetadata {
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        ops, previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
+        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), spec.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        ops, currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
+        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
 
-    TableMetadata expected = new TableMetadata(ops, null, UUID.randomUUID().toString(), "s3://bucket/test/location",
+    TableMetadata expected = new TableMetadata(null, UUID.randomUUID().toString(), "s3://bucket/test/location",
         System.currentTimeMillis(), 3, schema, 5, ImmutableList.of(spec),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog, ImmutableList.of());
@@ -159,7 +159,7 @@ public class TestTableMetadata {
         new SnapshotLogEntry(previousSnapshot.timestampMillis(), previousSnapshot.snapshotId()));
 
     String asJson = TableMetadataParser.toJson(expected);
-    TableMetadata metadata = TableMetadataParser.fromJson(ops, null,
+    TableMetadata metadata = TableMetadataParser.fromJson(ops.io(), null,
         JsonUtil.mapper().readValue(asJson, JsonNode.class));
 
     List<SnapshotLogEntry> expectedSnapshotLog = ImmutableList.<SnapshotLogEntry>builder()
@@ -183,21 +183,21 @@ public class TestTableMetadata {
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        ops, previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
+        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), spec.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        ops, currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
+        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
-    TableMetadata expected = new TableMetadata(ops, null, null, "s3://bucket/test/location",
+    TableMetadata expected = new TableMetadata(null, null, "s3://bucket/test/location",
         System.currentTimeMillis(), 3, schema, 6, ImmutableList.of(spec),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), ImmutableList.of(), ImmutableList.of());
 
     String asJson = toJsonWithoutSpecList(expected);
     TableMetadata metadata = TableMetadataParser
-        .fromJson(ops, null, JsonUtil.mapper().readValue(asJson, JsonNode.class));
+        .fromJson(ops.io(), null, JsonUtil.mapper().readValue(asJson, JsonNode.class));
 
     Assert.assertNull("Table UUID should not be assigned", metadata.uuid());
     Assert.assertEquals("Table location should match",
@@ -291,11 +291,11 @@ public class TestTableMetadata {
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        ops, previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
+        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), spec.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        ops, currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
+        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
@@ -304,14 +304,14 @@ public class TestTableMetadata {
     previousMetadataLog.add(new MetadataLogEntry(currentTimestamp,
         "/tmp/000001-" + UUID.randomUUID().toString() + ".metadata.json"));
 
-    TableMetadata base = new TableMetadata(ops, null, UUID.randomUUID().toString(), "s3://bucket/test/location",
+    TableMetadata base = new TableMetadata(null, UUID.randomUUID().toString(), "s3://bucket/test/location",
         System.currentTimeMillis(), 3, schema, 5, ImmutableList.of(spec),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
 
     String asJson = TableMetadataParser.toJson(base);
-    TableMetadata metadataFromJson = TableMetadataParser.fromJson(ops, null,
+    TableMetadata metadataFromJson = TableMetadataParser.fromJson(ops.io(), null,
         JsonUtil.mapper().readValue(asJson, JsonNode.class));
 
     Assert.assertEquals("Metadata logs should match", previousMetadataLog, metadataFromJson.previousFiles());
@@ -329,11 +329,11 @@ public class TestTableMetadata {
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        ops, previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
+        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), spec.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        ops, currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
+        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
@@ -347,7 +347,7 @@ public class TestTableMetadata {
     MetadataLogEntry latestPreviousMetadata = new MetadataLogEntry(currentTimestamp - 80,
         "/tmp/000003-" + UUID.randomUUID().toString() + ".metadata.json");
 
-    TableMetadata base = new TableMetadata(ops, localInput(latestPreviousMetadata.file()), UUID.randomUUID().toString(),
+    TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), UUID.randomUUID().toString(),
         "s3://bucket/test/location", currentTimestamp - 80, 3, schema, 5, ImmutableList.of(spec),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
@@ -376,11 +376,11 @@ public class TestTableMetadata {
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        ops, previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
+        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), spec.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        ops, currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
+        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
@@ -400,7 +400,7 @@ public class TestTableMetadata {
     MetadataLogEntry latestPreviousMetadata = new MetadataLogEntry(currentTimestamp - 50,
         "/tmp/000006-" + UUID.randomUUID().toString() + ".metadata.json");
 
-    TableMetadata base = new TableMetadata(ops, localInput(latestPreviousMetadata.file()), UUID.randomUUID().toString(),
+    TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), UUID.randomUUID().toString(),
         "s3://bucket/test/location", currentTimestamp - 50, 3, schema, 5,
         ImmutableList.of(spec), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
@@ -434,11 +434,11 @@ public class TestTableMetadata {
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        ops, previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
+        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), spec.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        ops, currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
+        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
@@ -458,7 +458,7 @@ public class TestTableMetadata {
     MetadataLogEntry latestPreviousMetadata = new MetadataLogEntry(currentTimestamp - 50,
         "/tmp/000006-" + UUID.randomUUID().toString() + ".metadata.json");
 
-    TableMetadata base = new TableMetadata(ops, localInput(latestPreviousMetadata.file()), UUID.randomUUID().toString(),
+    TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), UUID.randomUUID().toString(),
         "s3://bucket/test/location", currentTimestamp - 50, 3, schema, 2,
         ImmutableList.of(spec), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,

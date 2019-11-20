@@ -62,7 +62,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     }
 
     TableMetadata metadata = TableMetadata.newTableMetadata(
-        ops, schema, spec, baseLocation, properties == null ? Maps.newHashMap() : properties);
+        schema, spec, baseLocation, properties == null ? Maps.newHashMap() : properties);
 
     ops.commit(null, metadata);
 
@@ -88,7 +88,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
     String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
     Map<String, String> tableProperties = properties != null ? properties : Maps.newHashMap();
-    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, baseLocation, tableProperties);
+    TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, baseLocation, tableProperties);
     return Transactions.createTableTransaction(ops, metadata);
   }
 
@@ -108,7 +108,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
     String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
     Map<String, String> tableProperties = properties != null ? properties : Maps.newHashMap();
-    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, baseLocation, tableProperties);
+    TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, baseLocation, tableProperties);
     if (orCreate) {
       return Transactions.createOrReplaceTableTransaction(ops, metadata);
     } else {

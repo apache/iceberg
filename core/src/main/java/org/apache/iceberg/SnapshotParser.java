@@ -30,6 +30,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.util.JsonUtil;
 
 public class SnapshotParser {
@@ -98,7 +99,7 @@ public class SnapshotParser {
     }
   }
 
-  static Snapshot fromJson(TableOperations ops, JsonNode node) {
+  static Snapshot fromJson(FileIO io, JsonNode node) {
     Preconditions.checkArgument(node.isObject(),
         "Cannot parse table version from a non-object: %s", node);
 
@@ -133,21 +134,21 @@ public class SnapshotParser {
       // the manifest list is stored in a manifest list file
       String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
       return new BaseSnapshot(
-          ops, versionId, parentId, timestamp, operation, summary,
-          ops.io().newInputFile(manifestList));
+          io, versionId, parentId, timestamp, operation, summary,
+          io.newInputFile(manifestList));
 
     } else {
       // fall back to an embedded manifest list. pass in the manifest's InputFile so length can be
       // loaded lazily, if it is needed
       List<ManifestFile> manifests = Lists.transform(JsonUtil.getStringList(MANIFESTS, node),
-          location -> new GenericManifestFile(ops.io().newInputFile(location), 0));
-      return new BaseSnapshot(ops, versionId, parentId, timestamp, operation, summary, manifests);
+          location -> new GenericManifestFile(io.newInputFile(location), 0));
+      return new BaseSnapshot(io, versionId, parentId, timestamp, operation, summary, manifests);
     }
   }
 
-  public static Snapshot fromJson(TableOperations ops, String json) {
+  public static Snapshot fromJson(FileIO io, String json) {
     try {
-      return fromJson(ops, JsonUtil.mapper().readValue(json, JsonNode.class));
+      return fromJson(io, JsonUtil.mapper().readValue(json, JsonNode.class));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read version from json: %s", json);
     }

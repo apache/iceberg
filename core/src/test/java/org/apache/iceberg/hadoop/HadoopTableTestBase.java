@@ -133,7 +133,7 @@ public class HadoopTableTestBase {
   }
 
   TableMetadata readMetadataVersion(int version) {
-    return TableMetadataParser.read(new TestTables.TestTableOperations("table", tableDir),
+    return TableMetadataParser.read(new TestTables.TestTableOperations("table", tableDir).io(),
         localInput(version(version)));
   }
 

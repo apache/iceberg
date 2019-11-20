@@ -216,7 +216,7 @@ public class ScanSummary {
       TopN<String, PartitionMetrics> topN = new TopN<>(
           limit, throwIfLimited, Comparators.charSequences());
 
-      try (CloseableIterable<ManifestEntry> entries = new ManifestGroup(ops, manifests)
+      try (CloseableIterable<ManifestEntry> entries = new ManifestGroup(ops.io(), manifests, ops.current().specsById())
           .filterData(rowFilter)
           .ignoreDeleted()
           .select(SCAN_SUMMARY_COLUMNS)

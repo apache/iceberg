@@ -31,10 +31,11 @@ import java.util.Map;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 
 class BaseSnapshot implements Snapshot {
-  private final TableOperations ops;
+  private final FileIO io;
   private final long snapshotId;
   private final Long parentId;
   private final long timestampMillis;
@@ -50,22 +51,22 @@ class BaseSnapshot implements Snapshot {
   /**
    * For testing only.
    */
-  BaseSnapshot(TableOperations ops,
+  BaseSnapshot(FileIO io,
                long snapshotId,
                String... manifestFiles) {
-    this(ops, snapshotId, null, System.currentTimeMillis(), null, null,
+    this(io, snapshotId, null, System.currentTimeMillis(), null, null,
         Lists.transform(Arrays.asList(manifestFiles),
-            path -> new GenericManifestFile(ops.io().newInputFile(path), 0)));
+            path -> new GenericManifestFile(io.newInputFile(path), 0)));
   }
 
-  BaseSnapshot(TableOperations ops,
+  BaseSnapshot(FileIO io,
                long snapshotId,
                Long parentId,
                long timestampMillis,
                String operation,
                Map<String, String> summary,
                InputFile manifestList) {
-    this.ops = ops;
+    this.io = io;
     this.snapshotId = snapshotId;
     this.parentId = parentId;
     this.timestampMillis = timestampMillis;
@@ -74,14 +75,14 @@ class BaseSnapshot implements Snapshot {
     this.manifestList = manifestList;
   }
 
-  BaseSnapshot(TableOperations ops,
+  BaseSnapshot(FileIO io,
                long snapshotId,
                Long parentId,
                long timestampMillis,
                String operation,
                Map<String, String> summary,
                List<ManifestFile> manifests) {
-    this(ops, snapshotId, parentId, timestampMillis, operation, summary, (InputFile) null);
+    this(io, snapshotId, parentId, timestampMillis, operation, summary, (InputFile) null);
     this.manifests = manifests;
   }
 
@@ -160,7 +161,7 @@ class BaseSnapshot implements Snapshot {
     // read only manifests that were created by this snapshot
     Iterable<ManifestFile> changedManifests = Iterables.filter(manifests(),
         manifest -> Objects.equal(manifest.snapshotId(), snapshotId));
-    try (CloseableIterable<ManifestEntry> entries = new ManifestGroup(ops, changedManifests)
+    try (CloseableIterable<ManifestEntry> entries = new ManifestGroup(io, changedManifests)
         .ignoreExisting()
         .select(ManifestReader.CHANGE_WITH_STATS_COLUMNS)
         .entries()) {
