@@ -41,6 +41,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.parquet.vectorized.VectorizedReader;
 import org.apache.parquet.HadoopReadOptions;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.avro.AvroReadSupport;
@@ -287,7 +288,7 @@ public class Parquet {
     private StructType sparkSchema = null;
     private Expression filter = null;
     private ReadSupport<?> readSupport = null;
-    private Function<MessageType, BatchedReader> readerFunc = null;
+    private Function<MessageType, VectorizedReader> readerFunc = null;
     private boolean filterRecords = true;
     private boolean caseSensitive = true;
     private Map<String, String> properties = Maps.newHashMap();
@@ -347,7 +348,7 @@ public class Parquet {
       return this;
     }
 
-    public ReadBuilder createReaderFunc(Function<MessageType, BatchedReader> readerFunc) {
+    public ReadBuilder createReaderFunc(Function<MessageType, VectorizedReader> readerFunc) {
       this.readerFunc = readerFunc;
       return this;
     }

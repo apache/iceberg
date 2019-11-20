@@ -16,11 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VarBinaryVector;
-import org.apache.iceberg.parquet.NullabilityHolder;
+import org.apache.iceberg.parquet.vectorized.NullabilityHolder;
 
 /**
  * Extension of Arrow's @{@link VarBinaryVector}. The whole reason of having

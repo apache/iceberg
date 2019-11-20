@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.apache.iceberg.spark.source.parquet.vectorized;
 
 import com.google.common.collect.Maps;
@@ -11,11 +30,12 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 
 import java.util.Map;
+import java.util.UUID;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.spark.sql.functions.*;
 
-public class VectorizedDictionaryEncodedStringsBenchmark extends VectorizedDictionaryEncodedBenchmark {
+public class VectorizedFallbackToPlainEncodingStringsBenchmark extends VectorizedDictionaryEncodedBenchmark {
     @Override
     protected final Table initTable() {
         Schema schema = new Schema(
@@ -32,48 +52,37 @@ public class VectorizedDictionaryEncodedStringsBenchmark extends VectorizedDicti
         for (int fileNum = 1; fileNum <= NUM_FILES; fileNum++) {
             Dataset<Row> df = spark().range(NUM_ROWS)
                     .withColumn("longCol",
-                            when(pmod(col("id"), lit(9))
-                                    .equalTo(lit(0)), lit(0l))
-                                    //.when(expr("id > NUM_ROWS/2"), lit(UUID.randomUUID().toString()))
+                            when(expr("id > 10000000/2"), lit(3l))
+                                    .when(pmod(col("id"), lit(9))
+                                            .equalTo(lit(0)), lit(1l))
                                     .when(pmod(col("id"), lit(9))
                                             .equalTo(lit(1)), lit(1l))
                                     .when(pmod(col("id"), lit(9))
-                                            .equalTo(lit(2)), lit(2l))
+                                            .equalTo(lit(2)), lit(1l))
                                     .when(pmod(col("id"), lit(9))
-                                            .equalTo(lit(3)), lit(3l))
+                                            .equalTo(lit(3)), lit(1l))
                                     .when(pmod(col("id"), lit(9))
-                                            .equalTo(lit(4)), lit(4l))
+                                            .equalTo(lit(4)), lit(1l))
                                     .when(pmod(col("id"), lit(9))
-                                            .equalTo(lit(5)), lit(5l))
+                                            .equalTo(lit(5)), lit(2l))
                                     .when(pmod(col("id"), lit(9))
-                                            .equalTo(lit(6)), lit(6l))
+                                            .equalTo(lit(6)), lit(2l))
                                     .when(pmod(col("id"), lit(9))
-                                            .equalTo(lit(7)), lit(7l))
+                                            .equalTo(lit(7)), lit(2l))
                                     .when(pmod(col("id"), lit(9))
-                                            .equalTo(lit(8)), lit(8l))
+                                            .equalTo(lit(8)), lit(2l))
                                     .otherwise(lit(2l)))
                     .drop("id")
                     .withColumn("stringCol",
                             when(col("longCol")
-                                    .equalTo(lit(1)), lit("1"))
+                                    .equalTo(lit(1l)), lit("1"))
                                     .when(col("longCol")
-                                            .equalTo(lit(2)), lit("2"))
+                                            .equalTo(lit(2l)), lit("2"))
                                     .when(col("longCol")
-                                            .equalTo(lit(3)), lit("3"))
-                                    .when(col("longCol")
-                                            .equalTo(lit(4)), lit("4"))
-                                    .when(col("longCol")
-                                            .equalTo(lit(5)), lit("5"))
-                                    .when(col("longCol")
-                                            .equalTo(lit(6)), lit("6"))
-                                    .when(col("longCol")
-                                            .equalTo(lit(7)), lit("7"))
-                                    .when(col("longCol")
-                                            .equalTo(lit(8)), lit("8"))
-                                        .when(col("longCol")
-                                            .equalTo(lit(9)), lit("9")));
-                                    //.otherwise(lit(UUID.randomUUID().toString())));
+                                            .equalTo(lit(3l)), lit(UUID.randomUUID().toString()))
+                                    .otherwise(lit(UUID.randomUUID().toString())));
             appendAsFile(df);
         }
     }
 }
+

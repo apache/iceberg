@@ -16,16 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.netty.buffer.ArrowBuf;
 import org.apache.arrow.vector.*;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.holders.NullableVarCharHolder;
-import org.apache.iceberg.parquet.NullabilityHolder;
-import org.apache.iceberg.parquet.ParquetUtil;
-import org.apache.iceberg.parquet.VectorReader;
+import org.apache.iceberg.parquet.vectorized.NullabilityHolder;
+import org.apache.iceberg.parquet.vectorized.VectorHolder;
 import org.apache.parquet.Preconditions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
@@ -58,13 +59,18 @@ public class IcebergArrowColumnVector extends ColumnVector {
   private final boolean isVectorDictEncoded;
   private ArrowColumnVector[] childColumns;
 
-  public IcebergArrowColumnVector(VectorReader.VectorHolder holder, NullabilityHolder nulls) {
+  public IcebergArrowColumnVector(VectorHolder holder, NullabilityHolder nulls) {
     super(ArrowUtils.fromArrowField(holder.getVector().getField()));
     this.nullabilityHolder = nulls;
     this.columnDescriptor = holder.getDescriptor();
     this.dictionary = holder.getDictionary();
     this.isVectorDictEncoded = holder.isDictionaryEncoded();
     this.accessor = getVectorAccessor(columnDescriptor, holder.getVector());
+  }
+
+  @VisibleForTesting
+  public ArrowVectorAccessor getAccessor() {
+    return accessor;
   }
 
   @Override
@@ -169,7 +175,8 @@ public class IcebergArrowColumnVector extends ColumnVector {
   @Override
   public ArrowColumnVector getChild(int ordinal) { return childColumns[ordinal]; }
 
-  private abstract class ArrowVectorAccessor {
+  @VisibleForTesting
+  public abstract class ArrowVectorAccessor {
 
     private final ValueVector vector;
 
@@ -228,6 +235,11 @@ public class IcebergArrowColumnVector extends ColumnVector {
 
     ColumnarArray getArray(int rowId) {
       throw new UnsupportedOperationException();
+    }
+
+    @VisibleForTesting
+    public ValueVector getUnderlyingArrowVector() {
+      return vector;
     }
   }
 
