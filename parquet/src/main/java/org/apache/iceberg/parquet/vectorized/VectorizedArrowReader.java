@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.parquet;
+package org.apache.iceberg.parquet.vectorized;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.*;
@@ -25,6 +25,7 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.iceberg.arrow.ArrowSchemaUtil;
+import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow.IcebergDecimalArrowVector;
 import org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow.IcebergVarBinaryArrowVector;
 import org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow.IcebergVarcharArrowVector;
@@ -37,31 +38,20 @@ import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.PrimitiveType;
 
-import javax.annotation.Nullable;
 import java.util.Map;
 
 /***
- * Creates and allocates space for Arrow field vectors based on Iceberg data type mapped to Arrow type.
- * Iceberg to Arrow Type mapping :
- *   icebergType : LONG       -   Field Vector Type : org.apache.arrow.vector.BigIntVector
- *   icebergType : STRING     -   Field Vector Type : org.apache.arrow.vector.VarCharVector
- *   icebergType : BOOLEAN    -   Field Vector Type : org.apache.arrow.vector.BitVector
- *   icebergType : INTEGER    -   Field Vector Type : org.apache.arrow.vector.IntVector
- *   icebergType : FLOAT      -   Field Vector Type : org.apache.arrow.vector.Float4Vector
- *   icebergType : DOUBLE     -   Field Vector Type : org.apache.arrow.vector.Float8Vector
- *   icebergType : DATE       -   Field Vector Type : org.apache.arrow.vector.DateDayVector
- *   icebergType : TIMESTAMP  -   Field Vector Type : org.apache.arrow.vector.TimeStampMicroTZVector
- *   icebergType : STRING     -   Field Vector Type : org.apache.arrow.vector.VarCharVector
- *   icebergType : BINARY     -   Field Vector Type : org.apache.arrow.vector.VarBinaryVector
- *   icebergField : DECIMAL   -   Field Vector Type : org.apache.arrow.vector.DecimalVector
+ * {@link VectorizedReader VectorReader(s)} that read in a batch of values into Arrow vectors.
+ * It also takes care of allocating the right kind of Arrow vectors depending on the corresponding
+ * Iceberg/Parquet data types.
  */
-public class VectorReader implements BatchedReader {
+public class VectorizedArrowReader implements VectorizedReader {
   public static final int DEFAULT_BATCH_SIZE = 5000;
   public static final int UNKNOWN_WIDTH = -1;
 
   private final ColumnDescriptor columnDescriptor;
   private final int batchSize;
-  private final BatchedColumnIterator batchedColumnIterator;
+  private final VectorizedColumnIterator vectorizedColumnIterator;
   private final boolean isFixedLengthDecimal;
   private final boolean isVarWidthType;
   private final boolean isFixedWidthBinary;
@@ -86,7 +76,7 @@ public class VectorReader implements BatchedReader {
   // this value if Arrow ends up changing this default.
   private static final int DEFAULT_RECORD_BYTE_COUNT = 8;
 
-  public VectorReader(
+  public VectorizedArrowReader(
       ColumnDescriptor desc,
       Types.NestedField icebergField,
       BufferAllocator rootAlloc,
@@ -104,7 +94,7 @@ public class VectorReader implements BatchedReader {
     this.isLongType = ParquetUtil.isLongType(desc);
     this.isFloatType = ParquetUtil.isFloatType(desc);
     this.isDoubleType = ParquetUtil.isDoubleType(desc);
-    this.batchedColumnIterator = new BatchedColumnIterator(desc, "", batchSize);
+    this.vectorizedColumnIterator = new VectorizedColumnIterator(desc, "", batchSize);
   }
 
   public VectorHolder read(NullabilityHolder nullabilityHolder) {
@@ -112,35 +102,39 @@ public class VectorReader implements BatchedReader {
       typeWidth = allocateFieldVector(rootAlloc, icebergField, columnDescriptor);
     }
     vec.setValueCount(0);
-    if (batchedColumnIterator.hasNext()) {
+    if (vectorizedColumnIterator.hasNext()) {
       if (allPagesDictEncoded) {
-        batchedColumnIterator.nextBatchDictionaryIds((IntVector) vec, nullabilityHolder);
+        vectorizedColumnIterator.nextBatchDictionaryIds((IntVector) vec, nullabilityHolder);
       } else {
         if (isFixedLengthDecimal) {
-          batchedColumnIterator.nextBatchFixedLengthDecimal(vec, typeWidth, nullabilityHolder);
+          vectorizedColumnIterator.nextBatchFixedLengthDecimal(vec, typeWidth, nullabilityHolder);
           ((IcebergDecimalArrowVector) vec).setNullabilityHolder(nullabilityHolder);
         } else if (isFixedWidthBinary) {
-          batchedColumnIterator.nextBatchFixedWidthBinary(vec, typeWidth, nullabilityHolder);
+          // Fixed width binary type values are stored in an IcebergVarBinaryArrowVector as well
+          if (vec instanceof IcebergVarBinaryArrowVector) {
+            ((IcebergVarBinaryArrowVector) vec).setNullabilityHolder(nullabilityHolder);
+          }
+          vectorizedColumnIterator.nextBatchFixedWidthBinary(vec, typeWidth, nullabilityHolder);
         } else if (isVarWidthType) {
           if (vec instanceof IcebergVarcharArrowVector) {
             ((IcebergVarcharArrowVector) vec).setNullabilityHolder(nullabilityHolder);
           } else if (vec instanceof IcebergVarBinaryArrowVector) {
             ((IcebergVarBinaryArrowVector) vec).setNullabilityHolder(nullabilityHolder);
           }
-          batchedColumnIterator.nextBatchVarWidthType(vec, nullabilityHolder);
+          vectorizedColumnIterator.nextBatchVarWidthType(vec, nullabilityHolder);
         } else if (isBooleanType) {
-          batchedColumnIterator.nextBatchBoolean(vec, nullabilityHolder);
+          vectorizedColumnIterator.nextBatchBoolean(vec, nullabilityHolder);
         } else if (isPaddedDecimal) {
           ((IcebergDecimalArrowVector) vec).setNullabilityHolder(nullabilityHolder);
-          batchedColumnIterator.nextBatchIntLongBackedDecimal(vec, typeWidth, nullabilityHolder);
+          vectorizedColumnIterator.nextBatchIntLongBackedDecimal(vec, typeWidth, nullabilityHolder);
         } else if (isIntType) {
-          batchedColumnIterator.nextBatchIntegers(vec, typeWidth, nullabilityHolder);
+          vectorizedColumnIterator.nextBatchIntegers(vec, typeWidth, nullabilityHolder);
         } else if (isLongType) {
-          batchedColumnIterator.nextBatchLongs(vec, typeWidth, nullabilityHolder);
+          vectorizedColumnIterator.nextBatchLongs(vec, typeWidth, nullabilityHolder);
         } else if (isFloatType) {
-          batchedColumnIterator.nextBatchFloats(vec, typeWidth, nullabilityHolder);
+          vectorizedColumnIterator.nextBatchFloats(vec, typeWidth, nullabilityHolder);
         } else if (isDoubleType) {
-          batchedColumnIterator.nextBatchDoubles(vec, typeWidth, nullabilityHolder);
+          vectorizedColumnIterator.nextBatchDoubles(vec, typeWidth, nullabilityHolder);
         }
       }
     }
@@ -252,7 +246,7 @@ public class VectorReader implements BatchedReader {
                               DictionaryPageReadStore dictionaryPageReadStore,
                               Map<ColumnPath, Boolean> columnDictEncoded) {
     allPagesDictEncoded = columnDictEncoded.get(ColumnPath.get(columnDescriptor.getPath()));
-    dictionary = batchedColumnIterator.setRowGroupInfo(source, dictionaryPageReadStore, allPagesDictEncoded);
+    dictionary = vectorizedColumnIterator.setRowGroupInfo(source, dictionaryPageReadStore, allPagesDictEncoded);
   }
 
   @Override
@@ -264,42 +258,5 @@ public class VectorReader implements BatchedReader {
     return batchSize;
   }
 
-  public Types.NestedField getIcebergField() {
-    return icebergField;
-  }
-
-  public static class VectorHolder {
-    private final ColumnDescriptor columnDescriptor;
-    private final FieldVector vector;
-    private final boolean isDictionaryEncoded;
-
-    @Nullable
-    private final Dictionary dictionary;
-
-
-    public VectorHolder(ColumnDescriptor columnDescriptor, FieldVector vector, boolean isDictionaryEncoded, Dictionary dictionary) {
-      this.columnDescriptor = columnDescriptor;
-      this.vector = vector;
-      this.isDictionaryEncoded = isDictionaryEncoded;
-      this.dictionary = dictionary;
-    }
-
-    public ColumnDescriptor getDescriptor() {
-      return columnDescriptor;
-    }
-
-    public FieldVector getVector() {
-      return vector;
-    }
-
-    public boolean isDictionaryEncoded() {
-      return isDictionaryEncoded;
-    }
-
-    public Dictionary getDictionary() {
-      return dictionary;
-    }
-
-  }
 }
 

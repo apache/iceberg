@@ -36,16 +36,23 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.Assert;
 import org.junit.Assume;
+import org.junit.Before;
 import org.junit.Test;
 
 import static org.apache.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES;
+import static org.apache.iceberg.spark.data.TestHelpers.assertArrowVectors;
 import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 
 public class TestSparkParquetVectorizedReader extends AvroDataTest {
 
+  @Before
+  public void setupArrowFlags() {
+    System.setProperty("arrow.enable_unsafe_memory_access", "true");
+    System.setProperty("arrow.enable_null_check_for_get", "false");
+  }
+
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    setupArrowFlags();
     // Write test data
     Assume.assumeTrue("Parquet Avro cannot write non-string map keys", null == TypeUtil.find(schema,
         type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()));
@@ -83,18 +90,10 @@ public class TestSparkParquetVectorizedReader extends AvroDataTest {
         for (int i = numExpectedRead; i < numExpectedRead + batch.numRows(); i++) {
           expectedBatch.add(expected.get(i));
         }
-
-        // System.out.println("-> Check "+numExpectedRead+" - "+ (numExpectedRead+batch.numRows()));
-        assertEqualsUnsafe(schema.asStruct(), expectedBatch, batch);
-
-        System.out.println("Batch read with " + batch.numRows() + " rows. Read " + numRowsRead + " till now. " +
-            "Expected batch " + expectedBatch.size());
-
+        assertArrowVectors(schema.asStruct(), expectedBatch, batch);
         numExpectedRead += batch.numRows();
       }
-
       Assert.assertEquals(expected.size(), numRowsRead);
-
     }
   }
 
@@ -133,8 +132,4 @@ public class TestSparkParquetVectorizedReader extends AvroDataTest {
     System.out.println("Not Supported");
   }
 
-  void setupArrowFlags() {
-    System.setProperty("arrow.enable_unsafe_memory_access", "true");
-    System.setProperty("arrow.enable_null_check_for_get", "false");
-  }
 }

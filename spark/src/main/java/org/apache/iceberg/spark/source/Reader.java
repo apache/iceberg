@@ -55,7 +55,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.parquet.VectorReader;
+import org.apache.iceberg.parquet.vectorized.VectorizedArrowReader;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkAvroReader;
@@ -127,7 +127,7 @@ class Reader implements DataSourceReader,
 
     } else {
 
-      this.numRecordsPerBatch = VectorReader.DEFAULT_BATCH_SIZE;
+      this.numRecordsPerBatch = VectorizedArrowReader.DEFAULT_BATCH_SIZE;
     }
     LOG.info("=> Set Config numRecordsPerBatch = {}", numRecordsPerBatch);
 

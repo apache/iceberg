@@ -16,14 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VarCharVector;
-import org.apache.iceberg.parquet.NullabilityHolder;
+import org.apache.iceberg.parquet.vectorized.NullabilityHolder;
 
 /**
- * Extension of Arrow's @{@link VarCharVector}. The whole reason of having
+ * Extension of Arrow's @{@link VarCharVector}. The reason of having
  * this implementation is to override the expensive {@link VarCharVector#isSet(int)} method.
  */
 public class IcebergVarcharArrowVector extends VarCharVector {
