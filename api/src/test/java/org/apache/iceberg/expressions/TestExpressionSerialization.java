@@ -31,7 +31,8 @@ public class TestExpressionSerialization {
   @Test
   public void testExpressions() throws Exception {
     Schema schema = new Schema(
-        Types.NestedField.optional(34, "a", Types.IntegerType.get())
+        Types.NestedField.optional(34, "a", Types.IntegerType.get()),
+        Types.NestedField.required(35, "s", Types.StringType.get())
     );
 
     Expression[] expressions = new Expression[] {
@@ -50,7 +51,10 @@ public class TestExpressionSerialization {
         Expressions.not(Expressions.greaterThan("a", 10)),
         Expressions.and(Expressions.greaterThanOrEqual("a", 0), Expressions.lessThan("a", 3)),
         Expressions.or(Expressions.lessThan("a", 0), Expressions.greaterThan("a", 10)),
-        Expressions.equal("a", 5).bind(schema.asStruct())
+        Expressions.equal("a", 5).bind(schema.asStruct()),
+        Expressions.in("a", 5, 6, 7).bind(schema.asStruct()),
+        Expressions.notIn("s", "abc", "xyz").bind(schema.asStruct()),
+        Expressions.isNull("a").bind(schema.asStruct()),
     };
 
     for (Expression expression : expressions) {
@@ -95,7 +99,7 @@ public class TestExpressionSerialization {
     }
   }
 
-  @SuppressWarnings("unchecked")
+  @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
   private static boolean equals(Predicate left, Predicate right) {
     if (left.op() != right.op()) {
       return false;
@@ -121,15 +125,19 @@ public class TestExpressionSerialization {
       }
       return lpred.literal().comparator()
           .compare(lpred.literal().value(), rpred.literal().value()) == 0;
+
     } else if (left instanceof BoundPredicate) {
       BoundPredicate lpred = (BoundPredicate) left;
       BoundPredicate rpred = (BoundPredicate) right;
-      return lpred.literal().comparator()
-          .compare(lpred.literal().value(), rpred.literal().value()) == 0;
-    } else if (left instanceof BoundSetPredicate) {
-      BoundSetPredicate lpred = (BoundSetPredicate) left;
-      BoundSetPredicate rpred = (BoundSetPredicate) right;
-      return equals(lpred.literalSet(), rpred.literalSet());
+      if (lpred.isLiteralPredicate() && rpred.isLiteralPredicate()) {
+        return lpred.asLiteralPredicate().literal().comparator()
+            .compare(lpred.asLiteralPredicate().literal().value(), rpred.asLiteralPredicate().literal().value()) == 0;
+      } else if (lpred.isSetPredicate() && rpred.isSetPredicate()) {
+        return equals(lpred.asSetPredicate().literalSet(), rpred.asSetPredicate().literalSet());
+      } else {
+        return lpred.isUnaryPredicate() && rpred.isUnaryPredicate();
+      }
+
     } else {
       throw new UnsupportedOperationException(String.format(
           "Predicate equality check for %s is not supported", left.getClass()));

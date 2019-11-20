@@ -65,8 +65,9 @@ public class TestPredicateBinding {
 
     Assert.assertEquals("Should reference correct field ID", 11, bound.ref().fieldId());
     Assert.assertEquals("Should not change the comparison operation", LT, bound.op());
+    Assert.assertTrue("Should be a literal predicate", bound.isLiteralPredicate());
     Assert.assertEquals("Should not alter literal value",
-        Integer.valueOf(6), bound.literal().value());
+        Integer.valueOf(6), bound.asLiteralPredicate().literal().value());
   }
 
   @Test
@@ -96,8 +97,9 @@ public class TestPredicateBinding {
       Expression expr = unbound.bind(struct);
       BoundPredicate<Integer> bound = assertAndUnwrap(expr);
 
+      Assert.assertTrue("Should be a literal predicate", bound.isLiteralPredicate());
       Assert.assertEquals("Should not alter literal value",
-          Integer.valueOf(5), bound.literal().value());
+          Integer.valueOf(5), bound.asLiteralPredicate().literal().value());
       Assert.assertEquals("Should reference correct field ID", 14, bound.ref().fieldId());
       Assert.assertEquals("Should not change the comparison operation", op, bound.op());
     }
@@ -113,8 +115,9 @@ public class TestPredicateBinding {
 
       Expression expr = unbound.bind(struct);
       BoundPredicate<BigDecimal> bound = assertAndUnwrap(expr);
+      Assert.assertTrue("Should be a literal predicate", bound.isLiteralPredicate());
       Assert.assertEquals("Should convert literal value to decimal",
-          new BigDecimal("12.40"), bound.literal().value());
+          new BigDecimal("12.40"), bound.asLiteralPredicate().literal().value());
       Assert.assertEquals("Should reference correct field ID", 15, bound.ref().fieldId());
       Assert.assertEquals("Should not change the comparison operation", op, bound.op());
     }
@@ -133,7 +136,7 @@ public class TestPredicateBinding {
       } catch (ValidationException e) {
         Assert.assertEquals("Should ",
             e.getMessage(),
-            "Invalid value for comparison inclusive type float: 12.40 (java.lang.String)");
+            "Invalid value for conversion to type float: 12.40 (java.lang.String)");
       }
     }
   }
@@ -185,25 +188,29 @@ public class TestPredicateBinding {
 
     Expression ltExpr = new UnboundPredicate<>(LT, ref("i"), (long) Integer.MAX_VALUE).bind(struct, true);
     BoundPredicate<Integer> ltMax = assertAndUnwrap(ltExpr);
+    Assert.assertTrue("Should be a literal predicate", ltMax.isLiteralPredicate());
     Assert.assertEquals("Should translate bound to Integer",
-        (Integer) Integer.MAX_VALUE, ltMax.literal().value());
+        (Integer) Integer.MAX_VALUE, ltMax.asLiteralPredicate().literal().value());
 
     Expression lteqExpr = new UnboundPredicate<>(LT_EQ, ref("i"), (long) Integer.MAX_VALUE)
         .bind(struct);
     BoundPredicate<Integer> lteqMax = assertAndUnwrap(lteqExpr);
+    Assert.assertTrue("Should be a literal predicate", lteqMax.isLiteralPredicate());
     Assert.assertEquals("Should translate bound to Integer",
-        (Integer) Integer.MAX_VALUE, lteqMax.literal().value());
+        (Integer) Integer.MAX_VALUE, lteqMax.asLiteralPredicate().literal().value());
 
     Expression gtExpr = new UnboundPredicate<>(GT, ref("i"), (long) Integer.MIN_VALUE).bind(struct);
     BoundPredicate<Integer> gtMin = assertAndUnwrap(gtExpr);
+    Assert.assertTrue("Should be a literal predicate", gtMin.isLiteralPredicate());
     Assert.assertEquals("Should translate bound to Integer",
-        (Integer) Integer.MIN_VALUE, gtMin.literal().value());
+        (Integer) Integer.MIN_VALUE, gtMin.asLiteralPredicate().literal().value());
 
     Expression gteqExpr = new UnboundPredicate<>(GT_EQ, ref("i"), (long) Integer.MIN_VALUE)
         .bind(struct);
     BoundPredicate<Integer> gteqMin = assertAndUnwrap(gteqExpr);
+    Assert.assertTrue("Should be a literal predicate", gteqMin.isLiteralPredicate());
     Assert.assertEquals("Should translate bound to Integer",
-        (Integer) Integer.MIN_VALUE, gteqMin.literal().value());
+        (Integer) Integer.MIN_VALUE, gteqMin.asLiteralPredicate().literal().value());
   }
 
   @Test
@@ -253,25 +260,29 @@ public class TestPredicateBinding {
 
     Expression ltExpr = new UnboundPredicate<>(LT, ref("f"), (double) Float.MAX_VALUE).bind(struct);
     BoundPredicate<Float> ltMax = assertAndUnwrap(ltExpr);
+    Assert.assertTrue("Should be a literal predicate", ltMax.isLiteralPredicate());
     Assert.assertEquals("Should translate bound to Float",
-        (Float) Float.MAX_VALUE, ltMax.literal().value());
+        (Float) Float.MAX_VALUE, ltMax.asLiteralPredicate().literal().value());
 
     Expression lteqExpr = new UnboundPredicate<>(LT_EQ, ref("f"), (double) Float.MAX_VALUE)
         .bind(struct);
     BoundPredicate<Float> lteqMax = assertAndUnwrap(lteqExpr);
+    Assert.assertTrue("Should be a literal predicate", lteqMax.isLiteralPredicate());
     Assert.assertEquals("Should translate bound to Float",
-        (Float) Float.MAX_VALUE, lteqMax.literal().value());
+        (Float) Float.MAX_VALUE, lteqMax.asLiteralPredicate().literal().value());
 
     Expression gtExpr = new UnboundPredicate<>(GT, ref("f"), (double) -Float.MAX_VALUE).bind(struct);
     BoundPredicate<Float> gtMin = assertAndUnwrap(gtExpr);
+    Assert.assertTrue("Should be a literal predicate", gtMin.isLiteralPredicate());
     Assert.assertEquals("Should translate bound to Float",
-        Float.valueOf(-Float.MAX_VALUE), gtMin.literal().value());
+        Float.valueOf(-Float.MAX_VALUE), gtMin.asLiteralPredicate().literal().value());
 
     Expression gteqExpr = new UnboundPredicate<>(GT_EQ, ref("f"), (double) -Float.MAX_VALUE)
         .bind(struct);
     BoundPredicate<Float> gteqMin = assertAndUnwrap(gteqExpr);
+    Assert.assertTrue("Should be a literal predicate", gteqMin.isLiteralPredicate());
     Assert.assertEquals("Should translate bound to Float",
-        Float.valueOf(-Float.MAX_VALUE), gteqMin.literal().value());
+        Float.valueOf(-Float.MAX_VALUE), gteqMin.asLiteralPredicate().literal().value());
   }
 
   @Test
@@ -284,7 +295,7 @@ public class TestPredicateBinding {
     BoundPredicate<?> bound = assertAndUnwrap(expr);
     Assert.assertEquals("Should use the same operation", IS_NULL, bound.op());
     Assert.assertEquals("Should use the correct field", 19, bound.ref().fieldId());
-    Assert.assertNull("Should not have a literal value", bound.literal());
+    Assert.assertTrue("Should be a unary predicate", bound.isUnaryPredicate());
 
     StructType required = StructType.of(required(20, "s", Types.StringType.get()));
     Assert.assertEquals("IsNull inclusive a required field should be alwaysFalse",
@@ -300,7 +311,7 @@ public class TestPredicateBinding {
     BoundPredicate<?> bound = assertAndUnwrap(expr);
     Assert.assertEquals("Should use the same operation", NOT_NULL, bound.op());
     Assert.assertEquals("Should use the correct field", 21, bound.ref().fieldId());
-    Assert.assertNull("Should not have a literal value", bound.literal());
+    Assert.assertTrue("Should be a unary predicate", bound.isUnaryPredicate());
 
     StructType required = StructType.of(required(22, "s", Types.StringType.get()));
     Assert.assertEquals("NotNull inclusive a required field should be alwaysTrue",
@@ -355,8 +366,9 @@ public class TestPredicateBinding {
     Expression expr = unbound.bind(struct);
     BoundPredicate<Integer> bound = assertAndUnwrap(expr);
 
+    Assert.assertTrue("Should be a literal predicate", bound.isLiteralPredicate());
     Assert.assertEquals("Should not alter literal value",
-        Integer.valueOf(5), bound.literal().value());
+        Integer.valueOf(5), bound.asLiteralPredicate().literal().value());
     Assert.assertEquals("Should reference correct field ID", 14, bound.ref().fieldId());
     Assert.assertEquals("Should change the operation from IN to EQ", EQ, bound.op());
   }
@@ -373,8 +385,9 @@ public class TestPredicateBinding {
     Expression expr = unbound.bind(struct);
     BoundPredicate<Integer> bound = assertAndUnwrap(expr);
 
+    Assert.assertTrue("Should be a literal predicate", bound.isLiteralPredicate());
     Assert.assertEquals("Should remove aboveMax literal value",
-        Integer.valueOf(5), bound.literal().value());
+        Integer.valueOf(5), bound.asLiteralPredicate().literal().value());
     Assert.assertEquals("Should reference correct field ID", 14, bound.ref().fieldId());
     Assert.assertEquals("Should change the IN operation to EQ", EQ, bound.op());
   }
@@ -387,8 +400,9 @@ public class TestPredicateBinding {
 
     Expression expr = unbound.bind(struct);
     BoundPredicate<BigDecimal> bound = assertAndUnwrap(expr);
+    Assert.assertTrue("Should be a literal predicate", bound.isLiteralPredicate());
     Assert.assertEquals("Should convert literal set values to a single decimal",
-        new BigDecimal("12.40"), bound.literal().value());
+        new BigDecimal("12.40"), bound.asLiteralPredicate().literal().value());
     Assert.assertEquals("Should reference correct field ID", 15, bound.ref().fieldId());
     Assert.assertEquals("Should change the IN operation to EQ", EQ, bound.op());
   }
@@ -454,8 +468,9 @@ public class TestPredicateBinding {
     Expression expr = unbound.bind(struct);
     BoundPredicate<Integer> bound = assertAndUnwrap(expr);
 
+    Assert.assertTrue("Should be a literal predicate", bound.isLiteralPredicate());
     Assert.assertEquals("Should not alter literal value",
-        Integer.valueOf(5), bound.literal().value());
+        Integer.valueOf(5), bound.asLiteralPredicate().literal().value());
     Assert.assertEquals("Should reference correct field ID", 14, bound.ref().fieldId());
     Assert.assertEquals("Should change the operation from NOT_IN to NOT_EQ", NOT_EQ, bound.op());
   }
@@ -472,8 +487,9 @@ public class TestPredicateBinding {
     Expression expr = unbound.bind(struct);
     BoundPredicate<Integer> bound = assertAndUnwrap(expr);
 
+    Assert.assertTrue("Should be a literal predicate", bound.isLiteralPredicate());
     Assert.assertEquals("Should remove aboveMax literal value",
-        Integer.valueOf(5), bound.literal().value());
+        Integer.valueOf(5), bound.asLiteralPredicate().literal().value());
     Assert.assertEquals("Should reference correct field ID", 14, bound.ref().fieldId());
     Assert.assertEquals("Should change the NOT_IN operation to NOT_EQ", NOT_EQ, bound.op());
   }
@@ -486,8 +502,9 @@ public class TestPredicateBinding {
 
     Expression expr = unbound.bind(struct);
     BoundPredicate<BigDecimal> bound = assertAndUnwrap(expr);
+    Assert.assertTrue("Should be a literal predicate", bound.isLiteralPredicate());
     Assert.assertEquals("Should convert literal set values to a single decimal",
-        new BigDecimal("12.40"), bound.literal().value());
+        new BigDecimal("12.40"), bound.asLiteralPredicate().literal().value());
     Assert.assertEquals("Should reference correct field ID", 15, bound.ref().fieldId());
     Assert.assertEquals("Should change the NOT_IN operation to NOT_EQ", NOT_EQ, bound.op());
   }

@@ -113,17 +113,24 @@ class ParquetFilters {
     public <T> FilterPredicate predicate(BoundPredicate<T> pred) {
       Operation op = pred.op();
       BoundReference<T> ref = pred.ref();
-      Literal<T> lit = pred.literal();
       String path = schema.idToAlias(ref.fieldId());
+      Literal<T> lit;
+      if (pred.isUnaryPredicate()) {
+        lit = null;
+      } else if (pred.isLiteralPredicate()) {
+        lit = pred.asLiteralPredicate().literal();
+      } else {
+        throw new UnsupportedOperationException("Cannot convert to Parquet filter: " + pred);
+      }
 
       switch (ref.type().typeId()) {
         case BOOLEAN:
-          Operators.BooleanColumn col = FilterApi.booleanColumn(schema.idToAlias(ref.fieldId()));
+          Operators.BooleanColumn col = FilterApi.booleanColumn(path);
           switch (op) {
             case EQ:
               return FilterApi.eq(col, getParquetPrimitive(lit));
             case NOT_EQ:
-              return FilterApi.eq(col, getParquetPrimitive(lit));
+              return FilterApi.notEq(col, getParquetPrimitive(lit));
           }
 
         case INTEGER:

@@ -19,36 +19,40 @@
 
 package org.apache.iceberg.expressions;
 
-import com.google.common.base.Preconditions;
+import org.apache.iceberg.StructLike;
 
-public class BoundPredicate<T> extends Predicate<BoundReference<T>> {
-  private final Literal<T> literal;
-
-  BoundPredicate(Operation op, BoundReference<T> ref, Literal<T> lit) {
+public abstract class BoundPredicate<T> extends Predicate<BoundReference<T>> {
+  protected BoundPredicate(Operation op, BoundReference<T> ref) {
     super(op, ref);
-    Preconditions.checkArgument(op != Operation.IN && op != Operation.NOT_IN,
-        "Bound predicate does not support %s operation", op);
-    this.literal = lit;
   }
 
-  BoundPredicate(Operation op, BoundReference<T> ref) {
-    super(op, ref);
-    Preconditions.checkArgument(op == Operation.IS_NULL || op == Operation.NOT_NULL,
-        "Cannot create %s predicate without a value", op);
-    this.literal = null;
+  public boolean test(StructLike struct) {
+    return test(ref().get(struct));
   }
 
-  @Override
-  public Expression negate() {
-    return new BoundPredicate<>(op().negate(), ref(), literal());
+  public abstract boolean test(T value);
+
+  public boolean isUnaryPredicate() {
+    return false;
   }
 
-  public Literal<T> literal() {
-    return literal;
+  public BoundUnaryPredicate<T> asUnaryPredicate() {
+    throw new IllegalStateException("Not a unary predicate: " + this);
   }
 
-  @Override
-  String literalString() {
-    return literal.toString();
+  public boolean isLiteralPredicate() {
+    return false;
+  }
+
+  public BoundLiteralPredicate<T> asLiteralPredicate() {
+    throw new IllegalStateException("Not a literal predicate: " + this);
+  }
+
+  public boolean isSetPredicate() {
+    return false;
+  }
+
+  public BoundSetPredicate<T> asSetPredicate() {
+    throw new IllegalStateException("Not a set predicate: " + this);
   }
 }

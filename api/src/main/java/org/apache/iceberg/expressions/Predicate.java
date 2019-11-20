@@ -36,36 +36,4 @@ public abstract class Predicate<R extends Reference> implements Expression {
   public R ref() {
     return ref;
   }
-
-  abstract String literalString();
-
-  @Override
-  public String toString() {
-    switch (op) {
-      case IS_NULL:
-        return "is_null(" + ref() + ")";
-      case NOT_NULL:
-        return "not_null(" + ref() + ")";
-      case LT:
-        return String.valueOf(ref()) + " < " + literalString();
-      case LT_EQ:
-        return String.valueOf(ref()) + " <= " + literalString();
-      case GT:
-        return String.valueOf(ref()) + " > " + literalString();
-      case GT_EQ:
-        return String.valueOf(ref()) + " >= " + literalString();
-      case EQ:
-        return String.valueOf(ref()) + " == " + literalString();
-      case NOT_EQ:
-        return String.valueOf(ref()) + " != " + literalString();
-      case STARTS_WITH:
-        return ref() + " startsWith \"" + literalString() + "\"";
-      case IN:
-        return ref() + " in { " + literalString() + " }";
-      case NOT_IN:
-        return ref() + " not in { " + literalString() + " }";
-      default:
-        return "Invalid predicate: operation = " + op;
-    }
-  }
 }

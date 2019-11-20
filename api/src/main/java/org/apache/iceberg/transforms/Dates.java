@@ -29,9 +29,6 @@ import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-import static org.apache.iceberg.expressions.Expression.Operation.IS_NULL;
-import static org.apache.iceberg.expressions.Expression.Operation.NOT_NULL;
-
 enum Dates implements Transform<Integer, Integer> {
   YEAR(ChronoUnit.YEARS, "year"),
   MONTH(ChronoUnit.MONTHS, "month"),
@@ -74,18 +71,22 @@ enum Dates implements Transform<Integer, Integer> {
 
   @Override
   public UnboundPredicate<Integer> project(String fieldName, BoundPredicate<Integer> pred) {
-    if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
+    if (pred.isUnaryPredicate()) {
       return Expressions.predicate(pred.op(), fieldName);
+    } else if (pred.isLiteralPredicate()) {
+      return ProjectionUtil.truncateInteger(fieldName, pred.asLiteralPredicate(), this);
     }
-    return ProjectionUtil.truncateInteger(fieldName, pred, this);
+    return null;
   }
 
   @Override
   public UnboundPredicate<Integer> projectStrict(String fieldName, BoundPredicate<Integer> pred) {
-    if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
+    if (pred.isUnaryPredicate()) {
       return Expressions.predicate(pred.op(), fieldName);
+    } else if (pred.isLiteralPredicate()) {
+      return ProjectionUtil.truncateIntegerStrict(fieldName, pred.asLiteralPredicate(), this);
     }
-    return ProjectionUtil.truncateIntegerStrict(fieldName, pred, this);
+    return null;
   }
 
   @Override

@@ -19,58 +19,40 @@
 
 package org.apache.iceberg.expressions;
 
-import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
-import java.util.Set;
-
-public class BoundSetPredicate<T> extends BoundPredicate<T> {
-  private static final Joiner COMMA = Joiner.on(", ");
-  private final Set<T> literalSet;
-
-  BoundSetPredicate(Operation op, BoundReference<T> ref, Set<T> lits) {
+public class BoundUnaryPredicate<T> extends BoundPredicate<T> {
+  BoundUnaryPredicate(Operation op, BoundReference<T> ref) {
     super(op, ref);
-    Preconditions.checkArgument(op == Operation.IN || op == Operation.NOT_IN,
-        "%s predicate does not support a literal set", op);
-    this.literalSet = lits;
   }
 
   @Override
-  public Expression negate() {
-    return new BoundSetPredicate<>(op().negate(), ref(), literalSet);
-  }
-
-  @Override
-  public boolean isSetPredicate() {
+  public boolean isUnaryPredicate() {
     return true;
   }
 
   @Override
-  public BoundSetPredicate<T> asSetPredicate() {
+  public BoundUnaryPredicate<T> asUnaryPredicate() {
     return this;
   }
 
-  public Set<T> literalSet() {
-    return literalSet;
-  }
-
+  @Override
   public boolean test(T value) {
     switch (op()) {
-      case IN:
-        return literalSet.contains(value);
-      case NOT_IN:
-        return !literalSet.contains(value);
+      case IS_NULL:
+        return value == null;
+      case NOT_NULL:
+        return value != null;
       default:
-        throw new IllegalStateException("Invalid operation for BoundSetPredicate: " + op());
+        throw new IllegalStateException("Invalid operation for BoundUnaryPredicate: " + op());
     }
   }
 
   @Override
   public String toString() {
     switch (op()) {
-      case IN:
-        return ref() + " in (" + COMMA.join(literalSet) + ")";
-      case NOT_IN:
-        return ref() + " not in (" + COMMA.join(literalSet) + ")";
+      case IS_NULL:
+        return "is_null(" + ref() + ")";
+      case NOT_NULL:
+        return "not_null(" + ref() + ")";
       default:
         return "Invalid unary predicate: operation = " + op();
     }

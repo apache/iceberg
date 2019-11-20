@@ -79,9 +79,9 @@ public class TestProjection {
           "id", projected.ref().name());
       Assert.assertEquals("Operation should match", bound.op(), projected.op());
 
-      if (bound.literal() != null) {
+      if (bound.isLiteralPredicate()) {
         Assert.assertEquals("Literal should be equal",
-            bound.literal().value(), projected.literal().value());
+            bound.asLiteralPredicate().literal().value(), projected.literal().value());
       } else {
         Assert.assertNull("Literal should be null", projected.literal());
       }
@@ -117,9 +117,9 @@ public class TestProjection {
           "id", projected.ref().name());
       Assert.assertEquals("Operation should match", bound.op(), projected.op());
 
-      if (bound.literal() != null) {
+      if (bound.isLiteralPredicate()) {
         Assert.assertEquals("Literal should be equal",
-            bound.literal().value(), projected.literal().value());
+            bound.asLiteralPredicate().literal().value(), projected.literal().value());
       } else {
         Assert.assertNull("Literal should be null", projected.literal());
       }
@@ -168,9 +168,9 @@ public class TestProjection {
           "id", projected.ref().name());
       Assert.assertEquals("Operation should match", bound.op(), projected.op());
 
-      if (bound.literal() != null) {
+      if (bound.isLiteralPredicate()) {
         Assert.assertEquals("Literal should be equal",
-            bound.literal().value(), projected.literal().value());
+            bound.asLiteralPredicate().literal().value(), projected.literal().value());
       } else {
         Assert.assertNull("Literal should be null", projected.literal());
       }
@@ -206,9 +206,9 @@ public class TestProjection {
           "id", projected.ref().name());
       Assert.assertEquals("Operation should match", bound.op(), projected.op());
 
-      if (bound.literal() != null) {
+      if (bound.isLiteralPredicate()) {
         Assert.assertEquals("Literal should be equal",
-            bound.literal().value(), projected.literal().value());
+            bound.asLiteralPredicate().literal().value(), projected.literal().value());
       } else {
         Assert.assertNull("Literal should be null", projected.literal());
       }
