@@ -21,10 +21,12 @@ package org.apache.iceberg;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 
@@ -42,6 +44,11 @@ public class CachingCatalog implements Catalog {
 
   private CachingCatalog(Catalog catalog) {
     this.catalog = catalog;
+  }
+
+  @Override
+  public List<TableIdentifier> listTables(Namespace namespace) {
+    return catalog.listTables(namespace);
   }
 
   @Override
