@@ -40,6 +40,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 
@@ -127,16 +128,17 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
   @Override
   public Table createTable(
       TableIdentifier identifier, Schema schema, PartitionSpec spec, String location, Map<String, String> properties) {
-    Preconditions.checkArgument(identifier.namespace().levels().length >= 1,
-        "Missing database in table identifier: %s", identifier);
     Preconditions.checkArgument(location == null, "Cannot set a custom location for a path-based table");
     return super.createTable(identifier, schema, spec, null, properties);
   }
 
   @Override
+  protected boolean isValidIdentifier(TableIdentifier identifier) {
+    return identifier.namespace().levels().length >= 1;
+  }
+
+  @Override
   protected TableOperations newTableOps(TableIdentifier identifier) {
-    Preconditions.checkArgument(identifier.namespace().levels().length >= 1,
-        "Missing database in table identifier: %s", identifier);
     return new HadoopTableOperations(new Path(defaultWarehouseLocation(identifier)), conf);
   }
 
@@ -156,8 +158,9 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
 
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
-    Preconditions.checkArgument(identifier.namespace().levels().length >= 1,
-        "Missing database in table identifier: %s", identifier);
+    if (!isValidIdentifier(identifier)) {
+      throw new NoSuchTableException("Invalid identifier: %s", identifier);
+    }
 
     Path tablePath = new Path(defaultWarehouseLocation(identifier));
     TableOperations ops = newTableOps(identifier);
