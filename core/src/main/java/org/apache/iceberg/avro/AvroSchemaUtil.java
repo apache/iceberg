@@ -80,6 +80,11 @@ public class AvroSchemaUtil {
     return AvroSchemaVisitor.visit(schema, new SchemaToType(schema));
   }
 
+  public static org.apache.iceberg.Schema toIceberg(Schema schema) {
+    final List<Types.NestedField> fields = convert(schema).asNestedType().asStructType().fields();
+    return new org.apache.iceberg.Schema(fields);
+  }
+
   static boolean hasIds(Schema schema) {
     return AvroCustomOrderSchemaVisitor.visit(schema, new HasIds());
   }

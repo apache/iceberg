@@ -17,7 +17,7 @@
 
 # Spark
 
-Iceberg uses Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions.
+Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions.
 
 | Feature support                              | Spark 2.4 | Spark 3.0 (unreleased) | Notes                                          |
 |----------------------------------------------|-----------|------------------------|------------------------------------------------|
@@ -44,6 +44,19 @@ To use Iceberg in Spark 2.4, add the `iceberg-spark-runtime` Jar to Spark's `jar
 
 Spark 2.4 is limited to reading and writing existing Iceberg tables. Use the [Iceberg API](../api) to create Iceberg tables.
 
+Recommended way is to include Iceberg's latest released using the `--packages` option:
+```sh
+spark-shell --packages org.apache.iceberg:iceberg-spark-runtime:0.7.0-incubating
+```
+
+You can also build Iceberg locally, and add the jar to Spark's classpath. This can be helpful to test unreleased features or while developing something new:
+
+```sh
+./gradlew assemble
+spark-shell --jars spark-runtime/build/libs/iceberg-spark-runtime-93990904.jar
+```
+
+Where you have to replace `93990904` with the git hash that you're using.
 
 ### Reading an Iceberg table
 
@@ -231,5 +244,3 @@ spark.read.format("iceberg").load("db.table.files").show(truncate = false)
 | s3:/.../table/data/00002-5-8d6d60e8-d427-4809-bcf0-f5d45a4aad96.parquet | PARQUET     | 1            | 597                | [1 -> 90, 2 -> 62] | [1 -> 1, 2 -> 1] | [1 -> 0, 2 -> 0]  | [1 -> , 2 -> a] | [1 -> , 2 -> a] | null         | [4]           |
 +-------------------------------------------------------------------------+-------------+--------------+--------------------+--------------------+------------------+-------------------+-----------------+-----------------+--------------+---------------+
 ```
-
-
