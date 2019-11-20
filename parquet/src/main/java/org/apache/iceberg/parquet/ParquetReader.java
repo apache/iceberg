@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.util.*;
 import java.util.function.Function;
 
-import com.google.common.collect.ImmutableList;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
@@ -32,6 +31,8 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.parquet.vectorized.ColumnarBatchReaders;
+import org.apache.iceberg.parquet.vectorized.VectorizedReader;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.page.DictionaryPageReadStore;
 import org.apache.parquet.column.page.PageReadStore;
@@ -54,14 +55,14 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   private final InputFile input;
   private final Schema expectedSchema;
   private final ParquetReadOptions options;
-  private final Function<MessageType, BatchedReader> readerFunc;
+  private final Function<MessageType, VectorizedReader> readerFunc;
   private final Expression filter;
   private final boolean reuseContainers;
   private final boolean caseSensitive;
   private static final Logger LOG = LoggerFactory.getLogger(ParquetReader.class);
 
   public ParquetReader(InputFile input, Schema expectedSchema, ParquetReadOptions options,
-      Function<MessageType, BatchedReader> readerFunc,
+      Function<MessageType, VectorizedReader> readerFunc,
       Expression filter, boolean reuseContainers, boolean caseSensitive,
       StructType sparkSchema, int maxRecordsPerBatch) {
     this.input = input;
@@ -79,7 +80,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     private final InputFile file;
     private final ParquetReadOptions options;
     private final MessageType projection;
-    private final ColumnarBatchReader model;
+    private final ColumnarBatchReaders model;
     private final List<BlockMetaData> rowGroups;
     private final boolean[] shouldSkip;
     private final long totalValues;
@@ -87,8 +88,8 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
     @SuppressWarnings("unchecked")
     ReadConf(InputFile file, ParquetReadOptions options, Schema expectedSchema, Expression filter,
-        Function<MessageType, ColumnarBatchReader> readerFunc, boolean reuseContainers,
-        boolean caseSensitive) {
+             Function<MessageType, ColumnarBatchReaders> readerFunc, boolean reuseContainers,
+             boolean caseSensitive) {
       this.file = file;
       this.options = options;
       this.reader = newReader(file, options);
@@ -152,7 +153,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       return newReader;
     }
 
-    ColumnarBatchReader model() {
+    ColumnarBatchReaders model() {
       return model;
     }
 
@@ -206,7 +207,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   private static class FileIterator implements Iterator, Closeable {
     private final ParquetFileReader reader;
     private final boolean[] shouldSkip;
-    private final ColumnarBatchReader model;
+    private final ColumnarBatchReaders model;
     private final long totalValues;
     private final boolean reuseContainers;
     //private final List<BlockMetaData> blockMetaDataList;

@@ -41,10 +41,10 @@ public abstract class AvroDataTest {
     protected StructType getSupportedPrimitives() {
         return StructType.of(
                 required(100, "id", LongType.get()),
-                required(101, "data", Types.StringType.get()),
-                required(102, "b", Types.BooleanType.get()),
+                optional(101, "data", Types.StringType.get()),
+                optional(102, "b", Types.BooleanType.get()),
                 optional(103, "i", Types.IntegerType.get()),
-                required(104, "l", LongType.get()),
+                optional(104, "l", LongType.get()),
                 optional(105, "f", Types.FloatType.get()),
                 optional(106, "d", Types.DoubleType.get()),
                 optional(107, "date", Types.DateType.get()),

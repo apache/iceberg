@@ -17,13 +17,14 @@
  * under the License.
  */
 
-package org.apache.iceberg.parquet;
+package org.apache.iceberg.parquet.vectorized;
 
 import com.google.common.base.Preconditions;
 import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VarBinaryVector;
+import org.apache.iceberg.parquet.BytesReader;
 import org.apache.parquet.CorruptDeltaByteArrays;
 import org.apache.parquet.bytes.ByteBufferInputStream;
 import org.apache.parquet.bytes.BytesInput;
@@ -43,19 +44,13 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
-import static java.lang.String.format;
 import static org.apache.parquet.column.ValuesType.REPETITION_LEVEL;
 
-public class BatchedPageIterator {
-    private static final Logger LOG = LoggerFactory.getLogger(BatchedPageIterator.class);
-    private VectorizedValuesReader definitionLevelReader;
-    private boolean eagerDecodeDictionary;
-    private final int batchSize;
-
-    public BatchedPageIterator(ColumnDescriptor desc, String writerVersion, int batchSize) {
+public class VectorizedPageIterator {
+    private static final Logger LOG = LoggerFactory.getLogger(VectorizedPageIterator.class);
+    public VectorizedPageIterator(ColumnDescriptor desc, String writerVersion, int batchSize) {
         this.desc = desc;
         this.writerVersion = writerVersion;
-        this.batchSize = batchSize;
     }
 
     private final ColumnDescriptor desc;
@@ -64,18 +59,20 @@ public class BatchedPageIterator {
     // iterator state
     private boolean hasNext = false;
     private int triplesRead = 0;
-    private int currentDL = 0;
-    private int currentRL = 0;
 
     // page bookkeeping
     private Dictionary dict = null;
     private DataPage page = null;
     private int triplesCount = 0;
-    private Encoding valueEncoding = null;
-    private IntIterator definitionLevels = null;
+
+    // Needed once we add support for complex types. Unused for now.
     private IntIterator repetitionLevels = null;
+    private int currentRL = 0;
+
+    private VectorizedParquetValuesReader definitionLevelReader;
+    private boolean eagerDecodeDictionary;
     private BytesReader plainValuesReader = null;
-    private VectorizedValuesReader dictionaryEncodedValuesReader = null;
+    private VectorizedParquetValuesReader dictionaryEncodedValuesReader = null;
     private boolean allPagesDictEncoded;
 
     public void setPage(DataPage page) {
@@ -98,10 +95,8 @@ public class BatchedPageIterator {
     }
 
     // Dictionary is set per row group
-    public void setDictionary(Dictionary dict, boolean allPagesDictEncoded) {
+    public void setDictionaryForColumn(Dictionary dict, boolean allPagesDictEncoded) {
         this.dict = dict;
-        // if all pages are not dictionary encoded, then we eagerly decode the
-        // dictionary encoded data before writing them to the vectors.
         this.allPagesDictEncoded = allPagesDictEncoded;
     }
 
@@ -109,9 +104,9 @@ public class BatchedPageIterator {
         this.page = null;
         this.triplesCount = 0;
         this.triplesRead = 0;
-        this.definitionLevels = null;
         this.repetitionLevels = null;
         this.plainValuesReader = null;
+        this.definitionLevelReader = null;
         this.hasNext = false;
     }
 
@@ -124,7 +119,7 @@ public class BatchedPageIterator {
     }
 
     /**
-     * Method for reading a batch of dictionary ids. Like definition levels, dictionary ids in Parquet are RLE
+     * Method for reading a batch of dictionary ids from the dicitonary encoded data pages. Like definition levels, dictionary ids in Parquet are RLE
      * encoded as well.
      */
     public int nextBatchDictionaryIds(final IntVector vector, final int expectedBatchSize,
@@ -141,9 +136,7 @@ public class BatchedPageIterator {
     }
 
     /**
-     * Method for reading a batch of non-decimal numeric data types (INT32, INT64, FLOAT, DOUBLE, DATE, TIMESTAMP)
-     * This method reads batches of bytes from Parquet and writes them into the data buffer underneath the Arrow
-     * vector. It appropriately sets the validity buffer in the Arrow vector.
+     * Method for reading a batch of values of INT32 data type
      */
     public int nextBatchIntegers(final FieldVector vector, final int expectedBatchSize,
                                  final int numValsInVector,
@@ -163,9 +156,7 @@ public class BatchedPageIterator {
     }
 
     /**
-     * Method for reading a batch of non-decimal numeric data types (INT32, INT64, FLOAT, DOUBLE, DATE, TIMESTAMP)
-     * This method reads batches of bytes from Parquet and writes them into the data buffer underneath the Arrow
-     * vector. It appropriately sets the validity buffer in the Arrow vector.
+     * Method for reading a batch of values of INT64 data type
      */
     public int nextBatchLongs(final FieldVector vector, final int expectedBatchSize,
                               final int numValsInVector,
@@ -185,9 +176,7 @@ public class BatchedPageIterator {
     }
 
     /**
-     * Method for reading a batch of non-decimal numeric data types (INT32, INT64, FLOAT, DOUBLE, DATE, TIMESTAMP)
-     * This method reads batches of bytes from Parquet and writes them into the data buffer underneath the Arrow
-     * vector. It appropriately sets the validity buffer in the Arrow vector.
+     * Method for reading a batch of values of FLOAT data type.
      */
     public int nextBatchFloats(final FieldVector vector, final int expectedBatchSize,
                                final int numValsInVector,
@@ -207,9 +196,7 @@ public class BatchedPageIterator {
     }
 
     /**
-     * Method for reading a batch of non-decimal numeric data types (INT32, INT64, FLOAT, DOUBLE, DATE, TIMESTAMP)
-     * This method reads batches of bytes from Parquet and writes them into the data buffer underneath the Arrow
-     * vector. It appropriately sets the validity buffer in the Arrow vector.
+     * Method for reading a batch of values of DOUBLE data type
      */
     public int nextBatchDoubles(final FieldVector vector, final int expectedBatchSize,
                                 final int numValsInVector,
@@ -234,7 +221,7 @@ public class BatchedPageIterator {
 
     /**
      * Method for reading a batch of decimals backed by INT32 and INT64 parquet data types.
-     * Arrow stores all decimals in 16 bytes. This method provides the necessary padding to the decimals read.
+     * Since Arrow stores all decimals in 16 bytes, byte arrays are appropriately padded before being written to Arrow data buffers.
      */
     public int nextBatchIntLongBackedDecimal(final FieldVector vector, final int expectedBatchSize, final int numValsInVector,
                                              final int typeWidth, NullabilityHolder nullabilityHolder) {
@@ -341,7 +328,6 @@ public class BatchedPageIterator {
 
     private void initDataReader(Encoding dataEncoding, ByteBufferInputStream in, int valueCount) {
         ValuesReader previousReader = plainValuesReader;
-        this.valueEncoding = dataEncoding;
         this.eagerDecodeDictionary = dataEncoding.usesDictionary() && dict != null && !allPagesDictEncoded;
         if (dataEncoding.usesDictionary()) {
             if (dict == null) {
@@ -349,7 +335,7 @@ public class BatchedPageIterator {
                         "could not read page in col " + desc + " as the dictionary was missing for encoding " + dataEncoding);
             }
             try {
-                dictionaryEncodedValuesReader = new VectorizedValuesReader(desc.getMaxDefinitionLevel());//(DictionaryValuesReader) dataEncoding.getDictionaryBasedValuesReader(desc, ValuesType.VALUES, dict);
+                dictionaryEncodedValuesReader = new VectorizedParquetValuesReader(desc.getMaxDefinitionLevel());//(DictionaryValuesReader) dataEncoding.getDictionaryBasedValuesReader(desc, ValuesType.VALUES, dict);
                 dictionaryEncodedValuesReader.initFromPage(valueCount, in);
             } catch (IOException e) {
                 throw new ParquetDecodingException("could not read page in col " + desc, e);
@@ -371,11 +357,10 @@ public class BatchedPageIterator {
         ValuesReader rlReader = page.getRlEncoding().getValuesReader(desc, REPETITION_LEVEL);
         ValuesReader dlReader;
         int bitWidth = BytesUtils.getWidthFromMaxInt(desc.getMaxDefinitionLevel());
-        this.definitionLevelReader = new VectorizedValuesReader(
+        this.definitionLevelReader = new VectorizedParquetValuesReader(
                 bitWidth, desc.getMaxDefinitionLevel());
         dlReader = this.definitionLevelReader;
         this.repetitionLevels = new ValuesReaderIntIterator(rlReader);
-        this.definitionLevels = new ValuesReaderIntIterator(definitionLevelReader);
         try {
             BytesInput bytes = page.getBytes();
             ByteBufferInputStream in = bytes.toInputStream();
@@ -390,12 +375,11 @@ public class BatchedPageIterator {
     private void initFromPage(DataPageV2 page) {
         this.triplesCount = page.getValueCount();
         this.repetitionLevels = newRLEIterator(desc.getMaxRepetitionLevel(), page.getRepetitionLevels());
-        this.definitionLevels = newRLEIterator(desc.getMaxDefinitionLevel(), page.getDefinitionLevels());
         LOG.debug("page data size {} bytes and {} records", page.getData().size(), triplesCount);
         try {
             int bitWidth = BytesUtils.getWidthFromMaxInt(desc.getMaxDefinitionLevel());
             initDataReader(page.getDataEncoding(), page.getData().toInputStream(), triplesCount);
-            this.definitionLevelReader = new VectorizedValuesReader(bitWidth, false,
+            this.definitionLevelReader = new VectorizedParquetValuesReader(bitWidth, false,
                     desc.getMaxDefinitionLevel());
             definitionLevelReader.initFromPage(triplesCount, page.getDefinitionLevels().toInputStream());
         } catch (IOException e) {
