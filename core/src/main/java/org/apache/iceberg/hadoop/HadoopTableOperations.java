@@ -94,7 +94,7 @@ public class HadoopTableOperations implements TableOperations {
 
       this.version = ver;
 
-      TableMetadata newMetadata = TableMetadataParser.read(this, io().newInputFile(metadataFile.toString()));
+      TableMetadata newMetadata = TableMetadataParser.read(io(), io().newInputFile(metadataFile.toString()));
       String newUUID = newMetadata.uuid();
       if (currentMetadata != null) {
         Preconditions.checkState(newUUID == null || newUUID.equals(currentMetadata.uuid()),

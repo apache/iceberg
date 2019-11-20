@@ -98,7 +98,7 @@ public class FileHistory {
           manifest -> manifest.snapshotId() == null || matchingIds.contains(manifest.snapshotId()));
 
       // a manifest group will only read each manifest once
-      ManifestGroup group = new ManifestGroup(((HasTableOperations) table).operations(), manifests);
+      ManifestGroup group = new ManifestGroup(((HasTableOperations) table).operations().io(), manifests);
 
       List<ManifestEntry> results = Lists.newArrayList();
       try (CloseableIterable<ManifestEntry> entries = group.select(HISTORY_COLUMNS).entries()) {

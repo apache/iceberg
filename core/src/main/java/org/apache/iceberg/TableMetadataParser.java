@@ -41,6 +41,7 @@ import java.util.zip.GZIPOutputStream;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.JsonUtil;
@@ -206,16 +207,16 @@ public class TableMetadataParser {
     generator.writeEndObject();
   }
 
-  public static TableMetadata read(TableOperations ops, InputFile file) {
+  public static TableMetadata read(FileIO io, InputFile file) {
     Codec codec = Codec.fromFileName(file.location());
     try (InputStream is = codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
-      return fromJson(ops, file, JsonUtil.mapper().readValue(is, JsonNode.class));
+      return fromJson(io, file, JsonUtil.mapper().readValue(is, JsonNode.class));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read file: %s", file);
     }
   }
 
-  static TableMetadata fromJson(TableOperations ops, InputFile file, JsonNode node) {
+  static TableMetadata fromJson(FileIO io, InputFile file, JsonNode node) {
     Preconditions.checkArgument(node.isObject(),
         "Cannot parse metadata from a non-object: %s", node);
 
@@ -264,7 +265,7 @@ public class TableMetadataParser {
     List<Snapshot> snapshots = Lists.newArrayListWithExpectedSize(snapshotArray.size());
     Iterator<JsonNode> iterator = snapshotArray.elements();
     while (iterator.hasNext()) {
-      snapshots.add(SnapshotParser.fromJson(ops, iterator.next()));
+      snapshots.add(SnapshotParser.fromJson(io, iterator.next()));
     }
 
     SortedSet<SnapshotLogEntry> entries =
@@ -289,7 +290,7 @@ public class TableMetadataParser {
       }
     }
 
-    return new TableMetadata(ops, file, uuid, location,
+    return new TableMetadata(file, uuid, location,
         lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs, properties,
         currentVersionId, snapshots, ImmutableList.copyOf(entries.iterator()),
         ImmutableList.copyOf(metadataEntries.iterator()));

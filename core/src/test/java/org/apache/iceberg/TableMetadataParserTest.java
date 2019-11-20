@@ -71,7 +71,7 @@ public class TableMetadataParserTest {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(TableProperties.METADATA_COMPRESSION, codecName);
     String location = "file://tmp/db/table";
-    TableMetadata metadata = newTableMetadata(null, SCHEMA, unpartitioned(), location, properties);
+    TableMetadata metadata = newTableMetadata(SCHEMA, unpartitioned(), location, properties);
     TableMetadataParser.write(metadata, outputFile);
     Assert.assertEquals(codec == Codec.GZIP, isCompressed(fileName));
     TableMetadata actualMetadata = TableMetadataParser.read(null, Files.localInput(new File(fileName)));

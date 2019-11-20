@@ -168,12 +168,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         throw new RuntimeIOException(e, "Failed to write manifest list file");
       }
 
-      return new BaseSnapshot(ops,
+      return new BaseSnapshot(ops.io(),
           snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
           ops.io().newInputFile(manifestList.location()));
 
     } else {
-      return new BaseSnapshot(ops,
+      return new BaseSnapshot(ops.io(),
           snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
           manifests);
     }

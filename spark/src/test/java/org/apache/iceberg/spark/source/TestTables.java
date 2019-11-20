@@ -49,7 +49,7 @@ class TestTables {
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
     }
-    ops.commit(null, TableMetadata.newTableMetadata(ops, schema, spec, temp.toString()));
+    ops.commit(null, TableMetadata.newTableMetadata(schema, spec, temp.toString()));
     return new TestTable(ops, name);
   }
 
