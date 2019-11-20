@@ -34,7 +34,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
@@ -404,7 +403,7 @@ public class TestIcebergSourceHadoopTables {
   }
 
   @Test
-  public void testHivePartitionsTable() {
+  public void testPartitionsTable() {
     Table table = TABLES.create(SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build(), tableLocation);
     Table partitionsTable = TABLES.load(tableLocation + "#partitions");
 
