@@ -125,6 +125,10 @@ project(':iceberg-core') {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
+    compile("org.apache.arrow:arrow-vector") {
+      exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'io.netty', module: 'netty-common'
+    }
 
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
@@ -135,7 +139,9 @@ project(':iceberg-data') {
     compile project(':iceberg-api')
     compile project(':iceberg-core')
     compileOnly project(':iceberg-parquet')
-
+    compileOnly("org.apache.spark:spark-hive_2.11") {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
     testCompile("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
@@ -221,6 +227,9 @@ project(':iceberg-parquet') {
 
     compileOnly "org.apache.avro:avro"
     compileOnly("org.apache.hadoop:hadoop-client") {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
+    compileOnly("org.apache.spark:spark-hive_2.11") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
