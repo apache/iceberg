@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow;
+package org.apache.iceberg.parquet.arrow;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.iceberg.parquet.vectorized.NullabilityHolder;
 
 /**
- * Extension of Arrow's @{@link VarBinaryVector}. The whole reason of having
- * this implementation is to override the expensive {@link VarBinaryVector#isSet(int)} method.
+ * Extension of Arrow's @{@link VarBinaryVector}. The whole reason of having this implementation is to override the
+ * expensive {@link VarBinaryVector#isSet(int)} method.
  */
 public class IcebergVarBinaryArrowVector extends VarBinaryVector {
   private NullabilityHolder nullabilityHolder;

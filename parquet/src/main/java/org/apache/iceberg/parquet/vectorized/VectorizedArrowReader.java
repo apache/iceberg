@@ -19,16 +19,25 @@
 
 package org.apache.iceberg.parquet.vectorized;
 
+import java.util.Map;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.vector.*;
+import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.BitVector;
+import org.apache.arrow.vector.DateDayVector;
+import org.apache.arrow.vector.DecimalVector;
+import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.Float4Vector;
+import org.apache.arrow.vector.Float8Vector;
+import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.TimeStampMicroTZVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
-import org.apache.iceberg.arrow.ArrowSchemaUtil;
 import org.apache.iceberg.parquet.ParquetUtil;
-import org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow.IcebergDecimalArrowVector;
-import org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow.IcebergVarBinaryArrowVector;
-import org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow.IcebergVarcharArrowVector;
+import org.apache.iceberg.parquet.arrow.ArrowSchemaUtil;
+import org.apache.iceberg.parquet.arrow.IcebergDecimalArrowVector;
+import org.apache.iceberg.parquet.arrow.IcebergVarBinaryArrowVector;
+import org.apache.iceberg.parquet.arrow.IcebergVarcharArrowVector;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
@@ -37,8 +46,6 @@ import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.PrimitiveType;
-
-import java.util.Map;
 
 /***
  * {@link VectorizedReader VectorReader(s)} that read in a batch of values into Arrow vectors.
@@ -79,12 +86,12 @@ public class VectorizedArrowReader implements VectorizedReader {
   public VectorizedArrowReader(
       ColumnDescriptor desc,
       Types.NestedField icebergField,
-      BufferAllocator rootAlloc,
+      BufferAllocator ra,
       int batchSize) {
     this.icebergField = icebergField;
     this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
     this.columnDescriptor = desc;
-    this.rootAlloc = rootAlloc;
+    this.rootAlloc = ra;
     this.isFixedLengthDecimal = ParquetUtil.isFixedLengthDecimal(desc);
     this.isVarWidthType = ParquetUtil.isVarWidthType(desc);
     this.isFixedWidthBinary = ParquetUtil.isFixedWidthBinary(desc);
@@ -97,9 +104,10 @@ public class VectorizedArrowReader implements VectorizedReader {
     this.vectorizedColumnIterator = new VectorizedColumnIterator(desc, "", batchSize);
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public VectorHolder read(NullabilityHolder nullabilityHolder) {
     if (vec == null) {
-      typeWidth = allocateFieldVector(rootAlloc, icebergField, columnDescriptor);
+      typeWidth = allocateFieldVector();
     }
     vec.setValueCount(0);
     if (vectorizedColumnIterator.hasNext()) {
@@ -141,16 +149,19 @@ public class VectorizedArrowReader implements VectorizedReader {
     return new VectorHolder(columnDescriptor, vec, allPagesDictEncoded, dictionary);
   }
 
-  private int allocateFieldVector(BufferAllocator rootAlloc, Types.NestedField icebergField, ColumnDescriptor desc) {
+  private int allocateFieldVector() {
     if (allPagesDictEncoded) {
-      Field field = new Field(icebergField.name(), new FieldType(icebergField.isOptional(), new ArrowType.Int(Integer.SIZE, true), null, null), null);
+      Field field = new Field(
+          icebergField.name(),
+          new FieldType(icebergField.isOptional(), new ArrowType.Int(Integer.SIZE, true), null, null),
+          null);
       this.vec = field.createVector(rootAlloc);
       ((IntVector) vec).allocateNew(batchSize);
       return IntVector.TYPE_WIDTH;
     } else {
-      PrimitiveType primitive = desc.getPrimitiveType();
+      PrimitiveType primitive = columnDescriptor.getPrimitiveType();
       if (primitive.getOriginalType() != null) {
-        switch (desc.getPrimitiveType().getOriginalType()) {
+        switch (columnDescriptor.getPrimitiveType().getOriginalType()) {
           case ENUM:
           case JSON:
           case UTF8:
@@ -182,7 +193,7 @@ public class VectorizedArrowReader implements VectorizedReader {
           case DECIMAL:
             DecimalMetadata decimal = primitive.getDecimalMetadata();
             this.vec = new IcebergDecimalArrowVector(icebergField.name(), rootAlloc, decimal.getPrecision(),
-                    decimal.getScale());
+                decimal.getScale());
             ((DecimalVector) vec).allocateNew(batchSize);
             switch (primitive.getPrimitiveTypeName()) {
               case BINARY:
@@ -194,18 +205,18 @@ public class VectorizedArrowReader implements VectorizedReader {
                 return IntVector.TYPE_WIDTH;
               default:
                 throw new UnsupportedOperationException(
-                        "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
+                    "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
             }
           default:
             throw new UnsupportedOperationException(
-                    "Unsupported logical type: " + primitive.getOriginalType());
+                "Unsupported logical type: " + primitive.getOriginalType());
         }
       } else {
         switch (primitive.getPrimitiveTypeName()) {
           case FIXED_LEN_BYTE_ARRAY:
             int len = ((Types.FixedType) icebergField.type()).length();
             this.vec = new IcebergVarBinaryArrowVector(icebergField.name(), rootAlloc);
-            int factor = (len + DEFAULT_RECORD_BYTE_COUNT - 1) / (DEFAULT_RECORD_BYTE_COUNT);
+            int factor = (len + DEFAULT_RECORD_BYTE_COUNT - 1) / DEFAULT_RECORD_BYTE_COUNT;
             vec.setInitialCapacity(batchSize * factor);
             vec.allocateNew();
             return len;
@@ -242,9 +253,10 @@ public class VectorizedArrowReader implements VectorizedReader {
     }
   }
 
-  public void setRowGroupInfo(PageReadStore source,
-                              DictionaryPageReadStore dictionaryPageReadStore,
-                              Map<ColumnPath, Boolean> columnDictEncoded) {
+  public void setRowGroupInfo(
+      PageReadStore source,
+      DictionaryPageReadStore dictionaryPageReadStore,
+      Map<ColumnPath, Boolean> columnDictEncoded) {
     allPagesDictEncoded = columnDictEncoded.get(ColumnPath.get(columnDescriptor.getPath()));
     dictionary = vectorizedColumnIterator.setRowGroupInfo(source, dictionaryPageReadStore, allPagesDictEncoded);
   }
@@ -257,6 +269,4 @@ public class VectorizedArrowReader implements VectorizedReader {
   public int batchSize() {
     return batchSize;
   }
-
 }
-

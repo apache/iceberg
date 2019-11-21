@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.iceberg.parquet.vectorized;
 
 public class NullabilityHolder {
@@ -26,20 +27,9 @@ public class NullabilityHolder {
     this.isNull = new boolean[batchSize];
   }
 
-
   public void setNull(int idx) {
-    isNull[idx] =  true;
+    isNull[idx] = true;
     numNulls++;
-  }
-
-  public void setNulls(int idx, int num) {
-    int i = 0;
-    while (i < num) {
-      isNull[idx] = true;
-      numNulls++;
-      idx++;
-      i++;
-    }
   }
 
   public boolean isNullAt(int idx) {

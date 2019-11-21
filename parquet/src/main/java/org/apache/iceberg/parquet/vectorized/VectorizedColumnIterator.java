@@ -20,17 +20,20 @@
 package org.apache.iceberg.parquet.vectorized;
 
 import java.io.IOException;
-
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
-import org.apache.parquet.column.page.*;
+import org.apache.parquet.column.page.DataPage;
+import org.apache.parquet.column.page.DictionaryPage;
+import org.apache.parquet.column.page.DictionaryPageReadStore;
+import org.apache.parquet.column.page.PageReadStore;
+import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.io.ParquetDecodingException;
 
 /**
- * Vectorized version of the ColumnIterator that reads column values in data pages of a column
- * in a row group in a batched fashion.
+ * Vectorized version of the ColumnIterator that reads column values in data pages of a column in a row group in a
+ * batched fashion.
  */
 public class VectorizedColumnIterator {
 
@@ -50,15 +53,16 @@ public class VectorizedColumnIterator {
     this.vectorizedPageIterator = new VectorizedPageIterator(desc, writerVersion, batchSize);
   }
 
-  public Dictionary setRowGroupInfo(PageReadStore store,
-                                    DictionaryPageReadStore dictionaryPageReadStore,
-                                    boolean allPagesDictEncoded) {
+  public Dictionary setRowGroupInfo(
+      PageReadStore store,
+      DictionaryPageReadStore dictionaryPageReadStore,
+      boolean allPagesDictEncoded) {
     this.columnPageReader = store.getPageReader(desc);
     this.totalValuesCount = columnPageReader.getTotalValueCount();
     this.valuesRead = 0L;
     this.advanceNextPageCount = 0L;
     this.vectorizedPageIterator.reset();
-    Dictionary dict = readDictionaryForColumn(desc, dictionaryPageReadStore);
+    Dictionary dict = readDictionaryForColumn(dictionaryPageReadStore);
     this.vectorizedPageIterator.setDictionaryForColumn(dict, allPagesDictEncoded);
     advance();
     return dict;
@@ -91,7 +95,7 @@ public class VectorizedColumnIterator {
     while (rowsReadSoFar < batchSize && hasNext()) {
       advance();
       int rowsInThisBatch = vectorizedPageIterator.nextBatchIntegers(fieldVector, batchSize - rowsReadSoFar,
-              rowsReadSoFar, typeWidth, holder);
+          rowsReadSoFar, typeWidth, holder);
       rowsReadSoFar += rowsInThisBatch;
       this.valuesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);
@@ -106,7 +110,7 @@ public class VectorizedColumnIterator {
     while (rowsReadSoFar < batchSize && hasNext()) {
       advance();
       int rowsInThisBatch = vectorizedPageIterator.nextBatchDictionaryIds(vector, batchSize - rowsReadSoFar,
-              rowsReadSoFar, holder);
+          rowsReadSoFar, holder);
       rowsReadSoFar += rowsInThisBatch;
       this.valuesRead += rowsInThisBatch;
       vector.setValueCount(rowsReadSoFar);
@@ -161,11 +165,15 @@ public class VectorizedColumnIterator {
   /**
    * Method for reading a batch of decimals backed by INT32 and INT64 parquet data types.
    */
-  public void nextBatchIntLongBackedDecimal(FieldVector fieldVector, int typeWidth, NullabilityHolder nullabilityHolder) {
+  public void nextBatchIntLongBackedDecimal(
+      FieldVector fieldVector,
+      int typeWidth,
+      NullabilityHolder nullabilityHolder) {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {
       advance();
-      int rowsInThisBatch = vectorizedPageIterator.nextBatchIntLongBackedDecimal(fieldVector, batchSize - rowsReadSoFar,
+      int rowsInThisBatch =
+          vectorizedPageIterator.nextBatchIntLongBackedDecimal(fieldVector, batchSize - rowsReadSoFar,
               rowsReadSoFar, typeWidth, nullabilityHolder);
       rowsReadSoFar += rowsInThisBatch;
       this.valuesRead += rowsInThisBatch;
@@ -176,11 +184,15 @@ public class VectorizedColumnIterator {
   /**
    * Method for reading a batch of decimals backed by fixed length byte array parquet data type.
    */
-  public void nextBatchFixedLengthDecimal(FieldVector fieldVector, int typeWidth, NullabilityHolder nullabilityHolder) {
+  public void nextBatchFixedLengthDecimal(
+      FieldVector fieldVector,
+      int typeWidth,
+      NullabilityHolder nullabilityHolder) {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {
       advance();
-      int rowsInThisBatch = vectorizedPageIterator.nextBatchFixedLengthDecimal(fieldVector, batchSize - rowsReadSoFar,
+      int rowsInThisBatch =
+          vectorizedPageIterator.nextBatchFixedLengthDecimal(fieldVector, batchSize - rowsReadSoFar,
               rowsReadSoFar, typeWidth, nullabilityHolder);
       rowsReadSoFar += rowsInThisBatch;
       this.valuesRead += rowsInThisBatch;
@@ -196,7 +208,7 @@ public class VectorizedColumnIterator {
     while (rowsReadSoFar < batchSize && hasNext()) {
       advance();
       int rowsInThisBatch = vectorizedPageIterator.nextBatchVarWidthType(fieldVector, batchSize - rowsReadSoFar,
-              rowsReadSoFar, nullabilityHolder);
+          rowsReadSoFar, nullabilityHolder);
       rowsReadSoFar += rowsInThisBatch;
       this.valuesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);
@@ -210,7 +222,8 @@ public class VectorizedColumnIterator {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {
       advance();
-      int rowsInThisBatch = vectorizedPageIterator.nextBatchFixedWidthBinary(fieldVector, batchSize - rowsReadSoFar,
+      int rowsInThisBatch =
+          vectorizedPageIterator.nextBatchFixedWidthBinary(fieldVector, batchSize - rowsReadSoFar,
               rowsReadSoFar, typeWidth, nullabilityHolder);
       rowsReadSoFar += rowsInThisBatch;
       this.valuesRead += rowsInThisBatch;
@@ -226,15 +239,15 @@ public class VectorizedColumnIterator {
     while (rowsReadSoFar < batchSize && hasNext()) {
       advance();
       int rowsInThisBatch = vectorizedPageIterator.nextBatchBoolean(fieldVector, batchSize - rowsReadSoFar,
-              rowsReadSoFar, nullabilityHolder);
+          rowsReadSoFar, nullabilityHolder);
       rowsReadSoFar += rowsInThisBatch;
       this.valuesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);
     }
   }
 
-  private Dictionary readDictionaryForColumn(ColumnDescriptor desc,
-                                             DictionaryPageReadStore dictionaryPageReadStore) {
+  private Dictionary readDictionaryForColumn(
+      DictionaryPageReadStore dictionaryPageReadStore) {
     if (dictionaryPageReadStore == null) {
       return null;
     }
@@ -248,5 +261,4 @@ public class VectorizedColumnIterator {
     }
     return null;
   }
-
 }

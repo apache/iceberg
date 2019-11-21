@@ -17,17 +17,15 @@
  * under the License.
  */
 
-package org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow;
+package org.apache.iceberg.parquet.arrow;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.DecimalVector;
 import org.apache.iceberg.parquet.vectorized.NullabilityHolder;
 
 /**
- *
- * Extension of Arrow's @{@link DecimalVector}. The whole reason of having
- * this implementation is to override the expensive {@link DecimalVector#isSet(int)} method
- * used by  {@link DecimalVector#getObject(int)}.
+ * Extension of Arrow's @{@link DecimalVector}. The whole reason of having this implementation is to override the
+ * expensive {@link DecimalVector#isSet(int)} method used by  {@link DecimalVector#getObject(int)}.
  */
 public class IcebergDecimalArrowVector extends DecimalVector {
   private NullabilityHolder nullabilityHolder;

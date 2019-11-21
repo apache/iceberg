@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow;
+package org.apache.iceberg.parquet.arrow;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.iceberg.parquet.vectorized.NullabilityHolder;
 
 /**
- * Extension of Arrow's @{@link VarCharVector}. The reason of having
- * this implementation is to override the expensive {@link VarCharVector#isSet(int)} method.
+ * Extension of Arrow's @{@link VarCharVector}. The reason of having this implementation is to override the expensive
+ * {@link VarCharVector#isSet(int)} method.
  */
 public class IcebergVarcharArrowVector extends VarCharVector {
 
@@ -40,7 +40,7 @@ public class IcebergVarcharArrowVector extends VarCharVector {
   /**
    * Same as {@link #isNull(int)}.
    *
-   * @param index  position of element
+   * @param index position of element
    * @return 1 if element at given index is not null, 0 otherwise
    */
   public int isSet(int index) {
