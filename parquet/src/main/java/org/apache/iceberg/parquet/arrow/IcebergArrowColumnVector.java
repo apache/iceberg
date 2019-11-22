@@ -17,11 +17,22 @@
  * under the License.
  */
 
-package org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow;
+package org.apache.iceberg.parquet.arrow;
 
-import com.google.common.annotations.VisibleForTesting;
 import io.netty.buffer.ArrowBuf;
-import org.apache.arrow.vector.*;
+import java.math.BigInteger;
+import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.BitVector;
+import org.apache.arrow.vector.DateDayVector;
+import org.apache.arrow.vector.FixedSizeBinaryVector;
+import org.apache.arrow.vector.Float4Vector;
+import org.apache.arrow.vector.Float8Vector;
+import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.SmallIntVector;
+import org.apache.arrow.vector.TimeStampMicroTZVector;
+import org.apache.arrow.vector.TinyIntVector;
+import org.apache.arrow.vector.ValueVector;
+import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.holders.NullableVarCharHolder;
@@ -41,12 +52,9 @@ import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.sql.vectorized.ColumnarMap;
 import org.apache.spark.unsafe.types.UTF8String;
 
-import java.math.BigInteger;
-
 /**
- * Implementation of Spark's {@link ColumnVector} interface. The main purpose
- * of this class is to prevent the expensive nullability checks made by Spark's
- * {@link ArrowColumnVector} implementation by delegating those calls to the
+ * Implementation of Spark's {@link ColumnVector} interface. The main purpose of this class is to prevent the expensive
+ * nullability checks made by Spark's {@link ArrowColumnVector} implementation by delegating those calls to the
  * Iceberg's {@link NullabilityHolder}.
  */
 
@@ -68,7 +76,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
     this.accessor = getVectorAccessor(columnDescriptor, holder.getVector());
   }
 
-  @VisibleForTesting
+  // public for testing purposes only
   public ArrowVectorAccessor getAccessor() {
     return accessor;
   }
@@ -173,9 +181,11 @@ public class IcebergArrowColumnVector extends ColumnVector {
   }
 
   @Override
-  public ArrowColumnVector getChild(int ordinal) { return childColumns[ordinal]; }
+  public ArrowColumnVector getChild(int ordinal) {
+    return childColumns[ordinal];
+  }
 
-  @VisibleForTesting
+  // public for testing purposes only
   public abstract class ArrowVectorAccessor {
 
     private final ValueVector vector;
@@ -237,12 +247,13 @@ public class IcebergArrowColumnVector extends ColumnVector {
       throw new UnsupportedOperationException();
     }
 
-    @VisibleForTesting
+    // public for testing purposes only
     public ValueVector getUnderlyingArrowVector() {
       return vector;
     }
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private ArrowVectorAccessor getVectorAccessor(ColumnDescriptor desc, ValueVector vector) {
     PrimitiveType primitive = desc.getPrimitiveType();
     if (isVectorDictEncoded) {
@@ -268,18 +279,27 @@ public class IcebergArrowColumnVector extends ColumnVector {
             switch (primitive.getPrimitiveTypeName()) {
               case BINARY:
               case FIXED_LEN_BYTE_ARRAY:
-                return new DictionaryDecimalBinaryAccessor((IntVector) vector, decimal.getPrecision(), decimal.getScale());
+                return new DictionaryDecimalBinaryAccessor(
+                    (IntVector) vector,
+                    decimal.getPrecision(),
+                    decimal.getScale());
               case INT64:
-                return new DictionaryDecimalLongAccessor((IntVector) vector, decimal.getPrecision(), decimal.getScale());
+                return new DictionaryDecimalLongAccessor(
+                    (IntVector) vector,
+                    decimal.getPrecision(),
+                    decimal.getScale());
               case INT32:
-                return new DictionaryDecimalIntAccessor((IntVector) vector, decimal.getPrecision(), decimal.getScale());
+                return new DictionaryDecimalIntAccessor(
+                    (IntVector) vector,
+                    decimal.getPrecision(),
+                    decimal.getScale());
               default:
                 throw new UnsupportedOperationException(
-                        "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
+                    "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
             }
           default:
             throw new UnsupportedOperationException(
-                    "Unsupported logical type: " + primitive.getOriginalType());
+                "Unsupported logical type: " + primitive.getOriginalType());
         }
       } else {
         switch (primitive.getPrimitiveTypeName()) {
@@ -290,10 +310,10 @@ public class IcebergArrowColumnVector extends ColumnVector {
             return new DictionaryIntAccessor((IntVector) vector);
           case FLOAT:
             return new DictionaryFloatAccessor((IntVector) vector);
-//        case BOOLEAN:
-//          this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
-//          ((BitVector) vec).allocateNew(batchSize);
-//          return UNKNOWN_WIDTH;
+          //        case BOOLEAN:
+          //          this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
+          //          ((BitVector) vec).allocateNew(batchSize);
+          //          return UNKNOWN_WIDTH;
           case INT64:
             return new DictionaryLongAccessor((IntVector) vector);
           case DOUBLE:
@@ -332,12 +352,12 @@ public class IcebergArrowColumnVector extends ColumnVector {
         return new ArrayAccessor(listVector);
       } else if (vector instanceof StructVector) {
         StructVector structVector = (StructVector) vector;
-        ArrowVectorAccessor accessor = new StructAccessor(structVector);
+        ArrowVectorAccessor structAccessor = new StructAccessor(structVector);
         childColumns = new ArrowColumnVector[structVector.size()];
         for (int i = 0; i < childColumns.length; ++i) {
           childColumns[i] = new ArrowColumnVector(structVector.getVectorById(i));
         }
-        return accessor;
+        return structAccessor;
       }
     }
     throw new UnsupportedOperationException();
@@ -519,7 +539,9 @@ public class IcebergArrowColumnVector extends ColumnVector {
 
     @Override
     final Decimal getDecimal(int rowId, int precision, int scale) {
-      if (isNullAt(rowId)) return null;
+      if (isNullAt(rowId)) {
+        return null;
+      }
       return Decimal.apply(vector.getObject(rowId), precision, scale);
     }
   }
@@ -540,7 +562,8 @@ public class IcebergArrowColumnVector extends ColumnVector {
       if (stringResult.isSet == 0) {
         return null;
       } else {
-        return UTF8String.fromAddress(null,
+        return UTF8String.fromAddress(
+            null,
             stringResult.buffer.memoryAddress() + stringResult.start,
             stringResult.end - stringResult.start);
       }
@@ -611,7 +634,6 @@ public class IcebergArrowColumnVector extends ColumnVector {
       return binary.getBytesUnsafe();
     }
   }
-
 
   private class DateAccessor extends ArrowVectorAccessor {
 
@@ -688,11 +710,9 @@ public class IcebergArrowColumnVector extends ColumnVector {
 
   /**
    * Any call to "get" method will throw UnsupportedOperationException.
-   *
-   * Access struct values in a ArrowColumnVector doesn't use this vector. Instead, it uses
-   * getStruct() method defined in the parent class. Any call to "get" method in this class is a
-   * bug in the code.
-   *
+   * <p>
+   * Access struct values in a ArrowColumnVector doesn't use this vector. Instead, it uses getStruct() method defined in
+   * the parent class. Any call to "get" method in this class is a bug in the code.
    */
   private class StructAccessor extends ArrowVectorAccessor {
 
@@ -704,7 +724,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
   private class DictionaryDecimalBinaryAccessor extends ArrowVectorAccessor {
     private final IntVector vector;
 
-    public DictionaryDecimalBinaryAccessor(IntVector vector, int precision, int scale) {
+    DictionaryDecimalBinaryAccessor(IntVector vector, int precision, int scale) {
       super(vector);
       this.vector = vector;
     }
@@ -713,7 +733,9 @@ public class IcebergArrowColumnVector extends ColumnVector {
     //TODO: samarth refer to decodeDictionaryIds in VectorizedColumnReader
     @Override
     final Decimal getDecimal(int rowId, int precision, int scale) {
-      if (isNullAt(rowId)) return null;
+      if (isNullAt(rowId)) {
+        return null;
+      }
       Binary value = dictionary.decodeToBinary(vector.get(rowId));
       BigInteger unscaledValue = new BigInteger(value.getBytesUnsafe());
       return Decimal.apply(unscaledValue.longValue(), precision, scale);
@@ -723,7 +745,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
   private class DictionaryDecimalLongAccessor extends ArrowVectorAccessor {
     private final IntVector vector;
 
-    public DictionaryDecimalLongAccessor(IntVector vector, int precision, int scale) {
+    DictionaryDecimalLongAccessor(IntVector vector, int precision, int scale) {
       super(vector);
       this.vector = vector;
     }
@@ -731,7 +753,9 @@ public class IcebergArrowColumnVector extends ColumnVector {
     //TODO: samarth not sure this is efficient or correct
     @Override
     final Decimal getDecimal(int rowId, int precision, int scale) {
-      if (isNullAt(rowId)) return null;
+      if (isNullAt(rowId)) {
+        return null;
+      }
       long unscaledValue = dictionary.decodeToLong(vector.get(rowId));
       return Decimal.apply(unscaledValue, precision, scale);
     }
@@ -740,7 +764,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
   private class DictionaryDecimalIntAccessor extends ArrowVectorAccessor {
     private final IntVector vector;
 
-    public DictionaryDecimalIntAccessor(IntVector vector, int precision, int scale) {
+    DictionaryDecimalIntAccessor(IntVector vector, int precision, int scale) {
       super(vector);
       this.vector = vector;
     }
@@ -748,7 +772,9 @@ public class IcebergArrowColumnVector extends ColumnVector {
     //TODO: samarth not sure this is efficient or correct
     @Override
     final Decimal getDecimal(int rowId, int precision, int scale) {
-      if (isNullAt(rowId)) return null;
+      if (isNullAt(rowId)) {
+        return null;
+      }
       int unscaledValue = dictionary.decodeToInt(vector.get(rowId));
       return Decimal.apply(unscaledValue, precision, scale);
     }

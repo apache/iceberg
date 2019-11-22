@@ -19,6 +19,10 @@
 
 package org.apache.iceberg.spark.data;
 
+import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
+import static scala.collection.JavaConverters.mapAsJavaMapConverter;
+import static scala.collection.JavaConverters.seqAsJavaListConverter;
+
 import com.google.common.collect.Lists;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -33,12 +37,11 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-
 import org.apache.arrow.vector.ValueVector;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.parquet.org.apache.iceberg.parquet.arrow.IcebergArrowColumnVector;
+import org.apache.iceberg.parquet.arrow.IcebergArrowColumnVector;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.storage.serde2.io.DateWritable;
@@ -61,10 +64,6 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.Assert;
 import scala.collection.Seq;
-
-import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
-import static scala.collection.JavaConverters.mapAsJavaMapConverter;
-import static scala.collection.JavaConverters.seqAsJavaListConverter;
 
 @SuppressWarnings("checkstyle:OverloadMethodsDeclarationOrder")
 public class TestHelpers {

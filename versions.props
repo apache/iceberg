@@ -10,6 +10,7 @@ org.apache.spark:spark-hive_2.11 = 2.4.0
 org.apache.pig:pig = 0.14.0
 com.fasterxml.jackson.*:* = 2.7.9
 com.github.ben-manes.caffeine:caffeine = 2.7.0
+org.apache.arrow:arrow-vector = 0.14.1
 
 # test deps
 junit:junit = 4.12
