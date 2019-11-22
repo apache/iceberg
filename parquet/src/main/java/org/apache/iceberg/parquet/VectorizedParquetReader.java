@@ -21,8 +21,7 @@ package org.apache.iceberg.parquet;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 import java.util.function.Function;
 
 import org.apache.iceberg.Schema;
@@ -32,24 +31,37 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.parquet.vectorized.ColumnarBatchReaders;
+import org.apache.iceberg.parquet.vectorized.VectorizedReader;
 import org.apache.parquet.ParquetReadOptions;
+import org.apache.parquet.column.page.DictionaryPageReadStore;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.schema.MessageType;
+import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.vectorized.ColumnarBatch;
 
-public class ParquetReader<T> extends CloseableGroup implements CloseableIterable<T> {
+import static org.apache.iceberg.parquet.ParquetSchemaUtil.addFallbackIds;
+import static org.apache.iceberg.parquet.ParquetSchemaUtil.hasIds;
+import static org.apache.iceberg.parquet.ParquetSchemaUtil.pruneColumns;
+import static org.apache.iceberg.parquet.ParquetSchemaUtil.pruneColumnsFallback;
+
+public class VectorizedParquetReader<T> extends CloseableGroup implements CloseableIterable<T> {
   private final InputFile input;
   private final Schema expectedSchema;
   private final ParquetReadOptions options;
-  private final Function<MessageType, ParquetValueReader<?>> readerFunc;
+  private final Function<MessageType, VectorizedReader> readerFunc;
   private final Expression filter;
   private final boolean reuseContainers;
   private final boolean caseSensitive;
 
-  public ParquetReader(InputFile input, Schema expectedSchema, ParquetReadOptions options,
-      Function<MessageType, ParquetValueReader<?>> readerFunc,
-      Expression filter, boolean reuseContainers, boolean caseSensitive) {
+  public VectorizedParquetReader(InputFile input, Schema expectedSchema, ParquetReadOptions options,
+      Function<MessageType, VectorizedReader> readerFunc,
+      Expression filter, boolean reuseContainers, boolean caseSensitive,
+      StructType sparkSchema, int maxRecordsPerBatch) {
     this.input = input;
     this.expectedSchema = expectedSchema;
     this.options = options;
@@ -65,7 +77,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     private final InputFile file;
     private final ParquetReadOptions options;
     private final MessageType projection;
-    private final ParquetValueReader<T> model;
+    private final ColumnarBatchReaders model;
     private final List<BlockMetaData> rowGroups;
     private final boolean[] shouldSkip;
     private final long totalValues;
@@ -73,7 +85,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
     @SuppressWarnings("unchecked")
     ReadConf(InputFile file, ParquetReadOptions options, Schema expectedSchema, Expression filter,
-        Function<MessageType, ParquetValueReader<?>> readerFunc, boolean reuseContainers,
+        Function<MessageType, ColumnarBatchReaders> readerFunc, boolean reuseContainers,
         boolean caseSensitive) {
       this.file = file;
       this.options = options;
@@ -81,13 +93,13 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
       MessageType fileSchema = reader.getFileMetaData().getSchema();
 
-      boolean hasIds = ParquetSchemaUtil.hasIds(fileSchema);
-      MessageType typeWithIds = hasIds ? fileSchema : ParquetSchemaUtil.addFallbackIds(fileSchema);
+      boolean hasIds = hasIds(fileSchema);
+      MessageType typeWithIds = hasIds ? fileSchema : addFallbackIds(fileSchema);
 
       this.projection = hasIds ?
-          ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema) :
-          ParquetSchemaUtil.pruneColumnsFallback(fileSchema, expectedSchema);
-      this.model = (ParquetValueReader<T>) readerFunc.apply(typeWithIds);
+          pruneColumns(fileSchema, expectedSchema) :
+          pruneColumnsFallback(fileSchema, expectedSchema);
+      this.model = readerFunc.apply(typeWithIds);
       this.rowGroups = reader.getRowGroups();
       this.shouldSkip = new boolean[rowGroups.size()];
 
@@ -98,19 +110,20 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
         dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive);
       }
 
-      long computedTotalValues = 0L;
+      long totalValues = 0L;
       for (int i = 0; i < shouldSkip.length; i += 1) {
         BlockMetaData rowGroup = rowGroups.get(i);
         boolean shouldRead = filter == null || (
             statsFilter.shouldRead(typeWithIds, rowGroup) &&
                 dictFilter.shouldRead(typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup)));
+
         this.shouldSkip[i] = !shouldRead;
         if (shouldRead) {
-          computedTotalValues += rowGroup.getRowCount();
+          totalValues += rowGroup.getRowCount();
         }
       }
 
-      this.totalValues = computedTotalValues;
+      this.totalValues = totalValues;
       this.reuseContainers = reuseContainers;
     }
 
@@ -137,7 +150,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       return newReader;
     }
 
-    ParquetValueReader<T> model() {
+    ColumnarBatchReaders model() {
       return model;
     }
 
@@ -166,44 +179,48 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     }
   }
 
-  private ReadConf<T> conf = null;
+  private ReadConf conf = null;
 
-  private ReadConf<T> init() {
+  private ReadConf init() {
     if (conf == null) {
-      ReadConf<T> readConf = new ReadConf<>(
+      ReadConf<T> conf = new ReadConf(
           input, options, expectedSchema, filter, readerFunc, reuseContainers, caseSensitive);
-      this.conf = readConf.copy();
-      return readConf;
+      this.conf = conf.copy();
+      return conf;
     }
 
     return conf;
   }
 
   @Override
-  public Iterator<T> iterator() {
-    FileIterator<T> iter = new FileIterator<>(init());
+  public Iterator iterator() {
+    // create iterator over file
+    FileIterator iter = new FileIterator(init());
     addCloseable(iter);
+
     return iter;
   }
 
-  private static class FileIterator<T> implements Iterator<T>, Closeable {
+  private static class FileIterator implements Iterator, Closeable {
     private final ParquetFileReader reader;
     private final boolean[] shouldSkip;
-    private final ParquetValueReader<T> model;
+    private final ColumnarBatchReaders model;
     private final long totalValues;
     private final boolean reuseContainers;
+    //private final List<BlockMetaData> blockMetaDataList;
 
     private int nextRowGroup = 0;
     private long nextRowGroupStart = 0;
     private long valuesRead = 0;
-    private T last = null;
+    private ColumnarBatch last = null;
 
-    FileIterator(ReadConf<T> conf) {
+    FileIterator(ReadConf conf) {
       this.reader = conf.reader();
       this.shouldSkip = conf.shouldSkip();
       this.model = conf.model();
       this.totalValues = conf.totalValues();
       this.reuseContainers = conf.reuseContainers();
+      //this.blockMetaDataList = new ArrayList<>(reader.getRowGroups());
     }
 
     @Override
@@ -212,18 +229,16 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     }
 
     @Override
-    public T next() {
+    public ColumnarBatch next() {
       if (valuesRead >= nextRowGroupStart) {
         advance();
       }
-
       if (reuseContainers) {
-        this.last = model.read(last);
+        this.last = model.read(null); // anjali-todo last was being reused here?
       } else {
         this.last = model.read(null);
       }
-      valuesRead += 1;
-
+      valuesRead += last.numRows();
       return last;
     }
 
@@ -234,7 +249,9 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       }
 
       PageReadStore pages;
+      DictionaryPageReadStore dictionaryPageReadStore;
       try {
+        dictionaryPageReadStore = reader.getNextDictionaryReader();
         pages = reader.readNextRowGroup();
       } catch (IOException e) {
         throw new RuntimeIOException(e);
@@ -242,8 +259,20 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
       nextRowGroupStart += pages.getRowCount();
       nextRowGroup += 1;
+      model.setRowGroupInfo(pages, dictionaryPageReadStore, dictionaryPageReadStore == null ? null : buildColumnDictEncodedMap(reader.getRowGroups()));
+    }
 
-      model.setPageSource(pages);
+    /**
+     * Retuns a map of {@link ColumnPath} -> whether all the pages in the row group for this column are dictionary encoded
+     */
+    private static Map<ColumnPath, Boolean> buildColumnDictEncodedMap(List<BlockMetaData> blockMetaData) {
+      Map<ColumnPath, Boolean> map = new HashMap<>();
+      for (BlockMetaData b : blockMetaData) {
+        for (ColumnChunkMetaData c : b.getColumns()) {
+          map.put(c.getPath(), !ParquetUtil.hasNonDictionaryPages(c));
+        }
+      }
+      return map;
     }
 
     @Override
