@@ -57,14 +57,57 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     // Retain last 2 snapshots
     table.expireSnapshots()
+        .expireOlderThan(t2)
         .retainLast(2)
         .commit();
 
-    Assert.assertEquals("Should have one snapshot",
+    Assert.assertEquals("Should have two snapshots.",
         2, Lists.newArrayList(table.snapshots()).size());
-    Assert.assertEquals("First snapshot should not present",
+    Assert.assertEquals("First snapshot should not present.",
         null, table.snapshot(firstSnapshotId));
+  }
 
+  @Test
+  public void testRetainNAvailableSnapshotsWithTransaction() {
+    long t0 = System.currentTimeMillis();
+    table.newAppend()
+        .appendFile(FILE_A) // data_bucket=0
+        .commit();
+    long firstSnapshotId = table.currentSnapshot().snapshotId();
+    long t1 = System.currentTimeMillis();
+    while (t1 == t0) {
+      t1 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_B) // data_bucket=1
+        .commit();
+
+    long t2 = System.currentTimeMillis();
+    while (t2 == t1) {
+      t2 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_C) // data_bucket=2
+        .commit();
+
+    long t3 = System.currentTimeMillis();
+    while (t3 == t2) {
+      t3 = System.currentTimeMillis();
+    }
+
+    // Retain last 2 snapshots
+    Transaction tx = table.newTransaction();
+    tx.expireSnapshots()
+        .expireOlderThan(t2)
+        .retainLast(2)
+        .commit();
+    tx.commitTransaction();
+    Assert.assertEquals("Should have two snapshots.",
+        2, Lists.newArrayList(table.snapshots()).size());
+    Assert.assertEquals("First snapshot should not present.",
+        null, table.snapshot(firstSnapshotId));
   }
 
   @Test
@@ -92,6 +135,7 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     // Retain last 3 snapshots
     table.expireSnapshots()
+        .expireOlderThan(t2)
         .retainLast(3)
         .commit();
 
@@ -99,6 +143,279 @@ public class TestRemoveSnapshots extends TableTestBase {
         2, Lists.newArrayList(table.snapshots()).size());
     Assert.assertEquals("First snapshot should still present",
         firstSnapshotId, table.snapshot(firstSnapshotId).snapshotId());
+  }
+
+  @Test
+  public void testRetainLastNotOverwriteWithExpireOlderThan() {
+    long t0 = System.currentTimeMillis();
+    table.newAppend()
+        .appendFile(FILE_A) // data_bucket=0
+        .commit();
+    long t1 = System.currentTimeMillis();
+    while (t1 == t0) {
+      t1 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_B) // data_bucket=1
+        .commit();
+
+    Snapshot secondSnapshot = table.currentSnapshot();
+    long t2 = System.currentTimeMillis();
+    while (t2 == t1) {
+      t2 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_C) // data_bucket=2
+        .commit();
+
+    long t3 = System.currentTimeMillis();
+    while (t3 == t2) {
+      t3 = System.currentTimeMillis();
+    }
+
+    // Retain last 2 snapshots and expire older than t3
+    table.expireSnapshots()
+        .expireOlderThan(t3)
+        .retainLast(2)
+        .commit();
+
+    Assert.assertEquals("Should have two snapshots.",
+        2, Lists.newArrayList(table.snapshots()).size());
+    Assert.assertNotNull("Second snapshot should present.",
+        table.snapshot(secondSnapshot.snapshotId()));
+  }
+
+  @Test
+  public void testRetainLastOverwriteWithExpireOlderThan() {
+    long t0 = System.currentTimeMillis();
+    table.newAppend()
+        .appendFile(FILE_A) // data_bucket=0
+        .commit();
+    long t1 = System.currentTimeMillis();
+    while (t1 == t0) {
+      t1 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_B) // data_bucket=1
+        .commit();
+
+    Snapshot secondSnapshot = table.currentSnapshot();
+    long t2 = System.currentTimeMillis();
+    while (t2 == t1) {
+      t2 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_C) // data_bucket=2
+        .commit();
+
+    long t3 = System.currentTimeMillis();
+    while (t3 == t2) {
+      t3 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_D) // data_bucket=3
+        .commit();
+
+    long t4 = System.currentTimeMillis();
+    while (t4 == t3) {
+      t4 = System.currentTimeMillis();
+    }
+
+    // Retain last 2 snapshots and expire older than t3
+    table.expireSnapshots()
+        .expireOlderThan(secondSnapshot.timestampMillis())
+        .retainLast(2)
+        .commit();
+
+    Assert.assertEquals("Should have three snapshots.",
+        3, Lists.newArrayList(table.snapshots()).size());
+    Assert.assertNotNull("Second snapshot should present.",
+        table.snapshot(secondSnapshot.snapshotId()));
+  }
+
+  @Test
+  public void testExpireOlderThanNotOverwriteWithRetainLast() {
+    long t0 = System.currentTimeMillis();
+    table.newAppend()
+        .appendFile(FILE_A) // data_bucket=0
+        .commit();
+    long t1 = System.currentTimeMillis();
+    while (t1 == t0) {
+      t1 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_B) // data_bucket=1
+        .commit();
+
+    Snapshot secondSnapshot = table.currentSnapshot();
+    long t2 = System.currentTimeMillis();
+    while (t2 == t1) {
+      t2 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_C) // data_bucket=2
+        .commit();
+
+    long t3 = System.currentTimeMillis();
+    while (t3 == t2) {
+      t3 = System.currentTimeMillis();
+    }
+
+    // Retain last 2 snapshots and expire older than t3
+    table.expireSnapshots()
+        .expireOlderThan(secondSnapshot.timestampMillis())
+        .retainLast(1)
+        .commit();
+
+    Assert.assertEquals("Should have two snapshots.",
+        2, Lists.newArrayList(table.snapshots()).size());
+    Assert.assertNotNull("Second snapshot should present.",
+        table.snapshot(secondSnapshot.snapshotId()));
+  }
+
+  @Test
+  public void testExpireOlderThanOverwriteWithExpireOlderThan() {
+    long t0 = System.currentTimeMillis();
+    table.newAppend()
+        .appendFile(FILE_A) // data_bucket=0
+        .commit();
+    long t1 = System.currentTimeMillis();
+    while (t1 == t0) {
+      t1 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_B) // data_bucket=1
+        .commit();
+
+    Snapshot secondSnapshot = table.currentSnapshot();
+    long t2 = System.currentTimeMillis();
+    while (t2 == t1) {
+      t2 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_C) // data_bucket=2
+        .commit();
+
+    Snapshot thirdSnapshot = table.currentSnapshot();
+    long t3 = System.currentTimeMillis();
+    while (t3 == t2) {
+      t3 = System.currentTimeMillis();
+    }
+
+    // Retain last 2 snapshots and expire older than t3
+    table.expireSnapshots()
+        .expireOlderThan(secondSnapshot.timestampMillis())
+        .expireOlderThan(thirdSnapshot.timestampMillis())
+        .commit();
+
+    Assert.assertEquals("Should have one snapshots.",
+        1, Lists.newArrayList(table.snapshots()).size());
+    Assert.assertNull("Second snapshot should not present.",
+        table.snapshot(secondSnapshot.snapshotId()));
+  }
+
+  @Test
+  public void testExpireOlderThanOverwriteWithRetainLast() {
+    long t0 = System.currentTimeMillis();
+    table.newAppend()
+        .appendFile(FILE_A) // data_bucket=0
+        .commit();
+    long t1 = System.currentTimeMillis();
+    while (t1 == t0) {
+      t1 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_B) // data_bucket=1
+        .commit();
+
+    Snapshot secondSnapshot = table.currentSnapshot();
+    long t2 = System.currentTimeMillis();
+    while (t2 == t1) {
+      t2 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_C) // data_bucket=2
+        .commit();
+
+    Snapshot thirdSnapshot = table.currentSnapshot();
+    long t3 = System.currentTimeMillis();
+    while (t3 == t2) {
+      t3 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_D) // data_bucket=3
+        .commit();
+
+    long t4 = System.currentTimeMillis();
+    while (t4 == t3) {
+      t4 = System.currentTimeMillis();
+    }
+
+    // Retain last 2 snapshots and epire older than t3
+    table.expireSnapshots()
+        .expireOlderThan(thirdSnapshot.timestampMillis())
+        .retainLast(3)
+        .commit();
+
+    Assert.assertEquals("Should have three snapshots.",
+        3, Lists.newArrayList(table.snapshots()).size());
+    Assert.assertNotNull("Second snapshot should present.",
+        table.snapshot(secondSnapshot.snapshotId()));
+  }
+
+  @Test
+  public void testRetainLastOverwriteWithRetainLast() {
+    long t0 = System.currentTimeMillis();
+    table.newAppend()
+        .appendFile(FILE_A) // data_bucket=0
+        .commit();
+    long t1 = System.currentTimeMillis();
+    while (t1 == t0) {
+      t1 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_B) // data_bucket=1
+        .commit();
+
+    Snapshot secondSnapshot = table.currentSnapshot();
+    long t2 = System.currentTimeMillis();
+    while (t2 == t1) {
+      t2 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_C) // data_bucket=2
+        .commit();
+
+    long t3 = System.currentTimeMillis();
+    while (t3 == t2) {
+      t3 = System.currentTimeMillis();
+    }
+
+    // Retain last 2 snapshots and expire older than t3
+    table.expireSnapshots()
+        .expireOlderThan(t3)
+        .retainLast(2)
+        .retainLast(1)
+        .commit();
+
+    Assert.assertEquals("Should have one snapshots.",
+        1, Lists.newArrayList(table.snapshots()).size());
+    Assert.assertNull("Second snapshot should not present.",
+        table.snapshot(secondSnapshot.snapshotId()));
   }
 
   @Test

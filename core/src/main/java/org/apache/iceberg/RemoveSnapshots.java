@@ -60,6 +60,7 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   private final TableOperations ops;
   private final Set<Long> idsToRemove = Sets.newHashSet();
+  private final Set<Long> idsToRetain = Sets.newHashSet();
   private TableMetadata base;
   private Long expireOlderThan = null;
   private Consumer<String> deleteFunc = defaultDelete;
@@ -85,13 +86,16 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   @Override
   public ExpireSnapshots retainLast(int numSnapshots) {
-    Preconditions.checkArgument(1 < numSnapshots,
+    Preconditions.checkArgument(1 <= numSnapshots,
             "Number of snapshots to retain must be at least 1, cannot be: %s", numSnapshots);
-    LOG.info("Retaining last {} snapshots and expiring older snapshots", numSnapshots);
-    Snapshot nthSnapshot = findNthSnapshot(numSnapshots);
-    if (nthSnapshot != null) {
-      expireOlderThan(nthSnapshot.timestampMillis());
+    idsToRetain.clear();
+    List<Long> ancestorIds = SnapshotUtil.ancestorIds(base.currentSnapshot(), base::snapshot);
+    if (numSnapshots >= ancestorIds.size()) {
+      idsToRetain.addAll(ancestorIds);
+    } else {
+      idsToRetain.addAll(ancestorIds.subList(0, numSnapshots));
     }
+
     return this;
   }
 
@@ -115,7 +119,8 @@ class RemoveSnapshots implements ExpireSnapshots {
 
     return base.removeSnapshotsIf(snapshot ->
         idsToRemove.contains(snapshot.snapshotId()) ||
-        (expireOlderThan != null && snapshot.timestampMillis() < expireOlderThan));
+        (expireOlderThan != null && snapshot.timestampMillis() < expireOlderThan &&
+            !idsToRetain.contains(snapshot.snapshotId())));
   }
 
   @Override
@@ -321,22 +326,6 @@ class RemoveSnapshots implements ExpireSnapshots {
         });
 
     return filesToDelete;
-  }
-
-  private Snapshot findNthSnapshot(int snapshotIndex) {
-    if (base.snapshots().size() < snapshotIndex) {
-      return null;
-    }
-    Snapshot lastSnapshot = base.currentSnapshot();
-    int snapshotCount = 1;
-    while (lastSnapshot != null) {
-      if (snapshotCount == snapshotIndex) {
-        return lastSnapshot;
-      }
-      snapshotCount++;
-      lastSnapshot = (lastSnapshot.parentId() != null) ? base.snapshot(lastSnapshot.parentId()) : null;
-    }
-    return null;
   }
 
   private static final Schema MANIFEST_PROJECTION = ManifestFile.schema()
