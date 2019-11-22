@@ -89,6 +89,11 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
   }
 
   @Override
+  protected String name() {
+    return "hadoop";
+  }
+
+  @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
     Preconditions.checkArgument(namespace.levels().length >= 1,
         "Missing database in table identifier: %s", namespace);

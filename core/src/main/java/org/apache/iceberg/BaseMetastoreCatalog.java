@@ -70,7 +70,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     ops.commit(null, metadata);
 
     try {
-      return new BaseTable(ops, identifier.toString());
+      return new BaseTable(ops, fullTableName(name(), identifier));
     } catch (CommitFailedException ignored) {
       throw new AlreadyExistsException("Table was created concurrently: " + identifier);
     }
@@ -133,7 +133,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         throw new NoSuchTableException("Table does not exist: %s", identifier);
       }
 
-      return new BaseTable(ops, identifier.toString());
+      return new BaseTable(ops, fullTableName(name(), identifier));
 
     } else if (isValidMetadataIdentifier(identifier)) {
       return loadMetadataTable(identifier);
@@ -153,7 +153,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         throw new NoSuchTableException("Table does not exist: " + baseTableIdentifier);
       }
 
-      Table baseTable = new BaseTable(ops, baseTableIdentifier.toString());
+      Table baseTable = new BaseTable(ops, fullTableName(name(), identifier));
 
       switch (type) {
         case ENTRIES:
@@ -186,6 +186,13 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     // by default allow all identifiers
     return true;
   }
+
+  @Override
+  public String toString() {
+    return getClass().getSimpleName() + "(" + name() + ")";
+  }
+
+  protected abstract String name();
 
   protected abstract TableOperations newTableOps(TableIdentifier tableIdentifier);
 
@@ -266,5 +273,28 @@ public abstract class BaseMetastoreCatalog implements Catalog {
             throw new RuntimeIOException(e, "Failed to read manifest file: " + manifest.path());
           }
         });
+  }
+
+  private static String fullTableName(String catalogName, TableIdentifier identifier) {
+    StringBuilder sb = new StringBuilder();
+
+    if (catalogName.contains("/") || catalogName.contains(":")) {
+      // use / for URI-like names: thrift://host:port/db.table
+      sb.append(catalogName);
+      if (!catalogName.endsWith("/")) {
+        sb.append("/");
+      }
+    } else {
+      // use . for non-URI named catalogs: prod.db.table
+      sb.append(catalogName).append(".");
+    }
+
+    for (String level : identifier.namespace().levels()) {
+      sb.append(level).append(".");
+    }
+
+    sb.append(identifier.name());
+
+    return sb.toString();
   }
 }
