@@ -75,6 +75,7 @@ public class TestSparkParquetVectorizedReader extends AvroDataTest {
   void assertRecordsMatch(Schema schema, List<GenericData.Record> expected, File testFile) throws IOException {
     try (CloseableIterable<ColumnarBatch> batchReader = Parquet.read(Files.localInput(testFile))
         .project(schema)
+        .enableBatchedRead()
         .createBatchedReaderFunc(type -> VectorizedSparkParquetReaders.buildReader(schema, schema, type, 10000))
         .build()) {
 
