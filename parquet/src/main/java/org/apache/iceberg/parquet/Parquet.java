@@ -288,7 +288,9 @@ public class Parquet {
     private StructType sparkSchema = null;
     private Expression filter = null;
     private ReadSupport<?> readSupport = null;
-    private Function<MessageType, VectorizedReader> readerFunc = null;
+    private Function<MessageType, VectorizedReader> batchedReaderFunc = null;
+    private Function<MessageType, ParquetValueReader<?>> readerFunc = null;
+    private boolean isBatchedReadEnabled = false;
     private boolean filterRecords = true;
     private boolean caseSensitive = true;
     private Map<String, String> properties = Maps.newHashMap();
@@ -348,8 +350,18 @@ public class Parquet {
       return this;
     }
 
-    public ReadBuilder createReaderFunc(Function<MessageType, VectorizedReader> readerFunc) {
+    public ReadBuilder createReaderFunc(Function<MessageType, ParquetValueReader<?>> readerFunc) {
       this.readerFunc = readerFunc;
+      return this;
+    }
+
+    public ReadBuilder createBatchedReaderFunc(Function<MessageType, VectorizedReader> batchedReaderFunc) {
+      this.batchedReaderFunc = batchedReaderFunc;
+      return this;
+    }
+
+    public ReadBuilder enableBatchedRead(){
+      this.isBatchedReadEnabled = true;
       return this;
     }
 
@@ -376,7 +388,7 @@ public class Parquet {
 
     @SuppressWarnings("unchecked")
     public <D> CloseableIterable<D> build() {
-      if (readerFunc != null) {
+      if (readerFunc != null || batchedReaderFunc != null) {
         ParquetReadOptions.Builder optionsBuilder;
         if (file instanceof HadoopInputFile) {
           // remove read properties already set that may conflict with this read
@@ -399,8 +411,14 @@ public class Parquet {
 
         ParquetReadOptions options = optionsBuilder.build();
 
-        return new org.apache.iceberg.parquet.ParquetReader<>(
-            file, schema, options, readerFunc, filter, reuseContainers, caseSensitive, sparkSchema, maxRecordsPerBatch);
+        if (isBatchedReadEnabled) {
+          return new VectorizedParquetReader(file, schema, options, batchedReaderFunc, filter, reuseContainers,
+              caseSensitive, sparkSchema, maxRecordsPerBatch);
+        } else {
+
+          return new org.apache.iceberg.parquet.ParquetReader<>(
+              file, schema, options, readerFunc, filter, reuseContainers, caseSensitive);
+        }
       }
 
       ParquetReadBuilder<D> builder = new ParquetReadBuilder<>(ParquetIO.file(file));
