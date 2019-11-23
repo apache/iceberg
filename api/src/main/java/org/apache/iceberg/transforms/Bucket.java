@@ -29,18 +29,17 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.UUID;
-import org.apache.iceberg.expressions.BoundLiteralPredicate;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
-import org.apache.iceberg.expressions.BoundUnaryPredicate;
 import java.util.stream.Collectors;
-import org.apache.iceberg.expressions.BoundSetPredicate;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
+import static org.apache.iceberg.expressions.Expression.Operation.EQ;
 import static org.apache.iceberg.expressions.Expression.Operation.IN;
+import static org.apache.iceberg.expressions.Expression.Operation.NOT_EQ;
 import static org.apache.iceberg.expressions.Expression.Operation.NOT_IN;
 import static org.apache.iceberg.types.Type.TypeID;
 
@@ -120,28 +119,19 @@ abstract class Bucket<T> implements Transform<T, Integer> {
       return ProjectionUtil.projectTransformPredicate(this, name, predicate);
     }
 
-    if (predicate instanceof BoundUnaryPredicate) {
+    if (predicate.isUnaryPredicate()) {
       return Expressions.predicate(predicate.op(), name);
-    } else if (predicate instanceof BoundLiteralPredicate) {
-      BoundLiteralPredicate<T> pred = predicate.asLiteralPredicate();
-      switch (pred.op()) {
-        case EQ:
-          return Expressions.predicate(
-              pred.op(), name, apply(pred.literal().value()));
-//      case IN:
-//        return Expressions.predicate();
-        case STARTS_WITH:
-        default:
-          // comparison predicates can't be projected, notEq can't be projected
-          // TODO: small ranges can be projected.
-          // for example, (x > 0) and (x < 3) can be turned into in({1, 2}) and projected.
-          return null;
-      }
+    } else if (predicate.isLiteralPredicate() && predicate.op() == EQ) {
+      return Expressions.predicate(
+          predicate.op(), name, apply(predicate.asLiteralPredicate().literal().value()));
     } else if (predicate.isSetPredicate() && predicate.op() == IN) { // notIn can't be projected
       return Expressions.in(name,
           predicate.asSetPredicate().literalSet()
               .stream().map(this::apply).collect(Collectors.toList()));
     }
+  // comparison predicates can't be projected, notEq can't be projected
+  // TODO: small ranges can be projected.
+  // for example, (x > 0) and (x < 3) can be turned into in({1, 2}) and projected.
 
     return null;
   }
@@ -152,25 +142,17 @@ abstract class Bucket<T> implements Transform<T, Integer> {
       return ProjectionUtil.projectTransformPredicate(this, name, predicate);
     }
 
-    if (predicate instanceof BoundUnaryPredicate) {
+    if (predicate.isUnaryPredicate()) {
       return Expressions.predicate(predicate.op(), name);
-    } else if (predicate instanceof BoundLiteralPredicate) {
-      BoundLiteralPredicate<T> pred = predicate.asLiteralPredicate();
-      switch (pred.op()) {
-        case NOT_EQ: // TODO: need to translate not(eq(...)) into notEq in expressions
-          return Expressions.predicate(pred.op(), name, apply(pred.literal().value()));
-//      case NOT_IN:
-//        return null;
-        default:
-          // no strict projection for comparison or equality
-          return null;
-      }
+    } else if (predicate.isLiteralPredicate() && predicate.op() == NOT_EQ) {
+      // TODO: need to translate not(eq(...)) into notEq in expressions
+      return Expressions.predicate(predicate.op(), name, apply(predicate.asLiteralPredicate().literal().value()));
     } else if (predicate.isSetPredicate() && predicate.op() == NOT_IN) {
-        return Expressions.notIn(name,
-            predicate.asSetPredicate().literalSet()
-                .stream().map(this::apply).collect(Collectors.toList()));
+      return Expressions.notIn(name,
+          predicate.asSetPredicate().literalSet()
+              .stream().map(this::apply).collect(Collectors.toList()));
     }
-
+  // no strict projection for comparison or equality
     return null;
   }
 

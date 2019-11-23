@@ -86,8 +86,8 @@ enum Dates implements Transform<Integer, Integer> {
     } else if (pred.isLiteralPredicate()) {
       return ProjectionUtil.truncateInteger(fieldName, pred.asLiteralPredicate(), this);
     } else if (pred.isSetPredicate() && pred.op() == IN) {
-      return predicate(pred.op(),
-          fieldName,pred.asSetPredicate().literalSet()
+      return predicate(pred.op(), fieldName,
+          pred.asSetPredicate().literalSet()
               .stream().map(this::apply).collect(Collectors.toList()));
     }
     return null;
