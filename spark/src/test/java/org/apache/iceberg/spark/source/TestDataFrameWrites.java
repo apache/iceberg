@@ -48,6 +48,7 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -57,6 +58,7 @@ import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsSafe;
 import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 
 @RunWith(Parameterized.class)
+@Ignore
 public class TestDataFrameWrites extends AvroDataTest {
   private static final Configuration CONF = new Configuration();
 

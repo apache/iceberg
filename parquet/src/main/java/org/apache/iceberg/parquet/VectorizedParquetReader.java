@@ -230,6 +230,9 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
 
     @Override
     public ColumnarBatch next() {
+      if (!hasNext()) {
+        throw new NoSuchElementException();
+      }
       if (valuesRead >= nextRowGroupStart) {
         advance();
       }

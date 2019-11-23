@@ -134,12 +134,12 @@ public class VectorizedSparkParquetReaders {
                     reorderedFields.add(reader);
                     types.add(typesById.get(id));
                 } else {
-                    reorderedFields.add(null); // anjali-todo We need a NullVectorReader
+                    reorderedFields.add(VectorizedArrowReader.NULL_VALUES_READER);
                     types.add(null);
                 }
             }
 
-            return new ColumnarBatchReaders(types, expected, reorderedFields);
+            return new ColumnarBatchReaders(types, expected, reorderedFields, recordsPerBatch);
         }
 
         @Override

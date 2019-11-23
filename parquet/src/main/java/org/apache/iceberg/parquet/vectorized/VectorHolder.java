@@ -36,6 +36,8 @@ public class VectorHolder {
   @Nullable
   private final Dictionary dictionary;
 
+  public static final VectorHolder NULL_VECTOR_HOLDER = new VectorHolder(null, null, false, null);
+
   public VectorHolder(
       ColumnDescriptor columnDescriptor,
       FieldVector vector,

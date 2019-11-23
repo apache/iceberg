@@ -37,6 +37,7 @@ import java.util.function.Function;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataTask;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
@@ -272,11 +273,25 @@ class Reader implements DataSourceReader,
 
   @Override
   public boolean enableBatchRead() {
-
     return lazyCheckEnabledBatchedReads();
   }
 
   private boolean lazyCheckEnabledBatchedReads() {
+    boolean allParquetFiles =
+        tasks().stream()
+            .allMatch(combinedScanTask -> combinedScanTask.files()
+                .stream()
+                .allMatch(fileScanTask -> fileScanTask.file().format().equals(
+                    FileFormat.PARQUET)));
+    if (!allParquetFiles) {
+      this.enableBatchedReads = false;
+      return false;
+    }
+    int numColumns = lazySchema().columns().size();
+    if (numColumns == 0) {
+      this.enableBatchedReads = false;
+      return false;
+    }
     if(enableBatchedReads == null) {
       // Enable batched reads only if all requested columns are primitive otherwise revert to row-based reads
       this.enableBatchedReads = lazySchema().columns().stream().allMatch(c -> c.type().isPrimitiveType());

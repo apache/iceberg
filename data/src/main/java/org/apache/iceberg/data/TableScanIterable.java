@@ -35,6 +35,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expressions;
@@ -90,7 +91,7 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
       case PARQUET:
         Parquet.ReadBuilder parquet = Parquet.read(input)
             .project(projection, SparkSchemaUtil.convert(projection))
-            //.createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(projection, fileSchema))
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(projection, fileSchema))
             .split(task.start(), task.length());
 
         if (reuseContainers) {
