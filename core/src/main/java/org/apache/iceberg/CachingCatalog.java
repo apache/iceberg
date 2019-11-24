@@ -33,7 +33,11 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 public class CachingCatalog implements Catalog {
 
   public static Catalog wrap(Catalog catalog) {
-    return new CachingCatalog(catalog);
+    return wrap(catalog, true);
+  }
+
+  public static Catalog wrap(Catalog catalog, Boolean caseSensitive) {
+    return new CachingCatalog(catalog, caseSensitive);
   }
 
   private final Cache<TableIdentifier, Table> tableCache = Caffeine.newBuilder()
@@ -41,9 +45,19 @@ public class CachingCatalog implements Catalog {
       .expireAfterAccess(1, TimeUnit.MINUTES)
       .build();
   private final Catalog catalog;
+  private final Boolean caseSensitive;
 
-  private CachingCatalog(Catalog catalog) {
+  private CachingCatalog(Catalog catalog, Boolean caseSensitive) {
     this.catalog = catalog;
+    this.caseSensitive = caseSensitive;
+  }
+
+  private TableIdentifier formatIdentifier(TableIdentifier tableIdentifier) {
+    if (caseSensitive) {
+      return tableIdentifier;
+    } else {
+      return tableIdentifier.toLowerCase();
+    }
   }
 
   @Override
@@ -53,14 +67,14 @@ public class CachingCatalog implements Catalog {
 
   @Override
   public Table loadTable(TableIdentifier ident) {
-    return tableCache.get(ident, catalog::loadTable);
+    return tableCache.get(formatIdentifier(ident), catalog::loadTable);
   }
 
   @Override
   public Table createTable(TableIdentifier ident, Schema schema, PartitionSpec spec, String location,
                            Map<String, String> properties) {
     AtomicBoolean created = new AtomicBoolean(false);
-    Table table = tableCache.get(ident, identifier -> {
+    Table table = tableCache.get(formatIdentifier(ident), identifier -> {
       created.set(true);
       return catalog.createTable(identifier, schema, spec, location, properties);
     });
@@ -88,20 +102,20 @@ public class CachingCatalog implements Catalog {
     // when the transaction commits, invalidate the table in the cache if it is present.
     return CommitCallbackTransaction.addCallback(
         catalog.newReplaceTableTransaction(ident, schema, spec, location, properties, orCreate),
-        () -> tableCache.invalidate(ident));
+        () -> tableCache.invalidate(formatIdentifier(ident)));
   }
 
   @Override
   public boolean dropTable(TableIdentifier ident, boolean purge) {
     boolean dropped = catalog.dropTable(ident, false);
-    tableCache.invalidate(ident);
+    tableCache.invalidate(formatIdentifier(ident));
     return dropped;
   }
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
     catalog.renameTable(from, to);
-    tableCache.invalidate(from);
+    tableCache.invalidate(formatIdentifier(from));
   }
 
 }
