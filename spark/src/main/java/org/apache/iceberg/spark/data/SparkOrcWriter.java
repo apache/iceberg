@@ -75,6 +75,7 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
   }
 
   static class BooleanConverter implements Converter {
+    @Override
     public void addValue(int rowId, int column, SpecializedGetters data,
                          ColumnVector output) {
       if (data.isNullAt(column)) {
@@ -88,6 +89,7 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
   }
 
   static class ByteConverter implements Converter {
+    @Override
     public void addValue(int rowId, int column, SpecializedGetters data,
                          ColumnVector output) {
       if (data.isNullAt(column)) {
@@ -101,6 +103,7 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
   }
 
   static class ShortConverter implements Converter {
+    @Override
     public void addValue(int rowId, int column, SpecializedGetters data,
                          ColumnVector output) {
       if (data.isNullAt(column)) {
@@ -114,6 +117,7 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
   }
 
   static class IntConverter implements Converter {
+    @Override
     public void addValue(int rowId, int column, SpecializedGetters data,
                          ColumnVector output) {
       if (data.isNullAt(column)) {
@@ -127,6 +131,7 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
   }
 
   static class LongConverter implements Converter {
+    @Override
     public void addValue(int rowId, int column, SpecializedGetters data,
                          ColumnVector output) {
       if (data.isNullAt(column)) {
@@ -140,6 +145,7 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
   }
 
   static class FloatConverter implements Converter {
+    @Override
     public void addValue(int rowId, int column, SpecializedGetters data,
                          ColumnVector output) {
       if (data.isNullAt(column)) {
@@ -153,6 +159,7 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
   }
 
   static class DoubleConverter implements Converter {
+    @Override
     public void addValue(int rowId, int column, SpecializedGetters data,
                          ColumnVector output) {
       if (data.isNullAt(column)) {
@@ -166,6 +173,7 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
   }
 
   static class StringConverter implements Converter {
+    @Override
     public void addValue(int rowId, int column, SpecializedGetters data,
                          ColumnVector output) {
       if (data.isNullAt(column)) {
@@ -180,6 +188,7 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
   }
 
   static class BytesConverter implements Converter {
+    @Override
     public void addValue(int rowId, int column, SpecializedGetters data,
                          ColumnVector output) {
       if (data.isNullAt(column)) {
@@ -196,7 +205,7 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
   }
 
   static class TimestampConverter implements Converter {
-
+    @Override
     public void addValue(int rowId, int column, SpecializedGetters data,
                          ColumnVector output) {
       if (data.isNullAt(column)) {
@@ -226,6 +235,7 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
       scale = schema.getScale();
     }
 
+    @Override
     public void addValue(int rowId, int column, SpecializedGetters data,
                          ColumnVector output) {
       if (data.isNullAt(column)) {
@@ -248,6 +258,7 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
       scale = schema.getScale();
     }
 
+    @Override
     public void addValue(int rowId, int column, SpecializedGetters data,
                          ColumnVector output) {
       if (data.isNullAt(column)) {
@@ -272,6 +283,7 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
       }
     }
 
+    @Override
     public void addValue(int rowId, int column, SpecializedGetters data,
                          ColumnVector output) {
       if (data.isNullAt(column)) {
@@ -295,6 +307,7 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
       children = buildConverter(schema.getChildren().get(0));
     }
 
+    @Override
     public void addValue(int rowId, int column, SpecializedGetters data,
                          ColumnVector output) {
       if (data.isNullAt(column)) {
@@ -327,6 +340,7 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
       valueConverter = buildConverter(schema.getChildren().get(1));
     }
 
+    @Override
     public void addValue(int rowId, int column, SpecializedGetters data,
                          ColumnVector output) {
       if (data.isNullAt(column)) {

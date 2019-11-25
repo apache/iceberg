@@ -46,6 +46,7 @@ import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.api.java.UDF1;
@@ -56,11 +57,14 @@ import org.apache.spark.sql.sources.EqualTo;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.GreaterThan;
 import org.apache.spark.sql.sources.LessThan;
+import org.apache.spark.sql.sources.StringStartsWith;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
 import org.apache.spark.sql.sources.v2.reader.DataSourceReader;
 import org.apache.spark.sql.sources.v2.reader.InputPartition;
 import org.apache.spark.sql.sources.v2.reader.SupportsPushDownFilters;
 import org.apache.spark.sql.types.IntegerType$;
+import org.apache.spark.sql.types.LongType$;
+import org.apache.spark.sql.types.StringType$;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
@@ -99,6 +103,14 @@ public class TestFilteredScan {
       .hour("ts")
       .build();
 
+  private static final PartitionSpec PARTITION_BY_DATA = PartitionSpec.builderFor(SCHEMA)
+      .identity("data")
+      .build();
+
+  private static final PartitionSpec PARTITION_BY_ID = PartitionSpec.builderFor(SCHEMA)
+      .identity("id")
+      .build();
+
   private static SparkSession spark = null;
 
   @BeforeClass
@@ -118,6 +130,9 @@ public class TestFilteredScan {
     spark.udf().register("ts_hour",
         (UDF1<Timestamp, Integer>) timestamp -> hour.apply((Long) fromJavaTimestamp(timestamp)),
         IntegerType$.MODULE$);
+
+    spark.udf().register("data_ident", (UDF1<String, String>) data -> data, StringType$.MODULE$);
+    spark.udf().register("id_ident", (UDF1<Long, Long>) id -> id, LongType$.MODULE$);
   }
 
   @AfterClass
@@ -408,6 +423,51 @@ public class TestFilteredScan {
               "ts < cast('2017-12-22 08:00:00+00:00' as timestamp)",
           "id"));
     }
+  }
+
+  @Test
+  public void testPartitionedByDataStartsWithFilter() {
+    File location = buildPartitionedTable("partitioned_by_data", PARTITION_BY_DATA, "data_ident", "data");
+
+    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
+        "path", location.toString())
+    );
+
+    IcebergSource source = new IcebergSource();
+    DataSourceReader reader = source.createReader(options);
+    pushFilters(reader, new StringStartsWith("data", "junc"));
+
+    Assert.assertEquals(1, reader.planInputPartitions().size());
+  }
+
+  @Test
+  public void testPartitionedByIdStartsWith() {
+    File location = buildPartitionedTable("partitioned_by_id", PARTITION_BY_ID, "id_ident", "id");
+
+    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
+        "path", location.toString())
+    );
+
+    IcebergSource source = new IcebergSource();
+    DataSourceReader reader = source.createReader(options);
+    pushFilters(reader, new StringStartsWith("data", "junc"));
+
+    Assert.assertEquals(1, reader.planInputPartitions().size());
+  }
+
+  @Test
+  public void testUnpartitionedStartsWith() {
+    Dataset<Row> df = spark.read()
+        .format("iceberg")
+        .load(unpartitioned.toString());
+
+    List<String> matchedData = df.select("data")
+        .where("data LIKE 'jun%'")
+        .as(Encoders.STRING())
+        .collectAsList();
+
+    Assert.assertEquals(1, matchedData.size());
+    Assert.assertEquals("junction", matchedData.get(0));
   }
 
   private static Record projectFlat(Schema projection, Record record) {

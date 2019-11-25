@@ -26,7 +26,7 @@ import org.apache.iceberg.types.Types;
  * <p>
  * This does not include snapshots that have been expired using {@link ExpireSnapshots}.
  */
-class SnapshotsTable extends BaseMetadataTable {
+public class SnapshotsTable extends BaseMetadataTable {
   private static final Schema SNAPSHOT_SCHEMA = new Schema(
       Types.NestedField.required(1, "committed_at", Types.TimestampType.withZone()),
       Types.NestedField.required(2, "snapshot_id", Types.LongType.get()),
@@ -40,7 +40,7 @@ class SnapshotsTable extends BaseMetadataTable {
   private final TableOperations ops;
   private final Table table;
 
-  SnapshotsTable(TableOperations ops, Table table) {
+  public SnapshotsTable(TableOperations ops, Table table) {
     this.ops = ops;
     this.table = table;
   }

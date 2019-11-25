@@ -20,14 +20,18 @@
 package org.apache.iceberg.expressions;
 
 import java.nio.ByteBuffer;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import org.apache.iceberg.Accessors;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.BinaryUtil;
 
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
@@ -89,7 +93,7 @@ public class ManifestEvaluator {
         return ROWS_MIGHT_MATCH;
       }
 
-      return ExpressionVisitors.visit(expr, this);
+      return ExpressionVisitors.visitEvaluator(expr, this);
     }
 
     @Override
@@ -245,12 +249,44 @@ public class ManifestEvaluator {
     }
 
     @Override
-    public <T> Boolean in(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean notIn(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
+      int pos = Accessors.toPosition(ref.accessor());
+      PartitionFieldSummary fieldStats = stats.get(pos);
+
+      if (fieldStats.lowerBound() == null) {
+        return ROWS_CANNOT_MATCH; // values are all null and literal cannot contain null
+      }
+
+      ByteBuffer prefixAsBytes = lit.toByteBuffer();
+
+      Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
+
+      ByteBuffer lower = fieldStats.lowerBound();
+      // truncate lower bound so that its length in bytes is not greater than the length of prefix
+      int lowerLength = Math.min(prefixAsBytes.remaining(), lower.remaining());
+      int lowerCmp = comparator.compare(BinaryUtil.truncateBinary(lower, lowerLength), prefixAsBytes);
+      if (lowerCmp > 0) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      ByteBuffer upper = fieldStats.upperBound();
+      // truncate upper bound so that its length in bytes is not greater than the length of prefix
+      int upperLength = Math.min(prefixAsBytes.remaining(), upper.remaining());
+      int upperCmp = comparator.compare(BinaryUtil.truncateBinary(upper, upperLength), prefixAsBytes);
+      if (upperCmp < 0) {
+        return ROWS_CANNOT_MATCH;
+      }
+
       return ROWS_MIGHT_MATCH;
     }
   }

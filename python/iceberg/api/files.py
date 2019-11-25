@@ -47,7 +47,7 @@ class LocalOutputFile(OutputFile):
         if os.path.exists(self.file):
             raise AlreadyExistsException("File already exists: %s" % self.file)
 
-        return PositionOutputStream(open(self.file, "rw"))
+        return PositionOutputStream(open(self.file, "w"))
 
     def create_or_overwrite(self):
         if os.path.exists(self.file):

@@ -365,10 +365,61 @@ public class TestSchemaUpdate {
   }
 
   @Test
+  public void testAddRequiredColumn() {
+    Schema schema = new Schema(required(1, "id", Types.IntegerType.get()));
+    Schema expected = new Schema(
+        required(1, "id", Types.IntegerType.get()),
+        required(2, "data", Types.StringType.get()));
+
+    AssertHelpers.assertThrows("Should reject add required column if incompatible changes are not allowed",
+        IllegalArgumentException.class, "Incompatible change: cannot add required column: data",
+        () -> new SchemaUpdate(schema, 1).addRequiredColumn("data", Types.StringType.get()));
+
+    Schema result = new SchemaUpdate(schema, 1)
+        .allowIncompatibleChanges()
+        .addRequiredColumn("data", Types.StringType.get())
+        .apply();
+
+    Assert.assertEquals("Should add required column", expected.asStruct(), result.asStruct());
+  }
+
+  @Test
+  public void testMakeColumnOptional() {
+    Schema schema = new Schema(required(1, "id", Types.IntegerType.get()));
+    Schema expected = new Schema(optional(1, "id", Types.IntegerType.get()));
+
+    Schema result = new SchemaUpdate(schema, 1)
+        .makeColumnOptional("id")
+        .apply();
+
+    Assert.assertEquals("Should update column to be optional", expected.asStruct(), result.asStruct());
+  }
+
+  @Test
+  public void testRequireColumn() {
+    Schema schema = new Schema(optional(1, "id", Types.IntegerType.get()));
+    Schema expected = new Schema(required(1, "id", Types.IntegerType.get()));
+
+    AssertHelpers.assertThrows("Should reject change to required if incompatible changes are not allowed",
+        IllegalArgumentException.class, "Cannot change column nullability: id: optional -> required",
+        () -> new SchemaUpdate(schema, 1).requireColumn("id"));
+
+    // required to required is not an incompatible change
+    new SchemaUpdate(expected, 1).requireColumn("id").apply();
+
+    Schema result = new SchemaUpdate(schema, 1)
+        .allowIncompatibleChanges()
+        .requireColumn("id")
+        .apply();
+
+    Assert.assertEquals("Should update column to be required", expected.asStruct(), result.asStruct());
+  }
+
+  @Test
   public void testMixedChanges() {
     Schema expected = new Schema(
         required(1, "id", Types.LongType.get(), "unique id"),
-        optional(2, "json", Types.StringType.get()),
+        required(2, "json", Types.StringType.get()),
         optional(3, "options", Types.StructType.of(
             required(8, "feature1", Types.BooleanType.get()),
             optional(9, "newfeature", Types.BooleanType.get())
@@ -382,11 +433,12 @@ public class TestSchemaUpdate {
             ),
             Types.StructType.of(
                 required(12, "latitude", Types.DoubleType.get(), "latitude"),
-                optional(25, "alt", Types.FloatType.get())
+                optional(25, "alt", Types.FloatType.get()),
+                required(28, "description", Types.StringType.get(), "Location description")
             )), "map of address to coordinate"),
         optional(5, "points", Types.ListType.ofOptional(14,
             Types.StructType.of(
-                required(15, "X", Types.LongType.get()),
+                optional(15, "X", Types.LongType.get()),
                 required(16, "y.y", Types.LongType.get()),
                 optional(26, "z", Types.LongType.get()),
                 optional(27, "t.t", Types.LongType.get(), "name with '.'")
@@ -413,6 +465,10 @@ public class TestSchemaUpdate {
         .updateColumnDoc("locations.lat", "latitude")
         .deleteColumn("locations.long")
         .deleteColumn("properties")
+        .makeColumnOptional("points.x")
+        .allowIncompatibleChanges()
+        .requireColumn("data")
+        .addRequiredColumn("locations", "description", Types.StringType.get(), "Location description")
         .apply();
 
     Assert.assertEquals("Should match with added fields", expected.asStruct(), updated.asStruct());
@@ -559,10 +615,10 @@ public class TestSchemaUpdate {
 
   @Test
   public void testAlterMapKey() {
-    AssertHelpers.assertThrows("Should reject add sub-field to map key",
+    AssertHelpers.assertThrows("Should reject alter sub-field of map key",
         IllegalArgumentException.class, "Cannot alter map keys", () -> {
           new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
-              .updateColumn("locations.zip", Types.LongType.get()).apply();
+              .updateColumn("locations.key.zip", Types.LongType.get()).apply();
         }
     );
   }

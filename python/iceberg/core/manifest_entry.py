@@ -18,6 +18,7 @@
 from enum import Enum
 
 from iceberg.api import (DataFile,
+                         FileFormat,
                          Metrics,
                          Schema)
 from iceberg.api.types import (IntegerType,
@@ -75,7 +76,7 @@ class ManifestEntry():
 
     def put(self, i, v):
         if i == 0:
-            self.status = Status.from_id(i)
+            self.status = Status.from_id(v)
         elif i == 1:
             self.snapshot_id = v
         elif i == 2:
@@ -93,7 +94,7 @@ class ManifestEntry():
                                                     .field(name="partition").type, v.get("partition"))
 
                 v = GenericDataFile(v.get("file_path"),
-                                    v.get("file_format"),
+                                    FileFormat[v.get("file_format")],
                                     v.get("file_size_in_bytes"),
                                     v.get("block_size_in_byte"),
                                     row_count=v.get("record_count"),
@@ -110,8 +111,11 @@ class ManifestEntry():
         elif i == 2:
             return self.file
 
-    def __str__(self):
+    def __repr__(self):
         return "ManifestEntry(status=%s, snapshot_id=%s, file=%s" % (self.status, self.snapshot_id, self.file)
+
+    def __str__(self):
+        return self.__repr__()
 
     @staticmethod
     def project_schema(part_type, columns):

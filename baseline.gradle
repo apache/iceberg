@@ -1,0 +1,78 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+apply plugin: 'com.palantir.baseline-config'
+
+allprojects {
+  apply plugin: 'com.palantir.baseline-idea'
+}
+
+subprojects {
+  // Currently, if any subproject applies the blanket Baseline plugin, it forces the Baseline plugin
+  // to be applied to ALL projects. And we are not prepared to address all of the build errors that
+  // occur as a result at this time. Furthermore, baseline-format will not work out of the box for
+  // us - see below.
+
+  // Thus we concede to applying all of the Baseline plugins individually on all the projects we are
+  // ready to enforce linting on.
+  apply plugin: 'org.inferred.processors'
+  apply plugin: 'com.palantir.baseline-checkstyle'
+  apply plugin: 'com.palantir.baseline-error-prone'
+  apply plugin: 'com.palantir.baseline-scalastyle'
+  apply plugin: 'com.palantir.baseline-class-uniqueness'
+  apply plugin: 'com.palantir.baseline-reproducibility'
+  apply plugin: 'com.palantir.baseline-exact-dependencies'
+  apply plugin: 'com.palantir.baseline-release-compatibility'
+
+  // Can't use the built-in Baseline spotless format because it's opinionated about the import
+  // order of having static imports after non-static imports, and this cannot be overridden.
+
+  // So we apply Spotless manually to get a similar effect to baseline-format, but change the
+  // import order.
+  pluginManager.withPlugin('com.diffplug.gradle.spotless') {
+    spotless {
+      java {
+        target 'src/main/java/**/*.java', 'src/main/test/**/*.java'
+        removeUnusedImports()
+        importOrder(['', 'static '])
+        trimTrailingWhitespace()
+        indentWithSpaces 2
+        endWithNewline()
+      }
+    }
+  }
+
+  tasks.withType(JavaCompile).configureEach {
+    options.errorprone.errorproneArgs += [
+        // error-prone is slow, don't run on tests
+        '-XepExcludedPaths:.*/test/.*',
+        // specific to Palantir
+        '-Xep:PreferSafeLoggingPreconditions:OFF',
+        '-Xep:PreferSafeLoggableExceptions:OFF',
+        '-Xep:Slf4jLogsafeArgs:OFF',
+        // subclasses are not equal
+        '-Xep:EqualsGetClass:OFF',
+        // patterns that are allowed
+        '-Xep:SwitchStatementDefaultCase:OFF',
+        '-Xep:MissingCasesInEnumSwitch:OFF',
+        '-Xep:TypeParameterShadowing:OFF',
+        '-Xep:TypeParameterUnusedInFormals:OFF',
+      ]
+  }
+}

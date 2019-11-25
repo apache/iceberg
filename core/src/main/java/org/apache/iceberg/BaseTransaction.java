@@ -26,12 +26,17 @@ import com.google.common.collect.Sets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
@@ -43,9 +48,12 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 class BaseTransaction implements Transaction {
-  private enum TransactionType {
+  private static final Logger LOG = LoggerFactory.getLogger(BaseTransaction.class);
+
+  enum TransactionType {
     CREATE_TABLE,
     REPLACE_TABLE,
+    CREATE_OR_REPLACE_TABLE,
     SIMPLE
   }
 
@@ -61,22 +69,16 @@ class BaseTransaction implements Transaction {
   private TableMetadata lastBase;
   private TableMetadata current;
 
-  BaseTransaction(TableOperations ops, TableMetadata start) {
+  BaseTransaction(TableOperations ops, TransactionType type, TableMetadata start) {
     this.ops = ops;
     this.transactionTable = new TransactionTable();
+    this.current = start;
     this.transactionOps = new TransactionTableOperations();
     this.updates = Lists.newArrayList();
     this.intermediateSnapshotIds = Sets.newHashSet();
     this.base = ops.current();
-    if (base == null && start != null) {
-      this.type = TransactionType.CREATE_TABLE;
-    } else if (base != null && start != base) {
-      this.type = TransactionType.REPLACE_TABLE;
-    } else {
-      this.type = TransactionType.SIMPLE;
-    }
+    this.type = type;
     this.lastBase = null;
-    this.current = start;
   }
 
   @Override
@@ -134,7 +136,7 @@ class BaseTransaction implements Transaction {
   @Override
   public RewriteFiles newRewrite() {
     checkLastOperationCommitted("RewriteFiles");
-    RewriteFiles rewrite = new ReplaceFiles(transactionOps);
+    RewriteFiles rewrite = new BaseRewriteFiles(transactionOps);
     rewrite.deleteWith(enqueueDelete);
     updates.add(rewrite);
     return rewrite;
@@ -143,7 +145,7 @@ class BaseTransaction implements Transaction {
   @Override
   public RewriteManifests rewriteManifests() {
     checkLastOperationCommitted("RewriteManifests");
-    RewriteManifests rewrite = new ReplaceManifests(transactionOps);
+    RewriteManifests rewrite = new BaseRewriteManifests(transactionOps);
     rewrite.deleteWith(enqueueDelete);
     updates.add(rewrite);
     return rewrite;
@@ -152,7 +154,7 @@ class BaseTransaction implements Transaction {
   @Override
   public OverwriteFiles newOverwrite() {
     checkLastOperationCommitted("OverwriteFiles");
-    OverwriteFiles overwrite = new OverwriteData(transactionOps);
+    OverwriteFiles overwrite = new BaseOverwriteFiles(transactionOps);
     overwrite.deleteWith(enqueueDelete);
     updates.add(overwrite);
     return overwrite;
@@ -161,7 +163,7 @@ class BaseTransaction implements Transaction {
   @Override
   public ReplacePartitions newReplacePartitions() {
     checkLastOperationCommitted("ReplacePartitions");
-    ReplacePartitionsOperation replacePartitions = new ReplacePartitionsOperation(transactionOps);
+    ReplacePartitions replacePartitions = new BaseReplacePartitions(transactionOps);
     replacePartitions.deleteWith(enqueueDelete);
     updates.add(replacePartitions);
     return replacePartitions;
@@ -192,70 +194,213 @@ class BaseTransaction implements Transaction {
 
     switch (type) {
       case CREATE_TABLE:
-        // fix up the snapshot log, which should not contain intermediate snapshots
-        TableMetadata createMetadata = current.removeSnapshotLogEntries(intermediateSnapshotIds);
-
-        // this operation creates the table. if the commit fails, this cannot retry because another
-        // process has created the same table.
-        ops.commit(null, createMetadata);
+        commitCreateTransaction();
         break;
 
       case REPLACE_TABLE:
-        // fix up the snapshot log, which should not contain intermediate snapshots
-        TableMetadata replaceMetadata = current.removeSnapshotLogEntries(intermediateSnapshotIds);
+        commitReplaceTransaction(false);
+        break;
 
-        Tasks.foreach(ops)
-            .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
-            .exponentialBackoff(
-                base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-                base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
-                base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-                2.0 /* exponential */)
-            .onlyRetryOn(CommitFailedException.class)
-            .run(underlyingOps -> {
-              // because this is a replace table, it will always completely replace the table
-              // metadata. even if it was just updated.
-              if (base != underlyingOps.refresh()) {
-                this.base = underlyingOps.current(); // just refreshed
-              }
-
-              underlyingOps.commit(base, replaceMetadata);
-            });
+      case CREATE_OR_REPLACE_TABLE:
+        commitReplaceTransaction(true);
         break;
 
       case SIMPLE:
-        // if there were no changes, don't try to commit
-        if (base == current) {
-          return;
-        }
-
-        Tasks.foreach(ops)
-            .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
-            .exponentialBackoff(
-                base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-                base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
-                base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-                2.0 /* exponential */)
-            .onlyRetryOn(CommitFailedException.class)
-            .run(underlyingOps -> {
-              if (base != underlyingOps.refresh()) {
-                this.base = underlyingOps.current(); // just refreshed
-                this.current = base;
-                this.deletedFiles.clear(); // clear deletes from the last set of operation commits
-                for (PendingUpdate update : updates) {
-                  // re-commit each update in the chain to apply it and update current
-                  update.commit();
-                }
-              }
-
-              // fix up the snapshot log, which should not contain intermediate snapshots
-              underlyingOps.commit(base, current.removeSnapshotLogEntries(intermediateSnapshotIds));
-            });
-
-        // delete all of the files that were deleted in the most recent set of operation commits
-        deletedFiles.forEach(ops.io()::deleteFile);
+        commitSimpleTransaction();
         break;
     }
+  }
+
+  private void commitCreateTransaction() {
+    // fix up the snapshot log, which should not contain intermediate snapshots
+    TableMetadata createMetadata = current.removeSnapshotLogEntries(intermediateSnapshotIds);
+
+    // this operation creates the table. if the commit fails, this cannot retry because another
+    // process has created the same table.
+    try {
+      ops.commit(null, createMetadata);
+
+    } catch (RuntimeException e) {
+      // the commit failed and no files were committed. clean up each update.
+      Tasks.foreach(updates)
+          .suppressFailureWhenFinished()
+          .run(update -> {
+            if (update instanceof SnapshotProducer) {
+              ((SnapshotProducer) update).cleanAll();
+            }
+          });
+
+      throw e;
+
+    } finally {
+      // create table never needs to retry because the table has no previous state. because retries are not a
+      // concern, it is safe to delete all of the deleted files from individual operations
+      Tasks.foreach(deletedFiles)
+          .suppressFailureWhenFinished()
+          .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
+          .run(ops.io()::deleteFile);
+    }
+  }
+
+  private void commitReplaceTransaction(boolean orCreate) {
+    // fix up the snapshot log, which should not contain intermediate snapshots
+    TableMetadata replaceMetadata = current.removeSnapshotLogEntries(intermediateSnapshotIds);
+    Map<String, String> props = base != null ? base.properties() : replaceMetadata.properties();
+
+    try {
+      Tasks.foreach(ops)
+          .retry(PropertyUtil.propertyAsInt(props, COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
+          .exponentialBackoff(
+              PropertyUtil.propertyAsInt(props, COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
+              PropertyUtil.propertyAsInt(props, COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+              PropertyUtil.propertyAsInt(props, COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
+              2.0 /* exponential */)
+          .onlyRetryOn(CommitFailedException.class)
+          .run(underlyingOps -> {
+
+            try {
+              underlyingOps.refresh();
+            } catch (NoSuchTableException e) {
+              if (!orCreate) {
+                throw e;
+              }
+            }
+
+            // because this is a replace table, it will always completely replace the table
+            // metadata. even if it was just updated.
+            if (base != underlyingOps.current()) {
+              this.base = underlyingOps.current(); // just refreshed
+            }
+
+            underlyingOps.commit(base, replaceMetadata);
+          });
+
+    } catch (RuntimeException e) {
+      // the commit failed and no files were committed. clean up each update.
+      Tasks.foreach(updates)
+          .suppressFailureWhenFinished()
+          .run(update -> {
+            if (update instanceof SnapshotProducer) {
+              ((SnapshotProducer) update).cleanAll();
+            }
+          });
+
+      throw e;
+
+    } finally {
+      // replace table never needs to retry because the table state is completely replaced. because retries are not
+      // a concern, it is safe to delete all of the deleted files from individual operations
+      Tasks.foreach(deletedFiles)
+          .suppressFailureWhenFinished()
+          .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
+          .run(ops.io()::deleteFile);
+    }
+  }
+
+  private void commitSimpleTransaction() {
+    // if there were no changes, don't try to commit
+    if (base == current) {
+      return;
+    }
+
+    // this is always set to the latest commit attempt's snapshot id.
+    AtomicLong currentSnapshotId = new AtomicLong(-1L);
+
+    try {
+      Tasks.foreach(ops)
+          .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
+          .exponentialBackoff(
+              base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
+              base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+              base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
+              2.0 /* exponential */)
+          .onlyRetryOn(CommitFailedException.class)
+          .run(underlyingOps -> {
+            if (base != underlyingOps.refresh()) {
+              this.base = underlyingOps.current(); // just refreshed
+              this.current = base;
+              for (PendingUpdate update : updates) {
+                // re-commit each update in the chain to apply it and update current
+                update.commit();
+              }
+            }
+
+            if (current.currentSnapshot() != null) {
+              currentSnapshotId.set(current.currentSnapshot().snapshotId());
+            }
+
+            // fix up the snapshot log, which should not contain intermediate snapshots
+            underlyingOps.commit(base, current.removeSnapshotLogEntries(intermediateSnapshotIds));
+          });
+
+    } catch (RuntimeException e) {
+      // the commit failed and no files were committed. clean up each update.
+      Tasks.foreach(updates)
+          .suppressFailureWhenFinished()
+          .run(update -> {
+            if (update instanceof SnapshotProducer) {
+              ((SnapshotProducer) update).cleanAll();
+            }
+          });
+
+      // delete all files that were cleaned up
+      Tasks.foreach(deletedFiles)
+          .suppressFailureWhenFinished()
+          .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
+          .run(ops.io()::deleteFile);
+
+      throw e;
+    }
+
+    // the commit succeeded
+
+    try {
+      if (currentSnapshotId.get() != -1) {
+        intermediateSnapshotIds.add(currentSnapshotId.get());
+      }
+
+      // clean up the data files that were deleted by each operation. first, get the list of committed manifests to
+      // ensure that no committed manifest is deleted. a manifest could be deleted in one successful operation
+      // commit, but reused in another successful commit of that operation if the whole transaction is retried.
+      Set<String> committedFiles = committedFiles(ops, intermediateSnapshotIds);
+      if (committedFiles != null) {
+        // delete all of the files that were deleted in the most recent set of operation commits
+        Tasks.foreach(deletedFiles)
+            .suppressFailureWhenFinished()
+            .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
+            .run(path -> {
+              if (!committedFiles.contains(path)) {
+                ops.io().deleteFile(path);
+              }
+            });
+      } else {
+        LOG.warn("Failed to load metadata for a committed snapshot, skipping clean-up");
+      }
+
+    } catch (RuntimeException e) {
+      LOG.warn("Failed to load committed metadata, skipping clean-up", e);
+    }
+  }
+
+  private static Set<String> committedFiles(TableOperations ops, Set<Long> snapshotIds) {
+    if (snapshotIds.isEmpty()) {
+      return null;
+    }
+
+    Set<String> committedFiles = Sets.newHashSet();
+
+    for (long snapshotId : snapshotIds) {
+      Snapshot snap = ops.current().snapshot(snapshotId);
+      if (snap != null) {
+        committedFiles.add(snap.manifestListLocation());
+        snap.manifests()
+            .forEach(manifest -> committedFiles.add(manifest.path()));
+      } else {
+        return null;
+      }
+    }
+
+    return committedFiles;
   }
 
   private static Long currentId(TableMetadata meta) {
@@ -268,6 +413,8 @@ class BaseTransaction implements Transaction {
   }
 
   public class TransactionTableOperations implements TableOperations {
+    private TableOperations tempOps = ops.temp(current);
+
     @Override
     public TableMetadata current() {
       return current;
@@ -293,31 +440,33 @@ class BaseTransaction implements Transaction {
       }
 
       BaseTransaction.this.current = metadata;
+
+      this.tempOps = ops.temp(metadata);
     }
 
     @Override
     public FileIO io() {
-      return ops.io();
+      return tempOps.io();
     }
 
     @Override
     public EncryptionManager encryption() {
-      return ops.encryption();
+      return tempOps.encryption();
     }
 
     @Override
     public String metadataFileLocation(String fileName) {
-      return ops.metadataFileLocation(fileName);
+      return tempOps.metadataFileLocation(fileName);
     }
 
     @Override
     public LocationProvider locationProvider() {
-      return ops.locationProvider();
+      return tempOps.locationProvider();
     }
 
     @Override
     public long newSnapshotId() {
-      return ops.newSnapshotId();
+      return tempOps.newSnapshotId();
     }
   }
 
@@ -339,6 +488,11 @@ class BaseTransaction implements Transaction {
     @Override
     public PartitionSpec spec() {
       return current.spec();
+    }
+
+    @Override
+    public Map<Integer, PartitionSpec> specs() {
+      return current.specsById();
     }
 
     @Override

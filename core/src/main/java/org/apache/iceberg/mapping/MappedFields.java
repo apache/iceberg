@@ -28,11 +28,11 @@ import java.util.Objects;
 
 public class MappedFields {
 
-  static MappedFields of(MappedField... fields) {
+  public static MappedFields of(MappedField... fields) {
     return new MappedFields(ImmutableList.copyOf(fields));
   }
 
-  static MappedFields of(List<MappedField> fields) {
+  public static MappedFields of(List<MappedField> fields) {
     return new MappedFields(fields);
   }
 
@@ -89,9 +89,7 @@ public class MappedFields {
   public boolean equals(Object other) {
     if (this == other) {
       return true;
-    }
-
-    if (other == null || getClass() != other.getClass()) {
+    } else if (!(other instanceof MappedFields)) {
       return false;
     }
 

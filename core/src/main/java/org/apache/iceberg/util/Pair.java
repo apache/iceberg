@@ -119,8 +119,7 @@ public class Pair<X, Y> implements IndexedRecord, SpecificData.SchemaConstructab
   public boolean equals(Object other) {
     if (this == other) {
       return true;
-    }
-    if (getClass() != other.getClass()) {
+    } else if (!(other instanceof Pair)) {
       return false;
     }
     Pair<?, ?> otherPair = (Pair<?, ?>) other;

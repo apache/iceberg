@@ -20,13 +20,13 @@
 package org.apache.iceberg;
 
 import com.google.common.base.MoreObjects;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.generic.IndexedRecord;
@@ -64,7 +64,7 @@ class GenericDataFile
   private Map<Integer, ByteBuffer> lowerBounds = null;
   private Map<Integer, ByteBuffer> upperBounds = null;
   private List<Long> splitOffsets = null;
-  private transient ByteBuffer keyMetadata = null;
+  private byte[] keyMetadata = null;
 
   // cached schema
   private transient org.apache.avro.Schema avroSchema = null;
@@ -157,7 +157,7 @@ class GenericDataFile
                   long fileSizeInBytes, Metrics metrics,
                   ByteBuffer keyMetadata, List<Long> splitOffsets) {
     this(filePath, format, partition, fileSizeInBytes, metrics, splitOffsets);
-    this.keyMetadata = keyMetadata;
+    this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
   }
 
   /**
@@ -190,7 +190,7 @@ class GenericDataFile
       this.upperBounds = null;
     }
     this.fromProjectionPos = toCopy.fromProjectionPos;
-    this.keyMetadata = toCopy.keyMetadata == null ? null : ByteBuffers.copy(toCopy.keyMetadata);
+    this.keyMetadata = toCopy.keyMetadata == null ? null : Arrays.copyOf(toCopy.keyMetadata, toCopy.keyMetadata.length);
     this.splitOffsets = copy(toCopy.splitOffsets);
   }
 
@@ -262,7 +262,7 @@ class GenericDataFile
 
   @Override
   public ByteBuffer keyMetadata() {
-    return keyMetadata;
+    return keyMetadata != null ? ByteBuffer.wrap(keyMetadata) : null;
   }
 
   @Override
@@ -327,7 +327,7 @@ class GenericDataFile
         this.upperBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) v);
         return;
       case 13:
-        this.keyMetadata = (ByteBuffer) v;
+        this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) v);
         return;
       case 14:
         this.splitOffsets = (List<Long>) v;
@@ -434,40 +434,19 @@ class GenericDataFile
 
   private static <K, V> Map<K, V> copy(Map<K, V> map) {
     if (map != null) {
-      return ImmutableMap.copyOf(map);
+      Map<K, V> copy = Maps.newHashMapWithExpectedSize(map.size());
+      copy.putAll(map);
+      return Collections.unmodifiableMap(copy);
     }
     return null;
   }
 
   private static <E> List<E> copy(List<E> list) {
     if (list != null) {
-      return ImmutableList.copyOf(list);
+      List<E> copy = Lists.newArrayListWithExpectedSize(list.size());
+      copy.addAll(list);
+      return Collections.unmodifiableList(copy);
     }
     return null;
-  }
-
-  private void writeObject(ObjectOutputStream output) throws IOException {
-    output.defaultWriteObject();
-    if (keyMetadata != null) {
-      output.writeBoolean(true);
-      byte[] keyMetadataArray = ByteBuffers.toByteArray(keyMetadata);
-      output.writeInt(keyMetadataArray.length);
-      output.write(keyMetadataArray);
-    } else {
-      output.writeBoolean(false);
-    }
-  }
-
-  private void readObject(ObjectInputStream input) throws IOException, ClassNotFoundException {
-    input.defaultReadObject();
-    boolean hasKeyMetadata = input.readBoolean();
-    if (hasKeyMetadata) {
-      int keyMetadataLength = input.readInt();
-      byte[] keyMetadataArray = new byte[keyMetadataLength];
-      input.read(keyMetadataArray);
-      this.keyMetadata = ByteBuffer.wrap(keyMetadataArray);
-    } else {
-      this.keyMetadata = null;
-    }
   }
 }

@@ -19,12 +19,10 @@
 
 package org.apache.iceberg.spark.source;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
@@ -33,7 +31,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -57,6 +54,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.data.SparkAvroWriter;
 import org.apache.iceberg.spark.data.SparkParquetWriters;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
@@ -77,6 +75,8 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
+import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
 // TODO: parameterize DataSourceWriter with subclass of WriterCommitMessage
 class Writer implements DataSourceWriter {
@@ -89,12 +89,15 @@ class Writer implements DataSourceWriter {
   private final boolean replacePartitions;
   private final String applicationId;
   private final String wapId;
+  private final long targetFileSize;
+  private final Schema dsSchema;
 
-  Writer(Table table, DataSourceOptions options, boolean replacePartitions, String applicationId) {
-    this(table, options, replacePartitions, applicationId, null);
+  Writer(Table table, DataSourceOptions options, boolean replacePartitions, String applicationId, Schema dsSchema) {
+    this(table, options, replacePartitions, applicationId, null, dsSchema);
   }
 
-  Writer(Table table, DataSourceOptions options, boolean replacePartitions, String applicationId, String wapId) {
+  Writer(Table table, DataSourceOptions options, boolean replacePartitions, String applicationId, String wapId,
+      Schema dsSchema) {
     this.table = table;
     this.format = getFileFormat(table.properties(), options);
     this.fileIo = table.io();
@@ -102,6 +105,11 @@ class Writer implements DataSourceWriter {
     this.replacePartitions = replacePartitions;
     this.applicationId = applicationId;
     this.wapId = wapId;
+    this.dsSchema = dsSchema;
+
+    long tableTargetFileSize = PropertyUtil.propertyAsLong(
+        table.properties(), WRITE_TARGET_FILE_SIZE_BYTES, WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
+    this.targetFileSize = options.getLong("target-file-size-bytes", tableTargetFileSize);
   }
 
   private FileFormat getFileFormat(Map<String, String> tableProperties, DataSourceOptions options) {
@@ -119,7 +127,8 @@ class Writer implements DataSourceWriter {
   @Override
   public DataWriterFactory<InternalRow> createWriterFactory() {
     return new WriterFactory(
-        table.spec(), format, table.locationProvider(), table.properties(), fileIo, encryptionManager);
+        table.spec(), format, table.locationProvider(), table.properties(), fileIo, encryptionManager, targetFileSize,
+        dsSchema);
   }
 
   @Override
@@ -242,57 +251,57 @@ class Writer implements DataSourceWriter {
     private final FileFormat format;
     private final LocationProvider locations;
     private final Map<String, String> properties;
-    private final String uuid = UUID.randomUUID().toString();
     private final FileIO fileIo;
     private final EncryptionManager encryptionManager;
+    private final long targetFileSize;
+    private final Schema dsSchema;
 
     WriterFactory(PartitionSpec spec, FileFormat format, LocationProvider locations,
-                  Map<String, String> properties, FileIO fileIo, EncryptionManager encryptionManager) {
+        Map<String, String> properties, FileIO fileIo, EncryptionManager encryptionManager,
+        long targetFileSize, Schema dsSchema) {
       this.spec = spec;
       this.format = format;
       this.locations = locations;
       this.properties = properties;
       this.fileIo = fileIo;
       this.encryptionManager = encryptionManager;
+      this.targetFileSize = targetFileSize;
+      this.dsSchema = dsSchema;
     }
 
     @Override
     public DataWriter<InternalRow> createDataWriter(int partitionId, long taskId, long epochId) {
-      String filename = format.addExtension(String.format("%05d-%d-%s", partitionId, taskId, uuid));
-      AppenderFactory<InternalRow> factory = new SparkAppenderFactory();
+      OutputFileFactory fileFactory = new OutputFileFactory(partitionId, taskId, epochId);
+      AppenderFactory<InternalRow> appenderFactory = new SparkAppenderFactory();
+
       if (spec.fields().isEmpty()) {
-        OutputFile outputFile = fileIo.newOutputFile(locations.newDataLocation(filename));
-        return new UnpartitionedWriter(encryptionManager.encrypt(outputFile), format, factory, fileIo);
+        return new UnpartitionedWriter(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize);
       } else {
-        Function<PartitionKey, EncryptedOutputFile> newOutputFileForKey =
-            key -> {
-              OutputFile rawOutputFile = fileIo.newOutputFile(locations.newDataLocation(spec, key, filename));
-              return encryptionManager.encrypt(rawOutputFile);
-            };
-        return new PartitionedWriter(spec, format, factory, newOutputFileForKey, fileIo);
+        return new PartitionedWriter(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize);
       }
     }
 
     private class SparkAppenderFactory implements AppenderFactory<InternalRow> {
       @Override
       public FileAppender<InternalRow> newAppender(OutputFile file, FileFormat fileFormat) {
-        Schema schema = spec.schema();
         MetricsConfig metricsConfig = MetricsConfig.fromProperties(properties);
         try {
           switch (fileFormat) {
             case PARQUET:
               return Parquet.write(file)
-                  .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(schema, msgType))
+                  .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(dsSchema, msgType))
                   .setAll(properties)
                   .metricsConfig(metricsConfig)
-                  .schema(schema)
+                  .schema(dsSchema)
+                  .overwrite()
                   .build();
 
             case AVRO:
               return Avro.write(file)
-                  .createWriterFunc(ignored -> new SparkAvroWriter(schema))
+                  .createWriterFunc(ignored -> new SparkAvroWriter(dsSchema))
                   .setAll(properties)
-                  .schema(schema)
+                  .schema(dsSchema)
+                  .overwrite()
                   .build();
 
             default:
@@ -303,142 +312,119 @@ class Writer implements DataSourceWriter {
         }
       }
     }
+
+    private class OutputFileFactory {
+      private final int partitionId;
+      private final long taskId;
+      private final long epochId;
+      // The purpose of this uuid is to be able to know from two paths that they were written by the same operation.
+      // That's useful, for example, if a Spark job dies and leaves files in the file system, you can identify them all
+      // with a recursive listing and grep.
+      private final String uuid = UUID.randomUUID().toString();
+      private int fileCount;
+
+      OutputFileFactory(int partitionId, long taskId, long epochId) {
+        this.partitionId = partitionId;
+        this.taskId = taskId;
+        this.epochId = epochId;
+        this.fileCount = 0;
+      }
+
+      private String generateFilename() {
+        return format.addExtension(String.format("%05d-%d-%s-%05d", partitionId, taskId, uuid, fileCount++));
+      }
+
+      /**
+       * Generates EncryptedOutputFile for UnpartitionedWriter.
+       */
+      public EncryptedOutputFile newOutputFile() {
+        OutputFile file = fileIo.newOutputFile(locations.newDataLocation(generateFilename()));
+        return encryptionManager.encrypt(file);
+      }
+
+      /**
+       * Generates EncryptedOutputFile for PartitionedWriter.
+       */
+      public EncryptedOutputFile newOutputFile(PartitionKey key) {
+        OutputFile rawOutputFile = fileIo.newOutputFile(locations.newDataLocation(spec, key, generateFilename()));
+        return encryptionManager.encrypt(rawOutputFile);
+      }
+    }
   }
 
   private interface AppenderFactory<T> {
     FileAppender<T> newAppender(OutputFile file, FileFormat format);
   }
 
-  private static class UnpartitionedWriter implements DataWriter<InternalRow>, Closeable {
-    private final FileIO fileIo;
-    private FileAppender<InternalRow> appender = null;
-    private Metrics metrics = null;
-    private List<Long> offsetRanges = null;
-    private final EncryptedOutputFile file;
+  private abstract static class BaseWriter implements DataWriter<InternalRow> {
+    protected static final int ROWS_DIVISOR = 1000;
 
-    UnpartitionedWriter(
-        EncryptedOutputFile outputFile,
-        FileFormat format,
-        AppenderFactory<InternalRow> factory,
-        FileIO fileIo) {
-      this.fileIo = fileIo;
-      this.file = outputFile;
-      this.appender = factory.newAppender(file.encryptingOutputFile(), format);
-    }
-
-    @Override
-    public void write(InternalRow record) {
-      appender.add(record);
-    }
-
-    @Override
-    public WriterCommitMessage commit() throws IOException {
-      Preconditions.checkArgument(appender != null, "Commit called on a closed writer: %s", this);
-
-      // metrics and splitOffsets are populated on close
-      close();
-
-      if (metrics.recordCount() == 0L) {
-        fileIo.deleteFile(file.encryptingOutputFile());
-        return new TaskCommit();
-      }
-
-      DataFile dataFile = DataFiles.fromEncryptedOutputFile(file, null, metrics, offsetRanges);
-
-      return new TaskCommit(dataFile);
-    }
-
-    @Override
-    public void abort() throws IOException {
-      Preconditions.checkArgument(appender != null, "Abort called on a closed writer: %s", this);
-
-      close();
-      fileIo.deleteFile(file.encryptingOutputFile());
-    }
-
-    @Override
-    public void close() throws IOException {
-      if (this.appender != null) {
-        this.appender.close();
-        this.metrics = appender.metrics();
-        this.offsetRanges = appender.splitOffsets();
-        this.appender = null;
-      }
-    }
-  }
-
-  private static class PartitionedWriter implements DataWriter<InternalRow> {
-    private final Set<PartitionKey> completedPartitions = Sets.newHashSet();
     private final List<DataFile> completedFiles = Lists.newArrayList();
     private final PartitionSpec spec;
     private final FileFormat format;
-    private final AppenderFactory<InternalRow> factory;
-    private final Function<PartitionKey, EncryptedOutputFile> newOutputFileForKey;
-    private final PartitionKey key;
+    private final AppenderFactory<InternalRow> appenderFactory;
+    private final WriterFactory.OutputFileFactory fileFactory;
     private final FileIO fileIo;
-
+    private final long targetFileSize;
     private PartitionKey currentKey = null;
     private FileAppender<InternalRow> currentAppender = null;
     private EncryptedOutputFile currentFile = null;
+    private long currentRows = 0;
 
-    PartitionedWriter(
-        PartitionSpec spec,
-        FileFormat format,
-        AppenderFactory<InternalRow> factory,
-        Function<PartitionKey, EncryptedOutputFile> newOutputFileForKey,
-        FileIO fileIo) {
+    BaseWriter(PartitionSpec spec, FileFormat format, AppenderFactory<InternalRow> appenderFactory,
+        WriterFactory.OutputFileFactory fileFactory, FileIO fileIo, long targetFileSize) {
       this.spec = spec;
       this.format = format;
-      this.factory = factory;
-      this.newOutputFileForKey = newOutputFileForKey;
-      this.key = new PartitionKey(spec);
+      this.appenderFactory = appenderFactory;
+      this.fileFactory = fileFactory;
       this.fileIo = fileIo;
+      this.targetFileSize = targetFileSize;
     }
 
     @Override
-    public void write(InternalRow row) throws IOException {
-      key.partition(row);
+    public abstract void write(InternalRow row) throws IOException;
 
-      if (!key.equals(currentKey)) {
+    public void writeInternal(InternalRow row)  throws IOException {
+      if (currentRows % ROWS_DIVISOR == 0 && currentAppender.length() >= targetFileSize) {
         closeCurrent();
-
-        if (completedPartitions.contains(key)) {
-          // if rows are not correctly grouped, detect and fail the write
-          PartitionKey existingKey = Iterables.find(completedPartitions, key::equals, null);
-          LOG.warn("Duplicate key: {} == {}", existingKey, key);
-          throw new IllegalStateException("Already closed file for partition: " + key.toPath());
-        }
-
-        this.currentKey = key.copy();
-        this.currentFile = newOutputFileForKey.apply(currentKey);
-        this.currentAppender = factory.newAppender(currentFile.encryptingOutputFile(), format);
+        openCurrent();
       }
 
       currentAppender.add(row);
+      currentRows++;
     }
 
     @Override
     public WriterCommitMessage commit() throws IOException {
       closeCurrent();
+
       return new TaskCommit(completedFiles);
     }
 
     @Override
     public void abort() throws IOException {
+      closeCurrent();
+
       // clean up files created by this writer
       Tasks.foreach(completedFiles)
           .throwFailureWhenFinished()
           .noRetry()
           .run(file -> fileIo.deleteFile(file.path().toString()));
-
-      if (currentAppender != null) {
-        currentAppender.close();
-        this.currentAppender = null;
-        fileIo.deleteFile(currentFile.encryptingOutputFile());
-      }
     }
 
-    private void closeCurrent() throws IOException {
+    protected void openCurrent() {
+      if (spec.fields().size() == 0) {
+        // unpartitioned
+        currentFile = fileFactory.newOutputFile();
+      } else {
+        // partitioned
+        currentFile = fileFactory.newOutputFile(currentKey);
+      }
+      currentAppender = appenderFactory.newAppender(currentFile.encryptingOutputFile(), format);
+      currentRows = 0;
+    }
+
+    protected void closeCurrent() throws IOException {
       if (currentAppender != null) {
         currentAppender.close();
         // metrics are only valid after the appender is closed
@@ -446,16 +432,89 @@ class Writer implements DataSourceWriter {
         List<Long> splitOffsets = currentAppender.splitOffsets();
         this.currentAppender = null;
 
-        DataFile dataFile = DataFiles.builder(spec)
-            .withEncryptedOutputFile(currentFile)
-            .withPartition(currentKey)
-            .withMetrics(metrics)
-            .withSplitOffsets(splitOffsets)
-            .build();
+        if (metrics.recordCount() == 0L) {
+          fileIo.deleteFile(currentFile.encryptingOutputFile());
+        } else {
+          DataFile dataFile = DataFiles.builder(spec)
+              .withEncryptedOutputFile(currentFile)
+              .withPartition(spec.fields().size() == 0 ? null : currentKey) // set null if unpartitioned
+              .withMetrics(metrics)
+              .withSplitOffsets(splitOffsets)
+              .build();
+          completedFiles.add(dataFile);
+        }
 
-        completedPartitions.add(currentKey);
-        completedFiles.add(dataFile);
+        this.currentFile = null;
       }
+    }
+
+    protected PartitionKey getCurrentKey() {
+      return currentKey;
+    }
+
+    protected void setCurrentKey(PartitionKey currentKey) {
+      this.currentKey = currentKey;
+    }
+  }
+
+  private static class UnpartitionedWriter extends BaseWriter {
+    private static final int ROWS_DIVISOR = 1000;
+
+    UnpartitionedWriter(
+        PartitionSpec spec,
+        FileFormat format,
+        AppenderFactory<InternalRow> appenderFactory,
+        WriterFactory.OutputFileFactory fileFactory,
+        FileIO fileIo,
+        long targetFileSize) {
+      super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize);
+
+      openCurrent();
+    }
+
+    @Override
+    public void write(InternalRow row) throws IOException {
+      writeInternal(row);
+    }
+  }
+
+  private static class PartitionedWriter extends BaseWriter {
+    private final PartitionKey key;
+    private final Set<PartitionKey> completedPartitions = Sets.newHashSet();
+
+    PartitionedWriter(
+        PartitionSpec spec,
+        FileFormat format,
+        AppenderFactory<InternalRow> appenderFactory,
+        WriterFactory.OutputFileFactory fileFactory,
+        FileIO fileIo,
+        long targetFileSize) {
+      super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize);
+
+      this.key = new PartitionKey(spec);
+    }
+
+    @Override
+    public void write(InternalRow row) throws IOException {
+      key.partition(row);
+
+      PartitionKey currentKey = getCurrentKey();
+      if (!key.equals(currentKey)) {
+        closeCurrent();
+        completedPartitions.add(currentKey);
+
+        if (completedPartitions.contains(key)) {
+          // if rows are not correctly grouped, detect and fail the write
+          PartitionKey existingKey = Iterables.find(completedPartitions, key::equals, null);
+          LOG.warn("Duplicate key: {} == {}", existingKey, key);
+          throw new IllegalStateException("Already closed files for partition: " + key.toPath());
+        }
+
+        setCurrentKey(key.copy());
+        openCurrent();
+      }
+
+      writeInternal(row);
     }
   }
 }

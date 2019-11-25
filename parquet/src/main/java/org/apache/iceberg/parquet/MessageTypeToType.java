@@ -44,7 +44,7 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
   private final GroupType root;
   private int nextId = 1;
 
-  public MessageTypeToType(GroupType root) {
+  MessageTypeToType(GroupType root) {
     this.root = root;
     this.nextId = 1_000; // use ids that won't match other than for root
   }
@@ -184,13 +184,6 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
 
     throw new UnsupportedOperationException(
         "Cannot convert unknown primitive type: " + primitive);
-  }
-
-  private void addAlias(int fieldId) {
-    if (!fieldNames.isEmpty()) {
-      String fullName = DOT.join(fieldNames.descendingIterator());
-      aliasToId.put(fullName, fieldId);
-    }
   }
 
   private void addAlias(String name, int fieldId) {

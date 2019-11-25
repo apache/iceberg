@@ -1,3 +1,20 @@
+<!--
+ - Licensed to the Apache Software Foundation (ASF) under one or more
+ - contributor license agreements.  See the NOTICE file distributed with
+ - this work for additional information regarding copyright ownership.
+ - The ASF licenses this file to You under the Apache License, Version 2.0
+ - (the "License"); you may not use this file except in compliance with
+ - the License.  You may obtain a copy of the License at
+ -
+ -   http://www.apache.org/licenses/LICENSE-2.0
+ -
+ - Unless required by applicable law or agreed to in writing, software
+ - distributed under the License is distributed on an "AS IS" BASIS,
+ - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ - See the License for the specific language governing permissions and
+ - limitations under the License.
+ -->
+
 # Configuration
 
 ## Table properties
@@ -10,7 +27,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | ---------------------------- | ------------------ | ------------------------------------------------------ |
 | read.split.target-size       | 134217728 (128 MB) | Target size when combining input splits                |
 | read.split.planning-lookback | 10                 | Number of bins to consider when combining input splits |
-
+| read.split.open-file-cost    | 4194304 (4 MB)     | The estimated cost to open a file, used as a minimum weight when combining splits. |
 
 ### Write properties
 
@@ -25,6 +42,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.metadata.compression-codec   | none               | Metadata compression codec; none or gzip           |
 | write.metadata.metrics.default     | truncate(16)       | Default metrics mode for all columns in the table; none, counts, truncate(length), or full |
 | write.metadata.metrics.column.col1 | (not set)          | Metrics mode for column 'col1' to allow per-column tuning; none, counts, truncate(length), or full |
+| write.target-file-size-bytes       | Long.MAX_VALUE     | Controls the size of files generated to target about this many bytes. |
 
 ### Table behavior properties
 
@@ -52,10 +70,13 @@ spark.read
     .load("db.table")
 ```
 
-| Spark option    | Default  | Description                                                                               |
-| --------------- | -------- | ----------------------------------------------------------------------------------------- |
-| snapshot-id     | (latest) | Snapshot ID of the table snapshot to read                                                 |
-| as-of-timestamp | (latest) | A timestamp in milliseconds; the snapshot used will be the snapshot current at this time. |
+| Spark option    | Default               | Description                                                                               |
+| --------------- | --------------------- | ----------------------------------------------------------------------------------------- |
+| snapshot-id     | (latest)              | Snapshot ID of the table snapshot to read                                                 |
+| as-of-timestamp | (latest)              | A timestamp in milliseconds; the snapshot used will be the snapshot current at this time. |
+| split-size      | As per table property | Overrides this table's read.split.target-size                                             |
+| lookback        | As per table property | Overrides this table's read.split.planning-lookback                                       |
+| file-open-cost  | As per table property | Overrides this table's read.split.open-file-cost                                          |
 
 ### Write options
 
@@ -72,4 +93,6 @@ df.write
 | Spark option | Default                    | Description                                                  |
 | ------------ | -------------------------- | ------------------------------------------------------------ |
 | write-format | Table write.format.default | File format to use for this write operation; parquet or avro |
+| target-file-size-bytes | As per table property | Overrides this table's write.target-file-size-bytes     |
+| check-nullability | true         | Sets the nullable check on fields                        |
 

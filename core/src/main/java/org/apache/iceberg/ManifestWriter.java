@@ -20,7 +20,9 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
 import java.io.IOException;
+import java.util.Set;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
@@ -36,14 +38,33 @@ public class ManifestWriter implements FileAppender<DataFile> {
 
   static ManifestFile copyAppendManifest(ManifestReader reader, OutputFile outputFile, long snapshotId,
                                          SnapshotSummary.Builder summaryBuilder) {
+    return copyManifest(reader, outputFile, snapshotId, summaryBuilder, Sets.newHashSet(ManifestEntry.Status.ADDED));
+  }
+
+  static ManifestFile copyManifest(ManifestReader reader, OutputFile outputFile, long snapshotId,
+                                   SnapshotSummary.Builder summaryBuilder,
+                                   Set<ManifestEntry.Status> allowedEntryStatuses) {
     ManifestWriter writer = new ManifestWriter(reader.spec(), outputFile, snapshotId);
     boolean threw = true;
     try {
       for (ManifestEntry entry : reader.entries()) {
-        Preconditions.checkArgument(entry.status() == ManifestEntry.Status.ADDED,
-            "Cannot append manifest: contains existing files");
-        summaryBuilder.addedFile(reader.spec(), entry.file());
-        writer.add(entry);
+        Preconditions.checkArgument(
+            allowedEntryStatuses.contains(entry.status()),
+            "Invalid manifest entry status: %s (allowed statuses: %s)",
+            entry.status(), allowedEntryStatuses);
+        switch (entry.status()) {
+          case ADDED:
+            summaryBuilder.addedFile(reader.spec(), entry.file());
+            writer.add(entry);
+            break;
+          case EXISTING:
+            writer.existing(entry);
+            break;
+          case DELETED:
+            summaryBuilder.deletedFile(reader.spec(), entry.file());
+            writer.delete(entry);
+            break;
+        }
       }
 
       threw = false;

@@ -33,7 +33,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceWrapper;
 
 public class FileHistory {
-  private static final List<String> HISTORY_COLUMNS = ImmutableList.of("file_path");
+  private static final ImmutableList<String> HISTORY_COLUMNS = ImmutableList.of("file_path");
 
   private FileHistory() {
   }
@@ -98,7 +98,7 @@ public class FileHistory {
           manifest -> manifest.snapshotId() == null || matchingIds.contains(manifest.snapshotId()));
 
       // a manifest group will only read each manifest once
-      ManifestGroup group = new ManifestGroup(((HasTableOperations) table).operations(), manifests);
+      ManifestGroup group = new ManifestGroup(((HasTableOperations) table).operations().io(), manifests);
 
       List<ManifestEntry> results = Lists.newArrayList();
       try (CloseableIterable<ManifestEntry> entries = group.select(HISTORY_COLUMNS).entries()) {

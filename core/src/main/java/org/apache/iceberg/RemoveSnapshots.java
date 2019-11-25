@@ -28,8 +28,11 @@ import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
+import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
@@ -120,40 +123,113 @@ class RemoveSnapshots implements ExpireSnapshots {
           }
         });
 
-    LOG.info("Committed snapshot changes; cleaning up expired manifests and data files.");
+    cleanExpiredSnapshots();
+  }
 
+  private void cleanExpiredSnapshots() {
     // clean up the expired snapshots:
     // 1. Get a list of the snapshots that were removed
     // 2. Delete any data files that were deleted by those snapshots and are not in the table
     // 3. Delete any manifests that are no longer used by current snapshots
     // 4. Delete the manifest lists
 
+    TableMetadata current = ops.refresh();
+
+    Set<Long> validIds = Sets.newHashSet();
+    for (Snapshot snapshot : current.snapshots()) {
+      validIds.add(snapshot.snapshotId());
+    }
+
+    Set<Long> expiredIds = Sets.newHashSet();
+    for (Snapshot snapshot : base.snapshots()) {
+      long snapshotId = snapshot.snapshotId();
+      if (!validIds.contains(snapshotId)) {
+        // the snapshot was expired
+        LOG.info("Expired snapshot: {}", snapshot);
+        expiredIds.add(snapshotId);
+      }
+    }
+
+    if (expiredIds.isEmpty()) {
+      // if no snapshots were expired, skip cleanup
+      return;
+    }
+
+    LOG.info("Committed snapshot changes; cleaning up expired manifests and data files.");
+
+    cleanExpiredFiles(current.snapshots(), validIds, expiredIds);
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  private void cleanExpiredFiles(List<Snapshot> snapshots, Set<Long> validIds, Set<Long> expiredIds) {
     // Reads and deletes are done using Tasks.foreach(...).suppressFailureWhenFinished to complete
     // as much of the delete work as possible and avoid orphaned data or manifest files.
 
-    TableMetadata current = ops.refresh();
-    Set<Long> currentIds = Sets.newHashSet();
-    Set<ManifestFile> currentManifests = Sets.newHashSet();
-    for (Snapshot snapshot : current.snapshots()) {
-      currentIds.add(snapshot.snapshotId());
-      currentManifests.addAll(snapshot.manifests());
+    // this is the set of ancestors of the current table state. when removing snapshots, this must
+    // only remove files that were deleted in an ancestor of the current table state to avoid
+    // physically deleting files that were logically deleted in a commit that was rolled back.
+    Set<Long> ancestorIds = Sets.newHashSet(SnapshotUtil.ancestorIds(base.currentSnapshot(), base::snapshot));
+
+    Set<String> validManifests = Sets.newHashSet();
+    Set<String> manifestsToScan = Sets.newHashSet();
+    for (Snapshot snapshot : snapshots) {
+      try (CloseableIterable<ManifestFile> manifests = readManifestFiles(snapshot)) {
+        for (ManifestFile manifest : manifests) {
+          validManifests.add(manifest.path());
+
+          boolean fromValidSnapshots = validIds.contains(manifest.snapshotId());
+          boolean isFromAncestor = ancestorIds.contains(manifest.snapshotId());
+          if (!fromValidSnapshots && isFromAncestor && manifest.hasDeletedFiles()) {
+            manifestsToScan.add(manifest.path());
+          }
+        }
+
+      } catch (IOException e) {
+        throw new RuntimeIOException(e,
+            "Failed to close manifest list: %s", snapshot.manifestListLocation());
+      }
     }
 
     Set<String> manifestListsToDelete = Sets.newHashSet();
-    Set<ManifestFile> allManifests = Sets.newHashSet(currentManifests);
     Set<String> manifestsToDelete = Sets.newHashSet();
+    Set<String> manifestsToRevert = Sets.newHashSet();
     for (Snapshot snapshot : base.snapshots()) {
       long snapshotId = snapshot.snapshotId();
-      if (!currentIds.contains(snapshotId)) {
-        // the snapshot was expired
-        LOG.info("Expired snapshot: {}", snapshot);
+      if (!validIds.contains(snapshotId)) {
         // find any manifests that are no longer needed
-        for (ManifestFile manifest : snapshot.manifests()) {
-          if (!currentManifests.contains(manifest)) {
-            manifestsToDelete.add(manifest.path());
-            allManifests.add(manifest);
+        try (CloseableIterable<ManifestFile> manifests = readManifestFiles(snapshot)) {
+          for (ManifestFile manifest : manifests) {
+            if (!validManifests.contains(manifest.path())) {
+              manifestsToDelete.add(manifest.path());
+
+              boolean isFromAncestor = ancestorIds.contains(manifest.snapshotId());
+              boolean isFromExpiringSnapshot = expiredIds.contains(manifest.snapshotId());
+
+              if (isFromAncestor && manifest.hasDeletedFiles()) {
+                // Only delete data files that were deleted in by an expired snapshot if that
+                // snapshot is an ancestor of the current table state. Otherwise, a snapshot that
+                // deleted files and was rolled back will delete files that could be in the current
+                // table state.
+                manifestsToScan.add(manifest.path());
+              }
+
+              if (!isFromAncestor && isFromExpiringSnapshot && manifest.hasAddedFiles()) {
+                // Because the manifest was written by a snapshot that is not an ancestor of the
+                // current table state, the files added in this manifest can be removed. The extra
+                // check whether the manifest was written by a known snapshot that was expired in
+                // this commit ensures that the full ancestor list between when the snapshot was
+                // written and this expiration is known and there is no missing history. If history
+                // were missing, then the snapshot could be an ancestor of the table state but the
+                // ancestor ID set would not contain it and this would be unsafe.
+                manifestsToRevert.add(manifest.path());
+              }
+            }
           }
+        } catch (IOException e) {
+          throw new RuntimeIOException(e,
+              "Failed to close manifest list: %s", snapshot.manifestListLocation());
         }
+
         // add the manifest list to the delete set, if present
         if (snapshot.manifestListLocation() != null) {
           manifestListsToDelete.add(snapshot.manifestListLocation());
@@ -161,14 +237,12 @@ class RemoveSnapshots implements ExpireSnapshots {
       }
     }
 
-    Set<String> filesToDelete = getFilesToDelete(currentIds, allManifests);
+    deleteDataFiles(manifestsToScan, manifestsToRevert, validIds);
+    deleteMetadataFiles(manifestsToDelete, manifestListsToDelete);
+  }
 
+  private void deleteMetadataFiles(Set<String> manifestsToDelete, Set<String> manifestListsToDelete) {
     LOG.warn("Manifests to delete: {}", Joiner.on(", ").join(manifestsToDelete));
-
-    Tasks.foreach(filesToDelete)
-        .noRetry().suppressFailureWhenFinished()
-        .onFailure((file, exc) -> LOG.warn("Delete failed for data file: {}", file, exc))
-        .run(file -> deleteFunc.accept(file));
 
     Tasks.foreach(manifestsToDelete)
         .noRetry().suppressFailureWhenFinished()
@@ -181,33 +255,74 @@ class RemoveSnapshots implements ExpireSnapshots {
         .run(deleteFunc::accept);
   }
 
-  private Set<String> getFilesToDelete(Set<Long> currentIds, Set<ManifestFile> allManifests) {
+  private void deleteDataFiles(Set<String> manifestsToScan, Set<String> manifestsToRevert, Set<Long> validIds) {
+    Set<String> filesToDelete = findFilesToDelete(manifestsToScan, manifestsToRevert, validIds);
+    Tasks.foreach(filesToDelete)
+        .noRetry().suppressFailureWhenFinished()
+        .onFailure((file, exc) -> LOG.warn("Delete failed for data file: {}", file, exc))
+        .run(file -> deleteFunc.accept(file));
+  }
+
+  private Set<String> findFilesToDelete(
+      Set<String> manifestsToScan, Set<String> manifestsToRevert, Set<Long> validIds) {
     Set<String> filesToDelete = new ConcurrentSet<>();
-    Tasks.foreach(allManifests)
+    Tasks.foreach(manifestsToScan)
         .noRetry().suppressFailureWhenFinished()
         .executeWith(ThreadPools.getWorkerPool())
-        .onFailure((item, exc) ->
-            LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc)
-        ).run(manifest -> {
-          if (manifest.deletedFilesCount() != null && manifest.deletedFilesCount() == 0) {
-            return;
-          }
-
+        .onFailure((item, exc) -> LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc))
+        .run(manifest -> {
           // the manifest has deletes, scan it to find files to delete
           try (ManifestReader reader = ManifestReader.read(
-              ops.io().newInputFile(manifest.path()), ops.current()::spec)) {
+              ops.io().newInputFile(manifest), ops.current().specsById())) {
             for (ManifestEntry entry : reader.entries()) {
               // if the snapshot ID of the DELETE entry is no longer valid, the data can be deleted
               if (entry.status() == ManifestEntry.Status.DELETED &&
-                  !currentIds.contains(entry.snapshotId())) {
+                  !validIds.contains(entry.snapshotId())) {
                 // use toString to ensure the path will not change (Utf8 is reused)
                 filesToDelete.add(entry.file().path().toString());
               }
             }
           } catch (IOException e) {
-            throw new RuntimeIOException(e, "Failed to read manifest file: " + manifest.path());
+            throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest);
           }
         });
+
+    Tasks.foreach(manifestsToRevert)
+        .noRetry().suppressFailureWhenFinished()
+        .executeWith(ThreadPools.getWorkerPool())
+        .onFailure((item, exc) -> LOG.warn("Failed to get added files: this may cause orphaned data files", exc))
+        .run(manifest -> {
+          // the manifest has deletes, scan it to find files to delete
+          try (ManifestReader reader = ManifestReader.read(
+              ops.io().newInputFile(manifest), ops.current().specsById())) {
+            for (ManifestEntry entry : reader.entries()) {
+              // delete any ADDED file from manifests that were reverted
+              if (entry.status() == ManifestEntry.Status.ADDED) {
+                // use toString to ensure the path will not change (Utf8 is reused)
+                filesToDelete.add(entry.file().path().toString());
+              }
+            }
+          } catch (IOException e) {
+            throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest);
+          }
+        });
+
     return filesToDelete;
+  }
+
+  private static final Schema MANIFEST_PROJECTION = ManifestFile.schema()
+      .select("manifest_path", "added_snapshot_id", "deleted_data_files_count");
+
+  private CloseableIterable<ManifestFile> readManifestFiles(Snapshot snapshot) {
+    if (snapshot.manifestListLocation() != null) {
+      return Avro.read(ops.io().newInputFile(snapshot.manifestListLocation()))
+          .rename("manifest_file", GenericManifestFile.class.getName())
+          .project(MANIFEST_PROJECTION)
+          .reuseContainers(true)
+          .build();
+
+    } else {
+      return CloseableIterable.withNoopClose(snapshot.manifests());
+    }
   }
 }

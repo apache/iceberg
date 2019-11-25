@@ -43,7 +43,7 @@ class TableMetadataParser(object):
     LOG = "snapshot-log"
 
     @staticmethod
-    def to_json(metadata):
+    def to_json(metadata, indent=4):
         return json.dumps({TableMetadataParser.FORMAT_VERSION: TableMetadata.TABLE_FORMAT_VERSION,
                            TableMetadataParser.LOCATION: metadata.location,
                            TableMetadataParser.LAST_UPDATED_MILLIS: metadata.last_updated_millis,
@@ -61,17 +61,17 @@ class TableMetadataParser(object):
                                                            for snapshot in metadata.snapshots],
                            TableMetadataParser.LOG: [{TableMetadataParser.TIMESTAMP_MS: log_entry.timestamp_millis,
                                                       TableMetadataParser.SNAPSHOT_ID: log_entry.snapshot_id}
-                                                     for log_entry in metadata.snapshot_log]})
+                                                     for log_entry in metadata.snapshot_log]}, indent=indent)
 
     @staticmethod
     def write(metadata, metadata_location):
         if metadata_location.location().endswith(".gz"):
-            output_file = gzip.open(metadata_location.location(), "wt")
+            output_file = gzip.open(metadata_location.create("wb"), "wb")
         else:
-            output_file = open(metadata_location.location(), "w")
+            output_file = metadata_location.create("wb")
 
         json_str = TableMetadataParser.to_json(metadata)
-        output_file.write(json_str)
+        output_file.write(json_str.encode("utf-8"))
         output_file.close()
 
     @staticmethod

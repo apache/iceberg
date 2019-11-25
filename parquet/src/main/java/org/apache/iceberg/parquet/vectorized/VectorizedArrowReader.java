@@ -104,6 +104,23 @@ public class VectorizedArrowReader implements VectorizedReader {
     this.vectorizedColumnIterator = new VectorizedColumnIterator(desc, "", batchSize);
   }
 
+  private VectorizedArrowReader() {
+    this.icebergField = null;
+    this.batchSize = DEFAULT_BATCH_SIZE;
+    this.columnDescriptor = null;
+    this.rootAlloc = null;
+    this.isFixedLengthDecimal = false;
+    this.isVarWidthType = false;
+    this.isFixedWidthBinary = false;
+    this.isBooleanType = false;
+    this.isPaddedDecimal = false;
+    this.isIntType = false;
+    this.isLongType = false;
+    this.isFloatType = false;
+    this.isDoubleType = false;
+    this.vectorizedColumnIterator = null;
+  }
+
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public VectorHolder read(NullabilityHolder nullabilityHolder) {
     if (vec == null) {
@@ -266,7 +283,18 @@ public class VectorizedArrowReader implements VectorizedReader {
     return columnDescriptor.toString();
   }
 
-  public int batchSize() {
-    return batchSize;
-  }
+  public static final VectorizedArrowReader NULL_VALUES_READER =
+      new VectorizedArrowReader() {
+        @Override
+        public VectorHolder read(NullabilityHolder holder) {
+          return VectorHolder.NULL_VECTOR_HOLDER;
+        }
+
+        @Override
+        public void setRowGroupInfo(
+            PageReadStore source,
+            DictionaryPageReadStore dictionaryPageReadStore,
+            Map<ColumnPath, Boolean> columnDictEncoded) {}
+      };
 }
+

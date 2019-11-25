@@ -43,7 +43,7 @@ public class TestTimestampsProjection {
   private static final Schema SCHEMA = new Schema(optional(1, "timestamp", TYPE));
 
   public void assertProjectionStrict(PartitionSpec spec, UnboundPredicate<?> filter,
-                                     Expression.Operation expectedOp, String expectedLiteral) {
+      Expression.Operation expectedOp, String expectedLiteral) {
 
     Expression projection = Projections.strict(spec).project(filter);
     UnboundPredicate<?> predicate = assertAndUnwrapUnbound(projection);
@@ -57,21 +57,21 @@ public class TestTimestampsProjection {
   }
 
   public void assertProjectionStrictValue(PartitionSpec spec, UnboundPredicate<?> filter,
-                                          Expression.Operation expectedOp) {
+      Expression.Operation expectedOp) {
 
     Expression projection = Projections.strict(spec).project(filter);
     Assert.assertEquals(projection.op(), expectedOp);
   }
 
   public void assertProjectionInclusiveValue(PartitionSpec spec, UnboundPredicate<?> filter,
-                                             Expression.Operation expectedOp) {
+      Expression.Operation expectedOp) {
 
     Expression projection = Projections.inclusive(spec).project(filter);
     Assert.assertEquals(projection.op(), expectedOp);
   }
 
   public void assertProjectionInclusive(PartitionSpec spec, UnboundPredicate<?> filter,
-                                        Expression.Operation expectedOp, String expectedLiteral) {
+      Expression.Operation expectedOp, String expectedLiteral) {
     Expression projection = Projections.inclusive(spec).project(filter);
     UnboundPredicate<?> predicate = assertAndUnwrapUnbound(projection);
 
@@ -88,10 +88,10 @@ public class TestTimestampsProjection {
     Long date = (long) Literal.of("2017-12-01T00:00:00.00000").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).month("timestamp").build();
 
-    assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT_EQ, "2017-11");
-    assertProjectionStrict(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT_EQ, "2017-11");
-    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2018-01");
-    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2017-12");
+    assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT, "2017-12");
+    assertProjectionStrict(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT, "2017-12");
+    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT, "2017-12");
+    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT, "2017-11");
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017-12");
     assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
   }
@@ -101,10 +101,10 @@ public class TestTimestampsProjection {
     Long date = (long) Literal.of("2017-12-31T23:59:59.999999").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).month("timestamp").build();
 
-    assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT_EQ, "2017-11");
-    assertProjectionStrict(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT_EQ, "2017-12");
-    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2018-01");
-    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2018-01");
+    assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT, "2017-12");
+    assertProjectionStrict(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT, "2018-01");
+    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT, "2017-12");
+    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT, "2017-12");
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017-12");
     assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
   }
@@ -140,10 +140,10 @@ public class TestTimestampsProjection {
     Long date = (long) Literal.of("2017-12-01T00:00:00.00000").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("timestamp").build();
 
-    assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT_EQ, "2017-11-30");
-    assertProjectionStrict(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT_EQ, "2017-11-30");
-    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2017-12-02");
-    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2017-12-01");
+    assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT, "2017-12-01");
+    assertProjectionStrict(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT, "2017-12-01");
+    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT, "2017-12-01");
+    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT, "2017-11-30");
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017-12-01");
     assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
   }
@@ -153,10 +153,10 @@ public class TestTimestampsProjection {
     Long date = (long) Literal.of("2017-12-01T23:59:59.999999").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("timestamp").build();
 
-    assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT_EQ, "2017-11-30");
-    assertProjectionStrict(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT_EQ, "2017-12-01");
-    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2017-12-02");
-    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2017-12-02");
+    assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT, "2017-12-01");
+    assertProjectionStrict(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT, "2017-12-02");
+    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT, "2017-12-01");
+    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT, "2017-12-01");
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017-12-01");
     assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
   }
@@ -192,10 +192,10 @@ public class TestTimestampsProjection {
     Long date = (long) Literal.of("2017-01-01T00:00:00.00000").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).year("timestamp").build();
 
-    assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT_EQ, "2016");
-    assertProjectionStrict(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT_EQ, "2016");
-    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2018");
-    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2017");
+    assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT, "2017");
+    assertProjectionStrict(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT, "2017");
+    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT, "2017");
+    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT, "2016");
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017");
     assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
   }
@@ -205,10 +205,10 @@ public class TestTimestampsProjection {
     Long date = (long) Literal.of("2017-12-31T23:59:59.999999").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).year("timestamp").build();
 
-    assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT_EQ, "2016");
-    assertProjectionStrict(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT_EQ, "2017");
-    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2018");
-    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2018");
+    assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT, "2017");
+    assertProjectionStrict(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT, "2018");
+    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT, "2017");
+    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT, "2017");
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017");
     assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
   }
@@ -244,10 +244,10 @@ public class TestTimestampsProjection {
     Long date = (long) Literal.of("2017-12-01T10:00:00.00000").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).hour("timestamp").build();
 
-    assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT_EQ, "2017-12-01-09");
-    assertProjectionStrict(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT_EQ, "2017-12-01-09");
-    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2017-12-01-11");
-    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2017-12-01-10");
+    assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT, "2017-12-01-10");
+    assertProjectionStrict(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT, "2017-12-01-10");
+    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT, "2017-12-01-10");
+    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT, "2017-12-01-09");
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017-12-01-10");
     assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
   }
@@ -257,10 +257,10 @@ public class TestTimestampsProjection {
     Long date = (long) Literal.of("2017-12-01T10:59:59.999999").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).hour("timestamp").build();
 
-    assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT_EQ, "2017-12-01-09");
-    assertProjectionStrict(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT_EQ, "2017-12-01-10");
-    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "2017-12-01-11");
-    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "2017-12-01-11");
+    assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT, "2017-12-01-10");
+    assertProjectionStrict(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT, "2017-12-01-11");
+    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT, "2017-12-01-10");
+    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT, "2017-12-01-10");
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017-12-01-10");
     assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
   }

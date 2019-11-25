@@ -64,6 +64,32 @@ public abstract class TestReadProjection {
   }
 
   @Test
+  public void testSpecialCharacterProjection() throws Exception {
+    Schema schema = new Schema(
+        Types.NestedField.required(0, "user id", Types.LongType.get()),
+        Types.NestedField.optional(1, "data%0", Types.StringType.get())
+    );
+
+    Record record = GenericRecord.create(schema.asStruct());
+    record.setField("user id", 34L);
+    record.setField("data%0", "test");
+
+    Record full = writeAndRead("special_chars", schema, schema, record);
+
+    Assert.assertEquals("Should contain the correct id value", 34L, (long) full.getField("user id"));
+    Assert.assertEquals("Should contain the correct data value",
+        0,
+        Comparators.charSequences().compare("test", (CharSequence) full.getField("data%0")));
+
+    Record projected = writeAndRead("special_characters", schema, schema.select("data%0"), record);
+
+    Assert.assertNull("Should not contain id value", projected.getField("user id"));
+    Assert.assertEquals("Should contain the correct data value",
+        0,
+        Comparators.charSequences().compare("test", (CharSequence) projected.getField("data%0")));
+  }
+
+  @Test
   public void testReorderedFullProjection() throws Exception {
     Schema schema = new Schema(
         Types.NestedField.required(0, "id", Types.LongType.get()),

@@ -34,10 +34,6 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
-import static org.apache.iceberg.parquet.ParquetValueWriters.collections;
-import static org.apache.iceberg.parquet.ParquetValueWriters.maps;
-import static org.apache.iceberg.parquet.ParquetValueWriters.option;
-
 public class ParquetAvroWriter {
   private ParquetAvroWriter() {
   }
@@ -68,7 +64,7 @@ public class ParquetAvroWriter {
       for (int i = 0; i < fields.size(); i += 1) {
         Type fieldType = struct.getType(i);
         int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName()));
-        writers.add(option(fieldType, fieldD, fieldWriters.get(i)));
+        writers.add(ParquetValueWriters.option(fieldType, fieldD, fieldWriters.get(i)));
       }
 
       return new RecordWriter(writers);
@@ -85,7 +81,8 @@ public class ParquetAvroWriter {
       org.apache.parquet.schema.Type elementType = repeated.getType(0);
       int elementD = type.getMaxDefinitionLevel(path(elementType.getName()));
 
-      return collections(repeatedD, repeatedR, option(elementType, elementD, elementWriter));
+      return ParquetValueWriters.collections(repeatedD, repeatedR,
+          ParquetValueWriters.option(elementType, elementD, elementWriter));
     }
 
     @Override
@@ -103,8 +100,9 @@ public class ParquetAvroWriter {
       org.apache.parquet.schema.Type valueType = repeatedKeyValue.getType(1);
       int valueD = type.getMaxDefinitionLevel(path(valueType.getName()));
 
-      return maps(repeatedD, repeatedR,
-          option(keyType, keyD, keyWriter), option(valueType, valueD, valueWriter));
+      return ParquetValueWriters.maps(repeatedD, repeatedR,
+          ParquetValueWriters.option(keyType, keyD, keyWriter),
+          ParquetValueWriters.option(valueType, valueD, valueWriter));
     }
 
     @Override

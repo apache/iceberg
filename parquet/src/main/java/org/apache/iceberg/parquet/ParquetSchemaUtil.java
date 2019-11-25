@@ -29,6 +29,10 @@ import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types.MessageTypeBuilder;
 
 public class ParquetSchemaUtil {
+
+  private ParquetSchemaUtil() {
+  }
+
   public static MessageType convert(Schema schema, String name) {
     return new TypeToMessageType().convert(schema, name);
   }

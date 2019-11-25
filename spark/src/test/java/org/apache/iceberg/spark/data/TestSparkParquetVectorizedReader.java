@@ -39,9 +39,7 @@ import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.apache.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES;
 import static org.apache.iceberg.spark.data.TestHelpers.assertArrowVectors;
-import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 
 public class TestSparkParquetVectorizedReader extends AvroDataTest {
 
@@ -54,7 +52,8 @@ public class TestSparkParquetVectorizedReader extends AvroDataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     // Write test data
-    Assume.assumeTrue("Parquet Avro cannot write non-string map keys", null == TypeUtil.find(schema,
+    Assume.assumeTrue("Parquet Avro cannot write non-string map keys", null == TypeUtil.find(
+        schema,
         type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()));
 
     List<GenericData.Record> expected = RandomData.generateList(schema, 100000, 0L);
@@ -64,9 +63,9 @@ public class TestSparkParquetVectorizedReader extends AvroDataTest {
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
     try (FileAppender<GenericData.Record> writer = Parquet.write(Files.localOutput(testFile))
-            .schema(schema)
-            .named("test")
-            .build()) {
+        .schema(schema)
+        .named("test")
+        .build()) {
       writer.addAll(expected);
     }
     assertRecordsMatch(schema, expected, testFile);
@@ -132,5 +131,4 @@ public class TestSparkParquetVectorizedReader extends AvroDataTest {
   public void testMixedTypes() throws IOException {
     System.out.println("Not Supported");
   }
-
 }

@@ -35,7 +35,8 @@ __all__ = ["BaseMetastoreTableOperations",
            "SnapshotLogEntry",
            "TableMetadata",
            "TableMetadataParser",
-           "TableOperations"]
+           "TableOperations",
+           "TableProperties"]
 
 from .base_metastore_table_operations import BaseMetastoreTableOperations
 from .base_metastore_tables import BaseMetastoreTables
@@ -57,3 +58,4 @@ from .table_metadata import (SnapshotLogEntry,
                              TableMetadata)
 from .table_metadata_parser import TableMetadataParser
 from .table_operations import TableOperations
+from .table_properties import TableProperties

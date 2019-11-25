@@ -45,7 +45,7 @@ public class TestGenericReadProjection extends TestReadProjection {
 
     Iterable<Record> records = Parquet.read(Files.localInput(file))
         .project(readSchema)
-        //.createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(readSchema, fileSchema))
+        .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(readSchema, fileSchema))
         .build();
 
     return Iterables.getOnlyElement(records);

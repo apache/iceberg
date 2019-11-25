@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import java.util.Collection;
 import org.apache.iceberg.avro.Avro;
@@ -32,11 +33,11 @@ import org.apache.iceberg.types.TypeUtil;
 /**
  * A {@link Table} implementation that exposes a table's data files as rows.
  */
-class DataFilesTable extends BaseMetadataTable {
+public class DataFilesTable extends BaseMetadataTable {
   private final TableOperations ops;
   private final Table table;
 
-  DataFilesTable(TableOperations ops, Table table) {
+  public DataFilesTable(TableOperations ops, Table table) {
     this.ops = ops;
     this.table = table;
   }
@@ -83,17 +84,19 @@ class DataFilesTable extends BaseMetadataTable {
 
     private FilesTableScan(
         TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns, Schema fileSchema) {
-      super(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns, Schema fileSchema,
+        ImmutableMap<String, String> options) {
+      super(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, options);
       this.fileSchema = fileSchema;
     }
 
     @Override
     protected TableScan newRefinedScan(
         TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns) {
+        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
+        ImmutableMap<String, String> options) {
       return new FilesTableScan(
-          ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, fileSchema);
+          ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, fileSchema, options);
     }
 
     @Override

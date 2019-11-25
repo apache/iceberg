@@ -15,14 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
-__all__ = ["DataFile", "FileFormat", "Files", "Filterable",
-           "FilteredSnapshot", "ManifestFile", "PartitionFieldSummary",
+__all__ = ["CombinedScanTask", "DataFile", "DataOperations", "FileFormat", "FileScanTask",
+           "Files", "Filterable", "FilteredSnapshot", "ManifestFile", "PartitionFieldSummary",
            "Metrics", "PartitionSpec", "PartitionSpecBuilder",
            "Schema", "Snapshot", "SnapshotIterable", "StructLike",
            "Table", "Tables", "TableScan", "Transaction", "UpdateSchema"]
 
+from .combined_scan_task import CombinedScanTask
 from .data_file import DataFile
+from .data_operations import DataOperations
 from .file_format import FileFormat
+from .file_scan_task import FileScanTask
 from .files import Files
 from .filterable import Filterable
 from .filtered_snapshot import FilteredSnapshot

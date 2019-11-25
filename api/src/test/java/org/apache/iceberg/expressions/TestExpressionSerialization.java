@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.expressions;
 
+import java.util.Collection;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.expressions.Expression.Operation;
@@ -30,7 +31,8 @@ public class TestExpressionSerialization {
   @Test
   public void testExpressions() throws Exception {
     Schema schema = new Schema(
-        Types.NestedField.optional(34, "a", Types.IntegerType.get())
+        Types.NestedField.optional(34, "a", Types.IntegerType.get()),
+        Types.NestedField.required(35, "s", Types.StringType.get())
     );
 
     Expression[] expressions = new Expression[] {
@@ -41,13 +43,18 @@ public class TestExpressionSerialization {
         Expressions.greaterThan("z", 0),
         Expressions.greaterThanOrEqual("t", 129),
         Expressions.equal("col", "data"),
+        Expressions.in("col", "a", "b"),
+        Expressions.notIn("col", 1, 2, 3),
         Expressions.notEqual("col", "abc"),
         Expressions.notNull("maybeNull"),
         Expressions.isNull("maybeNull2"),
         Expressions.not(Expressions.greaterThan("a", 10)),
         Expressions.and(Expressions.greaterThanOrEqual("a", 0), Expressions.lessThan("a", 3)),
         Expressions.or(Expressions.lessThan("a", 0), Expressions.greaterThan("a", 10)),
-        Expressions.equal("a", 5).bind(schema.asStruct())
+        Expressions.equal("a", 5).bind(schema.asStruct()),
+        Expressions.in("a", 5, 6, 7).bind(schema.asStruct()),
+        Expressions.notIn("s", "abc", "xyz").bind(schema.asStruct()),
+        Expressions.isNull("a").bind(schema.asStruct()),
     };
 
     for (Expression expression : expressions) {
@@ -92,7 +99,7 @@ public class TestExpressionSerialization {
     }
   }
 
-  @SuppressWarnings("unchecked")
+  @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
   private static boolean equals(Predicate left, Predicate right) {
     if (left.op() != right.op()) {
       return false;
@@ -106,8 +113,42 @@ public class TestExpressionSerialization {
       return true;
     }
 
-    return left.literal().comparator()
-        .compare(left.literal().value(), right.literal().value()) == 0;
+    if (left.getClass() != right.getClass()) {
+      return false;
+    }
+
+    if (left instanceof UnboundPredicate) {
+      UnboundPredicate lpred = (UnboundPredicate) left;
+      UnboundPredicate rpred = (UnboundPredicate) right;
+      if (left.op() == Operation.IN || left.op() == Operation.NOT_IN) {
+        return equals(lpred.literals(), rpred.literals());
+      }
+      return lpred.literal().comparator()
+          .compare(lpred.literal().value(), rpred.literal().value()) == 0;
+
+    } else if (left instanceof BoundPredicate) {
+      BoundPredicate lpred = (BoundPredicate) left;
+      BoundPredicate rpred = (BoundPredicate) right;
+      if (lpred.isLiteralPredicate() && rpred.isLiteralPredicate()) {
+        return lpred.asLiteralPredicate().literal().comparator()
+            .compare(lpred.asLiteralPredicate().literal().value(), rpred.asLiteralPredicate().literal().value()) == 0;
+      } else if (lpred.isSetPredicate() && rpred.isSetPredicate()) {
+        return equals(lpred.asSetPredicate().literalSet(), rpred.asSetPredicate().literalSet());
+      } else {
+        return lpred.isUnaryPredicate() && rpred.isUnaryPredicate();
+      }
+
+    } else {
+      throw new UnsupportedOperationException(String.format(
+          "Predicate equality check for %s is not supported", left.getClass()));
+    }
+  }
+
+  private static boolean equals(Collection<Literal<?>> left, Collection<Literal<?>> right) {
+    if (left.size() != right.size()) {
+      return false;
+    }
+    return left.containsAll(right);
   }
 
   private static boolean equals(Reference left, Reference right) {

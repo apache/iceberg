@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import java.util.Collection;
 import org.apache.iceberg.avro.Avro;
@@ -33,11 +34,11 @@ import org.apache.iceberg.types.TypeUtil;
  * WARNING: this table exposes internal details, like files that have been deleted. For a table of the live data files,
  * use {@link DataFilesTable}.
  */
-class ManifestEntriesTable extends BaseMetadataTable {
+public class ManifestEntriesTable extends BaseMetadataTable {
   private final TableOperations ops;
   private final Table table;
 
-  ManifestEntriesTable(TableOperations ops, Table table) {
+  public ManifestEntriesTable(TableOperations ops, Table table) {
     this.ops = ops;
     this.table = table;
   }
@@ -82,16 +83,18 @@ class ManifestEntriesTable extends BaseMetadataTable {
 
     private EntriesTableScan(
         TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns) {
-      super(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
+        ImmutableMap<String, String> options) {
+      super(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, options);
     }
 
     @Override
     protected TableScan newRefinedScan(
         TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns) {
+        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
+        ImmutableMap<String, String> options) {
       return new EntriesTableScan(
-          ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+          ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, options);
     }
 
     @Override

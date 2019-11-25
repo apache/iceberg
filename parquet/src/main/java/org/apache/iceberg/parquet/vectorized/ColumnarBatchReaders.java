@@ -24,11 +24,13 @@ import java.util.List;
 import java.util.Map;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.iceberg.parquet.arrow.IcebergArrowColumnVector;
+import org.apache.iceberg.parquet.arrow.NullValuesColumnVector;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.page.DictionaryPageReadStore;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.schema.Type;
+import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 /**
@@ -38,11 +40,13 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
  */
 public class ColumnarBatchReaders implements VectorizedReader {
   private final VectorizedArrowReader[] readers;
+  private final int batchSize;
 
   public ColumnarBatchReaders(
       List<Type> types,
       Types.StructType icebergExpectedFields,
-      List<VectorizedReader> readers) {
+      List<VectorizedReader> readers,
+      int bSize) {
     this.readers = (VectorizedArrowReader[]) Array.newInstance(
         VectorizedArrowReader.class, readers.size());
     int idx = 0;
@@ -50,6 +54,7 @@ public class ColumnarBatchReaders implements VectorizedReader {
       this.readers[idx] = (VectorizedArrowReader) reader;
       idx++;
     }
+    this.batchSize = bSize;
   }
 
   public final void setRowGroupInfo(
@@ -57,30 +62,29 @@ public class ColumnarBatchReaders implements VectorizedReader {
       DictionaryPageReadStore dictionaryPageReadStore,
       Map<ColumnPath, Boolean> columnDictEncoded) {
     for (int i = 0; i < readers.length; i += 1) {
-      readers[i].setRowGroupInfo(pageStore, dictionaryPageReadStore, columnDictEncoded);
+      if (readers[i] != null) {
+        readers[i].setRowGroupInfo(pageStore, dictionaryPageReadStore, columnDictEncoded);
+      }
     }
   }
 
   public final ColumnarBatch read(ColumnarBatch ignore) {
-    IcebergArrowColumnVector[] icebergArrowColumnVectors = (IcebergArrowColumnVector[]) Array.newInstance(
-        IcebergArrowColumnVector.class,
-        readers.length);
+    ColumnVector[] arrowColumnVectors = new ColumnVector[readers.length];
     int numRows = 0;
     for (int i = 0; i < readers.length; i += 1) {
-      NullabilityHolder nullabilityHolder = new NullabilityHolder(readers[i].batchSize());
+      NullabilityHolder nullabilityHolder = new NullabilityHolder(batchSize);
       VectorHolder holder = readers[i].read(nullabilityHolder);
       FieldVector vector = holder.getVector();
-      icebergArrowColumnVectors[i] = new IcebergArrowColumnVector(holder, nullabilityHolder);
-      if (i > 0 && numRows != vector.getValueCount()) {
-        throw new IllegalStateException("Different number of values returned by readers" +
-            "for columns " + readers[i - 1] + " and " + readers[i]);
+      if (vector == null) {
+        arrowColumnVectors[i] = new NullValuesColumnVector(batchSize);
+      } else {
+        arrowColumnVectors[i] = new IcebergArrowColumnVector(holder, nullabilityHolder);
+        numRows = vector.getValueCount();
       }
-      numRows = vector.getValueCount();
     }
-
-    ColumnarBatch batch = new ColumnarBatch(icebergArrowColumnVectors);
+    ColumnarBatch batch = new ColumnarBatch(arrowColumnVectors);
     batch.setNumRows(numRows);
-
     return batch;
   }
+
 }

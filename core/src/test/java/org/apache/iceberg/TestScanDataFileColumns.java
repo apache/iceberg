@@ -66,7 +66,7 @@ public class TestScanDataFileColumns {
             .withPath("file1.parquet")
             .withFileSizeInBytes(100)
             .withMetrics(new Metrics(3L,
-                null, // no column sizes
+                ImmutableMap.of(1, 50L), // column size
                 ImmutableMap.of(1, 3L), // value count
                 ImmutableMap.of(1, 0L), // null count
                 ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
@@ -76,7 +76,7 @@ public class TestScanDataFileColumns {
             .withPath("file2.parquet")
             .withFileSizeInBytes(100)
             .withMetrics(new Metrics(3L,
-                null, // no column sizes
+                ImmutableMap.of(1, 60L), // column size
                 ImmutableMap.of(1, 3L), // value count
                 ImmutableMap.of(1, 0L), // null count
                 ImmutableMap.of(1, longToBuffer(10L)), // lower bounds
@@ -86,7 +86,7 @@ public class TestScanDataFileColumns {
             .withPath("file3.parquet")
             .withFileSizeInBytes(100)
             .withMetrics(new Metrics(3L,
-                null, // no column sizes
+                ImmutableMap.of(1, 70L), // column size
                 ImmutableMap.of(1, 3L), // value count
                 ImmutableMap.of(1, 0L), // null count
                 ImmutableMap.of(1, longToBuffer(20L)), // lower bounds
@@ -114,6 +114,7 @@ public class TestScanDataFileColumns {
       Assert.assertNotNull(fileTask.file().nullValueCounts());
       Assert.assertNotNull(fileTask.file().lowerBounds());
       Assert.assertNotNull(fileTask.file().upperBounds());
+      Assert.assertNotNull(fileTask.file().columnSizes());
     }
   }
 

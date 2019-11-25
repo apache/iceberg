@@ -81,6 +81,16 @@ public class SnapshotSummary {
       properties.put(property, value);
     }
 
+    public void merge(SnapshotSummary.Builder builder) {
+      this.changedPartitions.addAll(builder.changedPartitions);
+      this.addedFiles += builder.addedFiles;
+      this.deletedFiles += builder.deletedFiles;
+      this.deletedDuplicateFiles += builder.deletedDuplicateFiles;
+      this.addedRecords += builder.addedRecords;
+      this.deletedRecords += builder.deletedRecords;
+      this.properties.putAll(builder.properties);
+    }
+
     public Map<String, String> build() {
       ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
 

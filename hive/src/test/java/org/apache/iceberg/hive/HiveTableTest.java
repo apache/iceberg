@@ -20,24 +20,19 @@
 package org.apache.iceberg.hive;
 
 import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.MoreExecutors;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -45,7 +40,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.Tasks;
 import org.apache.thrift.TException;
 import org.junit.Assert;
 import org.junit.Test;
@@ -112,7 +106,7 @@ public class HiveTableTest extends HiveTableBaseTest {
   }
 
   @Test
-  public void testDropLeavesTableData() throws IOException {
+  public void testDropWithoutPurgeLeavesTableData() throws IOException {
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
 
     GenericRecordBuilder recordBuilder = new GenericRecordBuilder(AvroSchemaUtil.convert(schema, "test"));
@@ -142,13 +136,85 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     String manifestListLocation = table.currentSnapshot().manifestListLocation().replace("file:", "");
 
-    Assert.assertTrue("Drop should return true and drop the table", catalog.dropTable(TABLE_IDENTIFIER));
+    Assert.assertTrue("Drop should return true and drop the table",
+        catalog.dropTable(TABLE_IDENTIFIER, false /* do not delete underlying files */));
     Assert.assertFalse("Table should not exist", catalog.tableExists(TABLE_IDENTIFIER));
 
     Assert.assertTrue("Table data files should exist",
         new File(fileLocation).exists());
     Assert.assertTrue("Table metadata files should exist",
         new File(manifestListLocation).exists());
+  }
+
+  @Test
+  public void testDropTable() throws IOException {
+    Table table = catalog.loadTable(TABLE_IDENTIFIER);
+
+    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(AvroSchemaUtil.convert(schema, "test"));
+    List<GenericData.Record> records = Lists.newArrayList(
+        recordBuilder.set("id", 1L).build(),
+        recordBuilder.set("id", 2L).build(),
+        recordBuilder.set("id", 3L).build()
+    );
+
+    String location1 = table.location().replace("file:", "") + "/data/file1.avro";
+    try (FileAppender<GenericData.Record> writer = Avro.write(Files.localOutput(location1))
+        .schema(schema)
+        .named("test")
+        .build()) {
+      for (GenericData.Record rec : records) {
+        writer.add(rec);
+      }
+    }
+
+    String location2 = table.location().replace("file:", "") + "/data/file2.avro";
+    try (FileAppender<GenericData.Record> writer = Avro.write(Files.localOutput(location2))
+        .schema(schema)
+        .named("test")
+        .build()) {
+      for (GenericData.Record rec : records) {
+        writer.add(rec);
+      }
+    }
+
+    DataFile file1 = DataFiles.builder(table.spec())
+        .withRecordCount(3)
+        .withPath(location1)
+        .withFileSizeInBytes(Files.localInput(location2).getLength())
+        .build();
+
+    DataFile file2 = DataFiles.builder(table.spec())
+        .withRecordCount(3)
+        .withPath(location2)
+        .withFileSizeInBytes(Files.localInput(location1).getLength())
+        .build();
+
+    // add both data files
+    table.newAppend().appendFile(file1).appendFile(file2).commit();
+
+    // delete file2
+    table.newDelete().deleteFile(file2.path()).commit();
+
+    String manifestListLocation = table.currentSnapshot().manifestListLocation().replace("file:", "");
+
+    List<ManifestFile> manifests = table.currentSnapshot().manifests();
+
+    Assert.assertTrue("Drop (table and data) should return true and drop the table",
+        catalog.dropTable(TABLE_IDENTIFIER));
+    Assert.assertFalse("Table should not exist", catalog.tableExists(TABLE_IDENTIFIER));
+
+    Assert.assertFalse("Table data files should not exist",
+        new File(location1).exists());
+    Assert.assertFalse("Table data files should not exist",
+        new File(location2).exists());
+    Assert.assertFalse("Table manifest list files should not exist",
+        new File(manifestListLocation).exists());
+    for (ManifestFile manifest : manifests) {
+      Assert.assertFalse("Table manifest files should not exist",
+          new File(manifest.path().replace("file:", "")).exists());
+    }
+    Assert.assertFalse("Table metadata file should not exist",
+        new File(((HasTableOperations) table).operations().current().file().location().replace("file:", "")).exists());
   }
 
   @Test
@@ -187,40 +253,13 @@ public class HiveTableTest extends HiveTableBaseTest {
   }
 
   @Test
-  public void testConcurrentFastAppends() {
-    Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
-    Table anotherIcebergTable = catalog.loadTable(TABLE_IDENTIFIER);
+  public void testListTables() {
+    List<TableIdentifier> tableIdents = catalog.listTables(TABLE_IDENTIFIER.namespace());
+    List<TableIdentifier> expectedIdents = tableIdents.stream()
+        .filter(t -> t.namespace().level(0).equals(DB_NAME) && t.name().equals(TABLE_NAME))
+        .collect(Collectors.toList());
 
-    String fileName = UUID.randomUUID().toString();
-    DataFile file = DataFiles.builder(icebergTable.spec())
-        .withPath(FileFormat.PARQUET.addExtension(fileName))
-        .withRecordCount(2)
-        .withFileSizeInBytes(0)
-        .build();
-
-    ExecutorService executorService = MoreExecutors.getExitingExecutorService(
-        (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
-
-    AtomicInteger barrier = new AtomicInteger(0);
-    Tasks.foreach(icebergTable, anotherIcebergTable)
-        .stopOnFailure().throwFailureWhenFinished()
-        .executeWith(executorService)
-        .run(table -> {
-          for (int numCommittedFiles = 0; numCommittedFiles < 10; numCommittedFiles++) {
-            while (barrier.get() < numCommittedFiles * 2) {
-              try {
-                Thread.sleep(10);
-              } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-              }
-            }
-
-            table.newFastAppend().appendFile(file).commit();
-            barrier.incrementAndGet();
-          }
-        });
-
-    icebergTable.refresh();
-    Assert.assertEquals(20, icebergTable.currentSnapshot().manifests().size());
+    Assert.assertEquals(1, expectedIdents.size());
+    Assert.assertTrue(catalog.tableExists(TABLE_IDENTIFIER));
   }
 }

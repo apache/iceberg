@@ -20,12 +20,16 @@
 package org.apache.iceberg.expressions;
 
 import java.nio.ByteBuffer;
+import java.util.Comparator;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.BinaryUtil;
 
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
@@ -52,7 +56,7 @@ public class InclusiveMetricsEvaluator {
     return visitors.get();
   }
 
-  InclusiveMetricsEvaluator(Schema schema, Expression unbound) {
+  public InclusiveMetricsEvaluator(Schema schema, Expression unbound) {
     this(schema, unbound, true);
   }
 
@@ -93,7 +97,7 @@ public class InclusiveMetricsEvaluator {
       this.lowerBounds = file.lowerBounds();
       this.upperBounds = file.upperBounds();
 
-      return ExpressionVisitors.visit(expr, this);
+      return ExpressionVisitors.visitEvaluator(expr, this);
     }
 
     @Override
@@ -140,9 +144,7 @@ public class InclusiveMetricsEvaluator {
       // if the column has no non-null values, the expression cannot match
       Integer id = ref.fieldId();
 
-      if (valueCounts != null && valueCounts.containsKey(id) &&
-          nullCounts != null && nullCounts.containsKey(id) &&
-          valueCounts.get(id) - nullCounts.get(id) == 0) {
+      if (containsNullsOnly(id)) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -152,6 +154,10 @@ public class InclusiveMetricsEvaluator {
     @Override
     public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
+
+      if (containsNullsOnly(id)) {
+        return ROWS_CANNOT_MATCH;
+      }
 
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
@@ -169,6 +175,10 @@ public class InclusiveMetricsEvaluator {
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
 
+      if (containsNullsOnly(id)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
 
@@ -184,6 +194,10 @@ public class InclusiveMetricsEvaluator {
     @Override
     public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
+
+      if (containsNullsOnly(id)) {
+        return ROWS_CANNOT_MATCH;
+      }
 
       if (upperBounds != null && upperBounds.containsKey(id)) {
         T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
@@ -201,6 +215,10 @@ public class InclusiveMetricsEvaluator {
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
 
+      if (containsNullsOnly(id)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
       if (upperBounds != null && upperBounds.containsKey(id)) {
         T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
 
@@ -216,6 +234,10 @@ public class InclusiveMetricsEvaluator {
     @Override
     public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
+
+      if (containsNullsOnly(id)) {
+        return ROWS_CANNOT_MATCH;
+      }
 
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
@@ -246,13 +268,54 @@ public class InclusiveMetricsEvaluator {
     }
 
     @Override
-    public <T> Boolean in(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean notIn(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
       return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
+      Integer id = ref.fieldId();
+
+      if (containsNullsOnly(id)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      ByteBuffer prefixAsBytes = lit.toByteBuffer();
+
+      Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
+
+      if (lowerBounds != null && lowerBounds.containsKey(id)) {
+        ByteBuffer lower = lowerBounds.get(id);
+        // truncate lower bound so that its length in bytes is not greater than the length of prefix
+        int length = Math.min(prefixAsBytes.remaining(), lower.remaining());
+        int cmp = comparator.compare(BinaryUtil.truncateBinary(lower, length), prefixAsBytes);
+        if (cmp > 0) {
+          return ROWS_CANNOT_MATCH;
+        }
+      }
+
+      if (upperBounds != null && upperBounds.containsKey(id)) {
+        ByteBuffer upper = upperBounds.get(id);
+        // truncate upper bound so that its length in bytes is not greater than the length of prefix
+        int length = Math.min(prefixAsBytes.remaining(), upper.remaining());
+        int cmp = comparator.compare(BinaryUtil.truncateBinary(upper, length), prefixAsBytes);
+        if (cmp < 0) {
+          return ROWS_CANNOT_MATCH;
+        }
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    private boolean containsNullsOnly(Integer id) {
+      return valueCounts != null && valueCounts.containsKey(id) &&
+          nullCounts != null && nullCounts.containsKey(id) &&
+          valueCounts.get(id) - nullCounts.get(id) == 0;
     }
   }
 }

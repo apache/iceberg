@@ -219,51 +219,47 @@ class StructInternalRow extends InternalRow {
   private ArrayData collectionToArrayData(Type elementType, Collection<?> values) {
     switch (elementType.typeId()) {
       case BOOLEAN:
-        return fillArray(values, array -> (BiConsumer<Integer, Boolean>) array::setBoolean);
       case INTEGER:
       case DATE:
       case TIME:
-        return fillArray(values, array -> (BiConsumer<Integer, Integer>) array::setInt);
       case LONG:
       case TIMESTAMP:
-        return fillArray(values, array -> (BiConsumer<Integer, Long>) array::setLong);
       case FLOAT:
-        return fillArray(values, array -> (BiConsumer<Integer, Float>) array::setFloat);
       case DOUBLE:
-        return fillArray(values, array -> (BiConsumer<Integer, Double>) array::setDouble);
+        return fillArray(values, array -> (pos, value) -> array[pos] = value);
       case STRING:
         return fillArray(values, array ->
-            (BiConsumer<Integer, CharSequence>) (pos, seq) -> array.update(pos, UTF8String.fromString(seq.toString())));
+            (BiConsumer<Integer, CharSequence>) (pos, seq) -> array[pos] = UTF8String.fromString(seq.toString()));
       case FIXED:
       case BINARY:
         return fillArray(values, array ->
-            (BiConsumer<Integer, ByteBuffer>) (pos, buf) -> array.update(pos, ByteBuffers.toByteArray(buf)));
+            (BiConsumer<Integer, ByteBuffer>) (pos, buf) -> array[pos] = ByteBuffers.toByteArray(buf));
       case DECIMAL:
         return fillArray(values, array ->
-            (BiConsumer<Integer, BigDecimal>) (pos, dec) -> array.update(pos, Decimal.apply(dec)));
+            (BiConsumer<Integer, BigDecimal>) (pos, dec) -> array[pos] = Decimal.apply(dec));
       case STRUCT:
         return fillArray(values, array -> (BiConsumer<Integer, StructLike>) (pos, tuple) ->
-            array.update(pos, new StructInternalRow(elementType.asStructType(), tuple)));
+            array[pos] = new StructInternalRow(elementType.asStructType(), tuple));
       case LIST:
         return fillArray(values, array -> (BiConsumer<Integer, Collection<?>>) (pos, list) ->
-            array.update(pos, collectionToArrayData(elementType.asListType(), list)));
+            array[pos] = collectionToArrayData(elementType.asListType(), list));
       case MAP:
         return fillArray(values, array -> (BiConsumer<Integer, Map<?, ?>>) (pos, map) ->
-            array.update(pos, mapToMapData(elementType.asMapType(), map)));
+            array[pos] = mapToMapData(elementType.asMapType(), map));
       default:
         throw new UnsupportedOperationException("Unsupported array element type: " + elementType);
     }
   }
 
   @SuppressWarnings("unchecked")
-  private <T> GenericArrayData fillArray(Collection<?> values, Function<ArrayData, BiConsumer<Integer, T>> makeSetter) {
-    GenericArrayData array = new GenericArrayData(new Object[values.size()]);
+  private <T> GenericArrayData fillArray(Collection<?> values, Function<Object[], BiConsumer<Integer, T>> makeSetter) {
+    Object[] array = new Object[values.size()];
     BiConsumer<Integer, T> setter = makeSetter.apply(array);
 
     int index = 0;
     for (Object value : values) {
       if (value == null) {
-        array.setNullAt(index);
+        array[index] = null;
       } else {
         setter.accept(index, (T) value);
       }
@@ -271,6 +267,6 @@ class StructInternalRow extends InternalRow {
       index += 1;
     }
 
-    return array;
+    return new GenericArrayData(array);
   }
 }

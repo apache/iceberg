@@ -20,7 +20,7 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Locale;
@@ -230,7 +230,7 @@ public class DataFiles {
       this.upperBounds = toCopy.upperBounds();
       this.keyMetadata = toCopy.keyMetadata() == null ? null
           : ByteBuffers.copy(toCopy.keyMetadata());
-      this.splitOffsets = toCopy.splitOffsets() == null ? null : ImmutableList.copyOf(toCopy.splitOffsets());
+      this.splitOffsets = toCopy.splitOffsets() == null ? null : copyList(toCopy.splitOffsets());
       return this;
     }
 
@@ -289,7 +289,9 @@ public class DataFiles {
     public Builder withPartitionPath(String newPartitionPath) {
       Preconditions.checkArgument(isPartitioned || newPartitionPath.isEmpty(),
           "Cannot add partition data for an unpartitioned table");
-      this.partitionData = fillFromPath(spec, newPartitionPath, partitionData);
+      if (!newPartitionPath.isEmpty()) {
+        this.partitionData = fillFromPath(spec, newPartitionPath, partitionData);
+      }
       return this;
     }
 
@@ -305,7 +307,11 @@ public class DataFiles {
     }
 
     public Builder withSplitOffsets(List<Long> offsets) {
-      this.splitOffsets = offsets == null ? null : ImmutableList.copyOf(offsets);
+      if (offsets != null) {
+        this.splitOffsets = copyList(offsets);
+      } else {
+        this.splitOffsets = null;
+      }
       return this;
     }
 
@@ -333,5 +339,11 @@ public class DataFiles {
               recordCount, columnSizes, valueCounts, nullValueCounts, lowerBounds, upperBounds),
           keyMetadata, splitOffsets);
     }
+  }
+
+  private static <E> List<E> copyList(List<E> toCopy) {
+    List<E> copy = Lists.newArrayListWithExpectedSize(toCopy.size());
+    copy.addAll(toCopy);
+    return copy;
   }
 }

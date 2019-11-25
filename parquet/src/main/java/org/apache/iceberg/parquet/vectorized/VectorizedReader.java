@@ -22,5 +22,5 @@ package org.apache.iceberg.parquet.vectorized;
 /**
  * Marker interface for vectorized Iceberg readers.
  */
-public interface VectorizedReader {
-}
+public interface VectorizedReader {}
+

@@ -23,7 +23,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import java.sql.Date;
 import java.sql.Timestamp;
-import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
@@ -40,6 +39,7 @@ import org.apache.spark.sql.sources.LessThan;
 import org.apache.spark.sql.sources.LessThanOrEqual;
 import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.sources.Or;
+import org.apache.spark.sql.sources.StringStartsWith;
 
 import static org.apache.iceberg.expressions.Expressions.alwaysFalse;
 import static org.apache.iceberg.expressions.Expressions.and;
@@ -52,12 +52,13 @@ import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.startsWith;
 
 public class SparkFilters {
   private SparkFilters() {
   }
 
-  private static final Map<Class<? extends Filter>, Operation> FILTERS = ImmutableMap
+  private static final ImmutableMap<Class<? extends Filter>, Operation> FILTERS = ImmutableMap
       .<Class<? extends Filter>, Operation>builder()
       .put(EqualTo.class, Operation.EQ)
       .put(EqualNullSafe.class, Operation.EQ)
@@ -71,6 +72,7 @@ public class SparkFilters {
       .put(And.class, Operation.AND)
       .put(Or.class, Operation.OR)
       .put(Not.class, Operation.NOT)
+      .put(StringStartsWith.class, Operation.STARTS_WITH)
       .build();
 
   public static Expression convert(Filter filter) {
@@ -152,6 +154,11 @@ public class SparkFilters {
             return or(left, right);
           }
           return null;
+        }
+
+        case STARTS_WITH: {
+          StringStartsWith stringStartsWith = (StringStartsWith) filter;
+          return startsWith(stringStartsWith.attribute(), stringStartsWith.value());
         }
       }
     }

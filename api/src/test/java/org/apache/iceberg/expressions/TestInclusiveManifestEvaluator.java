@@ -21,6 +21,7 @@ package org.apache.iceberg.expressions;
 
 import com.google.common.collect.ImmutableList;
 import java.nio.ByteBuffer;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -41,6 +42,7 @@ import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -87,6 +89,9 @@ public class TestInclusiveManifestEvaluator {
 
     shouldRead = ManifestEvaluator.forRowFilter(notNull("no_nulls"), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: non-null column contains a non-null value", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(startsWith("all_nulls", "asad"), SPEC, true).eval(FILE);
+    Assert.assertFalse("Should skip: startsWith on all null column", shouldRead);
   }
 
   @Test
@@ -103,7 +108,7 @@ public class TestInclusiveManifestEvaluator {
 
   @Test
   public void testMissingColumn() {
-    TestHelpers.assertThrows("Should complain about missing column in expression",
+    AssertHelpers.assertThrows("Should complain about missing column in expression",
         ValidationException.class, "Cannot find field 'missing'",
         () -> ManifestEvaluator.forRowFilter(lessThan("missing", 5), SPEC, true).eval(FILE));
   }
@@ -113,7 +118,7 @@ public class TestInclusiveManifestEvaluator {
     Expression[] exprs = new Expression[] {
         lessThan("id", 5), lessThanOrEqual("id", 30), equal("id", 70),
         greaterThan("id", 78), greaterThanOrEqual("id", 90), notEqual("id", 101),
-        isNull("id"), notNull("id")
+        isNull("id"), notNull("id"), startsWith("all_nulls", "a")
     };
 
     for (Expression expr : exprs) {
@@ -314,8 +319,32 @@ public class TestInclusiveManifestEvaluator {
 
   @Test
   public void testCaseSensitiveIntegerNotEqRewritten() {
-    TestHelpers.assertThrows("Should complain about missing column in expression",
+    AssertHelpers.assertThrows("Should complain about missing column in expression",
         ValidationException.class, "Cannot find field 'ID'",
         () -> ManifestEvaluator.forRowFilter(not(equal("ID", 5)), SPEC, true).eval(FILE));
+  }
+
+  @Test
+  public void testStringStartsWith() {
+    boolean shouldRead = ManifestEvaluator.forRowFilter(startsWith("some_nulls", "a"), SPEC, false).eval(FILE);
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(startsWith("some_nulls", "aa"), SPEC, false).eval(FILE);
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(startsWith("some_nulls", "dddd"), SPEC, false).eval(FILE);
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(startsWith("some_nulls", "z"), SPEC, false).eval(FILE);
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(startsWith("no_nulls", "a"), SPEC, false).eval(FILE);
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(startsWith("some_nulls", "zzzz"), SPEC, false).eval(FILE);
+    Assert.assertFalse("Should skip: range doesn't match", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(startsWith("some_nulls", "1"), SPEC, false).eval(FILE);
+    Assert.assertFalse("Should skip: range doesn't match", shouldRead);
   }
 }

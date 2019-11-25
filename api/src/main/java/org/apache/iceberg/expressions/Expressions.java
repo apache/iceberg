@@ -20,6 +20,7 @@
 package org.apache.iceberg.expressions;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression.Operation;
 
@@ -105,16 +106,40 @@ public class Expressions {
     return new UnboundPredicate<>(Expression.Operation.NOT_EQ, ref(name), value);
   }
 
+  public static UnboundPredicate<String> startsWith(String name, String value) {
+    return new UnboundPredicate<>(Expression.Operation.STARTS_WITH, ref(name), value);
+  }
+
+  public static <T> UnboundPredicate<T> in(String name, T... values) {
+    return predicate(Operation.IN, name, Lists.newArrayList(values));
+  }
+
+  public static <T> UnboundPredicate<T> in(String name, Iterable<T> values) {
+    Preconditions.checkNotNull(values, "Values cannot be null for IN predicate.");
+    return predicate(Operation.IN, name, values);
+  }
+
+  public static <T> UnboundPredicate<T> notIn(String name, T... values) {
+    return predicate(Operation.NOT_IN, name, Lists.newArrayList(values));
+  }
+
+  public static <T> UnboundPredicate<T> notIn(String name, Iterable<T> values) {
+    Preconditions.checkNotNull(values, "Values cannot be null for NOT_IN predicate.");
+    return predicate(Operation.NOT_IN, name, values);
+  }
+
   public static <T> UnboundPredicate<T> predicate(Operation op, String name, T value) {
-    Preconditions.checkArgument(op != Operation.IS_NULL && op != Operation.NOT_NULL,
-        "Cannot create %s predicate inclusive a value", op);
-    return new UnboundPredicate<>(op, ref(name), value);
+    return predicate(op, name, Literals.from(value));
   }
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name, Literal<T> lit) {
     Preconditions.checkArgument(op != Operation.IS_NULL && op != Operation.NOT_NULL,
         "Cannot create %s predicate inclusive a value", op);
     return new UnboundPredicate<>(op, ref(name), lit);
+  }
+
+  public static <T> UnboundPredicate<T> predicate(Operation op, String name, Iterable<T> values) {
+    return new UnboundPredicate<>(op, ref(name), values);
   }
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name) {

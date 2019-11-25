@@ -52,7 +52,10 @@ Community discussions happen primarily on the [dev mailing list][dev-list] or on
 
 ### Building
 
-Iceberg is built using Gradle 5.2.1.
+Iceberg is built using Gradle 5.4.1.
+
+* To invoke a build and run tests: `./gradlew build`
+* To skip tests: `./gradlew build -x test`
 
 * To invoke a build and run tests: `./gradlew build`
 * To skip tests: `./gradlew build -x test`
@@ -80,7 +83,7 @@ Iceberg's Spark integration is compatible with the following Spark versions:
 | --------------- | ------------- |
 | 0.2.0+ *        | 2.3.0         |
 | 0.3.0+ *        | 2.3.2         |
-| master branch   | 2.4.0         |
+| master branch   | 2.4.x         |
 
 An asterisk (*) refers to releases under the now deprecated [Netflix/iceberg](https://github.com/Netflix/iceberg) repo.
 

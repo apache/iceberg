@@ -41,7 +41,7 @@ public class UnicodeUtil {
    */
   public static CharSequence truncateString(CharSequence input, int length) {
     Preconditions.checkArgument(length > 0, "Truncate length should be positive");
-    StringBuffer sb = new StringBuffer(input);
+    StringBuilder sb = new StringBuilder(input);
     // Get the number of unicode characters in the input
     int numUniCodeCharacters = sb.codePointCount(0, sb.length());
     // No need to truncate if the number of unicode characters in the char sequence is <= truncate length
@@ -70,24 +70,24 @@ public class UnicodeUtil {
   public static Literal<CharSequence> truncateStringMax(Literal<CharSequence> input, int length) {
     CharSequence inputCharSeq = input.value();
     // Truncate the input to the specified truncate length.
-    StringBuffer truncatedStringBuffer = new StringBuffer(truncateString(inputCharSeq, length));
+    StringBuilder truncatedStringBuilder = new StringBuilder(truncateString(inputCharSeq, length));
 
     // No need to increment if the input length is under the truncate length
-    if (inputCharSeq.length() == truncatedStringBuffer.length()) {
+    if (inputCharSeq.length() == truncatedStringBuilder.length()) {
       return input;
     }
 
     // Try incrementing the code points from the end
     for (int i = length - 1; i >= 0; i--) {
       // Get the offset in the truncated string buffer where the number of unicode characters = i
-      int offsetByCodePoint = truncatedStringBuffer.offsetByCodePoints(0, i);
-      int nextCodePoint = truncatedStringBuffer.codePointAt(offsetByCodePoint) + 1;
+      int offsetByCodePoint = truncatedStringBuilder.offsetByCodePoints(0, i);
+      int nextCodePoint = truncatedStringBuilder.codePointAt(offsetByCodePoint) + 1;
       // No overflow
       if (nextCodePoint != 0 && Character.isValidCodePoint(nextCodePoint)) {
-        truncatedStringBuffer.setLength(offsetByCodePoint);
+        truncatedStringBuilder.setLength(offsetByCodePoint);
         // Append next code point to the truncated substring
-        truncatedStringBuffer.appendCodePoint(nextCodePoint);
-        return Literal.of(truncatedStringBuffer.toString());
+        truncatedStringBuilder.appendCodePoint(nextCodePoint);
+        return Literal.of(truncatedStringBuilder.toString());
       }
     }
     return null; // Cannot find a valid upper bound

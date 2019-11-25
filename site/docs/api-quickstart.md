@@ -1,3 +1,20 @@
+<!--
+ - Licensed to the Apache Software Foundation (ASF) under one or more
+ - contributor license agreements.  See the NOTICE file distributed with
+ - this work for additional information regarding copyright ownership.
+ - The ASF licenses this file to You under the Apache License, Version 2.0
+ - (the "License"); you may not use this file except in compliance with
+ - the License.  You may obtain a copy of the License at
+ -
+ -   http://www.apache.org/licenses/LICENSE-2.0
+ -
+ - Unless required by applicable law or agreed to in writing, software
+ - distributed under the License is distributed on an "AS IS" BASIS,
+ - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ - See the License for the specific language governing permissions and
+ - limitations under the License.
+ -->
+
 # API Quickstart
 
 ## Create a table
@@ -11,7 +28,7 @@ The Hive catalog connects to a Hive MetaStore to keep track of Iceberg tables. T
 ```scala
 import org.apache.iceberg.hive.HiveCatalog
 
-val catalog = new HiveCatalog(spark.sparkContext.hadoopConfiguration)
+val catalog = new HiveCatalog(spark.sessionState.newHadoopConf())
 ```
 
 The `Catalog` interface defines methods for working with tables, like `createTable`, `loadTable`, `renameTable`, and `dropTable`.
@@ -25,6 +42,7 @@ val table = catalog.createTable(name, schema, spec)
 // write into the new logs table with Spark 2.4
 logsDF.write
     .format("iceberg")
+    .mode("append")
     .save("logging.logs")
 ```
 
@@ -39,13 +57,14 @@ To create a table in HDFS, use `HadoopTables`:
 ```scala
 import org.apache.iceberg.hadoop.HadoopTables
 
-val tables = new HadoopTables(conf)
+val tables = new HadoopTables(spark.sessionState.newHadoopConf())
 
 val table = tables.create(schema, spec, "hdfs:/tables/logging/logs")
 
 // write into the new logs table with Spark 2.4
 logsDF.write
     .format("iceberg")
+    .mode("append")
     .save("hdfs:/tables/logging/logs")
 ```
 
@@ -90,15 +109,12 @@ When a table is created, all IDs in the schema are re-assigned to ensure uniquen
 To create an Iceberg schema from an existing Avro schema, use converters in `AvroSchemaUtil`:
 
 ```scala
-import org.apache.iceberg.avro.AvroSchemaUtil
 import org.apache.avro.Schema.Parser
+import org.apache.iceberg.avro.AvroSchemaUtil
 
-val avroSchema = new Parser().parse(
-    """{ "type": "record", "name": "com.example.AvroType",
-      |  "fields": [ ... ]
-      |}""".stripMargin
+val avroSchema = new Parser().parse("""{"type": "record", ... }""")
 
-val schema = AvroSchemaUtil.convert(avroSchema)
+val icebergSchema = AvroSchemaUtil.toIceberg(avroSchema)
 ```
 
 ### Convert a schema from Spark

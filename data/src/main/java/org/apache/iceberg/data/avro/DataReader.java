@@ -32,19 +32,20 @@ import org.apache.avro.io.Decoder;
 import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.ResolvingDecoder;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.avro.AvroSchemaVisitor;
-import org.apache.iceberg.avro.LogicalMap;
+import org.apache.iceberg.avro.AvroSchemaWithTypeVisitor;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 
 public class DataReader<T> implements DatumReader<T> {
 
   private static final ThreadLocal<Map<Schema, Map<Schema, ResolvingDecoder>>> DECODER_CACHES =
       ThreadLocal.withInitial(() -> new MapMaker().weakKeys().makeMap());
 
-  public static <D> DataReader<D> create(Schema readSchema) {
-    return new DataReader<>(readSchema);
+  public static <D> DataReader<D> create(org.apache.iceberg.Schema expectedSchema, Schema readSchema) {
+    return new DataReader<>(expectedSchema, readSchema);
   }
 
   private final Schema readSchema;
@@ -52,9 +53,9 @@ public class DataReader<T> implements DatumReader<T> {
   private Schema fileSchema = null;
 
   @SuppressWarnings("unchecked")
-  private DataReader(Schema readSchema) {
+  private DataReader(org.apache.iceberg.Schema expectedSchema, Schema readSchema) {
     this.readSchema = readSchema;
-    this.reader = (ValueReader<T>) AvroSchemaVisitor.visit(readSchema, new ReadBuilder());
+    this.reader = (ValueReader<T>) AvroSchemaWithTypeVisitor.visit(expectedSchema, readSchema, new ReadBuilder());
   }
 
   @Override
@@ -94,40 +95,39 @@ public class DataReader<T> implements DatumReader<T> {
     }
   }
 
-  private static class ReadBuilder extends AvroSchemaVisitor<ValueReader<?>> {
+  private static class ReadBuilder extends AvroSchemaWithTypeVisitor<ValueReader<?>> {
+
     private ReadBuilder() {
     }
 
     @Override
-    public ValueReader<?> record(Schema record, List<String> names, List<ValueReader<?>> fields) {
-      return GenericReaders.struct(AvroSchemaUtil.convert(record).asStructType(), fields);
+    public ValueReader<?> record(Types.StructType struct, Schema record,
+                                 List<String> names, List<ValueReader<?>> fields) {
+      return GenericReaders.struct(struct, fields);
     }
 
     @Override
-    public ValueReader<?> union(Schema union, List<ValueReader<?>> options) {
+    public ValueReader<?> union(Type ignored, Schema union, List<ValueReader<?>> options) {
       return ValueReaders.union(options);
     }
 
     @Override
-    public ValueReader<?> array(Schema array, ValueReader<?> elementReader) {
-      if (array.getLogicalType() instanceof LogicalMap) {
-        ValueReaders.StructReader<?> keyValueReader = (ValueReaders.StructReader) elementReader;
-        ValueReader<?> keyReader = keyValueReader.reader(0);
-        ValueReader<?> valueReader = keyValueReader.reader(1);
-
-        return ValueReaders.arrayMap(keyReader, valueReader);
-      }
-
+    public ValueReader<?> array(Types.ListType ignored, Schema array, ValueReader<?> elementReader) {
       return ValueReaders.array(elementReader);
     }
 
     @Override
-    public ValueReader<?> map(Schema map, ValueReader<?> valueReader) {
+    public ValueReader<?> map(Types.MapType iMap, Schema map, ValueReader<?> keyReader, ValueReader<?> valueReader) {
+      return ValueReaders.arrayMap(keyReader, valueReader);
+    }
+
+    @Override
+    public ValueReader<?> map(Types.MapType ignored, Schema map, ValueReader<?> valueReader) {
       return ValueReaders.map(ValueReaders.strings(), valueReader);
     }
 
     @Override
-    public ValueReader<?> primitive(Schema primitive) {
+    public ValueReader<?> primitive(Type.PrimitiveType ignored, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
         switch (logicalType.getName()) {
