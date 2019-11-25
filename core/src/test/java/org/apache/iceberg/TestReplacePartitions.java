@@ -240,4 +240,10 @@ public class TestReplacePartitions extends TableTestBase {
         files(FILE_A, FILE_B),
         statuses(Status.ADDED, Status.ADDED));
   }
+
+  @Test
+  public void testEmptyPartitionPathWithUnpartitionedTable() {
+    DataFiles.builder(PartitionSpec.unpartitioned())
+        .withPartitionPath("");
+  }
 }

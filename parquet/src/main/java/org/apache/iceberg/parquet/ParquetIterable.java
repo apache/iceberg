@@ -50,7 +50,7 @@ public class ParquetIterable<T> extends CloseableGroup implements CloseableItera
     private final ParquetReader<T> parquet;
     private boolean needsAdvance = false;
     private boolean hasNext = false;
-    private T next = null;
+    private T next;
 
     ParquetIterator(ParquetReader<T> parquet) {
       this.parquet = parquet;
@@ -79,10 +79,10 @@ public class ParquetIterable<T> extends CloseableGroup implements CloseableItera
     private T advance() {
       // this must be called in hasNext because it reuses an UnsafeRow
       try {
-        T next = parquet.read();
+        T nextRecord = parquet.read();
         this.needsAdvance = false;
-        this.hasNext = (next != null);
-        return next;
+        this.hasNext = nextRecord != null;
+        return nextRecord;
       } catch (IOException e) {
         throw new RuntimeIOException(e);
       }

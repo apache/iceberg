@@ -19,6 +19,8 @@
 
 package org.apache.iceberg;
 
+import com.google.common.base.Joiner;
+import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableList;
 import java.util.Collection;
 import java.util.List;
@@ -37,5 +39,12 @@ public class BaseCombinedScanTask implements CombinedScanTask {
   @Override
   public Collection<FileScanTask> files() {
     return tasks;
+  }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("tasks", Joiner.on(", ").join(tasks))
+        .toString();
   }
 }

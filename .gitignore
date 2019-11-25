@@ -3,9 +3,32 @@
 *.ipr
 *.iws
 *.iml
+
 # gradle build
 .gradle
 build
+gradle/
 out
+gradle/wrapper/gradle-wrapper.jar
+
 # web site build
 site/site
+
+__pycache__/
+*.py[cod]
+.eggs/
+.tox/
+env/
+venv/
+*.egg-info/
+test-reports
+build/
+dist/
+sdist/
+.coverage
+coverage.xml
+.pytest_cache/
+spark/tmp/
+
+# vscode/eclipse files
+.project

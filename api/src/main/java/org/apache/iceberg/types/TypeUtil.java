@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.apache.iceberg.Schema;
@@ -111,13 +112,24 @@ public class TypeUtil {
    *
    * @param schema a schema
    * @param nextId an id assignment function
-   * @return an structurally identical schema with new ids assigned by the nextId function
+   * @return a structurally identical schema with new ids assigned by the nextId function
    */
   public static Schema assignFreshIds(Schema schema, NextID nextId) {
     return new Schema(TypeUtil
         .visit(schema.asStruct(), new AssignFreshIds(nextId))
         .asNestedType()
         .fields());
+  }
+
+  /**
+   * Assigns strictly increasing fresh ids for all fields in a schema, starting from 1.
+   *
+   * @param schema a schema
+   * @return a structurally identical schema with new ids assigned strictly increasing from 1
+   */
+  public static Schema assignIncreasingFreshIds(Schema schema) {
+    AtomicInteger lastColumnId = new AtomicInteger(0);
+    return TypeUtil.assignFreshIds(schema, lastColumnId::incrementAndGet);
   }
 
   /**
@@ -178,7 +190,6 @@ public class TypeUtil {
   }
 
   public static class SchemaVisitor<T> {
-    private final Deque<String> fieldNames = Lists.newLinkedList();
     private final Deque<Integer> fieldIds = Lists.newLinkedList();
 
     public T schema(Schema schema, T structResult) {
@@ -205,10 +216,6 @@ public class TypeUtil {
       return null;
     }
 
-    protected Deque<String> fieldNames() {
-      return fieldNames;
-    }
-
     protected Deque<Integer> fieldIds() {
       return fieldIds;
     }
@@ -225,13 +232,11 @@ public class TypeUtil {
         List<T> results = Lists.newArrayListWithExpectedSize(struct.fields().size());
         for (Types.NestedField field : struct.fields()) {
           visitor.fieldIds.push(field.fieldId());
-          visitor.fieldNames.push(field.name());
           T result;
           try {
             result = visit(field.type(), visitor);
           } finally {
             visitor.fieldIds.pop();
-            visitor.fieldNames.pop();
           }
           results.add(visitor.field(field, result));
         }

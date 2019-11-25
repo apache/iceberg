@@ -20,6 +20,8 @@
 package org.apache.iceberg.spark.source.parquet.vectorized;
 
 import com.google.common.collect.Maps;
+import java.util.Map;
+import java.util.UUID;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -29,60 +31,63 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 
-import java.util.Map;
-import java.util.UUID;
-
 import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.spark.sql.functions.*;
+import static org.apache.spark.sql.functions.col;
+import static org.apache.spark.sql.functions.expr;
+import static org.apache.spark.sql.functions.lit;
+import static org.apache.spark.sql.functions.pmod;
+import static org.apache.spark.sql.functions.when;
 
 public class VectorizedFallbackToPlainEncodingStringsBenchmark extends VectorizedDictionaryEncodedBenchmark {
-    @Override
-    protected final Table initTable() {
-        Schema schema = new Schema(
-                optional(1, "longCol", Types.LongType.get()), optional(2, "stringCol", Types.StringType.get()));
-        PartitionSpec partitionSpec = PartitionSpec.unpartitioned();
-        HadoopTables tables = new HadoopTables(hadoopConf());
-        Map<String, String> properties = Maps.newHashMap();
-        properties.put(TableProperties.METADATA_COMPRESSION, "gzip");
-        return tables.create(schema, partitionSpec, properties, newTableLocation());
-    }
+  @Override
+  protected final Table initTable() {
+    Schema schema = new Schema(
+        optional(1, "longCol", Types.LongType.get()), optional(2, "stringCol", Types.StringType.get()));
+    PartitionSpec partitionSpec = PartitionSpec.unpartitioned();
+    HadoopTables tables = new HadoopTables(hadoopConf());
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(TableProperties.METADATA_COMPRESSION, "gzip");
+    return tables.create(schema, partitionSpec, properties, newTableLocation());
+  }
 
-    @Override
-    protected void appendData() {
-        for (int fileNum = 1; fileNum <= NUM_FILES; fileNum++) {
-            Dataset<Row> df = spark().range(NUM_ROWS)
-                    .withColumn("longCol",
-                            when(expr("id > 10000000/2"), lit(3l))
-                                    .when(pmod(col("id"), lit(9))
-                                            .equalTo(lit(0)), lit(1l))
-                                    .when(pmod(col("id"), lit(9))
-                                            .equalTo(lit(1)), lit(1l))
-                                    .when(pmod(col("id"), lit(9))
-                                            .equalTo(lit(2)), lit(1l))
-                                    .when(pmod(col("id"), lit(9))
-                                            .equalTo(lit(3)), lit(1l))
-                                    .when(pmod(col("id"), lit(9))
-                                            .equalTo(lit(4)), lit(1l))
-                                    .when(pmod(col("id"), lit(9))
-                                            .equalTo(lit(5)), lit(2l))
-                                    .when(pmod(col("id"), lit(9))
-                                            .equalTo(lit(6)), lit(2l))
-                                    .when(pmod(col("id"), lit(9))
-                                            .equalTo(lit(7)), lit(2l))
-                                    .when(pmod(col("id"), lit(9))
-                                            .equalTo(lit(8)), lit(2l))
-                                    .otherwise(lit(2l)))
-                    .drop("id")
-                    .withColumn("stringCol",
-                            when(col("longCol")
-                                    .equalTo(lit(1l)), lit("1"))
-                                    .when(col("longCol")
-                                            .equalTo(lit(2l)), lit("2"))
-                                    .when(col("longCol")
-                                            .equalTo(lit(3l)), lit(UUID.randomUUID().toString()))
-                                    .otherwise(lit(UUID.randomUUID().toString())));
-            appendAsFile(df);
-        }
+  @Override
+  protected void appendData() {
+    for (int fileNum = 1; fileNum <= NUM_FILES; fileNum++) {
+      Dataset<Row> df = spark().range(NUM_ROWS)
+          .withColumn(
+              "longCol",
+              when(expr("id > 10000000/2"), lit(3L))
+                  .when(pmod(col("id"), lit(9))
+                      .equalTo(lit(0)), lit(1L))
+                  .when(pmod(col("id"), lit(9))
+                      .equalTo(lit(1)), lit(1L))
+                  .when(pmod(col("id"), lit(9))
+                      .equalTo(lit(2)), lit(1L))
+                  .when(pmod(col("id"), lit(9))
+                      .equalTo(lit(3)), lit(1L))
+                  .when(pmod(col("id"), lit(9))
+                      .equalTo(lit(4)), lit(1L))
+                  .when(pmod(col("id"), lit(9))
+                      .equalTo(lit(5)), lit(2L))
+                  .when(pmod(col("id"), lit(9))
+                      .equalTo(lit(6)), lit(2L))
+                  .when(pmod(col("id"), lit(9))
+                      .equalTo(lit(7)), lit(2L))
+                  .when(pmod(col("id"), lit(9))
+                      .equalTo(lit(8)), lit(2L))
+                  .otherwise(lit(2L)))
+          .drop("id")
+          .withColumn(
+              "stringCol",
+              when(col("longCol")
+                  .equalTo(lit(1L)), lit("1"))
+                  .when(col("longCol")
+                      .equalTo(lit(2L)), lit("2"))
+                  .when(col("longCol")
+                      .equalTo(lit(3L)), lit(UUID.randomUUID().toString()))
+                  .otherwise(lit(UUID.randomUUID().toString())));
+      appendAsFile(df);
     }
+  }
 }
 

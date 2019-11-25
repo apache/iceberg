@@ -79,6 +79,10 @@ public class ValueReaders {
     return Utf8Reader.INSTANCE;
   }
 
+  public static ValueReader<String> enums(List<String> symbols) {
+    return new EnumReader(symbols);
+  }
+
   public static ValueReader<UUID> uuids() {
     return UUIDReader.INSTANCE;
   }

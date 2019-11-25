@@ -103,7 +103,7 @@ public abstract class IcebergSourceBenchmark {
     }
     builder.master("local");
     spark = builder.getOrCreate();
-    Configuration sparkHadoopConf = spark.sparkContext().hadoopConfiguration();
+    Configuration sparkHadoopConf = spark.sessionState().newHadoopConf();
     hadoopConf.forEach(entry -> sparkHadoopConf.set(entry.getKey(), entry.getValue()));
   }
   protected void setupSpark() {

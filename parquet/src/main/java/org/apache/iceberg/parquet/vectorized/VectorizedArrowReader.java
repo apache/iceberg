@@ -283,10 +283,6 @@ public class VectorizedArrowReader implements VectorizedReader {
     return columnDescriptor.toString();
   }
 
-  public int batchSize() {
-    return batchSize;
-  }
-
   public static final VectorizedArrowReader NULL_VALUES_READER =
       new VectorizedArrowReader() {
         @Override
@@ -301,3 +297,4 @@ public class VectorizedArrowReader implements VectorizedReader {
             Map<ColumnPath, Boolean> columnDictEncoded) {}
       };
 }
+

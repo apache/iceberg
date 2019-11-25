@@ -22,11 +22,13 @@ package org.apache.iceberg;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import com.google.common.io.Files;
 import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
@@ -54,25 +56,25 @@ public class TableTestBase {
       .withPath("/path/to/data-a.parquet")
       .withFileSizeInBytes(0)
       .withPartitionPath("data_bucket=0") // easy way to set partition data for now
-      .withRecordCount(0)
+      .withRecordCount(1)
       .build();
   static final DataFile FILE_B = DataFiles.builder(SPEC)
       .withPath("/path/to/data-b.parquet")
       .withFileSizeInBytes(0)
       .withPartitionPath("data_bucket=1") // easy way to set partition data for now
-      .withRecordCount(0)
+      .withRecordCount(1)
       .build();
   static final DataFile FILE_C = DataFiles.builder(SPEC)
       .withPath("/path/to/data-c.parquet")
       .withFileSizeInBytes(0)
       .withPartitionPath("data_bucket=2") // easy way to set partition data for now
-      .withRecordCount(0)
+      .withRecordCount(1)
       .build();
   static final DataFile FILE_D = DataFiles.builder(SPEC)
       .withPath("/path/to/data-d.parquet")
       .withFileSizeInBytes(0)
       .withPartitionPath("data_bucket=3") // easy way to set partition data for now
-      .withRecordCount(0)
+      .withRecordCount(1)
       .build();
 
   @Rule
@@ -138,6 +140,54 @@ public class TableTestBase {
     return writer.toManifestFile();
   }
 
+  ManifestFile writeManifest(String fileName, ManifestEntry... entries) throws IOException {
+    File manifestFile = temp.newFile(fileName);
+    Assert.assertTrue(manifestFile.delete());
+    OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
+
+    ManifestWriter writer = ManifestWriter.write(table.spec(), outputFile);
+    try {
+      for (ManifestEntry entry : entries) {
+        writer.addEntry(entry);
+      }
+    } finally {
+      writer.close();
+    }
+
+    return writer.toManifestFile();
+  }
+
+  ManifestFile writeManifestWithName(String name, DataFile... files) throws IOException {
+    File manifestFile = temp.newFile(name + ".avro");
+    Assert.assertTrue(manifestFile.delete());
+    OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
+
+    ManifestWriter writer = ManifestWriter.write(table.spec(), outputFile);
+    try {
+      for (DataFile file : files) {
+        writer.add(file);
+      }
+    } finally {
+      writer.close();
+    }
+
+    return writer.toManifestFile();
+  }
+
+  ManifestEntry manifestEntry(ManifestEntry.Status status, long snapshotId, DataFile file) {
+    ManifestEntry entry = new ManifestEntry(table.spec().partitionType());
+    switch (status) {
+      case ADDED:
+        return entry.wrapAppend(snapshotId, file);
+      case EXISTING:
+        return entry.wrapExisting(snapshotId, file);
+      case DELETED:
+        return entry.wrapDelete(snapshotId, file);
+      default:
+        throw new IllegalArgumentException("Unexpected entry status: " + status);
+    }
+  }
+
   void validateSnapshot(Snapshot old, Snapshot snap, DataFile... newFiles) {
     List<ManifestFile> oldManifests = old != null ? old.manifests() : ImmutableList.of();
 
@@ -162,6 +212,18 @@ public class TableTestBase {
     }
 
     Assert.assertFalse("Should find all files in the manifest", newPaths.hasNext());
+  }
+
+  void validateTableFiles(Table tbl, DataFile... expectedFiles) {
+    Set<CharSequence> expectedFilePaths = Sets.newHashSet();
+    for (DataFile file : expectedFiles) {
+      expectedFilePaths.add(file.path());
+    }
+    Set<CharSequence> actualFilePaths = Sets.newHashSet();
+    for (FileScanTask task : tbl.newScan().planFiles()) {
+      actualFilePaths.add(task.file().path());
+    }
+    Assert.assertEquals("Files should match", expectedFilePaths, actualFilePaths);
   }
 
   List<String> paths(DataFile... dataFiles) {

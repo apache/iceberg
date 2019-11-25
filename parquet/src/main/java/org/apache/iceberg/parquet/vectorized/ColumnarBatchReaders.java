@@ -72,23 +72,19 @@ public class ColumnarBatchReaders implements VectorizedReader {
     ColumnVector[] arrowColumnVectors = new ColumnVector[readers.length];
     int numRows = 0;
     for (int i = 0; i < readers.length; i += 1) {
-        NullabilityHolder nullabilityHolder = new NullabilityHolder(batchSize);
-        VectorHolder holder = readers[i].read(nullabilityHolder);
-        FieldVector vector = holder.getVector();
-        if (vector == null) {
-          arrowColumnVectors[i] = new NullValuesColumnVector(batchSize);
-        } else {
-          arrowColumnVectors[i] = new IcebergArrowColumnVector(holder, nullabilityHolder);
-          numRows = vector.getValueCount();
-        }
+      NullabilityHolder nullabilityHolder = new NullabilityHolder(batchSize);
+      VectorHolder holder = readers[i].read(nullabilityHolder);
+      FieldVector vector = holder.getVector();
+      if (vector == null) {
+        arrowColumnVectors[i] = new NullValuesColumnVector(batchSize);
+      } else {
+        arrowColumnVectors[i] = new IcebergArrowColumnVector(holder, nullabilityHolder);
+        numRows = vector.getValueCount();
+      }
     }
     ColumnarBatch batch = new ColumnarBatch(arrowColumnVectors);
     batch.setNumRows(numRows);
     return batch;
   }
 
-  @Override
-  public int batchSize() {
-    return batchSize;
-  }
 }

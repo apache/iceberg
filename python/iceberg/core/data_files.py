@@ -21,7 +21,6 @@ from iceberg.api import (FileFormat,
 from iceberg.api.types import Conversions
 
 from .generic_data_file import GenericDataFile
-from .hadoop import HadoopInputFile
 from .partition_data import PartitionData
 
 
@@ -78,7 +77,8 @@ class DataFiles(object):
 
     @staticmethod
     def from_input_file(input_file, row_count, partition_data=None, metrics=None):
-        if isinstance(input_file, HadoopInputFile):
+        from .filesystem import FileSystemInputFile
+        if isinstance(input_file, FileSystemInputFile):
             return DataFiles.from_stat(input_file.get_stat(), row_count,
                                        partition_data=partition_data, metrics=metrics)
 
@@ -124,6 +124,7 @@ class DataFileBuilder(object):
         self.null_value_counts = None
         self.lower_bounds = None
         self.upper_bounds = None
+        return self
 
     def copy(self, to_copy):
         if self.is_partitioned:
@@ -148,7 +149,8 @@ class DataFileBuilder(object):
         return self
 
     def with_input_file(self, input_file):
-        if isinstance(input_file, HadoopInputFile):
+        from .filesystem import FileSystemInputFile
+        if isinstance(input_file, FileSystemInputFile):
             self.with_status(input_file.get_stat())
 
         self.file_path = self.location()
@@ -158,6 +160,7 @@ class DataFileBuilder(object):
 
     def with_path(self, path):
         self.file_path = path
+        return self
 
     def with_format(self, fmt):
         if isinstance(fmt, FileFormat):

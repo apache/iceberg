@@ -117,7 +117,7 @@ public class TestPartitionValues {
     File dataFolder = new File(location, "data");
     Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
 
-    HadoopTables tables = new HadoopTables(spark.sparkContext().hadoopConfiguration());
+    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
     Table table = tables.create(SIMPLE_SCHEMA, SPEC, location.toString());
     table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
 
@@ -160,7 +160,7 @@ public class TestPartitionValues {
         "b", "i", "l", "f", "d", "date", "ts", "s", "bytes", "dec_9_0", "dec_11_2", "dec_38_10"
     };
 
-    HadoopTables tables = new HadoopTables(spark.sparkContext().hadoopConfiguration());
+    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
 
     // create a table around the source data
     String sourceLocation = temp.newFolder("source_table").toString();

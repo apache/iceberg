@@ -32,4 +32,8 @@ public class RuntimeMetaException extends RuntimeException {
   public RuntimeMetaException(MetaException cause, String message, Object... args) {
     super(String.format(message, args), cause);
   }
+
+  public RuntimeMetaException(Throwable throwable, String message, Object... args) {
+    super(String.format(message, args), throwable);
+  }
 }

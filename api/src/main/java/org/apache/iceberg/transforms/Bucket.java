@@ -29,7 +29,9 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.UUID;
+import org.apache.iceberg.expressions.BoundLiteralPredicate;
 import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.BoundUnaryPredicate;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
@@ -79,6 +81,9 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
   @Override
   public Integer apply(T value) {
+    if (value == null) {
+      return null;
+    }
     return (hash(value) & Integer.MAX_VALUE) % numBuckets;
   }
 
@@ -86,8 +91,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
   public boolean equals(Object o) {
     if (this == o) {
       return true;
-    }
-    if (o == null || getClass() != o.getClass()) {
+    } else if (!(o instanceof Bucket)) {
       return false;
     }
 
@@ -107,31 +111,46 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
   @Override
   public UnboundPredicate<Integer> project(String name, BoundPredicate<T> predicate) {
-    switch (predicate.op()) {
-      case EQ:
-        return Expressions.predicate(
-            predicate.op(), name, apply(predicate.literal().value()));
+    if (predicate instanceof BoundUnaryPredicate) {
+      return Expressions.predicate(predicate.op(), name);
+    } else if (predicate instanceof BoundLiteralPredicate) {
+      BoundLiteralPredicate<T> pred = predicate.asLiteralPredicate();
+      switch (pred.op()) {
+        case EQ:
+          return Expressions.predicate(
+              pred.op(), name, apply(pred.literal().value()));
 //      case IN:
 //        return Expressions.predicate();
-      default:
-        // comparison predicates can't be projected, notEq can't be projected
-        // TODO: small ranges can be projected.
-        // for example, (x > 0) and (x < 3) can be turned into in({1, 2}) and projected.
-        return null;
+        case STARTS_WITH:
+        default:
+          // comparison predicates can't be projected, notEq can't be projected
+          // TODO: small ranges can be projected.
+          // for example, (x > 0) and (x < 3) can be turned into in({1, 2}) and projected.
+          return null;
+      }
     }
+
+    return null;
   }
 
   @Override
   public UnboundPredicate<Integer> projectStrict(String name, BoundPredicate<T> predicate) {
-    switch (predicate.op()) {
-      case NOT_EQ: // TODO: need to translate not(eq(...)) into notEq in expressions
-        return Expressions.predicate(predicate.op(), name, apply(predicate.literal().value()));
+    if (predicate instanceof BoundUnaryPredicate) {
+      return Expressions.predicate(predicate.op(), name);
+    } else if (predicate instanceof BoundLiteralPredicate) {
+      BoundLiteralPredicate<T> pred = predicate.asLiteralPredicate();
+      switch (pred.op()) {
+        case NOT_EQ: // TODO: need to translate not(eq(...)) into notEq in expressions
+          return Expressions.predicate(pred.op(), name, apply(pred.literal().value()));
 //      case NOT_IN:
 //        return null;
-      default:
-        // no strict projection for comparison or equality
-        return null;
+        default:
+          // no strict projection for comparison or equality
+          return null;
+      }
     }
+
+    return null;
   }
 
   @Override

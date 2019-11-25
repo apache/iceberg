@@ -27,6 +27,8 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 
 abstract class BaseMetadataTable implements Table {
+  private PartitionSpec spec = PartitionSpec.unpartitioned();
+
   abstract Table table();
   abstract String metadataTableName();
 
@@ -52,7 +54,12 @@ abstract class BaseMetadataTable implements Table {
 
   @Override
   public PartitionSpec spec() {
-    return PartitionSpec.unpartitioned();
+    return spec;
+  }
+
+  @Override
+  public Map<Integer, PartitionSpec> specs() {
+    return ImmutableMap.of(spec.specId(), spec);
   }
 
   @Override

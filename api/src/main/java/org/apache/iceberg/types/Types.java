@@ -247,7 +247,7 @@ public class Types {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      } else if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof TimestampType)) {
         return false;
       }
 
@@ -326,7 +326,7 @@ public class Types {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      } else if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof FixedType)) {
         return false;
       }
 
@@ -395,7 +395,7 @@ public class Types {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      } else if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof DecimalType)) {
         return false;
       }
 
@@ -427,6 +427,14 @@ public class Types {
 
     public static NestedField required(int id, String name, Type type, String doc) {
       return new NestedField(false, id, name, type, doc);
+    }
+
+    public static NestedField of(int id, boolean isOptional, String name, Type type) {
+      return new NestedField(isOptional, id, name, type, null);
+    }
+
+    public static NestedField of(int id, boolean isOptional, String name, Type type, String doc) {
+      return new NestedField(isOptional, id, name, type, doc);
     }
 
     private final boolean isOptional;
@@ -480,7 +488,7 @@ public class Types {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      } else if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof NestedField)) {
         return false;
       }
 
@@ -581,7 +589,7 @@ public class Types {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      } else if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof StructType)) {
         return false;
       }
 
@@ -716,7 +724,7 @@ public class Types {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      } else if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof ListType)) {
         return false;
       }
 
@@ -834,7 +842,7 @@ public class Types {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      } else if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof MapType)) {
         return false;
       }
 

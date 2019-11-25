@@ -142,8 +142,7 @@ class PartitionKey implements StructLike {
   public boolean equals(Object o) {
     if (this == o) {
       return true;
-    }
-    if (o == null || getClass() != o.getClass()) {
+    } else if (!(o instanceof PartitionKey)) {
       return false;
     }
 

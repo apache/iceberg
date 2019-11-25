@@ -30,6 +30,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataTask;
@@ -46,11 +47,13 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.parquet.vectorized.VectorizedReader;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkAvroReader;
 import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.iceberg.spark.data.vector.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.Types;
+import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Attribute;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
@@ -148,7 +151,8 @@ public class VectorizedReading {
       this.tasks = task.files().iterator();
       this.tableSchema = tableSchema;
       this.expectedSchema = expectedSchema;
-      Iterable<InputFile> decryptedFiles = encryptionManager.decrypt(Iterables.transform(task.files(),
+      Iterable<InputFile> decryptedFiles = encryptionManager.decrypt(Iterables.transform(
+          task.files(),
           fileScanTask ->
               EncryptedFiles.encryptedInput(
                   this.fileIo.newInputFile(fileScanTask.file().path().toString()),
@@ -169,11 +173,9 @@ public class VectorizedReading {
         if (currentIterator.hasNext()) {
           this.current = currentIterator.next();
           return true;
-
         } else if (tasks.hasNext()) {
           this.currentCloseable.close();
           this.currentIterator = open(tasks.next());
-
         } else {
           return false;
         }
@@ -232,7 +234,6 @@ public class VectorizedReading {
         // add projection to the final schema
         iterSchema = requiredSchema;
         iter = open(task, requiredSchema);
-
       } else {
         // return the base iterator
         iterSchema = finalSchema;
@@ -291,7 +292,8 @@ public class VectorizedReading {
           JavaConverters.asScalaBufferConverter(attrs).asScala().toSeq());
     }
 
-    private CloseableIterable<InternalRow> newAvroIterable(InputFile location,
+    private CloseableIterable<InternalRow> newAvroIterable(
+        InputFile location,
         FileScanTask task,
         Schema readSchema) {
       return Avro.read(location)
@@ -302,22 +304,29 @@ public class VectorizedReading {
           .build();
     }
 
-    private CloseableIterable<ColumnarBatch> newParquetIterable(InputFile location,
+    private CloseableIterable<ColumnarBatch> newParquetIterable(
+        InputFile location,
         FileScanTask task,
         Schema readSchema) {
       return Parquet.read(location)
-          .project(readSchema, SparkSchemaUtil.convert(readSchema))
+          .project(readSchema)
           .split(task.start(), task.length())
           .enableBatchedRead()
-          .createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(tableSchema, readSchema,
-              fileSchema, numRecordsPerBatch))
+          .createBatchedReaderFunc(new Function<MessageType, VectorizedReader>() {
+            @Override
+            public VectorizedReader apply(MessageType fileSchema) {
+              return VectorizedSparkParquetReaders.buildReader(tableSchema, readSchema,
+                  fileSchema, numRecordsPerBatch);
+            }
+          })
           .filter(task.residual())
           .caseSensitive(caseSensitive)
           .recordsPerBatch(numRecordsPerBatch)
           .build();
     }
 
-    private CloseableIterable<InternalRow> newOrcIterable(InputFile location,
+    private CloseableIterable<InternalRow> newOrcIterable(
+        InputFile location,
         FileScanTask task,
         Schema readSchema) {
       return ORC.read(location)

@@ -37,6 +37,9 @@ class TableScan(object):
     def select(self, columns):
         raise NotImplementedError()
 
+    def select_except(self, columns):
+        raise NotImplementedError()
+
     def filter(self, expr):
         raise NotImplementedError()
 
@@ -50,4 +53,10 @@ class TableScan(object):
         raise NotImplementedError()
 
     def options(self):
+        raise NotImplementedError()
+
+    def to_arrow_table(self):
+        raise NotImplementedError()
+
+    def to_pandas(self):
         raise NotImplementedError()

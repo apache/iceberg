@@ -45,6 +45,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.common.DynMethods;
@@ -107,6 +108,9 @@ class Reader implements DataSourceReader,
   private final Table table;
   private final Long snapshotId;
   private final Long asOfTimestamp;
+  private final Long splitSize;
+  private final Integer splitLookback;
+  private final Long splitOpenFileCost;
   private final FileIO fileIo;
   private final EncryptionManager encryptionManager;
   private final boolean caseSensitive;
@@ -125,7 +129,7 @@ class Reader implements DataSourceReader,
     this.table = table;
     this.snapshotId = options.get("snapshot-id").map(Long::parseLong).orElse(null);
     this.asOfTimestamp = options.get("as-of-timestamp").map(Long::parseLong).orElse(null);
-    
+
     // override logic to check when batched reads is enabled by turning off batched reads
     boolean disableBatchedReads =
         options.get("iceberg.read.disablebatchedreads").map(Boolean::parseBoolean).orElse(false);
@@ -147,6 +151,11 @@ class Reader implements DataSourceReader,
       throw new IllegalArgumentException(
           "Cannot scan using both snapshot-id and as-of-timestamp to select the table snapshot");
     }
+
+    // look for split behavior overrides in options
+    this.splitSize = options.get("split-size").map(Long::parseLong).orElse(null);
+    this.splitLookback = options.get("lookback").map(Integer::parseInt).orElse(null);
+    this.splitOpenFileCost = options.get("file-open-cost").map(Long::parseLong).orElse(null);
 
     this.schema = table.schema();
     this.fileIo = table.io();
@@ -292,7 +301,16 @@ class Reader implements DataSourceReader,
       this.enableBatchedReads = false;
       return false;
     }
-    if(enableBatchedReads == null) {
+    boolean projectIdentityPartitionColumn =
+        tasks().stream()
+            .anyMatch(combinedScanTask -> combinedScanTask.files()
+                .stream()
+                .anyMatch(fileScanTask -> !fileScanTask.spec().identitySourceIds().isEmpty()));
+    if (projectIdentityPartitionColumn) {
+      this.enableBatchedReads = false;
+      return false;
+    }
+    if (enableBatchedReads == null) {
       // Enable batched reads only if all requested columns are primitive otherwise revert to row-based reads
       this.enableBatchedReads = lazySchema().columns().stream().allMatch(c -> c.type().isPrimitiveType());
     }
@@ -312,6 +330,18 @@ class Reader implements DataSourceReader,
 
       if (asOfTimestamp != null) {
         scan = scan.asOfTime(asOfTimestamp);
+      }
+
+      if (splitSize != null) {
+        scan = scan.option(TableProperties.SPLIT_SIZE, splitSize.toString());
+      }
+
+      if (splitLookback != null) {
+        scan = scan.option(TableProperties.SPLIT_LOOKBACK, splitLookback.toString());
+      }
+
+      if (splitOpenFileCost != null) {
+        scan = scan.option(TableProperties.SPLIT_OPEN_FILE_COST, splitOpenFileCost.toString());
       }
 
       if (filterExpressions != null) {
@@ -597,7 +627,7 @@ class Reader implements DataSourceReader,
     }
   }
 
-  private static class PartitionRowConverter implements Function<StructLike, InternalRow> {
+  public static class PartitionRowConverter implements Function<StructLike, InternalRow> {
     private final DataType[] types;
     private final int[] positions;
     private final Class<?>[] javaTypes;

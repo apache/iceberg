@@ -29,19 +29,19 @@ import java.util.Set;
  */
 public class MappedField {
 
-  static MappedField of(Integer id, String name) {
+  public static MappedField of(Integer id, String name) {
     return new MappedField(id, ImmutableSet.of(name), null);
   }
 
-  static MappedField of(Integer id, Iterable<String> names) {
+  public static MappedField of(Integer id, Iterable<String> names) {
     return new MappedField(id, names, null);
   }
 
-  static MappedField of(Integer id, String name, MappedFields nestedMapping) {
+  public static MappedField of(Integer id, String name, MappedFields nestedMapping) {
     return new MappedField(id, ImmutableSet.of(name), nestedMapping);
   }
 
-  static MappedField of(Integer id, Iterable<String> names, MappedFields nestedMapping) {
+  public static MappedField of(Integer id, Iterable<String> names, MappedFields nestedMapping) {
     return new MappedField(id, names, nestedMapping);
   }
 
@@ -71,9 +71,7 @@ public class MappedField {
   public boolean equals(Object other) {
     if (this == other) {
       return true;
-    }
-
-    if (other == null || getClass() != other.getClass()) {
+    } else if (!(other instanceof MappedField)) {
       return false;
     }
 

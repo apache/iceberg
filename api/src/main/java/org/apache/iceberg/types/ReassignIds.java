@@ -73,6 +73,9 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
     Types.StructType sourceStruct = sourceType.asStructType();
     Types.NestedField sourceField = sourceStruct.field(field.name());
+    if (sourceField == null) {
+      throw new IllegalArgumentException("Field " + field.name() + " not found in source schema");
+    }
 
     this.sourceType = sourceField.type();
     try {

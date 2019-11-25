@@ -31,7 +31,7 @@ import org.apache.iceberg.types.Type;
  * Factory methods for transforms.
  * <p>
  * Most users should create transforms using a
- * {@link PartitionSpec.Builder#builderFor(Schema)} partition spec builder}.
+ * {@link PartitionSpec#builderFor(Schema)} partition spec builder}.
  *
  * @see PartitionSpec#builderFor(Schema) The partition spec builder.
  */
@@ -55,13 +55,19 @@ public class Transforms {
 
     if (transform.equalsIgnoreCase("identity")) {
       return Identity.get(type);
-    } else if (type.typeId() == Type.TypeID.TIMESTAMP) {
-      return Timestamps.valueOf(transform.toUpperCase(Locale.ENGLISH));
-    } else if (type.typeId() == Type.TypeID.DATE) {
-      return Dates.valueOf(transform.toUpperCase(Locale.ENGLISH));
     }
 
-    throw new IllegalArgumentException("Unknown transform: " + transform);
+    try {
+      if (type.typeId() == Type.TypeID.TIMESTAMP) {
+        return Timestamps.valueOf(transform.toUpperCase(Locale.ENGLISH));
+      } else if (type.typeId() == Type.TypeID.DATE) {
+        return Dates.valueOf(transform.toUpperCase(Locale.ENGLISH));
+      }
+    } catch (IllegalArgumentException ignored) {
+      // fall through to return unknown transform
+    }
+
+    return new UnknownTransform<>(type, transform);
   }
 
   /**

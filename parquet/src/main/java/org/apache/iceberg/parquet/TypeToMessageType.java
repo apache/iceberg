@@ -20,6 +20,7 @@
 package org.apache.iceberg.parquet;
 
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.types.Type.NestedType;
 import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.TypeUtil;
@@ -58,7 +59,7 @@ public class TypeToMessageType {
       builder.addField(field(field));
     }
 
-    return builder.named(name);
+    return builder.named(AvroSchemaUtil.makeCompatibleName(name));
   }
 
   public GroupType struct(StructType struct, Type.Repetition repetition, int id, String name) {
@@ -68,7 +69,7 @@ public class TypeToMessageType {
       builder.addField(field(field));
     }
 
-    return builder.id(id).named(name);
+    return builder.id(id).named(AvroSchemaUtil.makeCompatibleName(name));
   }
 
   public Type field(NestedField field) {
@@ -98,7 +99,7 @@ public class TypeToMessageType {
     return Types.list(repetition)
         .element(field(elementField))
         .id(id)
-        .named(name);
+        .named(AvroSchemaUtil.makeCompatibleName(name));
   }
 
   public GroupType map(MapType map, Type.Repetition repetition, int id, String name) {
@@ -108,10 +109,11 @@ public class TypeToMessageType {
         .key(field(keyField))
         .value(field(valueField))
         .id(id)
-        .named(name);
+        .named(AvroSchemaUtil.makeCompatibleName(name));
   }
 
-  public Type primitive(PrimitiveType primitive, Type.Repetition repetition, int id, String name) {
+  public Type primitive(PrimitiveType primitive, Type.Repetition repetition, int id, String originalName) {
+    String name = AvroSchemaUtil.makeCompatibleName(originalName);
     switch (primitive.typeId()) {
       case BOOLEAN:
         return Types.primitive(BOOLEAN, repetition).id(id).named(name);

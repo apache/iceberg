@@ -54,5 +54,4 @@ public class VectorizedReadLongsBenchmark extends VectorizedIcebergSourceBenchma
       appendAsFile(df);
     }
   }
-
 }

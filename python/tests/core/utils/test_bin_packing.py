@@ -24,7 +24,7 @@ import pytest
 @pytest.mark.parametrize("splits,lookback,split_size, open_cost", [
     ([random.randint(0, 64) for x in range(200)], 20, 128, 4),  # random splits
     ([], 20, 128, 4),  # no splits
-    ([0]*100 + [random.randint(0, 64) for x in range(10)] + [0]*100, 20, 128, 4)  # sparse
+    ([0] * 100 + [random.randint(0, 64) for x in range(10)] + [0] * 100, 20, 128, 4)  # sparse
 ])
 def test_bin_packing(splits, lookback, split_size, open_cost):
 

@@ -385,4 +385,26 @@ public class TestReadabilityChecks {
     Assert.assertNotNull(schema.caseInsensitiveSelect("LoCaTiOnS.LaT").findField(1));
     Assert.assertNotNull(schema.caseInsensitiveSelect("locations.LONG").findField(2));
   }
+
+  @Test
+  public void testCheckNullabilityRequiredSchemaField() {
+    Schema write = new Schema(optional(1, "from_field", Types.IntegerType.get()));
+    Schema read = new Schema(required(1, "to_field", Types.IntegerType.get()));
+
+    List<String> errors = CheckCompatibility.typeCompatibilityErrors(read, write);
+    Assert.assertEquals("Should produce no error messages", 0, errors.size());
+  }
+
+  @Test
+  public void testCheckNullabilityRequiredStructField() {
+    Schema write = new Schema(required(0, "nested", Types.StructType.of(
+        optional(1, "from_field", Types.IntegerType.get())
+    )));
+    Schema read = new Schema(required(0, "nested", Types.StructType.of(
+        required(1, "to_field", Types.IntegerType.get())
+    )));
+
+    List<String> errors = CheckCompatibility.typeCompatibilityErrors(read, write);
+    Assert.assertEquals("Should produce no error messages", 0, errors.size());
+  }
 }

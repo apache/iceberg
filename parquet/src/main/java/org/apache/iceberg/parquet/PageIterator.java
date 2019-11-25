@@ -28,6 +28,7 @@ import org.apache.parquet.bytes.BytesUtils;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.Encoding;
+import org.apache.parquet.column.ValuesType;
 import org.apache.parquet.column.page.DataPage;
 import org.apache.parquet.column.page.DataPageV1;
 import org.apache.parquet.column.page.DataPageV2;
@@ -38,11 +39,6 @@ import org.apache.parquet.io.ParquetDecodingException;
 import org.apache.parquet.io.api.Binary;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static java.lang.String.format;
-import static org.apache.parquet.column.ValuesType.DEFINITION_LEVEL;
-import static org.apache.parquet.column.ValuesType.REPETITION_LEVEL;
-import static org.apache.parquet.column.ValuesType.VALUES;
 
 abstract class PageIterator<T> implements TripleIterator<T> {
   private static final Logger LOG = LoggerFactory.getLogger(PageIterator.class);
@@ -94,8 +90,8 @@ abstract class PageIterator<T> implements TripleIterator<T> {
           }
         };
       default:
-        throw new UnsupportedOperationException("Unsupported primitive type: "
-                + desc.getPrimitiveType().getPrimitiveTypeName());
+        throw new UnsupportedOperationException("Unsupported primitive type: " +
+            desc.getPrimitiveType().getPrimitiveTypeName());
     }
   }
 
@@ -142,8 +138,8 @@ abstract class PageIterator<T> implements TripleIterator<T> {
     advance();
   }
 
-  public void setDictionary(Dictionary dict) {
-    this.dict = dict;
+  public void setDictionary(Dictionary dictionary) {
+    this.dict = dictionary;
   }
 
   public void reset() {
@@ -257,24 +253,24 @@ abstract class PageIterator<T> implements TripleIterator<T> {
     }
   }
 
-  RuntimeException handleRuntimeException(RuntimeException e) {
+  RuntimeException handleRuntimeException(RuntimeException exception) {
     if (CorruptDeltaByteArrays.requiresSequentialReads(writerVersion, valueEncoding) &&
-        e instanceof ArrayIndexOutOfBoundsException) {
+        exception instanceof ArrayIndexOutOfBoundsException) {
       // this is probably PARQUET-246, which may happen if reading data with
       // MR because this can't be detected without reading all footers
       throw new ParquetDecodingException("Read failure possibly due to " +
           "PARQUET-246: try setting parquet.split.files to false",
           new ParquetDecodingException(
-              format("Can't read value in column %s at value %d out of %d in current page. " +
-                     "repetition level: %d, definition level: %d",
+              String.format("Can't read value in column %s at value %d out of %d in current page. " +
+                            "repetition level: %d, definition level: %d",
                   desc, triplesRead, triplesCount, currentRL, currentDL),
-              e));
+              exception));
     }
     throw new ParquetDecodingException(
-        format("Can't read value in column %s at value %d out of %d in current page. " +
-               "repetition level: %d, definition level: %d",
+        String.format("Can't read value in column %s at value %d out of %d in current page. " +
+                      "repetition level: %d, definition level: %d",
             desc, triplesRead, triplesCount, currentRL, currentDL),
-        e);
+        exception);
   }
 
   private void initDataReader(Encoding dataEncoding, ByteBufferInputStream in, int valueCount) {
@@ -290,9 +286,9 @@ abstract class PageIterator<T> implements TripleIterator<T> {
         throw new ParquetDecodingException(
             "could not read page in col " + desc + " as the dictionary was missing for encoding " + dataEncoding);
       }
-      this.values = dataEncoding.getDictionaryBasedValuesReader(desc, VALUES, dict);
+      this.values = dataEncoding.getDictionaryBasedValuesReader(desc, ValuesType.VALUES, dict);
     } else {
-      this.values = dataEncoding.getValuesReader(desc, VALUES);
+      this.values = dataEncoding.getValuesReader(desc, ValuesType.VALUES);
     }
 
 //    if (dataEncoding.usesDictionary() && converter.hasDictionarySupport()) {
@@ -308,21 +304,21 @@ abstract class PageIterator<T> implements TripleIterator<T> {
     }
 
     if (CorruptDeltaByteArrays.requiresSequentialReads(writerVersion, dataEncoding) &&
-        previousReader != null && previousReader instanceof RequiresPreviousReader) {
+        previousReader instanceof RequiresPreviousReader) {
       // previous reader can only be set if reading sequentially
       ((RequiresPreviousReader) values).setPreviousReader(previousReader);
     }
   }
 
 
-  private void initFromPage(DataPageV1 page) {
-    this.triplesCount = page.getValueCount();
-    ValuesReader rlReader = page.getRlEncoding().getValuesReader(desc, REPETITION_LEVEL);
-    ValuesReader dlReader = page.getDlEncoding().getValuesReader(desc, DEFINITION_LEVEL);
+  private void initFromPage(DataPageV1 initPage) {
+    this.triplesCount = initPage.getValueCount();
+    ValuesReader rlReader = initPage.getRlEncoding().getValuesReader(desc, ValuesType.REPETITION_LEVEL);
+    ValuesReader dlReader = initPage.getDlEncoding().getValuesReader(desc, ValuesType.DEFINITION_LEVEL);
     this.repetitionLevels = new ValuesReaderIntIterator(rlReader);
     this.definitionLevels = new ValuesReaderIntIterator(dlReader);
     try {
-      BytesInput bytes = page.getBytes();
+      BytesInput bytes = initPage.getBytes();
       LOG.debug("page size {} bytes and {} records", bytes.size(), triplesCount);
       LOG.debug("reading repetition levels at 0");
       ByteBufferInputStream in = bytes.toInputStream();
@@ -330,21 +326,21 @@ abstract class PageIterator<T> implements TripleIterator<T> {
       LOG.debug("reading definition levels at {}", in.position());
       dlReader.initFromPage(triplesCount, in);
       LOG.debug("reading data at {}", in.position());
-      initDataReader(page.getValueEncoding(), in, page.getValueCount());
+      initDataReader(initPage.getValueEncoding(), in, initPage.getValueCount());
     } catch (IOException e) {
-      throw new ParquetDecodingException("could not read page " + page + " in col " + desc, e);
+      throw new ParquetDecodingException("could not read page " + initPage + " in col " + desc, e);
     }
   }
 
-  private void initFromPage(DataPageV2 page) {
-    this.triplesCount = page.getValueCount();
-    this.repetitionLevels = newRLEIterator(desc.getMaxRepetitionLevel(), page.getRepetitionLevels());
-    this.definitionLevels = newRLEIterator(desc.getMaxDefinitionLevel(), page.getDefinitionLevels());
-    LOG.debug("page data size {} bytes and {} records", page.getData().size(), triplesCount);
+  private void initFromPage(DataPageV2 initPage) {
+    this.triplesCount = initPage.getValueCount();
+    this.repetitionLevels = newRLEIterator(desc.getMaxRepetitionLevel(), initPage.getRepetitionLevels());
+    this.definitionLevels = newRLEIterator(desc.getMaxDefinitionLevel(), initPage.getDefinitionLevels());
+    LOG.debug("page data size {} bytes and {} records", initPage.getData().size(), triplesCount);
     try {
-      initDataReader(page.getDataEncoding(), page.getData().toInputStream(), triplesCount);
+      initDataReader(initPage.getDataEncoding(), initPage.getData().toInputStream(), triplesCount);
     } catch (IOException e) {
-      throw new ParquetDecodingException("could not read page " + page + " in col " + desc, e);
+      throw new ParquetDecodingException("could not read page " + initPage + " in col " + desc, e);
     }
   }
 
@@ -362,15 +358,14 @@ abstract class PageIterator<T> implements TripleIterator<T> {
     }
   }
 
-  static abstract class IntIterator {
+  abstract static class IntIterator {
     abstract int nextInt();
   }
 
   static class ValuesReaderIntIterator extends IntIterator {
-    ValuesReader delegate;
+    private final ValuesReader delegate;
 
     ValuesReaderIntIterator(ValuesReader delegate) {
-      super();
       this.delegate = delegate;
     }
 
@@ -381,7 +376,7 @@ abstract class PageIterator<T> implements TripleIterator<T> {
   }
 
   static class RLEIntIterator extends IntIterator {
-    RunLengthBitPackingHybridDecoder delegate;
+    private final RunLengthBitPackingHybridDecoder delegate;
 
     RLEIntIterator(RunLengthBitPackingHybridDecoder delegate) {
       this.delegate = delegate;

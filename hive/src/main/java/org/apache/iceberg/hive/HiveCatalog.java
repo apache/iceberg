@@ -19,54 +19,99 @@
 
 package org.apache.iceberg.hive;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import java.io.Closeable;
-import java.util.Map;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.api.UnknownDBException;
 import org.apache.iceberg.BaseMetastoreCatalog;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.thrift.TException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
+  private static final Logger LOG = LoggerFactory.getLogger(HiveCatalog.class);
 
   private final HiveClientPool clients;
+  private final Configuration conf;
+  private final StackTraceElement[] createStack;
+  private boolean closed;
 
   public HiveCatalog(Configuration conf) {
-    super(conf);
     this.clients = new HiveClientPool(2, conf);
+    this.conf = conf;
+    this.createStack = Thread.currentThread().getStackTrace();
+    this.closed = false;
   }
 
   @Override
-  public org.apache.iceberg.Table createTable(
-      TableIdentifier identifier, Schema schema, PartitionSpec spec, String location, Map<String, String> properties) {
-    Preconditions.checkArgument(identifier.namespace().levels().length == 1,
-        "Missing database in table identifier: %s", identifier);
-    return super.createTable(identifier, schema, spec, location, properties);
+  public List<TableIdentifier> listTables(Namespace namespace) {
+    Preconditions.checkArgument(namespace.levels().length == 1,
+        "Missing database in namespace: %s", namespace);
+    String database = namespace.level(0);
+
+    try {
+      List<String> tables = clients.run(client -> client.getAllTables(database));
+      return tables.stream()
+          .map(t -> TableIdentifier.of(namespace, t))
+          .collect(Collectors.toList());
+
+    } catch (UnknownDBException e) {
+      throw new NotFoundException(e, "Unknown namespace " + namespace.toString());
+
+    } catch (TException e) {
+      throw new RuntimeException("Failed to list all tables under namespace " + namespace.toString(), e);
+
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException("Interrupted in call to listTables", e);
+    }
   }
 
   @Override
-  public org.apache.iceberg.Table loadTable(TableIdentifier identifier) {
-    Preconditions.checkArgument(identifier.namespace().levels().length >= 1,
-        "Missing database in table identifier: %s", identifier);
-    return super.loadTable(identifier);
+  protected String name() {
+    return "hive";
   }
 
   @Override
-  public boolean dropTable(TableIdentifier identifier) {
-    Preconditions.checkArgument(identifier.namespace().levels().length == 1,
-        "Missing database in table identifier: %s", identifier);
+  public boolean dropTable(TableIdentifier identifier, boolean purge) {
+    if (!isValidIdentifier(identifier)) {
+      throw new NoSuchTableException("Invalid identifier: %s", identifier);
+    }
+
     String database = identifier.namespace().level(0);
+
+    TableOperations ops = newTableOps(identifier);
+    TableMetadata lastMetadata;
+    if (purge && ops.current() != null) {
+      lastMetadata = ops.current();
+    } else {
+      lastMetadata = null;
+    }
 
     try {
       clients.run(client -> {
-        client.dropTable(database, identifier.name());
+        client.dropTable(database, identifier.name(),
+            false /* do not delete data */,
+            false /* throw NoSuchObjectException if the table doesn't exist */);
         return null;
       });
+
+      if (purge && lastMetadata != null) {
+        dropTableData(ops.io(), lastMetadata);
+      }
 
       return true;
 
@@ -84,10 +129,10 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
-    Preconditions.checkArgument(from.namespace().levels().length == 1,
-        "Missing database in table identifier: %s", from);
-    Preconditions.checkArgument(to.namespace().levels().length == 1,
-        "Missing database in table identifier: %s", to);
+    if (!isValidIdentifier(from)) {
+      throw new NoSuchTableException("Invalid identifier: %s", from);
+    }
+    Preconditions.checkArgument(isValidIdentifier(to), "Invalid identifier: %s", to);
 
     String toDatabase = to.namespace().level(0);
     String fromDatabase = from.namespace().level(0);
@@ -103,6 +148,12 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
         return null;
       });
 
+    } catch (NoSuchObjectException e) {
+      throw new NoSuchTableException("Table does not exist: %s", from);
+
+    } catch (AlreadyExistsException e) {
+      throw new org.apache.iceberg.exceptions.AlreadyExistsException("Table already exists: %s", to);
+
     } catch (TException e) {
       throw new RuntimeException("Failed to rename " + from.toString() + " to " + to.toString(), e);
 
@@ -113,14 +164,20 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
   }
 
   @Override
-  public TableOperations newTableOps(Configuration configuration, TableIdentifier tableIdentifier) {
-    String dbName = tableIdentifier.namespace().level(0);
-    String tableName = tableIdentifier.name();
-    return new HiveTableOperations(configuration, clients, dbName, tableName);
+  protected boolean isValidIdentifier(TableIdentifier tableIdentifier) {
+    return tableIdentifier.namespace().levels().length == 1;
   }
 
-  protected String defaultWarehouseLocation(Configuration hadoopConf, TableIdentifier tableIdentifier) {
-    String warehouseLocation = hadoopConf.get("hive.metastore.warehouse.dir");
+  @Override
+  public TableOperations newTableOps(TableIdentifier tableIdentifier) {
+    String dbName = tableIdentifier.namespace().level(0);
+    String tableName = tableIdentifier.name();
+    return new HiveTableOperations(conf, clients, dbName, tableName);
+  }
+
+  @Override
+  protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
+    String warehouseLocation = conf.get("hive.metastore.warehouse.dir");
     Preconditions.checkNotNull(
         warehouseLocation,
         "Warehouse location is not set: hive.metastore.warehouse.dir=null");
@@ -133,6 +190,21 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
 
   @Override
   public void close() {
-    clients.close();
+    if (!closed) {
+      clients.close();
+      closed = true;
+    }
+  }
+
+  @SuppressWarnings("checkstyle:NoFinalizer")
+  @Override
+  protected void finalize() throws Throwable {
+    super.finalize();
+    if (!closed) {
+      close(); // releasing resources is more important than printing the warning
+      String trace = Joiner.on("\n\t").join(
+          Arrays.copyOfRange(createStack, 1, createStack.length));
+      LOG.warn("Unclosed input stream created by:\n\t{}", trace);
+    }
   }
 }

@@ -76,8 +76,8 @@ public abstract class ColumnIterator<T> implements TripleIterator<T> {
           }
         };
       default:
-        throw new UnsupportedOperationException("Unsupported primitive type: "
-                + desc.getPrimitiveType().getPrimitiveTypeName());
+        throw new UnsupportedOperationException("Unsupported primitive type: " +
+            desc.getPrimitiveType().getPrimitiveTypeName());
     }
   }
 

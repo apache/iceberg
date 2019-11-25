@@ -51,7 +51,7 @@ public class ScanSummary {
   private ScanSummary() {
   }
 
-  private static final List<String> SCAN_SUMMARY_COLUMNS = ImmutableList.of(
+  private static final ImmutableList<String> SCAN_SUMMARY_COLUMNS = ImmutableList.of(
       "partition", "record_count", "file_size_in_bytes");
 
   /**
@@ -216,7 +216,7 @@ public class ScanSummary {
       TopN<String, PartitionMetrics> topN = new TopN<>(
           limit, throwIfLimited, Comparators.charSequences());
 
-      try (CloseableIterable<ManifestEntry> entries = new ManifestGroup(ops, manifests)
+      try (CloseableIterable<ManifestEntry> entries = new ManifestGroup(ops.io(), manifests, ops.current().specsById())
           .filterData(rowFilter)
           .ignoreDeleted()
           .select(SCAN_SUMMARY_COLUMNS)
@@ -264,6 +264,17 @@ public class ScanSummary {
 
     public Long dataTimestampMillis() {
       return dataTimestampMillis;
+    }
+
+    PartitionMetrics updateFromCounts(int numFiles, long filesRecordCount, long filesSize,
+                                      Long timestampMillis) {
+      this.fileCount += numFiles;
+      this.recordCount += filesRecordCount;
+      this.totalSize += filesSize;
+      if (timestampMillis != null && (dataTimestampMillis == null || dataTimestampMillis < timestampMillis)) {
+        this.dataTimestampMillis = timestampMillis;
+      }
+      return this;
     }
 
     private PartitionMetrics updateFromFile(DataFile file, Long timestampMillis) {

@@ -21,7 +21,7 @@ import tempfile
 import time
 
 from iceberg.api import Files, PartitionSpec, Schema
-from iceberg.api.types import BooleanType, LongType, NestedField
+from iceberg.api.types import BooleanType, IntegerType, LongType, NestedField, StringType
 from iceberg.core import (BaseSnapshot,
                           BaseTable,
                           ConfigProperties,
@@ -29,7 +29,8 @@ from iceberg.core import (BaseSnapshot,
                           SnapshotLogEntry,
                           TableMetadata,
                           TableMetadataParser,
-                          TableOperations)
+                          TableOperations,
+                          TableProperties)
 from iceberg.exceptions import AlreadyExistsException, CommitFailedException
 import pytest
 
@@ -113,7 +114,7 @@ class TestTableOperations(TableOperations):
             raise RuntimeError("Cannot commit changes based on stale metadata")
 
         self.refresh()
-        if base == self.current:
+        if base == self.current():
             if self._fail_commits > 0:
                 self._fail_commits - 1
                 raise RuntimeError("Injected failure")
@@ -138,6 +139,18 @@ class TestTableOperations(TableOperations):
         next_snapshot_id = self.last_snapshot_id + 1
         self.last_snapshot_id = next_snapshot_id
         return next_snapshot_id
+
+
+class TestTables(object):
+    @staticmethod
+    def create(temp, name, schema, spec):
+        ops = TestTableOperations(name, temp)
+
+        if ops.current() is not None:
+            raise RuntimeError("Table %s already exists at location: %s" % (name, temp))
+
+        ops.commit(None, TableMetadata.new_table_metadata(ops, schema, spec, str(temp)))
+        return TestTable(ops, name)
 
 
 @pytest.fixture(scope="session")
@@ -254,6 +267,39 @@ def missing_spec_list():
 
 
 @pytest.fixture(scope="session")
+def snapshot_manifests():
+    return (GenericManifestFile(file=Files.local_input("file:/tmp/manifest1.avro"), spec_id=0),
+            GenericManifestFile(file=Files.local_input("file:/tmp/manifest2.avro"), spec_id=0))
+
+
+@pytest.fixture(scope="session")
 def expected_base_snapshot():
     return BaseSnapshot(LocalTableOperations(), int(time.time()), manifests=["file:/tmp/manfiest.1.avro",
                                                                              "file:/tmp/manfiest.2.avro"])
+
+
+@pytest.fixture(scope="session")
+def base_scan_schema():
+    return Schema([NestedField.required(1, "id", IntegerType.get()),
+                   NestedField.required(2, "data", StringType.get())])
+
+
+@pytest.fixture(scope="session")
+def ts_table(base_scan_schema):
+    with tempfile.TemporaryDirectory() as td:
+        spec = PartitionSpec.unpartitioned()
+        return TestTables.create(td, "test", base_scan_schema, spec)
+
+
+@pytest.fixture(scope="session")
+def split_planning_table(base_scan_schema):
+    from iceberg.core.filesystem import FilesystemTables
+    tables = FilesystemTables()
+
+    with tempfile.TemporaryDirectory() as td:
+        table = tables.create(base_scan_schema, location=td)
+        table.properties().update({TableProperties.SPLIT_SIZE: "{}".format(128 * 1024 * 1024),
+                                   TableProperties.SPLIT_OPEN_FILE_COST: "{}".format(4 * 1024 * 1024),
+                                   TableProperties.SPLIT_LOOKBACK: "{}".format(2 ** 31 - 1)})
+
+        return table

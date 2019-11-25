@@ -19,10 +19,6 @@
 
 package org.apache.iceberg.spark.data;
 
-import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
-import static scala.collection.JavaConverters.mapAsJavaMapConverter;
-import static scala.collection.JavaConverters.seqAsJavaListConverter;
-
 import com.google.common.collect.Lists;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -64,6 +60,10 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.Assert;
 import scala.collection.Seq;
+
+import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
+import static scala.collection.JavaConverters.mapAsJavaMapConverter;
+import static scala.collection.JavaConverters.seqAsJavaListConverter;
 
 @SuppressWarnings("checkstyle:OverloadMethodsDeclarationOrder")
 public class TestHelpers {

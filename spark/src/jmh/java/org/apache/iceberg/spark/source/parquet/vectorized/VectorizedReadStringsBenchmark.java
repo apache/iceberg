@@ -44,8 +44,7 @@ public class VectorizedReadStringsBenchmark extends VectorizedIcebergSourceBench
     Map<String, String> properties = Maps.newHashMap();
     properties.put(TableProperties.METADATA_COMPRESSION, "gzip");
     properties.put(TableProperties.PARQUET_DICT_SIZE_BYTES, "1");
-    Table t = tables.create(schema, partitionSpec, properties, newTableLocation());
-    return t;
+    return tables.create(schema, partitionSpec, properties, newTableLocation());
   }
 
   @Override

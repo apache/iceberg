@@ -21,9 +21,12 @@ package org.apache.iceberg.parquet;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.function.Function;
-
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
@@ -44,11 +47,6 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
-import static org.apache.iceberg.parquet.ParquetSchemaUtil.addFallbackIds;
-import static org.apache.iceberg.parquet.ParquetSchemaUtil.hasIds;
-import static org.apache.iceberg.parquet.ParquetSchemaUtil.pruneColumns;
-import static org.apache.iceberg.parquet.ParquetSchemaUtil.pruneColumnsFallback;
-
 public class VectorizedParquetReader<T> extends CloseableGroup implements CloseableIterable<T> {
   private final InputFile input;
   private final Schema expectedSchema;
@@ -58,7 +56,8 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
   private final boolean reuseContainers;
   private final boolean caseSensitive;
 
-  public VectorizedParquetReader(InputFile input, Schema expectedSchema, ParquetReadOptions options,
+  public VectorizedParquetReader(
+      InputFile input, Schema expectedSchema, ParquetReadOptions options,
       Function<MessageType, VectorizedReader> readerFunc,
       Expression filter, boolean reuseContainers, boolean caseSensitive,
       StructType sparkSchema, int maxRecordsPerBatch) {
@@ -85,7 +84,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
 
     @SuppressWarnings("unchecked")
     ReadConf(InputFile file, ParquetReadOptions options, Schema expectedSchema, Expression filter,
-        Function<MessageType, ColumnarBatchReaders> readerFunc, boolean reuseContainers,
+        Function<MessageType, ParquetValueReader<?>> readerFunc, boolean reuseContainers,
         boolean caseSensitive) {
       this.file = file;
       this.options = options;
@@ -93,13 +92,13 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
 
       MessageType fileSchema = reader.getFileMetaData().getSchema();
 
-      boolean hasIds = hasIds(fileSchema);
-      MessageType typeWithIds = hasIds ? fileSchema : addFallbackIds(fileSchema);
+      boolean hasIds = ParquetSchemaUtil.hasIds(fileSchema);
+      MessageType typeWithIds = hasIds ? fileSchema : ParquetSchemaUtil.addFallbackIds(fileSchema);
 
       this.projection = hasIds ?
-          pruneColumns(fileSchema, expectedSchema) :
-          pruneColumnsFallback(fileSchema, expectedSchema);
-      this.model = readerFunc.apply(typeWithIds);
+          ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema) :
+          ParquetSchemaUtil.pruneColumnsFallback(fileSchema, expectedSchema);
+      this.model = (ColumnarBatchReaders) readerFunc.apply(typeWithIds);
       this.rowGroups = reader.getRowGroups();
       this.shouldSkip = new boolean[rowGroups.size()];
 
@@ -110,20 +109,19 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
         dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive);
       }
 
-      long totalValues = 0L;
+      long computedTotalValues = 0L;
       for (int i = 0; i < shouldSkip.length; i += 1) {
         BlockMetaData rowGroup = rowGroups.get(i);
         boolean shouldRead = filter == null || (
             statsFilter.shouldRead(typeWithIds, rowGroup) &&
                 dictFilter.shouldRead(typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup)));
-
         this.shouldSkip[i] = !shouldRead;
         if (shouldRead) {
-          totalValues += rowGroup.getRowCount();
+          computedTotalValues += rowGroup.getRowCount();
         }
       }
 
-      this.totalValues = totalValues;
+      this.totalValues = computedTotalValues;
       this.reuseContainers = reuseContainers;
     }
 
@@ -166,10 +164,6 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       return reuseContainers;
     }
 
-    ReadConf<T> copy() {
-      return new ReadConf<>(this);
-    }
-
     private static ParquetFileReader newReader(InputFile file, ParquetReadOptions options) {
       try {
         return ParquetFileReader.open(ParquetIO.file(file), options);
@@ -177,16 +171,20 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
         throw new RuntimeIOException(e, "Failed to open Parquet file: %s", file.location());
       }
     }
+
+    ReadConf<T> copy() {
+      return new ReadConf<>(this);
+    }
   }
 
   private ReadConf conf = null;
 
   private ReadConf init() {
     if (conf == null) {
-      ReadConf<T> conf = new ReadConf(
+      ReadConf<T> readConf = new ReadConf(
           input, options, expectedSchema, filter, readerFunc, reuseContainers, caseSensitive);
-      this.conf = conf.copy();
-      return conf;
+      this.conf = readConf.copy();
+      return readConf;
     }
 
     return conf;
@@ -194,10 +192,8 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
 
   @Override
   public Iterator iterator() {
-    // create iterator over file
     FileIterator iter = new FileIterator(init());
     addCloseable(iter);
-
     return iter;
   }
 
@@ -207,7 +203,6 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     private final ColumnarBatchReaders model;
     private final long totalValues;
     private final boolean reuseContainers;
-    //private final List<BlockMetaData> blockMetaDataList;
 
     private int nextRowGroup = 0;
     private long nextRowGroupStart = 0;
@@ -220,7 +215,6 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       this.model = conf.model();
       this.totalValues = conf.totalValues();
       this.reuseContainers = conf.reuseContainers();
-      //this.blockMetaDataList = new ArrayList<>(reader.getRowGroups());
     }
 
     @Override
@@ -262,11 +256,15 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
 
       nextRowGroupStart += pages.getRowCount();
       nextRowGroup += 1;
-      model.setRowGroupInfo(pages, dictionaryPageReadStore, dictionaryPageReadStore == null ? null : buildColumnDictEncodedMap(reader.getRowGroups()));
+      model.setRowGroupInfo(
+          pages,
+          dictionaryPageReadStore,
+          dictionaryPageReadStore == null ? null : buildColumnDictEncodedMap(reader.getRowGroups()));
     }
 
     /**
-     * Retuns a map of {@link ColumnPath} -> whether all the pages in the row group for this column are dictionary encoded
+     * Retuns a map of {@link ColumnPath} -> whether all the pages in the row group for this column are dictionary
+     * encoded
      */
     private static Map<ColumnPath, Boolean> buildColumnDictEncodedMap(List<BlockMetaData> blockMetaData) {
       Map<ColumnPath, Boolean> map = new HashMap<>();

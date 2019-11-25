@@ -33,8 +33,10 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
+import java.util.Objects;
 import java.util.UUID;
 import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -94,6 +96,7 @@ class Literals {
 
   private abstract static class BaseLiteral<T> implements Literal<T> {
     private final T value;
+    private transient volatile ByteBuffer byteBuffer = null;
 
     BaseLiteral(T value) {
       Preconditions.checkNotNull(value, "Literal values cannot be null");
@@ -106,9 +109,43 @@ class Literals {
     }
 
     @Override
+    public final ByteBuffer toByteBuffer() {
+      if (byteBuffer == null) {
+        synchronized (this) {
+          if (byteBuffer == null) {
+            byteBuffer = Conversions.toByteBuffer(typeId(), value());
+          }
+        }
+      }
+      return byteBuffer;
+    }
+
+    protected abstract Type.TypeID typeId();
+
+    @Override
     public String toString() {
       return String.valueOf(value);
     }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      }
+      if (other == null || getClass() != other.getClass()) {
+        return false;
+      }
+      BaseLiteral<T> that = (BaseLiteral<T>) other;
+
+      return comparator().compare(value(), that.value()) == 0;
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hashCode(value);
+    }
+
   }
 
   private abstract static class ComparableLiteral<C extends Comparable<C>> extends BaseLiteral<C> {
@@ -194,6 +231,11 @@ class Literals {
       }
       return null;
     }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.BOOLEAN;
+    }
   }
 
   static class IntegerLiteral extends ComparableLiteral<Integer> {
@@ -223,6 +265,11 @@ class Literals {
         default:
           return null;
       }
+    }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.INTEGER;
     }
   }
 
@@ -261,6 +308,11 @@ class Literals {
           return null;
       }
     }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.LONG;
+    }
   }
 
   static class FloatLiteral extends ComparableLiteral<Float> {
@@ -283,6 +335,11 @@ class Literals {
         default:
           return null;
       }
+    }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.FLOAT;
     }
   }
 
@@ -314,6 +371,11 @@ class Literals {
           return null;
       }
     }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.DOUBLE;
+    }
   }
 
   static class DateLiteral extends ComparableLiteral<Integer> {
@@ -329,6 +391,11 @@ class Literals {
       }
       return null;
     }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.DATE;
+    }
   }
 
   static class TimeLiteral extends ComparableLiteral<Long> {
@@ -343,6 +410,11 @@ class Literals {
         return (Literal<T>) this;
       }
       return null;
+    }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.TIME;
     }
   }
 
@@ -364,6 +436,11 @@ class Literals {
       }
       return null;
     }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.TIMESTAMP;
+    }
   }
 
   static class DecimalLiteral extends ComparableLiteral<BigDecimal> {
@@ -384,6 +461,11 @@ class Literals {
         default:
           return null;
       }
+    }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.DECIMAL;
     }
   }
 
@@ -446,6 +528,11 @@ class Literals {
     }
 
     @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.STRING;
+    }
+
+    @Override
     public String toString() {
       return "\"" + value() + "\"";
     }
@@ -463,6 +550,11 @@ class Literals {
         return (Literal<T>) this;
       }
       return null;
+    }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.UUID;
     }
   }
 
@@ -494,6 +586,11 @@ class Literals {
     @Override
     public Comparator<ByteBuffer> comparator() {
       return CMP;
+    }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.FIXED;
     }
 
     Object writeReplace() throws ObjectStreamException {
@@ -533,6 +630,11 @@ class Literals {
 
     Object writeReplace() throws ObjectStreamException {
       return new SerializationProxies.BinaryLiteralProxy(value());
+    }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.BINARY;
     }
   }
 }

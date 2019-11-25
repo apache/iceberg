@@ -23,11 +23,23 @@ class Snapshot(object):
         raise NotImplementedError()
 
     @property
+    def parent_id(self):
+        raise NotImplementedError()
+
+    @property
     def timestamp_millis(self):
         raise NotImplementedError()
 
     @property
     def manifests(self):
+        raise NotImplementedError()
+
+    @property
+    def summary(self):
+        raise NotImplementedError()
+
+    @property
+    def operation(self):
         raise NotImplementedError()
 
     def added_files(self):

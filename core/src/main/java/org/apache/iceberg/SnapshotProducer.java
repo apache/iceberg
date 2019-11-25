@@ -168,12 +168,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         throw new RuntimeIOException(e, "Failed to write manifest list file");
       }
 
-      return new BaseSnapshot(ops,
+      return new BaseSnapshot(ops.io(),
           snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
           ops.io().newInputFile(manifestList.location()));
 
     } else {
-      return new BaseSnapshot(ops,
+      return new BaseSnapshot(ops.io(),
           snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
           manifests);
     }
@@ -270,11 +270,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       } else {
         // saved may not be present if the latest metadata couldn't be loaded due to eventual
         // consistency problems in refresh. in that case, don't clean up.
-        LOG.info("Failed to load committed snapshot, skipping manifest clean-up");
+        LOG.warn("Failed to load committed snapshot, skipping manifest clean-up");
       }
 
     } catch (RuntimeException e) {
-      LOG.info("Failed to load committed table metadata, skipping manifest clean-up", e);
+      LOG.warn("Failed to load committed table metadata, skipping manifest clean-up", e);
     }
   }
 
@@ -309,7 +309,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   private static ManifestFile addMetadata(TableOperations ops, ManifestFile manifest) {
     try (ManifestReader reader = ManifestReader.read(
-        ops.io().newInputFile(manifest.path()), ops.current()::spec)) {
+        ops.io().newInputFile(manifest.path()), ops.current().specsById())) {
       PartitionSummary stats = new PartitionSummary(ops.current().spec(manifest.partitionSpecId()));
       int addedFiles = 0;
       int existingFiles = 0;
@@ -366,16 +366,18 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         long newTotal = Long.parseLong(totalStr);
 
         String addedStr = currentSummary.get(addedProperty);
-        if (addedStr != null) {
+        if (newTotal >= 0 && addedStr != null) {
           newTotal += Long.parseLong(addedStr);
         }
 
         String deletedStr = currentSummary.get(deletedProperty);
-        if (deletedStr != null) {
+        if (newTotal >= 0 && deletedStr != null) {
           newTotal -= Long.parseLong(deletedStr);
         }
 
-        summaryBuilder.put(totalProperty, String.valueOf(newTotal));
+        if (newTotal >= 0) {
+          summaryBuilder.put(totalProperty, String.valueOf(newTotal));
+        }
 
       } catch (NumberFormatException e) {
         // ignore and do not add total

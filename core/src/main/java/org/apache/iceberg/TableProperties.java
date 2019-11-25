@@ -41,6 +41,9 @@ public class TableProperties {
   public static final String MANIFEST_MIN_MERGE_COUNT = "commit.manifest.min-count-to-merge";
   public static final int MANIFEST_MIN_MERGE_COUNT_DEFAULT = 100;
 
+  public static final String MANIFEST_MERGE_ENABLED = "commit.manifest-merge.enabled";
+  public static final boolean MANIFEST_MERGE_ENABLED_DEFAULT = true;
+
   public static final String DEFAULT_FILE_FORMAT = "write.format.default";
   public static final String DEFAULT_FILE_FORMAT_DEFAULT = "parquet";
 
@@ -89,6 +92,13 @@ public class TableProperties {
   public static final String METADATA_COMPRESSION = "write.metadata.compression-codec";
   public static final String METADATA_COMPRESSION_DEFAULT = "none";
 
+  public static final String METADATA_PREVIOUS_VERSIONS_MAX = "write.metadata.previous-versions-max";
+  public static final int METADATA_PREVIOUS_VERSIONS_MAX_DEFAULT = 100;
+
+  // This enables to delete the oldest metadata file after commit.
+  public static final String METADATA_DELETE_AFTER_COMMIT_ENABLED = "write.metadata.delete-after-commit.enabled";
+  public static final boolean METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT = false;
+
   public static final String METRICS_MODE_COLUMN_CONF_PREFIX = "write.metadata.metrics.column.";
   public static final String DEFAULT_WRITE_METRICS_MODE = "write.metadata.metrics.default";
   public static final String DEFAULT_WRITE_METRICS_MODE_DEFAULT = "truncate(16)";
@@ -97,4 +107,7 @@ public class TableProperties {
 
   public static final String WRITE_AUDIT_PUBLISH_ENABLED = "write.wap.enabled";
   public static final String WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT = "false";
+
+  public static final String WRITE_TARGET_FILE_SIZE_BYTES = "write.target-file-size-bytes";
+  public static final long WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT = Long.MAX_VALUE;
 }

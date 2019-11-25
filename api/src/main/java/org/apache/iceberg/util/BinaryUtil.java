@@ -32,8 +32,10 @@ public class BinaryUtil {
    * Truncates the input byte buffer to the given length
    */
   public static ByteBuffer truncateBinary(ByteBuffer input, int length) {
-    Preconditions.checkArgument(length > 0 && length < input.remaining(),
-        "Truncate length should be positive and lower than the number of remaining elements");
+    Preconditions.checkArgument(length > 0, "Truncate length should be positive");
+    if (length >= input.remaining()) {
+      return input;
+    }
     byte[] array = new byte[length];
     input.duplicate().get(array);
     return ByteBuffer.wrap(array);

@@ -19,15 +19,13 @@
 
 package org.apache.iceberg.expressions;
 
-public abstract class Predicate<T, R extends Reference> implements Expression {
+public abstract class Predicate<R extends Reference> implements Expression {
   private final Operation op;
   private final R ref;
-  private final Literal<T> literal;
 
-  Predicate(Operation op, R ref, Literal<T> lit) {
+  Predicate(Operation op, R ref) {
     this.op = op;
     this.ref = ref;
-    this.literal = lit;
   }
 
   @Override
@@ -37,37 +35,5 @@ public abstract class Predicate<T, R extends Reference> implements Expression {
 
   public R ref() {
     return ref;
-  }
-
-  public Literal<T> literal() {
-    return literal;
-  }
-
-  @Override
-  public String toString() {
-    switch (op) {
-      case IS_NULL:
-        return "is_null(" + ref() + ")";
-      case NOT_NULL:
-        return "not_null(" + ref() + ")";
-      case LT:
-        return String.valueOf(ref()) + " < " + literal();
-      case LT_EQ:
-        return String.valueOf(ref()) + " <= " + literal();
-      case GT:
-        return String.valueOf(ref()) + " > " + literal();
-      case GT_EQ:
-        return String.valueOf(ref()) + " >= " + literal();
-      case EQ:
-        return String.valueOf(ref()) + " == " + literal();
-      case NOT_EQ:
-        return String.valueOf(ref()) + " != " + literal();
-//      case IN:
-//        break;
-//      case NOT_IN:
-//        break;
-      default:
-        return "Invalid predicate: operation = " + op;
-    }
   }
 }

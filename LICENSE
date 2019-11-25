@@ -203,6 +203,16 @@
 
 --------------------------------------------------------------------------------
 
+This product includes a gradle wrapper.
+
+* gradlew and gradle/wrapper/gradle-wrapper.properties
+
+Copyright: 2010-2019 Gradle Authors.
+Home page: https://github.com/gradle/gradle
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
 This product includes code from Apache Avro.
 
 * Conversion in DecimalWriter is based on Avro's Conversions.DecimalConversion.

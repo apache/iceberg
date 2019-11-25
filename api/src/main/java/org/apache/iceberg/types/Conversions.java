@@ -31,6 +31,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.UUID;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.expressions.Literal;
 
 public class Conversions {
 
@@ -51,7 +52,7 @@ public class Conversions {
       case LONG:
         return Long.valueOf(asString);
       case FLOAT:
-        return Long.valueOf(asString);
+        return Float.valueOf(asString);
       case DOUBLE:
         return Double.valueOf(asString);
       case STRING:
@@ -66,6 +67,8 @@ public class Conversions {
         return asString.getBytes(StandardCharsets.UTF_8);
       case DECIMAL:
         return new BigDecimal(asString);
+      case DATE:
+        return Literal.of(asString).to(Types.DateType.get()).value();
       default:
         throw new UnsupportedOperationException(
             "Unsupported type for fromPartitionString: " + type);
@@ -78,7 +81,15 @@ public class Conversions {
       ThreadLocal.withInitial(StandardCharsets.UTF_8::newDecoder);
 
   public static ByteBuffer toByteBuffer(Type type, Object value) {
-    switch (type.typeId()) {
+    return toByteBuffer(type.typeId(), value);
+  }
+
+  public static ByteBuffer toByteBuffer(Type.TypeID typeId, Object value) {
+    if (value == null) {
+      return null;
+    }
+
+    switch (typeId) {
       case BOOLEAN:
         return ByteBuffer.allocate(1).put(0, (Boolean) value ? (byte) 0x01 : (byte) 0x00);
       case INTEGER:
@@ -110,7 +121,7 @@ public class Conversions {
       case DECIMAL:
         return ByteBuffer.wrap(((BigDecimal) value).unscaledValue().toByteArray());
       default:
-        throw new UnsupportedOperationException("Cannot serialize type: " + type);
+        throw new UnsupportedOperationException("Cannot serialize type: " + typeId);
     }
   }
 
@@ -120,6 +131,10 @@ public class Conversions {
   }
 
   private static Object internalFromByteBuffer(Type type, ByteBuffer buffer) {
+    if (buffer == null) {
+      return null;
+    }
+
     ByteBuffer tmp = buffer.duplicate();
     if (type == Types.UUIDType.get() || type instanceof Types.DecimalType) {
       tmp.order(ByteOrder.BIG_ENDIAN);

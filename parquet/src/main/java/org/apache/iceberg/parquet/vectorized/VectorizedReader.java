@@ -20,9 +20,7 @@
 package org.apache.iceberg.parquet.vectorized;
 
 /**
- * Interface for vectorized Iceberg readers.
+ * Marker interface for vectorized Iceberg readers.
  */
-public interface VectorizedReader {
+public interface VectorizedReader {}
 
-  public int batchSize();
-}

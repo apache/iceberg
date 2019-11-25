@@ -25,11 +25,6 @@ from .transforms import Transforms
 from .types import (NestedField,
                     StructType)
 
-"""
-TO-DO: Needs some work, please review
-
-"""
-
 
 class PartitionSpec(object):
 
@@ -166,7 +161,7 @@ class PartitionSpec(object):
         return hash(self.__key())
 
     def __key(self):
-        return PartitionSpec.__class__, self.fields
+        return PartitionSpec.__class__, tuple(self.fields)
 
     def __str__(self):
         return self.__repr__()
@@ -194,9 +189,9 @@ class PartitionSpec(object):
         for field in spec.fields:
             src_type = schema.find_type(field.source_id)
             if not src_type.is_primitive_type():
-                raise ValidationException("Cannot partition by non-primitive source field: %s" % src_type)
+                raise ValidationException("Cannot partition by non-primitive source field: %s", src_type)
             if not field.transform.can_transform(src_type):
-                ValidationException("Invalid source type %s for transform: %s" % (src_type, field.transform))
+                raise ValidationException("Invalid source type %s for transform: %s", (src_type, field.transform))
 
 
 class PartitionSpecBuilder(object):
@@ -268,7 +263,7 @@ class PartitionSpecBuilder(object):
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
                                           source_name,
-                                          Transforms.hour(source_column.types)))
+                                          Transforms.hour(source_column.type)))
         return self
 
     def bucket(self, source_name, num_buckets):
@@ -277,7 +272,7 @@ class PartitionSpecBuilder(object):
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
                                           source_name,
-                                          Transforms.bucket(source_column.types, num_buckets)))
+                                          Transforms.bucket(source_column.type, num_buckets)))
         return self
 
     def truncate(self, source_name, width):

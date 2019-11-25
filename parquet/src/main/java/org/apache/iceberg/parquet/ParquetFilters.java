@@ -25,6 +25,7 @@ import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
+import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
@@ -35,12 +36,13 @@ import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.filter2.predicate.Operators;
 import org.apache.parquet.io.api.Binary;
 
-import static org.apache.iceberg.expressions.ExpressionVisitors.visit;
+class ParquetFilters {
 
-public class ParquetFilters {
+  private ParquetFilters() {
+  }
 
-  public static FilterCompat.Filter convert(Schema schema, Expression expr, boolean caseSensitive) {
-    FilterPredicate pred = visit(expr, new ConvertFilterToParquet(schema, caseSensitive));
+  static FilterCompat.Filter convert(Schema schema, Expression expr, boolean caseSensitive) {
+    FilterPredicate pred = ExpressionVisitors.visit(expr, new ConvertFilterToParquet(schema, caseSensitive));
     // TODO: handle AlwaysFalse.INSTANCE
     if (pred != null && pred != AlwaysTrue.INSTANCE) {
       // FilterCompat will apply LogicalInverseRewriter
@@ -103,21 +105,32 @@ public class ParquetFilters {
       return FilterApi.or(left, right);
     }
 
+    protected Expression bind(UnboundPredicate<?> pred) {
+      return pred.bind(schema.asStruct(), caseSensitive);
+    }
+
     @Override
     public <T> FilterPredicate predicate(BoundPredicate<T> pred) {
       Operation op = pred.op();
       BoundReference<T> ref = pred.ref();
-      Literal<T> lit = pred.literal();
       String path = schema.idToAlias(ref.fieldId());
+      Literal<T> lit;
+      if (pred.isUnaryPredicate()) {
+        lit = null;
+      } else if (pred.isLiteralPredicate()) {
+        lit = pred.asLiteralPredicate().literal();
+      } else {
+        throw new UnsupportedOperationException("Cannot convert to Parquet filter: " + pred);
+      }
 
       switch (ref.type().typeId()) {
         case BOOLEAN:
-          Operators.BooleanColumn col = FilterApi.booleanColumn(schema.idToAlias(ref.fieldId()));
+          Operators.BooleanColumn col = FilterApi.booleanColumn(path);
           switch (op) {
             case EQ:
               return FilterApi.eq(col, getParquetPrimitive(lit));
             case NOT_EQ:
-              return FilterApi.eq(col, getParquetPrimitive(lit));
+              return FilterApi.notEq(col, getParquetPrimitive(lit));
           }
 
         case INTEGER:
@@ -149,12 +162,7 @@ public class ParquetFilters {
       throw new UnsupportedOperationException("Cannot convert to Parquet filter: " + pred);
     }
 
-    protected Expression bind(UnboundPredicate<?> pred) {
-      return pred.bind(schema.asStruct(), caseSensitive);
-    }
-
     @Override
-    @SuppressWarnings("unchecked")
     public <T> FilterPredicate predicate(UnboundPredicate<T> pred) {
       Expression bound = bind(pred);
       if (bound instanceof BoundPredicate) {
@@ -165,31 +173,6 @@ public class ParquetFilters {
         return AlwaysFalse.INSTANCE;
       }
       throw new UnsupportedOperationException("Cannot convert to Parquet filter: " + pred);
-    }
-  }
-
-  private static
-  <C extends Comparable<C>, COL extends Operators.Column<C> & Operators.SupportsLtGt>
-  FilterPredicate pred(Operation op, COL col, C value) {
-    switch (op) {
-      case IS_NULL:
-        return FilterApi.eq(col, null);
-      case NOT_NULL:
-        return FilterApi.notEq(col, null);
-      case EQ:
-        return FilterApi.eq(col, value);
-      case NOT_EQ:
-        return FilterApi.notEq(col, value);
-      case GT:
-        return FilterApi.gt(col, value);
-      case GT_EQ:
-        return FilterApi.gtEq(col, value);
-      case LT:
-        return FilterApi.lt(col, value);
-      case LT_EQ:
-        return FilterApi.ltEq(col, value);
-      default:
-        throw new UnsupportedOperationException("Unsupported predicate operation: " + op);
     }
   }
 
@@ -210,6 +193,31 @@ public class ParquetFilters {
     }
     throw new UnsupportedOperationException(
         "Type not supported yet: " + value.getClass().getName());
+  }
+
+  @SuppressWarnings("checkstyle:MethodTypeParameterName")
+  private static <C extends Comparable<C>, COL extends Operators.Column<C> & Operators.SupportsLtGt>
+      FilterPredicate pred(Operation op, COL col, C value) {
+    switch (op) {
+      case IS_NULL:
+        return FilterApi.eq(col, null);
+      case NOT_NULL:
+        return FilterApi.notEq(col, null);
+      case EQ:
+        return FilterApi.eq(col, value);
+      case NOT_EQ:
+        return FilterApi.notEq(col, value);
+      case GT:
+        return FilterApi.gt(col, value);
+      case GT_EQ:
+        return FilterApi.gtEq(col, value);
+      case LT:
+        return FilterApi.lt(col, value);
+      case LT_EQ:
+        return FilterApi.ltEq(col, value);
+      default:
+        throw new UnsupportedOperationException("Unsupported predicate operation: " + op);
+    }
   }
 
   private static class AlwaysTrue implements FilterPredicate {

@@ -19,11 +19,14 @@
 
 package org.apache.iceberg.spark.source;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Files;
@@ -35,14 +38,17 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.AvroDataTest;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.SparkAvroReader;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.DataFrameWriter;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.AfterClass;
@@ -76,6 +82,35 @@ public class TestDataFrameWrites extends AvroDataTest {
 
   private static SparkSession spark = null;
   private static JavaSparkContext sc = null;
+
+  private Map<String, String> tableProperties;
+
+  private org.apache.spark.sql.types.StructType sparkSchema = new org.apache.spark.sql.types.StructType(
+      new org.apache.spark.sql.types.StructField[] {
+          new org.apache.spark.sql.types.StructField(
+              "optionalField",
+              org.apache.spark.sql.types.DataTypes.StringType,
+              true,
+              org.apache.spark.sql.types.Metadata.empty()),
+          new org.apache.spark.sql.types.StructField(
+              "requiredField",
+              org.apache.spark.sql.types.DataTypes.StringType,
+              false,
+              org.apache.spark.sql.types.Metadata.empty())
+      });
+
+  private Schema icebergSchema = new Schema(
+      Types.NestedField.optional(1, "optionalField", Types.StringType.get()),
+      Types.NestedField.required(2, "requiredField", Types.StringType.get()));
+
+  private List<String> data0 = Arrays.asList(
+      "{\"optionalField\": \"a1\", \"requiredField\": \"bid_001\"}",
+      "{\"optionalField\": \"a2\", \"requiredField\": \"bid_002\"}");
+  private List<String> data1 = Arrays.asList(
+      "{\"optionalField\": \"d1\", \"requiredField\": \"bid_101\"}",
+      "{\"optionalField\": \"d2\", \"requiredField\": \"bid_102\"}",
+      "{\"optionalField\": \"d3\", \"requiredField\": \"bid_103\"}",
+      "{\"optionalField\": \"d4\", \"requiredField\": \"bid_104\"}");
 
   @BeforeClass
   public static void startSpark() {
@@ -183,5 +218,99 @@ public class TestDataFrameWrites extends AvroDataTest {
 
     JavaRDD<InternalRow> rdd = sc.parallelize(rows);
     return spark.internalCreateDataFrame(JavaRDD.toRDD(rdd), convert(schema), false);
+  }
+
+  @Test
+  public void testNullableWithWriteOption() throws IOException {
+    File location = new File(temp.newFolder("parquet"), "test");
+    String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location.toString());
+    String targetPath = String.format("%s/nullable_poc/targetFolder/", location.toString());
+
+    tableProperties = ImmutableMap.of(TableProperties.WRITE_NEW_DATA_LOCATION, targetPath);
+
+    spark = SparkSession.builder()
+        .master("local[2]")
+        .appName("NullableTest")
+        .getOrCreate();
+
+    // read this and append to iceberg dataset
+    spark
+        .read().schema(sparkSchema).json(
+        JavaSparkContext.fromSparkContext(spark.sparkContext()).parallelize(data1))
+        .write().parquet(sourcePath);
+
+    // this is our iceberg dataset to which we will append data
+    new HadoopTables(spark.sessionState().newHadoopConf())
+        .create(
+            icebergSchema,
+            PartitionSpec.builderFor(icebergSchema).identity("requiredField").build(),
+            tableProperties,
+            targetPath);
+
+    // this is the initial data inside the iceberg dataset
+    spark
+        .read().schema(sparkSchema).json(
+        JavaSparkContext.fromSparkContext(spark.sparkContext()).parallelize(data0))
+        .write().format("iceberg").mode(SaveMode.Append).save(targetPath);
+
+    // read from parquet and append to iceberg w/ nullability check disabled
+    spark
+        .read().schema(SparkSchemaUtil.convert(icebergSchema)).parquet(sourcePath)
+        .write().format("iceberg").option("check-nullability", false).mode(SaveMode.Append).save(targetPath);
+
+    // read all data
+    List<Row> rows = spark.read().format("iceberg").load(targetPath).collectAsList();
+    Assert.assertEquals("Should contain 6 rows", 6, rows.size());
+
+  }
+
+  @Test
+  public void testNullableWithSparkSqlOption() throws IOException {
+    File location = new File(temp.newFolder("parquet"), "test");
+    String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location.toString());
+    String targetPath = String.format("%s/nullable_poc/targetFolder/", location.toString());
+
+    tableProperties = ImmutableMap.of(TableProperties.WRITE_NEW_DATA_LOCATION, targetPath);
+
+    spark = SparkSession.builder()
+        .master("local[2]")
+        .appName("NullableTest")
+        .getOrCreate();
+
+    // read this and append to iceberg dataset
+    spark
+        .read().schema(sparkSchema).json(
+        JavaSparkContext.fromSparkContext(spark.sparkContext()).parallelize(data1))
+        .write().parquet(sourcePath);
+
+    SparkSession newSparkSession = SparkSession.builder()
+        .master("local[2]")
+        .appName("NullableTest")
+        .config("spark.sql.iceberg.check-nullability", false)
+        .getOrCreate();
+
+    // this is our iceberg dataset to which we will append data
+    new HadoopTables(newSparkSession.sessionState().newHadoopConf())
+        .create(
+            icebergSchema,
+            PartitionSpec.builderFor(icebergSchema).identity("requiredField").build(),
+            tableProperties,
+            targetPath);
+
+    // this is the initial data inside the iceberg dataset
+    newSparkSession
+        .read().schema(sparkSchema).json(
+        JavaSparkContext.fromSparkContext(spark.sparkContext()).parallelize(data0))
+        .write().format("iceberg").mode(SaveMode.Append).save(targetPath);
+
+    // read from parquet and append to iceberg
+    newSparkSession
+        .read().schema(SparkSchemaUtil.convert(icebergSchema)).parquet(sourcePath)
+        .write().format("iceberg").mode(SaveMode.Append).save(targetPath);
+
+    // read all data
+    List<Row> rows = newSparkSession.read().format("iceberg").load(targetPath).collectAsList();
+    Assert.assertEquals("Should contain 6 rows", 6, rows.size());
+
   }
 }

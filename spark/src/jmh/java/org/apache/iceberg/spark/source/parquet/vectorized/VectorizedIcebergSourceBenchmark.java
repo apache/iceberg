@@ -35,13 +35,12 @@ import org.openjdk.jmh.annotations.Threads;
 import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
 
 /**
- * Parent class of the benchmarks that compare performance of performance of reading Parquet data with a
- * flat schema using vectorized Iceberg read path and the built-in file source in Spark.
+ * Parent class of the benchmarks that compare performance of performance of reading Parquet data with a flat schema
+ * using vectorized Iceberg read path and the built-in file source in Spark.
  * <p>
  * To run all the the benchmarks that extend this class:
  * <code>
-   * ./gradlew :iceberg-spark:jmh
- * -PjmhIncludeRegex=VectorizedRead*Benchmark
+ * ./gradlew :iceberg-spark:jmh -PjmhIncludeRegex=VectorizedRead*Benchmark
  * -PjmhOutputPath=benchmark/iceberg-source-flat-parquet-data-read-benchmark-result.txt
  * </code>
  */

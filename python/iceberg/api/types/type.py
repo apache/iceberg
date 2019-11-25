@@ -81,12 +81,7 @@ class Type(object):
 class PrimitiveType(Type):
 
     def __eq__(self, other):
-        if id(self) == id(other):
-            return True
-        elif other is None or not isinstance(other, PrimitiveType):
-            return False
-
-        return True
+        return type(self) == type(other)
 
     def __ne__(self, other):
         return not self.__eq__(other)

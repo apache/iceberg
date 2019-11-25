@@ -26,14 +26,14 @@ import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.thrift.TException;
 import org.apache.thrift.transport.TTransportException;
 
-class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> {
+public class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> {
   private final HiveConf hiveConf;
 
   HiveClientPool(Configuration conf) {
     this(conf.getInt("iceberg.hive.client-pool-size", 5), conf);
   }
 
-  HiveClientPool(int poolSize, Configuration conf) {
+  public HiveClientPool(int poolSize, Configuration conf) {
     super(poolSize, TTransportException.class);
     this.hiveConf = new HiveConf(conf, HiveClientPool.class);
   }
@@ -44,6 +44,14 @@ class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> {
       return new HiveMetaStoreClient(hiveConf);
     } catch (MetaException e) {
       throw new RuntimeMetaException(e, "Failed to connect to Hive Metastore");
+    } catch (Throwable t) {
+      if (t.getMessage().contains("Another instance of Derby may have already booted")) {
+        throw new RuntimeMetaException(t, "Failed to start an embedded metastore because embedded " +
+            "Derby supports only one client at a time. To fix this, use a metastore that supports " +
+            "multiple clients.");
+      }
+
+      throw new RuntimeMetaException(t, "Failed to connect to Hive Metastore");
     }
   }
 

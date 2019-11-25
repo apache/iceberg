@@ -1,3 +1,20 @@
+<!--
+ - Licensed to the Apache Software Foundation (ASF) under one or more
+ - contributor license agreements.  See the NOTICE file distributed with
+ - this work for additional information regarding copyright ownership.
+ - The ASF licenses this file to You under the Apache License, Version 2.0
+ - (the "License"); you may not use this file except in compliance with
+ - the License.  You may obtain a copy of the License at
+ -
+ -   http://www.apache.org/licenses/LICENSE-2.0
+ -
+ - Unless required by applicable law or agreed to in writing, software
+ - distributed under the License is distributed on an "AS IS" BASIS,
+ - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ - See the License for the specific language governing permissions and
+ - limitations under the License.
+ -->
+
 # Reliability
 
 Iceberg was designed to solve correctness problems that affect Hive tables running in S3.
@@ -32,7 +49,7 @@ If the atomic swap fails because another writer has committed, the failed writer
 
 ### Cost of retries
 
-Writers avoid expensive retry operaitions by structuring changes so that work can be reused across retries.
+Writers avoid expensive retry operations by structuring changes so that work can be reused across retries.
 
 For example, appends usually create a new manifest file for the appended data files, which can be added to the table without rewriting the manifest on every attempt.
 

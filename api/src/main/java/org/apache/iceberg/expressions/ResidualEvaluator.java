@@ -195,6 +195,11 @@ public class ResidualEvaluator implements Serializable {
     }
 
     @Override
+    public <T> Expression startsWith(BoundReference<T> ref, Literal<T> lit) {
+      return ((String) ref.get(struct)).startsWith((String) lit.value()) ? alwaysTrue() : alwaysFalse();
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     public <T> Expression predicate(BoundPredicate<T> pred) {
       /**
