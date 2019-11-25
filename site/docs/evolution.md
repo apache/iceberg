@@ -54,6 +54,11 @@ Iceberg uses unique IDs to track each column in a table. When you add a column, 
 
 Iceberg table partitioning can be updated in an existing table because queries do not reference partition values directly.
 
+What happens when you evolve a partition spec is that old data written with an old spec stays as it is. New data is written using the new spec in a new layout. Metadata for each of the partition versions is kept separately. Because of this, when you start writing queries, you get split planning. This is where each partition layout plans files separately using the filter it derives for that specific partition layout. Here's a more visual representation: 
+
+![Partition evolution diagram](img/partition-evolution-diagram.png)
+*Credits to [Elliot West](https://github.com/teabot)*
+
 Iceberg uses [hidden partitioning](../partitioning), so you don't *need* to write queries for a specific partition layout to be fast. Instead, you can write queries that select the data you need, and Iceberg automatically prunes out files that don't contain matching data.
 
 Partition evolution is a metadata operation and does not eagerly rewrite files.
