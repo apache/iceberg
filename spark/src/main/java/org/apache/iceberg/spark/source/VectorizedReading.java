@@ -33,24 +33,19 @@ import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.vectorized.VectorizedReader;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.spark.data.SparkAvroReader;
-import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.iceberg.spark.data.vector.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.schema.MessageType;
@@ -292,18 +287,6 @@ public class VectorizedReading {
           JavaConverters.asScalaBufferConverter(attrs).asScala().toSeq());
     }
 
-    private CloseableIterable<InternalRow> newAvroIterable(
-        InputFile location,
-        FileScanTask task,
-        Schema readSchema) {
-      return Avro.read(location)
-          .reuseContainers()
-          .project(readSchema)
-          .split(task.start(), task.length())
-          .createReaderFunc(SparkAvroReader::new)
-          .build();
-    }
-
     private CloseableIterable<ColumnarBatch> newParquetIterable(
         InputFile location,
         FileScanTask task,
@@ -323,26 +306,6 @@ public class VectorizedReading {
           .caseSensitive(caseSensitive)
           .recordsPerBatch(numRecordsPerBatch)
           .build();
-    }
-
-    private CloseableIterable<InternalRow> newOrcIterable(
-        InputFile location,
-        FileScanTask task,
-        Schema readSchema) {
-      return ORC.read(location)
-          .schema(readSchema)
-          .split(task.start(), task.length())
-          .createReaderFunc(SparkOrcReader::new)
-          .caseSensitive(caseSensitive)
-          .build();
-    }
-
-    private CloseableIterable<InternalRow> newDataIterable(DataTask task, Schema readSchema) {
-      StructInternalRow row = new StructInternalRow(tableSchema.asStruct());
-      CloseableIterable<InternalRow> asSparkRows = CloseableIterable.transform(
-          task.asDataTask().rows(), row::setStruct);
-      return CloseableIterable.transform(
-          asSparkRows, APPLY_PROJECTION.bind(projection(readSchema, tableSchema))::invoke);
     }
   }
 }

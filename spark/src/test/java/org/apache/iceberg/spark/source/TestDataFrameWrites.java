@@ -137,7 +137,7 @@ public class TestDataFrameWrites extends AvroDataTest {
   public void testWriteWithCustomDataLocation() throws IOException {
     File location = createTableFolder();
     File tablePropertyDataLocation = temp.newFolder("test-table-property-data-dir");
-    Table table = createTable(new Schema(getSupportedPrimitives().fields()), location);
+    Table table = createTable(new Schema(SUPPORTED_PRIMITIVES.fields()), location);
     table.updateProperties().set(
         TableProperties.WRITE_NEW_DATA_LOCATION, tablePropertyDataLocation.getAbsolutePath()).commit();
     writeAndValidateWithLocations(table, location, tablePropertyDataLocation);

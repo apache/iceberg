@@ -32,16 +32,7 @@ import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Assume;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestSparkParquetFallbackToDictionaryEncodingForVectorizedReader extends TestSparkParquetVectorizedReader {
-
-  @Override
-  protected Types.StructType getSupportedPrimitives() {
-    return Types.StructType.of(
-        required(100, "id", Types.LongType.get()),
-        required(101, "data", Types.StringType.get()));
-  }
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
@@ -51,7 +42,7 @@ public class TestSparkParquetFallbackToDictionaryEncodingForVectorizedReader ext
         type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()));
 
     List<GenericData.Record> expected =
-        RandomData.generateListWithFallBackDictionaryEncodingForStrings(schema, 1000000, 0L, 0.5f);
+        RandomData.generateListWithFallBackDictionaryEncodingForStrings(schema, 100000, 0L, 0.5f);
 
     // write a test parquet file using iceberg writer
     File testFile = temp.newFile();

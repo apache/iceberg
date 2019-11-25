@@ -68,7 +68,8 @@ public class RandomData {
       int numRecords,
       long seed,
       float fraction) {
-    RandomDataGenerator generator = new FallbackDictionaryEncodedDataGenerator(schema, seed, numRecords, fraction);
+    FallbackDictionaryEncodedDataGenerator generator =
+        new FallbackDictionaryEncodedDataGenerator(schema, seed, numRecords, fraction);
     List<Record> records = Lists.newArrayListWithExpectedSize(numRecords);
     for (int i = 0; i < numRecords; i += 1) {
       Record rec = (Record) TypeUtil.visit(schema, generator);
