@@ -25,14 +25,11 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -397,17 +394,10 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       // schema or rows returned by readers
       Schema finalSchema = expectedSchema;
       PartitionSpec spec = task.spec();
-      Set<Integer> idColumns = Sets.newHashSet();
-      for (Integer i : spec.identitySourceIds()) {
-        if (spec.schema().columns().stream()
-            .noneMatch(j -> j.type().isStructType() && j.type().asStructType().field(i) != null)
-        ) {
-          idColumns.add(i);
-        }
-      }
+      Set<Integer> idColumns = spec.identitySourceIds();
 
-      Schema requiredSchema = SparkSchemaUtil.prune(tableSchema,
-          SparkSchemaUtil.convert(finalSchema), task.residual(), caseSensitive);
+      StructType sparkType = SparkSchemaUtil.convert(finalSchema);
+      Schema requiredSchema = SparkSchemaUtil.prune(tableSchema, sparkType, task.residual(), caseSensitive);
       boolean hasJoinedPartitionColumns = !idColumns.isEmpty();
       boolean hasExtraFilterColumns = requiredSchema.columns().size() != finalSchema.columns().size();
 
@@ -415,32 +405,28 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       Iterator<InternalRow> iter;
 
       if (hasJoinedPartitionColumns) {
-        Schema readSchema = TypeUtil.selectNot(requiredSchema, idColumns);
         Schema partitionSchema = TypeUtil.select(requiredSchema, idColumns);
 
         Map<Integer, Object> partitionValueMap = Maps.newHashMap();
-        Map<String, Integer> partitionSpecFieldIndexMap = Maps.newHashMap();
-        Map<String, Class<?>> partitionSpecJavaTypeMap = Maps.newHashMap();
-        Map<String, DataType> partitionSpecDataTypeMap = Maps.newHashMap();
+        Map<Integer, Integer> partitionSpecFieldIndexMap = Maps.newHashMap();
+        Map<Integer, DataType> partitionSpecDataTypeMap = Maps.newHashMap();
         for (int i = 0; i < spec.fields().size(); i++) {
-          String fieldName = spec.fields().get(i).name();
-          partitionSpecFieldIndexMap.put(fieldName, i);
-          partitionSpecJavaTypeMap.put(fieldName, spec.javaClasses()[i]);
-          partitionSpecDataTypeMap.put(fieldName, getPartitionType(partitionSchema, fieldName));
+          Integer sourceId = spec.fields().get(i).sourceId();
+          partitionSpecFieldIndexMap.put(sourceId, i);
+          partitionSpecDataTypeMap.put(sourceId, getPartitionType(partitionSchema, sourceId));
         }
 
-        List<Types.NestedField> columns = new ArrayList<>(readSchema.columns());
-        for (Types.NestedField field : partitionSchema.columns()) {
-          int partitionIndex = partitionSpecFieldIndexMap.get(field.name());
-          DataType dataType = partitionSpecDataTypeMap.get(field.name());
-          Class<?> javaType = partitionSpecJavaTypeMap.get(field.name());
-          Object convertedValue = getPartitionValue(file.partition(), partitionIndex, dataType, javaType);
-          partitionValueMap.put(field.fieldId(), convertedValue);
-          columns.add(field);
+        Set<Integer> projectedIds = TypeUtil.getProjectedIds(partitionSchema);
+        for (Integer sourceId : projectedIds) {
+          if (partitionSpecFieldIndexMap.containsKey(sourceId)) {
+            int partitionIndex = partitionSpecFieldIndexMap.get(sourceId);
+            DataType dataType = partitionSpecDataTypeMap.get(sourceId);
+            Object partitionValue = convert(file.partition().get(partitionIndex, Object.class), dataType);
+            partitionValueMap.put(sourceId, partitionValue);
+          }
         }
 
-        columns.sort(Comparator.comparingInt(Types.NestedField::fieldId));
-        iterSchema = new Schema(columns);
+        iterSchema = requiredSchema;
         iter = open(task, finalSchema, partitionValueMap);
       } else if (hasExtraFilterColumns) {
         iterSchema = requiredSchema;
@@ -553,27 +539,43 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
           asSparkRows, APPLY_PROJECTION.bind(projection(readSchema, tableSchema))::invoke);
     }
 
-    private DataType getPartitionType(Schema partitionSchema, String fieldName) {
-      if (partitionSchema.findField(fieldName) != null) {
-        return SparkSchemaUtil.convert(partitionSchema.findField(fieldName).type());
+    /**
+     * Returns the Spark data type for a partition.
+     *
+     * If the field is not found in the partition schema we try to retrieve it from the full table schema.
+     *
+     * @param partitionSchema the Iceberg schema for partitions
+     * @param fieldId the id of the field
+     * @return the Spark data type of the field
+     */
+    private DataType getPartitionType(Schema partitionSchema, Integer fieldId) {
+      if (partitionSchema.findField(fieldId) != null) {
+        return SparkSchemaUtil.convert(partitionSchema.findField(fieldId).type());
       } else {
-        return SparkSchemaUtil.convert(tableSchema.findField(fieldName).type());
+        return SparkSchemaUtil.convert(tableSchema.findField(fieldId).type());
       }
     }
 
-    private Object getPartitionValue(StructLike schema, int index, DataType sparkType, Class<?> javaType) {
-      Object convertedValue = schema.get(index, javaType);
-      if (convertedValue != null) {
-        if (sparkType instanceof StringType) {
-          convertedValue = UTF8String.fromString(convertedValue.toString());
-        } else if (sparkType instanceof BinaryType) {
-          convertedValue = ByteBuffers.toByteArray((ByteBuffer) convertedValue);
-        } else if (sparkType instanceof DecimalType) {
-          convertedValue = Decimal.fromDecimal(convertedValue);
+    /**
+     * Converts the objects into instances used by Spark's InternalRow.
+     *
+     * @param value a data value
+     * @param type the Spark data type
+     * @return the value converted to the representation expected by Spark's InternalRow.
+     */
+    private static Object convert(Object value, DataType type) {
+      if (value != null) {
+        if (type instanceof StringType) {
+          return UTF8String.fromString(value.toString());
+        } else if (type instanceof BinaryType) {
+          return ByteBuffers.toByteArray((ByteBuffer) value);
+        } else if (type instanceof DecimalType) {
+          return Decimal.fromDecimal(value);
         }
       }
-      return convertedValue;
+      return value;
     }
+
   }
 
   private static class StructLikeInternalRow implements StructLike {
