@@ -118,10 +118,6 @@ public class SparkParquetReaders {
       this.type = type;
     }
 
-    protected MessageType getType() {
-      return type;
-    }
-
     @Override
     public ParquetValueReader<?> message(Types.StructType expected, MessageType message,
                                          List<ParquetValueReader<?>> fieldReaders) {
@@ -364,7 +360,7 @@ public class SparkParquetReaders {
     }
   }
 
-  protected static class StringReader extends PrimitiveReader<UTF8String> {
+  private static class StringReader extends PrimitiveReader<UTF8String> {
     StringReader(ColumnDescriptor desc) {
       super(desc);
     }

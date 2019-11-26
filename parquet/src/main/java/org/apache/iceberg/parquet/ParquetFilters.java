@@ -176,25 +176,6 @@ class ParquetFilters {
     }
   }
 
-  @SuppressWarnings("unchecked")
-  private static <C extends Comparable<C>> C getParquetPrimitive(Literal<?> lit) {
-    if (lit == null) {
-      return null;
-    }
-
-    // TODO: this needs to convert to handle BigDecimal and UUID
-    Object value = lit.value();
-    if (value instanceof Number) {
-      return (C) lit.value();
-    } else if (value instanceof CharSequence) {
-      return (C) Binary.fromString(value.toString());
-    } else if (value instanceof ByteBuffer) {
-      return (C) Binary.fromReusedByteBuffer((ByteBuffer) value);
-    }
-    throw new UnsupportedOperationException(
-        "Type not supported yet: " + value.getClass().getName());
-  }
-
   @SuppressWarnings("checkstyle:MethodTypeParameterName")
   private static <C extends Comparable<C>, COL extends Operators.Column<C> & Operators.SupportsLtGt>
       FilterPredicate pred(Operation op, COL col, C value) {
@@ -218,6 +199,25 @@ class ParquetFilters {
       default:
         throw new UnsupportedOperationException("Unsupported predicate operation: " + op);
     }
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <C extends Comparable<C>> C getParquetPrimitive(Literal<?> lit) {
+    if (lit == null) {
+      return null;
+    }
+
+    // TODO: this needs to convert to handle BigDecimal and UUID
+    Object value = lit.value();
+    if (value instanceof Number) {
+      return (C) lit.value();
+    } else if (value instanceof CharSequence) {
+      return (C) Binary.fromString(value.toString());
+    } else if (value instanceof ByteBuffer) {
+      return (C) Binary.fromReusedByteBuffer((ByteBuffer) value);
+    }
+    throw new UnsupportedOperationException(
+        "Type not supported yet: " + value.getClass().getName());
   }
 
   private static class AlwaysTrue implements FilterPredicate {

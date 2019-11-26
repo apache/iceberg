@@ -257,8 +257,8 @@ class Writer implements DataSourceWriter {
     private final Schema dsSchema;
 
     WriterFactory(PartitionSpec spec, FileFormat format, LocationProvider locations,
-        Map<String, String> properties, FileIO fileIo, EncryptionManager encryptionManager,
-        long targetFileSize, Schema dsSchema) {
+                  Map<String, String> properties, FileIO fileIo, EncryptionManager encryptionManager,
+                  long targetFileSize, Schema dsSchema) {
       this.spec = spec;
       this.format = format;
       this.locations = locations;
@@ -372,7 +372,7 @@ class Writer implements DataSourceWriter {
     private long currentRows = 0;
 
     BaseWriter(PartitionSpec spec, FileFormat format, AppenderFactory<InternalRow> appenderFactory,
-        WriterFactory.OutputFileFactory fileFactory, FileIO fileIo, long targetFileSize) {
+               WriterFactory.OutputFileFactory fileFactory, FileIO fileIo, long targetFileSize) {
       this.spec = spec;
       this.format = format;
       this.appenderFactory = appenderFactory;

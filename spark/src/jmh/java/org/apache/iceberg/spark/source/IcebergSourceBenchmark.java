@@ -48,8 +48,8 @@ import static org.apache.iceberg.TableProperties.WRITE_NEW_DATA_LOCATION;
 
 @Fork(1)
 @State(Scope.Benchmark)
-@Warmup(iterations = 2)
-@Measurement(iterations = 3)
+@Warmup(iterations = 3)
+@Measurement(iterations = 5)
 @BenchmarkMode(Mode.SingleShotTime)
 public abstract class IcebergSourceBenchmark {
 

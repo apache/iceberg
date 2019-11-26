@@ -314,8 +314,8 @@ public class Parquet {
       return this;
     }
 
-    public ReadBuilder project(Schema sc) {
-      this.schema = sc;
+    public ReadBuilder project(Schema newSchema) {
+      this.schema = newSchema;
       return this;
     }
 

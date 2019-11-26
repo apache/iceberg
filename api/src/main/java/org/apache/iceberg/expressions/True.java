@@ -25,7 +25,7 @@ import java.io.ObjectStreamException;
  * An {@link Expression expression} that is always true.
  */
 public class True implements Expression {
-  public static final True INSTANCE = new True();
+  static final True INSTANCE = new True();
 
   private True() {
   }

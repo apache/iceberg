@@ -41,7 +41,7 @@ public class ParquetValueReaders {
   }
 
   public static <T> ParquetValueReader<T> option(Type type, int definitionLevel,
-      ParquetValueReader<T> reader) {
+                                                 ParquetValueReader<T> reader) {
     if (type.isRepetition(Type.Repetition.OPTIONAL)) {
       return new OptionReader<>(definitionLevel, reader);
     }
@@ -416,7 +416,7 @@ public class ParquetValueReaders {
     private Iterator<E> elements = null;
 
     public ListReader(int definitionLevel, int repetitionLevel,
-        ParquetValueReader<E> reader) {
+                      ParquetValueReader<E> reader) {
       super(definitionLevel, repetitionLevel, reader);
     }
 
@@ -470,7 +470,7 @@ public class ParquetValueReaders {
     private final List<TripleIterator<?>> children;
 
     protected RepeatedKeyValueReader(int definitionLevel, int repetitionLevel,
-        ParquetValueReader<K> keyReader, ParquetValueReader<V> valueReader) {
+                           ParquetValueReader<K> keyReader, ParquetValueReader<V> valueReader) {
       this.definitionLevel = definitionLevel;
       this.repetitionLevel = repetitionLevel;
       this.keyReader = keyReader;
@@ -535,8 +535,8 @@ public class ParquetValueReaders {
     private Iterator<Map.Entry<K, V>> pairs = null;
 
     public MapReader(int definitionLevel, int repetitionLevel,
-        ParquetValueReader<K> keyReader,
-        ParquetValueReader<V> valueReader) {
+                     ParquetValueReader<K> keyReader,
+                     ParquetValueReader<V> valueReader) {
       super(definitionLevel, repetitionLevel, keyReader, valueReader);
     }
 

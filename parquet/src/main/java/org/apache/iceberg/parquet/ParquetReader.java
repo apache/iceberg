@@ -47,8 +47,8 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   private final boolean caseSensitive;
 
   public ParquetReader(InputFile input, Schema expectedSchema, ParquetReadOptions options,
-      Function<MessageType, ParquetValueReader<?>> readerFunc,
-      Expression filter, boolean reuseContainers, boolean caseSensitive) {
+                       Function<MessageType, ParquetValueReader<?>> readerFunc,
+                       Expression filter, boolean reuseContainers, boolean caseSensitive) {
     this.input = input;
     this.expectedSchema = expectedSchema;
     this.options = options;
@@ -72,8 +72,8 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
     @SuppressWarnings("unchecked")
     ReadConf(InputFile file, ParquetReadOptions options, Schema expectedSchema, Expression filter,
-        Function<MessageType, ParquetValueReader<?>> readerFunc, boolean reuseContainers,
-        boolean caseSensitive) {
+             Function<MessageType, ParquetValueReader<?>> readerFunc, boolean reuseContainers,
+             boolean caseSensitive) {
       this.file = file;
       this.options = options;
       this.reader = newReader(file, options);
@@ -102,7 +102,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
         BlockMetaData rowGroup = rowGroups.get(i);
         boolean shouldRead = filter == null || (
             statsFilter.shouldRead(typeWithIds, rowGroup) &&
-                dictFilter.shouldRead(typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup)));
+            dictFilter.shouldRead(typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup)));
         this.shouldSkip[i] = !shouldRead;
         if (shouldRead) {
           computedTotalValues += rowGroup.getRowCount();

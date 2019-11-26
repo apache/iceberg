@@ -55,9 +55,7 @@ public class RandomData {
     RandomDataGenerator generator = new RandomDataGenerator(schema, seed);
     List<Record> records = Lists.newArrayListWithExpectedSize(numRecords);
     for (int i = 0; i < numRecords; i += 1) {
-      Record rec = (Record) TypeUtil.visit(schema, generator);
-      //System.out.println("Add record "+rec);
-      records.add(rec);
+      records.add((Record) TypeUtil.visit(schema, generator));
     }
 
     return records;
@@ -469,6 +467,7 @@ public class RandomData {
     for (int i = 0; i < length; i += 1) {
       buffer[i] = (byte) CHARS.charAt(random.nextInt(CHARS.length()));
     }
+
     return UTF8String.fromBytes(buffer);
   }
 

@@ -85,7 +85,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
 
   @Override
   public Optional<DataSourceWriter> createWriter(String jobId, StructType dsStruct, SaveMode mode,
-      DataSourceOptions options) {
+                                                 DataSourceOptions options) {
     Preconditions.checkArgument(mode == SaveMode.Append || mode == SaveMode.Overwrite,
         "Save mode %s is not supported", mode);
     Configuration conf = new Configuration(lazyBaseConf());
@@ -100,7 +100,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
 
   @Override
   public StreamWriter createStreamWriter(String runId, StructType dsStruct,
-      OutputMode mode, DataSourceOptions options) {
+                                         OutputMode mode, DataSourceOptions options) {
     Preconditions.checkArgument(
         mode == OutputMode.Append() || mode == OutputMode.Complete(),
         "Output mode %s is not supported", mode);
