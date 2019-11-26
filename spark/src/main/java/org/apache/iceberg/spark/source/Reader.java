@@ -38,6 +38,7 @@ import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataTask;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
@@ -61,7 +62,6 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkAvroReader;
 import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.iceberg.spark.data.SparkParquetReaders;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -396,6 +396,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       PartitionSpec spec = task.spec();
       Set<Integer> idColumns = spec.identitySourceIds();
 
+      // schema needed for the projection and filtering
       StructType sparkType = SparkSchemaUtil.convert(finalSchema);
       Schema requiredSchema = SparkSchemaUtil.prune(tableSchema, sparkType, task.residual(), caseSensitive);
       boolean hasJoinedPartitionColumns = !idColumns.isEmpty();
@@ -405,25 +406,22 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       Iterator<InternalRow> iter;
 
       if (hasJoinedPartitionColumns) {
-        Schema partitionSchema = TypeUtil.select(requiredSchema, idColumns);
-
         Map<Integer, Object> partitionValueMap = Maps.newHashMap();
         Map<Integer, Integer> partitionSpecFieldIndexMap = Maps.newHashMap();
         Map<Integer, DataType> partitionSpecDataTypeMap = Maps.newHashMap();
+
         for (int i = 0; i < spec.fields().size(); i++) {
-          Integer sourceId = spec.fields().get(i).sourceId();
+          PartitionField partitionField = spec.fields().get(i);
+          Integer sourceId = partitionField.sourceId();
           partitionSpecFieldIndexMap.put(sourceId, i);
-          partitionSpecDataTypeMap.put(sourceId, getPartitionType(partitionSchema, sourceId));
+          DataType partitionType = SparkSchemaUtil.convert(spec.partitionType().field(partitionField.name()).type());
+          partitionSpecDataTypeMap.put(sourceId, partitionType);
         }
 
-        Set<Integer> projectedIds = TypeUtil.getProjectedIds(partitionSchema);
-        for (Integer sourceId : projectedIds) {
-          if (partitionSpecFieldIndexMap.containsKey(sourceId)) {
-            int partitionIndex = partitionSpecFieldIndexMap.get(sourceId);
-            DataType dataType = partitionSpecDataTypeMap.get(sourceId);
-            Object partitionValue = convert(file.partition().get(partitionIndex, Object.class), dataType);
-            partitionValueMap.put(sourceId, partitionValue);
-          }
+        for (Map.Entry<Integer, Integer> entry : partitionSpecFieldIndexMap.entrySet()) {
+          Object partitionValue = convert(file.partition().get(entry.getValue(), Object.class),
+              partitionSpecDataTypeMap.get(entry.getKey()));
+          partitionValueMap.put(entry.getKey(), partitionValue);
         }
 
         iterSchema = requiredSchema;
@@ -575,7 +573,6 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       }
       return value;
     }
-
   }
 
   private static class StructLikeInternalRow implements StructLike {
