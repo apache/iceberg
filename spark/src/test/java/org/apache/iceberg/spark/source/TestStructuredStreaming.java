@@ -41,6 +41,7 @@ import org.apache.spark.sql.streaming.StreamingQueryException;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -199,7 +200,8 @@ public class TestStructuredStreaming {
     }
   }
 
-  @Test
+  // This fails due to SPARK-28730
+  @Ignore
   public void testStreamingWriteCompleteModeWithProjection() throws IOException {
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test-table");
@@ -263,7 +265,10 @@ public class TestStructuredStreaming {
   @Test
   public void testStreamingWriteUpdateMode() throws IOException {
     exceptionRule.expect(StreamingQueryException.class);
-    exceptionRule.expectMessage("Output mode Update is not supported");
+
+    // The following error message to verify is issued by
+    // org.apache.spark.sql.execution.streaming.StreamExecution#createStreamingWrite(SupportsWrite, Map, LogicalPlan)
+    exceptionRule.expectMessage("Data source v2 streaming sinks does not support Update mode");
 
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test-table");

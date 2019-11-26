@@ -17,4 +17,4 @@
 # under the License.
 #
 
-org.apache.iceberg.spark.source.IcebergSource
+org.apache.iceberg.spark.source.IcebergTableProvider
