@@ -59,13 +59,13 @@ object SparkTableUtil {
   }
 
   /**
-   * Returns a DataFrame with a row for each partition that matches the specified 'expression'.
-   *
-   * @param spark a Spark session.
-   * @param table name of the table.
-   * @param expression The expression whose matching partitions are returned.
-   * @return a DataFrame of the table partitions.
-   */
+    * Returns a DataFrame with a row for each partition that matches the specified 'expression'.
+    *
+    * @param spark a Spark session.
+    * @param table name of the table.
+    * @param expression The expression whose matching partitions are returned.
+    * @return a DataFrame of the table partitions.
+    */
   def partitionDFByFilter(spark: SparkSession, table: String, expression: String): DataFrame = {
     import spark.implicits._
 
@@ -125,9 +125,9 @@ object SparkTableUtil {
    * @return matching table's partitions
    */
   def getPartitionsByFilter(
-                             spark: SparkSession,
-                             tableIdent: TableIdentifier,
-                             predicateExpr: Expression): Seq[SparkPartition] = {
+      spark: SparkSession,
+      tableIdent: TableIdentifier,
+      predicateExpr: Expression): Seq[SparkPartition] = {
 
     val catalog = spark.sessionState.catalog
     val catalogTable = catalog.getTableMetadata(tableIdent)
@@ -155,9 +155,9 @@ object SparkTableUtil {
    * @return a Seq of [[SparkDataFile]]
    */
   def listPartition(
-                     partition: SparkPartition,
-                     conf: SerializableConfiguration,
-                     metricsConfig: MetricsConfig): Seq[SparkDataFile] = {
+      partition: SparkPartition,
+      conf: SerializableConfiguration,
+      metricsConfig: MetricsConfig): Seq[SparkDataFile] = {
 
     listPartition(partition.values, partition.uri, partition.format, conf.get(), metricsConfig)
   }
@@ -176,11 +176,11 @@ object SparkTableUtil {
    * @return a seq of [[SparkDataFile]]
    */
   def listPartition(
-                     partition: Map[String, String],
-                     uri: String,
-                     format: String,
-                     conf: Configuration = new Configuration(),
-                     metricsConfig: MetricsConfig = MetricsConfig.getDefault): Seq[SparkDataFile] = {
+      partition: Map[String, String],
+      uri: String,
+      format: String,
+      conf: Configuration = new Configuration(),
+      metricsConfig: MetricsConfig = MetricsConfig.getDefault): Seq[SparkDataFile] = {
 
     if (format.contains("avro")) {
       listAvroPartition(partition, uri, conf)
@@ -203,18 +203,18 @@ object SparkTableUtil {
    * Case class representing a data file.
    */
   case class SparkDataFile(
-                            path: String,
-                            partition: collection.Map[String, String],
-                            format: String,
-                            fileSize: Long,
-                            rowGroupSize: Long,
-                            rowCount: Long,
-                            columnSizes: Array[Long],
-                            valueCounts: Array[Long],
-                            nullValueCounts: Array[Long],
-                            lowerBounds: Seq[Array[Byte]],
-                            upperBounds: Seq[Array[Byte]]
-                          ) {
+      path: String,
+      partition: collection.Map[String, String],
+      format: String,
+      fileSize: Long,
+      rowGroupSize: Long,
+      rowCount: Long,
+      columnSizes: Array[Long],
+      valueCounts: Array[Long],
+      nullValueCounts: Array[Long],
+      lowerBounds: Seq[Array[Byte]],
+      upperBounds: Seq[Array[Byte]]
+    ) {
 
     /**
      * Convert this to a [[DataFile]] that can be added to a [[org.apache.iceberg.Table]].
@@ -255,7 +255,7 @@ object SparkTableUtil {
         val copy = if (buffer.hasArray) {
           val bytes = buffer.array()
           if (buffer.arrayOffset() == 0 && buffer.position() == 0 &&
-            bytes.length == buffer.remaining()) {
+              bytes.length == buffer.remaining()) {
             bytes
           } else {
             val start = buffer.arrayOffset() + buffer.position()
@@ -326,9 +326,9 @@ object SparkTableUtil {
   }
 
   private def listAvroPartition(
-                                 partitionPath: Map[String, String],
-                                 partitionUri: String,
-                                 conf: Configuration): Seq[SparkDataFile] = {
+      partitionPath: Map[String, String],
+      partitionUri: String,
+      conf: Configuration): Seq[SparkDataFile] = {
     val partition = new Path(partitionUri)
     val fs = partition.getFileSystem(conf)
 
@@ -348,10 +348,10 @@ object SparkTableUtil {
 
   //noinspection ScalaDeprecation
   private def listParquetPartition(
-                                    partitionPath: Map[String, String],
-                                    partitionUri: String,
-                                    conf: Configuration,
-                                    metricsSpec: MetricsConfig): Seq[SparkDataFile] = {
+      partitionPath: Map[String, String],
+      partitionUri: String,
+      conf: Configuration,
+      metricsSpec: MetricsConfig): Seq[SparkDataFile] = {
     val partition = new Path(partitionUri)
     val fs = partition.getFileSystem(conf)
 
@@ -372,9 +372,9 @@ object SparkTableUtil {
   }
 
   private def listOrcPartition(
-                                partitionPath: Map[String, String],
-                                partitionUri: String,
-                                conf: Configuration): Seq[SparkDataFile] = {
+      partitionPath: Map[String, String],
+      partitionUri: String,
+      conf: Configuration): Seq[SparkDataFile] = {
     val partition = new Path(partitionUri)
     val fs = partition.getFileSystem(conf)
 
@@ -418,9 +418,9 @@ object SparkTableUtil {
   }
 
   private def buildManifest(
-                             conf: SerializableConfiguration,
-                             spec: PartitionSpec,
-                             basePath: String): Iterator[SparkDataFile] => Iterator[Manifest] = { files =>
+      conf: SerializableConfiguration,
+      spec: PartitionSpec,
+      basePath: String): Iterator[SparkDataFile] => Iterator[Manifest] = { files =>
     if (files.hasNext) {
       val io = new HadoopFileIO(conf.get())
       val ctx = TaskContext.get()
@@ -477,10 +477,10 @@ object SparkTableUtil {
    * @param stagingDir a staging directory to store temporary manifest files
    */
   def importSparkTable(
-                        spark: SparkSession,
-                        sourceTableIdent: TableIdentifier,
-                        targetTable: Table,
-                        stagingDir: String): Unit = {
+      spark: SparkSession,
+      sourceTableIdent: TableIdentifier,
+      targetTable: Table,
+      stagingDir: String): Unit = {
 
     val catalog = spark.sessionState.catalog
 
@@ -502,9 +502,9 @@ object SparkTableUtil {
   }
 
   private def importUnpartitionedSparkTable(
-                                             spark: SparkSession,
-                                             sourceTableIdent: TableIdentifier,
-                                             targetTable: Table): Unit = {
+      spark: SparkSession,
+      sourceTableIdent: TableIdentifier,
+      targetTable: Table): Unit = {
 
     val sourceTable = spark.sessionState.catalog.getTableMetadata(sourceTableIdent)
     val format = sourceTable.storage.serde.orElse(sourceTable.provider)
@@ -530,11 +530,11 @@ object SparkTableUtil {
    * @param stagingDir a staging directory to store temporary manifest files
    */
   def importSparkPartitions(
-                             spark: SparkSession,
-                             partitions: Seq[SparkPartition],
-                             targetTable: Table,
-                             spec: PartitionSpec,
-                             stagingDir: String): Unit = {
+      spark: SparkSession,
+      partitions: Seq[SparkPartition],
+      targetTable: Table,
+      spec: PartitionSpec,
+      stagingDir: String): Unit = {
 
     import spark.implicits._
 

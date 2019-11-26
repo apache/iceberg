@@ -67,11 +67,11 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
 
     // Create a spark session.
     TestSparkTableUtil.spark = SparkSession.builder().master("local[2]")
-        .enableHiveSupport()
-        .config("spark.hadoop.hive.metastore.uris", metastoreURI)
-        .config("hive.exec.dynamic.partition", "true")
-        .config("hive.exec.dynamic.partition.mode", "nonstrict")
-        .getOrCreate();
+            .enableHiveSupport()
+            .config("spark.hadoop.hive.metastore.uris", metastoreURI)
+            .config("hive.exec.dynamic.partition", "true")
+            .config("hive.exec.dynamic.partition.mode", "nonstrict")
+            .getOrCreate();
   }
 
   @AfterClass
@@ -89,24 +89,24 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
     SQLContext sc = new SQLContext(TestSparkTableUtil.spark);
 
     sc.sql(String.format(
-        "CREATE TABLE %s (\n" +
-            "    id int COMMENT 'unique id'\n" +
-            ")\n" +
-            " PARTITIONED BY (data string)\n" +
-            " LOCATION '%s'", qualifiedTableName, tableLocationStr)
+                    "CREATE TABLE %s (\n" +
+                    "    id int COMMENT 'unique id'\n" +
+                    ")\n" +
+                    " PARTITIONED BY (data string)\n" +
+                    " LOCATION '%s'", qualifiedTableName, tableLocationStr)
     );
 
     List<SimpleRecord> expected = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "c")
     );
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
     df.select("id", "data").orderBy("data").write()
-        .mode("append")
-        .insertInto(qualifiedTableName);
+            .mode("append")
+            .insertInto(qualifiedTableName);
   }
 
   @After
@@ -141,14 +141,14 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
   public void testImportPartitionedTable() throws Exception {
     File location = temp.newFolder("partitioned_table");
     spark.table(qualifiedTableName).write().mode("overwrite").partitionBy("data").format("parquet")
-        .saveAsTable("test_partitioned_table");
+            .saveAsTable("test_partitioned_table");
     TableIdentifier source = spark.sessionState().sqlParser()
-        .parseTableIdentifier("test_partitioned_table");
+            .parseTableIdentifier("test_partitioned_table");
     HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
     Table table = tables.create(SparkSchemaUtil.schemaForTable(spark, qualifiedTableName),
-        SparkSchemaUtil.specForTable(spark, qualifiedTableName),
-        ImmutableMap.of(),
-        location.getCanonicalPath());
+            SparkSchemaUtil.specForTable(spark, qualifiedTableName),
+            ImmutableMap.of(),
+            location.getCanonicalPath());
     File stagingDir = temp.newFolder("staging-dir");
     SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
     long count = spark.read().format("iceberg").load(location.toString()).count();
@@ -159,14 +159,14 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
   public void testImportUnpartitionedTable() throws Exception {
     File location = temp.newFolder("unpartitioned_table");
     spark.table(qualifiedTableName).write().mode("overwrite").format("parquet")
-        .saveAsTable("test_unpartitioned_table");
+            .saveAsTable("test_unpartitioned_table");
     TableIdentifier source = spark.sessionState().sqlParser()
-        .parseTableIdentifier("test_unpartitioned_table");
+            .parseTableIdentifier("test_unpartitioned_table");
     HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
     Table table = tables.create(SparkSchemaUtil.schemaForTable(spark, qualifiedTableName),
-        SparkSchemaUtil.specForTable(spark, qualifiedTableName),
-        ImmutableMap.of(),
-        location.getCanonicalPath());
+            SparkSchemaUtil.specForTable(spark, qualifiedTableName),
+            ImmutableMap.of(),
+            location.getCanonicalPath());
     File stagingDir = temp.newFolder("staging-dir");
     SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
     long count = spark.read().format("iceberg").load(location.toString()).count();
@@ -176,24 +176,24 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
   @Test
   public void testImportAsHiveTable() throws Exception {
     spark.table(qualifiedTableName).write().mode("overwrite").format("parquet")
-        .saveAsTable("unpartitioned_table");
+            .saveAsTable("unpartitioned_table");
     TableIdentifier source = new TableIdentifier("unpartitioned_table");
     Table table = catalog.createTable(
-        org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "test_unpartitioned_table"),
-        SparkSchemaUtil.schemaForTable(spark, "unpartitioned_table"),
-        SparkSchemaUtil.specForTable(spark, "unpartitioned_table"));
+            org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "test_unpartitioned_table"),
+            SparkSchemaUtil.schemaForTable(spark, "unpartitioned_table"),
+            SparkSchemaUtil.specForTable(spark, "unpartitioned_table"));
     File stagingDir = temp.newFolder("staging-dir");
     SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
     long count1 = spark.read().format("iceberg").load(DB_NAME + ".test_unpartitioned_table").count();
     Assert.assertEquals("three values ", 3, count1);
 
     spark.table(qualifiedTableName).write().mode("overwrite").partitionBy("data").format("parquet")
-        .saveAsTable("partitioned_table");
+            .saveAsTable("partitioned_table");
     source = new TableIdentifier("partitioned_table");
     table = catalog.createTable(
-        org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "test_partitioned_table"),
-        SparkSchemaUtil.schemaForTable(spark, "partitioned_table"),
-        SparkSchemaUtil.specForTable(spark, "partitioned_table"));
+            org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "test_partitioned_table"),
+            SparkSchemaUtil.schemaForTable(spark, "partitioned_table"),
+            SparkSchemaUtil.specForTable(spark, "partitioned_table"));
 
     SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
     long count2 = spark.read().format("iceberg").load(DB_NAME + ".test_partitioned_table").count();

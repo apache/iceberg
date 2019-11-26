@@ -104,7 +104,7 @@ public class TestParquetAvroReader {
           .project(structSchema)
           .createReaderFunc(
               fileSchema -> ParquetAvroValueReaders.buildReader(structSchema, readSchema))
-          .build()) {
+           .build()) {
         long start = System.currentTimeMillis();
         long val = 0;
         long count = 0;
@@ -164,10 +164,10 @@ public class TestParquetAvroReader {
       System.gc();
 
       try (CloseableIterable<Record> reader = Parquet.read(Files.localInput(testFile))
-          .project(COMPLEX_SCHEMA)
-          .createReaderFunc(
-              fileSchema -> ParquetAvroValueReaders.buildReader(COMPLEX_SCHEMA, readSchema))
-          .build()) {
+           .project(COMPLEX_SCHEMA)
+           .createReaderFunc(
+               fileSchema -> ParquetAvroValueReaders.buildReader(COMPLEX_SCHEMA, readSchema))
+           .build()) {
         long start = System.currentTimeMillis();
         long val = 0;
         long count = 0;

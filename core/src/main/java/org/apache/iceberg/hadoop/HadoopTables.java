@@ -126,7 +126,7 @@ public class HadoopTables implements Tables, Configurable {
    */
   @Override
   public Table create(Schema schema, PartitionSpec spec, Map<String, String> properties,
-      String location) {
+                      String location) {
     Preconditions.checkNotNull(schema, "A table schema is required");
 
     TableOperations ops = newTableOps(location);

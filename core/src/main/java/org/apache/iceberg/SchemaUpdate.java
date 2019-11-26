@@ -309,8 +309,8 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   private static Schema applyChanges(Schema schema, List<Integer> deletes,
-      Map<Integer, Types.NestedField> updates,
-      Multimap<Integer, Types.NestedField> adds) {
+                                     Map<Integer, Types.NestedField> updates,
+                                     Multimap<Integer, Types.NestedField> adds) {
     Types.StructType struct = TypeUtil
         .visit(schema, new ApplyChanges(deletes, updates, adds))
         .asNestedType().asStructType();
@@ -323,8 +323,8 @@ class SchemaUpdate implements UpdateSchema {
     private final Multimap<Integer, Types.NestedField> adds;
 
     private ApplyChanges(List<Integer> deletes,
-        Map<Integer, Types.NestedField> updates,
-        Multimap<Integer, Types.NestedField> adds) {
+                        Map<Integer, Types.NestedField> updates,
+                        Multimap<Integer, Types.NestedField> adds) {
       this.deletes = deletes;
       this.updates = updates;
       this.adds = adds;
@@ -471,7 +471,7 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   private static Types.StructType addFields(Types.StructType struct,
-      Collection<Types.NestedField> adds) {
+                                            Collection<Types.NestedField> adds) {
     List<Types.NestedField> newFields = Lists.newArrayList(struct.fields());
     newFields.addAll(adds);
     return Types.StructType.of(newFields);

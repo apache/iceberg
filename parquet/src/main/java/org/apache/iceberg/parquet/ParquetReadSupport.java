@@ -37,12 +37,12 @@ import org.apache.parquet.schema.MessageType;
  *
  * @param <T> Java type produced by this read support instance
  */
-public class ParquetReadSupport<T> extends ReadSupport<T> {
+class ParquetReadSupport<T> extends ReadSupport<T> {
   private final Schema expectedSchema;
   private final ReadSupport<T> wrapped;
   private final boolean callInit;
 
-  public ParquetReadSupport(Schema expectedSchema, ReadSupport<T> readSupport, boolean callInit) {
+  ParquetReadSupport(Schema expectedSchema, ReadSupport<T> readSupport, boolean callInit) {
     this.expectedSchema = expectedSchema;
     this.wrapped = readSupport;
     this.callInit = callInit;

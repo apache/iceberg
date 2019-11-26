@@ -57,9 +57,6 @@ Iceberg is built using Gradle 5.4.1.
 * To invoke a build and run tests: `./gradlew build`
 * To skip tests: `./gradlew build -x test`
 
-* To invoke a build and run tests: `./gradlew build`
-* To skip tests: `./gradlew build -x test`
-
 Iceberg table support is organized in library modules:
 
 * `iceberg-common` contains utility classes used in other modules

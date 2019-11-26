@@ -95,7 +95,7 @@ public class ParquetUtil {
         increment(columnSizes, fieldId, column.getTotalSize());
 
         String columnName = fileSchema.findColumnName(fieldId);
-        MetricsModes.MetricsMode metricsMode = metricsConfig.columnMode(columnName);
+        MetricsMode metricsMode = metricsConfig.columnMode(columnName);
         if (metricsMode == MetricsModes.None.get()) {
           continue;
         }
@@ -134,7 +134,8 @@ public class ParquetUtil {
   }
 
   /**
-   * @return a list of offsets in ascending order determined by the starting position of the row groups
+   * @return a list of offsets in ascending order determined by the starting position
+   * of the row groups
    */
   public static List<Long> getSplitOffsets(ParquetMetadata md) {
     List<Long> splitOffsets = new ArrayList<>(md.getBlocks().size());
@@ -172,9 +173,8 @@ public class ParquetUtil {
   }
 
   @SuppressWarnings("unchecked")
-  private static <T> void updateMin(
-      Map<Integer, Literal<?>> lowerBounds, int id, Type type,
-      Literal<T> min, MetricsMode metricsMode) {
+  private static <T> void updateMin(Map<Integer, Literal<?>> lowerBounds, int id, Type type,
+                                    Literal<T> min, MetricsMode metricsMode) {
     Literal<T> currentMin = (Literal<T>) lowerBounds.get(id);
     if (currentMin == null || min.comparator().compare(min.value(), currentMin.value()) < 0) {
       if (metricsMode == MetricsModes.Full.get()) {
@@ -198,9 +198,8 @@ public class ParquetUtil {
   }
 
   @SuppressWarnings("unchecked")
-  private static <T> void updateMax(
-      Map<Integer, Literal<?>> upperBounds, int id, Type type,
-      Literal<T> max, MetricsMode metricsMode) {
+  private static <T> void updateMax(Map<Integer, Literal<?>> upperBounds, int id, Type type,
+                                    Literal<T> max, MetricsMode metricsMode) {
     Literal<T> currentMax = (Literal<T>) upperBounds.get(id);
     if (currentMax == null || max.comparator().compare(max.value(), currentMax.value()) > 0) {
       if (metricsMode == MetricsModes.Full.get()) {
@@ -226,8 +225,7 @@ public class ParquetUtil {
   private static Map<Integer, ByteBuffer> toBufferMap(Schema schema, Map<Integer, Literal<?>> map) {
     Map<Integer, ByteBuffer> bufferMap = Maps.newHashMap();
     for (Map.Entry<Integer, Literal<?>> entry : map.entrySet()) {
-      bufferMap.put(
-          entry.getKey(),
+      bufferMap.put(entry.getKey(),
           Conversions.toByteBuffer(schema.findType(entry.getKey()), entry.getValue().value()));
     }
     return bufferMap;

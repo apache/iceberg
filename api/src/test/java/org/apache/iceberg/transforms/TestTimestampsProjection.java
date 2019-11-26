@@ -43,7 +43,7 @@ public class TestTimestampsProjection {
   private static final Schema SCHEMA = new Schema(optional(1, "timestamp", TYPE));
 
   public void assertProjectionStrict(PartitionSpec spec, UnboundPredicate<?> filter,
-      Expression.Operation expectedOp, String expectedLiteral) {
+                                     Expression.Operation expectedOp, String expectedLiteral) {
 
     Expression projection = Projections.strict(spec).project(filter);
     UnboundPredicate<?> predicate = assertAndUnwrapUnbound(projection);
@@ -57,21 +57,21 @@ public class TestTimestampsProjection {
   }
 
   public void assertProjectionStrictValue(PartitionSpec spec, UnboundPredicate<?> filter,
-      Expression.Operation expectedOp) {
+                                          Expression.Operation expectedOp) {
 
     Expression projection = Projections.strict(spec).project(filter);
     Assert.assertEquals(projection.op(), expectedOp);
   }
 
   public void assertProjectionInclusiveValue(PartitionSpec spec, UnboundPredicate<?> filter,
-      Expression.Operation expectedOp) {
+                                             Expression.Operation expectedOp) {
 
     Expression projection = Projections.inclusive(spec).project(filter);
     Assert.assertEquals(projection.op(), expectedOp);
   }
 
   public void assertProjectionInclusive(PartitionSpec spec, UnboundPredicate<?> filter,
-      Expression.Operation expectedOp, String expectedLiteral) {
+                                        Expression.Operation expectedOp, String expectedLiteral) {
     Expression projection = Projections.inclusive(spec).project(filter);
     UnboundPredicate<?> predicate = assertAndUnwrapUnbound(projection);
 

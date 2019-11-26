@@ -101,10 +101,10 @@ class Reader implements DataSourceReader,
     SupportsPushDownFilters,
     SupportsPushDownRequiredColumns,
     SupportsReportStatistics {
+  private static final Logger LOG = LoggerFactory.getLogger(Reader.class);
 
   private static final Filter[] NO_FILTERS = new Filter[0];
 
-  private static final Logger LOG = LoggerFactory.getLogger(Reader.class);
   private final Table table;
   private final Long snapshotId;
   private final Long asOfTimestamp;
@@ -395,7 +395,7 @@ class Reader implements DataSourceReader,
     @Override
     public InputPartitionReader<InternalRow> createPartitionReader() {
       return new TaskDataReader(task, lazyTableSchema(), lazyExpectedSchema(), fileIo,
-          encryptionManager, caseSensitive);
+        encryptionManager, caseSensitive);
     }
 
     private Schema lazyTableSchema() {
@@ -431,7 +431,7 @@ class Reader implements DataSourceReader,
     private InternalRow current = null;
 
     TaskDataReader(CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
-        EncryptionManager encryptionManager, boolean caseSensitive) {
+                   EncryptionManager encryptionManager, boolean caseSensitive) {
       this.fileIo = fileIo;
       this.tasks = task.files().iterator();
       this.tableSchema = tableSchema;
@@ -585,8 +585,8 @@ class Reader implements DataSourceReader,
     }
 
     private CloseableIterable<InternalRow> newAvroIterable(InputFile location,
-        FileScanTask task,
-        Schema readSchema) {
+                                                      FileScanTask task,
+                                                      Schema readSchema) {
       return Avro.read(location)
           .reuseContainers()
           .project(readSchema)
@@ -596,8 +596,8 @@ class Reader implements DataSourceReader,
     }
 
     private CloseableIterable<InternalRow> newParquetIterable(InputFile location,
-        FileScanTask task,
-        Schema readSchema) {
+                                                            FileScanTask task,
+                                                            Schema readSchema) {
       return Parquet.read(location)
           .project(readSchema)
           .split(task.start(), task.length())
@@ -608,8 +608,8 @@ class Reader implements DataSourceReader,
     }
 
     private CloseableIterable<InternalRow> newOrcIterable(InputFile location,
-        FileScanTask task,
-        Schema readSchema) {
+                                                          FileScanTask task,
+                                                          Schema readSchema) {
       return ORC.read(location)
           .schema(readSchema)
           .split(task.start(), task.length())
@@ -627,7 +627,7 @@ class Reader implements DataSourceReader,
     }
   }
 
-  public static class PartitionRowConverter implements Function<StructLike, InternalRow> {
+  private static class PartitionRowConverter implements Function<StructLike, InternalRow> {
     private final DataType[] types;
     private final int[] positions;
     private final Class<?>[] javaTypes;
