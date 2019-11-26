@@ -228,4 +228,13 @@ public interface Table {
    * @return a {@link LocationProvider} to provide locations for new data files
    */
   LocationProvider locationProvider();
+
+  /**
+   * Return the name of this table.
+   *
+   * @return this table's name
+   */
+  default String name() {
+    return "table(" + hashCode() + ")";
+  }
 }

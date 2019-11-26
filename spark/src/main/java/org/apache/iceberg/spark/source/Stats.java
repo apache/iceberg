@@ -20,7 +20,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.OptionalLong;
-import org.apache.spark.sql.sources.v2.reader.Statistics;
+import org.apache.spark.sql.connector.read.Statistics;
 
 class Stats implements Statistics {
   private final OptionalLong sizeInBytes;
