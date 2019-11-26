@@ -41,6 +41,10 @@ import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
+/**
+ * This class tests the snapshot functionality available with Iceberg.
+ * This includes things like time-travel, rollback and retrieving metadata information.
+ */
 public class SnapshotFunctionalityTest {
 
   private static final Logger log = LoggerFactory.getLogger(SnapshotFunctionalityTest.class);

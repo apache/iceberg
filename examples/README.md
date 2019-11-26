@@ -1,0 +1,184 @@
+# Iceberg Java API Examples (with Spark)
+
+## About
+Welcome! :smile:
+
+If you've stumbled across this module, hopefully you're looking for some guidance on how to get started with the [Apache Iceberg](https://iceberg.apache.org/) table format. This set of classes collects code examples of how to use the Iceberg Java API with Spark, along with some extra detail here in the README.
+
+The examples are structured as JUnit tests that you can download and run locally if you want to mess around with Iceberg yourself. 
+
+## Running Iceberg yourself
+If you'd like to try out Iceberg in your own project, you can use the `spark-iceberg-runtime` dependency:
+```xml
+   <dependency>
+     <groupId>org.apache.iceberg</groupId>
+     <artifactId>iceberg-spark-runtime</artifactId>
+     <version>${iceberg.version}</version>
+   </dependency>
+```
+
+You'll also need `spark-sql`:
+```xml
+  <dependency> 
+    <groupId>org.apache.spark</groupId>
+    <artifactId>spark-sql_2.12</artifactId>
+    <version>2.4.4</version>
+  </dependency>
+```
+
+It should be noted that the current release version of Iceberg is compatible with Spark 2.4.x.
+
+## Key features investigated
+The following section will break down the different areas of Iceberg explored in the examples, with links to the code and extra information that could be useful for new users. 
+
+### Writing data to tables
+There are multiple ways of creating tables with Iceberg, including using the Hive Metastore to keep track of tables (HiveCatalog), or using HDFS/ your local file system to store the tables. To limit complexity, these examples create tables on your local file system using the HadoopTables class.
+
+To write Iceberg tables you will need to use the Iceberg API to create a `Schema` and `PartitionSpec` which you use with a Spark `DataFrameWriter` to create Iceberg an `Table`.
+
+Code examples:
+- [Unpartitioned tables](src/test/java/WriteToUnpartitionedTableTest.java)
+- [Partitioned tables](src/test/java/WriteToPartitionedTableTest.java)
+
+#### A look quick look at file structures
+It could be interesting to note that when writing partitioned data, Iceberg will layout your files in a similar manner to Hive:
+
+``` 
+├── data
+│   ├── published_month=2017-09
+│   │   └── 00000-1-5cbc72f6-7c1a-45e4-bb26-bc30deaca247-00002.parquet
+│   ├── published_month=2018-09
+│   │   └── 00000-1-5cbc72f6-7c1a-45e4-bb26-bc30deaca247-00001.parquet
+│   ├── published_month=2018-11
+│   │   └── 00000-1-5cbc72f6-7c1a-45e4-bb26-bc30deaca247-00000.parquet
+│   └── published_month=null
+│       └── 00000-1-5cbc72f6-7c1a-45e4-bb26-bc30deaca247-00003.parquet
+└── metadata
+    └── version-hint.text
+```
+
+### Reading data from tables
+Reading Iceberg tables is fairly simple using the Spark `DataFrameReader`.
+
+Code examples:
+- [Unpartitioned table](src/test/java/ReadFromUnpartitionedTableTest.java)
+- [Partitioned tabled](src/test/java/ReadFromPartitionedTableTest.java)
+
+### A look at the metadata
+This section looks a little bit closer at the metadata produced by Iceberg tables. Consider an example where you've written a single json file to a table. Your metadata folder will look something like this:
+
+``` 
+├── data
+│   └── ...
+└── metadata
+    ├── 51accd1d-39c7-4a6e-8f35-9e05f7c67864-m0.avro
+    ├── snap-1335014336004891572-1-51accd1d-39c7-4a6e-8f35-9e05f7c67864.avro
+    ├── v1.metadata.json
+    ├── v2.metadata.json
+    └── version-hint.text
+```
+
+The metadata for your table is kept in json files (`v1.metadata.json` and `v2.metadata.json`). Version 1 of the metadata is written when your table is first created. It contains things like the table location, the schema and the partition spec:
+
+```json
+{
+  "format-version" : 1,
+  "table-uuid" : "f31aa6d7-acc3-4365-b737-4ef028a60bc1",
+  "location" : "/var/folders/sg/ypkyhl2s0p18qcd10ddpkn0c0000gn/T/temp5216691795982307214",
+  "last-updated-ms" : 1572972868185,
+  "last-column-id" : 2,
+  "schema" : {
+    "type" : "struct",
+    "fields" : [ {
+      ...
+    } ]
+  },
+  "partition-spec" : [ {
+    ...
+  } ],
+  "default-spec-id" : 0,
+  "partition-specs" : [ {
+    ...
+    } ]
+  } ],
+  "properties" : { },
+  "current-snapshot-id" : -1,
+  "snapshots" : [ ],
+  "snapshot-log" : [ ]
+}
+```
+
+It's interesting to note the `current-snapshot-id` field set to `-1`, because no data has been added to the table yet. Similarly, you can see the empty `snapshots` field. 
+
+When you then add your first chunk of data, you get a new version of the metadata (`v2.metadata.json`) that is the same as the first version except for the snapshot section at the bottom, which gets updated to:
+
+```json
+"current-snapshot-id" : 8405273199394950821,
+  "snapshots" : [ {
+    "snapshot-id" : 8405273199394950821,
+    "timestamp-ms" : 1572972873293,
+    "summary" : {
+      "operation" : "append",
+      "spark.app.id" : "local-1572972867758",
+      "added-data-files" : "4",
+      "added-records" : "4",
+      "changed-partition-count" : "4",
+      "total-records" : "4",
+      "total-data-files" : "4"
+    },
+    "manifest-list" : "/var/folders/sg/ypkyhl2s0p18qcd10ddpkn0c0000gn/T/temp5216691795982307214/metadata/snap-8405273199394950821-1-5706fc75-31e1-404e-aa23-b493387e2e32.avro"
+  } ],
+  "snapshot-log" : [ {
+    "timestamp-ms" : 1572972873293,
+    "snapshot-id" : 8405273199394950821
+  } ]
+```
+
+Here you get information on the data you have just written to the table, such as `added-records` and `added-data-files` as well as where the manifest list is located. 
+
+After having added your data with a new snapshot, you also get the manifest list added, which is what you see in the screenshot above as the second Avro file. 
+
+### Snapshot based functionality
+Iceberg uses [snapshots](https://iceberg.apache.org/terms/#snapshot) as part of its implementation, and provides a lot of useful functionality from this, such as **time travel**.
+
+- Iceberg creates a new snapshot for all table operations that modify the table, such as appends and overwrites.
+- You are able to access the whole list of snapshots generated for a table.
+- Iceberg will store all snapshots generated until _you_ say the snapshots should be deleted.
+- You can delete all snapshots earlier than a certain timestamp.
+- You can delete snaphots based on `SnapshotID` values.
+- You can read data from an old snapshot using the `SnapshotID`.
+- You can roll back your data to an earlier snapshot.
+
+Code examples can be found [here](src/test/java/SnapshotFunctionalityTest.java).
+
+### Table schema evolution
+Iceberg provides support to handle schema evolution of your tables over time:
+
+1. Add a new column
+    1. The new column is always added at the end of the table.
+    1. You are only able to add a column at the end of the schema, not somewhere in the middle. 
+    1. Any rows using the earlier schema return a `null` value for this new column. You cannot use an alternative default value.
+    1. This column automatically becomes an `optional` column, meaning adding data to this column isn't enforced for each future write. 
+1. Delete a column
+    1. When you delete a column, that column will no longer be available in any of your previous snapshots. So, use this with caution :sweat_smile: 
+1. Update a column
+    1. Certain type promotions can be made (such as `int` -> `long`). For a definitive list, see the [official documentation](https://iceberg.apache.org/spec/#schemas-and-data-types).
+1. Rename a column
+    1. When you rename a column, it will appear renamed in all earlier versions of snapshots. 
+
+Code examples can be found [here](src/test/java/SchemaEvolutionTest.java).
+
+### Optimistic concurrency
+[Optimistic concurrency](https://en.wikipedia.org/wiki/Optimistic_concurrency_control) is when a system assumes that multiple writers can write to the same table without interfering with each other. This is usually used in environments where there is low data contention. It means that locking of the table isn't used, allowing multiple writers to  write to the table at the same time. 
+
+However, this means you need to occasionally deal with concurrent writer conflicts. This is when multiple writers start writing to a table at the same time, but one finishes first and commits an update. Then when the second writer tries to commit it has to throw an error because the table isn't in the same state as it was when it started writing.
+
+Iceberg deals with this by attempting retries of the write based on the new metadata. This can happen if the files the first write changed aren't touched by the second write, then it's deemed safe to commit the second update. 
+
+[This test](src/test/java/ConcurrencyTest.java) looks to experiment with how optimistic concurrency works. 
+
+By default, Iceberg has set the `commit.retry.num-retries` property to **4**. You can edit this default by creating an `UpdateProperties` object and assigning a new number to that property:
+
+```java
+  table.updateProperties().set("commit.retry.num-retries", "1").commit();
+```

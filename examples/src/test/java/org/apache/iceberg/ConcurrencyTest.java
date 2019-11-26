@@ -41,6 +41,9 @@ import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
+/**
+ * This class tests how Iceberg handles concurrency when reading and writing at the same time
+ */
 public class ConcurrencyTest {
 
   private static final Logger log = LoggerFactory.getLogger(ConcurrencyTest.class);
@@ -64,6 +67,9 @@ public class ConcurrencyTest {
     sparkReader = SparkSession.builder().master("local[2]").getOrCreate();
     sparkWriter = SparkSession.builder().master("local[2]").getOrCreate();
 
+    sparkReader.sparkContext().setLogLevel("WARN");
+    sparkWriter.sparkContext().setLogLevel("WARN");
+
     HadoopTables tables = new HadoopTables(conf);
     table = tables.create(schema, tableLocation.toString());
 
@@ -74,6 +80,10 @@ public class ConcurrencyTest {
     log.info("End of setup phase");
   }
 
+  /**
+   * The test creates 500 read tasks and one really long write (writing 1 mil rows)
+   * and uses threading to call the tasks concurrently.
+   */
   @Test
   public void writingAndReadingConcurrently() throws InterruptedException {
     ExecutorService threadPool = Executors.newFixedThreadPool(5);

@@ -37,6 +37,10 @@ import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
+/**
+ * This class tests how you can evolve your table schema with Iceberg.
+ * This includes things like adding, deleting, renaming columns and type promotions.
+ */
 public class SchemaEvolutionTest {
 
   private static final Logger log = LoggerFactory.getLogger(SchemaEvolutionTest.class);
