@@ -137,7 +137,7 @@ public class SchemaEvolutionTest {
 
   @Test
   public void floatToDouble() throws IOException {
-    //Set up a new table to test this conversion
+    // Set up a new table to test this conversion
     Configuration conf = new Configuration();
     Schema schema = new Schema(optional(1, "float", Types.FloatType.get()));
     File location = Files.createTempDirectory("temp").toFile();
@@ -151,7 +151,7 @@ public class SchemaEvolutionTest {
 
   @Test
   public void widenDecimalPrecision() throws IOException {
-    //Set up a new table to test this conversion
+    // Set up a new table to test this conversion
     Configuration conf = new Configuration();
     Schema schema = new Schema(optional(1, "decimal", Types.DecimalType.of(2, 2)));
     File location = Files.createTempDirectory("temp").toFile();
