@@ -134,14 +134,19 @@ project(':iceberg-data') {
   dependencies {
     compile project(':iceberg-api')
     compile project(':iceberg-core')
+
     compileOnly project(':iceberg-parquet')
     compileOnly project(':iceberg-orc')
+    compileOnly("org.apache.hadoop:hadoop-common") {
+      exclude group: 'commons-beanutils'
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+    }
 
     testCompile("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
-
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
 
@@ -200,10 +205,12 @@ project(':iceberg-orc') {
       exclude group: 'com.google.protobuf', module: 'protobuf-java'
       exclude group: 'org.apache.hive', module: 'hive-storage-api'
     }
-    compile("org.apache.hadoop:hadoop-common") {
-      exclude group: 'commons-beanutils'
-    }
 
+    compileOnly("org.apache.hadoop:hadoop-common") {
+      exclude group: 'commons-beanutils'
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+    }
     compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
