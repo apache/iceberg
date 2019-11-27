@@ -30,7 +30,6 @@ import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.orc.OrcValueReader;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
@@ -54,10 +53,9 @@ public class GenericOrcReader implements OrcValueReader<Record> {
   private final List<TypeDescription> columns;
   private final Converter[] converters;
 
-  private GenericOrcReader(Schema expectedSchema, TypeDescription fileSchema) {
+  private GenericOrcReader(Schema expectedSchema, TypeDescription readSchema) {
     schema = expectedSchema;
-    TypeDescription projectedSchema = ORCSchemaUtil.buildOrcProjection(expectedSchema, fileSchema);
-    columns = projectedSchema.getChildren();
+    columns = readSchema.getChildren();
     converters = buildConverters();
   }
 
