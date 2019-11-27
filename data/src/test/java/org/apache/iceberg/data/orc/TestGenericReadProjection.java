@@ -29,8 +29,6 @@ import org.apache.iceberg.data.TestReadProjection;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.orc.ORC;
 
-/**
- */
 public class TestGenericReadProjection extends TestReadProjection {
 
   @Override
