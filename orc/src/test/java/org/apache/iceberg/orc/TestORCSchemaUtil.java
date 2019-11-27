@@ -72,7 +72,7 @@ public class TestORCSchemaUtil {
         optional(8, "intCol3", Types.IntegerType.get()),
         optional(9, "doubleCol", Types.DoubleType.get()),
         required(10, "uuidCol", Types.UUIDType.get()),
-        optional(2, "booleanCol", Types.BooleanType.get()),
+        optional(20, "booleanCol", Types.BooleanType.get()),
         optional(21, "fixedCol", Types.FixedType.ofLength(4096)),
         required(22, "binaryCol", Types.BinaryType.get()),
         required(23, "stringCol", Types.StringType.get()),
