@@ -19,6 +19,9 @@
 
 package org.apache.iceberg.transforms;
 
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
+import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
@@ -33,9 +36,11 @@ import static org.apache.iceberg.TestHelpers.assertAndUnwrapUnbound;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.in;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
+import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TestDatesProjection {
@@ -50,10 +55,17 @@ public class TestDatesProjection {
 
     Assert.assertEquals(expectedOp, predicate.op());
 
-    Literal literal = predicate.literal();
     Dates transform = (Dates) spec.getFieldsBySourceId(1).get(0).transform();
-    String output = transform.toHumanString((int) literal.value());
-    Assert.assertEquals(expectedLiteral, output);
+    if (predicate.op() == Expression.Operation.IN || predicate.op() == Expression.Operation.NOT_IN) {
+      Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
+      String actual = Lists.newArrayList(values).stream().sorted()
+          .map(v -> transform.toHumanString((Integer) v)).collect(Collectors.toList()).toString();
+      Assert.assertEquals(expectedLiteral, actual);
+    } else {
+      Literal literal = predicate.literal();
+      String output = transform.toHumanString((int) literal.value());
+      Assert.assertEquals(expectedLiteral, output);
+    }
   }
 
   public void assertProjectionStrictValue(PartitionSpec spec, UnboundPredicate<?> filter,
@@ -77,10 +89,17 @@ public class TestDatesProjection {
 
     Assert.assertEquals(predicate.op(), expectedOp);
 
-    Literal literal = predicate.literal();
     Dates transform = (Dates) spec.getFieldsBySourceId(1).get(0).transform();
-    String output = transform.toHumanString((int) literal.value());
-    Assert.assertEquals(expectedLiteral, output);
+    if (predicate.op() == Expression.Operation.IN || predicate.op() == Expression.Operation.NOT_IN) {
+      Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
+      String actual = Lists.newArrayList(values).stream().sorted()
+          .map(v -> transform.toHumanString((Integer) v)).collect(Collectors.toList()).toString();
+      Assert.assertEquals(expectedLiteral, actual);
+    } else {
+      Literal literal = predicate.literal();
+      String output = transform.toHumanString((int) literal.value());
+      Assert.assertEquals(expectedLiteral, output);
+    }
   }
 
   @Test
@@ -94,6 +113,11 @@ public class TestDatesProjection {
     assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "2016-12");
     assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_EQ, "2017-01");
     assertProjectionStrictValue(spec, equal("date", date), Expression.Operation.FALSE);
+
+    Integer date1 = (Integer) Literal.of("2017-12-02").to(TYPE).value();
+    assertProjectionStrict(spec, notIn("date", date1, date),
+        Expression.Operation.NOT_IN, "[2017-01, 2017-12]");
+    assertProjectionStrictValue(spec, in("date", date1, date), Expression.Operation.FALSE);
   }
 
   @Test
@@ -107,6 +131,11 @@ public class TestDatesProjection {
     assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "2017-12");
     assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_EQ, "2017-12");
     assertProjectionStrictValue(spec, equal("date", date), Expression.Operation.FALSE);
+
+    Integer date1 = (Integer) Literal.of("2017-01-01").to(TYPE).value();
+    assertProjectionStrict(spec, notIn("date", date1, date),
+        Expression.Operation.NOT_IN, "[2017-01, 2017-12]");
+    assertProjectionStrictValue(spec, in("date", date1, date), Expression.Operation.FALSE);
   }
 
   @Test
@@ -120,6 +149,11 @@ public class TestDatesProjection {
     assertProjectionInclusive(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017-12");
     assertProjectionInclusive(spec, equal("date", date), Expression.Operation.EQ, "2017-12");
     assertProjectionInclusiveValue(spec, notEqual("date", date), Expression.Operation.TRUE);
+
+    Integer date1 = (Integer) Literal.of("2017-01-01").to(TYPE).value();
+    assertProjectionInclusive(spec, in("date", date, date1),
+        Expression.Operation.IN, "[2017-01, 2017-12]");
+    assertProjectionInclusiveValue(spec, notIn("date", date, date1), Expression.Operation.TRUE);
   }
 
   @Test
@@ -133,6 +167,11 @@ public class TestDatesProjection {
     assertProjectionInclusive(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017-12");
     assertProjectionInclusive(spec, equal("date", date), Expression.Operation.EQ, "2017-12");
     assertProjectionInclusiveValue(spec, notEqual("date", date), Expression.Operation.TRUE);
+
+    Integer date1 = (Integer) Literal.of("2017-01-01").to(TYPE).value();
+    assertProjectionInclusive(spec, in("date", date, date1),
+        Expression.Operation.IN, "[2017-01, 2017-12]");
+    assertProjectionInclusiveValue(spec, notIn("date", date, date1), Expression.Operation.TRUE);
   }
 
   @Test
@@ -148,6 +187,11 @@ public class TestDatesProjection {
     assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "2016-12-31");
     assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_EQ, "2017-01-01");
     assertProjectionStrictValue(spec, equal("date", date), Expression.Operation.FALSE);
+
+    Integer date1 = (Integer) Literal.of("2017-12-31").to(TYPE).value();
+    assertProjectionStrict(spec, notIn("date", date, date1),
+        Expression.Operation.NOT_IN, "[2017-01-01, 2017-12-31]");
+    assertProjectionStrictValue(spec, in("date", date, date1), Expression.Operation.FALSE);
   }
 
   @Test
@@ -161,6 +205,11 @@ public class TestDatesProjection {
     assertProjectionInclusive(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017-01-01");
     assertProjectionInclusive(spec, equal("date", date), Expression.Operation.EQ, "2017-01-01");
     assertProjectionInclusiveValue(spec, notEqual("date", date), Expression.Operation.TRUE);
+
+    Integer date1 = (Integer) Literal.of("2017-12-31").to(TYPE).value();
+    assertProjectionInclusive(spec, in("date", date, date1),
+        Expression.Operation.IN, "[2017-01-01, 2017-12-31]");
+    assertProjectionInclusiveValue(spec, notIn("date", date, date1), Expression.Operation.TRUE);
   }
 
   @Test
@@ -174,6 +223,11 @@ public class TestDatesProjection {
     assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "2016");
     assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_EQ, "2017");
     assertProjectionStrictValue(spec, equal("date", date), Expression.Operation.FALSE);
+
+    Integer date1 = (Integer) Literal.of("2016-12-31").to(TYPE).value();
+    assertProjectionStrict(spec, notIn("date", date, date1),
+        Expression.Operation.NOT_IN, "[2016, 2017]");
+    assertProjectionStrictValue(spec, in("date", date, date1), Expression.Operation.FALSE);
   }
 
   @Test
@@ -187,6 +241,11 @@ public class TestDatesProjection {
     assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "2017");
     assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_EQ, "2017");
     assertProjectionStrictValue(spec, equal("date", date), Expression.Operation.FALSE);
+
+    Integer date1 = (Integer) Literal.of("2016-01-01").to(TYPE).value();
+    assertProjectionStrict(spec, notIn("date", date, date1),
+        Expression.Operation.NOT_IN, "[2016, 2017]");
+    assertProjectionStrictValue(spec, in("date", date, date1), Expression.Operation.FALSE);
   }
 
   @Test
@@ -200,6 +259,11 @@ public class TestDatesProjection {
     assertProjectionInclusive(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017");
     assertProjectionInclusive(spec, equal("date", date), Expression.Operation.EQ, "2017");
     assertProjectionInclusiveValue(spec, notEqual("date", date), Expression.Operation.TRUE);
+
+    Integer date1 = (Integer) Literal.of("2016-12-31").to(TYPE).value();
+    assertProjectionInclusive(spec, in("date", date, date1),
+        Expression.Operation.IN, "[2016, 2017]");
+    assertProjectionInclusiveValue(spec, notIn("date", date, date1), Expression.Operation.TRUE);
   }
 
   @Test
@@ -213,5 +277,10 @@ public class TestDatesProjection {
     assertProjectionInclusive(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017");
     assertProjectionInclusive(spec, equal("date", date), Expression.Operation.EQ, "2017");
     assertProjectionInclusiveValue(spec, notEqual("date", date), Expression.Operation.TRUE);
+
+    Integer date1 = (Integer) Literal.of("2016-01-01").to(TYPE).value();
+    assertProjectionInclusive(spec, in("date", date, date1),
+        Expression.Operation.IN, "[2016, 2017]");
+    assertProjectionInclusiveValue(spec, notIn("date", date, date1), Expression.Operation.TRUE);
   }
 }
