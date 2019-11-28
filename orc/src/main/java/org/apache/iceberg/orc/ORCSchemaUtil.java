@@ -254,7 +254,7 @@ public final class ORCSchemaUtil {
         for (Types.NestedField nestedField : type.asStructType().fields()) {
           String name = Optional.ofNullable(mapping.get(nestedField.fieldId()))
               .map(OrcField::name)
-              .orElse(nestedField.name());
+              .orElse(nestedField.name() + "_r" + nestedField.fieldId());
           TypeDescription childType = buildOrcProjection(nestedField.fieldId(), nestedField.type(),
               nestedField.isRequired(), mapping);
           orcType.addField(name, childType);

@@ -115,15 +115,15 @@ public class TestORCSchemaUtil {
     // Evolve schema
     Schema evolveSchema = new Schema(
         optional(2, "a", Types.StringType.get()),
-        optional(3, "c", Types.DateType.get())
+        optional(3, "c", Types.DateType.get())  // will produce ORC column c_r3 (new)
     );
 
     TypeDescription newOrcSchema = ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema);
     assertEquals(2, newOrcSchema.getChildren().size());
     assertEquals(1, newOrcSchema.findSubtype("b").getId());
     assertEquals(TypeDescription.Category.STRING, newOrcSchema.findSubtype("b").getCategory());
-    assertEquals(2, newOrcSchema.findSubtype("c").getId());
-    assertEquals(TypeDescription.Category.DATE, newOrcSchema.findSubtype("c").getCategory());
+    assertEquals(2, newOrcSchema.findSubtype("c_r3").getId());
+    assertEquals(TypeDescription.Category.DATE, newOrcSchema.findSubtype("c_r3").getCategory());
   }
 
   @Test
