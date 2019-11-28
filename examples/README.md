@@ -26,8 +26,6 @@ You'll also need `spark-sql`:
   </dependency>
 ```
 
-It should be noted that the current release version of Iceberg is compatible with Spark 2.4.x.
-
 ## Key features investigated
 The following section will break down the different areas of Iceberg explored in the examples, with links to the code and extra information that could be useful for new users. 
 
