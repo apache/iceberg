@@ -39,7 +39,7 @@ import org.junit.Test;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 /**
- * This test class uses Spark to create partitioned and unpartitioned tables locally with HDFS.
+ * This test class uses Spark to create partitioned and unpartitioned tables locally.
  */
 public class ReadAndWriteTablesTest {
 

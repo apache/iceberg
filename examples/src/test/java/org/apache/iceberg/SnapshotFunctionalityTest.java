@@ -43,7 +43,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 
 /**
  * This class tests the snapshot functionality available with Iceberg.
- * This includes things like time-travel, rollback and retrieving metadata information.
+ * This includes things like time-travel, rollback and retrieving metadata.
  */
 public class SnapshotFunctionalityTest {
 
@@ -113,7 +113,7 @@ public class SnapshotFunctionalityTest {
   }
 
   /**
-   * Expires anything older than a given timestamp, NOT including that timestamp
+   * Expires anything older than a given timestamp, NOT including that timestamp.
    */
   @Test
   public void retireAllSnapshotsOlderThanTimestamp() {
