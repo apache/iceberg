@@ -202,7 +202,7 @@ public final class ORCSchemaUtil {
         "Error in ORC file, children fields and names do not match.");
 
     List<Types.NestedField> icebergFields = Lists.newArrayListWithExpectedSize(children.size());
-    AtomicInteger lastColumnId = new AtomicInteger(orcSchema.getMaximumId());
+    AtomicInteger lastColumnId = new AtomicInteger(getMaxIcebergId(orcSchema));
     for (int i = 0; i < children.size(); i++) {
       icebergFields.add(convertOrcToIceberg(children.get(i), childrenNames.get(i),
           lastColumnId::incrementAndGet));
@@ -238,9 +238,7 @@ public final class ORCSchemaUtil {
    */
   public static TypeDescription buildOrcProjection(Schema schema,
                                                    TypeDescription originalOrcSchema) {
-    AtomicInteger lastColumnId = new AtomicInteger(getMaxIcebergId(originalOrcSchema));
-    final Map<Integer, OrcField> icebergToOrc = icebergToOrcMapping("root",
-        originalOrcSchema, lastColumnId::incrementAndGet);
+    final Map<Integer, OrcField> icebergToOrc = icebergToOrcMapping("root", originalOrcSchema);
     return buildOrcProjection(Integer.MIN_VALUE, schema.asStruct(), true, icebergToOrc);
   }
 
@@ -252,6 +250,9 @@ public final class ORCSchemaUtil {
       case STRUCT:
         orcType = TypeDescription.createStruct();
         for (Types.NestedField nestedField : type.asStructType().fields()) {
+          // Using suffix _r to avoid potential underlying issues in ORC reader
+          // with reused column names between ORC and Iceberg;
+          // e.g. renaming column c -> d and adding new column d
           String name = Optional.ofNullable(mapping.get(nestedField.fieldId()))
               .map(OrcField::name)
               .orElse(nestedField.name() + "_r" + nestedField.fieldId());
@@ -292,37 +293,36 @@ public final class ORCSchemaUtil {
                 String.format("Field %d of type %s is required and was not found.", fieldId, type.toString()));
           }
 
-          orcType = convert(fieldId, type, isRequired);
+          orcType = convert(fieldId, type, false);
         }
     }
 
     return orcType;
   }
 
-  private static Map<Integer, OrcField> icebergToOrcMapping(String name, TypeDescription orcType,
-                                                            TypeUtil.NextID nextID) {
+  private static Map<Integer, OrcField> icebergToOrcMapping(String name, TypeDescription orcType) {
     Map<Integer, OrcField> icebergToOrc = Maps.newHashMap();
     switch (orcType.getCategory()) {
       case STRUCT:
         List<String> childrenNames = orcType.getFieldNames();
         List<TypeDescription> children = orcType.getChildren();
         for (int i = 0; i < children.size(); i++) {
-          icebergToOrc.putAll(icebergToOrcMapping(childrenNames.get(i), children.get(i), nextID));
+          icebergToOrc.putAll(icebergToOrcMapping(childrenNames.get(i), children.get(i)));
         }
         break;
       case LIST:
-        icebergToOrc.putAll(icebergToOrcMapping("element", orcType.getChildren().get(0), nextID));
+        icebergToOrc.putAll(icebergToOrcMapping("element", orcType.getChildren().get(0)));
         break;
       case MAP:
-        icebergToOrc.putAll(icebergToOrcMapping("key", orcType.getChildren().get(0), nextID));
-        icebergToOrc.putAll(icebergToOrcMapping("value", orcType.getChildren().get(1), nextID));
+        icebergToOrc.putAll(icebergToOrcMapping("key", orcType.getChildren().get(0)));
+        icebergToOrc.putAll(icebergToOrcMapping("value", orcType.getChildren().get(1)));
         break;
     }
 
     if (orcType.getId() > 0) {
       // Only add to non-root types.
-      int icebergId = icebergID(orcType).orElseGet(nextID::get);
-      icebergToOrc.put(icebergId, new OrcField(name, orcType));
+      icebergID(orcType)
+          .ifPresent(integer -> icebergToOrc.put(integer, new OrcField(name, orcType)));
     }
 
     return icebergToOrc;
