@@ -19,11 +19,13 @@
 
 package org.apache.iceberg.transforms;
 
+import com.google.common.collect.Iterables;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import org.apache.iceberg.expressions.BoundLiteralPredicate;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
+import org.apache.iceberg.expressions.BoundSetPredicate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
@@ -243,5 +245,12 @@ class ProjectionUtil {
       return Expressions.predicate(pred.op(), partitionName, pred.asSetPredicate().literalSet());
     }
     throw new UnsupportedOperationException("Cannot replace transform in unknown predicate: " + pred);
+  }
+
+  static <S, T> UnboundPredicate<T> transformSet(String fieldName,
+                                                 BoundSetPredicate<S> predicate,
+                                                 Transform<S, T> transform) {
+    return predicate(predicate.op(), fieldName,
+        Iterables.transform(predicate.asSetPredicate().literalSet(), transform::apply));
   }
 }
