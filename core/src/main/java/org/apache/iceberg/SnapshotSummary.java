@@ -77,6 +77,16 @@ public class SnapshotSummary {
       this.addedRecords += file.recordCount();
     }
 
+    public void addedManifest(ManifestFile manifest) {
+      this.addedFiles += manifest.addedFilesCount();
+      this.addedRecords += manifest.addedRowsCount();
+    }
+
+    public void deletedManifest(ManifestFile manifest) {
+      this.deletedFiles += manifest.deletedFilesCount();
+      this.deletedRecords += manifest.deletedRowsCount();
+    }
+
     public void set(String property, String value) {
       properties.put(property, value);
     }

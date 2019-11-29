@@ -25,6 +25,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.junit.Assert;
 import org.junit.Test;
@@ -276,5 +277,96 @@ public class TestFastAppend extends TableTestBase {
     Assert.assertTrue("Should commit same new manifest", new File(newManifest.path()).exists());
     Assert.assertTrue("Should commit the same new manifest",
         metadata.currentSnapshot().manifests().contains(newManifest));
+  }
+
+  @Test
+  public void testAppendManifestWithSnapshotIdInheritance() throws IOException {
+    table.updateProperties()
+        .set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true")
+        .commit();
+
+    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+
+    TableMetadata base = readMetadata();
+    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
+
+    ManifestFile manifest = writeManifest(FILE_A, FILE_B);
+    table.newFastAppend()
+        .appendManifest(manifest)
+        .commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    List<ManifestFile> manifests = table.currentSnapshot().manifests();
+    Assert.assertEquals("Should have 1 committed manifest", 1, manifests.size());
+
+    validateManifestEntries(manifests.get(0),
+        ids(snapshot.snapshotId(), snapshot.snapshotId()),
+        files(FILE_A, FILE_B),
+        statuses(Status.ADDED, Status.ADDED));
+
+    // validate that the metadata summary is correct when using appendManifest
+    Assert.assertEquals("Summary metadata should include 2 added files",
+        "2", snapshot.summary().get("added-data-files"));
+    Assert.assertEquals("Summary metadata should include 2 added records",
+        "2", snapshot.summary().get("added-records"));
+    Assert.assertEquals("Summary metadata should include 2 files in total",
+        "2", snapshot.summary().get("total-data-files"));
+    Assert.assertEquals("Summary metadata should include 2 records in total",
+        "2", snapshot.summary().get("total-records"));
+  }
+
+  @Test
+  public void testAppendManifestFailureWithSnapshotIdInheritance() throws IOException {
+    table.updateProperties()
+        .set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true")
+        .commit();
+
+    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+
+    TableMetadata base = readMetadata();
+    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
+
+    table.updateProperties()
+        .set(TableProperties.COMMIT_NUM_RETRIES, "1")
+        .commit();
+
+    table.ops().failCommits(5);
+
+    ManifestFile manifest = writeManifest(FILE_A, FILE_B);
+
+    AppendFiles append = table.newAppend();
+    append.appendManifest(manifest);
+
+    AssertHelpers.assertThrows("Should reject commit",
+        CommitFailedException.class, "Injected failure",
+        append::commit);
+
+    Assert.assertTrue("Append manifest should not be deleted", new File(manifest.path()).exists());
+  }
+
+  @Test
+  public void testInvalidAppendManifest() throws IOException {
+    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+
+    TableMetadata base = readMetadata();
+    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
+
+    ManifestFile manifestWithExistingFiles = writeManifest(
+        "manifest-file-1.avro",
+        manifestEntry(Status.EXISTING, null, FILE_A));
+    AssertHelpers.assertThrows("Should reject commit",
+        IllegalArgumentException.class, "Cannot append manifest with existing files",
+        () -> table.newFastAppend()
+            .appendManifest(manifestWithExistingFiles)
+            .commit());
+
+    ManifestFile manifestWithDeletedFiles = writeManifest(
+        "manifest-file-2.avro",
+        manifestEntry(Status.DELETED, null, FILE_A));
+    AssertHelpers.assertThrows("Should reject commit",
+        IllegalArgumentException.class, "Cannot append manifest with deleted files",
+        () -> table.newFastAppend()
+            .appendManifest(manifestWithDeletedFiles)
+            .commit());
   }
 }

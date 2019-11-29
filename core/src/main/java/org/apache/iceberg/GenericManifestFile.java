@@ -99,7 +99,7 @@ public class GenericManifestFile
     this.fromProjectionPos = null;
   }
 
-  public GenericManifestFile(String path, long length, int specId, long snapshotId,
+  public GenericManifestFile(String path, long length, int specId, Long snapshotId,
                              int addedFilesCount, int existingFilesCount, int deletedFilesCount,
                              List<PartitionFieldSummary> partitions) {
     this.avroSchema = AVRO_SCHEMA;
@@ -117,7 +117,7 @@ public class GenericManifestFile
     this.fromProjectionPos = null;
   }
 
-  public GenericManifestFile(String path, long length, int specId, long snapshotId,
+  public GenericManifestFile(String path, long length, int specId, Long snapshotId,
                              int addedFilesCount, long addedRowsCount, int existingFilesCount,
                              long existingRowsCount, int deletedFilesCount, long deletedRowsCount,
                              List<PartitionFieldSummary> partitions) {
@@ -370,5 +370,34 @@ public class GenericManifestFile
         .add("deleted_rows_count", deletedRowsCount)
         .add("partitions", partitions)
         .toString();
+  }
+
+  public static CopyBuilder copyOf(ManifestFile manifestFile) {
+    return new CopyBuilder(manifestFile);
+  }
+
+  public static class CopyBuilder {
+    private final GenericManifestFile manifestFile;
+
+    private CopyBuilder(ManifestFile toCopy) {
+      if (toCopy instanceof GenericManifestFile) {
+        this.manifestFile = new GenericManifestFile((GenericManifestFile) toCopy);
+      } else {
+        this.manifestFile = new GenericManifestFile(
+            toCopy.path(), toCopy.length(), toCopy.partitionSpecId(), toCopy.snapshotId(),
+            toCopy.addedFilesCount(), toCopy.addedRowsCount(), toCopy.existingFilesCount(),
+            toCopy.existingRowsCount(), toCopy.deletedFilesCount(), toCopy.deletedRowsCount(),
+            toCopy.partitions());
+      }
+    }
+
+    public CopyBuilder withSnapshotId(Long newSnapshotId) {
+      manifestFile.snapshotId = newSnapshotId;
+      return this;
+    }
+
+    public ManifestFile build() {
+      return manifestFile;
+    }
   }
 }

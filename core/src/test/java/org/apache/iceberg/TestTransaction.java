@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -537,6 +538,63 @@ public class TestTransaction extends TableTestBase {
   }
 
   @Test
+  public void testTransactionRetryAndAppendManifestsWithSnapshotIdInheritance() throws Exception {
+    // use only one retry and aggressively merge manifests
+    table.updateProperties()
+        .set(TableProperties.COMMIT_NUM_RETRIES, "1")
+        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "0")
+        .set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true")
+        .commit();
+
+    Assert.assertEquals("Table should be on version 1", 1, (int) version());
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    Assert.assertEquals("Table should be on version 2 after append", 2, (int) version());
+    Assert.assertEquals("Append should create one manifest", 1, table.currentSnapshot().manifests().size());
+
+    TableMetadata base = readMetadata();
+
+    Transaction txn = table.newTransaction();
+
+    ManifestFile appendManifest = writeManifestWithName("input.m0", FILE_D);
+    txn.newAppend()
+        .appendManifest(appendManifest)
+        .commit();
+
+    Assert.assertSame("Base metadata should not change when commit is created", base, readMetadata());
+    Assert.assertEquals("Table should be on version 2 after txn create", 2, (int) version());
+
+    Assert.assertEquals("Append should have one merged manifest", 1, txn.table().currentSnapshot().manifests().size());
+    ManifestFile mergedManifest = txn.table().currentSnapshot().manifests().get(0);
+
+    // cause the transaction commit to fail and retry
+    table.newAppend()
+        .appendFile(FILE_C)
+        .commit();
+
+    Assert.assertEquals("Table should be on version 3 after real append", 3, (int) version());
+
+    txn.commitTransaction();
+
+    Assert.assertEquals("Table should be on version 4 after commit", 4, (int) version());
+
+    Assert.assertTrue("Transaction should hijack the delete of the original append manifest",
+        ((BaseTransaction) txn).deletedFiles().contains(appendManifest.path()));
+    Assert.assertFalse("Append manifest should be deleted", new File(appendManifest.path()).exists());
+
+    Assert.assertTrue("Transaction should hijack the delete of the first merged manifest",
+        ((BaseTransaction) txn).deletedFiles().contains(mergedManifest.path()));
+    Assert.assertFalse("Merged append manifest should be deleted", new File(mergedManifest.path()).exists());
+
+    Assert.assertEquals("Should merge all commit manifests into a single manifest",
+        1, table.currentSnapshot().manifests().size());
+  }
+
+  @Test
   public void testTransactionNoCustomDeleteFunc() {
     AssertHelpers.assertThrows("Should fail setting a custom delete function with a transaction",
         IllegalArgumentException.class, "Cannot set delete callback more than once",
@@ -567,5 +625,64 @@ public class TestTransaction extends TableTestBase {
 
     List<ManifestFile> manifests = table.currentSnapshot().manifests();
     Assert.assertEquals("Expected 2 manifests", 2, manifests.size());
+  }
+
+  @Test
+  public void testTransactionRewriteManifestsAppendedDirectly() throws IOException {
+    Table table = load();
+
+    table.updateProperties()
+        .set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true")
+        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "0")
+        .commit();
+
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+    long firstSnapshotId = table.currentSnapshot().snapshotId();
+
+    table.newFastAppend()
+        .appendFile(FILE_B)
+        .commit();
+    long secondSnapshotId = table.currentSnapshot().snapshotId();
+
+    List<ManifestFile> manifests = table.currentSnapshot().manifests();
+    Assert.assertEquals("Should have 2 manifests after 2 appends", 2, manifests.size());
+
+    ManifestFile newManifest = writeManifest(
+        "manifest-file-1.avro",
+        manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshotId, FILE_A),
+        manifestEntry(ManifestEntry.Status.EXISTING, secondSnapshotId, FILE_B));
+
+    Transaction txn = table.newTransaction();
+    txn.rewriteManifests()
+        .deleteManifest(manifests.get(0))
+        .deleteManifest(manifests.get(1))
+        .addManifest(newManifest)
+        .commit();
+    txn.newAppend()
+        .appendFile(FILE_C)
+        .commit();
+    txn.commitTransaction();
+
+    long finalSnapshotId = table.currentSnapshot().snapshotId();
+    long finalSnapshotTimestamp = System.currentTimeMillis();
+
+    Assert.assertTrue("Append manifest should not be deleted", new File(newManifest.path()).exists());
+
+    List<ManifestFile> finalManifests = table.currentSnapshot().manifests();
+    Assert.assertEquals("Should have 1 final manifest", 1, finalManifests.size());
+
+    validateManifestEntries(finalManifests.get(0),
+        ids(finalSnapshotId, firstSnapshotId, secondSnapshotId),
+        files(FILE_C, FILE_A, FILE_B),
+        statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING));
+
+    table.expireSnapshots()
+        .expireOlderThan(finalSnapshotTimestamp + 1)
+        .retainLast(1)
+        .commit();
+
+    Assert.assertFalse("Append manifest should be deleted on expiry", new File(newManifest.path()).exists());
   }
 }

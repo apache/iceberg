@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
@@ -37,7 +38,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.Files.localInput;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TableTestBase {
@@ -76,6 +76,8 @@ public class TableTestBase {
       .withPartitionPath("data_bucket=3") // easy way to set partition data for now
       .withRecordCount(1)
       .build();
+
+  static final FileIO FILE_IO = new TestTables.LocalFileIO();
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -174,7 +176,7 @@ public class TableTestBase {
     return writer.toManifestFile();
   }
 
-  ManifestEntry manifestEntry(ManifestEntry.Status status, long snapshotId, DataFile file) {
+  ManifestEntry manifestEntry(ManifestEntry.Status status, Long snapshotId, DataFile file) {
     ManifestEntry entry = new ManifestEntry(table.spec().partitionType());
     switch (status) {
       case ADDED:
@@ -205,10 +207,10 @@ public class TableTestBase {
     long id = snap.snapshotId();
     Iterator<String> newPaths = paths(newFiles).iterator();
 
-    for (ManifestEntry entry : ManifestReader.read(localInput(manifest.path())).entries()) {
+    for (ManifestEntry entry : ManifestReader.read(manifest, FILE_IO).entries()) {
       DataFile file = entry.file();
       Assert.assertEquals("Path should match expected", newPaths.next(), file.path().toString());
-      Assert.assertEquals("File's snapshot ID should match", id, entry.snapshotId());
+      Assert.assertEquals("File's snapshot ID should match", id, (long) entry.snapshotId());
     }
 
     Assert.assertFalse("Should find all files in the manifest", newPaths.hasNext());
@@ -237,19 +239,13 @@ public class TableTestBase {
   static void validateManifest(ManifestFile manifest,
                                Iterator<Long> ids,
                                Iterator<DataFile> expectedFiles) {
-    validateManifest(manifest.path(), ids, expectedFiles);
-  }
-
-  static void validateManifest(String manifest,
-                               Iterator<Long> ids,
-                               Iterator<DataFile> expectedFiles) {
-    for (ManifestEntry entry : ManifestReader.read(localInput(manifest)).entries()) {
+    for (ManifestEntry entry : ManifestReader.read(manifest, FILE_IO).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
       Assert.assertEquals("Path should match expected",
           expected.path().toString(), file.path().toString());
       Assert.assertEquals("Snapshot ID should match expected ID",
-          (long) ids.next(), entry.snapshotId());
+          ids.next(), entry.snapshotId());
     }
 
     Assert.assertFalse("Should find all files in the manifest", expectedFiles.hasNext());
@@ -259,21 +255,14 @@ public class TableTestBase {
                                       Iterator<Long> ids,
                                       Iterator<DataFile> expectedFiles,
                                       Iterator<ManifestEntry.Status> expectedStatuses) {
-    validateManifestEntries(manifest.path(), ids, expectedFiles, expectedStatuses);
-  }
-
-  static void validateManifestEntries(String manifest,
-                                      Iterator<Long> ids,
-                                      Iterator<DataFile> expectedFiles,
-                                      Iterator<ManifestEntry.Status> expectedStatuses) {
-    for (ManifestEntry entry : ManifestReader.read(localInput(manifest)).entries()) {
+    for (ManifestEntry entry : ManifestReader.read(manifest, FILE_IO).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
       final ManifestEntry.Status expectedStatus = expectedStatuses.next();
       Assert.assertEquals("Path should match expected",
           expected.path().toString(), file.path().toString());
       Assert.assertEquals("Snapshot ID should match expected ID",
-          (long) ids.next(), entry.snapshotId());
+          ids.next(), entry.snapshotId());
       Assert.assertEquals("Entry status should match expected ID",
           expectedStatus, entry.status());
     }
@@ -294,6 +283,6 @@ public class TableTestBase {
   }
 
   static Iterator<DataFile> files(ManifestFile manifest) {
-    return ManifestReader.read(localInput(manifest.path())).iterator();
+    return ManifestReader.read(manifest, FILE_IO).iterator();
   }
 }

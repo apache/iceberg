@@ -34,6 +34,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
@@ -44,7 +45,8 @@ import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 /**
  * Reader for manifest files.
  * <p>
- * Readers are created using the builder from {@link #read(InputFile, Map)}.
+ * The preferable way to create readers is using {@link #read(ManifestFile, FileIO, Map)} as
+ * it allows entries to inherit manifest metadata such as snapshot id.
  */
 public class ManifestReader extends CloseableGroup implements Filterable<FilteredManifest> {
   private static final Logger LOG = LoggerFactory.getLogger(ManifestReader.class);
@@ -60,29 +62,65 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
   /**
    * Returns a new {@link ManifestReader} for an {@link InputFile}.
    * <p>
-   * <em>Note:</em> Most callers should use {@link #read(InputFile, Map)} to ensure that the
-   * schema used by filters is the latest table schema. This should be used only when reading a
-   * manifest without filters.
+   * <em>Note:</em> Most callers should use {@link #read(ManifestFile, FileIO, Map)} to ensure that
+   * manifest entries with partial metadata can inherit missing properties from the manifest metadata.
+   * <p>
+   * <em>Note:</em> Most callers should use {@link #read(InputFile, Map)} if all manifest entries
+   * contain full metadata and they want to ensure that the schema used by filters is the latest
+   * table schema. This should be used only when reading a manifest without filters.
    *
    * @param file an InputFile
    * @return a manifest reader
    */
   public static ManifestReader read(InputFile file) {
-    return new ManifestReader(file, null);
+    return new ManifestReader(file, null, InheritableMetadataFactory.empty());
   }
 
   /**
    * Returns a new {@link ManifestReader} for an {@link InputFile}.
+   * <p>
+   * <em>Note:</em> Most callers should use {@link #read(ManifestFile, FileIO, Map)} to ensure that
+   * manifest entries with partial metadata can inherit missing properties from the manifest metadata.
    *
    * @param file an InputFile
    * @param specsById a Map from spec ID to partition spec
    * @return a manifest reader
    */
   public static ManifestReader read(InputFile file, Map<Integer, PartitionSpec> specsById) {
-    return new ManifestReader(file, specsById);
+    return new ManifestReader(file, specsById, InheritableMetadataFactory.empty());
+  }
+
+  /**
+   * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
+   * <p>
+   * <em>Note:</em> Most callers should use {@link #read(ManifestFile, FileIO, Map)} to ensure
+   * the schema used by filters is the latest table schema. This should be used only when reading
+   * a manifest without filters.
+   *
+   * @param manifest a ManifestFile
+   * @param io a FileIO
+   * @return a manifest reader
+   */
+  public static ManifestReader read(ManifestFile manifest, FileIO io) {
+    return read(manifest, io, null);
+  }
+
+  /**
+   * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
+   *
+   * @param manifest a ManifestFile
+   * @param io a FileIO
+   * @param specsById a Map from spec ID to partition spec
+   * @return a manifest reader
+   */
+  public static ManifestReader read(ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    InputFile file = io.newInputFile(manifest.path());
+    InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
+    return new ManifestReader(file, specsById, inheritableMetadata);
   }
 
   private final InputFile file;
+  private final InheritableMetadata inheritableMetadata;
   private final Map<String, String> metadata;
   private final PartitionSpec spec;
   private final Schema fileSchema;
@@ -91,8 +129,10 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
   private List<ManifestEntry> cachedAdds = null;
   private List<ManifestEntry> cachedDeletes = null;
 
-  private ManifestReader(InputFile file, Map<Integer, PartitionSpec> specsById) {
+  private ManifestReader(InputFile file, Map<Integer, PartitionSpec> specsById,
+                         InheritableMetadata inheritableMetadata) {
     this.file = file;
+    this.inheritableMetadata = inheritableMetadata;
 
     try {
       try (AvroIterable<ManifestEntry> headerReader = Avro.read(file)
@@ -217,7 +257,7 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
 
         addCloseable(reader);
 
-        return reader;
+        return CloseableIterable.transform(reader, inheritableMetadata::apply);
 
       default:
         throw new UnsupportedOperationException("Invalid format for manifest file: " + format);
