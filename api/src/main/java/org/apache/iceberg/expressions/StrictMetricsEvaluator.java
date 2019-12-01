@@ -21,8 +21,10 @@ package org.apache.iceberg.expressions;
 
 import com.google.common.base.Preconditions;
 import java.nio.ByteBuffer;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
@@ -308,19 +310,67 @@ public class StrictMetricsEvaluator {
 
     @Override
     public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
-      // in(col, {X, Y}) => eq(col, x) OR eq(col, x)
-      if (literalSet.stream().anyMatch(v -> eq(ref, toLiteral(v)))) {
+      Integer id = ref.fieldId();
+      Types.NestedField field = struct.field(id);
+      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
+
+      if (canContainNulls(id)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      if (lowerBounds != null && lowerBounds.containsKey(id) &&
+          upperBounds != null && upperBounds.containsKey(id)) {
+        final Comparator<T> comparator = ((BoundSetPredicate<T>) expr).comparator();
+        Set<T> literals = literalSet;
+
+        T lower = Conversions.fromByteBuffer(struct.field(id).type(), lowerBounds.get(id));
+        literals = literals.stream().filter(v -> comparator.compare(lower, v) == 0).collect(Collectors.toSet());
+        if (literals.isEmpty()) {
+          return ROWS_MIGHT_NOT_MATCH;
+        }
+
+        T upper = Conversions.fromByteBuffer(field.type(), upperBounds.get(id));
+        literals = literals.stream().filter(v -> comparator.compare(upper, v) == 0).collect(Collectors.toSet());
+        if (literals.isEmpty()) {
+          return ROWS_MIGHT_NOT_MATCH;
+        }
+
         return ROWS_MUST_MATCH;
       }
+
       return ROWS_MIGHT_NOT_MATCH;
     }
 
     @Override
     public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
-      // notIn(col, {X, Y}) => notEq(col, x) AND notEq(col, x)
-      if (literalSet.stream().allMatch(v -> notEq(ref, toLiteral(v)))) {
+      Integer id = ref.fieldId();
+      Types.NestedField field = struct.field(id);
+      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
+
+      if (containsNullsOnly(id)) {
         return ROWS_MUST_MATCH;
       }
+
+      final Comparator<T> comparator = ((BoundSetPredicate<T>) expr).comparator();
+      Set<T> literals = literalSet;
+
+      if (lowerBounds != null && lowerBounds.containsKey(id)) {
+        T lower = Conversions.fromByteBuffer(struct.field(id).type(), lowerBounds.get(id));
+
+        literals = literals.stream().filter(v -> comparator.compare(lower, v) <= 0).collect(Collectors.toSet());
+        if (literals.isEmpty()) {
+          return ROWS_MUST_MATCH;
+        }
+      }
+
+      if (upperBounds != null && upperBounds.containsKey(id)) {
+        T upper = Conversions.fromByteBuffer(field.type(), upperBounds.get(id));
+        literals = literals.stream().filter(v -> comparator.compare(upper, v) >= 0).collect(Collectors.toSet());
+        if (literals.isEmpty()) {
+          return ROWS_MUST_MATCH;
+        }
+      }
+
       return ROWS_MIGHT_NOT_MATCH;
     }
 

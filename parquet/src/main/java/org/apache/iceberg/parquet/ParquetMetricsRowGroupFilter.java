@@ -25,9 +25,11 @@ import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundReference;
+import org.apache.iceberg.expressions.BoundSetPredicate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
@@ -332,16 +334,50 @@ public class ParquetMetricsRowGroupFilter {
 
     @Override
     public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
-      // in(col, {X, Y}) => eq(col, x) OR eq(col, x)
-      if (literalSet.stream().anyMatch(v -> eq(ref, toLiteral(v)))) {
+      Integer id = ref.fieldId();
+
+      // When filtering nested types notNull() is implicit filter passed even though complex
+      // filters aren't pushed down in Parquet. Leave all nested column type filters to be
+      // evaluated post scan.
+      if (schema.findType(id) instanceof Type.NestedType) {
         return ROWS_MIGHT_MATCH;
       }
-      return ROWS_CANNOT_MATCH;
+
+      Long valueCount = valueCounts.get(id);
+      if (valueCount == null) {
+        // the column is not present and is all nulls
+        return ROWS_CANNOT_MATCH;
+      }
+
+      Statistics<?> colStats = stats.get(id);
+      if (colStats != null && !colStats.isEmpty()) {
+        if (!colStats.hasNonNullValue()) {
+          return ROWS_CANNOT_MATCH;
+        }
+
+        final Comparator<T> comparator = ((BoundSetPredicate<T>) expr).comparator();
+        Set<T> literals = literalSet;
+
+        T lower = min(colStats, id);
+        literals = literals.stream().filter(v -> comparator.compare(lower, v) <= 0).collect(Collectors.toSet());
+        if (literals.isEmpty()) {
+          return ROWS_CANNOT_MATCH;
+        }
+
+        T upper = max(colStats, id);
+        literals = literals.stream().filter(v -> comparator.compare(upper, v) >= 0).collect(Collectors.toSet());
+        if (literals.isEmpty()) {
+          return ROWS_CANNOT_MATCH;
+        }
+      }
+
+      return ROWS_MIGHT_MATCH;
     }
 
     @Override
     public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
-      // notIn(col, {X, Y}) => notEq(col, x) AND notEq(col, x)
+      // because the bounds are not necessarily a min or max value, this cannot be answered using
+      // them. notIn(col, {X, ...}) with (X, Y) doesn't guarantee that X is a value in col.
       return ROWS_MIGHT_MATCH;
     }
 

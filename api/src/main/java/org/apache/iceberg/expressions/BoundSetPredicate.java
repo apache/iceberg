@@ -21,11 +21,13 @@ package org.apache.iceberg.expressions;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
+import java.util.Comparator;
 import java.util.Set;
 
 public class BoundSetPredicate<T> extends BoundPredicate<T> {
   private static final Joiner COMMA = Joiner.on(", ");
   private final Set<T> literalSet;
+  private volatile Comparator<T> comparator = null;
 
   BoundSetPredicate(Operation op, BoundTerm<T> term, Set<T> lits) {
     super(op, term);
@@ -51,6 +53,17 @@ public class BoundSetPredicate<T> extends BoundPredicate<T> {
 
   public Set<T> literalSet() {
     return literalSet;
+  }
+
+  public Comparator<T> comparator() {
+    if (comparator == null) {
+      synchronized (this) {
+        if (comparator == null) {
+          comparator = Literals.from(literalSet.iterator().next()).comparator();
+        }
+      }
+    }
+    return comparator;
   }
 
   @Override

@@ -32,6 +32,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundReference;
+import org.apache.iceberg.expressions.BoundSetPredicate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
@@ -280,17 +281,33 @@ public class ParquetDictionaryRowGroupFilter {
 
     @Override
     public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
-      // in(col, {X, Y}) => eq(col, x) OR eq(col, x)
-      if (literalSet.stream().anyMatch(v -> eq(ref, toLiteral(v)))) {
+      int id = ref.fieldId();
+
+      Boolean hasNonDictPage = isFallback.get(id);
+      if (hasNonDictPage == null || hasNonDictPage) {
         return ROWS_MIGHT_MATCH;
       }
-      return ROWS_CANNOT_MATCH;
+
+      Set<T> dictionary = dict(id, ((BoundSetPredicate<T>) expr).comparator());
+
+      return Sets.intersection(dictionary, literalSet).isEmpty() ? ROWS_CANNOT_MATCH : ROWS_MIGHT_MATCH;
     }
 
     @Override
     public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
-      // notIn(col, {X, Y}) => notEq(col, x) AND notEq(col, x)
-      return ROWS_MIGHT_MATCH;
+      int id = ref.fieldId();
+
+      Boolean hasNonDictPage = isFallback.get(id);
+      if (hasNonDictPage == null || hasNonDictPage) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Set<T> dictionary = dict(id, ((BoundSetPredicate<T>) expr).comparator());
+      if (dictionary.size() > 1 || mayContainNulls.get(id)) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      return Sets.intersection(dictionary, literalSet).isEmpty() ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
     }
 
     @Override
