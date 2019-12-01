@@ -45,7 +45,6 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   public static final String PREVIOUS_METADATA_LOCATION_PROP = "previous_metadata_location";
 
   private static final String METADATA_FOLDER_NAME = "metadata";
-  private static final String DATA_FOLDER_NAME = "data";
 
   private TableMetadata currentMetadata = null;
   private String currentMetadataLocation = null;

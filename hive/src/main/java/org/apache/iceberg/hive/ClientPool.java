@@ -35,7 +35,6 @@ public abstract class ClientPool<C, E extends Exception> implements Closeable {
   private final Object signal = new Object();
   private volatile int currentSize;
   private boolean closed;
-  private int runs = 0;
 
   ClientPool(int poolSize, Class<? extends E> reconnectExc) {
     this.poolSize = poolSize;
@@ -50,7 +49,6 @@ public abstract class ClientPool<C, E extends Exception> implements Closeable {
   }
 
   public <R> R run(Action<R, C, E> action) throws E, InterruptedException {
-    runs += 1;
     C client = get();
     try {
       return action.run(client);
