@@ -53,6 +53,7 @@ public class BoundSetPredicate<T> extends BoundPredicate<T> {
     return literalSet;
   }
 
+  @Override
   public boolean test(T value) {
     switch (op()) {
       case IN:
