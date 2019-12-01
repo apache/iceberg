@@ -37,11 +37,13 @@ import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.in;
 import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
+import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
@@ -430,5 +432,53 @@ public class TestInclusiveMetricsEvaluator {
     String aboveMax = UnicodeUtil.truncateStringMax(Literal.of("イロハニホヘト"), 4).value().toString();
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, startsWith("required", aboveMax), true).eval(FILE_4);
     Assert.assertFalse("Should not read: range doesn't match", shouldRead);
+  }
+
+  @Test
+  public void testIntegerIn() {
+    boolean shouldRead = new InclusiveMetricsEvaluator(SCHEMA, in("id", 5, 6)).eval(FILE);
+    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, in("id", 28, 29)).eval(FILE);
+    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, in("id", 30, 31)).eval(FILE);
+    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, in("id", 75, 76)).eval(FILE);
+    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, in("id", 79, 80)).eval(FILE);
+    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, in("id", 80, 81)).eval(FILE);
+    Assert.assertFalse("Should not read: id above upper bound", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, in("id", 85, 86)).eval(FILE);
+    Assert.assertFalse("Should not read: id above upper bound", shouldRead);
+  }
+
+  @Test
+  public void testIntegerNotIn() {
+    boolean shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notIn("id", 5, 6)).eval(FILE);
+    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notIn("id", 28, 29)).eval(FILE);
+    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notIn("id", 30, 31)).eval(FILE);
+    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notIn("id", 75, 76)).eval(FILE);
+    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notIn("id", 79, 80)).eval(FILE);
+    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notIn("id", 80, 81)).eval(FILE);
+    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notIn("id", 85, 86)).eval(FILE);
+    Assert.assertTrue("Should read: id above upper bound", shouldRead);
   }
 }
