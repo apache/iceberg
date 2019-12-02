@@ -107,6 +107,7 @@ public class TestBucketingProjection {
     Schema schema = new Schema(optional(1, "value", Types.IntegerType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("value", 10).build();
 
+    // the bucket number of the value (i.e. 100) is 6
     assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "6");
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, lessThan("value", value), Expression.Operation.FALSE);
@@ -125,6 +126,7 @@ public class TestBucketingProjection {
     Schema schema = new Schema(optional(1, "value", Types.IntegerType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("value", 10).build();
 
+    // the bucket number of the value (i.e. 100) is 6
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "6");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
     assertProjectionInclusiveValue(spec, lessThan("value", value), Expression.Operation.TRUE);
@@ -145,6 +147,7 @@ public class TestBucketingProjection {
     Schema schema = new Schema(optional(1, "value", Types.LongType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("value", 10).build();
 
+    // the bucket number of the value (i.e. 100) is 6
     assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "6");
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, lessThan("value", value), Expression.Operation.FALSE);
@@ -163,6 +166,7 @@ public class TestBucketingProjection {
     Schema schema = new Schema(optional(1, "value", Types.LongType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("value", 10).build();
 
+    // the bucket number of the value (i.e. 100) is 6
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "6");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
     assertProjectionInclusiveValue(spec, lessThan("value", value), Expression.Operation.TRUE);
@@ -182,6 +186,7 @@ public class TestBucketingProjection {
     Schema schema = new Schema(optional(1, "value", type));
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("value", 10).build();
 
+    // the bucket number of the value (i.e. 100.00) is 2
     assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "2");
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, lessThan("value", value), Expression.Operation.FALSE);
@@ -202,6 +207,7 @@ public class TestBucketingProjection {
     Schema schema = new Schema(optional(1, "value", type));
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("value", 10).build();
 
+    // the bucket number of the value (i.e. 100.00) is 2
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "2");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
     assertProjectionInclusiveValue(spec, lessThan("value", value), Expression.Operation.TRUE);
@@ -221,6 +227,7 @@ public class TestBucketingProjection {
     Schema schema = new Schema(optional(1, "value", Types.StringType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("value", 10).build();
 
+    // the bucket number of the value (i.e. "abcdefg") is 4
     assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "4");
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, lessThan("value", value), Expression.Operation.FALSE);
@@ -239,6 +246,7 @@ public class TestBucketingProjection {
     Schema schema = new Schema(optional(1, "value", Types.StringType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("value", 10).build();
 
+    // the bucket number of the value (i.e. "abcdefg") is 4
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "4");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
     assertProjectionInclusiveValue(spec, lessThan("value", value), Expression.Operation.TRUE);
@@ -257,6 +265,7 @@ public class TestBucketingProjection {
     Schema schema = new Schema(optional(1, "value", Types.BinaryType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("value", 10).build();
 
+    // the bucket number of the value (i.e. "abcdefg") is 4
     assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "4");
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, lessThan("value", value), Expression.Operation.FALSE);
@@ -276,6 +285,7 @@ public class TestBucketingProjection {
     Schema schema = new Schema(optional(1, "value", Types.BinaryType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("value", 10).build();
 
+    // the bucket number of the value (i.e. "abcdefg") is 4
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "4");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
     assertProjectionInclusiveValue(spec, lessThan("value", value), Expression.Operation.TRUE);
@@ -295,6 +305,7 @@ public class TestBucketingProjection {
     Schema schema = new Schema(optional(1, "value", Types.UUIDType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("value", 10).build();
 
+    // the bucket number of the value (i.e. UUID(123L, 456L)) is 4
     assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "4");
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, lessThan("value", value), Expression.Operation.FALSE);
@@ -314,6 +325,7 @@ public class TestBucketingProjection {
     Schema schema = new Schema(optional(1, "value", Types.UUIDType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("value", 10).build();
 
+    // the bucket number of the value (i.e. UUID(123L, 456L)) is 4
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "4");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
     assertProjectionInclusiveValue(spec, lessThan("value", value), Expression.Operation.TRUE);
