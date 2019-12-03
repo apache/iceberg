@@ -84,11 +84,11 @@ class BaseSnapshot implements Snapshot {
                Map<String, String> summary,
                InputFile manifestList,
                Long sequenceNumber) {
-    this(ops, snapshotId, parentId, timestampMillis, operation, summary, manifestList);
+    this(io, snapshotId, parentId, timestampMillis, operation, summary, manifestList);
     this.sequenceNumber = sequenceNumber;
   }
 
-  BaseSnapshot(TableOperations ops,
+  BaseSnapshot(FileIO io,
                long snapshotId,
                Long parentId,
                long timestampMillis,
@@ -96,12 +96,12 @@ class BaseSnapshot implements Snapshot {
                Map<String, String> summary,
                List<ManifestFile> manifests,
                Long sequenceNumber) {
-    this(ops, snapshotId, parentId, timestampMillis, operation, summary, (InputFile) null);
+    this(io, snapshotId, parentId, timestampMillis, operation, summary, (InputFile) null);
     this.manifests = manifests;
     this.sequenceNumber = sequenceNumber;
   }
 
-  BaseSnapshot(TableOperations ops,
+  BaseSnapshot(FileIO io,
                long snapshotId,
                Long parentId,
                long timestampMillis,

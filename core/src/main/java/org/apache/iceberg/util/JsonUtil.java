@@ -76,7 +76,7 @@ public class JsonUtil {
     }
     JsonNode pNode = node.get(property);
     Preconditions.checkArgument(pNode != null && !pNode.isNull() && pNode.isNumber() && pNode.canConvertToLong(),
-        "Cannot parse %s from non-string value: %s", property, pNode);
+        "Cannot parse %s from non-numeric value: %s", property, pNode);
     return pNode.asLong();
   }
 
