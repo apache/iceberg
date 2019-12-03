@@ -20,7 +20,12 @@
 package org.apache.iceberg.catalog;
 
 import com.google.common.base.Joiner;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 
 /**
  * A namespace in a {@link Catalog}.
@@ -59,6 +64,72 @@ public class Namespace {
     return levels.length == 0;
   }
 
+  private String uuid;
+
+  public void setUuid(String uuid) {
+    this.uuid = uuid;
+  }
+
+  public String getUuid() {
+    return this.uuid;
+  }
+
+  private String location;
+
+  public void setLocation(String location) {
+    this.location = location;
+  }
+
+  public String getLocation() {
+    return this.location;
+  }
+
+  private long timestampMillis;
+
+  public void setTimestampMillis(Long timestampMillis) {
+    this.timestampMillis = timestampMillis;
+  }
+
+  public Long getTimestampMillis() {
+    return this.timestampMillis;
+  }
+
+  private Map<String, String> properties = new HashMap<>();
+
+  public void setProperties(String key, String value) {
+    this.properties.put(key, value);
+  }
+
+  public Map<String, String> getProperties() {
+    return this.properties;
+  }
+
+  public String getProperties(String key) {
+    return this.properties.get(key);
+  }
+
+  public boolean hasProperties(String key) {
+    return this.properties.containsKey(key);
+  }
+
+  private  List<String> tables = new ArrayList<>();
+
+  public void addTables(String tableName) {
+    this.tables.add(tableName);
+  }
+
+  public void deletTables(String tableName) {
+    this.tables.remove(tableName);
+  }
+
+  public void setTables(List<String> tableList) {
+    this.tables.addAll(tableList);
+  }
+
+  public List<String> getTables() {
+    return this.tables;
+  }
+
   @Override
   public boolean equals(Object other) {
     if (this == other) {
@@ -82,4 +153,5 @@ public class Namespace {
   public String toString() {
     return DOT.join(levels);
   }
+
 }
