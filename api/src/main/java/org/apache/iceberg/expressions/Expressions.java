@@ -235,6 +235,10 @@ public class Expressions {
     return new UnboundPredicate<>(op, ref(name));
   }
 
+  private static <T> UnboundPredicate<T> predicate(Operation op, UnboundValueExpression<T> expr, Iterable<T> values) {
+    return new UnboundPredicate<>(op, expr, values);
+  }
+
   public static True alwaysTrue() {
     return True.INSTANCE;
   }
@@ -249,9 +253,5 @@ public class Expressions {
 
   static <T> NamedReference<T> ref(String name) {
     return new NamedReference<>(name);
-  }
-
-  private static <T> UnboundPredicate<T> predicate(Operation op, UnboundValueExpression<T> expr, Iterable<T> values) {
-    return new UnboundPredicate<>(op, expr, values);
   }
 }
