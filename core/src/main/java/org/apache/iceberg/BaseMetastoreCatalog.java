@@ -26,9 +26,11 @@ import com.google.common.collect.MapMaker;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -142,6 +144,31 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       throw new NoSuchTableException("Invalid table identifier: %s", identifier);
     }
   }
+
+  public boolean createNamespace(Namespace namespace) {
+    return false;
+  }
+
+  public List<Namespace> listNamespaces() {
+    return null;
+  }
+
+  public List<Namespace> listNamespaces(Namespace namespace) {
+    return null;
+  }
+
+  public Map<String, String>  loadNamespaceMetadata(Namespace namespace) {
+    return null;
+  }
+
+  public boolean dropNamespace(Namespace namespace) {
+    return false;
+  }
+
+  public boolean alterNamespace(Namespace current, Namespace namespace) {
+    return false;
+  }
+
 
   private Table loadMetadataTable(TableIdentifier identifier) {
     String name = identifier.name();

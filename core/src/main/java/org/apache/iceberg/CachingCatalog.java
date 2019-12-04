@@ -57,6 +57,36 @@ public class CachingCatalog implements Catalog {
   }
 
   @Override
+  public boolean createNamespace(Namespace namespace) {
+    return false;
+  }
+
+  @Override
+  public List<Namespace> listNamespaces() {
+    return null;
+  }
+
+  @Override
+  public List<Namespace> listNamespaces(Namespace namespace) {
+    return null;
+  }
+
+  @Override
+  public Map<String, String>  loadNamespaceMetadata(Namespace namespace) {
+    return null;
+  }
+
+  @Override
+  public boolean dropNamespace(Namespace namespace) {
+    return false;
+  }
+
+  @Override
+  public boolean alterNamespace(Namespace current, Namespace namespace) {
+    return false;
+  }
+
+  @Override
   public Table createTable(TableIdentifier ident, Schema schema, PartitionSpec spec, String location,
                            Map<String, String> properties) {
     AtomicBoolean created = new AtomicBoolean(false);

@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.catalog;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.PartitionSpec;
@@ -303,4 +304,17 @@ public interface Catalog {
    * @throws NoSuchTableException if the table does not exist
    */
   Table loadTable(TableIdentifier identifier);
+
+  boolean createNamespace(Namespace namespace);
+
+  List<Namespace> listNamespaces();
+
+  List<Namespace> listNamespaces(Namespace namespace);
+
+  Map<String, String>  loadNamespaceMetadata(Namespace namespace);
+
+  boolean dropNamespace(Namespace namespace) throws IOException;
+
+  boolean alterNamespace(Namespace current, Namespace namespace);
+
 }
