@@ -30,7 +30,7 @@ import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
-import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionReferenceVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Comparators;
@@ -80,7 +80,7 @@ public class ParquetMetricsRowGroupFilter {
   private static final boolean ROWS_MIGHT_MATCH = true;
   private static final boolean ROWS_CANNOT_MATCH = false;
 
-  private class MetricsEvalVisitor extends BoundExpressionVisitor<Boolean> {
+  private class MetricsEvalVisitor extends BoundExpressionReferenceVisitor<Boolean> {
     private Map<Integer, Statistics> stats = null;
     private Map<Integer, Long> valueCounts = null;
     private Map<Integer, Function<Object, Object>> conversions = null;

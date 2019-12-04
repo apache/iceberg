@@ -25,6 +25,7 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.expressions.BoundLiteralPredicate;
 import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.BoundUnaryPredicate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -90,6 +91,10 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public UnboundPredicate<Integer> project(String name, BoundPredicate<Integer> pred) {
+      if (pred.child() instanceof BoundTransform) {
+        return ProjectionUtil.projectTransformPredicate(this, name, pred);
+      }
+
       if (pred.isUnaryPredicate()) {
         return Expressions.predicate(pred.op(), name);
       } else if (pred.isLiteralPredicate()) {
@@ -100,6 +105,10 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public UnboundPredicate<Integer> projectStrict(String name, BoundPredicate<Integer> pred) {
+      if (pred.child() instanceof BoundTransform) {
+        return ProjectionUtil.projectTransformPredicate(this, name, pred);
+      }
+
       // TODO: for integers, can this return the original predicate?
       // No. the predicate needs to be in terms of the applied value. For all x, apply(x) <= x.
       // Therefore, the lower bound can be transformed outside of a greater-than bound.
@@ -162,6 +171,10 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public UnboundPredicate<Long> project(String name, BoundPredicate<Long> pred) {
+      if (pred.child() instanceof BoundTransform) {
+        return ProjectionUtil.projectTransformPredicate(this, name, pred);
+      }
+
       if (pred.isUnaryPredicate()) {
         return Expressions.predicate(pred.op(), name);
       } else if (pred.isLiteralPredicate()) {
@@ -172,6 +185,10 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public UnboundPredicate<Long> projectStrict(String name, BoundPredicate<Long> pred) {
+      if (pred.child() instanceof BoundTransform) {
+        return ProjectionUtil.projectTransformPredicate(this, name, pred);
+      }
+
       if (pred.isUnaryPredicate()) {
         return Expressions.predicate(pred.op(), name);
       } else if (pred.isLiteralPredicate()) {
@@ -232,6 +249,10 @@ abstract class Truncate<T> implements Transform<T, T> {
     @Override
     public UnboundPredicate<CharSequence> project(String name,
                                                   BoundPredicate<CharSequence> predicate) {
+      if (predicate.child() instanceof BoundTransform) {
+        return ProjectionUtil.projectTransformPredicate(this, name, predicate);
+      }
+
       if (predicate.isUnaryPredicate()) {
         return Expressions.predicate(predicate.op(), name);
       } else if (predicate.isLiteralPredicate()) {
@@ -243,6 +264,10 @@ abstract class Truncate<T> implements Transform<T, T> {
     @Override
     public UnboundPredicate<CharSequence> projectStrict(String name,
                                                         BoundPredicate<CharSequence> predicate) {
+      if (predicate.child() instanceof BoundTransform) {
+        return ProjectionUtil.projectTransformPredicate(this, name, predicate);
+      }
+
       if (predicate instanceof BoundUnaryPredicate) {
         return Expressions.predicate(predicate.op(), name);
       } else if (predicate instanceof BoundLiteralPredicate) {
@@ -314,6 +339,10 @@ abstract class Truncate<T> implements Transform<T, T> {
     @Override
     public UnboundPredicate<ByteBuffer> project(String name,
                                                 BoundPredicate<ByteBuffer> pred) {
+      if (pred.child() instanceof BoundTransform) {
+        return ProjectionUtil.projectTransformPredicate(this, name, pred);
+      }
+
       if (pred.isUnaryPredicate()) {
         return Expressions.predicate(pred.op(), name);
       } else if (pred.isLiteralPredicate()) {
@@ -325,6 +354,10 @@ abstract class Truncate<T> implements Transform<T, T> {
     @Override
     public UnboundPredicate<ByteBuffer> projectStrict(String name,
                                                       BoundPredicate<ByteBuffer> pred) {
+      if (pred.child() instanceof BoundTransform) {
+        return ProjectionUtil.projectTransformPredicate(this, name, pred);
+      }
+
       if (pred.isUnaryPredicate()) {
         return Expressions.predicate(pred.op(), name);
       } else if (pred.isLiteralPredicate()) {
@@ -397,6 +430,10 @@ abstract class Truncate<T> implements Transform<T, T> {
     @Override
     public UnboundPredicate<BigDecimal> project(String name,
                                                 BoundPredicate<BigDecimal> pred) {
+      if (pred.child() instanceof BoundTransform) {
+        return ProjectionUtil.projectTransformPredicate(this, name, pred);
+      }
+
       if (pred.isUnaryPredicate()) {
         return Expressions.predicate(pred.op(), name);
       } else if (pred.isLiteralPredicate()) {
@@ -408,6 +445,10 @@ abstract class Truncate<T> implements Transform<T, T> {
     @Override
     public UnboundPredicate<BigDecimal> projectStrict(String name,
                                                       BoundPredicate<BigDecimal> pred) {
+      if (pred.child() instanceof BoundTransform) {
+        return ProjectionUtil.projectTransformPredicate(this, name, pred);
+      }
+
       if (pred.isUnaryPredicate()) {
         return Expressions.predicate(pred.op(), name);
       } else if (pred.isLiteralPredicate()) {

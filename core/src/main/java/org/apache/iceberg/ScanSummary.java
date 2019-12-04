@@ -130,13 +130,15 @@ public class ScanSummary {
 
       } else if (expression instanceof UnboundPredicate) {
         UnboundPredicate pred = (UnboundPredicate) expression;
-        NamedReference ref = (NamedReference) pred.ref();
-        Literal<?> lit = pred.literal();
-        if (TIMESTAMP_NAMES.contains(ref.name())) {
-          Literal<Long> tsLiteral = lit.to(Types.TimestampType.withoutZone());
-          long millis = toMillis(tsLiteral.value());
-          addTimestampFilter(Expressions.predicate(pred.op(), "timestamp_ms", millis));
-          return;
+        if (pred.child() instanceof NamedReference) {
+          NamedReference<?> ref = (NamedReference<?>) pred.child();
+          Literal<?> lit = pred.literal();
+          if (TIMESTAMP_NAMES.contains(ref.name())) {
+            Literal<Long> tsLiteral = lit.to(Types.TimestampType.withoutZone());
+            long millis = toMillis(tsLiteral.value());
+            addTimestampFilter(Expressions.predicate(pred.op(), "timestamp_ms", millis));
+            return;
+          }
         }
       }
 

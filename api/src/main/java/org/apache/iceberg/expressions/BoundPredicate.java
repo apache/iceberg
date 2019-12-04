@@ -20,17 +20,34 @@
 package org.apache.iceberg.expressions;
 
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 
-public abstract class BoundPredicate<T> extends Predicate<BoundReference<T>> {
-  protected BoundPredicate(Operation op, BoundReference<T> ref) {
-    super(op, ref);
+public abstract class BoundPredicate<T> extends Predicate<T, Bound<T>> implements Bound<Boolean> {
+  protected BoundPredicate(Operation op, Bound<T> child) {
+    super(op, child);
   }
 
   public boolean test(StructLike struct) {
-    return test(ref().get(struct));
+    return test(child().eval(struct));
   }
 
   public abstract boolean test(T value);
+
+  @Override
+  public Boolean eval(StructLike struct) {
+    return test(child().eval(struct));
+  }
+
+  @Override
+  public BoundReference<?> ref() {
+    return child().ref();
+  }
+
+  @Override
+  public Type type() {
+    return Types.BooleanType.get();
+  }
 
   public boolean isUnaryPredicate() {
     return false;

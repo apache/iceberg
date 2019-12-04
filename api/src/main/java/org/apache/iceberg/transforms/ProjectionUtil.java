@@ -22,7 +22,10 @@ package org.apache.iceberg.transforms;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import org.apache.iceberg.expressions.BoundLiteralPredicate;
+import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 
 import static org.apache.iceberg.expressions.Expressions.predicate;
@@ -216,5 +219,29 @@ class ProjectionUtil {
       default:
         return null;
     }
+  }
+
+  /**
+   * If the predicate has a transformed child that matches the given transform, return a predicate.
+   */
+  @SuppressWarnings("unchecked")
+  static <T> UnboundPredicate<T> projectTransformPredicate(Transform<?, T> transform,
+                                                           String partitionName, BoundPredicate<?> pred) {
+    if (pred.child() instanceof BoundTransform && transform.equals(((BoundTransform<?, ?>) pred.child()).transform())) {
+      // the bound value must be a T because the transform matches
+      return (UnboundPredicate<T>) removeTransform(partitionName, pred);
+    }
+    return null;
+  }
+
+  private static <T> UnboundPredicate<T> removeTransform(String partitionName, BoundPredicate<T> pred) {
+    if (pred.isUnaryPredicate()) {
+      return Expressions.predicate(pred.op(), partitionName);
+    } else if (pred.isLiteralPredicate()) {
+      return Expressions.predicate(pred.op(), partitionName, pred.asLiteralPredicate().literal());
+    } else if (pred.isSetPredicate()) {
+      return Expressions.predicate(pred.op(), partitionName, pred.asSetPredicate().literalSet());
+    }
+    throw new UnsupportedOperationException("Cannot replace transform in unknown predicate: " + pred);
   }
 }

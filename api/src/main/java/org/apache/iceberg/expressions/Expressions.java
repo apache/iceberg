@@ -23,6 +23,9 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression.Operation;
+import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Types;
 
 /**
  * Factory methods for creating {@link Expression expressions}.
@@ -74,58 +77,142 @@ public class Expressions {
     return new Not(child);
   }
 
+  @SuppressWarnings("unchecked")
+  public static <T> UnboundValueExpression<T> bucket(String name, int numBuckets) {
+    Transform<?, T> transform = (Transform<?, T>) Transforms.bucket(Types.StringType.get(), numBuckets);
+    return new UnboundTransform<>(ref(name), transform);
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T> UnboundValueExpression<T> year(String name) {
+    return new UnboundTransform<>(ref(name), (Transform<?, T>) Transforms.year(Types.TimestampType.withZone()));
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T> UnboundValueExpression<T> month(String name) {
+    return new UnboundTransform<>(ref(name), (Transform<?, T>) Transforms.month(Types.TimestampType.withZone()));
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T> UnboundValueExpression<T> day(String name) {
+    return new UnboundTransform<>(ref(name), (Transform<?, T>) Transforms.day(Types.TimestampType.withZone()));
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T> UnboundValueExpression<T> hour(String name) {
+    return new UnboundTransform<>(ref(name), (Transform<?, T>) Transforms.hour(Types.TimestampType.withZone()));
+  }
+
+  public static <T> UnboundValueExpression<T> truncate(String name, int width) {
+    return new UnboundTransform<>(ref(name), Transforms.truncate(Types.LongType.get(), width));
+  }
+
   public static <T> UnboundPredicate<T> isNull(String name) {
     return new UnboundPredicate<>(Expression.Operation.IS_NULL, ref(name));
+  }
+
+  public static <T> UnboundPredicate<T> isNull(UnboundValueExpression<T> expr) {
+    return new UnboundPredicate<>(Expression.Operation.IS_NULL, expr);
   }
 
   public static <T> UnboundPredicate<T> notNull(String name) {
     return new UnboundPredicate<>(Expression.Operation.NOT_NULL, ref(name));
   }
 
+  public static <T> UnboundPredicate<T> notNull(UnboundValueExpression<T> expr) {
+    return new UnboundPredicate<>(Expression.Operation.IS_NULL, expr);
+  }
+
   public static <T> UnboundPredicate<T> lessThan(String name, T value) {
     return new UnboundPredicate<>(Expression.Operation.LT, ref(name), value);
+  }
+
+  public static <T> UnboundPredicate<T> lessThan(UnboundValueExpression<T> expr, T value) {
+    return new UnboundPredicate<>(Expression.Operation.LT, expr, value);
   }
 
   public static <T> UnboundPredicate<T> lessThanOrEqual(String name, T value) {
     return new UnboundPredicate<>(Expression.Operation.LT_EQ, ref(name), value);
   }
 
+  public static <T> UnboundPredicate<T> lessThanOrEqual(UnboundValueExpression<T> expr, T value) {
+    return new UnboundPredicate<>(Expression.Operation.LT_EQ, expr, value);
+  }
+
   public static <T> UnboundPredicate<T> greaterThan(String name, T value) {
     return new UnboundPredicate<>(Expression.Operation.GT, ref(name), value);
+  }
+
+  public static <T> UnboundPredicate<T> greaterThan(UnboundValueExpression<T> expr, T value) {
+    return new UnboundPredicate<>(Expression.Operation.GT, expr, value);
   }
 
   public static <T> UnboundPredicate<T> greaterThanOrEqual(String name, T value) {
     return new UnboundPredicate<>(Expression.Operation.GT_EQ, ref(name), value);
   }
 
+  public static <T> UnboundPredicate<T> greaterThanOrEqual(UnboundValueExpression<T> expr, T value) {
+    return new UnboundPredicate<>(Expression.Operation.GT_EQ, expr, value);
+  }
+
   public static <T> UnboundPredicate<T> equal(String name, T value) {
     return new UnboundPredicate<>(Expression.Operation.EQ, ref(name), value);
+  }
+
+  public static <T> UnboundPredicate<T> equal(UnboundValueExpression<T> expr, T value) {
+    return new UnboundPredicate<>(Expression.Operation.EQ, expr, value);
   }
 
   public static <T> UnboundPredicate<T> notEqual(String name, T value) {
     return new UnboundPredicate<>(Expression.Operation.NOT_EQ, ref(name), value);
   }
 
+  public static <T> UnboundPredicate<T> notEqual(UnboundValueExpression<T> expr, T value) {
+    return new UnboundPredicate<>(Expression.Operation.NOT_EQ, expr, value);
+  }
+
   public static UnboundPredicate<String> startsWith(String name, String value) {
     return new UnboundPredicate<>(Expression.Operation.STARTS_WITH, ref(name), value);
+  }
+
+  public static UnboundPredicate<String> startsWith(UnboundValueExpression<String> expr, String value) {
+    return new UnboundPredicate<>(Expression.Operation.STARTS_WITH, expr, value);
   }
 
   public static <T> UnboundPredicate<T> in(String name, T... values) {
     return predicate(Operation.IN, name, Lists.newArrayList(values));
   }
 
+  public static <T> UnboundPredicate<T> in(UnboundValueExpression<T> expr, T... values) {
+    return predicate(Operation.IN, expr, Lists.newArrayList(values));
+  }
+
   public static <T> UnboundPredicate<T> in(String name, Iterable<T> values) {
     Preconditions.checkNotNull(values, "Values cannot be null for IN predicate.");
-    return predicate(Operation.IN, name, values);
+    return predicate(Operation.IN, ref(name), values);
+  }
+
+  public static <T> UnboundPredicate<T> in(UnboundValueExpression<T> expr, Iterable<T> values) {
+    Preconditions.checkNotNull(values, "Values cannot be null for IN predicate.");
+    return predicate(Operation.IN, expr, values);
   }
 
   public static <T> UnboundPredicate<T> notIn(String name, T... values) {
     return predicate(Operation.NOT_IN, name, Lists.newArrayList(values));
   }
 
+  public static <T> UnboundPredicate<T> notIn(UnboundValueExpression<T> expr, T... values) {
+    return predicate(Operation.NOT_IN, expr, Lists.newArrayList(values));
+  }
+
   public static <T> UnboundPredicate<T> notIn(String name, Iterable<T> values) {
     Preconditions.checkNotNull(values, "Values cannot be null for NOT_IN predicate.");
     return predicate(Operation.NOT_IN, name, values);
+  }
+
+  public static <T> UnboundPredicate<T> notIn(UnboundValueExpression<T> expr, Iterable<T> values) {
+    Preconditions.checkNotNull(values, "Values cannot be null for NOT_IN predicate.");
+    return predicate(Operation.NOT_IN, expr, values);
   }
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name, T value) {
@@ -135,11 +222,11 @@ public class Expressions {
   public static <T> UnboundPredicate<T> predicate(Operation op, String name, Literal<T> lit) {
     Preconditions.checkArgument(op != Operation.IS_NULL && op != Operation.NOT_NULL,
         "Cannot create %s predicate inclusive a value", op);
-    return new UnboundPredicate<>(op, ref(name), lit);
+    return new UnboundPredicate<T>(op, ref(name), lit);
   }
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name, Iterable<T> values) {
-    return new UnboundPredicate<>(op, ref(name), values);
+    return predicate(op, ref(name), values);
   }
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name) {
@@ -160,7 +247,11 @@ public class Expressions {
     return ExpressionVisitors.visit(expr, RewriteNot.get());
   }
 
-  static NamedReference ref(String name) {
-    return new NamedReference(name);
+  static <T> NamedReference<T> ref(String name) {
+    return new NamedReference<>(name);
+  }
+
+  private static <T> UnboundPredicate<T> predicate(Operation op, UnboundValueExpression<T> expr, Iterable<T> values) {
+    return new UnboundPredicate<>(op, expr, values);
   }
 }

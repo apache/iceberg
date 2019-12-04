@@ -19,13 +19,16 @@
 
 package org.apache.iceberg.expressions;
 
-public abstract class Predicate<R extends Reference> implements Expression {
-  private final Operation op;
-  private final R ref;
+import com.google.common.base.Preconditions;
 
-  Predicate(Operation op, R ref) {
+public abstract class Predicate<T, V extends ValueExpression<T>> implements Expression {
+  private final Operation op;
+  private final V child;
+
+  Predicate(Operation op, V child) {
+    Preconditions.checkNotNull(child, "Value expression cannot be null");
     this.op = op;
-    this.ref = ref;
+    this.child = child;
   }
 
   @Override
@@ -33,7 +36,7 @@ public abstract class Predicate<R extends Reference> implements Expression {
     return op;
   }
 
-  public R ref() {
-    return ref;
+  public V child() {
+    return child;
   }
 }

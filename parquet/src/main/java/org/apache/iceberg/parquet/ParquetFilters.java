@@ -111,8 +111,12 @@ class ParquetFilters {
 
     @Override
     public <T> FilterPredicate predicate(BoundPredicate<T> pred) {
+      if (!(pred.child() instanceof BoundReference)) {
+        throw new UnsupportedOperationException("Cannot convert non-reference to Parquet filter: " + pred.child());
+      }
+
       Operation op = pred.op();
-      BoundReference<T> ref = pred.ref();
+      BoundReference<T> ref = (BoundReference<T>) pred.child();
       String path = schema.idToAlias(ref.fieldId());
       Literal<T> lit;
       if (pred.isUnaryPredicate()) {

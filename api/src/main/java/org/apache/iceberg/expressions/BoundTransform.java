@@ -19,42 +19,41 @@
 
 package org.apache.iceberg.expressions;
 
-public class BoundUnaryPredicate<T> extends BoundPredicate<T> {
-  BoundUnaryPredicate(Operation op, Bound<T> ref) {
-    super(op, ref);
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.types.Type;
+
+/**
+ * A transform expression.
+ *
+ * @param <S> the Java type of values transformed by this function.
+ * @param <T> the Java type of values returned by the function.
+ */
+public class BoundTransform<S, T> implements Bound<T> {
+  private final BoundReference<S> ref;
+  private final Transform<S, T> transform;
+
+  BoundTransform(BoundReference<S> ref, Transform<S, T> transform) {
+    this.ref = ref;
+    this.transform = transform;
   }
 
   @Override
-  public boolean isUnaryPredicate() {
-    return true;
+  public T eval(StructLike struct) {
+    return transform.apply(ref.eval(struct));
   }
 
   @Override
-  public BoundUnaryPredicate<T> asUnaryPredicate() {
-    return this;
+  public BoundReference<S> ref() {
+    return ref;
+  }
+
+  public Transform<S, T> transform() {
+    return transform;
   }
 
   @Override
-  public boolean test(T value) {
-    switch (op()) {
-      case IS_NULL:
-        return value == null;
-      case NOT_NULL:
-        return value != null;
-      default:
-        throw new IllegalStateException("Invalid operation for BoundUnaryPredicate: " + op());
-    }
-  }
-
-  @Override
-  public String toString() {
-    switch (op()) {
-      case IS_NULL:
-        return "is_null(" + child() + ")";
-      case NOT_NULL:
-        return "not_null(" + child() + ")";
-      default:
-        return "Invalid unary predicate: operation = " + op();
-    }
+  public Type type() {
+    return transform.getResultType(ref.type());
   }
 }

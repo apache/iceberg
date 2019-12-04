@@ -19,10 +19,30 @@
 
 package org.apache.iceberg.expressions;
 
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.types.Type;
+
 /**
- * Represents a variable reference in an {@link Expression expression}.
- * @see BoundReference
- * @see NamedReference
+ * Represents a bound value expression.
+ *
+ * @param <T> the Java type of values produced by this expression
  */
-public interface Reference<T> extends ValueExpression<T> {
+public interface Bound<T> extends ValueExpression<T> {
+  /**
+   * @return the underlying reference
+   */
+  BoundReference<?> ref();
+
+  /**
+   * @return the type produced by this expression
+   */
+  Type type();
+
+  /**
+   * Produce a value from the struct for this expression.
+   *
+   * @param struct a struct of incoming data
+   * @return the value of this expression when evaluated on the incoming struct
+   */
+  T eval(StructLike struct);
 }

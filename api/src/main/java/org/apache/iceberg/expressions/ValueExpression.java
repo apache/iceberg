@@ -19,10 +19,13 @@
 
 package org.apache.iceberg.expressions;
 
+import java.io.Serializable;
+
 /**
- * Represents a variable reference in an {@link Expression expression}.
- * @see BoundReference
- * @see NamedReference
+ * An expression that evaluates to a value.
+ *
+ * @param <T> the Java class of values produced by the expression.
  */
-public interface Reference<T> extends ValueExpression<T> {
+public interface ValueExpression<T> extends Serializable {
+  Reference<?> ref();
 }

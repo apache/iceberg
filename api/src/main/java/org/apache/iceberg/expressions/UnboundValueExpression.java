@@ -20,9 +20,7 @@
 package org.apache.iceberg.expressions;
 
 /**
- * Represents a variable reference in an {@link Expression expression}.
- * @see BoundReference
- * @see NamedReference
+ * Represents and unbound expression.
  */
-public interface Reference<T> extends ValueExpression<T> {
+public interface UnboundValueExpression<T> extends Unbound<T, Bound<T>>, ValueExpression<T> {
 }

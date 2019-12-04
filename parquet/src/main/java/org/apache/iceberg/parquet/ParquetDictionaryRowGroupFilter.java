@@ -34,7 +34,7 @@ import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
-import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionReferenceVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Types.StructType;
@@ -84,7 +84,7 @@ public class ParquetDictionaryRowGroupFilter {
   private static final boolean ROWS_MIGHT_MATCH = true;
   private static final boolean ROWS_CANNOT_MATCH = false;
 
-  private class EvalVisitor extends BoundExpressionVisitor<Boolean> {
+  private class EvalVisitor extends BoundExpressionReferenceVisitor<Boolean> {
     private DictionaryPageReadStore dictionaries = null;
     private Map<Integer, Set<?>> dictCache = null;
     private Map<Integer, Boolean> isFallback = null;

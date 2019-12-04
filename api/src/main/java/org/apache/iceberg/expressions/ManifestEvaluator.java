@@ -27,7 +27,7 @@ import org.apache.iceberg.Accessors;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionReferenceVisitor;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
@@ -84,7 +84,7 @@ public class ManifestEvaluator {
   private static final boolean ROWS_MIGHT_MATCH = true;
   private static final boolean ROWS_CANNOT_MATCH = false;
 
-  private class ManifestEvalVisitor extends BoundExpressionVisitor<Boolean> {
+  private class ManifestEvalVisitor extends BoundExpressionReferenceVisitor<Boolean> {
     private List<PartitionFieldSummary> stats = null;
 
     private boolean eval(ManifestFile manifest) {

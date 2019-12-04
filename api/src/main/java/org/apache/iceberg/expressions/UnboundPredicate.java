@@ -26,45 +26,47 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import java.util.List;
 import java.util.Set;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.CharSequenceSet;
 
-public class UnboundPredicate<T> extends Predicate<NamedReference> {
+public class UnboundPredicate<T> extends Predicate<T, UnboundValueExpression<T>> implements Unbound<T, Expression> {
   private static final Joiner COMMA = Joiner.on(", ");
 
   private final List<Literal<T>> literals;
 
-  UnboundPredicate(Operation op, NamedReference namedRef, T value) {
-    this(op, namedRef, Literals.from(value));
+  UnboundPredicate(Operation op, UnboundValueExpression<T> child, T value) {
+    this(op, child, Literals.from(value));
   }
 
-  UnboundPredicate(Operation op, NamedReference namedRef) {
-    super(op, namedRef);
+  UnboundPredicate(Operation op, UnboundValueExpression<T> child) {
+    super(op, child);
     this.literals = null;
   }
 
-  UnboundPredicate(Operation op, NamedReference namedRef, Literal<T> lit) {
-    super(op, namedRef);
+  UnboundPredicate(Operation op, UnboundValueExpression<T> child, Literal<T> lit) {
+    super(op, child);
     this.literals = Lists.newArrayList(lit);
   }
 
-  UnboundPredicate(Operation op, NamedReference namedRef, Iterable<T> values) {
-    super(op, namedRef);
+  UnboundPredicate(Operation op, UnboundValueExpression<T> child, Iterable<T> values) {
+    super(op, child);
     this.literals = Lists.newArrayList(Iterables.transform(values, Literals::from));
   }
 
-  private UnboundPredicate(Operation op, NamedReference namedRef, List<Literal<T>> literals) {
-    super(op, namedRef);
+  private UnboundPredicate(Operation op, UnboundValueExpression<T> child, List<Literal<T>> literals) {
+    super(op, child);
     this.literals = literals;
   }
 
   @Override
+  public NamedReference<?> ref() {
+    return child().ref();
+  }
+
+  @Override
   public Expression negate() {
-    return new UnboundPredicate<>(op().negate(), ref(), literals);
+    return new UnboundPredicate<>(op().negate(), child(), literals);
   }
 
   public Literal<T> literal() {
@@ -99,51 +101,43 @@ public class UnboundPredicate<T> extends Predicate<NamedReference> {
    * @throws ValidationException if literals do not match bound references, or if comparison on expression is invalid
    */
   public Expression bind(StructType struct, boolean caseSensitive) {
-    Schema schema = new Schema(struct.fields());
-    Types.NestedField field = caseSensitive ?
-        schema.findField(ref().name()) :
-        schema.caseInsensitiveFindField(ref().name());
-
-    ValidationException.check(field != null,
-        "Cannot find field '%s' in struct: %s", ref().name(), schema.asStruct());
-
-    BoundReference<T> ref = new BoundReference<>(field.fieldId(), schema.accessorForField(field.fieldId()));
+    Bound<T> bound = child().bind(struct, caseSensitive);
 
     if (literals == null) {
-      return bindUnaryOperation(ref, field.isRequired());
+      return bindUnaryOperation(bound);
     }
 
     if (op() == Operation.IN || op() == Operation.NOT_IN) {
-      return bindInOperation(ref, field.type(), op());
+      return bindInOperation(bound);
     }
 
-    return bindLiteralOperation(ref, field.type());
+    return bindLiteralOperation(bound);
   }
 
-  private Expression bindUnaryOperation(BoundReference<T> ref, boolean isRequired) {
+  private Expression bindUnaryOperation(Bound<T> boundChild) {
     switch (op()) {
       case IS_NULL:
-        if (isRequired) {
+        if (boundChild.ref().field().isRequired()) {
           return Expressions.alwaysFalse();
         }
-        return new BoundUnaryPredicate<>(Operation.IS_NULL, ref);
+        return new BoundUnaryPredicate<>(Operation.IS_NULL, boundChild);
       case NOT_NULL:
-        if (isRequired) {
+        if (boundChild.ref().field().isRequired()) {
           return Expressions.alwaysTrue();
         }
-        return new BoundUnaryPredicate<>(Operation.NOT_NULL, ref);
+        return new BoundUnaryPredicate<>(Operation.NOT_NULL, boundChild);
       default:
         throw new ValidationException("Operation must be IS_NULL or NOT_NULL");
     }
   }
 
-  private Expression bindLiteralOperation(BoundReference<T> ref, Type type) {
-    Literal<T> lit = literal().to(type);
+  private Expression bindLiteralOperation(Bound<T> boundChild) {
+    Literal<T> lit = literal().to(boundChild.type());
 
     if (lit == null) {
       throw new ValidationException(String.format(
           "Invalid value for conversion to type %s: %s (%s)",
-          type, literal().value(), literal().value().getClass().getName()));
+          boundChild.type(), literal().value(), literal().value().getClass().getName()));
 
     } else if (lit == Literals.aboveMax()) {
       switch (op()) {
@@ -169,21 +163,22 @@ public class UnboundPredicate<T> extends Predicate<NamedReference> {
       }
     }
 
-    return new BoundLiteralPredicate<>(op(), ref, lit);
+    // TODO: translate truncate(col) == value to startsWith(value)
+    return new BoundLiteralPredicate<>(op(), boundChild, lit);
   }
 
-  private Expression bindInOperation(BoundReference<T> ref, Type type, Operation op) {
+  private Expression bindInOperation(Bound<T> boundChild) {
     List<Literal<T>> convertedLiterals = Lists.newArrayList(Iterables.filter(
         Lists.transform(literals, lit -> {
-          Literal<T> converted = lit.to(type);
+          Literal<T> converted = lit.to(boundChild.type());
           ValidationException.check(converted != null,
-              "Invalid value for conversion to type %s: %s (%s)", type, lit, lit.getClass().getName());
+              "Invalid value for conversion to type %s: %s (%s)", boundChild.type(), lit, lit.getClass().getName());
           return converted;
         }),
         lit -> lit != Literals.aboveMax() && lit != Literals.belowMin()));
 
     if (convertedLiterals.isEmpty()) {
-      switch (op) {
+      switch (op()) {
         case IN:
           return Expressions.alwaysFalse();
         case NOT_IN:
@@ -195,44 +190,44 @@ public class UnboundPredicate<T> extends Predicate<NamedReference> {
 
     Set<T> literalSet = setOf(convertedLiterals);
     if (literalSet.size() == 1) {
-      switch (op) {
+      switch (op()) {
         case IN:
-          return new BoundLiteralPredicate<>(Operation.EQ, ref, Iterables.get(convertedLiterals, 0));
+          return new BoundLiteralPredicate<>(Operation.EQ, boundChild, Iterables.get(convertedLiterals, 0));
         case NOT_IN:
-          return new BoundLiteralPredicate<>(Operation.NOT_EQ, ref, Iterables.get(convertedLiterals, 0));
+          return new BoundLiteralPredicate<>(Operation.NOT_EQ, boundChild, Iterables.get(convertedLiterals, 0));
         default:
           throw new ValidationException("Operation must be IN or NOT_IN");
       }
     }
 
-    return new BoundSetPredicate<>(op, ref, literalSet);
+    return new BoundSetPredicate<>(op(), boundChild, literalSet);
   }
 
   @Override
   public String toString() {
     switch (op()) {
       case IS_NULL:
-        return "is_null(" + ref() + ")";
+        return "is_null(" + child() + ")";
       case NOT_NULL:
-        return "not_null(" + ref() + ")";
+        return "not_null(" + child() + ")";
       case LT:
-        return ref() + " < " + literal();
+        return child() + " < " + literal();
       case LT_EQ:
-        return ref() + " <= " + literal();
+        return child() + " <= " + literal();
       case GT:
-        return ref() + " > " + literal();
+        return child() + " > " + literal();
       case GT_EQ:
-        return ref() + " >= " + literal();
+        return child() + " >= " + literal();
       case EQ:
-        return ref() + " == " + literal();
+        return child() + " == " + literal();
       case NOT_EQ:
-        return ref() + " != " + literal();
+        return child() + " != " + literal();
       case STARTS_WITH:
-        return ref() + " startsWith \"" + literal() + "\"";
+        return child() + " startsWith \"" + literal() + "\"";
       case IN:
-        return ref() + " in (" + COMMA.join(literals()) + ")";
+        return child() + " in (" + COMMA.join(literals()) + ")";
       case NOT_IN:
-        return ref() + " not in (" + COMMA.join(literals()) + ")";
+        return child() + " not in (" + COMMA.join(literals()) + ")";
       default:
         return "Invalid predicate: operation = " + op();
     }

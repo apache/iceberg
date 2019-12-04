@@ -19,10 +19,20 @@
 
 package org.apache.iceberg.expressions;
 
-/**
- * Represents a variable reference in an {@link Expression expression}.
- * @see BoundReference
- * @see NamedReference
- */
-public interface Reference<T> extends ValueExpression<T> {
+import org.apache.iceberg.types.Types;
+
+public interface Unbound<T, B> {
+  /**
+   * Bind this value expression to concrete types.
+   *
+   * @param struct input data types
+   * @param caseSensitive whether binding should match columns using case sensitive resolution
+   * @return a bound value expression
+   */
+  B bind(Types.StructType struct, boolean caseSensitive);
+
+  /**
+   * @return this expression's underlying reference
+   */
+  NamedReference<?> ref();
 }
