@@ -32,8 +32,10 @@ subprojects {
   // Thus we concede to applying all of the Baseline plugins individually on all the projects we are
   // ready to enforce linting on.
   apply plugin: 'org.inferred.processors'
-  apply plugin: 'com.palantir.baseline-checkstyle'
-  apply plugin: 'com.palantir.baseline-error-prone'
+  if (!project.hasProperty('quick')) {
+    apply plugin: 'com.palantir.baseline-checkstyle'
+    apply plugin: 'com.palantir.baseline-error-prone'
+  }
   apply plugin: 'com.palantir.baseline-scalastyle'
   apply plugin: 'com.palantir.baseline-class-uniqueness'
   apply plugin: 'com.palantir.baseline-reproducibility'
@@ -58,21 +60,23 @@ subprojects {
     }
   }
 
-  tasks.withType(JavaCompile).configureEach {
-    options.errorprone.errorproneArgs += [
-        // error-prone is slow, don't run on tests
-        '-XepExcludedPaths:.*/test/.*',
-        // specific to Palantir
-        '-Xep:PreferSafeLoggingPreconditions:OFF',
-        '-Xep:PreferSafeLoggableExceptions:OFF',
-        '-Xep:Slf4jLogsafeArgs:OFF',
-        // subclasses are not equal
-        '-Xep:EqualsGetClass:OFF',
-        // patterns that are allowed
-        '-Xep:SwitchStatementDefaultCase:OFF',
-        '-Xep:MissingCasesInEnumSwitch:OFF',
-        '-Xep:TypeParameterShadowing:OFF',
-        '-Xep:TypeParameterUnusedInFormals:OFF',
-      ]
+  pluginManager.withPlugin('com.palantir.baseline-error-prone') {
+    tasks.withType(JavaCompile).configureEach {
+      options.errorprone.errorproneArgs += [
+          // error-prone is slow, don't run on tests
+          '-XepExcludedPaths:.*/test/.*',
+          // specific to Palantir
+          '-Xep:PreferSafeLoggingPreconditions:OFF',
+          '-Xep:PreferSafeLoggableExceptions:OFF',
+          '-Xep:Slf4jLogsafeArgs:OFF',
+          // subclasses are not equal
+          '-Xep:EqualsGetClass:OFF',
+          // patterns that are allowed
+          '-Xep:SwitchStatementDefaultCase:OFF',
+          '-Xep:MissingCasesInEnumSwitch:OFF',
+          '-Xep:TypeParameterShadowing:OFF',
+          '-Xep:TypeParameterUnusedInFormals:OFF',
+        ]
+    }
   }
 }
