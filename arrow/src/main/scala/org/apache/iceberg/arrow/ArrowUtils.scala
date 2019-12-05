@@ -37,7 +37,7 @@ object ArrowUtils {
   val rootAllocator = new RootAllocator(Long.MaxValue)
 
   // todo: support more types.
-  // scalastyle:off
+  // scalastyle:off cyclomatic.complexity
   def fromArrowType(dt: ArrowType): DataType = dt match {
     case ArrowType.Bool.INSTANCE => BooleanType
     case int: ArrowType.Int if int.getIsSigned && int.getBitWidth == 8 => ByteType
@@ -53,7 +53,7 @@ object ArrowUtils {
     case ts: ArrowType.Timestamp if ts.getUnit == TimeUnit.MICROSECOND => TimestampType
     case _ => throw new UnsupportedOperationException(s"Unsupported data type: $dt")
   }
-  // scalastyle:on
+  // scalastyle:on cyclomatic.complexity
 
   def fromArrowField(field: Field): DataType = {
     field.getType match {
