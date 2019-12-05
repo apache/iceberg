@@ -21,6 +21,8 @@ package org.apache.iceberg.catalog;
 
 import com.google.common.base.Joiner;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * A namespace in a {@link Catalog}.
@@ -45,6 +47,20 @@ public class Namespace {
 
   private Namespace(String[] levels) {
     this.levels = levels;
+  }
+
+  private  Map<String, String> parameters = new HashMap<>();
+
+  public void setParameters(String key, String value) {
+    parameters.put(key, value);
+  }
+
+  public Map<String, String> getParameters() {
+    return parameters;
+  }
+
+  public String getParameters(String key) {
+    return parameters.get(key);
   }
 
   public String[] levels() {

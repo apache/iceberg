@@ -205,7 +205,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
 
   @Override
   public boolean createNamespace(Namespace namespace) {
-    Preconditions.checkArgument(namespace.isEmpty(), "Your Namespace must be not empty!");
+    Preconditions.checkArgument(!namespace.isEmpty(), "Your Namespace must be not empty!");
     Joiner slash = Joiner.on("/");
     Path nsPath = new Path(slash.join(warehouseLocation, slash.join(namespace.levels())));
     return io().mkdir(nsPath.toString());
@@ -326,8 +326,8 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
   }
 
   @Override
-  public boolean alterNamespace(Namespace current, Namespace namespace) {
-    throw new UnsupportedOperationException("Cannot alter Namespaces for Hadoop tables");
+  public boolean alterNamespace(Namespace namespace) {
+    throw new UnsupportedOperationException("Cannot alter Namespaces for Hadoop namespace");
   }
 
   @Override

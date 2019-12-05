@@ -165,7 +165,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     return false;
   }
 
-  public boolean alterNamespace(Namespace current, Namespace namespace) {
+  public boolean alterNamespace(Namespace namespace) {
     return false;
   }
 

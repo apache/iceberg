@@ -113,6 +113,29 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   }
 
   @Test
+  public void testCreateNamespace() throws Exception {
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+
+    TableIdentifier tbl1 = TableIdentifier.of("db", "ns1", "ns2", "metadata");
+    TableIdentifier tbl2 = TableIdentifier.of("db", "ns2", "ns3", "tbl2");
+
+    Lists.newArrayList(tbl1, tbl2).forEach(t ->
+        catalog.createNamespace(t.namespace())
+    );
+
+    String metaLocation1 = warehousePath + "/" + "db/ns1/ns2";
+    FileSystem fs1 = Util.getFs(new Path(metaLocation1), conf);
+    Assert.assertTrue(fs1.isDirectory(new Path(metaLocation1)));
+
+    String metaLocation2 = warehousePath + "/" + "db/ns2/ns3";
+    FileSystem fs2 = Util.getFs(new Path(metaLocation2), conf);
+    Assert.assertTrue(fs2.isDirectory(new Path(metaLocation2)));
+
+  }
+
+  @Test
   public void testListNamespace() throws Exception {
     Configuration conf = new Configuration();
     String warehousePath = temp.newFolder().getAbsolutePath();

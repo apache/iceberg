@@ -82,7 +82,7 @@ public class CachingCatalog implements Catalog {
   }
 
   @Override
-  public boolean alterNamespace(Namespace current, Namespace namespace) {
+  public boolean alterNamespace(Namespace namespace) {
     return false;
   }
 
