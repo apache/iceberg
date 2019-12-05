@@ -67,6 +67,11 @@ public class SparkParquetReaders {
   private SparkParquetReaders() {
   }
 
+  public static ParquetValueReader<InternalRow> buildReader(Schema expectedSchema,
+                                                            MessageType fileSchema) {
+    return SparkParquetReaders.buildReader(expectedSchema, fileSchema, Collections.emptyMap());
+  }
+
   @SuppressWarnings("unchecked")
   public static ParquetValueReader<InternalRow> buildReader(Schema expectedSchema,
                                                             MessageType fileSchema,
@@ -80,11 +85,6 @@ public class SparkParquetReaders {
           TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
               new FallbackReadBuilder(fileSchema, partitionValues));
     }
-  }
-
-  public static ParquetValueReader<InternalRow> buildReader(Schema expectedSchema,
-                                                            MessageType fileSchema) {
-    return SparkParquetReaders.buildReader(expectedSchema, fileSchema, Collections.emptyMap());
   }
 
   private static class FallbackReadBuilder extends ReadBuilder {

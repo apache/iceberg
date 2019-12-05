@@ -29,11 +29,9 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataTask;
@@ -82,7 +80,6 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.DecimalType;
 import org.apache.spark.sql.types.StringType;
-import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.slf4j.Logger;
@@ -394,48 +391,22 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       // schema or rows returned by readers
       Schema finalSchema = expectedSchema;
       PartitionSpec spec = task.spec();
-      Set<Integer> idColumns = spec.identitySourceIds();
 
       // schema needed for the projection and filtering
       StructType sparkType = SparkSchemaUtil.convert(finalSchema);
       Schema requiredSchema = SparkSchemaUtil.prune(tableSchema, sparkType, task.residual(), caseSensitive);
-      boolean hasJoinedPartitionColumns = !idColumns.isEmpty();
       boolean hasExtraFilterColumns = requiredSchema.columns().size() != finalSchema.columns().size();
 
-      Schema iterSchema;
-      Iterator<InternalRow> iter;
+      // build a map of partition values for reconstructing records
+      Map<Integer, Object> partitionValues = partitionMap(spec, file.partition());
 
-      if (hasJoinedPartitionColumns) {
-        Map<Integer, Object> partitionValueMap = Maps.newHashMap();
-        Map<Integer, Integer> partitionSpecFieldIndexMap = Maps.newHashMap();
-        Map<Integer, DataType> partitionSpecDataTypeMap = Maps.newHashMap();
-
-        for (int i = 0; i < spec.fields().size(); i++) {
-          PartitionField partitionField = spec.fields().get(i);
-          Integer sourceId = partitionField.sourceId();
-          partitionSpecFieldIndexMap.put(sourceId, i);
-          DataType partitionType = SparkSchemaUtil.convert(spec.partitionType().field(partitionField.name()).type());
-          partitionSpecDataTypeMap.put(sourceId, partitionType);
-        }
-
-        for (Map.Entry<Integer, Integer> entry : partitionSpecFieldIndexMap.entrySet()) {
-          Object partitionValue = convert(file.partition().get(entry.getValue(), Object.class),
-              partitionSpecDataTypeMap.get(entry.getKey()));
-          partitionValueMap.put(entry.getKey(), partitionValue);
-        }
-
-        iterSchema = requiredSchema;
-        iter = open(task, finalSchema, partitionValueMap);
-      } else if (hasExtraFilterColumns) {
-        iterSchema = requiredSchema;
-        iter = open(task, requiredSchema, Collections.emptyMap());
+      if (hasExtraFilterColumns) {
+        return Iterators.transform(
+            open(task, requiredSchema, partitionValues),
+            APPLY_PROJECTION.bind(projection(finalSchema, requiredSchema))::invoke);
       } else {
-        iterSchema = finalSchema;
-        iter = open(task, finalSchema, Collections.emptyMap());
+        return open(task, finalSchema, partitionValues);
       }
-
-      return Iterators.transform(iter,
-          APPLY_PROJECTION.bind(projection(finalSchema, iterSchema))::invoke);
     }
 
     private Iterator<InternalRow> open(FileScanTask task, Schema readSchema, Map<Integer, Object> partitionValues) {
@@ -538,23 +509,6 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     }
 
     /**
-     * Returns the Spark data type for a partition.
-     *
-     * If the field is not found in the partition schema we try to retrieve it from the full table schema.
-     *
-     * @param partitionSchema the Iceberg schema for partitions
-     * @param fieldId the id of the field
-     * @return the Spark data type of the field
-     */
-    private DataType getPartitionType(Schema partitionSchema, Integer fieldId) {
-      if (partitionSchema.findField(fieldId) != null) {
-        return SparkSchemaUtil.convert(partitionSchema.findField(fieldId).type());
-      } else {
-        return SparkSchemaUtil.convert(tableSchema.findField(fieldId).type());
-      }
-    }
-
-    /**
      * Converts the objects into instances used by Spark's InternalRow.
      *
      * @param value a data value
@@ -573,39 +527,28 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       }
       return value;
     }
-  }
 
-  private static class StructLikeInternalRow implements StructLike {
-    private final DataType[] types;
-    private InternalRow row = null;
+    /**
+     * Creates a map from field ID to Spark value for a partition tuple.
+     *
+     * @param spec a partition spec
+     * @param partition a partition tuple
+     * @return a map from field ID to Spark value
+     */
+    private static Map<Integer, Object> partitionMap(PartitionSpec spec, StructLike partition) {
+      Map<Integer, Object> partitionValues = Maps.newHashMap();
 
-    StructLikeInternalRow(StructType struct) {
-      this.types = new DataType[struct.size()];
-      StructField[] fields = struct.fields();
-      for (int i = 0; i < fields.length; i += 1) {
-        types[i] = fields[i].dataType();
+      List<PartitionField> fields = spec.fields();
+      for (int i = 0; i < fields.size(); i += 1) {
+        PartitionField field = fields.get(i);
+        if ("identity".equals(field.transform().toString())) {
+          partitionValues.put(field.sourceId(), convert(
+              partition.get(i, spec.javaClasses()[i]),
+              SparkSchemaUtil.convert(spec.partitionType().field(field.name()).type())));
+        }
       }
-    }
 
-    public StructLikeInternalRow setRow(InternalRow row) {
-      this.row = row;
-      return this;
-    }
-
-    @Override
-    public int size() {
-      return types.length;
-    }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public <T> T get(int pos, Class<T> javaClass) {
-      return javaClass.cast(row.get(pos, types[pos]));
-    }
-
-    @Override
-    public <T> void set(int pos, T value) {
-      throw new UnsupportedOperationException("Not implemented: set");
+      return partitionValues;
     }
   }
 }

@@ -81,7 +81,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
     List<Types.NestedField> expectedFields = struct.fields();
     for (int i = 0; i < expectedFields.size(); i += 1) {
       Types.NestedField field = expectedFields.get(i);
-      String sanitizedFieldName = AvroSchemaUtil.sanitize(field.name());
+      String sanitizedFieldName = AvroSchemaUtil.makeCompatibleName(field.name());
 
       // detect reordering
       if (i < fields.size() && !sanitizedFieldName.equals(fields.get(i).name())) {
@@ -124,7 +124,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
       return null;
     }
 
-    String expectedName = AvroSchemaUtil.sanitize(expectedField.name());
+    String expectedName = AvroSchemaUtil.makeCompatibleName(expectedField.name());
 
     this.current = expectedField.type();
     try {
