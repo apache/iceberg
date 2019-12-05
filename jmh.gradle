@@ -32,7 +32,9 @@ configure(jmhProjects) {
   }
 
   jmhCompileGeneratedClasses {
-    options.errorprone.enabled = false
+    pluginManager.withPlugin('com.palantir.baseline-error-prone') {
+      options.errorprone.enabled = false
+    }
   }
 }
 
