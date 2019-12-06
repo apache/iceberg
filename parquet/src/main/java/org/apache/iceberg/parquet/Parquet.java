@@ -58,6 +58,8 @@ import org.apache.parquet.schema.MessageType;
 
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
+import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_PAGE_SIZE_BYTES;
@@ -182,6 +184,24 @@ public class Parquet {
           PARQUET_PAGE_SIZE_BYTES, PARQUET_PAGE_SIZE_BYTES_DEFAULT));
       int dictionaryPageSize = Integer.parseInt(config.getOrDefault(
           PARQUET_DICT_SIZE_BYTES, PARQUET_DICT_SIZE_BYTES_DEFAULT));
+      String compressionLevel = config.getOrDefault(
+          PARQUET_COMPRESSION_LEVEL, PARQUET_COMPRESSION_LEVEL_DEFAULT);
+
+      if (compressionLevel != null) {
+        switch (codec()) {
+          case GZIP:
+            config.put("zlib.compress.level", compressionLevel);
+            break;
+          case BROTLI:
+            config.put("compression.brotli.quality", compressionLevel);
+            break;
+          case ZSTD:
+            config.put("io.compression.codec.zstd.level", compressionLevel);
+            break;
+          default:
+            // compression level is not supported; ignore it
+        }
+      }
 
       WriterVersion writerVersion = WriterVersion.PARQUET_1_0;
 
