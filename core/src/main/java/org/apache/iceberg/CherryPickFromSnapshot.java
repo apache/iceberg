@@ -59,8 +59,8 @@ class CherryPickFromSnapshot implements CherryPick {
     Snapshot snapshot = base.snapshot(targetWapId);
 
     // only append operations are currently supported
-    if (snapshot.operation().equals(DataOperations.APPEND)) {
-      throw new UnsupportedOperationException("Can cherry pick append only operations");
+    if (!snapshot.operation().equals(DataOperations.APPEND)) {
+      throw new UnsupportedOperationException("Can cherry pick only append operations");
     }
 
     return snapshot;
