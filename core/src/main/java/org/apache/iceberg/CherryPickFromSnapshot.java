@@ -54,7 +54,7 @@ class CherryPickFromSnapshot implements CherryPick {
   @Override
   public Snapshot apply() {
     ValidationException.check(targetWapId != null,
-        "Cannot cherry pick unknown version: call fromWapId");
+        "Cannot cherry pick unknown version: call fromSnapshotId");
 
     Snapshot snapshot = base.snapshot(targetWapId);
 
