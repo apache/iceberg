@@ -251,6 +251,14 @@ project(':iceberg-spark') {
     }
     testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
+
+    // spark-avro is required only for JMH tests, so ideally we would add this
+    // dependency only to the jmh configuration, however gradle-consistent-versions
+    // plugin does not respect this configuration and does not seem to have a way
+    // to add custom configurations in its lockable configuration detection
+    compileOnly("org.apache.spark:spark-avro_2.11") {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
   }
 }
 
