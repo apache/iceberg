@@ -699,61 +699,61 @@ public class TestDictionaryRowGroupFilter {
   public void testIntegerIn() {
     boolean shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, in("id", 5, 6))
         .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+    Assert.assertFalse("Should not read: id below lower bound (5 < 30, 6 < 30)", shouldRead);
 
     shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, in("id", 28, 29))
         .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+    Assert.assertFalse("Should not read: id below lower bound (28 < 30, 29 < 30)", shouldRead);
 
     shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, in("id", 30, 31))
         .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+    Assert.assertTrue("Should read: id equal to lower bound (30 == 30)", shouldRead);
 
     shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, in("id", 75, 76))
         .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+    Assert.assertTrue("Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)", shouldRead);
 
     shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, in("id", 79, 80))
         .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+    Assert.assertTrue("Should read: id equal to upper bound (79 == 79)", shouldRead);
 
     shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, in("id", 80, 81))
         .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id above upper bound", shouldRead);
+    Assert.assertFalse("Should not read: id above upper bound (80 > 79, 81 > 79)", shouldRead);
 
     shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, in("id", 85, 86))
         .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertFalse("Should not read: id above upper bound", shouldRead);
+    Assert.assertFalse("Should not read: id above upper bound (85 > 79, 86 > 79)", shouldRead);
   }
 
   @Test
   public void testIntegerNotIn() {
     boolean shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notIn("id", 5, 6))
         .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+    Assert.assertTrue("Should read: id below lower bound (5 < 30, 6 < 30)", shouldRead);
 
     shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notIn("id", 28, 29))
         .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+    Assert.assertTrue("Should read: id below lower bound (28 < 30, 29 < 30)", shouldRead);
 
     shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notIn("id", 30, 31))
         .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+    Assert.assertTrue("Should read: id equal to lower bound (30 == 30)", shouldRead);
 
     shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notIn("id", 75, 76))
         .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+    Assert.assertTrue("Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)", shouldRead);
 
     shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notIn("id", 79, 80))
         .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+    Assert.assertTrue("Should read: id equal to upper bound (79 == 79)", shouldRead);
 
     shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notIn("id", 80, 81))
         .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+    Assert.assertTrue("Should read: id above upper bound (80 > 79, 81 > 79)", shouldRead);
 
     shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notIn("id", 85, 86))
         .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+    Assert.assertTrue("Should read: id above upper bound (85 > 79, 86 > 79)", shouldRead);
   }
 }

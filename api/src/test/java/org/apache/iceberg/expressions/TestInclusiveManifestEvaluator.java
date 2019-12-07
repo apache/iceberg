@@ -353,48 +353,48 @@ public class TestInclusiveManifestEvaluator {
   @Test
   public void testIntegerIn() {
     boolean shouldRead = ManifestEvaluator.forRowFilter(in("id", 5, 6), SPEC, true).eval(FILE);
-    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+    Assert.assertFalse("Should not read: id below lower bound (5 < 30, 6 < 30)", shouldRead);
 
     shouldRead = ManifestEvaluator.forRowFilter(in("id", 28, 29), SPEC, true).eval(FILE);
-    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+    Assert.assertFalse("Should not read: id below lower bound (28 < 30, 29 < 30)", shouldRead);
 
     shouldRead = ManifestEvaluator.forRowFilter(in("id", 30, 31), SPEC, true).eval(FILE);
-    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+    Assert.assertTrue("Should read: id equal to lower bound (30 == 30)", shouldRead);
 
     shouldRead = ManifestEvaluator.forRowFilter(in("id", 75, 76), SPEC, true).eval(FILE);
-    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+    Assert.assertTrue("Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)", shouldRead);
 
     shouldRead = ManifestEvaluator.forRowFilter(in("id", 79, 80), SPEC, true).eval(FILE);
-    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+    Assert.assertTrue("Should read: id equal to upper bound (79 == 79)", shouldRead);
 
     shouldRead = ManifestEvaluator.forRowFilter(in("id", 80, 81), SPEC, true).eval(FILE);
-    Assert.assertFalse("Should not read: id above upper bound", shouldRead);
+    Assert.assertFalse("Should not read: id above upper bound (80 > 79, 81 > 79)", shouldRead);
 
     shouldRead = ManifestEvaluator.forRowFilter(in("id", 85, 86), SPEC, true).eval(FILE);
-    Assert.assertFalse("Should not read: id above upper bound", shouldRead);
+    Assert.assertFalse("Should not read: id above upper bound (85 > 79, 86 > 79)", shouldRead);
   }
 
   @Test
   public void testIntegerNotIn() {
     boolean shouldRead = ManifestEvaluator.forRowFilter(notIn("id", 5, 6), SPEC, true).eval(FILE);
-    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+    Assert.assertTrue("Should read: id below lower bound (5 < 30, 6 < 30)", shouldRead);
 
     shouldRead = ManifestEvaluator.forRowFilter(notIn("id", 28, 29), SPEC, true).eval(FILE);
-    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+    Assert.assertTrue("Should read: id below lower bound (28 < 30, 29 < 30)", shouldRead);
 
     shouldRead = ManifestEvaluator.forRowFilter(notIn("id", 30, 31), SPEC, true).eval(FILE);
-    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+    Assert.assertTrue("Should read: id equal to lower bound (30 == 30)", shouldRead);
 
     shouldRead = ManifestEvaluator.forRowFilter(notIn("id", 75, 76), SPEC, true).eval(FILE);
-    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+    Assert.assertTrue("Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)", shouldRead);
 
     shouldRead = ManifestEvaluator.forRowFilter(notIn("id", 79, 80), SPEC, true).eval(FILE);
-    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+    Assert.assertTrue("Should read: id equal to upper bound (79 == 79)", shouldRead);
 
     shouldRead = ManifestEvaluator.forRowFilter(notIn("id", 80, 81), SPEC, true).eval(FILE);
-    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+    Assert.assertTrue("Should read: id above upper bound (80 > 79, 81 > 79)", shouldRead);
 
     shouldRead = ManifestEvaluator.forRowFilter(notIn("id", 85, 86), SPEC, true).eval(FILE);
-    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+    Assert.assertTrue("Should read: id above upper bound (85 > 79, 86 > 79)", shouldRead);
   }
 }

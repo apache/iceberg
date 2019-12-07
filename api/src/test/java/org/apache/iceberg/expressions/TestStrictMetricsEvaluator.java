@@ -379,19 +379,19 @@ public class TestStrictMetricsEvaluator {
   @Test
   public void testIntegerIn() {
     boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, in("id", 5, 6)).eval(FILE);
-    Assert.assertFalse("Should not match: all values !=5 and !=6", shouldRead);
+    Assert.assertFalse("Should not match: all values != 5 and != 6", shouldRead);
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA, in("id", 30, 31)).eval(FILE);
-    Assert.assertFalse("Should not match: some values != 30 and !=31", shouldRead);
+    Assert.assertFalse("Should not match: some values != 30 and != 31", shouldRead);
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA, in("id", 75, 76)).eval(FILE);
-    Assert.assertFalse("Should not match: some values != 75 and !=76", shouldRead);
+    Assert.assertFalse("Should not match: some values != 75 and != 76", shouldRead);
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA, in("id", 78, 79)).eval(FILE);
-    Assert.assertFalse("Should not match: some values != 78 and !=79", shouldRead);
+    Assert.assertFalse("Should not match: some values != 78 and != 79", shouldRead);
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA, in("id", 80, 81)).eval(FILE);
-    Assert.assertFalse("Should not match: some values != 80 and !=81)", shouldRead);
+    Assert.assertFalse("Should not match: some values != 80 and != 81)", shouldRead);
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA, in("always_5", 5, 6)).eval(FILE);
     Assert.assertTrue("Should match: all values == 5", shouldRead);
