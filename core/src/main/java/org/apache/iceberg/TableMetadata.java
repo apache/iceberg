@@ -451,6 +451,11 @@ public class TableMetadata {
         snapshot.snapshotId(), snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
+  // Todo: Need to validate if additional checks are necessary
+  public TableMetadata cherrypickFrom(Snapshot snapshot) {
+    return rollbackTo(snapshot);
+  }
+
   public TableMetadata replaceProperties(Map<String, String> newProperties) {
     ValidationException.check(newProperties != null, "Cannot set properties to null");
     return new TableMetadata(null, uuid, location,

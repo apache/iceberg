@@ -160,6 +160,11 @@ public class BaseTable implements Table, HasTableOperations {
   }
 
   @Override
+  public CherryPick cherrypick() {
+    return new CherryPickFromSnapshot(ops);
+  }
+
+  @Override
   public Transaction newTransaction() {
     return Transactions.newTransaction(ops);
   }

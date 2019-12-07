@@ -143,6 +143,11 @@ abstract class BaseMetadataTable implements Table {
   }
 
   @Override
+  public CherryPick cherrypick() {
+    throw new UnsupportedOperationException("Cannot cherry pick a metadata table");
+  }
+
+  @Override
   public Transaction newTransaction() {
     throw new UnsupportedOperationException("Cannot create transactions for a metadata table");
   }

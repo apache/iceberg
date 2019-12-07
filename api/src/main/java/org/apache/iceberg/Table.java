@@ -207,6 +207,12 @@ public interface Table {
   Rollback rollback();
 
   /**
+   *
+   * @return
+   */
+  CherryPick cherrypick();
+
+  /**
    * Create a new {@link Transaction transaction API} to commit multiple table operations at once.
    *
    * @return a new {@link Transaction}

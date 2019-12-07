@@ -586,6 +586,11 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
+    public CherryPick cherrypick() {
+      throw new UnsupportedOperationException("Transaction tables do not support cherrypick");
+    }
+
+    @Override
     public Transaction newTransaction() {
       throw new UnsupportedOperationException("Cannot create a transaction within a transaction");
     }
