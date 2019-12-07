@@ -19,11 +19,12 @@
 
 package org.apache.iceberg;
 
-import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * Base {@link Table} implementation.
@@ -158,6 +159,9 @@ public class BaseTable implements Table, HasTableOperations {
   public Rollback rollback() {
     return new RollbackToSnapshot(ops);
   }
+
+  @Override
+  public CherryPick cherrypick() { return new CherryPickFromSnapshot(ops); }
 
   @Override
   public Transaction newTransaction() {

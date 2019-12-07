@@ -23,11 +23,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -38,14 +33,13 @@ import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
+
+import static org.apache.iceberg.TableProperties.*;
 
 class BaseTransaction implements Transaction {
   private static final Logger LOG = LoggerFactory.getLogger(BaseTransaction.class);
@@ -583,6 +577,11 @@ class BaseTransaction implements Transaction {
     @Override
     public Rollback rollback() {
       throw new UnsupportedOperationException("Transaction tables do not support rollback");
+    }
+
+    @Override
+    public CherryPick cherrypick() {
+      throw new UnsupportedOperationException("Transaction tables do not support cherrypick");
     }
 
     @Override

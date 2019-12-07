@@ -22,22 +22,18 @@ package org.apache.iceberg;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
+import com.google.common.collect.*;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.PropertyUtil;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
-import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.util.PropertyUtil;
 
 /**
  * Metadata for a table.
@@ -449,6 +445,11 @@ public class TableMetadata {
     return new TableMetadata(null, uuid, location,
         nowMillis, lastColumnId, schema, defaultSpecId, specs, properties,
         snapshot.snapshotId(), snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
+  }
+
+  // Todo: Need to validate if additional checks are necessary
+  public TableMetadata cherrypickFrom(Snapshot snapshot) {
+    return rollbackTo(snapshot);
   }
 
   public TableMetadata replaceProperties(Map<String, String> newProperties) {
