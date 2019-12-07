@@ -20,12 +20,11 @@
 package org.apache.iceberg;
 
 import com.google.common.collect.ImmutableMap;
+import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
-
-import java.util.List;
-import java.util.Map;
 
 abstract class BaseMetadataTable implements Table {
   private PartitionSpec spec = PartitionSpec.unpartitioned();
