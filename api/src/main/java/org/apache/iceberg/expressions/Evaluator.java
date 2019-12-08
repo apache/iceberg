@@ -23,7 +23,7 @@ import java.io.Serializable;
 import java.util.Comparator;
 import java.util.Set;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.expressions.ExpressionVisitors.BoundVisitor;
 import org.apache.iceberg.types.Types.StructType;
 
 /**
@@ -56,7 +56,7 @@ public class Evaluator implements Serializable {
     return visitor().eval(data);
   }
 
-  private class EvalVisitor extends BoundExpressionVisitor<Boolean> {
+  private class EvalVisitor extends BoundVisitor<Boolean> {
     private StructLike struct;
 
     private boolean eval(StructLike row) {

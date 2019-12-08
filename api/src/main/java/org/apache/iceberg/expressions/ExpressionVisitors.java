@@ -62,10 +62,10 @@ public class ExpressionVisitors {
   /**
    * This base class is used by existing visitors that have not been updated to extend BoundExpressionVisitor.
    *
-   * @deprecated use {@link BoundExpressionVisitor} instead
+   * @deprecated use {@link BoundVisitor} instead
    */
   @Deprecated
-  public abstract static class BoundExpressionReferenceVisitor<R> extends ExpressionVisitor<R> {
+  public abstract static class BoundExpressionVisitor<R> extends ExpressionVisitor<R> {
     public <T> R isNull(BoundReference<T> ref) {
       return null;
     }
@@ -166,7 +166,7 @@ public class ExpressionVisitors {
     }
   }
 
-  public abstract static class BoundExpressionVisitor<R> extends ExpressionVisitor<R> {
+  public abstract static class BoundVisitor<R> extends ExpressionVisitor<R> {
     public <T> R isNull(Bound<T> expr) {
       return null;
     }

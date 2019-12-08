@@ -25,7 +25,7 @@ import java.util.List;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionReferenceVisitor;
+import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.transforms.Transform;
 
 /**
@@ -116,7 +116,7 @@ public class ResidualEvaluator implements Serializable {
     return visitor().eval(partitionData);
   }
 
-  private class ResidualVisitor extends BoundExpressionReferenceVisitor<Expression> {
+  private class ResidualVisitor extends BoundExpressionVisitor<Expression> {
     private StructLike struct;
 
     private Expression eval(StructLike dataStruct) {

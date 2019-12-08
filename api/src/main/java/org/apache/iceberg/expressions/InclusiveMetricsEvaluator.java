@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionReferenceVisitor;
+import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
@@ -81,7 +81,7 @@ public class InclusiveMetricsEvaluator {
   private static final boolean ROWS_MIGHT_MATCH = true;
   private static final boolean ROWS_CANNOT_MATCH = false;
 
-  private class MetricsEvalVisitor extends BoundExpressionReferenceVisitor<Boolean> {
+  private class MetricsEvalVisitor extends BoundExpressionVisitor<Boolean> {
     private Map<Integer, Long> valueCounts = null;
     private Map<Integer, Long> nullCounts = null;
     private Map<Integer, ByteBuffer> lowerBounds = null;
