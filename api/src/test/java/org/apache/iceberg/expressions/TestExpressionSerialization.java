@@ -128,10 +128,8 @@ public class TestExpressionSerialization {
       return false;
     }
 
-    if (left.child() instanceof Term && right.child() instanceof Term) {
-      if (!equals((Term) left.child(), (Term) right.child())) {
-        return false;
-      }
+    if (!equals(left.child(), right.child())) {
+      return false;
     }
 
     if (left.op() == Operation.IS_NULL || left.op() == Operation.NOT_NULL) {
