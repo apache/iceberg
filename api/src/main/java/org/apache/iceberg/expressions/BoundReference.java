@@ -24,7 +24,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-public class BoundReference<T> implements Bound<T>, Reference<T> {
+public class BoundReference<T> implements BoundTerm<T>, Reference<T> {
   private final Types.NestedField field;
   private final Accessor<StructLike> accessor;
 

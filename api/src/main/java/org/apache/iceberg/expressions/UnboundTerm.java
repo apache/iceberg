@@ -20,7 +20,9 @@
 package org.apache.iceberg.expressions;
 
 /**
- * Represents and unbound expression.
+ * Represents and unbound term.
+ *
+ * @param <T> the Java type of values produced by this term
  */
-public interface UnboundValueExpression<T> extends Unbound<T, Bound<T>>, ValueExpression<T> {
+public interface UnboundTerm<T> extends Unbound<T, BoundTerm<T>>, Term {
 }

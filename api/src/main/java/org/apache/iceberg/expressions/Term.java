@@ -23,9 +23,6 @@ import java.io.Serializable;
 
 /**
  * An expression that evaluates to a value.
- *
- * @param <T> the Java class of values produced by the expression.
  */
-public interface ValueExpression<T> extends Serializable {
-  Reference<?> ref();
+public interface Term extends Serializable {
 }

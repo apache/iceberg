@@ -99,7 +99,7 @@ public class TestExpressionSerialization {
     }
   }
 
-  private static boolean equals(ValueExpression<?> left, ValueExpression<?> right) {
+  private static boolean equals(Term left, Term right) {
     if (left instanceof Reference && right instanceof Reference) {
       return equals((Reference<?>) left, (Reference<?>) right);
     } else if (left instanceof UnboundTransform && right instanceof UnboundTransform) {
@@ -128,8 +128,10 @@ public class TestExpressionSerialization {
       return false;
     }
 
-    if (!equals(left.child(), right.child())) {
-      return false;
+    if (left.child() instanceof Term && right.child() instanceof Term) {
+      if (!equals((Term) left.child(), (Term) right.child())) {
+        return false;
+      }
     }
 
     if (left.op() == Operation.IS_NULL || left.op() == Operation.NOT_NULL) {

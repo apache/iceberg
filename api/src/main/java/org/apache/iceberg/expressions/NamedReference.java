@@ -24,7 +24,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 
-public class NamedReference<T> implements UnboundValueExpression<T>, Reference<T> {
+public class NamedReference<T> implements UnboundTerm<T>, Reference<T> {
   private final String name;
 
   NamedReference(String name) {

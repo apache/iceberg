@@ -30,31 +30,31 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.CharSequenceSet;
 
-public class UnboundPredicate<T> extends Predicate<T, UnboundValueExpression<T>> implements Unbound<T, Expression> {
+public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements Unbound<T, Expression> {
   private static final Joiner COMMA = Joiner.on(", ");
 
   private final List<Literal<T>> literals;
 
-  UnboundPredicate(Operation op, UnboundValueExpression<T> child, T value) {
+  UnboundPredicate(Operation op, UnboundTerm<T> child, T value) {
     this(op, child, Literals.from(value));
   }
 
-  UnboundPredicate(Operation op, UnboundValueExpression<T> child) {
+  UnboundPredicate(Operation op, UnboundTerm<T> child) {
     super(op, child);
     this.literals = null;
   }
 
-  UnboundPredicate(Operation op, UnboundValueExpression<T> child, Literal<T> lit) {
+  UnboundPredicate(Operation op, UnboundTerm<T> child, Literal<T> lit) {
     super(op, child);
     this.literals = Lists.newArrayList(lit);
   }
 
-  UnboundPredicate(Operation op, UnboundValueExpression<T> child, Iterable<T> values) {
+  UnboundPredicate(Operation op, UnboundTerm<T> child, Iterable<T> values) {
     super(op, child);
     this.literals = Lists.newArrayList(Iterables.transform(values, Literals::from));
   }
 
-  private UnboundPredicate(Operation op, UnboundValueExpression<T> child, List<Literal<T>> literals) {
+  private UnboundPredicate(Operation op, UnboundTerm<T> child, List<Literal<T>> literals) {
     super(op, child);
     this.literals = literals;
   }
@@ -101,7 +101,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundValueExpression<T>>
    * @throws ValidationException if literals do not match bound references, or if comparison on expression is invalid
    */
   public Expression bind(StructType struct, boolean caseSensitive) {
-    Bound<T> bound = child().bind(struct, caseSensitive);
+    BoundTerm<T> bound = child().bind(struct, caseSensitive);
 
     if (literals == null) {
       return bindUnaryOperation(bound);
@@ -114,7 +114,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundValueExpression<T>>
     return bindLiteralOperation(bound);
   }
 
-  private Expression bindUnaryOperation(Bound<T> boundChild) {
+  private Expression bindUnaryOperation(BoundTerm<T> boundChild) {
     switch (op()) {
       case IS_NULL:
         if (boundChild.ref().field().isRequired()) {
@@ -131,7 +131,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundValueExpression<T>>
     }
   }
 
-  private Expression bindLiteralOperation(Bound<T> boundChild) {
+  private Expression bindLiteralOperation(BoundTerm<T> boundChild) {
     Literal<T> lit = literal().to(boundChild.type());
 
     if (lit == null) {
@@ -167,7 +167,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundValueExpression<T>>
     return new BoundLiteralPredicate<>(op(), boundChild, lit);
   }
 
-  private Expression bindInOperation(Bound<T> boundChild) {
+  private Expression bindInOperation(BoundTerm<T> boundChild) {
     List<Literal<T>> convertedLiterals = Lists.newArrayList(Iterables.filter(
         Lists.transform(literals, lit -> {
           Literal<T> converted = lit.to(boundChild.type());

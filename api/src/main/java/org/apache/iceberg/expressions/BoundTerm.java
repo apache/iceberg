@@ -19,10 +19,25 @@
 
 package org.apache.iceberg.expressions;
 
+import java.util.Comparator;
+import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Type;
+
 /**
- * Represents a variable reference in an {@link Expression expression}.
- * @see BoundReference
- * @see NamedReference
+ * Represents a bound term.
+ *
+ * @param <T> the Java type of values produced by this term
  */
-public interface Reference<T> extends Term {
+public interface BoundTerm<T> extends Bound<T>, Term {
+  /**
+   * @return the type produced by this expression
+   */
+  Type type();
+
+  /**
+   * @return a {@link Comparator} for values produced by this term
+   */
+  default Comparator<T> comparator() {
+    return Comparators.forType(type().asPrimitiveType());
+  }
 }

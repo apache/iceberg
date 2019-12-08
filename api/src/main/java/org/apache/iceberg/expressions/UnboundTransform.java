@@ -24,7 +24,7 @@ import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 
-public class UnboundTransform<S, T> implements UnboundValueExpression<T>, ValueExpression<T> {
+public class UnboundTransform<S, T> implements UnboundTerm<T>, Term {
   private final NamedReference<S> ref;
   private final Transform<S, T> transform;
 

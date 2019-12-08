@@ -78,32 +78,32 @@ public class Expressions {
   }
 
   @SuppressWarnings("unchecked")
-  public static <T> UnboundValueExpression<T> bucket(String name, int numBuckets) {
+  public static <T> UnboundTerm<T> bucket(String name, int numBuckets) {
     Transform<?, T> transform = (Transform<?, T>) Transforms.bucket(Types.StringType.get(), numBuckets);
     return new UnboundTransform<>(ref(name), transform);
   }
 
   @SuppressWarnings("unchecked")
-  public static <T> UnboundValueExpression<T> year(String name) {
+  public static <T> UnboundTerm<T> year(String name) {
     return new UnboundTransform<>(ref(name), (Transform<?, T>) Transforms.year(Types.TimestampType.withZone()));
   }
 
   @SuppressWarnings("unchecked")
-  public static <T> UnboundValueExpression<T> month(String name) {
+  public static <T> UnboundTerm<T> month(String name) {
     return new UnboundTransform<>(ref(name), (Transform<?, T>) Transforms.month(Types.TimestampType.withZone()));
   }
 
   @SuppressWarnings("unchecked")
-  public static <T> UnboundValueExpression<T> day(String name) {
+  public static <T> UnboundTerm<T> day(String name) {
     return new UnboundTransform<>(ref(name), (Transform<?, T>) Transforms.day(Types.TimestampType.withZone()));
   }
 
   @SuppressWarnings("unchecked")
-  public static <T> UnboundValueExpression<T> hour(String name) {
+  public static <T> UnboundTerm<T> hour(String name) {
     return new UnboundTransform<>(ref(name), (Transform<?, T>) Transforms.hour(Types.TimestampType.withZone()));
   }
 
-  public static <T> UnboundValueExpression<T> truncate(String name, int width) {
+  public static <T> UnboundTerm<T> truncate(String name, int width) {
     return new UnboundTransform<>(ref(name), Transforms.truncate(Types.LongType.get(), width));
   }
 
@@ -111,7 +111,7 @@ public class Expressions {
     return new UnboundPredicate<>(Expression.Operation.IS_NULL, ref(name));
   }
 
-  public static <T> UnboundPredicate<T> isNull(UnboundValueExpression<T> expr) {
+  public static <T> UnboundPredicate<T> isNull(UnboundTerm<T> expr) {
     return new UnboundPredicate<>(Expression.Operation.IS_NULL, expr);
   }
 
@@ -119,7 +119,7 @@ public class Expressions {
     return new UnboundPredicate<>(Expression.Operation.NOT_NULL, ref(name));
   }
 
-  public static <T> UnboundPredicate<T> notNull(UnboundValueExpression<T> expr) {
+  public static <T> UnboundPredicate<T> notNull(UnboundTerm<T> expr) {
     return new UnboundPredicate<>(Expression.Operation.IS_NULL, expr);
   }
 
@@ -127,7 +127,7 @@ public class Expressions {
     return new UnboundPredicate<>(Expression.Operation.LT, ref(name), value);
   }
 
-  public static <T> UnboundPredicate<T> lessThan(UnboundValueExpression<T> expr, T value) {
+  public static <T> UnboundPredicate<T> lessThan(UnboundTerm<T> expr, T value) {
     return new UnboundPredicate<>(Expression.Operation.LT, expr, value);
   }
 
@@ -135,7 +135,7 @@ public class Expressions {
     return new UnboundPredicate<>(Expression.Operation.LT_EQ, ref(name), value);
   }
 
-  public static <T> UnboundPredicate<T> lessThanOrEqual(UnboundValueExpression<T> expr, T value) {
+  public static <T> UnboundPredicate<T> lessThanOrEqual(UnboundTerm<T> expr, T value) {
     return new UnboundPredicate<>(Expression.Operation.LT_EQ, expr, value);
   }
 
@@ -143,7 +143,7 @@ public class Expressions {
     return new UnboundPredicate<>(Expression.Operation.GT, ref(name), value);
   }
 
-  public static <T> UnboundPredicate<T> greaterThan(UnboundValueExpression<T> expr, T value) {
+  public static <T> UnboundPredicate<T> greaterThan(UnboundTerm<T> expr, T value) {
     return new UnboundPredicate<>(Expression.Operation.GT, expr, value);
   }
 
@@ -151,7 +151,7 @@ public class Expressions {
     return new UnboundPredicate<>(Expression.Operation.GT_EQ, ref(name), value);
   }
 
-  public static <T> UnboundPredicate<T> greaterThanOrEqual(UnboundValueExpression<T> expr, T value) {
+  public static <T> UnboundPredicate<T> greaterThanOrEqual(UnboundTerm<T> expr, T value) {
     return new UnboundPredicate<>(Expression.Operation.GT_EQ, expr, value);
   }
 
@@ -159,7 +159,7 @@ public class Expressions {
     return new UnboundPredicate<>(Expression.Operation.EQ, ref(name), value);
   }
 
-  public static <T> UnboundPredicate<T> equal(UnboundValueExpression<T> expr, T value) {
+  public static <T> UnboundPredicate<T> equal(UnboundTerm<T> expr, T value) {
     return new UnboundPredicate<>(Expression.Operation.EQ, expr, value);
   }
 
@@ -167,7 +167,7 @@ public class Expressions {
     return new UnboundPredicate<>(Expression.Operation.NOT_EQ, ref(name), value);
   }
 
-  public static <T> UnboundPredicate<T> notEqual(UnboundValueExpression<T> expr, T value) {
+  public static <T> UnboundPredicate<T> notEqual(UnboundTerm<T> expr, T value) {
     return new UnboundPredicate<>(Expression.Operation.NOT_EQ, expr, value);
   }
 
@@ -175,7 +175,7 @@ public class Expressions {
     return new UnboundPredicate<>(Expression.Operation.STARTS_WITH, ref(name), value);
   }
 
-  public static UnboundPredicate<String> startsWith(UnboundValueExpression<String> expr, String value) {
+  public static UnboundPredicate<String> startsWith(UnboundTerm<String> expr, String value) {
     return new UnboundPredicate<>(Expression.Operation.STARTS_WITH, expr, value);
   }
 
@@ -183,7 +183,7 @@ public class Expressions {
     return predicate(Operation.IN, name, Lists.newArrayList(values));
   }
 
-  public static <T> UnboundPredicate<T> in(UnboundValueExpression<T> expr, T... values) {
+  public static <T> UnboundPredicate<T> in(UnboundTerm<T> expr, T... values) {
     return predicate(Operation.IN, expr, Lists.newArrayList(values));
   }
 
@@ -192,7 +192,7 @@ public class Expressions {
     return predicate(Operation.IN, ref(name), values);
   }
 
-  public static <T> UnboundPredicate<T> in(UnboundValueExpression<T> expr, Iterable<T> values) {
+  public static <T> UnboundPredicate<T> in(UnboundTerm<T> expr, Iterable<T> values) {
     Preconditions.checkNotNull(values, "Values cannot be null for IN predicate.");
     return predicate(Operation.IN, expr, values);
   }
@@ -201,7 +201,7 @@ public class Expressions {
     return predicate(Operation.NOT_IN, name, Lists.newArrayList(values));
   }
 
-  public static <T> UnboundPredicate<T> notIn(UnboundValueExpression<T> expr, T... values) {
+  public static <T> UnboundPredicate<T> notIn(UnboundTerm<T> expr, T... values) {
     return predicate(Operation.NOT_IN, expr, Lists.newArrayList(values));
   }
 
@@ -210,7 +210,7 @@ public class Expressions {
     return predicate(Operation.NOT_IN, name, values);
   }
 
-  public static <T> UnboundPredicate<T> notIn(UnboundValueExpression<T> expr, Iterable<T> values) {
+  public static <T> UnboundPredicate<T> notIn(UnboundTerm<T> expr, Iterable<T> values) {
     Preconditions.checkNotNull(values, "Values cannot be null for NOT_IN predicate.");
     return predicate(Operation.NOT_IN, expr, values);
   }
@@ -235,7 +235,7 @@ public class Expressions {
     return new UnboundPredicate<>(op, ref(name));
   }
 
-  private static <T> UnboundPredicate<T> predicate(Operation op, UnboundValueExpression<T> expr, Iterable<T> values) {
+  private static <T> UnboundPredicate<T> predicate(Operation op, UnboundTerm<T> expr, Iterable<T> values) {
     return new UnboundPredicate<>(op, expr, values);
   }
 

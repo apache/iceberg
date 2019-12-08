@@ -25,7 +25,7 @@ import java.util.Comparator;
 public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
   private final Literal<T> literal;
 
-  BoundLiteralPredicate(Operation op, Bound<T> child, Literal<T> lit) {
+  BoundLiteralPredicate(Operation op, BoundTerm<T> child, Literal<T> lit) {
     super(op, child);
     Preconditions.checkArgument(op != Operation.IN && op != Operation.NOT_IN,
         "Bound literal predicate does not support operation: %s", op);

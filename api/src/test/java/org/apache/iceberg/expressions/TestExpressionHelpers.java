@@ -111,8 +111,8 @@ public class TestExpressionHelpers {
   @Test
   public void testNullValueExpr() {
     AssertHelpers.assertThrows("Should catch null value expressions",
-        NullPointerException.class, "Value expression cannot be null",
-        () -> equal((UnboundValueExpression<Integer>) null, 5));
+        NullPointerException.class, "Term cannot be null",
+        () -> equal((UnboundTerm<Integer>) null, 5));
   }
 
   @Test

@@ -29,7 +29,7 @@ import org.apache.iceberg.types.Type;
  * @param <S> the Java type of values transformed by this function.
  * @param <T> the Java type of values returned by the function.
  */
-public class BoundTransform<S, T> implements Bound<T> {
+public class BoundTransform<S, T> implements BoundTerm<T> {
   private final BoundReference<S> ref;
   private final Transform<S, T> transform;
 

@@ -27,7 +27,7 @@ public class BoundSetPredicate<T> extends BoundPredicate<T> {
   private static final Joiner COMMA = Joiner.on(", ");
   private final Set<T> literalSet;
 
-  BoundSetPredicate(Operation op, Bound<T> child, Set<T> lits) {
+  BoundSetPredicate(Operation op, BoundTerm<T> child, Set<T> lits) {
     super(op, child);
     Preconditions.checkArgument(op == Operation.IN || op == Operation.NOT_IN,
         "%s predicate does not support a literal set", op);

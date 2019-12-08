@@ -21,12 +21,12 @@ package org.apache.iceberg.expressions;
 
 import com.google.common.base.Preconditions;
 
-public abstract class Predicate<T, V extends ValueExpression<T>> implements Expression {
+public abstract class Predicate<T, C extends Term> implements Expression {
   private final Operation op;
-  private final V child;
+  private final C child;
 
-  Predicate(Operation op, V child) {
-    Preconditions.checkNotNull(child, "Value expression cannot be null");
+  Predicate(Operation op, C child) {
+    Preconditions.checkNotNull(child, "Term cannot be null");
     this.op = op;
     this.child = child;
   }
@@ -36,7 +36,7 @@ public abstract class Predicate<T, V extends ValueExpression<T>> implements Expr
     return op;
   }
 
-  public V child() {
+  public C child() {
     return child;
   }
 }

@@ -20,11 +20,9 @@
 package org.apache.iceberg.expressions;
 
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 
-public abstract class BoundPredicate<T> extends Predicate<T, Bound<T>> implements Bound<Boolean> {
-  protected BoundPredicate(Operation op, Bound<T> child) {
+public abstract class BoundPredicate<T> extends Predicate<T, BoundTerm<T>> implements Bound<Boolean> {
+  protected BoundPredicate(Operation op, BoundTerm<T> child) {
     super(op, child);
   }
 
@@ -42,11 +40,6 @@ public abstract class BoundPredicate<T> extends Predicate<T, Bound<T>> implement
   @Override
   public BoundReference<?> ref() {
     return child().ref();
-  }
-
-  @Override
-  public Type type() {
-    return Types.BooleanType.get();
   }
 
   public boolean isUnaryPredicate() {

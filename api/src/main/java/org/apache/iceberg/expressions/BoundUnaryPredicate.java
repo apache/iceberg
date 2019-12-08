@@ -20,8 +20,8 @@
 package org.apache.iceberg.expressions;
 
 public class BoundUnaryPredicate<T> extends BoundPredicate<T> {
-  BoundUnaryPredicate(Operation op, Bound<T> ref) {
-    super(op, ref);
+  BoundUnaryPredicate(Operation op, BoundTerm<T> child) {
+    super(op, child);
   }
 
   @Override
