@@ -56,4 +56,9 @@ public class BoundTransform<S, T> implements BoundTerm<T> {
   public Type type() {
     return transform.getResultType(ref.type());
   }
+
+  @Override
+  public String toString() {
+    return transform + "(" + ref + ")";
+  }
 }
