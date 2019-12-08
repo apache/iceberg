@@ -20,7 +20,7 @@
 package org.apache.iceberg.expressions;
 
 /**
- * Represents and unbound term.
+ * Represents an unbound term.
  *
  * @param <T> the Java type of values produced by this term
  */
