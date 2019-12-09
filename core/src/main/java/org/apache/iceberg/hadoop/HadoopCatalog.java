@@ -65,7 +65,6 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
   private final Configuration conf;
   private String warehouseLocation;
 
-
   /**
    * The constructor of the HadoopCatalog. It uses the passed location as its warehouse directory.
    *
