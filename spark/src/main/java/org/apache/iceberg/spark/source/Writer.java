@@ -458,8 +458,6 @@ class Writer implements DataSourceWriter {
   }
 
   private static class UnpartitionedWriter extends BaseWriter {
-    private static final int ROWS_DIVISOR = 1000;
-
     UnpartitionedWriter(
         PartitionSpec spec,
         FileFormat format,

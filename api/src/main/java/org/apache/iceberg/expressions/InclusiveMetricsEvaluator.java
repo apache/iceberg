@@ -43,10 +43,7 @@ import static org.apache.iceberg.expressions.Expressions.rewriteNot;
  * return value of {@code eval} is false.
  */
 public class InclusiveMetricsEvaluator {
-  private final Schema schema;
-  private final StructType struct;
   private final Expression expr;
-  private final boolean caseSensitive;
   private transient ThreadLocal<MetricsEvalVisitor> visitors = null;
 
   private MetricsEvalVisitor visitor() {
@@ -61,9 +58,7 @@ public class InclusiveMetricsEvaluator {
   }
 
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound, boolean caseSensitive) {
-    this.schema = schema;
-    this.struct = schema.asStruct();
-    this.caseSensitive = caseSensitive;
+    StructType struct = schema.asStruct();
     this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
   }
 
