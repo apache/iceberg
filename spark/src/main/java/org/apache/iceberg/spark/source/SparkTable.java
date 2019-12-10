@@ -35,7 +35,7 @@ import org.apache.spark.sql.connector.write.WriteBuilder;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-class SparkTable implements org.apache.spark.sql.connector.catalog.Table, SupportsRead, SupportsWrite {
+public class SparkTable implements org.apache.spark.sql.connector.catalog.Table, SupportsRead, SupportsWrite {
 
   private static final Set<TableCapability> CAPABILITIES = ImmutableSet.of(
       TableCapability.BATCH_READ,
@@ -49,7 +49,11 @@ class SparkTable implements org.apache.spark.sql.connector.catalog.Table, Suppor
   private StructType lazyTableSchema = null;
   private SparkSession lazySpark = null;
 
-  SparkTable(Table icebergTable, StructType requestedSchema) {
+  public SparkTable(Table icebergTable) {
+    this(icebergTable, null);
+  }
+
+  public SparkTable(Table icebergTable, StructType requestedSchema) {
     this.icebergTable = icebergTable;
     this.requestedSchema = requestedSchema;
 

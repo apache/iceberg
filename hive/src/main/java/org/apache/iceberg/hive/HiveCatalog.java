@@ -44,15 +44,26 @@ import org.slf4j.LoggerFactory;
 public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(HiveCatalog.class);
 
-  private final HiveClientPool clients;
   private final Configuration conf;
+  private final HiveClientPool clients;
   private final StackTraceElement[] createStack;
+  private final String name;
   private boolean closed;
 
   public HiveCatalog(Configuration conf) {
-    this.clients = new HiveClientPool(2, conf);
-    this.conf = conf;
+    this("hive", null, 2, conf);
+  }
+
+  public HiveCatalog(String name, String uri, int clientPoolSize, Configuration conf) {
+    this.conf = new Configuration(conf);
+    // before building the client pool, overwrite the configuration's URIs if the argument is non-null
+    if (uri != null) {
+      this.conf.set("hive.metastore.uris", uri);
+    }
+
+    this.clients = new HiveClientPool(clientPoolSize, this.conf);
     this.createStack = Thread.currentThread().getStackTrace();
+    this.name = name;
     this.closed = false;
   }
 
@@ -82,7 +93,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
 
   @Override
   protected String name() {
-    return "hive";
+    return name;
   }
 
   @Override

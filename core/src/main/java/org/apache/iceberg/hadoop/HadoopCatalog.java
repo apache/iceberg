@@ -59,8 +59,25 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
  */
 public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
   private static final String ICEBERG_HADOOP_WAREHOUSE_BASE = "iceberg/warehouse";
+  private final String name;
   private final Configuration conf;
   private String warehouseLocation;
+
+  /**
+   * The constructor of the HadoopCatalog. It uses the passed location as its warehouse directory.
+   *
+   * @param name the name of this catalog
+   * @param conf The Hadoop configuration
+   * @param warehouseLocation The location used as warehouse directory
+   */
+  public HadoopCatalog(String name, Configuration conf, String warehouseLocation) {
+    Preconditions.checkArgument(warehouseLocation != null && !warehouseLocation.equals(""),
+        "no location provided for warehouse");
+
+    this.name = name;
+    this.conf = conf;
+    this.warehouseLocation = warehouseLocation.replaceAll("/*$", "");
+  }
 
   /**
    * The constructor of the HadoopCatalog. It uses the passed location as its warehouse directory.
@@ -69,11 +86,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
    * @param warehouseLocation The location used as warehouse directory
    */
   public HadoopCatalog(Configuration conf, String warehouseLocation) {
-    Preconditions.checkArgument(warehouseLocation != null && !warehouseLocation.equals(""),
-        "no location provided for warehouse");
-
-    this.conf = conf;
-    this.warehouseLocation = warehouseLocation.replaceAll("/*$", "");
+    this("hadoop", conf, warehouseLocation);
   }
 
   /**
@@ -84,13 +97,14 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
    * @param conf The Hadoop configuration
    */
   public HadoopCatalog(Configuration conf) {
+    this.name = "hadoop";
     this.conf = conf;
     this.warehouseLocation = conf.get("fs.defaultFS") + "/" + ICEBERG_HADOOP_WAREHOUSE_BASE;
   }
 
   @Override
   protected String name() {
-    return "hadoop";
+    return name;
   }
 
   @Override
