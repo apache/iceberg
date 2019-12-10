@@ -204,10 +204,7 @@ class CherryPickFromSnapshot extends MergingSnapshotProducer<AppendFiles> implem
     } finally {
       writer.close();
     }
-
-    ManifestFile manifest = writer.toManifestFile();
-
-    return manifest;
+    return writer.toManifestFile();
   }
 
 }
