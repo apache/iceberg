@@ -30,8 +30,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.expressions.BoundPredicate;
-import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.BoundSetPredicate;
+import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
@@ -122,7 +122,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
       return Expressions.predicate(
           predicate.op(), name, apply(predicate.asLiteralPredicate().literal().value()));
     } else if (predicate.isSetPredicate() && predicate.op() == Expression.Operation.IN) { // notIn can't be projected
-      return ProjectionUtil.transformSet(name, (BoundSetPredicate<T>) predicate, this);
+      return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), this);
     }
   // comparison predicates can't be projected, notEq can't be projected
   // TODO: small ranges can be projected.

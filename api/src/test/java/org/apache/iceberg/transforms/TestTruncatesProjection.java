@@ -55,8 +55,10 @@ public class TestTruncatesProjection {
 
     Assert.assertEquals(expectedOp, predicate.op());
 
+    Assert.assertNotEquals("Strict projection never runs for IN", Expression.Operation.IN, predicate.op());
+
     Truncate transform = (Truncate) spec.getFieldsBySourceId(1).get(0).transform();
-    if (predicate.op() == Expression.Operation.IN || predicate.op() == Expression.Operation.NOT_IN) {
+    if (predicate.op() == Expression.Operation.NOT_IN) {
       Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
       String actual = Lists.newArrayList(values).stream().sorted()
           .map(v -> transform.toHumanString(v)).collect(Collectors.toList()).toString();
@@ -89,8 +91,10 @@ public class TestTruncatesProjection {
 
     Assert.assertEquals(predicate.op(), expectedOp);
 
+    Assert.assertNotEquals("Inclusive projection never runs for NOT_IN", Expression.Operation.NOT_IN, predicate.op());
+
     Truncate transform = (Truncate) spec.getFieldsBySourceId(1).get(0).transform();
-    if (predicate.op() == Expression.Operation.IN || predicate.op() == Expression.Operation.NOT_IN) {
+    if (predicate.op() == Expression.Operation.IN) {
       Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
       String actual = Lists.newArrayList(values).stream().sorted()
           .map(v -> transform.toHumanString(v)).collect(Collectors.toList()).toString();
@@ -376,10 +380,10 @@ public class TestTruncatesProjection {
     assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, expectedValue);
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
 
-    ByteBuffer value1 = ByteBuffer.wrap("abcdehij".getBytes("UTF-8"));
-    assertProjectionStrict(spec, notIn("value", value, value1),
+    ByteBuffer anotherValue = ByteBuffer.wrap("abcdehij".getBytes("UTF-8"));
+    assertProjectionStrict(spec, notIn("value", value, anotherValue),
         Expression.Operation.NOT_IN, String.format("[%s, %s]", expectedValue, expectedValue));
-    assertProjectionStrictValue(spec, in("value", value, value1), Expression.Operation.FALSE);
+    assertProjectionStrictValue(spec, in("value", value, anotherValue), Expression.Operation.FALSE);
   }
 
   @Test
@@ -396,9 +400,9 @@ public class TestTruncatesProjection {
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, expectedValue);
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
 
-    ByteBuffer value1 = ByteBuffer.wrap("abcdehij".getBytes("UTF-8"));
-    assertProjectionInclusive(spec, in("value", value, value1),
+    ByteBuffer anotherValue = ByteBuffer.wrap("abcdehij".getBytes("UTF-8"));
+    assertProjectionInclusive(spec, in("value", value, anotherValue),
         Expression.Operation.IN, String.format("[%s, %s]", expectedValue, expectedValue));
-    assertProjectionInclusiveValue(spec, notIn("value", value, value1), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(spec, notIn("value", value, anotherValue), Expression.Operation.TRUE);
   }
 }

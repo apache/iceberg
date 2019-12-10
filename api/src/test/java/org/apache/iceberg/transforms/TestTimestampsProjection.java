@@ -55,8 +55,10 @@ public class TestTimestampsProjection {
 
     Assert.assertEquals(expectedOp, predicate.op());
 
+    Assert.assertNotEquals("Strict projection never runs for IN", Expression.Operation.IN, predicate.op());
+
     Timestamps transform = (Timestamps) spec.getFieldsBySourceId(1).get(0).transform();
-    if (predicate.op() == Expression.Operation.IN || predicate.op() == Expression.Operation.NOT_IN) {
+    if (predicate.op() == Expression.Operation.NOT_IN) {
       Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
       String actual = Lists.newArrayList(values).stream().sorted()
           .map(v -> transform.toHumanString((Integer) v)).collect(Collectors.toList()).toString();
@@ -89,8 +91,10 @@ public class TestTimestampsProjection {
 
     Assert.assertEquals(predicate.op(), expectedOp);
 
+    Assert.assertNotEquals("Inclusive projection never runs for NOT_IN", Expression.Operation.NOT_IN, predicate.op());
+
     Timestamps transform = (Timestamps) spec.getFieldsBySourceId(1).get(0).transform();
-    if (predicate.op() == Expression.Operation.IN || predicate.op() == Expression.Operation.NOT_IN) {
+    if (predicate.op() == Expression.Operation.IN) {
       Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
       String actual = Lists.newArrayList(values).stream().sorted()
           .map(v -> transform.toHumanString((Integer) v)).collect(Collectors.toList()).toString();
@@ -114,10 +118,10 @@ public class TestTimestampsProjection {
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017-12");
     assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
 
-    Long date1 = (long) Literal.of("2017-12-02T00:00:00.00000").to(TYPE).value();
-    assertProjectionStrict(spec, notIn("timestamp", date1, date),
+    Long anotherDate = (long) Literal.of("2017-12-02T00:00:00.00000").to(TYPE).value();
+    assertProjectionStrict(spec, notIn("timestamp", anotherDate, date),
         Expression.Operation.NOT_IN, "[2017-12, 2017-12]");
-    assertProjectionStrictValue(spec, in("timestamp", date1, date), Expression.Operation.FALSE);
+    assertProjectionStrictValue(spec, in("timestamp", anotherDate, date), Expression.Operation.FALSE);
   }
 
   @Test
@@ -132,10 +136,10 @@ public class TestTimestampsProjection {
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017-12");
     assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
 
-    Long date1 = (long) Literal.of("2017-11-02T00:00:00.00000").to(TYPE).value();
-    assertProjectionStrict(spec, notIn("timestamp", date1, date),
+    Long anotherDate = (long) Literal.of("2017-11-02T00:00:00.00000").to(TYPE).value();
+    assertProjectionStrict(spec, notIn("timestamp", anotherDate, date),
         Expression.Operation.NOT_IN, "[2017-11, 2017-12]");
-    assertProjectionStrictValue(spec, in("timestamp", date1, date), Expression.Operation.FALSE);
+    assertProjectionStrictValue(spec, in("timestamp", anotherDate, date), Expression.Operation.FALSE);
   }
 
   @Test
@@ -150,10 +154,10 @@ public class TestTimestampsProjection {
     assertProjectionInclusive(spec, equal("timestamp", date), Expression.Operation.EQ, "2017-12");
     assertProjectionInclusiveValue(spec, notEqual("timestamp", date), Expression.Operation.TRUE);
 
-    Long date1 = (long) Literal.of("2017-12-02T00:00:00.00000").to(TYPE).value();
-    assertProjectionInclusive(spec, in("timestamp", date, date1),
+    Long anotherDate = (long) Literal.of("2017-12-02T00:00:00.00000").to(TYPE).value();
+    assertProjectionInclusive(spec, in("timestamp", date, anotherDate),
         Expression.Operation.IN, "[2017-12, 2017-12]");
-    assertProjectionInclusiveValue(spec, notIn("timestamp", date, date1), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(spec, notIn("timestamp", date, anotherDate), Expression.Operation.TRUE);
   }
 
   @Test
@@ -168,10 +172,10 @@ public class TestTimestampsProjection {
     assertProjectionInclusive(spec, equal("timestamp", date), Expression.Operation.EQ, "2017-12");
     assertProjectionInclusiveValue(spec, notEqual("timestamp", date), Expression.Operation.TRUE);
 
-    Long date1 = (long) Literal.of("2017-11-02T00:00:00.00000").to(TYPE).value();
-    assertProjectionInclusive(spec, in("timestamp", date, date1),
+    Long anotherDate = (long) Literal.of("2017-11-02T00:00:00.00000").to(TYPE).value();
+    assertProjectionInclusive(spec, in("timestamp", date, anotherDate),
         Expression.Operation.IN, "[2017-11, 2017-12]");
-    assertProjectionInclusiveValue(spec, notIn("timestamp", date, date1), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(spec, notIn("timestamp", date, anotherDate), Expression.Operation.TRUE);
   }
 
   @Test
@@ -186,10 +190,10 @@ public class TestTimestampsProjection {
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017-12-01");
     assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
 
-    Long date1 = (long) Literal.of("2017-12-02T00:00:00.00000").to(TYPE).value();
-    assertProjectionStrict(spec, notIn("timestamp", date, date1),
+    Long anotherDate = (long) Literal.of("2017-12-02T00:00:00.00000").to(TYPE).value();
+    assertProjectionStrict(spec, notIn("timestamp", date, anotherDate),
         Expression.Operation.NOT_IN, "[2017-12-01, 2017-12-02]");
-    assertProjectionStrictValue(spec, in("timestamp", date, date1), Expression.Operation.FALSE);
+    assertProjectionStrictValue(spec, in("timestamp", date, anotherDate), Expression.Operation.FALSE);
   }
 
   @Test
@@ -204,10 +208,10 @@ public class TestTimestampsProjection {
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017-12-01");
     assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
 
-    Long date1 = (long) Literal.of("2017-11-02T00:00:00.00000").to(TYPE).value();
-    assertProjectionStrict(spec, notIn("timestamp", date, date1),
+    Long anotherDate = (long) Literal.of("2017-11-02T00:00:00.00000").to(TYPE).value();
+    assertProjectionStrict(spec, notIn("timestamp", date, anotherDate),
         Expression.Operation.NOT_IN, "[2017-11-02, 2017-12-01]");
-    assertProjectionStrictValue(spec, in("timestamp", date, date1), Expression.Operation.FALSE);
+    assertProjectionStrictValue(spec, in("timestamp", date, anotherDate), Expression.Operation.FALSE);
   }
 
   @Test
@@ -222,10 +226,10 @@ public class TestTimestampsProjection {
     assertProjectionInclusive(spec, equal("timestamp", date), Expression.Operation.EQ, "2017-12-01");
     assertProjectionInclusiveValue(spec, notEqual("timestamp", date), Expression.Operation.TRUE);
 
-    Long date1 = (long) Literal.of("2017-12-02T00:00:00.00000").to(TYPE).value();
-    assertProjectionInclusive(spec, in("timestamp", date, date1),
+    Long anotherDate = (long) Literal.of("2017-12-02T00:00:00.00000").to(TYPE).value();
+    assertProjectionInclusive(spec, in("timestamp", date, anotherDate),
         Expression.Operation.IN, "[2017-12-01, 2017-12-02]");
-    assertProjectionInclusiveValue(spec, notIn("timestamp", date, date1), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(spec, notIn("timestamp", date, anotherDate), Expression.Operation.TRUE);
   }
 
   @Test
@@ -240,10 +244,10 @@ public class TestTimestampsProjection {
     assertProjectionInclusive(spec, equal("timestamp", date), Expression.Operation.EQ, "2017-12-01");
     assertProjectionInclusiveValue(spec, notEqual("timestamp", date), Expression.Operation.TRUE);
 
-    Long date1 = (long) Literal.of("2017-12-02T00:00:00.00000").to(TYPE).value();
-    assertProjectionInclusive(spec, in("timestamp", date, date1),
+    Long anotherDate = (long) Literal.of("2017-12-02T00:00:00.00000").to(TYPE).value();
+    assertProjectionInclusive(spec, in("timestamp", date, anotherDate),
         Expression.Operation.IN, "[2017-12-01, 2017-12-02]");
-    assertProjectionInclusiveValue(spec, notIn("timestamp", date, date1), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(spec, notIn("timestamp", date, anotherDate), Expression.Operation.TRUE);
   }
 
   @Test
@@ -258,10 +262,10 @@ public class TestTimestampsProjection {
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017");
     assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
 
-    Long date1 = (long) Literal.of("2016-12-02T00:00:00.00000").to(TYPE).value();
-    assertProjectionStrict(spec, notIn("timestamp", date, date1),
+    Long anotherDate = (long) Literal.of("2016-12-02T00:00:00.00000").to(TYPE).value();
+    assertProjectionStrict(spec, notIn("timestamp", date, anotherDate),
         Expression.Operation.NOT_IN, "[2016, 2017]");
-    assertProjectionStrictValue(spec, in("timestamp", date, date1), Expression.Operation.FALSE);
+    assertProjectionStrictValue(spec, in("timestamp", date, anotherDate), Expression.Operation.FALSE);
   }
 
   @Test
@@ -276,10 +280,10 @@ public class TestTimestampsProjection {
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017");
     assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
 
-    Long date1 = (long) Literal.of("2016-12-31T23:59:59.999999").to(TYPE).value();
-    assertProjectionStrict(spec, notIn("timestamp", date, date1),
+    Long anotherDate = (long) Literal.of("2016-12-31T23:59:59.999999").to(TYPE).value();
+    assertProjectionStrict(spec, notIn("timestamp", date, anotherDate),
         Expression.Operation.NOT_IN, "[2016, 2017]");
-    assertProjectionStrictValue(spec, in("timestamp", date, date1), Expression.Operation.FALSE);
+    assertProjectionStrictValue(spec, in("timestamp", date, anotherDate), Expression.Operation.FALSE);
   }
 
   @Test
@@ -294,10 +298,10 @@ public class TestTimestampsProjection {
     assertProjectionInclusive(spec, equal("timestamp", date), Expression.Operation.EQ, "2017");
     assertProjectionInclusiveValue(spec, notEqual("timestamp", date), Expression.Operation.TRUE);
 
-    Long date1 = (long) Literal.of("2016-12-02T00:00:00.00000").to(TYPE).value();
-    assertProjectionInclusive(spec, in("timestamp", date, date1),
+    Long anotherDate = (long) Literal.of("2016-12-02T00:00:00.00000").to(TYPE).value();
+    assertProjectionInclusive(spec, in("timestamp", date, anotherDate),
         Expression.Operation.IN, "[2016, 2017]");
-    assertProjectionInclusiveValue(spec, notIn("timestamp", date, date1), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(spec, notIn("timestamp", date, anotherDate), Expression.Operation.TRUE);
   }
 
   @Test
@@ -312,10 +316,10 @@ public class TestTimestampsProjection {
     assertProjectionInclusive(spec, equal("timestamp", date), Expression.Operation.EQ, "2017");
     assertProjectionInclusiveValue(spec, notEqual("timestamp", date), Expression.Operation.TRUE);
 
-    Long date1 = (long) Literal.of("2016-12-31T23:59:59.999999").to(TYPE).value();
-    assertProjectionInclusive(spec, in("timestamp", date, date1),
+    Long anotherDate = (long) Literal.of("2016-12-31T23:59:59.999999").to(TYPE).value();
+    assertProjectionInclusive(spec, in("timestamp", date, anotherDate),
         Expression.Operation.IN, "[2016, 2017]");
-    assertProjectionInclusiveValue(spec, notIn("timestamp", date, date1), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(spec, notIn("timestamp", date, anotherDate), Expression.Operation.TRUE);
   }
 
   @Test
@@ -330,10 +334,10 @@ public class TestTimestampsProjection {
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017-12-01-10");
     assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
 
-    Long date1 = (long) Literal.of("2016-12-02T00:00:00.00000").to(TYPE).value();
-    assertProjectionStrict(spec, notIn("timestamp", date, date1),
+    Long anotherDate = (long) Literal.of("2016-12-02T00:00:00.00000").to(TYPE).value();
+    assertProjectionStrict(spec, notIn("timestamp", date, anotherDate),
         Expression.Operation.NOT_IN, "[2016-12-02-00, 2017-12-01-10]");
-    assertProjectionStrictValue(spec, in("timestamp", date, date1), Expression.Operation.FALSE);
+    assertProjectionStrictValue(spec, in("timestamp", date, anotherDate), Expression.Operation.FALSE);
   }
 
   @Test
@@ -348,10 +352,10 @@ public class TestTimestampsProjection {
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "2017-12-01-10");
     assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
 
-    Long date1 = (long) Literal.of("2016-12-31T23:59:59.999999").to(TYPE).value();
-    assertProjectionStrict(spec, notIn("timestamp", date, date1),
+    Long anotherDate = (long) Literal.of("2016-12-31T23:59:59.999999").to(TYPE).value();
+    assertProjectionStrict(spec, notIn("timestamp", date, anotherDate),
         Expression.Operation.NOT_IN, "[2016-12-31-23, 2017-12-01-10]");
-    assertProjectionStrictValue(spec, in("timestamp", date, date1), Expression.Operation.FALSE);
+    assertProjectionStrictValue(spec, in("timestamp", date, anotherDate), Expression.Operation.FALSE);
   }
 
   @Test
@@ -366,10 +370,10 @@ public class TestTimestampsProjection {
     assertProjectionInclusive(spec, equal("timestamp", date), Expression.Operation.EQ, "2017-12-01-10");
     assertProjectionInclusiveValue(spec, notEqual("timestamp", date), Expression.Operation.TRUE);
 
-    Long date1 = (long) Literal.of("2016-12-02T00:00:00.00000").to(TYPE).value();
-    assertProjectionInclusive(spec, in("timestamp", date, date1),
+    Long anotherDate = (long) Literal.of("2016-12-02T00:00:00.00000").to(TYPE).value();
+    assertProjectionInclusive(spec, in("timestamp", date, anotherDate),
         Expression.Operation.IN, "[2016-12-02-00, 2017-12-01-10]");
-    assertProjectionInclusiveValue(spec, notIn("timestamp", date, date1), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(spec, notIn("timestamp", date, anotherDate), Expression.Operation.TRUE);
   }
 
   @Test
@@ -384,9 +388,9 @@ public class TestTimestampsProjection {
     assertProjectionInclusive(spec, equal("timestamp", date), Expression.Operation.EQ, "2017-12-01-10");
     assertProjectionInclusiveValue(spec, notEqual("timestamp", date), Expression.Operation.TRUE);
 
-    Long date1 = (long) Literal.of("2016-12-31T23:59:59.999999").to(TYPE).value();
-    assertProjectionInclusive(spec, in("timestamp", date, date1),
+    Long anotherDate = (long) Literal.of("2016-12-31T23:59:59.999999").to(TYPE).value();
+    assertProjectionInclusive(spec, in("timestamp", date, anotherDate),
         Expression.Operation.IN, "[2016-12-31-23, 2017-12-01-10]");
-    assertProjectionInclusiveValue(spec, notIn("timestamp", date, date1), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(spec, notIn("timestamp", date, anotherDate), Expression.Operation.TRUE);
   }
 }

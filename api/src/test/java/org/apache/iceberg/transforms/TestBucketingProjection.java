@@ -56,8 +56,10 @@ public class TestBucketingProjection {
 
     Assert.assertEquals(expectedOp, predicate.op());
 
+    Assert.assertNotEquals("Strict projection never runs for IN", Expression.Operation.IN, predicate.op());
+
     Bucket transform = (Bucket) spec.getFieldsBySourceId(1).get(0).transform();
-    if (predicate.op() == Expression.Operation.IN || predicate.op() == Expression.Operation.NOT_IN) {
+    if (predicate.op() == Expression.Operation.NOT_IN) {
       Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
       String actual = Lists.newArrayList(values).stream().sorted()
           .map(v -> transform.toHumanString(v)).collect(Collectors.toList()).toString();
@@ -88,8 +90,10 @@ public class TestBucketingProjection {
 
     Assert.assertEquals(predicate.op(), expectedOp);
 
+    Assert.assertNotEquals("Inclusive projection never runs for NOT_IN", Expression.Operation.NOT_IN, predicate.op());
+
     Bucket transform = (Bucket) spec.getFieldsBySourceId(1).get(0).transform();
-    if (predicate.op() == Expression.Operation.IN || predicate.op() == Expression.Operation.NOT_IN) {
+    if (predicate.op() == Expression.Operation.IN) {
       Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
       String actual = Lists.newArrayList(values).stream().sorted()
           .map(v -> transform.toHumanString(v)).collect(Collectors.toList()).toString();
@@ -273,10 +277,10 @@ public class TestBucketingProjection {
     assertProjectionStrictValue(spec, greaterThan("value", value), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, greaterThanOrEqual("value", value), Expression.Operation.FALSE);
 
-    ByteBuffer value1 = ByteBuffer.wrap("abcdehij".getBytes("UTF-8"));
-    assertProjectionStrict(spec, notIn("value", value, value1),
+    ByteBuffer anotherValue = ByteBuffer.wrap("abcdehij".getBytes("UTF-8"));
+    assertProjectionStrict(spec, notIn("value", value, anotherValue),
         Expression.Operation.NOT_IN, "[4, 6]");
-    assertProjectionStrictValue(spec, in("value", value, value1), Expression.Operation.FALSE);
+    assertProjectionStrictValue(spec, in("value", value, anotherValue), Expression.Operation.FALSE);
   }
 
   @Test
@@ -293,10 +297,10 @@ public class TestBucketingProjection {
     assertProjectionInclusiveValue(spec, greaterThan("value", value), Expression.Operation.TRUE);
     assertProjectionInclusiveValue(spec, greaterThanOrEqual("value", value), Expression.Operation.TRUE);
 
-    ByteBuffer value1 = ByteBuffer.wrap("abcdehij".getBytes("UTF-8"));
-    assertProjectionInclusive(spec, in("value", value, value1),
+    ByteBuffer anotherValue = ByteBuffer.wrap("abcdehij".getBytes("UTF-8"));
+    assertProjectionInclusive(spec, in("value", value, anotherValue),
         Expression.Operation.IN, "[4, 6]");
-    assertProjectionInclusiveValue(spec, notIn("value", value, value1), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(spec, notIn("value", value, anotherValue), Expression.Operation.TRUE);
   }
 
   @Test
@@ -313,10 +317,10 @@ public class TestBucketingProjection {
     assertProjectionStrictValue(spec, greaterThan("value", value), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, greaterThanOrEqual("value", value), Expression.Operation.FALSE);
 
-    UUID value1 = new UUID(456L, 123L);
-    assertProjectionStrict(spec, notIn("value", value, value1),
+    UUID anotherValue = new UUID(456L, 123L);
+    assertProjectionStrict(spec, notIn("value", value, anotherValue),
         Expression.Operation.NOT_IN, "[4, 6]");
-    assertProjectionStrictValue(spec, in("value", value, value1), Expression.Operation.FALSE);
+    assertProjectionStrictValue(spec, in("value", value, anotherValue), Expression.Operation.FALSE);
   }
 
   @Test
@@ -333,9 +337,9 @@ public class TestBucketingProjection {
     assertProjectionInclusiveValue(spec, greaterThan("value", value), Expression.Operation.TRUE);
     assertProjectionInclusiveValue(spec, greaterThanOrEqual("value", value), Expression.Operation.TRUE);
 
-    UUID value1 = new UUID(456L, 123L);
-    assertProjectionInclusive(spec, in("value", value, value1),
+    UUID anotherValue = new UUID(456L, 123L);
+    assertProjectionInclusive(spec, in("value", value, anotherValue),
         Expression.Operation.IN, "[4, 6]");
-    assertProjectionInclusiveValue(spec, notIn("value", value, value1), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(spec, notIn("value", value, anotherValue), Expression.Operation.TRUE);
   }
 }
