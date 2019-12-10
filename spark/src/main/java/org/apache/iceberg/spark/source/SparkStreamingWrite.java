@@ -35,7 +35,6 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.connector.catalog.TableCapability;
 import org.apache.spark.sql.connector.write.DataWriter;
 import org.apache.spark.sql.connector.write.WriterCommitMessage;
 import org.apache.spark.sql.connector.write.streaming.StreamingDataWriterFactory;
@@ -44,58 +43,31 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
+public class SparkStreamingWrite extends SparkBatchWrite implements StreamingWrite {
 
-public class IcebergStreamingWriter extends IcebergBatchWriter implements StreamingWrite {
-
-  private static final Logger LOG = LoggerFactory.getLogger(IcebergStreamingWriter.class);
+  private static final Logger LOG = LoggerFactory.getLogger(SparkStreamingWrite.class);
   private static final String QUERY_ID_PROPERTY = "spark.sql.streaming.queryId";
   private static final String EPOCH_ID_PROPERTY = "spark.sql.streaming.epochId";
 
+  private final boolean truncateBatches;
   private final String queryId;
-  private final TableCapability writeBehavior;
-  private final Table table;
-  private final long targetFileSize;
-  private final FileFormat format;
-  private final Schema dsSchema;
 
-  IcebergStreamingWriter(Table table, CaseInsensitiveStringMap options, String queryId, TableCapability writeBehavior,
-      String applicationId, String wapId, Schema dsSchema) {
-    super(table, options, writeBehavior, applicationId, wapId, dsSchema);
+  SparkStreamingWrite(Table table, CaseInsensitiveStringMap options, boolean truncateBatches, String queryId,
+                      String applicationId, String wapId, Schema dsSchema) {
+    super(table, options, false, truncateBatches, Expressions.alwaysTrue(), applicationId, wapId, dsSchema);
+    this.truncateBatches = truncateBatches;
     this.queryId = queryId;
-    this.writeBehavior = writeBehavior;
-    this.table = table;
-    this.format = getFileFormat(table.properties(), options);
-    long tableTargetFileSize = PropertyUtil.propertyAsLong(
-            table.properties(), WRITE_TARGET_FILE_SIZE_BYTES, WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
-    this.targetFileSize = options.getLong("target-file-size-bytes", tableTargetFileSize);
-    this.dsSchema = dsSchema;
   }
 
   @Override
   public StreamingDataWriterFactory createStreamingWriterFactory() {
-    return new StreamingWriterFactory(table.spec(), format, table.locationProvider(),
-            table.properties(), table.io(), table.encryption(), targetFileSize, dsSchema);
-  }
-
-  private static class StreamingWriterFactory extends WriterFactory implements StreamingDataWriterFactory {
-
-    StreamingWriterFactory(PartitionSpec spec, FileFormat format, LocationProvider locations,
-                  Map<String, String> properties, FileIO fileIo, EncryptionManager encryptionManager,
-                  long targetFileSize, Schema dsSchema) {
-      super(spec, format, locations, properties, fileIo, encryptionManager, targetFileSize, dsSchema);
-    }
-
-    @Override
-    public DataWriter<InternalRow> createWriter(int partitionId, long taskId, long epochId) {
-      return  super.createWriter(partitionId, taskId, epochId);
-    }
+    // the writer factory works for both batch and streaming
+    return createBatchWriterFactory();
   }
 
   @Override
   public void commit(long epochId, WriterCommitMessage[] messages) {
-    LOG.info("Committing epoch {} for query {} in {} mode", epochId, queryId, writeBehavior);
+    LOG.info("Committing epoch {} for query {} in {} mode", epochId, queryId, truncateBatches ? "complete" : "append");
 
     table().refresh();
     Long lastCommittedEpochId = getLastCommittedEpochId();
@@ -104,7 +76,7 @@ public class IcebergStreamingWriter extends IcebergBatchWriter implements Stream
       return;
     }
 
-    if (writeBehavior.equals(TableCapability.TRUNCATE)) {
+    if (truncateBatches) {
       OverwriteFiles overwriteFiles = table().newOverwrite();
       overwriteFiles.overwriteByRowFilter(Expressions.alwaysTrue());
       int numFiles = 0;
@@ -113,7 +85,7 @@ public class IcebergStreamingWriter extends IcebergBatchWriter implements Stream
         numFiles++;
       }
       commit(overwriteFiles, epochId, numFiles, "streaming complete overwrite");
-    } else if (writeBehavior.equals(TableCapability.STREAMING_WRITE)) {
+    } else {
       AppendFiles append = table().newFastAppend();
       int numFiles = 0;
       for (DataFile file : files(messages)) {
@@ -121,8 +93,6 @@ public class IcebergStreamingWriter extends IcebergBatchWriter implements Stream
         numFiles++;
       }
       commit(append, epochId, numFiles, "streaming append");
-    } else {
-      throw new IllegalArgumentException("Iceberg doen't support write behavior " + writeBehavior + " for now");
     }
   }
 

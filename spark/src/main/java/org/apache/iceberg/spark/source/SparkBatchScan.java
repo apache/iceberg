@@ -28,6 +28,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -56,7 +57,6 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkAvroReader;
 import org.apache.iceberg.spark.data.SparkOrcReader;
@@ -76,10 +76,7 @@ import org.apache.spark.sql.connector.read.PartitionReader;
 import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.Statistics;
-import org.apache.spark.sql.connector.read.SupportsPushDownFilters;
-import org.apache.spark.sql.connector.read.SupportsPushDownRequiredColumns;
 import org.apache.spark.sql.connector.read.SupportsReportStatistics;
-import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
@@ -91,14 +88,12 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.apache.spark.unsafe.types.UTF8String;
 import scala.collection.JavaConverters;
 
-public class IcebergBatchScan implements Scan,
-    Batch,
-    SupportsPushDownFilters,
-    SupportsPushDownRequiredColumns,
-    SupportsReportStatistics {
-  private static final Filter[] NO_FILTERS = new Filter[0];
+class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
   private final Table table;
+  private final boolean caseSensitive;
+  private final Schema expectedSchema;
+  private final List<Expression> filterExpressions;
   private final Long snapshotId;
   private final Long asOfTimestamp;
   private final Long splitSize;
@@ -106,18 +101,16 @@ public class IcebergBatchScan implements Scan,
   private final Long splitOpenFileCost;
   private final FileIO fileIo;
   private final EncryptionManager encryptionManager;
-  private final boolean caseSensitive;
-  private StructType requestedSchema = null;
-  private List<Expression> filterExpressions = null;
-  private Filter[] pushedFilters = NO_FILTERS;
 
   // lazy variables
-  private Schema schema = null;
-  private StructType type = null; // cached because Spark accesses it multiple times
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
 
-  public IcebergBatchScan(Table table, Boolean caseSensitive, CaseInsensitiveStringMap options) {
+  SparkBatchScan(Table table, boolean caseSensitive, Schema expectedSchema, List<Expression> filters,
+                 CaseInsensitiveStringMap options) {
     this.table = table;
+    this.caseSensitive = caseSensitive;
+    this.expectedSchema = expectedSchema;
+    this.filterExpressions = filters;
     this.snapshotId = options.containsKey("snapshot-id") ? options.getLong("snapshot-id", 0) : null;
     this.asOfTimestamp = options.containsKey("as-of-timestamp") ? options.getLong("as-of-timestamp", 0) : null;
 
@@ -134,22 +127,53 @@ public class IcebergBatchScan implements Scan,
     this.splitOpenFileCost = options.containsKey("file-open-cost") ? options.getLong("file-open-cost",
         TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT) : null;
 
-    this.schema = table.schema();
     this.fileIo = table.io();
     this.encryptionManager = table.encryption();
-    this.caseSensitive = caseSensitive;
   }
 
-  public IcebergBatchScan(Table table, CaseInsensitiveStringMap options) {
-    this(table, true, options);
+  @Override
+  public Batch toBatch() {
+    return this;
   }
 
-  public IcebergBatchScan(Table table, CaseInsensitiveStringMap options, StructType requestedSchema) {
-    this(table, true, options);
+  @Override
+  public StructType readSchema() {
+    return SparkSchemaUtil.convert(expectedSchema);
+  }
 
-    if (requestedSchema != null) {
-      pruneColumns(requestedSchema);
+  @Override
+  public InputPartition[] planInputPartitions() {
+    String tableSchemaString = SchemaParser.toJson(table.schema());
+    String expectedSchemaString = SchemaParser.toJson(expectedSchema);
+
+    List<CombinedScanTask> scanTasks = tasks();
+    InputPartition[] readTasks = new InputPartition[scanTasks.size()];
+    for (int i = 0; i < scanTasks.size(); i++) {
+      readTasks[i] = new ReadTask(
+          scanTasks.get(i), tableSchemaString, expectedSchemaString, fileIo, encryptionManager, caseSensitive);
     }
+
+    return readTasks;
+  }
+
+  @Override
+  public ReaderFactory createReaderFactory() {
+    return new ReaderFactory();
+  }
+
+  @Override
+  public Statistics estimateStatistics() {
+    long sizeInBytes = 0L;
+    long numRows = 0L;
+
+    for (CombinedScanTask task : tasks()) {
+      for (FileScanTask file : task.files()) {
+        sizeInBytes += file.length();
+        numRows += file.file().recordCount();
+      }
+    }
+
+    return new Stats(sizeInBytes, numRows);
   }
 
   private List<CombinedScanTask> tasks() {
@@ -157,7 +181,7 @@ public class IcebergBatchScan implements Scan,
       TableScan scan = table
           .newScan()
           .caseSensitive(caseSensitive)
-          .project(lazySchema());
+          .project(expectedSchema);
 
       if (snapshotId != null) {
         scan = scan.useSnapshot(snapshotId);
@@ -196,105 +220,68 @@ public class IcebergBatchScan implements Scan,
   }
 
   @Override
-  public Filter[] pushFilters(Filter[] filters) {
-    this.tasks = null; // invalidate cached tasks, if present
+  public String toString() {
+    return String.format(
+        "IcebergScan(table=%s, type=%s, filters=%s, caseSensitive=%s)",
+        table, expectedSchema.asStruct(), filterExpressions, caseSensitive);
+  }
 
-    List<Expression> expressions = Lists.newArrayListWithExpectedSize(filters.length);
-    List<Filter> pushed = Lists.newArrayListWithExpectedSize(filters.length);
-
-    for (Filter filter : filters) {
-      Expression expr = SparkFilters.convert(filter);
-      if (expr != null) {
-        expressions.add(expr);
-        pushed.add(filter);
+  private static class ReaderFactory implements PartitionReaderFactory {
+    @Override
+    public PartitionReader<InternalRow> createReader(InputPartition inputPartition) {
+      if (inputPartition instanceof ReadTask) {
+        return new TaskDataReader((ReadTask) inputPartition);
+      } else {
+        throw new UnsupportedOperationException("Incorrect input partition type: " + inputPartition);
       }
     }
-
-    this.filterExpressions = expressions;
-    this.pushedFilters = pushed.toArray(new Filter[0]);
-
-    // invalidate the schema that will be projected
-    this.schema = null;
-    this.type = null;
-
-    // Spark doesn't support residuals per task, so return all filters
-    // to get Spark to handle record-level filtering
-    return filters;
   }
 
-  @Override
-  public Batch toBatch() {
-    return this;
-  }
-
-  @Override
-  public Filter[] pushedFilters() {
-    return pushedFilters;
-  }
-
-  @Override
-  public void pruneColumns(StructType newRequestedSchema) {
-    this.requestedSchema = newRequestedSchema;
-
-    // invalidate the schema that will be projected
-    this.schema = null;
-    this.type = null;
-  }
-
-  @Override
-  public Scan build() {
-    return this;
-  }
-
-  @Override
-  public Statistics estimateStatistics() {
-    long sizeInBytes = 0L;
-    long numRows = 0L;
-
-    for (CombinedScanTask task : tasks()) {
-      for (FileScanTask file : task.files()) {
-        sizeInBytes += file.length();
-        numRows += file.file().recordCount();
-      }
-    }
-
-    return new Stats(sizeInBytes, numRows);
-  }
-
-  public static class BatchReadInputPartition implements InputPartition, Serializable {
+  private static class ReadTask implements InputPartition, Serializable {
     private final CombinedScanTask task;
     private final String tableSchemaString;
     private final String expectedSchemaString;
-    private final FileIO fileIo;
+    private final FileIO io;
     private final EncryptionManager encryptionManager;
     private final boolean caseSensitive;
 
     private transient Schema tableSchema = null;
     private transient Schema expectedSchema = null;
 
-    BatchReadInputPartition(
-        CombinedScanTask task,
-        String tableSchemaString,
-        String expectedSchemaString,
-        FileIO fileIo,
-        EncryptionManager encryptionManager,
-        boolean caseSensitive) {
+    ReadTask(CombinedScanTask task, String tableSchemaString, String expectedSchemaString,
+                            FileIO io, EncryptionManager encryptionManager, boolean caseSensitive) {
       this.task = task;
       this.tableSchemaString = tableSchemaString;
       this.expectedSchemaString = expectedSchemaString;
-      this.fileIo = fileIo;
+      this.io = io;
       this.encryptionManager = encryptionManager;
       this.caseSensitive = caseSensitive;
     }
 
-    private Schema lazyTableSchema() {
+    public Collection<FileScanTask> files() {
+      return task.files();
+    }
+
+    public FileIO io() {
+      return io;
+    }
+
+    public EncryptionManager encryptionManager() {
+      return encryptionManager;
+    }
+
+    public boolean isCaseSensitive() {
+      return caseSensitive;
+    }
+
+    private Schema tableSchema() {
       if (tableSchema == null) {
         this.tableSchema = SchemaParser.fromJson(tableSchemaString);
       }
       return tableSchema;
     }
 
-    private Schema lazyExpectedSchema() {
+    private Schema expectedSchema() {
       if (expectedSchema == null) {
         this.expectedSchema = SchemaParser.fromJson(expectedSchemaString);
       }
@@ -302,195 +289,27 @@ public class IcebergBatchScan implements Scan,
     }
   }
 
-  @Override
-  public InputPartition[] planInputPartitions() {
-    String tableSchemaString = SchemaParser.toJson(table.schema());
-    String expectedSchemaString = SchemaParser.toJson(lazySchema());
-
-    List<CombinedScanTask> scanTasks = tasks();
-    InputPartition[] readTasks = new InputPartition[scanTasks.size()];
-    for (int i = 0; i < scanTasks.size(); i++) {
-      readTasks[i] = new BatchReadInputPartition(scanTasks.get(i), tableSchemaString, expectedSchemaString, fileIo,
-          encryptionManager, caseSensitive);
-    }
-
-    return readTasks;
-  }
-
-  @Override
-  public IcebergRowReaderFactory createReaderFactory() {
-    return new IcebergRowReaderFactory();
-  }
-
-  private Schema lazySchema() {
-    if (schema == null) {
-      if (requestedSchema != null) {
-        this.schema = SparkSchemaUtil.prune(table.schema(), requestedSchema);
-      } else {
-        this.schema = table.schema();
-      }
-    }
-    return schema;
-  }
-
-  private StructType lazyType() {
-    if (type == null) {
-      this.type = SparkSchemaUtil.convert(lazySchema());
-    }
-    return type;
-  }
-
-  @Override
-  public StructType readSchema() {
-    return lazyType();
-  }
-
-
-  public static class PartitionRowConverter implements Function<StructLike, InternalRow> {
-    private final DataType[] types;
-    private final int[] positions;
-    private final Class<?>[] javaTypes;
-    private final GenericInternalRow reusedRow;
-
-    PartitionRowConverter(Schema partitionSchema, PartitionSpec spec) {
-      StructType partitionType = SparkSchemaUtil.convert(partitionSchema);
-      StructField[] fields = partitionType.fields();
-
-      this.types = new DataType[fields.length];
-      this.positions = new int[types.length];
-      this.javaTypes = new Class<?>[types.length];
-      this.reusedRow = new GenericInternalRow(types.length);
-
-      List<PartitionField> partitionFields = spec.fields();
-      for (int rowIndex = 0; rowIndex < fields.length; rowIndex += 1) {
-        this.types[rowIndex] = fields[rowIndex].dataType();
-
-        int sourceId = partitionSchema.columns().get(rowIndex).fieldId();
-        for (int specIndex = 0; specIndex < partitionFields.size(); specIndex += 1) {
-          PartitionField field = spec.fields().get(specIndex);
-          if (field.sourceId() == sourceId && "identity".equals(field.transform().toString())) {
-            positions[rowIndex] = specIndex;
-            javaTypes[rowIndex] = spec.javaClasses()[specIndex];
-            break;
-          }
-        }
-      }
-    }
-
-    @Override
-    public InternalRow apply(StructLike tuple) {
-      for (int i = 0; i < types.length; i += 1) {
-        Object value = tuple.get(positions[i], javaTypes[i]);
-        if (value != null) {
-          reusedRow.update(i, convert(value, types[i]));
-        } else {
-          reusedRow.setNullAt(i);
-        }
-      }
-
-      return reusedRow;
-    }
-
-    /**
-     * Converts the objects into instances used by Spark's InternalRow.
-     *
-     * @param value a data value
-     * @param type  the Spark data type
-     * @return the value converted to the representation expected by Spark's InternalRow.
-     */
-    private static Object convert(Object value, DataType type) {
-      if (type instanceof StringType) {
-        return UTF8String.fromString(value.toString());
-      } else if (type instanceof BinaryType) {
-        return ByteBuffers.toByteArray((ByteBuffer) value);
-      } else if (type instanceof DecimalType) {
-        return Decimal.fromDecimal(value);
-      }
-      return value;
-    }
-  }
-
-  public static class StructLikeInternalRow implements StructLike {
-    private final DataType[] types;
-    private InternalRow row = null;
-
-    StructLikeInternalRow(StructType struct) {
-      this.types = new DataType[struct.size()];
-      StructField[] fields = struct.fields();
-      for (int i = 0; i < fields.length; i += 1) {
-        types[i] = fields[i].dataType();
-      }
-    }
-
-    public StructLikeInternalRow setRow(InternalRow row) {
-      this.row = row;
-      return this;
-    }
-
-    @Override
-    public int size() {
-      return types.length;
-    }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public <T> T get(int pos, Class<T> javaClass) {
-      return javaClass.cast(row.get(pos, types[pos]));
-    }
-
-    @Override
-    public <T> void set(int pos, T value) {
-      throw new UnsupportedOperationException("Not implemented: set");
-    }
-  }
-
-
-  private static class IcebergRowReaderFactory implements PartitionReaderFactory {
-    IcebergRowReaderFactory() {
-    }
-
-    @Override
-    public PartitionReader<InternalRow> createReader(InputPartition inputPartition) {
-      return new TaskDataReader(inputPartition);
-    }
-  }
-
-  public static class TaskDataReader implements PartitionReader<InternalRow> {
+  private static class TaskDataReader implements PartitionReader<InternalRow> {
     // for some reason, the apply method can't be called from Java without reflection
     private static final DynMethods.UnboundMethod APPLY_PROJECTION = DynMethods.builder("apply")
         .impl(UnsafeProjection.class, InternalRow.class)
         .build();
 
+    private final ReadTask split;
     private final Iterator<FileScanTask> tasks;
-    private final Schema tableSchema;
-    private final Schema expectedSchema;
-    private final FileIO fileIo;
     private final Map<String, InputFile> inputFiles;
-    private final boolean caseSensitive;
 
     private Iterator<InternalRow> currentIterator = null;
     private Closeable currentCloseable = null;
     private InternalRow current = null;
 
-    TaskDataReader(InputPartition inputPartition) {
-      BatchReadInputPartition batchReadInputPartition = (BatchReadInputPartition) inputPartition;
+    TaskDataReader(ReadTask task) {
+      this.split = task;
+      this.tasks = task.files().iterator();
+      this.inputFiles = batchDecrypt(task.files());
 
-      this.fileIo = batchReadInputPartition.fileIo;
-      this.tableSchema = batchReadInputPartition.lazyTableSchema();
-      this.expectedSchema = batchReadInputPartition.lazyExpectedSchema();
-      this.tasks = batchReadInputPartition.task.files().iterator();
-      Iterable<InputFile> decryptedFiles = batchReadInputPartition.encryptionManager.decrypt(
-          Iterables.transform(batchReadInputPartition.task.files(),
-              fileScanTask ->
-                  EncryptedFiles.encryptedInput(
-                      this.fileIo.newInputFile(fileScanTask.file().path().toString()),
-                      fileScanTask.file().keyMetadata())));
-      ImmutableMap.Builder<String, InputFile> inputFileBuilder = ImmutableMap.builder();
-      decryptedFiles.forEach(decrypted -> inputFileBuilder.put(decrypted.location(), decrypted));
-      this.inputFiles = inputFileBuilder.build();
-      // open last because the schemas and fileIo must be set
+      // open last because the split must be set
       this.currentIterator = open(tasks.next());
-      this.caseSensitive = batchReadInputPartition.caseSensitive;
     }
 
     @Override
@@ -526,17 +345,31 @@ public class IcebergBatchScan implements Scan,
       }
     }
 
+    private Map<String, InputFile> batchDecrypt(Collection<FileScanTask> files) {
+      Iterable<InputFile> decryptedFiles = split.encryptionManager().decrypt(
+          Iterables.transform(files,
+              fileScanTask ->
+                  EncryptedFiles.encryptedInput(
+                      split.io().newInputFile(fileScanTask.file().path().toString()),
+                      fileScanTask.file().keyMetadata())));
+
+      ImmutableMap.Builder<String, InputFile> inputFileBuilder = ImmutableMap.builder();
+      decryptedFiles.forEach(decrypted -> inputFileBuilder.put(decrypted.location(), decrypted));
+      return inputFileBuilder.build();
+    }
+
     private Iterator<InternalRow> open(FileScanTask task) {
       DataFile file = task.file();
 
       // schema or rows returned by readers
-      Schema finalSchema = expectedSchema;
+      Schema finalSchema = split.expectedSchema();
       PartitionSpec spec = task.spec();
       Set<Integer> idColumns = spec.identitySourceIds();
 
       // schema needed for the projection and filtering
       StructType sparkType = SparkSchemaUtil.convert(finalSchema);
-      Schema requiredSchema = SparkSchemaUtil.prune(tableSchema, sparkType, task.residual(), caseSensitive);
+      Schema requiredSchema = SparkSchemaUtil.prune(
+          split.tableSchema(), sparkType, task.residual(), split.isCaseSensitive());
       boolean hasJoinedPartitionColumns = !idColumns.isEmpty();
       boolean hasExtraFilterColumns = requiredSchema.columns().size() != finalSchema.columns().size();
 
@@ -647,7 +480,7 @@ public class IcebergBatchScan implements Scan,
           .split(task.start(), task.length())
           .createReaderFunc(fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema))
           .filter(task.residual())
-          .caseSensitive(caseSensitive)
+          .caseSensitive(split.isCaseSensitive())
           .build();
     }
 
@@ -658,17 +491,114 @@ public class IcebergBatchScan implements Scan,
           .schema(readSchema)
           .split(task.start(), task.length())
           .createReaderFunc(SparkOrcReader::new)
-          .caseSensitive(caseSensitive)
+          .caseSensitive(split.isCaseSensitive())
           .build();
     }
 
     private CloseableIterable<InternalRow> newDataIterable(DataTask task, Schema readSchema) {
-      StructInternalRow row = new StructInternalRow(tableSchema.asStruct());
+      StructInternalRow row = new StructInternalRow(split.tableSchema().asStruct());
       CloseableIterable<InternalRow> asSparkRows = CloseableIterable.transform(
           task.asDataTask().rows(), row::setStruct);
       return CloseableIterable.transform(
-          asSparkRows, APPLY_PROJECTION.bind(projection(readSchema, tableSchema))::invoke);
+          asSparkRows, APPLY_PROJECTION.bind(projection(readSchema, split.tableSchema()))::invoke);
     }
   }
 
+  private static class PartitionRowConverter implements Function<StructLike, InternalRow> {
+    private final DataType[] types;
+    private final int[] positions;
+    private final Class<?>[] javaTypes;
+    private final GenericInternalRow reusedRow;
+
+    PartitionRowConverter(Schema partitionSchema, PartitionSpec spec) {
+      StructType partitionType = SparkSchemaUtil.convert(partitionSchema);
+      StructField[] fields = partitionType.fields();
+
+      this.types = new DataType[fields.length];
+      this.positions = new int[types.length];
+      this.javaTypes = new Class<?>[types.length];
+      this.reusedRow = new GenericInternalRow(types.length);
+
+      List<PartitionField> partitionFields = spec.fields();
+      for (int rowIndex = 0; rowIndex < fields.length; rowIndex += 1) {
+        this.types[rowIndex] = fields[rowIndex].dataType();
+
+        int sourceId = partitionSchema.columns().get(rowIndex).fieldId();
+        for (int specIndex = 0; specIndex < partitionFields.size(); specIndex += 1) {
+          PartitionField field = spec.fields().get(specIndex);
+          if (field.sourceId() == sourceId && "identity".equals(field.transform().toString())) {
+            positions[rowIndex] = specIndex;
+            javaTypes[rowIndex] = spec.javaClasses()[specIndex];
+            break;
+          }
+        }
+      }
+    }
+
+    @Override
+    public InternalRow apply(StructLike tuple) {
+      for (int i = 0; i < types.length; i += 1) {
+        Object value = tuple.get(positions[i], javaTypes[i]);
+        if (value != null) {
+          reusedRow.update(i, convert(value, types[i]));
+        } else {
+          reusedRow.setNullAt(i);
+        }
+      }
+
+      return reusedRow;
+    }
+
+    /**
+     * Converts the objects into instances used by Spark's InternalRow.
+     *
+     * @param value a data value
+     * @param type  the Spark data type
+     * @return the value converted to the representation expected by Spark's InternalRow.
+     */
+    private static Object convert(Object value, DataType type) {
+      if (type instanceof StringType) {
+        return UTF8String.fromString(value.toString());
+      } else if (type instanceof BinaryType) {
+        return ByteBuffers.toByteArray((ByteBuffer) value);
+      } else if (type instanceof DecimalType) {
+        return Decimal.fromDecimal(value);
+      }
+      return value;
+    }
+  }
+
+  private static class StructLikeInternalRow implements StructLike {
+    private final DataType[] types;
+    private InternalRow row = null;
+
+    StructLikeInternalRow(StructType struct) {
+      this.types = new DataType[struct.size()];
+      StructField[] fields = struct.fields();
+      for (int i = 0; i < fields.length; i += 1) {
+        types[i] = fields[i].dataType();
+      }
+    }
+
+    public StructLikeInternalRow setRow(InternalRow row) {
+      this.row = row;
+      return this;
+    }
+
+    @Override
+    public int size() {
+      return types.length;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(row.get(pos, types[pos]));
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("Not implemented: set");
+    }
+  }
 }

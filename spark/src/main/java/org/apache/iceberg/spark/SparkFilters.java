@@ -25,7 +25,10 @@ import java.sql.Date;
 import java.sql.Timestamp;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
+import org.apache.spark.sql.sources.AlwaysFalse$;
+import org.apache.spark.sql.sources.AlwaysTrue$;
 import org.apache.spark.sql.sources.And;
 import org.apache.spark.sql.sources.EqualNullSafe;
 import org.apache.spark.sql.sources.EqualTo;
@@ -60,6 +63,8 @@ public class SparkFilters {
 
   private static final ImmutableMap<Class<? extends Filter>, Operation> FILTERS = ImmutableMap
       .<Class<? extends Filter>, Operation>builder()
+      .put(AlwaysTrue$.class, Operation.TRUE)
+      .put(AlwaysFalse$.class, Operation.FALSE)
       .put(EqualTo.class, Operation.EQ)
       .put(EqualNullSafe.class, Operation.EQ)
       .put(GreaterThan.class, Operation.GT)
@@ -75,11 +80,25 @@ public class SparkFilters {
       .put(StringStartsWith.class, Operation.STARTS_WITH)
       .build();
 
+  public static Expression convert(Filter[] filters) {
+    Expression expression = Expressions.alwaysTrue();
+    for (Filter filter : filters) {
+      expression = Expressions.and(expression, convert(filter));
+    }
+    return expression;
+  }
+
   public static Expression convert(Filter filter) {
     // avoid using a chain of if instanceof statements by mapping to the expression enum.
     Operation op = FILTERS.get(filter.getClass());
     if (op != null) {
       switch (op) {
+        case TRUE:
+          return Expressions.alwaysTrue();
+
+        case FALSE:
+          return Expressions.alwaysFalse();
+
         case IS_NULL:
           IsNull isNullFilter = (IsNull) filter;
           return isNull(isNullFilter.attribute());

@@ -20,16 +20,17 @@
 package org.apache.iceberg.spark.source;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.Table;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-public class TestIcebergSource extends IcebergTableProvider {
+public class TestIcebergSource extends IcebergSource {
   @Override
   public String shortName() {
     return "iceberg-test";
   }
 
   @Override
-  public org.apache.iceberg.Table findTable(CaseInsensitiveStringMap options, Configuration conf) {
+  protected Table findTable(CaseInsensitiveStringMap options, Configuration conf) {
     return TestTables.load(options.get("iceberg.table.name"));
   }
 }

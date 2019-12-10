@@ -41,7 +41,6 @@ import org.apache.spark.sql.streaming.StreamingQueryException;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -200,8 +199,7 @@ public class TestStructuredStreaming {
     }
   }
 
-  // This fails due to SPARK-28730
-  @Ignore
+  @Test
   public void testStreamingWriteCompleteModeWithProjection() throws IOException {
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test-table");

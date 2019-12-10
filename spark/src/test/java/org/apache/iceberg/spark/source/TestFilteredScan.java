@@ -51,8 +51,10 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.api.java.UDF1;
 import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
+import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.InputPartition;
 import org.apache.spark.sql.connector.read.Scan;
+import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.read.SupportsPushDownFilters;
 import org.apache.spark.sql.sources.And;
 import org.apache.spark.sql.sources.EqualTo;
@@ -212,10 +214,11 @@ public class TestFilteredScan {
     CaseInsensitiveStringMap options = new CaseInsensitiveStringMap(ImmutableMap.of(
         "path", unpartitioned.toString())
     );
-    IcebergBatchScan scan = new IcebergBatchScan(TABLES.load(options.get("path")), options);
+    SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
     for (int i = 0; i < 10; i += 1) {
-      pushFilters(scan, EqualTo.apply("id", i));
+      pushFilters(builder, EqualTo.apply("id", i));
+      Batch scan = builder.build().toBatch();
 
       InputPartition[] partitions = scan.planInputPartitions();
       Assert.assertEquals("Should only create one task for a small file", 1, partitions.length);
@@ -239,9 +242,11 @@ public class TestFilteredScan {
     try {
 
       for (int i = 0; i < 10; i += 1) {
-        IcebergBatchScan scan = new IcebergBatchScan(TABLES.load(options.get("path")), false, options);
+        SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options)
+            .caseSensitive(false);
 
-        pushFilters(scan, EqualTo.apply("ID", i)); // note lower(ID) == lower(id), so there must be a match
+        pushFilters(builder, EqualTo.apply("ID", i)); // note lower(ID) == lower(id), so there must be a match
+        Batch scan = builder.build().toBatch();
 
         InputPartition[] tasks = scan.planInputPartitions();
         Assert.assertEquals("Should only create one task for a small file", 1, tasks.length);
@@ -262,9 +267,10 @@ public class TestFilteredScan {
         "path", unpartitioned.toString())
     );
 
-    IcebergBatchScan scan = new IcebergBatchScan(TABLES.load(options.get("path")), options);
+    SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
-    pushFilters(scan, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
+    pushFilters(builder, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
+    Batch scan = builder.build().toBatch();
 
     InputPartition[] tasks = scan.planInputPartitions();
     Assert.assertEquals("Should only create one task for a small file", 1, tasks.length);
@@ -278,14 +284,15 @@ public class TestFilteredScan {
     Table table = buildPartitionedTable("bucketed_by_id", BUCKET_BY_ID, "bucket4", "id");
     CaseInsensitiveStringMap options = new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
 
-    IcebergBatchScan unfiltered = new IcebergBatchScan(table, options);
+    Batch unfiltered = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options).build().toBatch();
     Assert.assertEquals("Unfiltered table should created 4 read tasks",
         4, unfiltered.planInputPartitions().length);
 
     for (int i = 0; i < 10; i += 1) {
-      IcebergBatchScan scan = new IcebergBatchScan(table, options);
+      SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
-      pushFilters(scan, EqualTo.apply("id", i));
+      pushFilters(builder, EqualTo.apply("id", i));
+      Batch scan = builder.build().toBatch();
 
       InputPartition[] tasks = scan.planInputPartitions();
 
@@ -302,15 +309,16 @@ public class TestFilteredScan {
   public void testDayPartitionedTimestampFilters() {
     Table table = buildPartitionedTable("partitioned_by_day", PARTITION_BY_DAY, "ts_day", "ts");
     CaseInsensitiveStringMap options = new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
-    IcebergBatchScan unfiltered = new IcebergBatchScan(table, options);
+    Batch unfiltered = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options).build().toBatch();
 
     Assert.assertEquals("Unfiltered table should created 2 read tasks",
         2, unfiltered.planInputPartitions().length);
 
     {
-      IcebergBatchScan scan = new IcebergBatchScan(table, options);
+      SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
-      pushFilters(scan, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
+      pushFilters(builder, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
+      Batch scan = builder.build().toBatch();
 
       InputPartition[] tasks = scan.planInputPartitions();
       Assert.assertEquals("Should create one task for 2017-12-21", 1, tasks.length);
@@ -320,11 +328,12 @@ public class TestFilteredScan {
     }
 
     {
-      IcebergBatchScan scan = new IcebergBatchScan(table, options);
+      SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
-      pushFilters(scan, And.apply(
+      pushFilters(builder, And.apply(
           GreaterThan.apply("ts", "2017-12-22T06:00:00+00:00"),
           LessThan.apply("ts", "2017-12-22T08:00:00+00:00")));
+      Batch scan = builder.build().toBatch();
 
       InputPartition[] tasks = scan.planInputPartitions();
       Assert.assertEquals("Should create one task for 2017-12-22", 1, tasks.length);
@@ -341,29 +350,31 @@ public class TestFilteredScan {
     Table table = buildPartitionedTable("partitioned_by_hour", PARTITION_BY_HOUR, "ts_hour", "ts");
 
     CaseInsensitiveStringMap options = new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
-    IcebergBatchScan unfiltered = new IcebergBatchScan(table, options);
+    Batch unfiltered = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options).build().toBatch();
 
     Assert.assertEquals("Unfiltered table should created 9 read tasks",
         9, unfiltered.planInputPartitions().length);
 
     {
-      IcebergBatchScan scan = new IcebergBatchScan(table, options);
+      SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
-      pushFilters(scan, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
+      pushFilters(builder, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
+      Batch scan = builder.build().toBatch();
 
       InputPartition[] tasks = scan.planInputPartitions();
       Assert.assertEquals("Should create 4 tasks for 2017-12-21: 15, 17, 21, 22", 4, tasks.length);
 
       assertEqualsSafe(SCHEMA.asStruct(), expected(8, 9, 7, 6, 5),
-          read(table.location().toString(), "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
+          read(table.location(), "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
     }
 
     {
-      IcebergBatchScan scan = new IcebergBatchScan(table, options);
+      SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
-      pushFilters(scan, And.apply(
+      pushFilters(builder, And.apply(
           GreaterThan.apply("ts", "2017-12-22T06:00:00+00:00"),
           LessThan.apply("ts", "2017-12-22T08:00:00+00:00")));
+      Batch scan = builder.build().toBatch();
 
       InputPartition[] tasks = scan.planInputPartitions();
       Assert.assertEquals("Should create 2 tasks for 2017-12-22: 6, 7", 2, tasks.length);
@@ -412,9 +423,10 @@ public class TestFilteredScan {
     Table table = buildPartitionedTable("partitioned_by_data", PARTITION_BY_DATA, "data_ident", "data");
     CaseInsensitiveStringMap options = new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
 
-    IcebergBatchScan scan = new IcebergBatchScan(table, options);
+    SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
-    pushFilters(scan, new StringStartsWith("data", "junc"));
+    pushFilters(builder, new StringStartsWith("data", "junc"));
+    Batch scan = builder.build().toBatch();
 
     Assert.assertEquals(1, scan.planInputPartitions().length);
   }
@@ -427,8 +439,10 @@ public class TestFilteredScan {
         "path", table.location())
     );
 
-    IcebergBatchScan scan = new IcebergBatchScan(table, options);
-    pushFilters(scan, new StringStartsWith("data", "junc"));
+    SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+
+    pushFilters(builder, new StringStartsWith("data", "junc"));
+    Batch scan = builder.build().toBatch();
 
     Assert.assertEquals(1, scan.planInputPartitions().length);
   }
@@ -487,7 +501,7 @@ public class TestFilteredScan {
     return expected;
   }
 
-  private void pushFilters(Scan scan, Filter... filters) {
+  private void pushFilters(ScanBuilder scan, Filter... filters) {
     Assert.assertTrue(scan instanceof SupportsPushDownFilters);
     SupportsPushDownFilters filterable = (SupportsPushDownFilters) scan;
     filterable.pushFilters(filters);

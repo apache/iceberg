@@ -48,7 +48,7 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -59,11 +59,11 @@ import org.apache.iceberg.spark.data.SparkParquetWriters;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.connector.catalog.TableCapability;
 import org.apache.spark.sql.connector.write.BatchWrite;
 import org.apache.spark.sql.connector.write.DataWriter;
 import org.apache.spark.sql.connector.write.DataWriterFactory;
 import org.apache.spark.sql.connector.write.WriterCommitMessage;
+import org.apache.spark.sql.connector.write.streaming.StreamingDataWriterFactory;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,31 +81,30 @@ import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
-class IcebergBatchWriter implements BatchWrite {
-  private static final Logger LOG = LoggerFactory.getLogger(IcebergBatchWriter.class);
+class SparkBatchWrite implements BatchWrite {
+  private static final Logger LOG = LoggerFactory.getLogger(SparkBatchWrite.class);
 
   private final Table table;
   private final FileFormat format;
   private final FileIO fileIo;
   private final EncryptionManager encryptionManager;
-  private final TableCapability writeBehavior;
+  private final boolean overwriteDynamic;
+  private final boolean overwriteByFilter;
+  private final Expression overwriteExpr;
   private final String applicationId;
   private final String wapId;
   private final long targetFileSize;
   private final Schema dsSchema;
 
-  IcebergBatchWriter(
-      Table table,
-      CaseInsensitiveStringMap options,
-      TableCapability writeBehavior,
-      String applicationId,
-      String wapId,
-      Schema dsSchema) {
+  SparkBatchWrite(Table table, CaseInsensitiveStringMap options, boolean overwriteDynamic, boolean overwriteByFilter,
+                  Expression overwriteExpr, String applicationId, String wapId, Schema dsSchema) {
     this.table = table;
     this.format = getFileFormat(table.properties(), options);
     this.fileIo = table.io();
     this.encryptionManager = table.encryption();
-    this.writeBehavior = writeBehavior;
+    this.overwriteDynamic = overwriteDynamic;
+    this.overwriteByFilter = overwriteByFilter;
+    this.overwriteExpr = overwriteExpr;
     this.applicationId = applicationId;
     this.wapId = wapId;
     this.dsSchema = dsSchema;
@@ -128,7 +127,7 @@ class IcebergBatchWriter implements BatchWrite {
   }
 
   @Override
-  public DataWriterFactory createBatchWriterFactory() {
+  public WriterFactory createBatchWriterFactory() {
     return new WriterFactory(
         table.spec(), format, table.locationProvider(), table.properties(), fileIo, encryptionManager, targetFileSize,
         dsSchema);
@@ -136,14 +135,12 @@ class IcebergBatchWriter implements BatchWrite {
 
   @Override
   public void commit(WriterCommitMessage[] messages) {
-    if (writeBehavior.equals(TableCapability.OVERWRITE_DYNAMIC)) {
+    if (overwriteDynamic) {
       replacePartitions(messages);
-    } else if (writeBehavior.equals(TableCapability.BATCH_WRITE)) {
-      append(messages);
-    } else if (writeBehavior.equals(TableCapability.TRUNCATE)) {
+    } else if (overwriteByFilter) {
       overwrite(messages);
     } else {
-      throw new IllegalArgumentException("Iceberg doen't support write behavior " + writeBehavior + " for now");
+      append(messages);
     }
   }
 
@@ -192,7 +189,7 @@ class IcebergBatchWriter implements BatchWrite {
 
   private void overwrite(WriterCommitMessage[] messages) {
     OverwriteFiles overwriteFiles = table.newOverwrite();
-    overwriteFiles.overwriteByRowFilter(Expressions.alwaysTrue());
+    overwriteFiles.overwriteByRowFilter(overwriteExpr);
 
     int numFiles = 0;
     for (DataFile file : files(messages)) {
@@ -200,7 +197,7 @@ class IcebergBatchWriter implements BatchWrite {
       overwriteFiles.addFile(file);
     }
 
-    commitOperation(overwriteFiles, numFiles, "overwrite by filter or truncate");
+    commitOperation(overwriteFiles, numFiles, "overwrite by filter");
   }
 
   @Override
@@ -266,7 +263,7 @@ class IcebergBatchWriter implements BatchWrite {
     }
   }
 
-  protected static class WriterFactory implements DataWriterFactory {
+  private static class WriterFactory implements DataWriterFactory, StreamingDataWriterFactory {
     private final PartitionSpec spec;
     private final FileFormat format;
     private final LocationProvider locations;
@@ -276,15 +273,9 @@ class IcebergBatchWriter implements BatchWrite {
     private final long targetFileSize;
     private final Schema dsSchema;
 
-    WriterFactory(
-        PartitionSpec spec,
-        FileFormat format,
-        LocationProvider locations,
-        Map<String, String> properties,
-        FileIO fileIo,
-        EncryptionManager encryptionManager,
-        long targetFileSize,
-        Schema dsSchema) {
+    WriterFactory(PartitionSpec spec, FileFormat format, LocationProvider locations,
+                  Map<String, String> properties, FileIO fileIo, EncryptionManager encryptionManager,
+                  long targetFileSize, Schema dsSchema) {
       this.spec = spec;
       this.format = format;
       this.locations = locations;
@@ -295,20 +286,13 @@ class IcebergBatchWriter implements BatchWrite {
       this.dsSchema = dsSchema;
     }
 
+    public DataWriter<InternalRow> createWriter(int partitionId, long taskId) {
+      return createWriter(partitionId, taskId, 0);
+    }
+
     public DataWriter<InternalRow> createWriter(int partitionId, long taskId, long epochId) {
       OutputFileFactory fileFactory = new OutputFileFactory(partitionId, taskId, epochId);
       AppenderFactory<InternalRow> appenderFactory = new SparkAppenderFactory();
-      if (spec.fields().isEmpty()) {
-        return new UnpartitionedWriter(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize);
-      } else {
-        return new PartitionedWriter(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize);
-      }
-    }
-
-    public DataWriter<InternalRow> createWriter(int partitionId, long taskId) {
-      OutputFileFactory fileFactory = new OutputFileFactory(partitionId, taskId, 0);
-      AppenderFactory<InternalRow> appenderFactory = new SparkAppenderFactory();
-
       if (spec.fields().isEmpty()) {
         return new UnpartitionedWriter(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize);
       } else {
@@ -406,13 +390,8 @@ class IcebergBatchWriter implements BatchWrite {
     private EncryptedOutputFile currentFile = null;
     private long currentRows = 0;
 
-    BaseWriter(
-        PartitionSpec spec,
-        FileFormat format,
-        AppenderFactory<InternalRow> appenderFactory,
-        WriterFactory.OutputFileFactory fileFactory,
-        FileIO fileIo,
-        long targetFileSize) {
+    BaseWriter(PartitionSpec spec, FileFormat format, AppenderFactory<InternalRow> appenderFactory,
+               WriterFactory.OutputFileFactory fileFactory, FileIO fileIo, long targetFileSize) {
       this.spec = spec;
       this.format = format;
       this.appenderFactory = appenderFactory;
