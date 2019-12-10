@@ -94,7 +94,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     validateWriteSchema(table.schema(), dsSchema, checkNullability(options));
     validatePartitionTransforms(table.spec());
     String appId = lazySparkSession().sparkContext().applicationId();
-    String wapId = lazySparkSession().conf().get("spark.wap.id", null);
+    String wapId = options.get("write-wap-id").orElse(lazySparkSession().conf().get("spark.wap.id", null));
     return Optional.of(new Writer(table, options, mode == SaveMode.Overwrite, appId, wapId, dsSchema));
   }
 
