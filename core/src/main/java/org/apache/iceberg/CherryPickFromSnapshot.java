@@ -19,15 +19,13 @@
 
 package org.apache.iceberg;
 
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -41,11 +39,12 @@ import org.apache.iceberg.util.ThreadPools;
  * on top of the latest snapshot instead of the one that was current when the audited changes were created.
  *
  * This class adds support for cherry-picking the changes from an orphan snapshot by applying them to
- * the current snapshot.
+ * the current snapshot. The output of the operation is a new snapshot with the changes from cherry-picked
+ * snapshot.
  *
  * Cherry-picking should apply the exact set of changes that were done in the original commit.
- *  - If files were deleted, then those files must still exist in the data set.
  *  - All added files should be added to the new version.
+ *  - Todo: If files were deleted, then those files must still exist in the data set.
  *  - Does not support Overwrite operations currently. Overwrites are considered as conflicts.
  *
  */
@@ -53,6 +52,7 @@ class CherryPickFromSnapshot extends MergingSnapshotProducer<AppendFiles> implem
   private final TableOperations ops;
   private TableMetadata base = null;
   private Long cherryPickSnapshotId = null;
+  private final AtomicInteger manifestCount = new AtomicInteger(0);
 
   CherryPickFromSnapshot(TableOperations ops) {
     super(ops);
@@ -65,6 +65,10 @@ class CherryPickFromSnapshot extends MergingSnapshotProducer<AppendFiles> implem
     throw new UnsupportedOperationException("Not supported");
   }
 
+  /**
+   * We only cherry pick for appends right now
+   * @return
+   */
   @Override
   protected String operation() {
     return DataOperations.APPEND;
@@ -94,62 +98,67 @@ class CherryPickFromSnapshot extends MergingSnapshotProducer<AppendFiles> implem
         cherryPickSnapshotId != null,
         "Cannot cherry pick unknown version: call fromSnapshotId");
 
-    // Fetch latest table metadata after checking for any recent updates
-    this.base = ops.refresh();
     Snapshot cherryPickSnapshot = base.snapshot(cherryPickSnapshotId);
+    // only append operations are currently supported
+    if (!cherryPickSnapshot.operation().equals(DataOperations.APPEND)) {
+      throw new UnsupportedOperationException("Can cherry pick only append operations");
+    }
+
     Snapshot currentSnapshot = base.currentSnapshot();
     Long parentSnapshotId = base.currentSnapshot() != null ?
         base.currentSnapshot().snapshotId() : null;
 
-    // Get target snapshot to cherry-pick from and pick out
-    // deletes and appends from it to apply over current snapshot
-    Iterable<DataFile> addedFiles = cherryPickSnapshot.addedFiles();
-    Iterable<DataFile> deletedFiles = cherryPickSnapshot.deletedFiles();
-    List<ManifestFile> manifests = cherryPickSnapshot.manifests();
-    Iterable<ManifestFile> manifestsInCherryPickSnapshot = Iterables.filter(
-        manifests,
-        // only keep manifests that have live data files or that were written by this commit
-        manifest -> manifest.hasAddedFiles() ||
-            manifest.hasDeletedFiles() ||
-            manifest.hasExistingFiles() ||
-            manifest.snapshotId() == cherryPickSnapshotId);
-
-    // Todo Checks:
+    // Todo:
     //  - Check if files to be deleted exist in current snapshot,
     //    ignore those files or reject incoming snapshot entirely?
     //  - Check if there are overwrites, ignore those files or reject incoming snapshot entirely?
 
-    // only append operations are currently supported
-    if (!(cherryPickSnapshot.operation().equals(DataOperations.APPEND) ||
-            cherryPickSnapshot.operation().equals(DataOperations.DELETE))) {
-      throw new UnsupportedOperationException("Can cherry pick only append and delete operations");
+    // create manifest file by picking Appends from cherry-pick snapshot
+    List<ManifestFile> newManifestFiles = Lists.newArrayList();
+    long outputSnapshotId = snapshotId();
+    try {
+      ManifestFile newManifestFile = createManifestFromAppends(cherryPickSnapshot.manifests(), outputSnapshotId);
+      newManifestFiles.add(newManifestFile);
+    } catch (IOException ioe) {
+      throw new RuntimeIOException(ioe, "Failed to create new manifest from cherry pick snapshot");
     }
+    List<ManifestFile> manifestsForNewSnapshot = Lists.newArrayList(Iterables.concat(
+        newManifestFiles, currentSnapshot.manifests()));
 
+    // write out the manifest list
+    OutputFile manifestList = createManifestList(parentSnapshotId, outputSnapshotId, manifestsForNewSnapshot);
+
+    // create a fresh snapshot with changes from cherry pick snapshot and
+    Snapshot outputSnapshot = new BaseSnapshot(ops.io(),
+        outputSnapshotId, parentSnapshotId, System.currentTimeMillis(), cherryPickSnapshot.operation(),
+        summary(base), ops.io().newInputFile(manifestList.location()));
+    TableMetadata updated = base.addStagedSnapshot(outputSnapshot);
+    ops.commit(base, updated);
+
+    return outputSnapshot;
+  }
+
+  private OutputFile createManifestList(
+      Long parentSnapshotId,
+      long outputSnapshotId,
+      List<ManifestFile> manifestsForNewSnapshot) {
     OutputFile manifestList = manifestListPath();
-    try (ManifestListWriter writer = new ManifestListWriter(
-        manifestList, snapshotId(), parentSnapshotId)) {
+    try (ManifestListWriter listWriter = new ManifestListWriter(
+        manifestList, outputSnapshotId, parentSnapshotId)) {
 
-      // keep track of the manifest lists created
-      // manifestLists.add(manifestList.location());
-
-      ManifestFile[] manifestFiles = new ManifestFile[manifests.size()];
-
+      ManifestFile[] manifestFiles = new ManifestFile[manifestsForNewSnapshot.size()];
       Tasks.range(manifestFiles.length)
           .stopOnFailure().throwFailureWhenFinished()
           .executeWith(ThreadPools.getWorkerPool())
           .run(index ->
-              manifestFiles[index] = manifests.get(index));
+              manifestFiles[index] = manifestsForNewSnapshot.get(index));
 
-      writer.addAll(Arrays.asList(manifestFiles));
+      listWriter.addAll(Arrays.asList(manifestFiles));
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to write manifest list file");
     }
-
-    // create a fresh snapshot with changes from cherry pick snapshot and
-    return new BaseSnapshot(ops.io(),
-        ops.newSnapshotId(), parentSnapshotId, System.currentTimeMillis(), cherryPickSnapshot.operation(),
-        summary(base), ops.io().newInputFile(manifestList.location()));
+    return manifestList;
   }
 
   /**
@@ -165,7 +174,40 @@ class CherryPickFromSnapshot extends MergingSnapshotProducer<AppendFiles> implem
   @Override
   public void commit() {
     // Todo: Need to add retry
-    base = ops.refresh(); // refresh
-    ops.commit(base, base.cherrypickFrom(apply()));
+    Snapshot outputSnapshot = apply();
+    base = ops.refresh();
+    ops.commit(base, base.cherrypickFrom(outputSnapshot));
   }
+
+  /**
+   * Looks for manifest entries that have append files from cherry-pick snapshot
+   * and creates a new ManifestFile with a new snapshot
+   */
+  private ManifestFile createManifestFromAppends(List<ManifestFile> inputManifests, long outputSnapshotId)
+      throws IOException {
+
+    OutputFile out = manifestPath(manifestCount.getAndIncrement());
+    // create a manifest writer with new snapshot id
+    ManifestWriter writer = new ManifestWriter(ops.current().spec(), out, outputSnapshotId);
+    try {
+      for (ManifestFile manifest : inputManifests) {
+        try (ManifestReader reader = ManifestReader.read(
+            ops.io().newInputFile(manifest.path()), ops.current().specsById())) {
+          for (ManifestEntry entry : reader.entries()) {
+            if (entry.status() == ManifestEntry.Status.ADDED && entry.snapshotId() == cherryPickSnapshotId) {
+              // add only manifests added in this snapshot
+              writer.addEntry(entry);
+            }
+          }
+        }
+      }
+    } finally {
+      writer.close();
+    }
+
+    ManifestFile manifest = writer.toManifestFile();
+
+    return manifest;
+  }
+
 }

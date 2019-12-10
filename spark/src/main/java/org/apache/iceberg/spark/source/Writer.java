@@ -89,6 +89,7 @@ class Writer implements DataSourceWriter {
   private final boolean replacePartitions;
   private final String applicationId;
   private final String wapId;
+  private final boolean isWapEnabled;
   private final long targetFileSize;
   private final Schema dsSchema;
 
@@ -105,6 +106,7 @@ class Writer implements DataSourceWriter {
     this.replacePartitions = replacePartitions;
     this.applicationId = applicationId;
     this.wapId = wapId;
+    this.isWapEnabled = isWapTable(options);
     this.dsSchema = dsSchema;
 
     long tableTargetFileSize = PropertyUtil.propertyAsLong(
@@ -119,9 +121,11 @@ class Writer implements DataSourceWriter {
     return FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
   }
 
-  private boolean isWapTable() {
-    return Boolean.parseBoolean(table.properties().getOrDefault(
+  private boolean isWapTable(DataSourceOptions options) {
+    Optional<String> wapOption = options.get("write-wap-enabled");
+    String wapEnabledString = wapOption.orElse(table.properties().getOrDefault(
         TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
+    return Boolean.parseBoolean(wapEnabledString);
   }
 
   @Override
@@ -146,7 +150,7 @@ class Writer implements DataSourceWriter {
       operation.set("spark.app.id", applicationId);
     }
 
-    if (isWapTable() && wapId != null) {
+    if (isWapEnabled && wapId != null) {
       // write-audit-publish is enabled for this table and job
       // stage the changes without changing the current snapshot
       operation.set("wap.id", wapId);
