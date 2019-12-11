@@ -26,6 +26,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.memory.RootAllocator;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.arrow.ArrowSchemaUtil;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
@@ -38,7 +39,6 @@ import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
-import org.apache.spark.sql.execution.arrow.ArrowUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,7 +88,9 @@ public class VectorizedSparkParquetReaders {
       this.projectedIcebergSchema = projectedIcebergSchema;
       this.arrowSchema = ArrowSchemaUtil.convert(projectedIcebergSchema);
       this.recordsPerBatch = recordsPerBatch;
-      this.rootAllocator = ArrowUtils.rootAllocator().newChildAllocator("VectorizedReadBuilder", 0, Long.MAX_VALUE);
+      // this.rootAllocator = ArrowUtils.rootAllocator().newChildAllocator("VectorizedReadBuilder", 0, Long.MAX_VALUE);
+      this.rootAllocator = new RootAllocator(Long.MAX_VALUE)
+          .newChildAllocator("VectorizedReadBuilder", 0, Long.MAX_VALUE);
       LOG.info("=> [ReadBuilder] recordsPerBatch = {}", this.recordsPerBatch);
     }
 

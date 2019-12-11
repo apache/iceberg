@@ -129,10 +129,6 @@ project(':iceberg-core') {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
-    compile("org.apache.arrow:arrow-vector") {
-      exclude group: 'io.netty', module: 'netty-buffer'
-      exclude group: 'io.netty', module: 'netty-common'
-    }
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
 }
@@ -237,10 +233,19 @@ project(':iceberg-parquet') {
 }
 
 project(':iceberg-arrow') {
+  apply plugin: 'scala'
+
   dependencies {
     //    compile project(':iceberg-spark')
     compile project(':iceberg-api')
 
+    compile("org.apache.arrow:arrow-vector") {
+      exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'io.netty', module: 'netty-common'
+    }
+    compile("org.apache.arrow:arrow-memory") {
+      exclude group: 'io.netty', module: 'netty-common'
+    }
     compileOnly("org.apache.spark:spark-hive_2.11") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
@@ -348,6 +353,9 @@ project(':iceberg-spark-runtime') {
     relocate 'org.codehaus.jackson', 'org.apache.iceberg.shaded.org.apache.parquet.shaded.org.codehaus.jackson'
     relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
     relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
+    // relocate Arrow and related deps to shade Iceberg specific version
+    relocate 'io.netty.buffer', 'org.apache.iceberg.shaded.io.netty.buffer'
+    relocate 'org.apache.arrow', 'org.apache.iceberg.shaded.org.apache.arrow'
 
     archiveName = "iceberg-spark-runtime-${version}.${extension}"
   }
