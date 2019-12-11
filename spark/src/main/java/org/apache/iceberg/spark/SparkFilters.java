@@ -27,8 +27,8 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
-import org.apache.spark.sql.sources.AlwaysFalse$;
-import org.apache.spark.sql.sources.AlwaysTrue$;
+import org.apache.spark.sql.sources.AlwaysFalse;
+import org.apache.spark.sql.sources.AlwaysTrue;
 import org.apache.spark.sql.sources.And;
 import org.apache.spark.sql.sources.EqualNullSafe;
 import org.apache.spark.sql.sources.EqualTo;
@@ -63,8 +63,8 @@ public class SparkFilters {
 
   private static final ImmutableMap<Class<? extends Filter>, Operation> FILTERS = ImmutableMap
       .<Class<? extends Filter>, Operation>builder()
-      .put(AlwaysTrue$.class, Operation.TRUE)
-      .put(AlwaysFalse$.class, Operation.FALSE)
+      .put(AlwaysTrue.class, Operation.TRUE)
+      .put(AlwaysFalse.class, Operation.FALSE)
       .put(EqualTo.class, Operation.EQ)
       .put(EqualNullSafe.class, Operation.EQ)
       .put(GreaterThan.class, Operation.GT)
