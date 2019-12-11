@@ -100,7 +100,7 @@ class CherryPickFromSnapshot extends MergingSnapshotProducer<AppendFiles> implem
         "Cannot cherry pick unknown version: call fromSnapshotId");
 
     ValidationException.check(!base.isWapIdPublished(cherryPickSnapshotId),
-        "Cannot cherry pick twice snapshot id: %s", cherryPickSnapshotId);
+        "Duplicate request to cherry pick snapshot id: %s", cherryPickSnapshotId);
 
     Snapshot cherryPickSnapshot = base.snapshot(cherryPickSnapshotId);
     // only append operations are currently supported

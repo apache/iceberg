@@ -324,8 +324,8 @@ public class TableMetadata {
 
   public Map<String, Snapshot> snapshotsByWapId() { return snapshotsPublishedByWapId; }
 
-  boolean isWapIdPublished(long snapshotId) {
-    return snapshotsPublishedByWapId.containsKey(String.valueOf(snapshotId));
+  boolean isWapIdPublished(long wapId) {
+    return snapshotsPublishedByWapId.containsKey(String.valueOf(wapId));
   }
 
   public List<MetadataLogEntry> previousFiles() {
@@ -460,10 +460,6 @@ public class TableMetadata {
   }
 
   public TableMetadata cherrypickFrom(Snapshot snapshot) {
-    String snapshotWapId = getWapId(snapshot);
-    Preconditions.checkArgument(snapshotWapId != null && snapshotsPublishedByWapId.containsKey(snapshotWapId),
-        "Duplicate request to cherry pick snapshot id: %s", snapshot.snapshotId());
-
     return rollbackTo(snapshot);
   }
 
@@ -606,14 +602,14 @@ public class TableMetadata {
     return builder.build();
   }
 
-  private static String getWapId(Snapshot snapshot) {
+  private static String wapId(Snapshot snapshot) {
     return snapshot.summary().getOrDefault("wap.id", null);
   }
 
   private static Map<String, Snapshot> indexWapIds(List<Snapshot> snapshots) {
     ImmutableMap.Builder<String, Snapshot> builder = ImmutableMap.builder();
     for (Snapshot version : snapshots) {
-      String wapId = getWapId(version);
+      String wapId = wapId(version);
       if (wapId != null) {
         builder.put(wapId, version);
       }
