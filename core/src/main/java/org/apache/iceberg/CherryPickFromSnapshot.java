@@ -99,10 +99,11 @@ class CherryPickFromSnapshot extends MergingSnapshotProducer<AppendFiles> implem
     ValidationException.check(cherryPickSnapshotId != null,
         "Cannot cherry pick unknown version: call fromSnapshotId");
 
-    ValidationException.check(!base.isWapIdPublished(cherryPickSnapshotId),
-        "Duplicate request to cherry pick snapshot id: %s", cherryPickSnapshotId);
-
     Snapshot cherryPickSnapshot = base.snapshot(cherryPickSnapshotId);
+    String wapId = stagedWapId(cherryPickSnapshot);
+    ValidationException.check(!base.isWapIdPublished(Long.parseLong(wapId)),
+        "Duplicate request to cherry pick wap id that was published already: %s", wapId);
+
     // only append operations are currently supported
     if (!cherryPickSnapshot.operation().equals(DataOperations.APPEND)) {
       throw new UnsupportedOperationException("Can cherry pick only append operations");
@@ -134,7 +135,8 @@ class CherryPickFromSnapshot extends MergingSnapshotProducer<AppendFiles> implem
 
     // create a fresh snapshot with changes from cherry pick snapshot and previous Table metadata
     Map<String, String> summaryForNewSnapshot = new HashMap<>(summary(base));
-    summaryForNewSnapshot.put("wap.id", cherryPickSnapshotId.toString());
+    // register this wap id as che
+    summaryForNewSnapshot.put("published.wap.id", wapId);
     Snapshot outputSnapshot = new BaseSnapshot(ops.io(),
         outputSnapshotId, parentSnapshotId, System.currentTimeMillis(), cherryPickSnapshot.operation(),
         summaryForNewSnapshot, ops.io().newInputFile(manifestList.location()));
@@ -142,6 +144,10 @@ class CherryPickFromSnapshot extends MergingSnapshotProducer<AppendFiles> implem
     ops.commit(base, updated);
 
     return outputSnapshot;
+  }
+
+  private static String stagedWapId(Snapshot snapshot) {
+    return snapshot.summary().getOrDefault("wap.id", null);
   }
 
   private OutputFile createManifestList(

@@ -344,7 +344,7 @@ public class TestWapWorkflow extends TableTestBase {
         base.snapshotLog().size());
 
     AssertHelpers.assertThrows("should throw exception", ValidationException.class,
-        String.format("Duplicate request to cherry pick snapshot id: %s", wapSnapshot.snapshotId()), () -> {
+        String.format("Duplicate request to cherry pick wap id that was published already: %s", 12345678), () -> {
           // duplicate cherry-pick snapshot
           table.cherrypick().fromSnapshotId(wapSnapshot.snapshotId()).commit();
         }

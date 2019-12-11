@@ -602,14 +602,14 @@ public class TableMetadata {
     return builder.build();
   }
 
-  private static String wapId(Snapshot snapshot) {
-    return snapshot.summary().getOrDefault("wap.id", null);
+  private static String publishedWapId(Snapshot snapshot) {
+    return snapshot.summary().getOrDefault("published.wap.id", null);
   }
 
   private static Map<String, Snapshot> indexWapIds(List<Snapshot> snapshots) {
     ImmutableMap.Builder<String, Snapshot> builder = ImmutableMap.builder();
     for (Snapshot version : snapshots) {
-      String wapId = wapId(version);
+      String wapId = publishedWapId(version);
       if (wapId != null) {
         builder.put(wapId, version);
       }
