@@ -101,6 +101,9 @@ class CherryPickFromSnapshot extends MergingSnapshotProducer<AppendFiles> implem
 
     Snapshot cherryPickSnapshot = base.snapshot(cherryPickSnapshotId);
     String wapId = stagedWapId(cherryPickSnapshot);
+    ValidationException.check(wapId != null,
+        "Snapshot provided for cherrypick didn't have wap.id set on it. " +
+            "Only snapshots that were staged can be cherrypicked from.");
     ValidationException.check(!base.isWapIdPublished(Long.parseLong(wapId)),
         "Duplicate request to cherry pick wap id that was published already: %s", wapId);
 
@@ -147,7 +150,7 @@ class CherryPickFromSnapshot extends MergingSnapshotProducer<AppendFiles> implem
   }
 
   private static String stagedWapId(Snapshot snapshot) {
-    return snapshot.summary().getOrDefault("wap.id", null);
+    return snapshot.summary() != null ? snapshot.summary().getOrDefault("wap.id", null) : null;
   }
 
   private OutputFile createManifestList(

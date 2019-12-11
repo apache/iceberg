@@ -322,7 +322,9 @@ public class TableMetadata {
     return snapshotLog;
   }
 
-  public Map<String, Snapshot> snapshotsByWapId() { return snapshotsPublishedByWapId; }
+  public Map<String, Snapshot> snapshotsByWapId() {
+    return snapshotsPublishedByWapId;
+  }
 
   boolean isWapIdPublished(long wapId) {
     return snapshotsPublishedByWapId.containsKey(String.valueOf(wapId));
@@ -603,7 +605,8 @@ public class TableMetadata {
   }
 
   private static String publishedWapId(Snapshot snapshot) {
-    return snapshot.summary().getOrDefault("published.wap.id", null);
+    return snapshot.summary() != null ?
+        snapshot.summary().getOrDefault("published.wap.id", null) : null;
   }
 
   private static Map<String, Snapshot> indexWapIds(List<Snapshot> snapshots) {
