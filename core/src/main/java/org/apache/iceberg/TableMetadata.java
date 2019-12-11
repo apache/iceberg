@@ -184,6 +184,7 @@ public class TableMetadata {
   private final Map<Integer, PartitionSpec> specsById;
   private final List<HistoryEntry> snapshotLog;
   private final List<MetadataLogEntry> previousFiles;
+  private final Map<String, Snapshot> snapshotsPublishedByWapId;
 
   TableMetadata(InputFile file,
                 String uuid,
@@ -214,6 +215,7 @@ public class TableMetadata {
 
     this.snapshotsById = indexSnapshots(snapshots);
     this.specsById = indexSpecs(specs);
+    this.snapshotsPublishedByWapId = indexWapIds(snapshots);
 
     HistoryEntry last = null;
     for (HistoryEntry logEntry : snapshotLog) {
@@ -318,6 +320,12 @@ public class TableMetadata {
 
   public List<HistoryEntry> snapshotLog() {
     return snapshotLog;
+  }
+
+  public Map<String, Snapshot> snapshotsByWapId() { return snapshotsPublishedByWapId; }
+
+  boolean isWapIdPublished(long snapshotId) {
+    return snapshotsPublishedByWapId.containsKey(String.valueOf(snapshotId));
   }
 
   public List<MetadataLogEntry> previousFiles() {
@@ -451,8 +459,11 @@ public class TableMetadata {
         snapshot.snapshotId(), snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
-  // Todo: Need to validate if additional checks are necessary
   public TableMetadata cherrypickFrom(Snapshot snapshot) {
+    String snapshotWapId = getWapId(snapshot);
+    Preconditions.checkArgument(snapshotWapId != null && snapshotsPublishedByWapId.containsKey(snapshotWapId),
+        "Duplicate request to cherry pick snapshot id: %s", snapshot.snapshotId());
+
     return rollbackTo(snapshot);
   }
 
@@ -591,6 +602,21 @@ public class TableMetadata {
     ImmutableMap.Builder<Integer, PartitionSpec> builder = ImmutableMap.builder();
     for (PartitionSpec spec : specs) {
       builder.put(spec.specId(), spec);
+    }
+    return builder.build();
+  }
+
+  private static String getWapId(Snapshot snapshot) {
+    return snapshot.summary().getOrDefault("wap.id", null);
+  }
+
+  private static Map<String, Snapshot> indexWapIds(List<Snapshot> snapshots) {
+    ImmutableMap.Builder<String, Snapshot> builder = ImmutableMap.builder();
+    for (Snapshot version : snapshots) {
+      String wapId = getWapId(version);
+      if (wapId != null) {
+        builder.put(wapId, version);
+      }
     }
     return builder.build();
   }

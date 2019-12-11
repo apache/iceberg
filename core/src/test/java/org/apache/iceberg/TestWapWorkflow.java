@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import com.google.common.collect.Iterables;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -72,7 +73,7 @@ public class TestWapWorkflow extends TableTestBase {
   }
 
   @Test
-  public void testWithCherrypicking() {
+  public void testWithCherryPicking() {
 
     table.newAppend()
         .appendFile(FILE_A)
@@ -116,7 +117,7 @@ public class TestWapWorkflow extends TableTestBase {
   }
 
   @Test
-  public void testWithTwoPhaseCherrypicking() {
+  public void testWithTwoPhaseCherryPicking() {
 
     table.newAppend()
         .appendFile(FILE_A)
@@ -199,7 +200,7 @@ public class TestWapWorkflow extends TableTestBase {
   }
 
   @Test
-  public void testWithCommitsBetweenCherryPicks() {
+  public void testWithCommitsBetweenCherryPicking() {
     table.newAppend()
         .appendFile(FILE_A)
         .commit();
@@ -297,5 +298,56 @@ public class TestWapWorkflow extends TableTestBase {
         parentSnapshot.snapshotId(), base.currentSnapshot().parentId().longValue());
     Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 4,
         base.snapshotLog().size());
+  }
+
+  @Test
+  public void testWithDuplicateCherryPicking() {
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+    TableMetadata base = readMetadata();
+    long firstSnapshotId = base.currentSnapshot().snapshotId();
+
+    // first WAP commit
+    table.newAppend()
+        .appendFile(FILE_B)
+        .set("wap.id", "123456789")
+        .stageOnly()
+        .commit();
+    base = readMetadata();
+
+    // pick the snapshot that's staged but not committed
+    Snapshot wapSnapshot = base.snapshots().get(1);
+
+    Assert.assertEquals("Should have both snapshots", 2, base.snapshots().size());
+    Assert.assertEquals("Should have first wap id in summary", "123456789",
+        wapSnapshot.summary().get("wap.id"));
+    Assert.assertEquals("Current snapshot should be first commit's snapshot",
+        firstSnapshotId, base.currentSnapshot().snapshotId());
+    Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 1,
+        base.snapshotLog().size());
+
+    // cherry-pick snapshot
+    table.cherrypick().fromSnapshotId(wapSnapshot.snapshotId()).commit();
+    base = readMetadata();
+
+    // check if the effective current snapshot is set to the new snapshot created
+    //   as a result of the cherry-pick operation
+    Assert.assertEquals("Current snapshot should be set to one after wap snapshot",
+        wapSnapshot.snapshotId() + 1, base.currentSnapshot().snapshotId());
+    Assert.assertEquals("Should have three snapshots", 3, base.snapshots().size());
+    Assert.assertEquals("Should contain manifests for both files", 2, base.currentSnapshot().manifests().size());
+    Assert.assertEquals("Should contain append from last commit", 1,
+        Iterables.size(base.currentSnapshot().addedFiles()));
+    Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 2,
+        base.snapshotLog().size());
+
+    AssertHelpers.assertThrows("should throw exception", ValidationException.class,
+        "Cannot cherry pick twice snapshot id", () -> {
+          // duplicate cherry-pick snapshot
+          table.cherrypick().fromSnapshotId(wapSnapshot.snapshotId()).commit();
+        }
+    );
   }
 }

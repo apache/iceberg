@@ -24,7 +24,9 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -94,9 +96,11 @@ class CherryPickFromSnapshot extends MergingSnapshotProducer<AppendFiles> implem
    */
   @Override
   public Snapshot apply() {
-    ValidationException.check(
-        cherryPickSnapshotId != null,
+    ValidationException.check(cherryPickSnapshotId != null,
         "Cannot cherry pick unknown version: call fromSnapshotId");
+
+    ValidationException.check(!base.isWapIdPublished(cherryPickSnapshotId),
+        "Cannot cherry pick twice snapshot id: %s", cherryPickSnapshotId);
 
     Snapshot cherryPickSnapshot = base.snapshot(cherryPickSnapshotId);
     // only append operations are currently supported
@@ -128,10 +132,12 @@ class CherryPickFromSnapshot extends MergingSnapshotProducer<AppendFiles> implem
     // write out the manifest list
     OutputFile manifestList = createManifestList(parentSnapshotId, outputSnapshotId, manifestsForNewSnapshot);
 
-    // create a fresh snapshot with changes from cherry pick snapshot and
+    // create a fresh snapshot with changes from cherry pick snapshot and previous Table metadata
+    Map<String, String> summaryForNewSnapshot = new HashMap<>(summary(base));
+    summaryForNewSnapshot.put("wap.id", cherryPickSnapshotId.toString());
     Snapshot outputSnapshot = new BaseSnapshot(ops.io(),
         outputSnapshotId, parentSnapshotId, System.currentTimeMillis(), cherryPickSnapshot.operation(),
-        summary(base), ops.io().newInputFile(manifestList.location()));
+        summaryForNewSnapshot, ops.io().newInputFile(manifestList.location()));
     TableMetadata updated = base.addStagedSnapshot(outputSnapshot);
     ops.commit(base, updated);
 
