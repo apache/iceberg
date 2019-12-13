@@ -21,7 +21,7 @@ package org.apache.iceberg.expressions;
 
 import com.google.common.base.Preconditions;
 import java.nio.ByteBuffer;
-import java.util.Comparator;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -320,21 +320,24 @@ public class StrictMetricsEvaluator {
 
       if (lowerBounds != null && lowerBounds.containsKey(id) &&
           upperBounds != null && upperBounds.containsKey(id)) {
-        final Comparator<T> comparator = ((BoundSetPredicate<T>) expr).comparator();
-        Set<T> literals = literalSet;
-
+        // similar to the implementation in eq, first check if the lower bound is in the set
         T lower = Conversions.fromByteBuffer(struct.field(id).type(), lowerBounds.get(id));
-        literals = literals.stream().filter(v -> comparator.compare(lower, v) == 0).collect(Collectors.toSet());
-        if (literals.isEmpty()) {
+        if (!literalSet.contains(lower)) {
           return ROWS_MIGHT_NOT_MATCH;
         }
 
+        // check if the upper bound is in the set
         T upper = Conversions.fromByteBuffer(field.type(), upperBounds.get(id));
-        literals = literals.stream().filter(v -> comparator.compare(upper, v) == 0).collect(Collectors.toSet());
-        if (literals.isEmpty()) {
+        if (!literalSet.contains(upper)) {
           return ROWS_MIGHT_NOT_MATCH;
         }
 
+        // finally check if the lower bound and the upper bound are equal
+        if (ref.comparator().compare(lower, upper) != 0) {
+          return ROWS_MIGHT_NOT_MATCH;
+        }
+
+        // All values must be in the set if the lower bound and the upper bound are in the set and are equal.
         return ROWS_MUST_MATCH;
       }
 
@@ -351,22 +354,21 @@ public class StrictMetricsEvaluator {
         return ROWS_MUST_MATCH;
       }
 
-      final Comparator<T> comparator = ((BoundSetPredicate<T>) expr).comparator();
-      Set<T> literals = literalSet;
+      Collection<T> literals = literalSet;
 
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(struct.field(id).type(), lowerBounds.get(id));
 
-        literals = literals.stream().filter(v -> comparator.compare(lower, v) <= 0).collect(Collectors.toSet());
-        if (literals.isEmpty()) {
+        literals = literals.stream().filter(v -> ref.comparator().compare(lower, v) <= 0).collect(Collectors.toList());
+        if (literals.isEmpty()) {  // if all values are less than lower bound, rows must match (notIn).
           return ROWS_MUST_MATCH;
         }
       }
 
       if (upperBounds != null && upperBounds.containsKey(id)) {
         T upper = Conversions.fromByteBuffer(field.type(), upperBounds.get(id));
-        literals = literals.stream().filter(v -> comparator.compare(upper, v) >= 0).collect(Collectors.toSet());
-        if (literals.isEmpty()) {
+        literals = literals.stream().filter(v -> ref.comparator().compare(upper, v) >= 0).collect(Collectors.toList());
+        if (literals.isEmpty()) { // if all remaining values are greater than upper bound, rows must match (notIn).
           return ROWS_MUST_MATCH;
         }
       }

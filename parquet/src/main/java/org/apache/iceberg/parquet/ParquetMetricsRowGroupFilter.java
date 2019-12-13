@@ -21,6 +21,7 @@ package org.apache.iceberg.parquet;
 
 import com.google.common.collect.Maps;
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
@@ -29,7 +30,6 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundReference;
-import org.apache.iceberg.expressions.BoundSetPredicate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
@@ -355,18 +355,17 @@ public class ParquetMetricsRowGroupFilter {
           return ROWS_CANNOT_MATCH;
         }
 
-        final Comparator<T> comparator = ((BoundSetPredicate<T>) expr).comparator();
-        Set<T> literals = literalSet;
+        Collection<T> literals = literalSet;
 
         T lower = min(colStats, id);
-        literals = literals.stream().filter(v -> comparator.compare(lower, v) <= 0).collect(Collectors.toSet());
-        if (literals.isEmpty()) {
+        literals = literals.stream().filter(v -> ref.comparator().compare(lower, v) <= 0).collect(Collectors.toList());
+        if (literals.isEmpty()) {  // if all values are less than lower bound, rows cannot match.
           return ROWS_CANNOT_MATCH;
         }
 
         T upper = max(colStats, id);
-        literals = literals.stream().filter(v -> comparator.compare(upper, v) >= 0).collect(Collectors.toSet());
-        if (literals.isEmpty()) {
+        literals = literals.stream().filter(v -> ref.comparator().compare(upper, v) >= 0).collect(Collectors.toList());
+        if (literals.isEmpty()) { // if all remaining values are greater than upper bound, rows cannot match.
           return ROWS_CANNOT_MATCH;
         }
       }

@@ -20,6 +20,7 @@
 package org.apache.iceberg.expressions;
 
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -254,20 +255,20 @@ public class ManifestEvaluator {
       int pos = Accessors.toPosition(ref.accessor());
       PartitionFieldSummary fieldStats = stats.get(pos);
       if (fieldStats.lowerBound() == null) {
-        return ROWS_CANNOT_MATCH; // values are all null and literal cannot contain null
+        return ROWS_CANNOT_MATCH; // values are all null and literalSet cannot contain null.
       }
-      final Comparator<T> comparator = ((BoundSetPredicate<T>) expr).comparator();
-      Set<T> literals = literalSet;
+
+      Collection<T> literals = literalSet;
 
       T lower = Conversions.fromByteBuffer(ref.type(), fieldStats.lowerBound());
-      literals = literals.stream().filter(v -> comparator.compare(lower, v) <= 0).collect(Collectors.toSet());
-      if (literals.isEmpty()) {
+      literals = literals.stream().filter(v -> ref.comparator().compare(lower, v) <= 0).collect(Collectors.toList());
+      if (literals.isEmpty()) { // if all values are less than lower bound, rows cannot match.
         return ROWS_CANNOT_MATCH;
       }
 
       T upper = Conversions.fromByteBuffer(ref.type(), fieldStats.upperBound());
-      literals = literals.stream().filter(v -> comparator.compare(upper, v) >= 0).collect(Collectors.toSet());
-      if (literals.isEmpty()) {
+      literals = literals.stream().filter(v -> ref.comparator().compare(upper, v) >= 0).collect(Collectors.toList());
+      if (literals.isEmpty()) { // if all remaining values are greater than upper bound, rows cannot match.
         return ROWS_CANNOT_MATCH;
       }
 

@@ -32,7 +32,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundReference;
-import org.apache.iceberg.expressions.BoundSetPredicate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
@@ -288,8 +287,9 @@ public class ParquetDictionaryRowGroupFilter {
         return ROWS_MIGHT_MATCH;
       }
 
-      Set<T> dictionary = dict(id, ((BoundSetPredicate<T>) expr).comparator());
+      Set<T> dictionary = dict(id, ref.comparator());
 
+      // ROWS_CANNOT_MATCH if all values of the dictionary are not in the set (the intersection is empty)
       return Sets.intersection(dictionary, literalSet).isEmpty() ? ROWS_CANNOT_MATCH : ROWS_MIGHT_MATCH;
     }
 
@@ -302,12 +302,13 @@ public class ParquetDictionaryRowGroupFilter {
         return ROWS_MIGHT_MATCH;
       }
 
-      Set<T> dictionary = dict(id, ((BoundSetPredicate<T>) expr).comparator());
-      if (dictionary.size() > 1 || mayContainNulls.get(id)) {
+      Set<T> dictionary = dict(id, ref.comparator());
+      if (dictionary.size() > literalSet.size() || mayContainNulls.get(id)) {
         return ROWS_MIGHT_MATCH;
       }
 
-      return Sets.intersection(dictionary, literalSet).isEmpty() ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
+      // ROWS_CANNOT_MATCH if no values in the dictionary that are not also in the set (the difference is empty)
+      return Sets.difference(dictionary, literalSet).isEmpty() ? ROWS_CANNOT_MATCH : ROWS_MIGHT_MATCH;
     }
 
     @Override

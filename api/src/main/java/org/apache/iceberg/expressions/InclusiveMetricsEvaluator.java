@@ -20,6 +20,7 @@
 package org.apache.iceberg.expressions;
 
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
@@ -271,21 +272,20 @@ public class InclusiveMetricsEvaluator {
         return ROWS_CANNOT_MATCH;
       }
 
-      final Comparator<T> comparator = ((BoundSetPredicate<T>) expr).comparator();
-      Set<T> literals = literalSet;
+      Collection<T> literals = literalSet;
 
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
-        literals = literals.stream().filter(v -> comparator.compare(lower, v) <= 0).collect(Collectors.toSet());
-        if (literals.isEmpty()) {
+        literals = literals.stream().filter(v -> ref.comparator().compare(lower, v) <= 0).collect(Collectors.toList());
+        if (literals.isEmpty()) { // if all values are less than lower bound, rows cannot match.
           return ROWS_CANNOT_MATCH;
         }
       }
 
       if (upperBounds != null && upperBounds.containsKey(id)) {
         T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
-        literals = literals.stream().filter(v -> comparator.compare(upper, v) >= 0).collect(Collectors.toSet());
-        if (literals.isEmpty()) {
+        literals = literals.stream().filter(v -> ref.comparator().compare(upper, v) >= 0).collect(Collectors.toList());
+        if (literals.isEmpty()) { // if all remaining values are greater than upper bound, rows cannot match.
           return ROWS_CANNOT_MATCH;
         }
       }
