@@ -237,7 +237,7 @@ public class SparkCatalog implements StagingTableCatalog {
   }
 
   @Override
-  final public void initialize(String name, CaseInsensitiveStringMap options) {
+  public final void initialize(String name, CaseInsensitiveStringMap options) {
     boolean cacheEnabled = Boolean.parseBoolean(options.getOrDefault("cache-enabled", "true"));
     Catalog catalog = buildIcebergCatalog(name, options);
 

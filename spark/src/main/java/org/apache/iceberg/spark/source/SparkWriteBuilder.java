@@ -164,10 +164,10 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     }
   }
 
-  private boolean checkNullability(CaseInsensitiveStringMap options) {
+  private boolean checkNullability(CaseInsensitiveStringMap opts) {
     boolean sparkCheckNullability = Boolean.parseBoolean(spark.conf()
         .get("spark.sql.iceberg.check-nullability", "true"));
-    boolean dataFrameCheckNullability = options.getBoolean("check-nullability", true);
+    boolean dataFrameCheckNullability = opts.getBoolean("check-nullability", true);
     return sparkCheckNullability && dataFrameCheckNullability;
   }
 }
