@@ -325,10 +325,16 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
     }
 
     private ManifestWriter newWriter(int partitionSpecId) {
+
+      if (manifestWritersBySpecId.containsKey(partitionSpecId)) {
+        // should not reach here, but checking to avoid resource leak.
+        throw new RuntimeException("ManifestWriter already exists for this partition-specId " + partitionSpecId);
+      }
+
       // create ManifestWriter with the correct partitionSpec
-      ManifestWriter manifestWriter = new ManifestWriter(specsById.get(partitionSpecId),
-          manifestPath(manifestSuffix.getAndIncrement()),
-          snapshotId());
+      PartitionSpec partitionSpec = specsById.get(partitionSpecId);
+      OutputFile outputFile = manifestPath(manifestSuffix.getAndIncrement());
+      ManifestWriter manifestWriter = new ManifestWriter(partitionSpec, outputFile, snapshotId());
       manifestWritersBySpecId.put(partitionSpecId, manifestWriter);
       return manifestWriter;
     }
