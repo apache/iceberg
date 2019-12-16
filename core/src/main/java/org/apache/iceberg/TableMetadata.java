@@ -606,7 +606,7 @@ public class TableMetadata {
 
   private static String publishedWapId(Snapshot snapshot) {
     return snapshot.summary() != null ?
-        snapshot.summary().getOrDefault("published.wap.id", null) : null;
+        snapshot.summary().getOrDefault(SnapshotSummary.PUBLISHED_WAP_ID_PROP, null) : null;
   }
 
   private static Map<String, Snapshot> indexWapIds(List<Snapshot> snapshots) {

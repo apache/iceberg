@@ -139,7 +139,7 @@ class CherryPickFromSnapshot extends MergingSnapshotProducer<AppendFiles> implem
     // create a fresh snapshot with changes from cherry pick snapshot and previous Table metadata
     Map<String, String> summaryForNewSnapshot = new HashMap<>(summary(base));
     // register this wap id as che
-    summaryForNewSnapshot.put("published.wap.id", wapId);
+    summaryForNewSnapshot.put(SnapshotSummary.PUBLISHED_WAP_ID_PROP, wapId);
     Snapshot outputSnapshot = new BaseSnapshot(ops.io(),
         outputSnapshotId, parentSnapshotId, System.currentTimeMillis(), cherryPickSnapshot.operation(),
         summaryForNewSnapshot, ops.io().newInputFile(manifestList.location()));
