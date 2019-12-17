@@ -184,6 +184,7 @@ public class TableMetadata {
   private final Map<Integer, PartitionSpec> specsById;
   private final List<HistoryEntry> snapshotLog;
   private final List<MetadataLogEntry> previousFiles;
+  private final Map<String, Snapshot> snapshotsPublishedByWapId;
 
   TableMetadata(InputFile file,
                 String uuid,
@@ -214,6 +215,7 @@ public class TableMetadata {
 
     this.snapshotsById = indexSnapshots(snapshots);
     this.specsById = indexSpecs(specs);
+    this.snapshotsPublishedByWapId = indexWapIds(snapshots);
 
     HistoryEntry last = null;
     for (HistoryEntry logEntry : snapshotLog) {
@@ -318,6 +320,14 @@ public class TableMetadata {
 
   public List<HistoryEntry> snapshotLog() {
     return snapshotLog;
+  }
+
+  public Map<String, Snapshot> snapshotsByWapId() {
+    return snapshotsPublishedByWapId;
+  }
+
+  boolean isWapIdPublished(long wapId) {
+    return snapshotsPublishedByWapId.containsKey(String.valueOf(wapId));
   }
 
   public List<MetadataLogEntry> previousFiles() {
@@ -451,7 +461,6 @@ public class TableMetadata {
         snapshot.snapshotId(), snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
-  // Todo: Need to validate if additional checks are necessary
   public TableMetadata cherrypickFrom(Snapshot snapshot) {
     return rollbackTo(snapshot);
   }
@@ -591,6 +600,22 @@ public class TableMetadata {
     ImmutableMap.Builder<Integer, PartitionSpec> builder = ImmutableMap.builder();
     for (PartitionSpec spec : specs) {
       builder.put(spec.specId(), spec);
+    }
+    return builder.build();
+  }
+
+  private static String publishedWapId(Snapshot snapshot) {
+    return snapshot.summary() != null ?
+        snapshot.summary().getOrDefault(SnapshotSummary.PUBLISHED_WAP_ID_PROP, null) : null;
+  }
+
+  private static Map<String, Snapshot> indexWapIds(List<Snapshot> snapshots) {
+    ImmutableMap.Builder<String, Snapshot> builder = ImmutableMap.builder();
+    for (Snapshot version : snapshots) {
+      String wapId = publishedWapId(version);
+      if (wapId != null) {
+        builder.put(wapId, version);
+      }
     }
     return builder.build();
   }

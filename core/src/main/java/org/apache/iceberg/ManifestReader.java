@@ -49,7 +49,7 @@ import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 public class ManifestReader extends CloseableGroup implements Filterable<FilteredManifest> {
   private static final Logger LOG = LoggerFactory.getLogger(ManifestReader.class);
 
-  private static final ImmutableList<String> ALL_COLUMNS = ImmutableList.of("*");
+  static final ImmutableList<String> ALL_COLUMNS = ImmutableList.of("*");
   static final ImmutableList<String> CHANGE_COLUMNS = ImmutableList.of(
       "file_path", "file_format", "partition", "record_count", "file_size_in_bytes");
   static final ImmutableList<String> CHANGE_WITH_STATS_COLUMNS = ImmutableList.<String>builder()
