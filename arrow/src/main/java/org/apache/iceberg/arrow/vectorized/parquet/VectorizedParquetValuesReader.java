@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.parquet.vectorized;
+package org.apache.iceberg.arrow.vectorized.parquet;
 
 import io.netty.buffer.ArrowBuf;
 import java.io.IOException;
@@ -29,6 +29,7 @@ import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VarBinaryVector;
+import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.parquet.ValuesAsBytesReader;
 import org.apache.parquet.Preconditions;
 import org.apache.parquet.bytes.ByteBufferInputStream;

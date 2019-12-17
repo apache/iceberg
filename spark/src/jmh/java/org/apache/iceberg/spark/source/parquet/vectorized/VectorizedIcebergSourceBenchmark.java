@@ -66,6 +66,7 @@ public abstract class VectorizedIcebergSourceBenchmark extends IcebergSourceBenc
     cleanupFiles();
   }
 
+  @Override
   protected Configuration initHadoopConf() {
     return new Configuration();
   }

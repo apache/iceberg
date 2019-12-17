@@ -19,8 +19,18 @@
 
 package org.apache.iceberg.parquet.vectorized;
 
+import java.util.Map;
+import org.apache.parquet.column.page.DictionaryPageReadStore;
+import org.apache.parquet.column.page.PageReadStore;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
+
 /**
  * Marker interface for vectorized Iceberg readers.
  */
-public interface VectorizedReader {}
+public interface VectorizedReader<E, T> {
+  T read(E input);
+
+  void setRowGroupInfo(PageReadStore pages, DictionaryPageReadStore dictionaryPageReadStore,
+                       Map<ColumnPath, Boolean> columnPathBooleanMap);
+}
 

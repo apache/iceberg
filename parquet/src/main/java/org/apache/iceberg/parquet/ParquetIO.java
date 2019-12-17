@@ -41,11 +41,11 @@ import org.apache.parquet.io.SeekableInputStream;
 /**
  * Methods in this class translate from the IO API to Parquet's IO API.
  */
-class ParquetIO {
+public class ParquetIO {
   private ParquetIO() {
   }
 
-  static InputFile file(org.apache.iceberg.io.InputFile file) {
+  public static InputFile file(org.apache.iceberg.io.InputFile file) {
     // TODO: use reflection to avoid depending on classes from iceberg-hadoop
     // TODO: use reflection to avoid depending on classes from hadoop
     if (file instanceof HadoopInputFile) {
@@ -59,7 +59,7 @@ class ParquetIO {
     return new ParquetInputFile(file);
   }
 
-  static OutputFile file(org.apache.iceberg.io.OutputFile file) {
+  public static OutputFile file(org.apache.iceberg.io.OutputFile file) {
     if (file instanceof HadoopOutputFile) {
       HadoopOutputFile hfile = (HadoopOutputFile) file;
       try {
@@ -71,7 +71,7 @@ class ParquetIO {
     return new ParquetOutputFile(file);
   }
 
-  static OutputFile file(org.apache.iceberg.io.OutputFile file, Configuration conf) {
+  public static OutputFile file(org.apache.iceberg.io.OutputFile file, Configuration conf) {
     if (file instanceof HadoopOutputFile) {
       HadoopOutputFile hfile = (HadoopOutputFile) file;
       try {

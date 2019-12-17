@@ -17,14 +17,16 @@
  * under the License.
  */
 
-package org.apache.iceberg.parquet.vectorized;
+package org.apache.iceberg.spark.data.vectorized;
 
 import java.lang.reflect.Array;
 import java.util.List;
 import java.util.Map;
 import org.apache.arrow.vector.FieldVector;
-import org.apache.iceberg.parquet.arrow.IcebergArrowColumnVector;
-import org.apache.iceberg.parquet.arrow.NullValuesColumnVector;
+import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
+import org.apache.iceberg.arrow.vectorized.VectorHolder;
+import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader;
+import org.apache.iceberg.parquet.vectorized.VectorizedReader;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.page.DictionaryPageReadStore;
 import org.apache.parquet.column.page.PageReadStore;
@@ -38,7 +40,7 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
  * {@link ColumnarBatch} returned is created by passing in the Arrow vectors populated via delegated read calls to
  * {@linkplain VectorizedArrowReader VectorReader(s)}.
  */
-public class ColumnarBatchReaders implements VectorizedReader {
+public class ColumnarBatchReaders implements VectorizedReader<ColumnarBatch, ColumnarBatch> {
   private final VectorizedArrowReader[] readers;
   private final int batchSize;
 
@@ -57,6 +59,7 @@ public class ColumnarBatchReaders implements VectorizedReader {
     this.batchSize = bSize;
   }
 
+  @Override
   public final void setRowGroupInfo(
       PageReadStore pageStore,
       DictionaryPageReadStore dictionaryPageReadStore,
@@ -68,6 +71,7 @@ public class ColumnarBatchReaders implements VectorizedReader {
     }
   }
 
+  @Override
   public final ColumnarBatch read(ColumnarBatch ignore) {
     ColumnVector[] arrowColumnVectors = new ColumnVector[readers.length];
     int numRows = 0;

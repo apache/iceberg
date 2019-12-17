@@ -41,6 +41,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.parquet.vectorized.VectorizedParquetReader;
 import org.apache.iceberg.parquet.vectorized.VectorizedReader;
 import org.apache.parquet.HadoopReadOptions;
 import org.apache.parquet.ParquetReadOptions;
@@ -56,7 +57,6 @@ import org.apache.parquet.hadoop.api.ReadSupport;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
-import org.apache.spark.sql.types.StructType;
 
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT;
@@ -284,7 +284,6 @@ public class Parquet {
     private Long start = null;
     private Long length = null;
     private Schema schema = null;
-    private StructType sparkSchema = null;
     private Expression filter = null;
     private ReadSupport<?> readSupport = null;
     private Function<MessageType, VectorizedReader> batchedReaderFunc = null;
@@ -405,8 +404,8 @@ public class Parquet {
         ParquetReadOptions options = optionsBuilder.build();
 
         if (isBatchedReadEnabled) {
-          return new VectorizedParquetReader(file, schema, options, batchedReaderFunc, filter, reuseContainers,
-              caseSensitive, sparkSchema, maxRecordsPerBatch);
+          return new VectorizedParquetReader<>(file, schema, options, batchedReaderFunc, filter, reuseContainers,
+              caseSensitive, maxRecordsPerBatch);
         } else {
 
           return new org.apache.iceberg.parquet.ParquetReader<>(

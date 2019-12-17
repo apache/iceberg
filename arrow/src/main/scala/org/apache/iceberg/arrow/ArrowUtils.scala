@@ -21,11 +21,8 @@ package org.apache.iceberg.arrow
 
 import org.apache.arrow.memory.RootAllocator
 import org.apache.arrow.vector.types.{DateUnit, FloatingPointPrecision, TimeUnit}
-import org.apache.arrow.vector.types.pojo.{ArrowType, Field, FieldType, Schema}
-import org.apache.spark.sql.internal.SQLConf
-import org.apache.spark.sql.types.{ArrayType, BinaryType, BooleanType, ByteType,
-  DataType, DateType, DecimalType, DoubleType, FloatType, IntegerType, LongType,
-  ShortType, StringType, StructField, StructType, TimestampType}
+import org.apache.arrow.vector.types.pojo.{ArrowType, Field, Schema}
+import org.apache.spark.sql.types._
 import scala.collection.JavaConverters._
 
 /**
@@ -77,17 +74,5 @@ object ArrowUtils {
       val dt = fromArrowField(field)
       StructField(field.getName, dt, field.isNullable)
     })
-  }
-
-  /** Return Map with conf settings to be used in ArrowPythonRunner */
-  def getPythonRunnerConfMap(conf: SQLConf): Map[String, String] = {
-    val timeZoneConf = if (conf.pandasRespectSessionTimeZone) {
-      Seq(SQLConf.SESSION_LOCAL_TIMEZONE.key -> conf.sessionLocalTimeZone)
-    } else {
-      Nil
-    }
-    val pandasColsByName = Seq(SQLConf.PANDAS_GROUPED_MAP_ASSIGN_COLUMNS_BY_NAME.key ->
-      conf.pandasGroupedMapAssignColumnsByName.toString)
-    Map(timeZoneConf ++ pandasColsByName: _*)
   }
 }
