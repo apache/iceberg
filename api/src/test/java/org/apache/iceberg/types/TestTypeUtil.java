@@ -21,12 +21,26 @@
 package org.apache.iceberg.types;
 
 import org.apache.iceberg.Schema;
+import org.junit.Assert;
 import org.junit.Test;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 
 public class TestTypeUtil {
+  @Test
+  public void testReassignIdsDuplicateColumns() {
+    Schema schema = new Schema(
+        required(0, "a", Types.IntegerType.get()),
+        required(1, "A", Types.IntegerType.get())
+    );
+    Schema sourceSchema = new Schema(
+        required(1, "a", Types.IntegerType.get()),
+        required(2, "A", Types.IntegerType.get())
+    );
+    final Schema actualSchema = TypeUtil.reassignIds(schema, sourceSchema);
+    Assert.assertEquals(sourceSchema.asStruct(), actualSchema.asStruct());
+  }
 
   @Test(expected = IllegalArgumentException.class)
   public void testReassignIdsIllegalArgumentException() {
