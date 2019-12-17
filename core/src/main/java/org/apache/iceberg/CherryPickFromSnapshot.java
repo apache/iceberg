@@ -20,16 +20,8 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
 
 /**
  * In an audit workflow, new data is written to an orphan snapshot that is not committed as the table's
@@ -48,9 +40,8 @@ import org.apache.iceberg.util.ThreadPools;
  */
 class CherryPickFromSnapshot extends MergingSnapshotProducer<CherryPick> implements CherryPick {
   private final TableOperations ops;
-  private TableMetadata base = null;
+  private TableMetadata base;
   private Long cherryPickSnapshotId = null;
-  private final AtomicInteger manifestCount = new AtomicInteger(0);
 
   CherryPickFromSnapshot(TableOperations ops) {
     super(ops);
@@ -123,29 +114,6 @@ class CherryPickFromSnapshot extends MergingSnapshotProducer<CherryPick> impleme
 
   private static String stagedWapId(Snapshot snapshot) {
     return snapshot.summary() != null ? snapshot.summary().getOrDefault("wap.id", null) : null;
-  }
-
-  private OutputFile createManifestList(
-      Long parentSnapshotId,
-      long outputSnapshotId,
-      List<ManifestFile> manifestsForNewSnapshot) {
-    OutputFile manifestList = manifestListPath();
-    try (ManifestListWriter listWriter = new ManifestListWriter(
-        manifestList, outputSnapshotId, parentSnapshotId)) {
-
-      ManifestFile[] manifestFiles = new ManifestFile[manifestsForNewSnapshot.size()];
-      Tasks.range(manifestFiles.length)
-          .stopOnFailure().throwFailureWhenFinished()
-          .executeWith(ThreadPools.getWorkerPool())
-          .run(index ->
-              manifestFiles[index] = manifestsForNewSnapshot.get(index));
-
-      listWriter.addAll(Arrays.asList(manifestFiles));
-
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to write manifest list file");
-    }
-    return manifestList;
   }
 
   /**
