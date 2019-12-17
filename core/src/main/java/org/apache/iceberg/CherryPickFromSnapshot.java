@@ -20,13 +20,9 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -50,7 +46,7 @@ import org.apache.iceberg.util.ThreadPools;
  *  - Does not support Overwrite operations currently. Overwrites are considered as conflicts.
  *
  */
-class CherryPickFromSnapshot extends MergingSnapshotProducer<AppendFiles> implements CherryPick {
+class CherryPickFromSnapshot extends MergingSnapshotProducer<CherryPick> implements CherryPick {
   private final TableOperations ops;
   private TableMetadata base = null;
   private Long cherryPickSnapshotId = null;
@@ -63,8 +59,8 @@ class CherryPickFromSnapshot extends MergingSnapshotProducer<AppendFiles> implem
   }
 
   @Override
-  protected AppendFiles self() {
-    throw new UnsupportedOperationException("Not supported");
+  protected CherryPick self() {
+    return this;
   }
 
   /**
@@ -73,11 +69,12 @@ class CherryPickFromSnapshot extends MergingSnapshotProducer<AppendFiles> implem
    */
   @Override
   protected String operation() {
-    return DataOperations.APPEND;
+    Snapshot cherryPickSnapshot = base.snapshot(cherryPickSnapshotId);
+    return cherryPickSnapshot.operation();
   }
 
   @Override
-  public CherryPickFromSnapshot fromSnapshotId(long snapshotId) {
+  public CherryPickFromSnapshot cherrypick(long snapshotId) {
     Preconditions.checkArgument(base.snapshot(snapshotId) != null,
         "Cannot cherry pick unknown snapshot id: %s", snapshotId);
 
@@ -97,13 +94,10 @@ class CherryPickFromSnapshot extends MergingSnapshotProducer<AppendFiles> implem
   @Override
   public Snapshot apply() {
     ValidationException.check(cherryPickSnapshotId != null,
-        "Cannot cherry pick unknown version: call fromSnapshotId");
+        "Cannot cherry pick unknown version: call cherrypick");
 
     Snapshot cherryPickSnapshot = base.snapshot(cherryPickSnapshotId);
     String wapId = stagedWapId(cherryPickSnapshot);
-    ValidationException.check(wapId != null,
-        "Snapshot provided for cherrypick didn't have wap.id set on it. " +
-            "Only snapshots that were staged can be cherrypicked from.");
     ValidationException.check(!base.isWapIdPublished(Long.parseLong(wapId)),
         "Duplicate request to cherry pick wap id that was published already: %s", wapId);
 
@@ -112,40 +106,18 @@ class CherryPickFromSnapshot extends MergingSnapshotProducer<AppendFiles> implem
       throw new UnsupportedOperationException("Can cherry pick only append operations");
     }
 
-    Snapshot currentSnapshot = base.currentSnapshot();
-    Long parentSnapshotId = base.currentSnapshot() != null ?
-        base.currentSnapshot().snapshotId() : null;
-
     // Todo:
     //  - Check if files to be deleted exist in current snapshot,
     //    ignore those files or reject incoming snapshot entirely?
     //  - Check if there are overwrites, ignore those files or reject incoming snapshot entirely?
 
-    // create manifest file by picking Appends from cherry-pick snapshot
-    List<ManifestFile> newManifestFiles = Lists.newArrayList();
-    long outputSnapshotId = snapshotId();
-    try {
-      ManifestFile newManifestFile = createManifestFromAppends(cherryPickSnapshot.manifests(), outputSnapshotId);
-      newManifestFiles.add(newManifestFile);
-    } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Failed to create new manifest from cherry pick snapshot");
+    for (DataFile addedFile : cherryPickSnapshot.addedFiles()) {
+      add(addedFile);
     }
-    List<ManifestFile> manifestsForNewSnapshot = Lists.newArrayList(Iterables.concat(
-        newManifestFiles, currentSnapshot.manifests()));
-
-    // write out the manifest list
-    OutputFile manifestList = createManifestList(parentSnapshotId, outputSnapshotId, manifestsForNewSnapshot);
-
-    // create a fresh snapshot with changes from cherry pick snapshot and previous Table metadata
-    Map<String, String> summaryForNewSnapshot = new HashMap<>(summary(base));
-    // register this wap id as che
-    summaryForNewSnapshot.put(SnapshotSummary.PUBLISHED_WAP_ID_PROP, wapId);
-    Snapshot outputSnapshot = new BaseSnapshot(ops.io(),
-        outputSnapshotId, parentSnapshotId, System.currentTimeMillis(), cherryPickSnapshot.operation(),
-        summaryForNewSnapshot, ops.io().newInputFile(manifestList.location()));
+    set(SnapshotSummary.PUBLISHED_WAP_ID_PROP, wapId);
+    Snapshot outputSnapshot = super.apply();
     TableMetadata updated = base.addStagedSnapshot(outputSnapshot);
     ops.commit(base, updated);
-
     return outputSnapshot;
   }
 
@@ -193,33 +165,4 @@ class CherryPickFromSnapshot extends MergingSnapshotProducer<AppendFiles> implem
     base = ops.refresh();
     ops.commit(base, base.cherrypickFrom(outputSnapshot));
   }
-
-  /**
-   * Looks for manifest entries that have append files from cherry-pick snapshot
-   * and creates a new ManifestFile with a new snapshot
-   */
-  private ManifestFile createManifestFromAppends(List<ManifestFile> inputManifests, long outputSnapshotId)
-      throws IOException {
-
-    OutputFile out = manifestPath(manifestCount.getAndIncrement());
-    // create a manifest writer with new snapshot id
-    ManifestWriter writer = new ManifestWriter(ops.current().spec(), out, outputSnapshotId);
-    try {
-      for (ManifestFile manifest : inputManifests) {
-        try (ManifestReader reader = ManifestReader.read(
-            ops.io().newInputFile(manifest.path()), ops.current().specsById())) {
-          for (ManifestEntry entry : reader.entries()) {
-            if (entry.status() == ManifestEntry.Status.ADDED && entry.snapshotId() == cherryPickSnapshotId) {
-              // add only manifests added in this snapshot
-              writer.addEntry(entry);
-            }
-          }
-        }
-      }
-    } finally {
-      writer.close();
-    }
-    return writer.toManifestFile();
-  }
-
 }

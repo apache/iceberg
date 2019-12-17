@@ -184,7 +184,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   /**
    * Returns the snapshot summary from the implementation and updates totals.
    */
-  protected Map<String, String> summary(TableMetadata previous) {
+  private Map<String, String> summary(TableMetadata previous) {
     Map<String, String> summary = summary();
 
     if (summary == null) {

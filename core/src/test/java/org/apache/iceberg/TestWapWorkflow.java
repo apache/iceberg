@@ -101,7 +101,7 @@ public class TestWapWorkflow extends TableTestBase {
         base.snapshotLog().size());
 
     // cherry-pick snapshot
-    table.cherrypick().fromSnapshotId(wapSnapshot.snapshotId()).commit();
+    table.cherrypick().cherrypick(wapSnapshot.snapshotId()).commit();
     base = readMetadata();
 
     // check if the effective current snapshot is set to the new snapshot created
@@ -163,7 +163,7 @@ public class TestWapWorkflow extends TableTestBase {
     // load current snapshot
     parentSnapshot = base.currentSnapshot();
     // cherry-pick first snapshot
-    table.cherrypick().fromSnapshotId(wap1Snapshot.snapshotId()).commit();
+    table.cherrypick().cherrypick(wap1Snapshot.snapshotId()).commit();
     base = readMetadata();
 
     // check if the effective current snapshot is set to the new snapshot created
@@ -183,7 +183,7 @@ public class TestWapWorkflow extends TableTestBase {
     // load current snapshot
     parentSnapshot = base.currentSnapshot();
     // cherry-pick second snapshot
-    table.cherrypick().fromSnapshotId(wap2Snapshot.snapshotId()).commit();
+    table.cherrypick().cherrypick(wap2Snapshot.snapshotId()).commit();
     base = readMetadata();
 
     // check if the effective current snapshot is set to the new snapshot created
@@ -262,7 +262,7 @@ public class TestWapWorkflow extends TableTestBase {
     // load current snapshot
     parentSnapshot = base.currentSnapshot();
     // cherry-pick first snapshot
-    table.cherrypick().fromSnapshotId(wap1Snapshot.snapshotId()).commit();
+    table.cherrypick().cherrypick(wap1Snapshot.snapshotId()).commit();
     base = readMetadata();
 
     // check if the effective current snapshot is set to the new snapshot created
@@ -282,7 +282,7 @@ public class TestWapWorkflow extends TableTestBase {
     // load current snapshot
     parentSnapshot = base.currentSnapshot();
     // cherry-pick first snapshot
-    table.cherrypick().fromSnapshotId(wap2Snapshot.snapshotId()).commit();
+    table.cherrypick().cherrypick(wap2Snapshot.snapshotId()).commit();
     base = readMetadata();
 
     // check if the effective current snapshot is set to the new snapshot created
@@ -329,7 +329,7 @@ public class TestWapWorkflow extends TableTestBase {
         base.snapshotLog().size());
 
     // cherry-pick snapshot
-    table.cherrypick().fromSnapshotId(wapSnapshot.snapshotId()).commit();
+    table.cherrypick().cherrypick(wapSnapshot.snapshotId()).commit();
     base = readMetadata();
 
     // check if the effective current snapshot is set to the new snapshot created
@@ -346,7 +346,7 @@ public class TestWapWorkflow extends TableTestBase {
     AssertHelpers.assertThrows("should throw exception", ValidationException.class,
         String.format("Duplicate request to cherry pick wap id that was published already: %s", 12345678), () -> {
           // duplicate cherry-pick snapshot
-          table.cherrypick().fromSnapshotId(wapSnapshot.snapshotId()).commit();
+          table.cherrypick().cherrypick(wapSnapshot.snapshotId()).commit();
         }
     );
   }

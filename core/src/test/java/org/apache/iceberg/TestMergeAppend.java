@@ -366,7 +366,8 @@ public class TestMergeAppend extends TableTestBase {
         1, base.currentSnapshot().manifests().size());
     ManifestFile initialManifest = base.currentSnapshot().manifests().get(0);
 
-    // build the new spec using the table's schema, which uses fresh IDs
+    // build the new spec using the table's sche
+    // ma, which uses fresh IDs
     PartitionSpec newSpec = PartitionSpec.builderFor(base.schema())
         .bucket("data", 16)
         .bucket("id", 4)
