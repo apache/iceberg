@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.parquet.vectorized;
+package org.apache.iceberg.arrow.vectorized;
 
 import javax.annotation.Nullable;
 import org.apache.arrow.vector.FieldVector;

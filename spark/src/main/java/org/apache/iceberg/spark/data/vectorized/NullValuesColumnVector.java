@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.apache.iceberg.parquet.arrow;
+package org.apache.iceberg.spark.data.vectorized;
 
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
-import org.apache.iceberg.arrow.ArrowUtils;
+import org.apache.iceberg.spark.arrow.ArrowUtils;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
@@ -39,7 +39,7 @@ public class NullValuesColumnVector extends ColumnVector {
       null);
 
   public NullValuesColumnVector(int nValues) {
-    super(ArrowUtils.fromArrowField(NULL_ARROW_FIELD));
+    super(ArrowUtils.instance().fromArrowField(NULL_ARROW_FIELD));
     this.numNulls = nValues;
   }
 

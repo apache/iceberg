@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.data.vector;
+package org.apache.iceberg.spark.data.vectorized;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -26,13 +26,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.arrow.ArrowSchemaUtil;
+import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
-import org.apache.iceberg.parquet.vectorized.ColumnarBatchReaders;
-import org.apache.iceberg.parquet.vectorized.VectorizedArrowReader;
 import org.apache.iceberg.parquet.vectorized.VectorizedReader;
+import org.apache.iceberg.spark.arrow.ArrowUtils;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.GroupType;
@@ -74,7 +72,6 @@ public class VectorizedSparkParquetReaders {
     private final MessageType parquetSchema;
     private final Schema projectedIcebergSchema;
     private final Schema tableIcebergSchema;
-    private final org.apache.arrow.vector.types.pojo.Schema arrowSchema;
     private final BufferAllocator rootAllocator;
     private final int recordsPerBatch;
 
@@ -86,10 +83,8 @@ public class VectorizedSparkParquetReaders {
       this.parquetSchema = parquetSchema;
       this.tableIcebergSchema = tableSchema;
       this.projectedIcebergSchema = projectedIcebergSchema;
-      this.arrowSchema = ArrowSchemaUtil.convert(projectedIcebergSchema);
       this.recordsPerBatch = recordsPerBatch;
-      // this.rootAllocator = ArrowUtils.rootAllocator().newChildAllocator("VectorizedReadBuilder", 0, Long.MAX_VALUE);
-      this.rootAllocator = new RootAllocator(Long.MAX_VALUE)
+      this.rootAllocator = ArrowUtils.instance().rootAllocator()
           .newChildAllocator("VectorizedReadBuilder", 0, Long.MAX_VALUE);
       LOG.info("=> [ReadBuilder] recordsPerBatch = {}", this.recordsPerBatch);
     }

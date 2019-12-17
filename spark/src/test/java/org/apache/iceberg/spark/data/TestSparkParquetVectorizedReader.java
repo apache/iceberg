@@ -30,7 +30,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.spark.data.vector.VectorizedSparkParquetReaders;
+import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.vectorized.ColumnarBatch;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.parquet.arrow;
+package org.apache.iceberg.spark.data.vectorized;
 
 import io.netty.buffer.ArrowBuf;
 import java.math.BigInteger;
@@ -36,9 +36,12 @@ import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.holders.NullableVarCharHolder;
-import org.apache.iceberg.arrow.ArrowUtils;
-import org.apache.iceberg.parquet.vectorized.NullabilityHolder;
-import org.apache.iceberg.parquet.vectorized.VectorHolder;
+import org.apache.iceberg.arrow.vectorized.IcebergDecimalArrowVector;
+import org.apache.iceberg.arrow.vectorized.IcebergVarBinaryArrowVector;
+import org.apache.iceberg.arrow.vectorized.IcebergVarcharArrowVector;
+import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
+import org.apache.iceberg.arrow.vectorized.VectorHolder;
+import org.apache.iceberg.spark.arrow.ArrowUtils;
 import org.apache.parquet.Preconditions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
@@ -68,7 +71,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
   private ArrowColumnVector[] childColumns;
 
   public IcebergArrowColumnVector(VectorHolder holder, NullabilityHolder nulls) {
-    super(ArrowUtils.fromArrowField(holder.getVector().getField()));
+    super(ArrowUtils.instance().fromArrowField(holder.getVector().getField()));
     this.nullabilityHolder = nulls;
     this.columnDescriptor = holder.getDescriptor();
     this.dictionary = holder.getDictionary();
@@ -769,7 +772,6 @@ public class IcebergArrowColumnVector extends ColumnVector {
       this.vector = vector;
     }
 
-    //TODO: samarth not sure this is efficient or correct
     @Override
     final Decimal getDecimal(int rowId, int precision, int scale) {
       if (isNullAt(rowId)) {

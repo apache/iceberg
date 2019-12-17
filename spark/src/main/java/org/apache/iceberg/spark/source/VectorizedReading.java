@@ -46,7 +46,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.vectorized.VectorizedReader;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.spark.data.vector.VectorizedSparkParquetReaders;
+import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -204,7 +204,6 @@ public class VectorizedReading {
       // schema needed for the projection and filtering
       StructType sparkType = SparkSchemaUtil.convert(finalSchema);
       Schema requiredSchema = SparkSchemaUtil.prune(tableSchema, sparkType, task.residual(), caseSensitive);
-      boolean hasJoinedPartitionColumns = !idColumns.isEmpty();
       boolean hasExtraFilterColumns = requiredSchema.columns().size() != finalSchema.columns().size();
 
       Schema iterSchema;
