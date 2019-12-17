@@ -128,7 +128,7 @@ public class TestExpressionSerialization {
       return false;
     }
 
-    if (!equals(left.child(), right.child())) {
+    if (!equals(left.term(), right.term())) {
       return false;
     }
 

@@ -112,7 +112,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
   @Override
   public UnboundPredicate<Integer> project(String name, BoundPredicate<T> predicate) {
-    if (predicate.child() instanceof BoundTransform) {
+    if (predicate.term() instanceof BoundTransform) {
       return ProjectionUtil.projectTransformPredicate(this, name, predicate);
     }
 
@@ -140,7 +140,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
   @Override
   public UnboundPredicate<Integer> projectStrict(String name, BoundPredicate<T> predicate) {
-    if (predicate.child() instanceof BoundTransform) {
+    if (predicate.term() instanceof BoundTransform) {
       return ProjectionUtil.projectTransformPredicate(this, name, predicate);
     }
 

@@ -23,12 +23,12 @@ import com.google.common.base.Preconditions;
 
 public abstract class Predicate<T, C extends Term> implements Expression {
   private final Operation op;
-  private final C child;
+  private final C term;
 
-  Predicate(Operation op, C child) {
-    Preconditions.checkNotNull(child, "Term cannot be null");
+  Predicate(Operation op, C term) {
+    Preconditions.checkNotNull(term, "Term cannot be null");
     this.op = op;
-    this.child = child;
+    this.term = term;
   }
 
   @Override
@@ -36,7 +36,7 @@ public abstract class Predicate<T, C extends Term> implements Expression {
     return op;
   }
 
-  public C child() {
-    return child;
+  public C term() {
+    return term;
   }
 }

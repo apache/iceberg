@@ -112,26 +112,26 @@ public class ExpressionVisitors {
 
     @Override
     public <T> R predicate(BoundPredicate<T> pred) {
-      ValidationException.check(pred.child() instanceof BoundReference,
-          "Visitor %s does not support expression: %s", this, pred.child());
+      ValidationException.check(pred.term() instanceof BoundReference,
+          "Visitor %s does not support expression: %s", this, pred.term());
 
       if (pred.isLiteralPredicate()) {
         BoundLiteralPredicate<T> literalPred = pred.asLiteralPredicate();
         switch (pred.op()) {
           case LT:
-            return lt((BoundReference<T>) pred.child(), literalPred.literal());
+            return lt((BoundReference<T>) pred.term(), literalPred.literal());
           case LT_EQ:
-            return ltEq((BoundReference<T>) pred.child(), literalPred.literal());
+            return ltEq((BoundReference<T>) pred.term(), literalPred.literal());
           case GT:
-            return gt((BoundReference<T>) pred.child(), literalPred.literal());
+            return gt((BoundReference<T>) pred.term(), literalPred.literal());
           case GT_EQ:
-            return gtEq((BoundReference<T>) pred.child(), literalPred.literal());
+            return gtEq((BoundReference<T>) pred.term(), literalPred.literal());
           case EQ:
-            return eq((BoundReference<T>) pred.child(), literalPred.literal());
+            return eq((BoundReference<T>) pred.term(), literalPred.literal());
           case NOT_EQ:
-            return notEq((BoundReference<T>) pred.child(), literalPred.literal());
+            return notEq((BoundReference<T>) pred.term(), literalPred.literal());
           case STARTS_WITH:
-            return startsWith((BoundReference<T>) pred.child(),  literalPred.literal());
+            return startsWith((BoundReference<T>) pred.term(),  literalPred.literal());
           default:
             throw new IllegalStateException("Invalid operation for BoundLiteralPredicate: " + pred.op());
         }
@@ -139,9 +139,9 @@ public class ExpressionVisitors {
       } else if (pred.isUnaryPredicate()) {
         switch (pred.op()) {
           case IS_NULL:
-            return isNull((BoundReference<T>) pred.child());
+            return isNull((BoundReference<T>) pred.term());
           case NOT_NULL:
-            return notNull((BoundReference<T>) pred.child());
+            return notNull((BoundReference<T>) pred.term());
           default:
             throw new IllegalStateException("Invalid operation for BoundUnaryPredicate: " + pred.op());
         }
@@ -149,9 +149,9 @@ public class ExpressionVisitors {
       } else if (pred.isSetPredicate()) {
         switch (pred.op()) {
           case IN:
-            return in((BoundReference<T>) pred.child(), pred.asSetPredicate().literalSet());
+            return in((BoundReference<T>) pred.term(), pred.asSetPredicate().literalSet());
           case NOT_IN:
-            return notIn((BoundReference<T>) pred.child(), pred.asSetPredicate().literalSet());
+            return notIn((BoundReference<T>) pred.term(), pred.asSetPredicate().literalSet());
           default:
             throw new IllegalStateException("Invalid operation for BoundSetPredicate: " + pred.op());
         }
@@ -217,19 +217,19 @@ public class ExpressionVisitors {
         BoundLiteralPredicate<T> literalPred = pred.asLiteralPredicate();
         switch (pred.op()) {
           case LT:
-            return lt(pred.child(), literalPred.literal());
+            return lt(pred.term(), literalPred.literal());
           case LT_EQ:
-            return ltEq(pred.child(), literalPred.literal());
+            return ltEq(pred.term(), literalPred.literal());
           case GT:
-            return gt(pred.child(), literalPred.literal());
+            return gt(pred.term(), literalPred.literal());
           case GT_EQ:
-            return gtEq(pred.child(), literalPred.literal());
+            return gtEq(pred.term(), literalPred.literal());
           case EQ:
-            return eq(pred.child(), literalPred.literal());
+            return eq(pred.term(), literalPred.literal());
           case NOT_EQ:
-            return notEq(pred.child(), literalPred.literal());
+            return notEq(pred.term(), literalPred.literal());
           case STARTS_WITH:
-            return startsWith(pred.child(),  literalPred.literal());
+            return startsWith(pred.term(),  literalPred.literal());
           default:
             throw new IllegalStateException("Invalid operation for BoundLiteralPredicate: " + pred.op());
         }
@@ -237,9 +237,9 @@ public class ExpressionVisitors {
       } else if (pred.isUnaryPredicate()) {
         switch (pred.op()) {
           case IS_NULL:
-            return isNull(pred.child());
+            return isNull(pred.term());
           case NOT_NULL:
-            return notNull(pred.child());
+            return notNull(pred.term());
           default:
             throw new IllegalStateException("Invalid operation for BoundUnaryPredicate: " + pred.op());
         }
@@ -247,9 +247,9 @@ public class ExpressionVisitors {
       } else if (pred.isSetPredicate()) {
         switch (pred.op()) {
           case IN:
-            return in(pred.child(), pred.asSetPredicate().literalSet());
+            return in(pred.term(), pred.asSetPredicate().literalSet());
           case NOT_IN:
-            return notIn(pred.child(), pred.asSetPredicate().literalSet());
+            return notIn(pred.term(), pred.asSetPredicate().literalSet());
           default:
             throw new IllegalStateException("Invalid operation for BoundSetPredicate: " + pred.op());
         }

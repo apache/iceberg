@@ -130,8 +130,8 @@ public class ScanSummary {
 
       } else if (expression instanceof UnboundPredicate) {
         UnboundPredicate pred = (UnboundPredicate) expression;
-        if (pred.child() instanceof NamedReference) {
-          NamedReference<?> ref = (NamedReference<?>) pred.child();
+        if (pred.term() instanceof NamedReference) {
+          NamedReference<?> ref = (NamedReference<?>) pred.term();
           Literal<?> lit = pred.literal();
           if (TIMESTAMP_NAMES.contains(ref.name())) {
             Literal<Long> tsLiteral = lit.to(Types.TimestampType.withoutZone());
