@@ -22,20 +22,25 @@ package org.apache.iceberg.spark.source;
 import com.google.common.collect.ImmutableSet;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.DeleteFiles;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.catalog.SupportsDelete;
 import org.apache.spark.sql.connector.catalog.SupportsRead;
 import org.apache.spark.sql.connector.catalog.SupportsWrite;
 import org.apache.spark.sql.connector.catalog.TableCapability;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.write.WriteBuilder;
+import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-public class SparkTable implements org.apache.spark.sql.connector.catalog.Table, SupportsRead, SupportsWrite {
+public class SparkTable
+    implements org.apache.spark.sql.connector.catalog.Table, SupportsRead, SupportsWrite, SupportsDelete {
 
   private static final Set<TableCapability> CAPABILITIES = ImmutableSet.of(
       TableCapability.BATCH_READ,
@@ -117,6 +122,14 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   @Override
   public WriteBuilder newWriteBuilder(CaseInsensitiveStringMap options) {
     return new SparkWriteBuilder(sparkSession(), icebergTable, options);
+  }
+
+  @Override
+  public void deleteWhere(Filter[] filters) {
+    icebergTable.newDelete()
+        .set("spark.app.id", sparkSession().sparkContext().applicationId())
+        .deleteFromRowFilter(SparkFilters.convert(filters))
+        .commit();
   }
 
   @Override
