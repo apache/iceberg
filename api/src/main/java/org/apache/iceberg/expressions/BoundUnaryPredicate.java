@@ -20,8 +20,8 @@
 package org.apache.iceberg.expressions;
 
 public class BoundUnaryPredicate<T> extends BoundPredicate<T> {
-  BoundUnaryPredicate(Operation op, BoundReference<T> ref) {
-    super(op, ref);
+  BoundUnaryPredicate(Operation op, BoundTerm<T> term) {
+    super(op, term);
   }
 
   @Override
@@ -50,9 +50,9 @@ public class BoundUnaryPredicate<T> extends BoundPredicate<T> {
   public String toString() {
     switch (op()) {
       case IS_NULL:
-        return "is_null(" + ref() + ")";
+        return "is_null(" + term() + ")";
       case NOT_NULL:
-        return "not_null(" + ref() + ")";
+        return "not_null(" + term() + ")";
       default:
         return "Invalid unary predicate: operation = " + op();
     }

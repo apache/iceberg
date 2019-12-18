@@ -19,12 +19,10 @@
 
 package org.apache.iceberg.expressions;
 
-import java.io.Serializable;
-
 /**
  * Represents a variable reference in an {@link Expression expression}.
  * @see BoundReference
  * @see NamedReference
  */
-public interface Reference extends Serializable {
+public interface Reference<T> extends Term {
 }

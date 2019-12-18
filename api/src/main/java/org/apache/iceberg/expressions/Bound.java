@@ -19,24 +19,24 @@
 
 package org.apache.iceberg.expressions;
 
-import com.google.common.base.Preconditions;
+import org.apache.iceberg.StructLike;
 
-public abstract class Predicate<T, C extends Term> implements Expression {
-  private final Operation op;
-  private final C term;
+/**
+ * Represents a bound value expression.
+ *
+ * @param <T> the Java type of values produced by this expression
+ */
+public interface Bound<T> {
+  /**
+   * @return the underlying reference
+   */
+  BoundReference<?> ref();
 
-  Predicate(Operation op, C term) {
-    Preconditions.checkNotNull(term, "Term cannot be null");
-    this.op = op;
-    this.term = term;
-  }
-
-  @Override
-  public Operation op() {
-    return op;
-  }
-
-  public C term() {
-    return term;
-  }
+  /**
+   * Produce a value from the struct for this expression.
+   *
+   * @param struct a struct of incoming data
+   * @return the value of this expression when evaluated on the incoming struct
+   */
+  T eval(StructLike struct);
 }
