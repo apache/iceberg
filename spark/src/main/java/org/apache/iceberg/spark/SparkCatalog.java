@@ -36,11 +36,15 @@ import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.StagedSparkTable;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.NamespaceChange;
 import org.apache.spark.sql.connector.catalog.StagedTable;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
+import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.catalog.TableChange.RemoveProperty;
 import org.apache.spark.sql.connector.catalog.TableChange.SetProperty;
@@ -51,7 +55,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 /**
  * A Spark TableCatalog implementation that wraps Iceberg's {@link Catalog} interface.
  */
-public class SparkCatalog implements StagingTableCatalog {
+public class SparkCatalog implements StagingTableCatalog, SupportsNamespaces {
   private String catalogName = null;
   private Catalog icebergCatalog = null;
 
@@ -248,5 +252,121 @@ public class SparkCatalog implements StagingTableCatalog {
   @Override
   public String name() {
     return catalogName;
+  }
+
+  /**
+   * List top-level namespaces from the catalog.
+   * <p>
+   * If an object such as a table, view, or function exists, its parent namespaces must also exist
+   * and must be returned by this discovery method. For example, if table a.b.t exists, this method
+   * must return ["a"] in the result array.
+   *
+   * @return an array of multi-part namespace names
+   */
+  @Override
+  public String[][] listNamespaces() throws NoSuchNamespaceException {
+    return listNamespaces(Namespace.empty().levels());
+  }
+
+  /**
+   * List namespaces in a namespace.
+   * <p>
+   * If an object such as a table, view, or function exists, its parent namespaces must also exist
+   * and must be returned by this discovery method. For example, if table a.b.t exists, this method
+   * invoked as listNamespaces(["a"]) must return ["a", "b"] in the result array.
+   *
+   * @param namespace a multi-part namespace
+   * @return an array of multi-part namespace names
+   * @throws NoSuchNamespaceException If the namespace does not exist (optional)
+   */
+  @Override
+  public String[][] listNamespaces(String[] namespace) throws NoSuchNamespaceException {
+    List<Namespace> namespaces;
+    try {
+      if (namespace.length == 0) {
+        namespaces = icebergCatalog.listNamespaces();
+      } else {
+        namespaces = icebergCatalog.listNamespaces(Namespace.of(namespace));
+      }
+      String[][] spaces = new String[namespaces.size()][];
+      for (int    i = 0; i < namespaces.size(); i++) {
+        spaces[i] = namespaces.get(i).levels();
+      }
+      return spaces;
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+      throw new NoSuchNamespaceException(e.getMessage());
+    }
+  }
+
+  /**
+   * Load metadata properties for a namespace.
+   *
+   * @param namespace a multi-part namespace
+   * @return a string map of properties for the given namespace
+   * @throws NoSuchNamespaceException      If the namespace does not exist (optional)
+   * @throws UnsupportedOperationException If namespace properties are not supported
+   */
+  @Override
+  public Map<String, String> loadNamespaceMetadata(String[] namespace) throws NoSuchNamespaceException {
+     //TODO: spark error "Describing columns is not supported for v2 tables.;??"
+    try {
+      return icebergCatalog.loadNamespaceMetadata(Namespace.of(namespace));
+    } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
+      throw new NoSuchNamespaceException(e.getMessage());
+    }
+  }
+
+  /**
+   * Create a namespace in the catalog.
+   *
+   * @param namespace a multi-part namespace
+   * @param metadata  a string map of properties for the given namespace
+   * @throws NamespaceAlreadyExistsException If the namespace already exists
+   * @throws UnsupportedOperationException   If create is not a supported operation
+   */
+  @Override
+  public void createNamespace(String[] namespace, Map<String, String> metadata) throws NamespaceAlreadyExistsException {
+    Namespace space = Namespace.of(namespace);
+    metadata.forEach(space::setParameters);
+    try {
+      icebergCatalog.createNamespace(space);
+    } catch (org.apache.iceberg.exceptions.AlreadyExistsException e) {
+      throw new NamespaceAlreadyExistsException(e.getMessage());
+    }
+  }
+
+  /**
+   * Apply a set of metadata changes to a namespace in the catalog.
+   *
+   * @param namespace a multi-part namespace
+   * @param changes   a collection of changes to apply to the namespace
+   * @throws NoSuchNamespaceException      If the namespace does not exist (optional)
+   * @throws UnsupportedOperationException If namespace properties are not supported
+   */
+  @Override
+  public void alterNamespace(String[] namespace, NamespaceChange... changes) throws NoSuchNamespaceException {
+    throw new UnsupportedOperationException("un supported load namespace metadata");
+  }
+
+  /**
+   * Drop a namespace from the catalog.
+   * <p>
+   * This operation may be rejected by the catalog implementation if the namespace is not empty by
+   * throwing {@link IllegalStateException}. If the catalog implementation does not support this
+   * operation, it may throw {@link UnsupportedOperationException}.
+   *
+   * @param namespace a multi-part namespace
+   * @return true if the namespace was dropped
+   * @throws NoSuchNamespaceException      If the namespace does not exist (optional)
+   * @throws IllegalStateException         If the namespace is not empty
+   * @throws UnsupportedOperationException If drop is not a supported operation
+   */
+  @Override
+  public boolean dropNamespace(String[] namespace) throws NoSuchNamespaceException {
+    try {
+      return icebergCatalog.dropNamespace(Namespace.of(namespace));
+    } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException  e) {
+      throw new NoSuchNamespaceException(e.getMessage());
+    }
   }
 }
