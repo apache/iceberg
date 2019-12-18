@@ -57,13 +57,13 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
    * <p>
    * The default implementation creates a new SparkCatalog with the session catalog's name and options.
    *
-   * @param name catalog name
+   * @param catalogName catalog name
    * @param options catalog options
    * @return a SparkCatalog to be used for Iceberg tables
    */
-  protected SparkCatalog buildSparkCatalog(String name, CaseInsensitiveStringMap options) {
+  protected SparkCatalog buildSparkCatalog(String catalogName, CaseInsensitiveStringMap options) {
     SparkCatalog newCatalog = new SparkCatalog();
-    newCatalog.initialize(name, options);
+    newCatalog.initialize(catalogName, options);
     return newCatalog;
   }
 
@@ -162,20 +162,20 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
   }
 
   @Override
-  public final void initialize(String name, CaseInsensitiveStringMap options) {
-    this.name = name;
-    this.icebergCatalog = buildSparkCatalog(name, options);
+  public final void initialize(String catalogName, CaseInsensitiveStringMap options) {
+    this.name = catalogName;
+    this.icebergCatalog = buildSparkCatalog(catalogName, options);
     this.createParquetAsIceberg = options.getBoolean("parquet-enabled", createParquetAsIceberg);
     this.createAvroAsIceberg = options.getBoolean("avro-enabled", createAvroAsIceberg);
   }
 
   @Override
   @SuppressWarnings("unchecked")
-  public void setDelegateCatalog(CatalogPlugin sessionCatalog) {
-    if (sessionCatalog instanceof TableCatalog && sessionCatalog instanceof SupportsNamespaces) {
-      this.sessionCatalog = (T) sessionCatalog;
+  public void setDelegateCatalog(CatalogPlugin sparkCatalog) {
+    if (sparkCatalog instanceof TableCatalog && sparkCatalog instanceof SupportsNamespaces) {
+      this.sessionCatalog = (T) sparkCatalog;
     } else {
-      throw new IllegalArgumentException("Invalid session catalog: " + sessionCatalog);
+      throw new IllegalArgumentException("Invalid session catalog: " + sparkCatalog);
     }
   }
 
