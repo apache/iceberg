@@ -177,7 +177,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       throw new AlreadyExistsException("Table already exists: %s.%s", database, tableName);
 
     } catch (TException | UnknownHostException e) {
-      if (e.getMessage().contains("Table/View 'HIVE_LOCKS' does not exist")) {
+      if (e.getMessage() != null && e.getMessage().contains("Table/View 'HIVE_LOCKS' does not exist")) {
         throw new RuntimeException("Failed to acquire locks from metastore because 'HIVE_LOCKS' doesn't " +
             "exist, this probably happened when using embedded metastore or doesn't create a " +
             "transactional meta table. To fix this, use an alternative metastore", e);
