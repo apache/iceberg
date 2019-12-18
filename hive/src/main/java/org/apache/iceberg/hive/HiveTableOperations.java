@@ -49,6 +49,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NotIcebergException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.thrift.TException;
@@ -93,15 +94,14 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       String tableType = table.getParameters().get(TABLE_TYPE_PROP);
 
       if (tableType == null || !tableType.equalsIgnoreCase(ICEBERG_TABLE_TYPE_VALUE)) {
-        throw new IllegalArgumentException(String.format("Type of %s.%s is %s, not %s",
+        throw new NotIcebergException("Type of %s.%s is %s, not %s",
             database, tableName,
-            tableType /* actual type */, ICEBERG_TABLE_TYPE_VALUE /* expected type */));
+            tableType /* actual type */, ICEBERG_TABLE_TYPE_VALUE /* expected type */);
       }
 
       metadataLocation = table.getParameters().get(METADATA_LOCATION_PROP);
       if (metadataLocation == null) {
-        String errMsg = String.format("%s.%s is missing %s property", database, tableName, METADATA_LOCATION_PROP);
-        throw new IllegalArgumentException(errMsg);
+        throw new NotIcebergException("%s.%s is missing %s property", database, tableName, METADATA_LOCATION_PROP);
       }
 
     } catch (NoSuchObjectException e) {
