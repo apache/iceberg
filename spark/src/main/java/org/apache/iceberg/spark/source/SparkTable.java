@@ -119,4 +119,8 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     return new SparkWriteBuilder(sparkSession(), icebergTable, options);
   }
 
+  @Override
+  public String toString() {
+    return icebergTable.toString();
+  }
 }
