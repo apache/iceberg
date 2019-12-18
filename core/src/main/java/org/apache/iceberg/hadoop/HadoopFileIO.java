@@ -21,8 +21,10 @@ package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -56,4 +58,18 @@ public class HadoopFileIO implements FileIO {
       throw new RuntimeIOException(e, "Failed to delete file: %s", path);
     }
   }
+
+  @Override
+  public boolean mkdir(String path) {
+    Path toCreate = new Path(path);
+    FileSystem fs = Util.getFs(toCreate, hadoopConf.get());
+    try {
+      return fs.mkdirs(toCreate);
+    } catch (FileAlreadyExistsException e) {
+      throw new AlreadyExistsException(e, "Path already exists: %s", path);
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to create file: %s", path);
+    }
+  }
+
 }

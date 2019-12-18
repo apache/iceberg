@@ -25,6 +25,8 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -32,6 +34,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.PathFilter;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -40,9 +43,11 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.FileIO;
 
 /**
  * HadoopCatalog provides a way to use table names like db.table to work with path-based tables under a common
@@ -59,9 +64,13 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
  */
 public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
   private static final String ICEBERG_HADOOP_WAREHOUSE_BASE = "iceberg/warehouse";
+  private static final String TABLE_METADATA_FILE_EXTENSION = ".metadata.json";
   private final String name;
   private final Configuration conf;
   private String warehouseLocation;
+  private HadoopFileIO defaultFileIo = null;
+
+  private static final PathFilter TABLE_FILTER = path -> path.getName().endsWith(TABLE_METADATA_FILE_EXTENSION);
 
   /**
    * The constructor of the HadoopCatalog. It uses the passed location as its warehouse directory.
@@ -147,7 +156,8 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
   @Override
   public Table createTable(
       TableIdentifier identifier, Schema schema, PartitionSpec spec, String location, Map<String, String> properties) {
-    Preconditions.checkArgument(location == null, "Cannot set a custom location for a path-based table");
+    Preconditions.checkArgument(location == null,
+        "Cannot set a custom location for a path-based table");
     return super.createTable(identifier, schema, spec, null, properties);
   }
 
@@ -210,7 +220,123 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
   }
 
   @Override
+  public boolean createNamespace(Namespace namespace) {
+    Preconditions.checkArgument(!namespace.isEmpty(), "Your Namespace must be not empty!");
+    Joiner slash = Joiner.on("/");
+    Path nsPath = new Path(slash.join(warehouseLocation, slash.join(namespace.levels())));
+    return io().mkdir(nsPath.toString());
+  }
+
+  @Override
+  public List<Namespace> listNamespaces() {
+    return listNamespaces(Namespace.empty());
+  }
+
+  @Override
+  public List<Namespace> listNamespaces(Namespace namespace) {
+    List<Namespace> namespaces = new ArrayList<>();
+    String[] nsp;
+    FileStatus[] fileStatuses;
+    Joiner slash = Joiner.on("/");
+    Path nsPath = new Path(slash.join(warehouseLocation, slash.join(namespace.levels())));
+    FileSystem fs = Util.getFs(nsPath, conf);
+    isNamespace(fs, nsPath);
+    try {
+      if (!fs.exists(nsPath) || !fs.isDirectory(nsPath)) {
+        throw new NotFoundException("Unknown namespace: " + namespace.toString());
+      }
+      fileStatuses = fs.listStatus(nsPath);
+    } catch (NotFoundException e) {
+      throw new NoSuchNamespaceException("Unknown namespace: " + namespace.toString());
+
+    } catch (IOException ioe) {
+      throw new RuntimeException("Failed to list namespace under " + namespace.toString(), ioe);
+    }
+
+    for (FileStatus s : fileStatuses) {
+      Path path = s.getPath();
+      if (!isNamespace(fs, path)) {
+        continue;
+      }
+      if (!namespace.isEmpty()) {
+        nsp = (namespace.toString() + "." + path.getName()).split("\\.");
+      } else {
+        nsp = new String[]{path.getName()};
+      }
+      namespaces.add(Namespace.of(nsp));
+
+    }
+
+    return namespaces;
+  }
+
+  @Override
+  public boolean dropNamespace(Namespace namespace) {
+    Preconditions.checkArgument(!namespace.isEmpty(), "Your Namespace must be not empty!");
+    Preconditions.checkArgument(listTables(namespace).size() == 0,
+        "This Namespace have tables, cannot drop it");
+    Preconditions.checkArgument(listNamespaces(namespace).size() == 0,
+        "This Namespace have sub Namespace, cannot drop it");
+
+    Joiner slash = Joiner.on("/");
+    Path nsPath = new Path(slash.join(warehouseLocation, slash.join(namespace.levels())));
+    io().deleteFile(nsPath.toString());
+    return true;
+  }
+
+  @Override
+  public Map<String, String> loadNamespaceMetadata(Namespace namespace) {
+    Preconditions.checkArgument(!namespace.isEmpty(), "Your Namespace must be not empty!");
+    Joiner slash = Joiner.on("/");
+    Path nsPath = new Path(slash.join(warehouseLocation, slash.join(namespace.levels())));
+    Map<String, String> meta = new HashMap<>();
+    FileSystem fs = Util.getFs(nsPath, conf);
+    try {
+      if (!fs.exists(nsPath) || !fs.isDirectory(nsPath)) {
+        throw new NoSuchNamespaceException("Unknown namespace " + nsPath);
+      }
+      FileStatus info = fs.getFileStatus(nsPath);
+      meta.put("owner", info.getOwner());
+      meta.put("group", info.getGroup());
+      meta.put("path", info.getPath().toString());
+      meta.put("modification_time", Long.toString(info.getModificationTime()));
+      meta.put("block_size", Long.toString(info.getBlockSize()));
+    } catch (IOException ioe) {
+      throw new RuntimeException("Failed to list namespace info " + namespace.toString(), ioe);
+    }
+    return meta;
+  }
+
+  public boolean isNamespace(FileSystem fs, Path nsPath) {
+    try {
+      if (!fs.isDirectory(nsPath)) {
+        // Ignore the path which is not a directory.
+        return false;
+      }
+      Path metadataPath = new Path(nsPath, "metadata");
+      if (fs.exists(metadataPath) && fs.isDirectory(metadataPath) &&
+          (fs.listStatus(metadataPath, TABLE_FILTER).length >= 1)) {
+       // Ignore the path of table
+        return false;
+      }
+      if (fs.exists(nsPath) && fs.isDirectory(nsPath)) {
+        return true;
+      }
+    } catch (IOException ioe) {
+      throw new RuntimeException("Failed to list namespace under ", ioe);
+    }
+
+    return false;
+  }
+
+  @Override
   public void close() throws IOException {
   }
 
+  public FileIO io() {
+    if (defaultFileIo == null) {
+      defaultFileIo = new HadoopFileIO(conf);
+    }
+    return defaultFileIo;
+  }
 }

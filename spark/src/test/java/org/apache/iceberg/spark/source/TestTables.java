@@ -201,5 +201,13 @@ class TestTables {
         throw new RuntimeIOException("Failed to delete file: " + path);
       }
     }
+
+    @Override
+    public boolean mkdir(String path) {
+      if (!new File(path).mkdir()) {
+        throw new RuntimeIOException("Failed to mkdir: " + path);
+      }
+      return true;
+    }
   }
 }

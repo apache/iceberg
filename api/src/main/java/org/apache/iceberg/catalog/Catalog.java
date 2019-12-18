@@ -303,4 +303,50 @@ public interface Catalog {
    * @throws NoSuchTableException if the table does not exist
    */
   Table loadTable(TableIdentifier identifier);
+
+
+  /**
+   * Create a namespace in the catalog.
+   *
+   * @param namespace {@link Namespace}.
+   */
+  boolean createNamespace(Namespace namespace);
+
+  /**
+   * List top-level namespaces from the catalog.
+   * <p>
+   * If an object such as a table, view, or function exists, its parent namespaces must also exist
+   * and must be returned by this discovery method. For example, if table a.b.t exists, this method
+   * must return ["a"] in the result array.
+   *
+   * @return an List of namespace {@link Namespace} names
+   */
+  List<Namespace> listNamespaces();
+
+  /**
+   * List  namespaces from the namespace.
+   * <p>
+   * For example, if table a.b.t exists, use 'SELECT NAMESPACE IN a' this method
+   * must return Namepace.of("b") {@link Namespace}.
+   *
+   * @return an List of namespace {@link Namespace} names
+   */
+  List<Namespace> listNamespaces(Namespace namespace);
+
+  /**
+   * Load metadata properties for a namespace.
+   *
+   * @param namespace a Namespace.of(name) {@link Namespace}
+   * @return a string map of properties for the given namespace
+   */
+  Map<String, String>  loadNamespaceMetadata(Namespace namespace);
+
+  /**
+   * Drop namespace, while the namespace haven't table or sub namespace will return true.
+   *
+   * @param namespace a Namespace.of(name) {@link Namespace}
+   * @return true while drop success.
+   */
+  boolean dropNamespace(Namespace namespace);
+
 }
