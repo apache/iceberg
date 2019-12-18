@@ -32,6 +32,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.PathFilter;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -59,6 +60,8 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
  */
 public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
   private static final String ICEBERG_HADOOP_WAREHOUSE_BASE = "iceberg/warehouse";
+  private static final String TABLE_METADATA_FILE_EXTENSION = ".metadata.json";
+  private static final PathFilter TABLE_FILTER = path -> path.getName().endsWith(TABLE_METADATA_FILE_EXTENSION);
   private final Configuration conf;
   private String warehouseLocation;
 
@@ -116,7 +119,8 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
         }
 
         Path metadataPath = new Path(path, "metadata");
-        if (fs.exists(metadataPath) && fs.isDirectory(metadataPath)) {
+        if (fs.exists(metadataPath) && fs.isDirectory(metadataPath) &&
+            (fs.listStatus(metadataPath, TABLE_FILTER).length >= 1)) {
           // Only the path which contains metadata is the path for table, otherwise it could be
           // still a namespace.
           TableIdentifier tblIdent = TableIdentifier.of(namespace, path.getName());
