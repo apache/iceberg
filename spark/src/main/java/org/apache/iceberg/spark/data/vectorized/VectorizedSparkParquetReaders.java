@@ -65,17 +65,17 @@ public class VectorizedSparkParquetReaders {
     LOG.info("=> [VectorizedSparkParquetReaders] recordsPerBatch = {}", recordsPerBatch);
     return (ColumnarBatchReaders)
         TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
-            new VectorReaderBuilder(tableSchema, expectedSchema, fileSchema, recordsPerBatch));
+            new VectorizedReaderBuilder(tableSchema, expectedSchema, fileSchema, recordsPerBatch));
   }
 
-  private static class VectorReaderBuilder extends TypeWithSchemaVisitor<VectorizedReader> {
+  private static class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedReader> {
     private final MessageType parquetSchema;
     private final Schema projectedIcebergSchema;
     private final Schema tableIcebergSchema;
     private final BufferAllocator rootAllocator;
     private final int recordsPerBatch;
 
-    VectorReaderBuilder(
+    VectorizedReaderBuilder(
         Schema tableSchema,
         Schema projectedIcebergSchema,
         MessageType parquetSchema,
@@ -134,8 +134,7 @@ public class VectorizedSparkParquetReaders {
           types.add(null);
         }
       }
-
-      return new ColumnarBatchReaders(types, expected, reorderedFields, recordsPerBatch);
+      return new ColumnarBatchReaders(reorderedFields, recordsPerBatch);
     }
 
     @Override

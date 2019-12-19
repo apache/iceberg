@@ -52,7 +52,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
   private final InputFile input;
   private final Schema expectedSchema;
   private final ParquetReadOptions options;
-  private final Function<MessageType, VectorizedReader> batchReaderFunc;
+  private final Function<MessageType, VectorizedReader<T>> batchReaderFunc;
   private final Expression filter;
   private final boolean reuseContainers;
   private final boolean caseSensitive;
@@ -60,7 +60,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
 
   public VectorizedParquetReader(
       InputFile input, Schema expectedSchema, ParquetReadOptions options,
-      Function<MessageType, VectorizedReader> readerFunc,
+      Function<MessageType, VectorizedReader<T>> readerFunc,
       Expression filter, boolean reuseContainers, boolean caseSensitive, int maxRecordsPerBatch) {
     this.input = input;
     this.expectedSchema = expectedSchema;
@@ -78,7 +78,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     private final InputFile file;
     private final ParquetReadOptions options;
     private final MessageType projection;
-    private final VectorizedReader model;
+    private final VectorizedReader<T> model;
     private final List<BlockMetaData> rowGroups;
     private final boolean[] shouldSkip;
     private final long totalValues;
@@ -87,7 +87,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
 
     @SuppressWarnings("unchecked")
     ReadConf(InputFile file, ParquetReadOptions options, Schema expectedSchema, Expression filter,
-        Function<MessageType, VectorizedReader> readerFunc, boolean reuseContainers,
+        Function<MessageType, VectorizedReader<T>> readerFunc, boolean reuseContainers,
         boolean caseSensitive, int bSize) {
       this.file = file;
       this.options = options;
@@ -190,7 +190,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
 
   private ReadConf init() {
     if (conf == null) {
-      ReadConf<T> readConf = new ReadConf(
+      ReadConf readConf = new ReadConf(
           input, options, expectedSchema, filter, batchReaderFunc, reuseContainers, caseSensitive, batchSize);
       this.conf = readConf.copy();
       return readConf;
@@ -209,9 +209,8 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
   private static class FileIterator<T> implements Iterator<T>, Closeable {
     private final ParquetFileReader reader;
     private final boolean[] shouldSkip;
-    private final VectorizedReader model;
+    private final VectorizedReader<T> model;
     private final long totalValues;
-    private final boolean reuseContainers;
     private final int batchSize;
 
     private int nextRowGroup = 0;
@@ -224,7 +223,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       this.shouldSkip = conf.shouldSkip();
       this.model = conf.model();
       this.totalValues = conf.totalValues();
-      this.reuseContainers = conf.reuseContainers();
+      this.model.reuseContainers(conf.reuseContainers());
       this.batchSize = conf.batchSize();
     }
 
@@ -241,11 +240,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       if (valuesRead >= nextRowGroupStart) {
         advance();
       }
-      if (reuseContainers) {
-        this.last = (T) model.read(null);
-      } else {
-        this.last = (T) model.read(null);
-      }
+      this.last = model.read();
       valuesRead += Math.min(nextRowGroupStart - valuesRead, batchSize);
       return last;
     }

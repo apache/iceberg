@@ -25,12 +25,14 @@ import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 
 /**
- * Marker interface for vectorized Iceberg readers.
+ * Interface for vectorized Iceberg readers.
  */
-public interface VectorizedReader<E, T> {
-  T read(E input);
+public interface VectorizedReader<T> {
+  T read();
 
   void setRowGroupInfo(PageReadStore pages, DictionaryPageReadStore dictionaryPageReadStore,
                        Map<ColumnPath, Boolean> columnPathBooleanMap);
+
+  void reuseContainers(boolean reuse);
 }
 

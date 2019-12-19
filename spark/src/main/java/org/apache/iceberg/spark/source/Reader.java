@@ -145,8 +145,6 @@ class Reader implements DataSourceReader,
 
       this.numRecordsPerBatch = VectorizedArrowReader.DEFAULT_BATCH_SIZE;
     }
-    LOG.info("=> Set Config numRecordsPerBatch = {}", numRecordsPerBatch);
-
     if (snapshotId != null && asOfTimestamp != null) {
       throw new IllegalArgumentException(
           "Cannot scan using both snapshot-id and as-of-timestamp to select the table snapshot");
