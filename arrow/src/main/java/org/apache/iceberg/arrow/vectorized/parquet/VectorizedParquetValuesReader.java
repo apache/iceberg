@@ -1008,7 +1008,6 @@ public final class VectorizedParquetValuesReader extends ValuesReader {
       switch (mode) {
         case RLE:
           for (int i = 0; i < num; i++) {
-            // TODO: samarth I am assuming/hopeful that the decimalBytes array has typeWidth length
             byte[] decimalBytes = dict.decodeToBinary(currentValue).getBytesUnsafe();
             byte[] vectorBytes = new byte[DecimalVector.TYPE_WIDTH];
             System.arraycopy(decimalBytes, 0, vectorBytes, DecimalVector.TYPE_WIDTH - typeWidth, typeWidth);
@@ -1018,7 +1017,6 @@ public final class VectorizedParquetValuesReader extends ValuesReader {
           break;
         case PACKED:
           for (int i = 0; i < num; i++) {
-            // TODO: samarth I am assuming/hopeful that the decimal bytes has typeWidth length
             byte[] decimalBytes = dict.decodeToBinary(packedValuesBuffer[packedValuesBufferIdx++]).getBytesUnsafe();
             byte[] vectorBytes = new byte[DecimalVector.TYPE_WIDTH];
             System.arraycopy(decimalBytes, 0, vectorBytes, DecimalVector.TYPE_WIDTH - typeWidth, typeWidth);
@@ -1198,13 +1196,11 @@ public final class VectorizedParquetValuesReader extends ValuesReader {
               byte[] byteArray = new byte[DecimalVector.TYPE_WIDTH];
               valuesReader.getBuffer(typeWidth).get(byteArray, 0, typeWidth);
               vector.getDataBuffer().setBytes(bufferIdx * DecimalVector.TYPE_WIDTH, byteArray);
-              bufferIdx++;
-              //BitVectorHelper.setValidityBitToOne(validityBuffer, validityBufferIdx);
+              BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), bufferIdx);
             } else {
-              //BitVectorHelper.setValidityBitToOne(validityBuffer, validityBufferIdx);
-              nullabilityHolder.setNull(bufferIdx);
-              bufferIdx++;
+              setNull(nullabilityHolder, bufferIdx, vector.getValidityBuffer());
             }
+            bufferIdx++;
           }
           break;
       }

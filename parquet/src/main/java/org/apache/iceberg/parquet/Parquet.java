@@ -286,7 +286,7 @@ public class Parquet {
     private Schema schema = null;
     private Expression filter = null;
     private ReadSupport<?> readSupport = null;
-    private Function<MessageType, VectorizedReader> batchedReaderFunc = null;
+    private Function<MessageType, VectorizedReader<?>> batchedReaderFunc = null;
     private Function<MessageType, ParquetValueReader<?>> readerFunc = null;
     private boolean isBatchedReadEnabled = false;
     private boolean filterRecords = true;
@@ -347,7 +347,7 @@ public class Parquet {
       return this;
     }
 
-    public ReadBuilder createBatchedReaderFunc(Function<MessageType, VectorizedReader> func) {
+    public ReadBuilder createBatchedReaderFunc(Function<MessageType, VectorizedReader<?>> func) {
       this.batchedReaderFunc = func;
       return this;
     }
@@ -404,7 +404,7 @@ public class Parquet {
         ParquetReadOptions options = optionsBuilder.build();
 
         if (isBatchedReadEnabled) {
-          return new VectorizedParquetReader<>(file, schema, options, batchedReaderFunc, filter, reuseContainers,
+          return new VectorizedParquetReader(file, schema, options, batchedReaderFunc, filter, reuseContainers,
               caseSensitive, maxRecordsPerBatch);
         } else {
 

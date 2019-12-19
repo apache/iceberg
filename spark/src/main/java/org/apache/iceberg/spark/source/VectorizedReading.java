@@ -30,9 +30,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -44,11 +42,9 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.parquet.vectorized.VectorizedReader;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.Types;
-import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Attribute;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
@@ -194,8 +190,6 @@ public class VectorizedReading {
     }
 
     private Iterator<ColumnarBatch> open(FileScanTask task) {
-      DataFile file = task.file();
-
       // schema or rows returned by readers
       Schema finalSchema = expectedSchema;
       PartitionSpec spec = task.spec();
@@ -205,47 +199,17 @@ public class VectorizedReading {
       StructType sparkType = SparkSchemaUtil.convert(finalSchema);
       Schema requiredSchema = SparkSchemaUtil.prune(tableSchema, sparkType, task.residual(), caseSensitive);
       boolean hasExtraFilterColumns = requiredSchema.columns().size() != finalSchema.columns().size();
-
-      Schema iterSchema;
       Iterator<ColumnarBatch> iter;
-
-      // if (hasJoinedPartitionColumns) {
-      // // schema used to read data files
-      // Schema readSchema = TypeUtil.selectNot(requiredSchema, idColumns);
-      // Schema partitionSchema = TypeUtil.select(requiredSchema, idColumns);
-      // PartitionRowConverter convertToRow = new PartitionRowConverter(partitionSchema, spec);
-      // JoinedRow joined = new JoinedRow();
-      //
-      // InternalRow partition = convertToRow.apply(file.partition());
-      // joined.withRight(partition);
-      //
-      // // create joined rows and project from the joined schema to the final schema
-      // iterSchema = TypeUtil.join(readSchema, partitionSchema);
-      // iter = Iterators.transform(open(task, readSchema), joined::withLeft);
-      //
-      // } else if (hasExtraFilterColumns) {
       if (hasExtraFilterColumns) {
-        // add projection to the final schema
-        iterSchema = requiredSchema;
         iter = open(task, requiredSchema);
       } else {
-        // return the base iterator
-        iterSchema = finalSchema;
         iter = open(task, finalSchema);
       }
-
-      // TODO: remove the projection by reporting the iterator's schema back to Spark
-      // return Iterators.transform(iter,
-      //     APPLY_PROJECTION.bind(projection(finalSchema, iterSchema))::invoke);
       return iter;
     }
 
     private Iterator<ColumnarBatch> open(FileScanTask task, Schema readSchema) {
       CloseableIterable<ColumnarBatch> iter;
-      // if (task.isDataTask()) {
-      //   iter = newDataIterable(task.asDataTask(), readSchema);
-      //
-      // } else {
       InputFile location = inputFiles.get(task.file().path().toString());
       Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
 
@@ -256,11 +220,8 @@ public class VectorizedReading {
         default:
           throw new UnsupportedOperationException(
               "Cannot read unknown format: " + task.file().format());
-          // }
       }
-
       this.currentCloseable = iter;
-
       return iter.iterator();
     }
 
@@ -294,13 +255,8 @@ public class VectorizedReading {
           .project(readSchema)
           .split(task.start(), task.length())
           .enableBatchedRead()
-          .createBatchedReaderFunc(new Function<MessageType, VectorizedReader>() {
-            @Override
-            public VectorizedReader apply(MessageType fileSchema) {
-              return VectorizedSparkParquetReaders.buildReader(tableSchema, readSchema,
-                  fileSchema, numRecordsPerBatch);
-            }
-          })
+          .createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(tableSchema, readSchema,
+              fileSchema, numRecordsPerBatch))
           .filter(task.residual())
           .caseSensitive(caseSensitive)
           .recordsPerBatch(numRecordsPerBatch)

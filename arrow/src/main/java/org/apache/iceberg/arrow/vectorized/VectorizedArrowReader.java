@@ -51,7 +51,7 @@ import org.apache.parquet.schema.PrimitiveType;
  * It also takes care of allocating the right kind of Arrow vectors depending on the corresponding
  * Iceberg/Parquet data types.
  */
-public class VectorizedArrowReader implements VectorizedReader<NullabilityHolder, VectorHolder> {
+public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   public static final int DEFAULT_BATCH_SIZE = 5000;
   public static final int UNKNOWN_WIDTH = -1;
 
@@ -71,6 +71,8 @@ public class VectorizedArrowReader implements VectorizedReader<NullabilityHolder
   private final BufferAllocator rootAlloc;
   private FieldVector vec;
   private int typeWidth;
+  private boolean reuseContainers = true;
+  private NullabilityHolder nullabilityHolder;
 
   // In cases when Parquet employs fall back encoding, we eagerly decode the dictionary encoded data
   // before storing the values in the Arrow vector. This means even if the dictionary is present, data
@@ -122,11 +124,12 @@ public class VectorizedArrowReader implements VectorizedReader<NullabilityHolder
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   @Override
-  public VectorHolder read(NullabilityHolder nullabilityHolder) {
-    if (vec == null) {
+  public VectorHolder read() {
+    if (vec == null || !reuseContainers) {
       typeWidth = allocateFieldVector();
     }
     vec.setValueCount(0);
+    nullabilityHolder = new NullabilityHolder(batchSize);
     if (vectorizedColumnIterator.hasNext()) {
       if (allPagesDictEncoded) {
         vectorizedColumnIterator.nextBatchDictionaryIds((IntVector) vec, nullabilityHolder);
@@ -163,7 +166,7 @@ public class VectorizedArrowReader implements VectorizedReader<NullabilityHolder
         }
       }
     }
-    return new VectorHolder(columnDescriptor, vec, allPagesDictEncoded, dictionary);
+    return new VectorHolder(columnDescriptor, vec, allPagesDictEncoded, dictionary, nullabilityHolder);
   }
 
   private int allocateFieldVector() {
@@ -280,6 +283,11 @@ public class VectorizedArrowReader implements VectorizedReader<NullabilityHolder
   }
 
   @Override
+  public void reuseContainers(boolean reuse) {
+    this.reuseContainers = reuse;
+  }
+
+  @Override
   public String toString() {
     return columnDescriptor.toString();
   }
@@ -287,7 +295,7 @@ public class VectorizedArrowReader implements VectorizedReader<NullabilityHolder
   public static final VectorizedArrowReader NULL_VALUES_READER =
       new VectorizedArrowReader() {
         @Override
-        public VectorHolder read(NullabilityHolder holder) {
+        public VectorHolder read() {
           return VectorHolder.NULL_VECTOR_HOLDER;
         }
 

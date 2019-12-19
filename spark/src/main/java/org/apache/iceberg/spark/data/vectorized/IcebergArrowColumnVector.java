@@ -70,9 +70,9 @@ public class IcebergArrowColumnVector extends ColumnVector {
   private final boolean isVectorDictEncoded;
   private ArrowColumnVector[] childColumns;
 
-  public IcebergArrowColumnVector(VectorHolder holder, NullabilityHolder nulls) {
+  public IcebergArrowColumnVector(VectorHolder holder) {
     super(ArrowUtils.instance().fromArrowField(holder.getVector().getField()));
-    this.nullabilityHolder = nulls;
+    this.nullabilityHolder = holder.getNullabilityHolder();
     this.columnDescriptor = holder.getDescriptor();
     this.dictionary = holder.getDictionary();
     this.isVectorDictEncoded = holder.isDictionaryEncoded();

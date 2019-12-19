@@ -35,18 +35,21 @@ public class VectorHolder {
 
   @Nullable
   private final Dictionary dictionary;
+  private final NullabilityHolder nullabilityHolder;
 
-  public static final VectorHolder NULL_VECTOR_HOLDER = new VectorHolder(null, null, false, null);
+  public static final VectorHolder NULL_VECTOR_HOLDER = new VectorHolder(null, null, false, null, null);
 
   public VectorHolder(
       ColumnDescriptor columnDescriptor,
       FieldVector vector,
       boolean isDictionaryEncoded,
-      Dictionary dictionary) {
+      Dictionary dictionary,
+      NullabilityHolder holder) {
     this.columnDescriptor = columnDescriptor;
     this.vector = vector;
     this.isDictionaryEncoded = isDictionaryEncoded;
     this.dictionary = dictionary;
+    this.nullabilityHolder = holder;
   }
 
   public ColumnDescriptor getDescriptor() {
@@ -63,5 +66,9 @@ public class VectorHolder {
 
   public Dictionary getDictionary() {
     return dictionary;
+  }
+
+  public NullabilityHolder getNullabilityHolder() {
+    return nullabilityHolder;
   }
 }
