@@ -87,7 +87,9 @@ public class SparkFilters {
   public static Expression convert(Filter[] filters) {
     Expression expression = Expressions.alwaysTrue();
     for (Filter filter : filters) {
-      expression = Expressions.and(expression, convert(filter));
+      Expression converted = convert(filter);
+      Preconditions.checkArgument(converted != null, "Cannot convert filter to Iceberg: %s", filter);
+      expression = Expressions.and(expression, converted);
     }
     return expression;
   }

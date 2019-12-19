@@ -24,6 +24,8 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.DeleteFiles;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
@@ -126,10 +128,15 @@ public class SparkTable
 
   @Override
   public void deleteWhere(Filter[] filters) {
-    icebergTable.newDelete()
-        .set("spark.app.id", sparkSession().sparkContext().applicationId())
-        .deleteFromRowFilter(SparkFilters.convert(filters))
-        .commit();
+    Expression deleteExpr = SparkFilters.convert(filters);
+    try {
+      icebergTable.newDelete()
+          .set("spark.app.id", sparkSession().sparkContext().applicationId())
+          .deleteFromRowFilter(deleteExpr)
+          .commit();
+    } catch (ValidationException e) {
+      throw new IllegalArgumentException("Failed to cleanly delete data files matching: " + deleteExpr, e);
+    }
   }
 
   @Override
