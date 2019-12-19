@@ -90,14 +90,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   protected void doRefresh() {
     String metadataLocation = null;
     try {
-      final Table table = metaClients.run(client -> client.getTable(database, tableName));
-      String tableType = table.getParameters().get(TABLE_TYPE_PROP);
-
-      if (tableType == null || !tableType.equalsIgnoreCase(ICEBERG_TABLE_TYPE_VALUE)) {
-        throw new NotIcebergException("Type of %s.%s is %s, not %s",
-            database, tableName,
-            tableType /* actual type */, ICEBERG_TABLE_TYPE_VALUE /* expected type */);
-      }
+      Table table = metaClients.run(client -> client.getTable(database, tableName));
+      validateTableIsIceberg(table, database, tableName);
 
       metadataLocation = table.getParameters().get(METADATA_LOCATION_PROP);
       if (metadataLocation == null) {
@@ -267,6 +261,15 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       } catch (Exception e) {
         throw new RuntimeException(String.format("Failed to unlock %s.%s", database, tableName), e);
       }
+    }
+  }
+
+  static void validateTableIsIceberg(Table table, String database, String tableName) {
+    String tableType = table.getParameters().get(TABLE_TYPE_PROP);
+    if (tableType == null || !tableType.equalsIgnoreCase(ICEBERG_TABLE_TYPE_VALUE)) {
+      throw new NotIcebergException("Type of %s.%s is %s, not %s",
+          database, tableName,
+          tableType /* actual type */, ICEBERG_TABLE_TYPE_VALUE /* expected type */);
     }
   }
 }

@@ -140,23 +140,27 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
 
   @Override
   public Table alterTable(Identifier ident, TableChange... changes) throws NoSuchTableException {
-    try {
+    if (icebergCatalog.tableExists(ident)) {
       return icebergCatalog.alterTable(ident, changes);
-    } catch (NoSuchTableException e) {
+    } else {
       return sessionCatalog.alterTable(ident, changes);
     }
   }
 
   @Override
   public boolean dropTable(Identifier ident) {
+    // no need to check table existence to determine which catalog to use. if a table doesn't exist then both are
+    // required to return false.
     return icebergCatalog.dropTable(ident) || sessionCatalog.dropTable(ident);
   }
 
   @Override
   public void renameTable(Identifier from, Identifier to) throws NoSuchTableException, TableAlreadyExistsException {
-    try {
+    // rename is not supported by HadoopCatalog. to avoid UnsupportedOperationException for session catalog tables,
+    // check table existence first to ensure that the table belongs to the Iceberg catalog.
+    if (icebergCatalog.tableExists(from)) {
       icebergCatalog.renameTable(from, to);
-    } catch (NoSuchTableException e) {
+    } else {
       sessionCatalog.renameTable(from, to);
     }
   }
