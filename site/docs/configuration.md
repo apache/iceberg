@@ -38,11 +38,15 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.parquet.page-size-bytes      | 1048576 (1 MB)     | Parquet page size                                  |
 | write.parquet.dict-size-bytes      | 2097152 (2 MB)     | Parquet dictionary page size                       |
 | write.parquet.compression-codec    | gzip               | Parquet compression codec                          |
+| write.parquet.compression-level    | null               | Parquet compression level                          |
 | write.avro.compression-codec       | gzip               | Avro compression codec                             |
 | write.metadata.compression-codec   | none               | Metadata compression codec; none or gzip           |
 | write.metadata.metrics.default     | truncate(16)       | Default metrics mode for all columns in the table; none, counts, truncate(length), or full |
 | write.metadata.metrics.column.col1 | (not set)          | Metrics mode for column 'col1' to allow per-column tuning; none, counts, truncate(length), or full |
-| write.target-file-size-bytes       | Long.MAX_VALUE     | Controls the size of files generated to target about this many bytes. |
+| write.target-file-size-bytes       | Long.MAX_VALUE     | Controls the size of files generated to target about this many bytes |
+| write.wap.enabled                  | false              | Enables write-audit-publish writes |
+| write.metadata.delete-after-commit.enabled | false      | Controls whether to delete the oldest version metadata files after commit |
+| write.metadata.previous-versions-max       | 100        | The max number of previous version metadata files to keep before deleting after commit |
 
 ### Table behavior properties
 
@@ -54,6 +58,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | commit.retry.total-timeout-ms      | 1800000 (30 min) | Maximum time in milliseconds to wait before retrying a commit |
 | commit.manifest.target-size-bytes  | 8388608 (8 MB)   | Target size when merging manifest files                       |
 | commit.manifest.min-count-to-merge | 100              | Minimum number of manifests to accumulate before merging      |
+| commit.manifest-merge.enabled      | true             | Controls whether to automatically merge manifests on writes   |
 
 
 ## Spark options
@@ -95,4 +100,3 @@ df.write
 | write-format | Table write.format.default | File format to use for this write operation; parquet or avro |
 | target-file-size-bytes | As per table property | Overrides this table's write.target-file-size-bytes     |
 | check-nullability | true         | Sets the nullable check on fields                        |
-

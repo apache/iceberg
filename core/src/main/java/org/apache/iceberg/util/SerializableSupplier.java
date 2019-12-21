@@ -17,24 +17,9 @@
  * under the License.
  */
 
-def jmhProjects = [ project("iceberg-spark") ]
+package org.apache.iceberg.util;
 
-configure(jmhProjects) {
-  apply plugin: 'me.champeau.gradle.jmh'
+import java.io.Serializable;
+import java.util.function.Supplier;
 
-  jmh {
-    jmhVersion = jmhVersion
-    failOnError = true
-    forceGC = true
-    includeTests = true
-    humanOutputFile = file(jmhOutputPath)
-    include = [jmhIncludeRegex]
-  }
-
-  jmhCompileGeneratedClasses {
-    pluginManager.withPlugin('com.palantir.baseline-error-prone') {
-      options.errorprone.enabled = false
-    }
-  }
-}
-
+public interface SerializableSupplier<T> extends Supplier<T>, Serializable {}

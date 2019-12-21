@@ -77,6 +77,14 @@ public class TableIdentifier {
     return name;
   }
 
+  public TableIdentifier toLowerCase() {
+    String[] newLevels = Arrays.stream(namespace().levels())
+        .map(String::toLowerCase)
+        .toArray(String[]::new);
+    String newName = name().toLowerCase();
+    return TableIdentifier.of(Namespace.of(newLevels), newName);
+  }
+
   @Override
   public boolean equals(Object other) {
     if (this == other) {

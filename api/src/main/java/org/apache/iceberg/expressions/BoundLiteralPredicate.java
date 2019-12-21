@@ -25,8 +25,8 @@ import java.util.Comparator;
 public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
   private final Literal<T> literal;
 
-  BoundLiteralPredicate(Operation op, BoundReference<T> ref, Literal<T> lit) {
-    super(op, ref);
+  BoundLiteralPredicate(Operation op, BoundTerm<T> term, Literal<T> lit) {
+    super(op, term);
     Preconditions.checkArgument(op != Operation.IN && op != Operation.NOT_IN,
         "Bound literal predicate does not support operation: %s", op);
     this.literal = lit;
@@ -73,23 +73,23 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
   public String toString() {
     switch (op()) {
       case LT:
-        return ref() + " < " + literal;
+        return term() + " < " + literal;
       case LT_EQ:
-        return ref() + " <= " + literal;
+        return term() + " <= " + literal;
       case GT:
-        return ref() + " > " + literal;
+        return term() + " > " + literal;
       case GT_EQ:
-        return ref() + " >= " + literal;
+        return term() + " >= " + literal;
       case EQ:
-        return ref() + " == " + literal;
+        return term() + " == " + literal;
       case NOT_EQ:
-        return ref() + " != " + literal;
+        return term() + " != " + literal;
       case STARTS_WITH:
-        return ref() + " startsWith \"" + literal + "\"";
+        return term() + " startsWith \"" + literal + "\"";
       case IN:
-        return ref() + " in { " + literal + " }";
+        return term() + " in { " + literal + " }";
       case NOT_IN:
-        return ref() + " not in { " + literal + " }";
+        return term() + " not in { " + literal + " }";
       default:
         return "Invalid literal predicate: operation = " + op();
     }

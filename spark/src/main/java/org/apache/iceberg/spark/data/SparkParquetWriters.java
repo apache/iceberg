@@ -413,11 +413,9 @@ public class SparkParquetWriters {
       private final ArrayData keys;
       private final ArrayData values;
       private final ReusableEntry<K, V> entry;
-      private final MapData map;
       private int index;
 
       private EntryIterator(MapData map) {
-        this.map = map;
         size = map.numElements();
         keys = map.keyArray();
         values = map.valueArray();

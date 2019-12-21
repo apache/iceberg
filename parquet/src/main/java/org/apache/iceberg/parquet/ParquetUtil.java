@@ -339,11 +339,8 @@ public class ParquetUtil {
       encodings.remove(Encoding.RLE);
       encodings.remove(Encoding.BIT_PACKED);
 
-      if (encodings.isEmpty()) {
-        return false; // no encodings other than dictionary or rep/def levels
-      }
-
-      return true;
+      // when empty, no encodings other than dictionary or rep/def levels
+      return !encodings.isEmpty();
     } else {
       // if PLAIN_DICTIONARY wasn't present, then either the column is not
       // dictionary-encoded, or the 2.0 encoding, RLE_DICTIONARY, was used.

@@ -24,6 +24,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
@@ -71,6 +72,10 @@ enum Dates implements Transform<Integer, Integer> {
 
   @Override
   public UnboundPredicate<Integer> project(String fieldName, BoundPredicate<Integer> pred) {
+    if (pred.term() instanceof BoundTransform) {
+      return ProjectionUtil.projectTransformPredicate(this, name, pred);
+    }
+
     if (pred.isUnaryPredicate()) {
       return Expressions.predicate(pred.op(), fieldName);
     } else if (pred.isLiteralPredicate()) {
@@ -81,6 +86,10 @@ enum Dates implements Transform<Integer, Integer> {
 
   @Override
   public UnboundPredicate<Integer> projectStrict(String fieldName, BoundPredicate<Integer> pred) {
+    if (pred.term() instanceof BoundTransform) {
+      return ProjectionUtil.projectTransformPredicate(this, name, pred);
+    }
+
     if (pred.isUnaryPredicate()) {
       return Expressions.predicate(pred.op(), fieldName);
     } else if (pred.isLiteralPredicate()) {

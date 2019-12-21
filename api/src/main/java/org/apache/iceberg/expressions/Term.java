@@ -17,24 +17,12 @@
  * under the License.
  */
 
-def jmhProjects = [ project("iceberg-spark") ]
+package org.apache.iceberg.expressions;
 
-configure(jmhProjects) {
-  apply plugin: 'me.champeau.gradle.jmh'
+import java.io.Serializable;
 
-  jmh {
-    jmhVersion = jmhVersion
-    failOnError = true
-    forceGC = true
-    includeTests = true
-    humanOutputFile = file(jmhOutputPath)
-    include = [jmhIncludeRegex]
-  }
-
-  jmhCompileGeneratedClasses {
-    pluginManager.withPlugin('com.palantir.baseline-error-prone') {
-      options.errorprone.enabled = false
-    }
-  }
+/**
+ * An expression that evaluates to a value.
+ */
+public interface Term extends Serializable {
 }
-
