@@ -223,7 +223,7 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
 
     Assert.assertNotNull("Field missing from table mapping is renamed", point.getSchema().getField("y_r18"));
     Assert.assertEquals("point.x is projected", 1, point.get("x"));
-    Assert.assertNull("point.y is not projected", point.get("y"));
+    Assert.assertNull("point.y is not projected", point.get("y_r18"));
     Assert.assertEquals(34L, projected.get("id"));
   }
 
