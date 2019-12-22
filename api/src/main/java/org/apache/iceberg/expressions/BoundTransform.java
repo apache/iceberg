@@ -19,49 +19,46 @@
 
 package org.apache.iceberg.expressions;
 
-import org.apache.iceberg.Accessor;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 
-public class BoundReference<T> implements BoundTerm<T>, Reference<T> {
-  private final Types.NestedField field;
-  private final Accessor<StructLike> accessor;
+/**
+ * A transform expression.
+ *
+ * @param <S> the Java type of values transformed by this function.
+ * @param <T> the Java type of values returned by the function.
+ */
+public class BoundTransform<S, T> implements BoundTerm<T> {
+  private final BoundReference<S> ref;
+  private final Transform<S, T> transform;
 
-  BoundReference(Types.NestedField field, Accessor<StructLike> accessor) {
-    this.field = field;
-    this.accessor = accessor;
+  BoundTransform(BoundReference<S> ref, Transform<S, T> transform) {
+    this.ref = ref;
+    this.transform = transform;
   }
 
   @Override
-  @SuppressWarnings("unchecked")
   public T eval(StructLike struct) {
-    return (T) accessor.get(struct);
-  }
-
-  public Types.NestedField field() {
-    return field;
+    return transform.apply(ref.eval(struct));
   }
 
   @Override
-  public BoundReference<T> ref() {
-    return this;
+  public BoundReference<S> ref() {
+    return ref;
   }
 
+  public Transform<S, T> transform() {
+    return transform;
+  }
+
+  @Override
   public Type type() {
-    return field.type();
-  }
-
-  public int fieldId() {
-    return field.fieldId();
-  }
-
-  public Accessor<StructLike> accessor() {
-    return accessor;
+    return transform.getResultType(ref.type());
   }
 
   @Override
   public String toString() {
-    return String.format("ref(id=%d, accessor-type=%s)", field.fieldId(), accessor.type());
+    return transform + "(" + ref + ")";
   }
 }

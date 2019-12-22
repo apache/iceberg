@@ -19,24 +19,10 @@
 
 package org.apache.iceberg.expressions;
 
-import com.google.common.base.Preconditions;
-
-public abstract class Predicate<T, C extends Term> implements Expression {
-  private final Operation op;
-  private final C term;
-
-  Predicate(Operation op, C term) {
-    Preconditions.checkNotNull(term, "Term cannot be null");
-    this.op = op;
-    this.term = term;
-  }
-
-  @Override
-  public Operation op() {
-    return op;
-  }
-
-  public C term() {
-    return term;
-  }
+/**
+ * Represents an unbound term.
+ *
+ * @param <T> the Java type of values produced by this term
+ */
+public interface UnboundTerm<T> extends Unbound<T, BoundTerm<T>>, Term {
 }

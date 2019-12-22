@@ -19,24 +19,25 @@
 
 package org.apache.iceberg.expressions;
 
-import com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Types;
 
-public abstract class Predicate<T, C extends Term> implements Expression {
-  private final Operation op;
-  private final C term;
+/**
+ * Represents an unbound expression node.
+ * @param <T> the Java type of values produced by this node
+ * @param <B> the Java type produced when this node is bound using {@link #bind(Types.StructType, boolean)}
+ */
+public interface Unbound<T, B> {
+  /**
+   * Bind this value expression to concrete types.
+   *
+   * @param struct input data types
+   * @param caseSensitive whether binding should match columns using case sensitive resolution
+   * @return a bound value expression
+   */
+  B bind(Types.StructType struct, boolean caseSensitive);
 
-  Predicate(Operation op, C term) {
-    Preconditions.checkNotNull(term, "Term cannot be null");
-    this.op = op;
-    this.term = term;
-  }
-
-  @Override
-  public Operation op() {
-    return op;
-  }
-
-  public C term() {
-    return term;
-  }
+  /**
+   * @return this expression's underlying reference
+   */
+  NamedReference<?> ref();
 }

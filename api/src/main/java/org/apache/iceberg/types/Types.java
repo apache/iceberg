@@ -611,37 +611,35 @@ public class Types {
 
     private Map<String, NestedField> lazyFieldsByName() {
       if (fieldsByName == null) {
-        indexFields();
+        ImmutableMap.Builder<String, NestedField> byNameBuilder = ImmutableMap.builder();
+        for (NestedField field : fields) {
+          byNameBuilder.put(field.name(), field);
+        }
+        fieldsByName = byNameBuilder.build();
       }
       return fieldsByName;
     }
 
     private Map<String, NestedField> lazyFieldsByLowerCaseName() {
       if (fieldsByLowerCaseName == null) {
-        indexFields();
+        ImmutableMap.Builder<String, NestedField> byLowerCaseNameBuilder = ImmutableMap.builder();
+        for (NestedField field : fields) {
+          byLowerCaseNameBuilder.put(field.name().toLowerCase(Locale.ROOT), field);
+        }
+        fieldsByLowerCaseName = byLowerCaseNameBuilder.build();
       }
       return fieldsByLowerCaseName;
     }
 
     private Map<Integer, NestedField> lazyFieldsById() {
       if (fieldsById == null) {
-        indexFields();
+        ImmutableMap.Builder<Integer, NestedField> byIdBuilder = ImmutableMap.builder();
+        for (NestedField field : fields) {
+          byIdBuilder.put(field.fieldId(), field);
+        }
+        this.fieldsById = byIdBuilder.build();
       }
       return fieldsById;
-    }
-
-    private void indexFields() {
-      ImmutableMap.Builder<String, NestedField> byNameBuilder = ImmutableMap.builder();
-      ImmutableMap.Builder<String, NestedField> byLowerCaseNameBuilder = ImmutableMap.builder();
-      ImmutableMap.Builder<Integer, NestedField> byIdBuilder = ImmutableMap.builder();
-      for (NestedField field : fields) {
-        byNameBuilder.put(field.name(), field);
-        byLowerCaseNameBuilder.put(field.name().toLowerCase(Locale.ROOT), field);
-        byIdBuilder.put(field.fieldId(), field);
-      }
-      this.fieldsByName = byNameBuilder.build();
-      this.fieldsByLowerCaseName = byLowerCaseNameBuilder.build();
-      this.fieldsById = byIdBuilder.build();
     }
   }
 

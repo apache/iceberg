@@ -19,24 +19,25 @@
 
 package org.apache.iceberg.expressions;
 
-import com.google.common.base.Preconditions;
+import java.util.Comparator;
+import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Type;
 
-public abstract class Predicate<T, C extends Term> implements Expression {
-  private final Operation op;
-  private final C term;
+/**
+ * Represents a bound term.
+ *
+ * @param <T> the Java type of values produced by this term
+ */
+public interface BoundTerm<T> extends Bound<T>, Term {
+  /**
+   * @return the type produced by this expression
+   */
+  Type type();
 
-  Predicate(Operation op, C term) {
-    Preconditions.checkNotNull(term, "Term cannot be null");
-    this.op = op;
-    this.term = term;
-  }
-
-  @Override
-  public Operation op() {
-    return op;
-  }
-
-  public C term() {
-    return term;
+  /**
+   * @return a {@link Comparator} for values produced by this term
+   */
+  default Comparator<T> comparator() {
+    return Comparators.forType(type().asPrimitiveType());
   }
 }
