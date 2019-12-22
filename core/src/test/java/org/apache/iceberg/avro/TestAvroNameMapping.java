@@ -90,7 +90,7 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
     projected = writeAndRead(writeSchema, readSchema, record, nameMapping);
     Record projectedL1 = ((Map<String, Record>) projected.get("location")).get("l1");
     Assert.assertNotNull("Field missing from table mapping is renamed", projectedL1.getSchema().getField("long_r2"));
-    Assert.assertNull("location.value.long, should not be read", projectedL1.get("long"));
+    Assert.assertNull("location.value.long, should not be read", projectedL1.get("long_r2"));
   }
 
   @Test
