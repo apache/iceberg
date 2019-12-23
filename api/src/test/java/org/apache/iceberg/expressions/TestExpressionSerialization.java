@@ -99,13 +99,36 @@ public class TestExpressionSerialization {
     }
   }
 
+  private static boolean equals(Term left, Term right) {
+    if (left instanceof Reference && right instanceof Reference) {
+      return equals((Reference<?>) left, (Reference<?>) right);
+    } else if (left instanceof UnboundTransform && right instanceof UnboundTransform) {
+      UnboundTransform<?, ?> unboundLeft = (UnboundTransform<?, ?>) left;
+      UnboundTransform<?, ?> unboundRight = (UnboundTransform<?, ?>) right;
+      if (equals(unboundLeft.ref(), unboundRight.ref()) &&
+          unboundLeft.transform().toString().equals(unboundRight.transform().toString())) {
+        return true;
+      }
+
+    } else if (left instanceof BoundTransform && right instanceof BoundTransform) {
+      BoundTransform<?, ?> boundLeft = (BoundTransform<?, ?>) left;
+      BoundTransform<?, ?> boundRight = (BoundTransform<?, ?>) right;
+      if (equals(boundLeft.ref(), boundRight.ref()) &&
+          boundLeft.transform().toString().equals(boundRight.transform().toString())) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
   private static boolean equals(Predicate left, Predicate right) {
     if (left.op() != right.op()) {
       return false;
     }
 
-    if (!equals(left.ref(), right.ref())) {
+    if (!equals(left.term(), right.term())) {
       return false;
     }
 
@@ -151,7 +174,7 @@ public class TestExpressionSerialization {
     return left.containsAll(right);
   }
 
-  private static boolean equals(Reference left, Reference right) {
+  private static boolean equals(Reference<?> left, Reference<?> right) {
     if (left instanceof NamedReference) {
       if (!(right instanceof NamedReference)) {
         return false;

@@ -90,8 +90,9 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     TableIdentifier tbl1 = TableIdentifier.of("db", "tbl1");
     TableIdentifier tbl2 = TableIdentifier.of("db", "tbl2");
     TableIdentifier tbl3 = TableIdentifier.of("db", "ns1", "tbl3");
+    TableIdentifier tbl4 = TableIdentifier.of("db", "metadata", "metadata");
 
-    Lists.newArrayList(tbl1, tbl2, tbl3).forEach(t ->
+    Lists.newArrayList(tbl1, tbl2, tbl3, tbl4).forEach(t ->
         catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned())
     );
 
@@ -107,7 +108,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     AssertHelpers.assertThrows("should throw exception", NotFoundException.class,
         "Unknown namespace", () -> {
-        catalog.listTables(Namespace.of("db", "ns1", "ns2"));
-      });
+          catalog.listTables(Namespace.of("db", "ns1", "ns2"));
+        });
   }
 }

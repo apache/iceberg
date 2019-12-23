@@ -17,24 +17,26 @@
  * under the License.
  */
 
-def jmhProjects = [ project("iceberg-spark") ]
+package org.apache.iceberg.expressions;
 
-configure(jmhProjects) {
-  apply plugin: 'me.champeau.gradle.jmh'
+import org.apache.iceberg.StructLike;
 
-  jmh {
-    jmhVersion = jmhVersion
-    failOnError = true
-    forceGC = true
-    includeTests = true
-    humanOutputFile = file(jmhOutputPath)
-    include = [jmhIncludeRegex]
-  }
+/**
+ * Represents a bound value expression.
+ *
+ * @param <T> the Java type of values produced by this expression
+ */
+public interface Bound<T> {
+  /**
+   * @return the underlying reference
+   */
+  BoundReference<?> ref();
 
-  jmhCompileGeneratedClasses {
-    pluginManager.withPlugin('com.palantir.baseline-error-prone') {
-      options.errorprone.enabled = false
-    }
-  }
+  /**
+   * Produce a value from the struct for this expression.
+   *
+   * @param struct a struct of incoming data
+   * @return the value of this expression when evaluated on the incoming struct
+   */
+  T eval(StructLike struct);
 }
-

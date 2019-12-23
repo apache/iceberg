@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.expressions.BoundLiteralPredicate;
 import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.BoundUnaryPredicate;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
@@ -111,6 +112,10 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
   @Override
   public UnboundPredicate<Integer> project(String name, BoundPredicate<T> predicate) {
+    if (predicate.term() instanceof BoundTransform) {
+      return ProjectionUtil.projectTransformPredicate(this, name, predicate);
+    }
+
     if (predicate instanceof BoundUnaryPredicate) {
       return Expressions.predicate(predicate.op(), name);
     } else if (predicate instanceof BoundLiteralPredicate) {
@@ -135,6 +140,10 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
   @Override
   public UnboundPredicate<Integer> projectStrict(String name, BoundPredicate<T> predicate) {
+    if (predicate.term() instanceof BoundTransform) {
+      return ProjectionUtil.projectTransformPredicate(this, name, predicate);
+    }
+
     if (predicate instanceof BoundUnaryPredicate) {
       return Expressions.predicate(predicate.op(), name);
     } else if (predicate instanceof BoundLiteralPredicate) {
@@ -305,9 +314,9 @@ abstract class Bucket<T> implements Transform<T, Integer> {
     @Override
     public int hash(UUID value) {
       return MURMUR3.newHasher(16)
-              .putLong(Long.reverseBytes(value.getMostSignificantBits()))
-              .putLong(Long.reverseBytes(value.getLeastSignificantBits()))
-              .hash().asInt();
+          .putLong(Long.reverseBytes(value.getMostSignificantBits()))
+          .putLong(Long.reverseBytes(value.getLeastSignificantBits()))
+          .hash().asInt();
     }
 
     @Override

@@ -25,6 +25,7 @@ import java.util.List;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.transforms.Transform;
 
 /**
@@ -115,7 +116,7 @@ public class ResidualEvaluator implements Serializable {
     return visitor().eval(partitionData);
   }
 
-  private class ResidualVisitor extends ExpressionVisitors.BoundExpressionVisitor<Expression> {
+  private class ResidualVisitor extends BoundExpressionVisitor<Expression> {
     private StructLike struct;
 
     private Expression eval(StructLike dataStruct) {
@@ -150,68 +151,65 @@ public class ResidualEvaluator implements Serializable {
 
     @Override
     public <T> Expression isNull(BoundReference<T> ref) {
-      return (ref.get(struct) == null) ? alwaysTrue() : alwaysFalse();
+      return (ref.eval(struct) == null) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
     public <T> Expression notNull(BoundReference<T> ref) {
-      return (ref.get(struct) != null) ? alwaysTrue() : alwaysFalse();
+      return (ref.eval(struct) != null) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
     public <T> Expression lt(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.get(struct), lit.value()) < 0) ? alwaysTrue() : alwaysFalse();
+      return (cmp.compare(ref.eval(struct), lit.value()) < 0) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
     public <T> Expression ltEq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.get(struct), lit.value()) <= 0) ? alwaysTrue() : alwaysFalse();
+      return (cmp.compare(ref.eval(struct), lit.value()) <= 0) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
     public <T> Expression gt(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.get(struct), lit.value()) > 0) ? alwaysTrue() : alwaysFalse();
+      return (cmp.compare(ref.eval(struct), lit.value()) > 0) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
     public <T> Expression gtEq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.get(struct), lit.value()) >= 0) ? alwaysTrue() : alwaysFalse();
+      return (cmp.compare(ref.eval(struct), lit.value()) >= 0) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
     public <T> Expression eq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.get(struct), lit.value()) == 0) ? alwaysTrue() : alwaysFalse();
+      return (cmp.compare(ref.eval(struct), lit.value()) == 0) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
     public <T> Expression notEq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return (cmp.compare(ref.get(struct), lit.value()) != 0) ? alwaysTrue() : alwaysFalse();
+      return (cmp.compare(ref.eval(struct), lit.value()) != 0) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
     public <T> Expression startsWith(BoundReference<T> ref, Literal<T> lit) {
-      return ((String) ref.get(struct)).startsWith((String) lit.value()) ? alwaysTrue() : alwaysFalse();
+      return ((String) ref.eval(struct)).startsWith((String) lit.value()) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public <T> Expression predicate(BoundPredicate<T> pred) {
-      /**
-       * Get the strict projection and inclusive projection of this predicate in partition data,
-       * then use them to determine whether to return the original predicate. The strict projection
-       * returns true iff the original predicate would have returned true, so the predicate can be
-       * eliminated if the strict projection evaluates to true. Similarly the inclusive projection
-       * returns false iff the original predicate would have returned false, so the predicate can
-       * also be eliminated if the inclusive projection evaluates to false.
-       */
+      // Get the strict projection and inclusive projection of this predicate in partition data,
+      // then use them to determine whether to return the original predicate. The strict projection
+      // returns true iff the original predicate would have returned true, so the predicate can be
+      // eliminated if the strict projection evaluates to true. Similarly the inclusive projection
+      // returns false iff the original predicate would have returned false, so the predicate can
+      // also be eliminated if the inclusive projection evaluates to false.
 
-      //
       // If there is no strict projection or if it evaluates to false, then return the predicate.
       List<PartitionField> parts = spec.getFieldsBySourceId(pred.ref().fieldId());
       if (parts == null) {

@@ -17,24 +17,12 @@
  * under the License.
  */
 
-def jmhProjects = [ project("iceberg-spark") ]
+package org.apache.iceberg.expressions;
 
-configure(jmhProjects) {
-  apply plugin: 'me.champeau.gradle.jmh'
-
-  jmh {
-    jmhVersion = jmhVersion
-    failOnError = true
-    forceGC = true
-    includeTests = true
-    humanOutputFile = file(jmhOutputPath)
-    include = [jmhIncludeRegex]
-  }
-
-  jmhCompileGeneratedClasses {
-    pluginManager.withPlugin('com.palantir.baseline-error-prone') {
-      options.errorprone.enabled = false
-    }
-  }
+/**
+ * Represents an unbound term.
+ *
+ * @param <T> the Java type of values produced by this term
+ */
+public interface UnboundTerm<T> extends Unbound<T, BoundTerm<T>>, Term {
 }
-

@@ -187,8 +187,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           case UTF8:
           case BSON:
             this.vec = new IcebergVarcharArrowVector(icebergField.name(), rootAlloc);
+            //TODO: Possibly use the uncompressed page size info to set the initial capacity
             vec.setInitialCapacity(batchSize * 10);
-            //TODO: samarth use the uncompressed page size info here
             vec.allocateNewSafe();
             return UNKNOWN_WIDTH;
           case INT_8:
@@ -242,8 +242,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
             return len;
           case BINARY:
             this.vec = new IcebergVarBinaryArrowVector(icebergField.name(), rootAlloc);
+            //TODO: Possibly use the uncompressed page size info to set the initial capacity
             vec.setInitialCapacity(batchSize * 10);
-            //TODO: samarth use the uncompressed page size info here
             vec.allocateNewSafe();
             return UNKNOWN_WIDTH;
           case INT32:

@@ -19,13 +19,16 @@
 
 package org.apache.iceberg.expressions;
 
-public abstract class Predicate<R extends Reference> implements Expression {
-  private final Operation op;
-  private final R ref;
+import com.google.common.base.Preconditions;
 
-  Predicate(Operation op, R ref) {
+public abstract class Predicate<T, C extends Term> implements Expression {
+  private final Operation op;
+  private final C term;
+
+  Predicate(Operation op, C term) {
+    Preconditions.checkNotNull(term, "Term cannot be null");
     this.op = op;
-    this.ref = ref;
+    this.term = term;
   }
 
   @Override
@@ -33,7 +36,7 @@ public abstract class Predicate<R extends Reference> implements Expression {
     return op;
   }
 
-  public R ref() {
-    return ref;
+  public C term() {
+    return term;
   }
 }

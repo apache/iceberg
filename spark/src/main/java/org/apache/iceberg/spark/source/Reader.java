@@ -67,6 +67,7 @@ import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Attribute;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
@@ -111,8 +112,8 @@ class Reader implements DataSourceReader,
   private final Long splitSize;
   private final Integer splitLookback;
   private final Long splitOpenFileCost;
-  private final FileIO fileIo;
-  private final EncryptionManager encryptionManager;
+  private final Broadcast<FileIO> io;
+  private final Broadcast<EncryptionManager> encryptionManager;
   private final boolean caseSensitive;
   private final int numRecordsPerBatch;
   private StructType requestedSchema = null;
@@ -125,7 +126,8 @@ class Reader implements DataSourceReader,
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
   private Boolean enableBatchedReads = null; // cache variable for enabling batched reads
 
-  Reader(Table table, boolean caseSensitive, DataSourceOptions options) {
+  Reader(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
+         boolean caseSensitive, DataSourceOptions options) {
     this.table = table;
     this.snapshotId = options.get("snapshot-id").map(Long::parseLong).orElse(null);
     this.asOfTimestamp = options.get("as-of-timestamp").map(Long::parseLong).orElse(null);
@@ -156,8 +158,8 @@ class Reader implements DataSourceReader,
     this.splitOpenFileCost = options.get("file-open-cost").map(Long::parseLong).orElse(null);
 
     this.schema = table.schema();
-    this.fileIo = table.io();
-    this.encryptionManager = table.encryption();
+    this.io = io;
+    this.encryptionManager = encryptionManager;
     this.caseSensitive = caseSensitive;
   }
 
@@ -197,7 +199,7 @@ class Reader implements DataSourceReader,
     for (CombinedScanTask task : tasks()) {
       readTasks.add(
           new VectorizedReading.ReadTask(task, tableSchemaString, expectedSchemaString,
-              fileIo, encryptionManager, caseSensitive, numRecordsPerBatch));
+              io.value(), encryptionManager.value(), caseSensitive, numRecordsPerBatch));
     }
     LOG.info("=> Batching input partitions with {} tasks.", readTasks.size());
 
@@ -216,7 +218,7 @@ class Reader implements DataSourceReader,
     List<InputPartition<InternalRow>> readTasks = Lists.newArrayList();
     for (CombinedScanTask task : tasks()) {
       readTasks.add(
-          new ReadTask(task, tableSchemaString, expectedSchemaString, fileIo, encryptionManager, caseSensitive));
+          new ReadTask(task, tableSchemaString, expectedSchemaString, io, encryptionManager, caseSensitive));
     }
 
     return readTasks;
@@ -372,28 +374,28 @@ class Reader implements DataSourceReader,
     private final CombinedScanTask task;
     private final String tableSchemaString;
     private final String expectedSchemaString;
-    private final FileIO fileIo;
-    private final EncryptionManager encryptionManager;
+    private final Broadcast<FileIO> io;
+    private final Broadcast<EncryptionManager> encryptionManager;
     private final boolean caseSensitive;
 
     private transient Schema tableSchema = null;
     private transient Schema expectedSchema = null;
 
-    private ReadTask(
-        CombinedScanTask task, String tableSchemaString, String expectedSchemaString, FileIO fileIo,
-        EncryptionManager encryptionManager, boolean caseSensitive) {
+    private ReadTask(CombinedScanTask task, String tableSchemaString, String expectedSchemaString,
+                     Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
+                     boolean caseSensitive) {
       this.task = task;
       this.tableSchemaString = tableSchemaString;
       this.expectedSchemaString = expectedSchemaString;
-      this.fileIo = fileIo;
+      this.io = io;
       this.encryptionManager = encryptionManager;
       this.caseSensitive = caseSensitive;
     }
 
     @Override
     public InputPartitionReader<InternalRow> createPartitionReader() {
-      return new TaskDataReader(task, lazyTableSchema(), lazyExpectedSchema(), fileIo,
-        encryptionManager, caseSensitive);
+      return new TaskDataReader(task, lazyTableSchema(), lazyExpectedSchema(), io.value(),
+        encryptionManager.value(), caseSensitive);
     }
 
     private Schema lazyTableSchema() {

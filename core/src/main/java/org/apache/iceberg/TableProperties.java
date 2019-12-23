@@ -59,6 +59,9 @@ public class TableProperties {
   public static final String PARQUET_COMPRESSION = "write.parquet.compression-codec";
   public static final String PARQUET_COMPRESSION_DEFAULT = "gzip";
 
+  public static final String PARQUET_COMPRESSION_LEVEL = "write.parquet.compression-level";
+  public static final String PARQUET_COMPRESSION_LEVEL_DEFAULT = null;
+
   public static final String AVRO_COMPRESSION = "write.avro.compression-codec";
   public static final String AVRO_COMPRESSION_DEFAULT = "gzip";
 

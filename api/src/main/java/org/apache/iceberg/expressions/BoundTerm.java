@@ -17,24 +17,27 @@
  * under the License.
  */
 
-def jmhProjects = [ project("iceberg-spark") ]
+package org.apache.iceberg.expressions;
 
-configure(jmhProjects) {
-  apply plugin: 'me.champeau.gradle.jmh'
+import java.util.Comparator;
+import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Type;
 
-  jmh {
-    jmhVersion = jmhVersion
-    failOnError = true
-    forceGC = true
-    includeTests = true
-    humanOutputFile = file(jmhOutputPath)
-    include = [jmhIncludeRegex]
-  }
+/**
+ * Represents a bound term.
+ *
+ * @param <T> the Java type of values produced by this term
+ */
+public interface BoundTerm<T> extends Bound<T>, Term {
+  /**
+   * @return the type produced by this expression
+   */
+  Type type();
 
-  jmhCompileGeneratedClasses {
-    pluginManager.withPlugin('com.palantir.baseline-error-prone') {
-      options.errorprone.enabled = false
-    }
+  /**
+   * @return a {@link Comparator} for values produced by this term
+   */
+  default Comparator<T> comparator() {
+    return Comparators.forType(type().asPrimitiveType());
   }
 }
-

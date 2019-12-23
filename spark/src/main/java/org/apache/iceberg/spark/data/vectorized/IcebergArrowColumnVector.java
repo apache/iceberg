@@ -732,8 +732,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
       this.vector = vector;
     }
 
-    //TODO: samarth not sure this is efficient or correct.
-    //TODO: samarth refer to decodeDictionaryIds in VectorizedColumnReader
+    //TODO: still need to evaluate if this is the most efficient way
     @Override
     final Decimal getDecimal(int rowId, int precision, int scale) {
       if (isNullAt(rowId)) {
@@ -753,7 +752,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
       this.vector = vector;
     }
 
-    //TODO: samarth not sure this is efficient or correct
+    //TODO: still need to evaluate if this is the most efficient way
     @Override
     final Decimal getDecimal(int rowId, int precision, int scale) {
       if (isNullAt(rowId)) {
