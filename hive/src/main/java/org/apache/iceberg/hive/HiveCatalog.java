@@ -99,7 +99,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
     if (!isValidIdentifier(identifier)) {
-      throw new NoSuchTableException("Invalid identifier: %s", identifier);
+      return false;
     }
 
     String database = identifier.namespace().level(0);
@@ -126,7 +126,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
 
       return true;
 
-    } catch (NoSuchObjectException e) {
+    } catch (NoSuchTableException | NoSuchObjectException e) {
       return false;
 
     } catch (TException e) {
@@ -151,6 +151,8 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
 
     try {
       Table table = clients.run(client -> client.getTable(fromDatabase, fromName));
+      HiveTableOperations.validateTableIsIceberg(table, fromDatabase, fromName);
+
       table.setDbName(toDatabase);
       table.setTableName(to.name());
 
