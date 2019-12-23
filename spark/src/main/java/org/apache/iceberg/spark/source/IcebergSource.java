@@ -144,7 +144,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
       return tables.load(path.get());
     } else {
       HiveCatalog hiveCatalog = HiveCatalogs.loadCatalog(conf);
-      TableIdentifier tableIdentifier = TableIdentifier.parse(path.get());
+      TableIdentifier tableIdentifier = TableIdentifier.parse(stripQuote(path.get()));
       return hiveCatalog.loadTable(tableIdentifier);
     }
   }
@@ -227,7 +227,13 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     boolean dataFrameCheckNullability = options.getBoolean("check-nullability", true);
     return sparkCheckNullability && dataFrameCheckNullability;
   }
-
+  private String stripQuote(String part) {
+    if (part.contains("`")) {
+      return part.replace("`", "");
+    } else {
+      return part;
+    }
+  }
   private FileIO fileIO(Table table) {
     if (table.io() instanceof HadoopFileIO) {
       // we need to use Spark's SerializableConfiguration to avoid issues with Kryo serialization
