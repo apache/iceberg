@@ -45,13 +45,15 @@ public class HiveTableBaseTest extends HiveMetastoreTest {
   static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(DB_NAME, TABLE_NAME);
 
   static final Schema schema = new Schema(Types.StructType.of(
-      required(1, "id", Types.LongType.get())).fields());
+      required(1, "id", Types.LongType.get()),
+      optional(2, "time", Types.TimestampType.withoutZone())).fields());
 
   static final Schema altered = new Schema(Types.StructType.of(
       required(1, "id", Types.LongType.get()),
-      optional(2, "data", Types.LongType.get())).fields());
+      optional(2, "time", Types.TimestampType.withoutZone()),
+      optional(3, "data", Types.LongType.get())).fields());
 
-  private static final PartitionSpec partitionSpec = builderFor(schema).identity("id").build();
+  private static final PartitionSpec partitionSpec = builderFor(schema).identity("id").day("time").build();
 
   private Path tableLocation;
 

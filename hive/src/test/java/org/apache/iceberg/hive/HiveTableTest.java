@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.Files;
@@ -238,6 +239,10 @@ public class HiveTableTest extends HiveTableBaseTest {
         .map(Types.NestedField::name)
         .collect(Collectors.toList());
     Assert.assertEquals(icebergColumns, hiveColumns);
+    Table finalIcebergTable = icebergTable;
+    AssertHelpers.assertThrows("Should reject update: ",
+        UnsupportedOperationException.class, "Cannot support to drop the partition column: time",
+        () -> finalIcebergTable.updateSchema().deleteColumn("time").commit());
   }
 
   @Test(expected = CommitFailedException.class)

@@ -150,6 +150,10 @@ class SchemaUpdate implements UpdateSchema {
     Preconditions.checkArgument(!updates.containsKey(field.fieldId()),
         "Cannot delete a column that has updates: %s", name);
 
+    if (base != null && base.spec().getFieldsBySourceId(field.fieldId()).size() != 0) {
+      throw new UnsupportedOperationException("Cannot support to drop the partition column: " + name);
+    }
+
     deletes.add(field.fieldId());
 
     return this;

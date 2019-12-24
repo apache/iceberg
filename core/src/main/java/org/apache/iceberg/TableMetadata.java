@@ -36,7 +36,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -342,7 +341,7 @@ public class TableMetadata {
   }
 
   public TableMetadata updateSchema(Schema newSchema, int newLastColumnId) {
-    checkCompatibility(newSchema);
+    PartitionSpec.checkCompatibility(spec(), newSchema);
     // rebuild all of the partition specs for the new current schema
     List<PartitionSpec> updatedSpecs = Lists.transform(specs,
         spec -> updateSpecSchema(newSchema, spec));
@@ -589,21 +588,5 @@ public class TableMetadata {
       builder.put(spec.specId(), spec);
     }
     return builder.build();
-  }
-
-  public void checkCompatibility(Schema newSchema) {
-    for (PartitionField field : spec().fields()) {
-      Type sourceType = newSchema.findType(field.sourceId());
-      if (sourceType == null) {
-        throw new UnsupportedOperationException("Cannot support drop the partition column: " + field.name());
-      }
-      if (!sourceType.isPrimitiveType()) {
-        throw new UnsupportedOperationException("Cannot partition by non-primitive source field: " + field.name());
-      }
-      if (!field.transform().canTransform(sourceType)) {
-        throw new UnsupportedOperationException(
-            "Invalid source type " + sourceType + " for transform: " + field.transform());
-      }
-    }
   }
 }
