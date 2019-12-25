@@ -139,7 +139,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Optional<String> path = options.get("path");
     Preconditions.checkArgument(path.isPresent(), "Cannot open table: path is not set");
 
-    if (path.get().contains("/")) {
+    if (routeToHadoopTable(path.get())) {
       HadoopTables tables = new HadoopTables(conf);
       return tables.load(path.get());
     } else {
@@ -147,6 +147,12 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
       TableIdentifier tableIdentifier = TableIdentifier.parse(path.get());
       return hiveCatalog.loadTable(tableIdentifier);
     }
+  }
+
+  private boolean routeToHadoopTable(final String path) {
+    return path.startsWith("/") /* absolute path */ ||
+           path.startsWith("./") || path.startsWith("../") /* relative path */ ||
+           path.contains(":/") /* hierarchical URI */;
   }
 
   private SparkSession lazySparkSession() {
