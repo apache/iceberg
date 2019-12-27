@@ -124,10 +124,10 @@ abstract class Bucket<T> implements Transform<T, Integer> {
     } else if (predicate.isSetPredicate() && predicate.op() == Expression.Operation.IN) { // notIn can't be projected
       return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), this);
     }
-  // comparison predicates can't be projected, notEq can't be projected
-  // TODO: small ranges can be projected.
-  // for example, (x > 0) and (x < 3) can be turned into in({1, 2}) and projected.
 
+    // comparison predicates can't be projected, notEq can't be projected
+    // TODO: small ranges can be projected.
+    // for example, (x > 0) and (x < 3) can be turned into in({1, 2}) and projected.
     return null;
   }
 
@@ -143,9 +143,10 @@ abstract class Bucket<T> implements Transform<T, Integer> {
       // TODO: need to translate not(eq(...)) into notEq in expressions
       return Expressions.predicate(predicate.op(), name, apply(predicate.asLiteralPredicate().literal().value()));
     } else if (predicate.isSetPredicate() && predicate.op() == Expression.Operation.NOT_IN) {
-      return ProjectionUtil.transformSet(name, (BoundSetPredicate<T>) predicate, this);
+      return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), this);
     }
-  // no strict projection for comparison or equality
+
+    // no strict projection for comparison or equality
     return null;
   }
 
