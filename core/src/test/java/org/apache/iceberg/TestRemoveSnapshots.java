@@ -283,7 +283,7 @@ public class TestRemoveSnapshots extends TableTestBase {
   }
 
   @Test
-  public void table.currentSnapshot().timestampMillis()() {
+  public void testRetainLastMultipleCalls() {
     long t0 = System.currentTimeMillis();
     table.newAppend()
         .appendFile(FILE_A) // data_bucket=0
