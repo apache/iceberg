@@ -101,7 +101,7 @@ abstract class Truncate<T> implements Transform<T, T> {
       } else if (pred.isLiteralPredicate()) {
         return ProjectionUtil.truncateInteger(name, pred.asLiteralPredicate(), this);
       } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
-        return ProjectionUtil.transformSet(name, (BoundSetPredicate<Integer>) pred, this);
+        return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
       }
       return null;
     }
@@ -120,7 +120,7 @@ abstract class Truncate<T> implements Transform<T, T> {
       } else if (pred instanceof BoundLiteralPredicate) {
         return ProjectionUtil.truncateIntegerStrict(name, pred.asLiteralPredicate(), this);
       } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.NOT_IN) {
-        return ProjectionUtil.transformSet(name, (BoundSetPredicate<Integer>) pred, this);
+        return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
       }
       return null;
     }
@@ -185,7 +185,7 @@ abstract class Truncate<T> implements Transform<T, T> {
       } else if (pred.isLiteralPredicate()) {
         return ProjectionUtil.truncateLong(name, pred.asLiteralPredicate(), this);
       } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
-        return ProjectionUtil.transformSet(name, (BoundSetPredicate<Long>) pred, this);
+        return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
       }
       return null;
     }
@@ -201,7 +201,7 @@ abstract class Truncate<T> implements Transform<T, T> {
       } else if (pred.isLiteralPredicate()) {
         return ProjectionUtil.truncateLongStrict(name, pred.asLiteralPredicate(), this);
       } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.NOT_IN) {
-        return ProjectionUtil.transformSet(name, (BoundSetPredicate<Long>) pred, this);
+        return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
       }
       return null;
     }
@@ -267,7 +267,7 @@ abstract class Truncate<T> implements Transform<T, T> {
       } else if (predicate.isLiteralPredicate()) {
         return ProjectionUtil.truncateArray(name, predicate.asLiteralPredicate(), this);
       } else if (predicate.isSetPredicate() && predicate.op() == Expression.Operation.IN) {
-        return ProjectionUtil.transformSet(name, (BoundSetPredicate<CharSequence>) predicate, this);
+        return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), this);
       }
       return null;
     }
@@ -293,7 +293,7 @@ abstract class Truncate<T> implements Transform<T, T> {
           return ProjectionUtil.truncateArrayStrict(name, pred, this);
         }
       } else if (predicate.isSetPredicate() && predicate.op() == Expression.Operation.NOT_IN) {
-        return ProjectionUtil.transformSet(name, (BoundSetPredicate<CharSequence>) predicate, this);
+        return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), this);
       }
       return null;
     }
@@ -361,7 +361,7 @@ abstract class Truncate<T> implements Transform<T, T> {
       } else if (pred.isLiteralPredicate()) {
         return ProjectionUtil.truncateArray(name, pred.asLiteralPredicate(), this);
       } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
-        return ProjectionUtil.transformSet(name, (BoundSetPredicate<ByteBuffer>) pred, this);
+        return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
       }
       return null;
     }
@@ -378,7 +378,7 @@ abstract class Truncate<T> implements Transform<T, T> {
       } else if (pred.isLiteralPredicate()) {
         return ProjectionUtil.truncateArrayStrict(name, pred.asLiteralPredicate(), this);
       } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.NOT_IN) {
-        return ProjectionUtil.transformSet(name, (BoundSetPredicate<ByteBuffer>) pred, this);
+        return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
       }
       return null;
     }
@@ -456,7 +456,7 @@ abstract class Truncate<T> implements Transform<T, T> {
       } else if (pred.isLiteralPredicate()) {
         return ProjectionUtil.truncateDecimal(name, pred.asLiteralPredicate(), this);
       } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
-        return ProjectionUtil.transformSet(name, (BoundSetPredicate<BigDecimal>) pred, this);
+        return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
       }
       return null;
     }
@@ -473,7 +473,7 @@ abstract class Truncate<T> implements Transform<T, T> {
       } else if (pred.isLiteralPredicate()) {
         return ProjectionUtil.truncateDecimalStrict(name, pred.asLiteralPredicate(), this);
       } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.NOT_IN) {
-        return ProjectionUtil.transformSet(name, (BoundSetPredicate<BigDecimal>) pred, this);
+        return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
       }
       return null;
     }
