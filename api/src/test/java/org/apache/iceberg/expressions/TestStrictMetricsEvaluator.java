@@ -386,7 +386,7 @@ public class TestStrictMetricsEvaluator {
     Assert.assertFalse("Should not match: all values != 5 and != 6", shouldRead);
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA,
-        in("id", INT_MIN_VALUE, INT_MIN_VALUE + 1)).eval(FILE);
+        in("id", INT_MIN_VALUE - 1, INT_MIN_VALUE)).eval(FILE);
     Assert.assertFalse("Should not match: some values != 30 and != 31", shouldRead);
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA,
@@ -394,7 +394,7 @@ public class TestStrictMetricsEvaluator {
     Assert.assertFalse("Should not match: some values != 75 and != 76", shouldRead);
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA,
-        in("id", INT_MAX_VALUE - 1, INT_MAX_VALUE)).eval(FILE);
+        in("id", INT_MAX_VALUE, INT_MAX_VALUE + 1)).eval(FILE);
     Assert.assertFalse("Should not match: some values != 78 and != 79", shouldRead);
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA,
