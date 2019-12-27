@@ -425,16 +425,16 @@ public class TestStrictMetricsEvaluator {
     Assert.assertTrue("Should not match: all values !=5 and !=6", shouldRead);
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA,
-        notIn("id", INT_MIN_VALUE, INT_MIN_VALUE + 1)).eval(FILE);
-    Assert.assertFalse("Should not match: some values may be == 30 or == 31", shouldRead);
+        notIn("id", INT_MIN_VALUE - 1, INT_MIN_VALUE)).eval(FILE);
+    Assert.assertFalse("Should not match: some values may be == 30", shouldRead);
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA,
         notIn("id", INT_MAX_VALUE - 4, INT_MAX_VALUE - 3)).eval(FILE);
     Assert.assertFalse("Should not match: some value may be == 75 or == 76", shouldRead);
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA,
-        notIn("id", INT_MAX_VALUE - 1, INT_MAX_VALUE)).eval(FILE);
-    Assert.assertFalse("Should not match: some value may be == 78 or == 79", shouldRead);
+        notIn("id", INT_MAX_VALUE, INT_MAX_VALUE + 1)).eval(FILE);
+    Assert.assertFalse("Should not match: some value may be == 79", shouldRead);
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA,
         notIn("id", INT_MAX_VALUE + 1, INT_MAX_VALUE + 2)).eval(FILE);
