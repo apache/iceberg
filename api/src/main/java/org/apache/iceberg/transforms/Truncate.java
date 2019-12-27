@@ -25,7 +25,6 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.expressions.BoundLiteralPredicate;
 import org.apache.iceberg.expressions.BoundPredicate;
-import org.apache.iceberg.expressions.BoundSetPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.BoundUnaryPredicate;
 import org.apache.iceberg.expressions.Expression;
