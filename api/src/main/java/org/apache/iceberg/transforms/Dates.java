@@ -83,7 +83,7 @@ enum Dates implements Transform<Integer, Integer> {
     } else if (pred.isLiteralPredicate()) {
       return ProjectionUtil.truncateInteger(fieldName, pred.asLiteralPredicate(), this);
     } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
-      return ProjectionUtil.transformSet(fieldName, (BoundSetPredicate<Integer>) pred, this);
+      return ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), this);
     }
     return null;
   }
@@ -99,7 +99,7 @@ enum Dates implements Transform<Integer, Integer> {
     } else if (pred.isLiteralPredicate()) {
       return ProjectionUtil.truncateIntegerStrict(fieldName, pred.asLiteralPredicate(), this);
     } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.NOT_IN) {
-      return ProjectionUtil.transformSet(fieldName, (BoundSetPredicate<Integer>) pred, this);
+      return ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), this);
     }
     return null;
   }
