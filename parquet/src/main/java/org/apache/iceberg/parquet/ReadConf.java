@@ -22,7 +22,6 @@ package org.apache.iceberg.parquet;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -186,19 +185,19 @@ class ReadConf<T> {
   private List<Map<ColumnPath, ColumnChunkMetaData>> getColumnChunkMetadataForRowGroups() {
     Set<ColumnPath> projectedColumns = projection.getColumns().stream()
         .map(columnDescriptor -> ColumnPath.get(columnDescriptor.getPath())).collect(Collectors.toSet());
-    ImmutableList.Builder builder = ImmutableList.<Map<ColumnPath, ColumnChunkMetaData>>builder();
+    ImmutableList.Builder<Map<ColumnPath, ColumnChunkMetaData>> listBuilder = ImmutableList.builder();
     for (int i = 0; i < rowGroups.size(); i++) {
       if (!shouldSkip[i]) {
         BlockMetaData blockMetaData = rowGroups.get(i);
-        Map<ColumnPath, ColumnChunkMetaData> map = new HashMap<>();
+        ImmutableMap.Builder<ColumnPath, ColumnChunkMetaData> mapBuilder = ImmutableMap.builder();
         blockMetaData.getColumns().stream()
             .filter(columnChunkMetaData -> projectedColumns.contains(columnChunkMetaData.getPath()))
-            .forEach(columnChunkMetaData -> map.put(columnChunkMetaData.getPath(), columnChunkMetaData));
-        builder.add(map);
+            .forEach(columnChunkMetaData -> mapBuilder.put(columnChunkMetaData.getPath(), columnChunkMetaData));
+        listBuilder.add(mapBuilder.build());
       } else {
-        builder.add(ImmutableMap.of());
+        listBuilder.add(ImmutableMap.of());
       }
     }
-    return builder.build();
+    return listBuilder.build();
   }
 }
