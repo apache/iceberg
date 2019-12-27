@@ -120,7 +120,7 @@ class ReadConf<T> {
     this.batchSize = bSize;
   }
 
-  ReadConf(ReadConf<T> toCopy) {
+  private ReadConf(ReadConf<T> toCopy) {
     this.reader = null;
     this.file = toCopy.file;
     this.options = toCopy.options;
