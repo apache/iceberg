@@ -41,8 +41,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.parquet.vectorized.VectorizedParquetReader;
-import org.apache.iceberg.parquet.vectorized.VectorizedReader;
 import org.apache.parquet.HadoopReadOptions;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.avro.AvroReadSupport;
@@ -308,7 +306,6 @@ public class Parquet {
     private ReadSupport<?> readSupport = null;
     private Function<MessageType, VectorizedReader<?>> batchedReaderFunc = null;
     private Function<MessageType, ParquetValueReader<?>> readerFunc = null;
-    private boolean isBatchedReadEnabled = false;
     private boolean filterRecords = true;
     private boolean caseSensitive = true;
     private Map<String, String> properties = Maps.newHashMap();
@@ -372,11 +369,6 @@ public class Parquet {
       return this;
     }
 
-    public ReadBuilder enableBatchedRead() {
-      this.isBatchedReadEnabled = true;
-      return this;
-    }
-
     public ReadBuilder set(String key, String value) {
       properties.put(key, value);
       return this;
@@ -423,11 +415,10 @@ public class Parquet {
 
         ParquetReadOptions options = optionsBuilder.build();
 
-        if (isBatchedReadEnabled) {
+        if (batchedReaderFunc != null) {
           return new VectorizedParquetReader(file, schema, options, batchedReaderFunc, filter, reuseContainers,
               caseSensitive, maxRecordsPerBatch);
         } else {
-
           return new org.apache.iceberg.parquet.ParquetReader<>(
               file, schema, options, readerFunc, filter, reuseContainers, caseSensitive);
         }
@@ -483,8 +474,6 @@ public class Parquet {
 
       return new ParquetIterable<>(builder);
     }
-
-
   }
 
   private static class ParquetReadBuilder<T> extends ParquetReader.Builder<T> {

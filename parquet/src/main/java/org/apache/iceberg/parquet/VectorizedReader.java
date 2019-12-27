@@ -17,10 +17,9 @@
  * under the License.
  */
 
-package org.apache.iceberg.parquet.vectorized;
+package org.apache.iceberg.parquet;
 
 import java.util.Map;
-import org.apache.parquet.column.page.DictionaryPageReadStore;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 
@@ -28,11 +27,24 @@ import org.apache.parquet.hadoop.metadata.ColumnPath;
  * Interface for vectorized Iceberg readers.
  */
 public interface VectorizedReader<T> {
-  T read();
 
-  void setRowGroupInfo(PageReadStore pages, DictionaryPageReadStore dictionaryPageReadStore,
-                       Map<ColumnPath, Boolean> columnPathBooleanMap);
+  /**
+   * Reads a batch of type T of size numRows
+   * @param numRows number of rows to read
+   * @return batch of type T
+   */
+  T read(int numRows);
 
+  /**
+   *
+   * @param pages row group metadata
+   * @param columnDictEncoded a map of {@link ColumnPath} -> whether all the pages are dictionary encoded
+   */
+  void setRowGroupInfo(PageReadStore pages, Map<ColumnPath, Boolean> columnDictEncoded);
+
+  /**
+   * Set up the reader to reuse the underlying containers used for storing batches
+   */
   void reuseContainers(boolean reuse);
 }
 
