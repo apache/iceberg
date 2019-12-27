@@ -36,6 +36,7 @@ public class NamedReference<T> implements UnboundTerm<T>, Reference<T> {
     return name;
   }
 
+  @Override
   public BoundReference<T> bind(Types.StructType struct, boolean caseSensitive) {
     Schema schema = new Schema(struct.fields());
     Types.NestedField field = caseSensitive ?

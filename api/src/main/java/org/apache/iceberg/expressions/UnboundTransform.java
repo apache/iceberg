@@ -43,6 +43,7 @@ public class UnboundTransform<S, T> implements UnboundTerm<T>, Term {
   }
 
   @SuppressWarnings("unchecked")
+  @Override
   public BoundTransform<S, T> bind(Types.StructType struct, boolean caseSensitive) {
     BoundReference<S> boundRef = ref.bind(struct, caseSensitive);
 
