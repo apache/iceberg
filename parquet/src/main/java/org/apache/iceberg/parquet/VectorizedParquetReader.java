@@ -22,6 +22,7 @@ package org.apache.iceberg.parquet;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
@@ -33,9 +34,9 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.parquet.ParquetReadOptions;
-import org.apache.parquet.column.page.DictionaryPageReadStore;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.schema.MessageType;
 
@@ -89,7 +90,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     private final VectorizedReader<T> model;
     private final long totalValues;
     private final int batchSize;
-    private final Map<ColumnPath, Boolean> columnDictEncodedMap;
+    private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetadata;
     private int nextRowGroup = 0;
     private long nextRowGroupStart = 0;
     private long valuesRead = 0;
@@ -102,7 +103,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       this.totalValues = conf.totalValues();
       this.model.reuseContainers(conf.reuseContainers());
       this.batchSize = conf.batchSize();
-      this.columnDictEncodedMap = conf.columnDictEncodedMap();
+      this.columnChunkMetadata = conf.columnChunkMetadataForRowGroups();
     }
 
     @Override
@@ -130,19 +131,15 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
         nextRowGroup += 1;
         reader.skipNextRowGroup();
       }
-
       PageReadStore pages;
-      DictionaryPageReadStore dictionaryPageReadStore;
       try {
-        dictionaryPageReadStore = reader.getNextDictionaryReader();
         pages = reader.readNextRowGroup();
       } catch (IOException e) {
         throw new RuntimeIOException(e);
       }
-
+      model.setRowGroupInfo(pages, columnChunkMetadata.get(nextRowGroup));
       nextRowGroupStart += pages.getRowCount();
       nextRowGroup += 1;
-      model.setRowGroupInfo(pages, columnDictEncodedMap);
     }
 
     @Override

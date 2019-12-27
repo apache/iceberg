@@ -61,7 +61,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
   private ReadConf<T> init() {
     if (conf == null) {
-      ReadConf<T> readConf = new ReadConf<T>(
+      ReadConf<T> readConf = new ReadConf<>(
           input, options, expectedSchema, filter, readerFunc, null, reuseContainers, caseSensitive, null);
       this.conf = readConf.copy();
       return readConf;

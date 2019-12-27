@@ -360,11 +360,15 @@ public class Parquet {
     }
 
     public ReadBuilder createReaderFunc(Function<MessageType, ParquetValueReader<?>> newReaderFunction) {
+      Preconditions.checkArgument(this.batchedReaderFunc == null,
+          "Reader function cannot be set since the batched version is already set");
       this.readerFunc = newReaderFunction;
       return this;
     }
 
     public ReadBuilder createBatchedReaderFunc(Function<MessageType, VectorizedReader<?>> func) {
+      Preconditions.checkArgument(this.readerFunc == null,
+          "Batched reader function cannot be set since the non-batched version is already set");
       this.batchedReaderFunc = func;
       return this;
     }
@@ -385,7 +389,6 @@ public class Parquet {
     }
 
     public ReadBuilder recordsPerBatch(int numRowsPerBatch) {
-
       this.maxRecordsPerBatch = numRowsPerBatch;
       return this;
     }

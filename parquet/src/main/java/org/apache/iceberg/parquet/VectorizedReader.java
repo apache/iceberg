@@ -21,6 +21,7 @@ package org.apache.iceberg.parquet;
 
 import java.util.Map;
 import org.apache.parquet.column.page.PageReadStore;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 
 /**
@@ -29,18 +30,18 @@ import org.apache.parquet.hadoop.metadata.ColumnPath;
 public interface VectorizedReader<T> {
 
   /**
-   * Reads a batch of type T of size numRows
+   * Reads a batch of type @param &lt;T&gt; and of size numRows
    * @param numRows number of rows to read
-   * @return batch of type T
+   * @return batch of records of type @param &lt;T&gt;
    */
   T read(int numRows);
 
   /**
    *
-   * @param pages row group metadata
-   * @param columnDictEncoded a map of {@link ColumnPath} -> whether all the pages are dictionary encoded
+   * @param pages row group information for all the columns
+   * @param metadata map of {@link ColumnPath} -> {@link ColumnChunkMetaData} for the row group
    */
-  void setRowGroupInfo(PageReadStore pages, Map<ColumnPath, Boolean> columnDictEncoded);
+  void setRowGroupInfo(PageReadStore pages, Map<ColumnPath, ColumnChunkMetaData> metadata);
 
   /**
    * Set up the reader to reuse the underlying containers used for storing batches

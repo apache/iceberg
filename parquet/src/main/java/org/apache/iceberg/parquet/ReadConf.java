@@ -24,7 +24,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -58,8 +62,8 @@ class ReadConf<T> {
   @Nullable
   private final Integer batchSize;
 
-  // This maps tracks whether all the pages of all the row groups of a column are dictionary encoded
-  private final Map<ColumnPath, Boolean> columnDictEncodedMap;
+  // Indexed by row group with nulls for row groups that are skipped
+  private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetaDataForRowGroups;
 
   @SuppressWarnings("unchecked")
   ReadConf(InputFile file, ParquetReadOptions options, Schema expectedSchema, Expression filter,
@@ -79,12 +83,14 @@ class ReadConf<T> {
         ParquetSchemaUtil.pruneColumnsFallback(fileSchema, expectedSchema);
     this.rowGroups = reader.getRowGroups();
     this.shouldSkip = new boolean[rowGroups.size()];
+
     ParquetMetricsRowGroupFilter statsFilter = null;
     ParquetDictionaryRowGroupFilter dictFilter = null;
     if (filter != null) {
       statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, caseSensitive);
       dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive);
     }
+
     long computedTotalValues = 0L;
     for (int i = 0; i < shouldSkip.length; i += 1) {
       BlockMetaData rowGroup = rowGroups.get(i);
@@ -96,15 +102,19 @@ class ReadConf<T> {
         computedTotalValues += rowGroup.getRowCount();
       }
     }
+
     this.totalValues = computedTotalValues;
     if (readerFunc != null) {
       this.model = (ParquetValueReader<T>) readerFunc.apply(typeWithIds);
       this.vectorizedModel = null;
-      this.columnDictEncodedMap = null;
+      this.columnChunkMetaDataForRowGroups = null;
     } else {
       this.model = null;
       this.vectorizedModel = (VectorizedReader<T>) batchedReaderFunc.apply(typeWithIds);
-      this.columnDictEncodedMap = buildColumnDictEncodedMap();
+      this.columnChunkMetaDataForRowGroups =
+          Stream.generate((Supplier<Map<ColumnPath, ColumnChunkMetaData>>) () -> null)
+              .limit(rowGroups.size()).collect(Collectors.toList());
+      populateColumnChunkMetadataForRowGroups();
     }
     this.reuseContainers = reuseContainers;
     this.batchSize = bSize;
@@ -122,7 +132,7 @@ class ReadConf<T> {
     this.reuseContainers = toCopy.reuseContainers;
     this.batchSize = toCopy.batchSize;
     this.vectorizedModel = toCopy.vectorizedModel;
-    this.columnDictEncodedMap = toCopy.columnDictEncodedMap;
+    this.columnChunkMetaDataForRowGroups = toCopy.columnChunkMetaDataForRowGroups;
   }
 
   ParquetFileReader reader() {
@@ -160,8 +170,8 @@ class ReadConf<T> {
     return batchSize;
   }
 
-  Map<ColumnPath, Boolean> columnDictEncodedMap() {
-    return Collections.unmodifiableMap(columnDictEncodedMap);
+  List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetadataForRowGroups() {
+    return Collections.unmodifiableList(columnChunkMetaDataForRowGroups);
   }
 
   ReadConf<T> copy() {
@@ -176,18 +186,18 @@ class ReadConf<T> {
     }
   }
 
-  private Map<ColumnPath, Boolean> buildColumnDictEncodedMap() {
-    Map<ColumnPath, Boolean> map = new HashMap<>();
+  private void populateColumnChunkMetadataForRowGroups() {
+    Set<ColumnPath> projectedColumns = projection.getColumns().stream()
+        .map(columnDescriptor -> ColumnPath.get(columnDescriptor.getPath())).collect(Collectors.toSet());
     for (int i = 0; i < rowGroups.size(); i++) {
       if (!shouldSkip[i]) {
         BlockMetaData blockMetaData = rowGroups.get(i);
-        for (ColumnChunkMetaData chunkMetaData : blockMetaData.getColumns()) {
-          ColumnPath path = chunkMetaData.getPath();
-          boolean rowGroupDictEncoded = !ParquetUtil.hasNonDictionaryPages(chunkMetaData);
-          map.merge(path, rowGroupDictEncoded, (previous, value) -> previous && value);
-        }
+        Map<ColumnPath, ColumnChunkMetaData> map = new HashMap<>();
+        blockMetaData.getColumns().stream()
+            .filter(columnChunkMetaData -> projectedColumns.contains(columnChunkMetaData.getPath()))
+            .forEach(columnChunkMetaData -> map.put(columnChunkMetaData.getPath(), columnChunkMetaData));
+        columnChunkMetaDataForRowGroups.set(i, map);
       }
     }
-    return map;
   }
 }
