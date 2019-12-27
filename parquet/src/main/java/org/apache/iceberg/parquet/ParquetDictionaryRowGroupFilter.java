@@ -280,12 +280,35 @@ public class ParquetDictionaryRowGroupFilter {
 
     @Override
     public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
-      return ROWS_MIGHT_MATCH;
+      int id = ref.fieldId();
+
+      Boolean hasNonDictPage = isFallback.get(id);
+      if (hasNonDictPage == null || hasNonDictPage) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Set<T> dictionary = dict(id, ref.comparator());
+
+      // ROWS_CANNOT_MATCH if all values of the dictionary are not in the set (the intersection is empty)
+      return Sets.intersection(dictionary, literalSet).isEmpty() ? ROWS_CANNOT_MATCH : ROWS_MIGHT_MATCH;
     }
 
     @Override
     public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
-      return ROWS_MIGHT_MATCH;
+      int id = ref.fieldId();
+
+      Boolean hasNonDictPage = isFallback.get(id);
+      if (hasNonDictPage == null || hasNonDictPage) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Set<T> dictionary = dict(id, ref.comparator());
+      if (dictionary.size() > literalSet.size() || mayContainNulls.get(id)) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      // ROWS_CANNOT_MATCH if no values in the dictionary that are not also in the set (the difference is empty)
+      return Sets.difference(dictionary, literalSet).isEmpty() ? ROWS_CANNOT_MATCH : ROWS_MIGHT_MATCH;
     }
 
     @Override
