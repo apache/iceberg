@@ -19,16 +19,15 @@
 
 package org.apache.iceberg.parquet;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -62,7 +61,7 @@ class ReadConf<T> {
   @Nullable
   private final Integer batchSize;
 
-  // Indexed by row group with nulls for row groups that are skipped
+  // List of column chunk metadata for each row group
   private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetaDataForRowGroups;
 
   @SuppressWarnings("unchecked")
@@ -111,11 +110,9 @@ class ReadConf<T> {
     } else {
       this.model = null;
       this.vectorizedModel = (VectorizedReader<T>) batchedReaderFunc.apply(typeWithIds);
-      this.columnChunkMetaDataForRowGroups =
-          Stream.generate((Supplier<Map<ColumnPath, ColumnChunkMetaData>>) () -> null)
-              .limit(rowGroups.size()).collect(Collectors.toList());
-      populateColumnChunkMetadataForRowGroups();
+      this.columnChunkMetaDataForRowGroups = getColumnChunkMetadataForRowGroups();
     }
+
     this.reuseContainers = reuseContainers;
     this.batchSize = bSize;
   }
@@ -171,7 +168,7 @@ class ReadConf<T> {
   }
 
   List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetadataForRowGroups() {
-    return Collections.unmodifiableList(columnChunkMetaDataForRowGroups);
+    return columnChunkMetaDataForRowGroups;
   }
 
   ReadConf<T> copy() {
@@ -186,9 +183,10 @@ class ReadConf<T> {
     }
   }
 
-  private void populateColumnChunkMetadataForRowGroups() {
+  private List<Map<ColumnPath, ColumnChunkMetaData>> getColumnChunkMetadataForRowGroups() {
     Set<ColumnPath> projectedColumns = projection.getColumns().stream()
         .map(columnDescriptor -> ColumnPath.get(columnDescriptor.getPath())).collect(Collectors.toSet());
+    ImmutableList.Builder builder = ImmutableList.<Map<ColumnPath, ColumnChunkMetaData>>builder();
     for (int i = 0; i < rowGroups.size(); i++) {
       if (!shouldSkip[i]) {
         BlockMetaData blockMetaData = rowGroups.get(i);
@@ -196,8 +194,11 @@ class ReadConf<T> {
         blockMetaData.getColumns().stream()
             .filter(columnChunkMetaData -> projectedColumns.contains(columnChunkMetaData.getPath()))
             .forEach(columnChunkMetaData -> map.put(columnChunkMetaData.getPath(), columnChunkMetaData));
-        columnChunkMetaDataForRowGroups.set(i, map);
+        builder.add(map);
+      } else {
+        builder.add(ImmutableMap.of());
       }
     }
+    return builder.build();
   }
 }

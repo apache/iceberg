@@ -45,7 +45,7 @@ class ParquetIO {
   private ParquetIO() {
   }
 
-  public static InputFile file(org.apache.iceberg.io.InputFile file) {
+  static InputFile file(org.apache.iceberg.io.InputFile file) {
     // TODO: use reflection to avoid depending on classes from iceberg-hadoop
     // TODO: use reflection to avoid depending on classes from hadoop
     if (file instanceof HadoopInputFile) {
