@@ -85,7 +85,7 @@ enum Timestamps implements Transform<Long, Integer> {
     } else if (pred.isLiteralPredicate()) {
       return ProjectionUtil.truncateLong(fieldName, pred.asLiteralPredicate(), this);
     } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
-      return ProjectionUtil.transformSet(fieldName, (BoundSetPredicate<Long>) pred, this);
+      return ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), this);
     }
     return null;
   }
@@ -101,7 +101,7 @@ enum Timestamps implements Transform<Long, Integer> {
     } else if (pred.isLiteralPredicate()) {
       return ProjectionUtil.truncateLongStrict(fieldName, pred.asLiteralPredicate(), this);
     } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.NOT_IN) {
-      return ProjectionUtil.transformSet(fieldName, (BoundSetPredicate<Long>) pred, this);
+      return ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), this);
     }
     return null;
   }
