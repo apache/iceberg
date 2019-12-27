@@ -30,7 +30,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.expressions.BoundPredicate;
-import org.apache.iceberg.expressions.BoundSetPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
