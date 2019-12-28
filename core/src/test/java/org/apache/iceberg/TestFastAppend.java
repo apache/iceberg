@@ -23,7 +23,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import java.io.File;
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -277,28 +276,5 @@ public class TestFastAppend extends TableTestBase {
     Assert.assertTrue("Should commit same new manifest", new File(newManifest.path()).exists());
     Assert.assertTrue("Should commit the same new manifest",
         metadata.currentSnapshot().manifests().contains(newManifest));
-  }
-
-  @Test
-  public void testAppendFilesFromTable() {
-    table.newFastAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
-        .commit();
-
-    // collect data files from deserialization
-    Iterator<DataFile> filesIterator = table.currentSnapshot().addedFiles().iterator();
-
-    table.newDelete().deleteFile(FILE_A).deleteFile(FILE_B).commit();
-
-    Snapshot oldSnapshot = table.currentSnapshot();
-
-    AppendFiles fastAppend = table.newFastAppend();
-    while (filesIterator.hasNext()) {
-      fastAppend.appendFile(filesIterator.next());
-    }
-
-    Snapshot newSnapshot = fastAppend.apply();
-    validateSnapshot(oldSnapshot, newSnapshot, FILE_A, FILE_B);
   }
 }
