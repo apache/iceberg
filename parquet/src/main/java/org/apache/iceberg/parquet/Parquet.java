@@ -304,12 +304,14 @@ public class Parquet {
     private Schema schema = null;
     private Expression filter = null;
     private ReadSupport<?> readSupport = null;
+    private Function<MessageType, VectorizedReader<?>> batchedReaderFunc = null;
     private Function<MessageType, ParquetValueReader<?>> readerFunc = null;
     private boolean filterRecords = true;
     private boolean caseSensitive = true;
     private Map<String, String> properties = Maps.newHashMap();
     private boolean callInit = false;
     private boolean reuseContainers = false;
+    private int maxRecordsPerBatch = 10000;
 
     private ReadBuilder(InputFile file) {
       this.file = file;
@@ -358,7 +360,16 @@ public class Parquet {
     }
 
     public ReadBuilder createReaderFunc(Function<MessageType, ParquetValueReader<?>> newReaderFunction) {
+      Preconditions.checkArgument(this.batchedReaderFunc == null,
+          "Reader function cannot be set since the batched version is already set");
       this.readerFunc = newReaderFunction;
+      return this;
+    }
+
+    public ReadBuilder createBatchedReaderFunc(Function<MessageType, VectorizedReader<?>> func) {
+      Preconditions.checkArgument(this.readerFunc == null,
+          "Batched reader function cannot be set since the non-batched version is already set");
+      this.batchedReaderFunc = func;
       return this;
     }
 
@@ -377,9 +388,14 @@ public class Parquet {
       return this;
     }
 
-    @SuppressWarnings("unchecked")
+    public ReadBuilder recordsPerBatch(int numRowsPerBatch) {
+      this.maxRecordsPerBatch = numRowsPerBatch;
+      return this;
+    }
+
+    @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
     public <D> CloseableIterable<D> build() {
-      if (readerFunc != null) {
+      if (readerFunc != null || batchedReaderFunc != null) {
         ParquetReadOptions.Builder optionsBuilder;
         if (file instanceof HadoopInputFile) {
           // remove read properties already set that may conflict with this read
@@ -402,8 +418,13 @@ public class Parquet {
 
         ParquetReadOptions options = optionsBuilder.build();
 
-        return new org.apache.iceberg.parquet.ParquetReader<>(
-            file, schema, options, readerFunc, filter, reuseContainers, caseSensitive);
+        if (batchedReaderFunc != null) {
+          return new VectorizedParquetReader(file, schema, options, batchedReaderFunc, filter, reuseContainers,
+              caseSensitive, maxRecordsPerBatch);
+        } else {
+          return new org.apache.iceberg.parquet.ParquetReader<>(
+              file, schema, options, readerFunc, filter, reuseContainers, caseSensitive);
+        }
       }
 
       ParquetReadBuilder<D> builder = new ParquetReadBuilder<>(ParquetIO.file(file));
