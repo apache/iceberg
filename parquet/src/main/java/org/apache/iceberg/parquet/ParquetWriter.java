@@ -49,7 +49,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       .hiddenImpl("org.apache.parquet.hadoop.ColumnChunkPageWriteStore",
           CodecFactory.BytesCompressor.class,
           MessageType.class,
-          ByteBufferAllocator.class)
+          ByteBufferAllocator.class,
+          int.class)
       .build();
 
   private static final DynMethods.UnboundMethod flushToWriter = DynMethods
@@ -172,7 +173,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.recordCount = 0;
 
     PageWriteStore pageStore = pageStoreCtor.newInstance(
-        compressor, parquetSchema, props.getAllocator());
+        compressor, parquetSchema, props.getAllocator(), Integer.MAX_VALUE);
 
     this.flushPageStoreToWriter = flushToWriter.bind(pageStore);
     this.writeStore = props.newColumnWriteStore(parquetSchema, pageStore);
