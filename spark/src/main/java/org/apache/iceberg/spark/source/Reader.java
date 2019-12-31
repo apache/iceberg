@@ -21,18 +21,26 @@ package org.apache.iceberg.spark.source;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.BlockLocation;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataTask;
@@ -65,6 +73,7 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Attribute;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
@@ -97,6 +106,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
   private static final Logger LOG = LoggerFactory.getLogger(Reader.class);
 
   private static final Filter[] NO_FILTERS = new Filter[0];
+  private static final ImmutableSet<String> LOCALITY_WHITELIST_FS = ImmutableSet.of("hdfs");
 
   private final Table table;
   private final Long snapshotId;
@@ -110,6 +120,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
   private StructType requestedSchema = null;
   private List<Expression> filterExpressions = null;
   private Filter[] pushedFilters = NO_FILTERS;
+  private final boolean enableLocality;
 
   // lazy variables
   private Schema schema = null;
@@ -130,6 +141,16 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     this.splitSize = options.get("split-size").map(Long::parseLong).orElse(null);
     this.splitLookback = options.get("lookback").map(Integer::parseInt).orElse(null);
     this.splitOpenFileCost = options.get("file-open-cost").map(Long::parseLong).orElse(null);
+
+    String scheme = "no_exist";
+    try {
+      FileSystem fs = FileSystem.get(SparkSession.active().sparkContext().hadoopConfiguration());
+      scheme = fs.getScheme().toLowerCase(Locale.ENGLISH);
+    } catch (IOException ioe) {
+      LOG.warn("Failed to get Hadoop Filesystem", ioe);
+    }
+    this.enableLocality = options.get("locality").map(Boolean::parseBoolean)
+        .orElse(LOCALITY_WHITELIST_FS.contains(scheme));
 
     this.schema = table.schema();
     this.io = io;
@@ -168,7 +189,8 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     List<InputPartition<InternalRow>> readTasks = Lists.newArrayList();
     for (CombinedScanTask task : tasks()) {
       readTasks.add(
-          new ReadTask(task, tableSchemaString, expectedSchemaString, io, encryptionManager, caseSensitive));
+          new ReadTask(task, tableSchemaString, expectedSchemaString, io, encryptionManager,
+              caseSensitive, enableLocality));
     }
 
     return readTasks;
@@ -287,25 +309,50 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     private final Broadcast<FileIO> io;
     private final Broadcast<EncryptionManager> encryptionManager;
     private final boolean caseSensitive;
+    private final boolean enableLocality;
 
     private transient Schema tableSchema = null;
     private transient Schema expectedSchema = null;
 
     private ReadTask(CombinedScanTask task, String tableSchemaString, String expectedSchemaString,
                      Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
-                     boolean caseSensitive) {
+                     boolean caseSensitive, boolean enableLocality) {
       this.task = task;
       this.tableSchemaString = tableSchemaString;
       this.expectedSchemaString = expectedSchemaString;
       this.io = io;
       this.encryptionManager = encryptionManager;
       this.caseSensitive = caseSensitive;
+      this.enableLocality = enableLocality;
     }
 
     @Override
     public InputPartitionReader<InternalRow> createPartitionReader() {
       return new TaskDataReader(task, lazyTableSchema(), lazyExpectedSchema(), io.value(),
         encryptionManager.value(), caseSensitive);
+    }
+
+    @Override
+    public String[] preferredLocations() {
+      if (!enableLocality) {
+        return new String[0];
+      }
+
+      Configuration conf = SparkSession.active().sparkContext().hadoopConfiguration();
+      Set<String> locations = Sets.newHashSet();
+      for (FileScanTask f : task.files()) {
+        Path path = new Path(f.file().path().toString());
+        try {
+          FileSystem fs = path.getFileSystem(conf);
+          for (BlockLocation b : fs.getFileBlockLocations(path, f.start(), f.length())) {
+            locations.addAll(Arrays.asList(b.getHosts()));
+          }
+        } catch (IOException ioe) {
+          LOG.warn("Failed to get block locations for path {}", path, ioe);
+        }
+      }
+
+      return locations.toArray(new String[0]);
     }
 
     private Schema lazyTableSchema() {
