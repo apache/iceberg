@@ -22,12 +22,12 @@ package org.apache.iceberg;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -66,7 +66,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
   private final List<ManifestFile> keptManifests = Collections.synchronizedList(new ArrayList<>());
   private final List<ManifestFile> newManifests = Collections.synchronizedList(new ArrayList<>());
   private final Set<ManifestFile> rewrittenManifests = Collections.synchronizedSet(new HashSet<>());
-  private final Map<Object, WriterWrapper> writers = Collections.synchronizedMap(new HashMap<>());
+  private final Map<Object, WriterWrapper> writers = Maps.newConcurrentMap();
 
   private final AtomicInteger manifestSuffix = new AtomicInteger(0);
   private final AtomicLong entryCount = new AtomicLong(0);
@@ -311,40 +311,36 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
   }
 
   class WriterWrapper {
-    private final Map<Integer, ManifestWriter> manifestWritersBySpecId = Collections.synchronizedMap(new HashMap<>());
+    private final Map<Integer, ManifestWriter> manifestWritersBySpecId = Maps.newConcurrentMap();
 
     synchronized void addEntry(ManifestEntry entry, int partitionSpecId) {
-      ManifestWriter manifestWriter = manifestWritersBySpecId.get(partitionSpecId);
-      if (manifestWriter == null) {
-        manifestWriter = newWriter(partitionSpecId);
-      } else if (manifestWriter.length() >= getManifestTargetSizeBytes()) {
-        close(partitionSpecId);
-        manifestWriter = newWriter(partitionSpecId);
-      }
-      manifestWriter.existing(entry);
+      getWriter(partitionSpecId).existing(entry);
     }
 
-    private ManifestWriter newWriter(int partitionSpecId) {
-
-      if (manifestWritersBySpecId.containsKey(partitionSpecId)) {
-        // should not reach here, but checking to avoid resource leak.
-        throw new RuntimeException("ManifestWriter already exists for this partition-specId " + partitionSpecId);
+    synchronized ManifestWriter getWriter(int partitionSpecId) {
+      ManifestWriter writer = manifestWritersBySpecId.get(partitionSpecId);
+      if (writer != null) {
+        if (writer.length() < getManifestTargetSizeBytes()) {
+          return writer;
+        } else {
+          close(partitionSpecId);
+        }
       }
 
       // create ManifestWriter with the correct partitionSpec
       PartitionSpec partitionSpec = specsById.get(partitionSpecId);
       OutputFile outputFile = manifestPath(manifestSuffix.getAndIncrement());
-      ManifestWriter manifestWriter = new ManifestWriter(partitionSpec, outputFile, snapshotId());
-      manifestWritersBySpecId.put(partitionSpecId, manifestWriter);
-      return manifestWriter;
+      writer = new ManifestWriter(partitionSpec, outputFile, snapshotId());
+      manifestWritersBySpecId.put(partitionSpecId, writer);
+      return writer;
     }
 
     synchronized void close(int partitionSpecId) {
       if (manifestWritersBySpecId != null) {
         try {
-          ManifestWriter manifestWriter = manifestWritersBySpecId.get(partitionSpecId);
-          manifestWriter.close();
-          newManifests.add(manifestWriter.toManifestFile());
+          ManifestWriter writer = manifestWritersBySpecId.get(partitionSpecId);
+          writer.close();
+          newManifests.add(writer.toManifestFile());
           // remove so that we will not get the closed one again.
           manifestWritersBySpecId.remove(partitionSpecId);
         } catch (IOException x) {
@@ -364,6 +360,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
             throw new RuntimeIOException(x);
           }
         }
+        manifestWritersBySpecId.clear();
       }
     }
 
