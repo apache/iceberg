@@ -1,0 +1,387 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.apache.iceberg.arrow.vectorized;
+
+import java.util.HashMap;
+import java.util.Map;
+import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.BitVector;
+import org.apache.arrow.vector.DateDayVector;
+import org.apache.arrow.vector.DecimalVector;
+import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.Float4Vector;
+import org.apache.arrow.vector.Float8Vector;
+import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.TimeStampMicroTZVector;
+import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.arrow.vector.types.pojo.FieldType;
+import org.apache.iceberg.arrow.ArrowSchemaUtil;
+import org.apache.iceberg.arrow.vectorized.parquet.VectorizedColumnIterator;
+import org.apache.iceberg.parquet.ParquetUtil;
+import org.apache.iceberg.parquet.VectorizedReader;
+import org.apache.iceberg.types.Types;
+import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.Dictionary;
+import org.apache.parquet.column.page.PageReadStore;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
+import org.apache.parquet.schema.DecimalMetadata;
+import org.apache.parquet.schema.OriginalType;
+import org.apache.parquet.schema.PrimitiveType;
+
+/***
+ * {@link VectorizedReader VectorReader(s)} that read in a batch of values into Arrow vectors.
+ * It also takes care of allocating the right kind of Arrow vectors depending on the corresponding
+ * Iceberg/Parquet data types.
+ */
+public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
+  public static final int DEFAULT_BATCH_SIZE = 5000;
+  public static final int UNKNOWN_WIDTH = -1;
+
+  private final ColumnDescriptor columnDescriptor;
+  private final int batchSize;
+  private final VectorizedColumnIterator vectorizedColumnIterator;
+  private final boolean isFixedLengthDecimal;
+  private final boolean isVarWidthType;
+  private final boolean isFixedWidthBinary;
+  private final boolean isBooleanType;
+  private final boolean isPaddedDecimal;
+  private final boolean isIntType;
+  private final boolean isLongType;
+  private final boolean isFloatType;
+  private final boolean isDoubleType;
+  private final Types.NestedField icebergField;
+  private final BufferAllocator rootAlloc;
+  private FieldVector vec;
+  private int typeWidth;
+  private boolean reuseContainers = true;
+  private NullabilityHolder nullabilityHolder;
+
+  // In cases when Parquet employs fall back to plain encoding, we eagerly decode the dictionary encoded pages
+  // before storing the values in the Arrow vector. This means even if the dictionary is present, data
+  // present in the vector may not necessarily be dictionary encoded.
+  private Dictionary dictionary;
+  private boolean allPagesDictEncoded;
+
+  // This value is copied from Arrow's BaseVariableWidthVector. We may need to change
+  // this value if Arrow ends up changing this default.
+  private static final int DEFAULT_RECORD_BYTE_COUNT = 8;
+
+  public VectorizedArrowReader(
+      ColumnDescriptor desc,
+      Types.NestedField icebergField,
+      BufferAllocator ra,
+      int batchSize) {
+    this.icebergField = icebergField;
+    this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
+    this.columnDescriptor = desc;
+    this.rootAlloc = ra;
+    this.isFixedLengthDecimal = isFixedLengthDecimal(desc);
+    this.isVarWidthType = isVarWidthType(desc);
+    this.isFixedWidthBinary = isFixedWidthBinary(desc);
+    this.isBooleanType = isBooleanType(desc);
+    this.isPaddedDecimal = isIntLongBackedDecimal(desc);
+    this.isIntType = isIntType(desc);
+    this.isLongType = isLongType(desc);
+    this.isFloatType = isFloatType(desc);
+    this.isDoubleType = isDoubleType(desc);
+    this.vectorizedColumnIterator = new VectorizedColumnIterator(desc, "", batchSize);
+  }
+
+  private VectorizedArrowReader() {
+    this.icebergField = null;
+    this.batchSize = DEFAULT_BATCH_SIZE;
+    this.columnDescriptor = null;
+    this.rootAlloc = null;
+    this.isFixedLengthDecimal = false;
+    this.isVarWidthType = false;
+    this.isFixedWidthBinary = false;
+    this.isBooleanType = false;
+    this.isPaddedDecimal = false;
+    this.isIntType = false;
+    this.isLongType = false;
+    this.isFloatType = false;
+    this.isDoubleType = false;
+    this.vectorizedColumnIterator = null;
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  @Override
+  public VectorHolder read(int numValsToRead) {
+    if (vec == null || !reuseContainers) {
+      typeWidth = allocateFieldVector();
+    }
+    vec.setValueCount(0);
+    nullabilityHolder = new NullabilityHolder(batchSize);
+    if (vectorizedColumnIterator.hasNext()) {
+      if (allPagesDictEncoded) {
+        vectorizedColumnIterator.nextBatchDictionaryIds((IntVector) vec, nullabilityHolder);
+      } else {
+        if (isFixedLengthDecimal) {
+          vectorizedColumnIterator.nextBatchFixedLengthDecimal(vec, typeWidth, nullabilityHolder);
+          ((IcebergDecimalArrowVector) vec).setNullabilityHolder(nullabilityHolder);
+        } else if (isFixedWidthBinary) {
+          // Fixed width binary type values are stored in an IcebergVarBinaryArrowVector as well
+          if (vec instanceof IcebergVarBinaryArrowVector) {
+            ((IcebergVarBinaryArrowVector) vec).setNullabilityHolder(nullabilityHolder);
+          }
+          vectorizedColumnIterator.nextBatchFixedWidthBinary(vec, typeWidth, nullabilityHolder);
+        } else if (isVarWidthType) {
+          if (vec instanceof IcebergVarcharArrowVector) {
+            ((IcebergVarcharArrowVector) vec).setNullabilityHolder(nullabilityHolder);
+          } else if (vec instanceof IcebergVarBinaryArrowVector) {
+            ((IcebergVarBinaryArrowVector) vec).setNullabilityHolder(nullabilityHolder);
+          }
+          vectorizedColumnIterator.nextBatchVarWidthType(vec, nullabilityHolder);
+        } else if (isBooleanType) {
+          vectorizedColumnIterator.nextBatchBoolean(vec, nullabilityHolder);
+        } else if (isPaddedDecimal) {
+          ((IcebergDecimalArrowVector) vec).setNullabilityHolder(nullabilityHolder);
+          vectorizedColumnIterator.nextBatchIntLongBackedDecimal(vec, typeWidth, nullabilityHolder);
+        } else if (isIntType) {
+          vectorizedColumnIterator.nextBatchIntegers(vec, typeWidth, nullabilityHolder);
+        } else if (isLongType) {
+          vectorizedColumnIterator.nextBatchLongs(vec, typeWidth, nullabilityHolder);
+        } else if (isFloatType) {
+          vectorizedColumnIterator.nextBatchFloats(vec, typeWidth, nullabilityHolder);
+        } else if (isDoubleType) {
+          vectorizedColumnIterator.nextBatchDoubles(vec, typeWidth, nullabilityHolder);
+        }
+      }
+    }
+    if (vec.getValueCount() != numValsToRead) {
+      throw new IllegalStateException("Number of values read into the vector, " +
+          vec.getValueCount() + " is not the same as the expected count of " + numValsToRead);
+    }
+    return new VectorHolder(columnDescriptor, vec, allPagesDictEncoded, dictionary, nullabilityHolder);
+  }
+
+  private int allocateFieldVector() {
+    if (allPagesDictEncoded) {
+      Field field = new Field(
+          icebergField.name(),
+          new FieldType(icebergField.isOptional(), new ArrowType.Int(Integer.SIZE, true), null, null),
+          null);
+      this.vec = field.createVector(rootAlloc);
+      ((IntVector) vec).allocateNew(batchSize);
+      return IntVector.TYPE_WIDTH;
+    } else {
+      PrimitiveType primitive = columnDescriptor.getPrimitiveType();
+      if (primitive.getOriginalType() != null) {
+        switch (columnDescriptor.getPrimitiveType().getOriginalType()) {
+          case ENUM:
+          case JSON:
+          case UTF8:
+          case BSON:
+            this.vec = new IcebergVarcharArrowVector(icebergField.name(), rootAlloc);
+            //TODO: Possibly use the uncompressed page size info to set the initial capacity
+            vec.setInitialCapacity(batchSize * 10);
+            vec.allocateNewSafe();
+            return UNKNOWN_WIDTH;
+          case INT_8:
+          case INT_16:
+          case INT_32:
+            this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
+            ((IntVector) vec).allocateNew(batchSize);
+            return IntVector.TYPE_WIDTH;
+          case DATE:
+            this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
+            ((DateDayVector) vec).allocateNew(batchSize);
+            return IntVector.TYPE_WIDTH;
+          case INT_64:
+          case TIMESTAMP_MILLIS:
+            this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
+            ((BigIntVector) vec).allocateNew(batchSize);
+            return BigIntVector.TYPE_WIDTH;
+          case TIMESTAMP_MICROS:
+            this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
+            ((TimeStampMicroTZVector) vec).allocateNew(batchSize);
+            return BigIntVector.TYPE_WIDTH;
+          case DECIMAL:
+            DecimalMetadata decimal = primitive.getDecimalMetadata();
+            this.vec = new IcebergDecimalArrowVector(icebergField.name(), rootAlloc, decimal.getPrecision(),
+                decimal.getScale());
+            ((DecimalVector) vec).allocateNew(batchSize);
+            switch (primitive.getPrimitiveTypeName()) {
+              case BINARY:
+              case FIXED_LEN_BYTE_ARRAY:
+                return primitive.getTypeLength();
+              case INT64:
+                return BigIntVector.TYPE_WIDTH;
+              case INT32:
+                return IntVector.TYPE_WIDTH;
+              default:
+                throw new UnsupportedOperationException(
+                    "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
+            }
+          default:
+            throw new UnsupportedOperationException(
+                "Unsupported logical type: " + primitive.getOriginalType());
+        }
+      } else {
+        switch (primitive.getPrimitiveTypeName()) {
+          case FIXED_LEN_BYTE_ARRAY:
+            int len = ((Types.FixedType) icebergField.type()).length();
+            this.vec = new IcebergVarBinaryArrowVector(icebergField.name(), rootAlloc);
+            int factor = (len + DEFAULT_RECORD_BYTE_COUNT - 1) / DEFAULT_RECORD_BYTE_COUNT;
+            vec.setInitialCapacity(batchSize * factor);
+            vec.allocateNew();
+            return len;
+          case BINARY:
+            this.vec = new IcebergVarBinaryArrowVector(icebergField.name(), rootAlloc);
+            //TODO: Possibly use the uncompressed page size info to set the initial capacity
+            vec.setInitialCapacity(batchSize * 10);
+            vec.allocateNewSafe();
+            return UNKNOWN_WIDTH;
+          case INT32:
+            this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
+            ((IntVector) vec).allocateNew(batchSize);
+            return IntVector.TYPE_WIDTH;
+          case FLOAT:
+            this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
+            ((Float4Vector) vec).allocateNew(batchSize);
+            return Float4Vector.TYPE_WIDTH;
+          case BOOLEAN:
+            this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
+            ((BitVector) vec).allocateNew(batchSize);
+            return UNKNOWN_WIDTH;
+          case INT64:
+            this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
+            ((BigIntVector) vec).allocateNew(batchSize);
+            return BigIntVector.TYPE_WIDTH;
+          case DOUBLE:
+            this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
+            ((Float8Vector) vec).allocateNew(batchSize);
+            return Float8Vector.TYPE_WIDTH;
+          default:
+            throw new UnsupportedOperationException("Unsupported type: " + primitive);
+        }
+      }
+    }
+  }
+
+  @Override
+  public void setRowGroupInfo(PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
+    ColumnChunkMetaData chunkMetaData = metadata.get(ColumnPath.get(columnDescriptor.getPath()));
+    allPagesDictEncoded = !ParquetUtil.hasNonDictionaryPages(chunkMetaData);
+    dictionary = vectorizedColumnIterator.setRowGroupInfo(source, allPagesDictEncoded);
+  }
+
+  @Override
+  public void reuseContainers(boolean reuse) {
+    this.reuseContainers = reuse;
+  }
+
+  @Override
+  public String toString() {
+    return columnDescriptor.toString();
+  }
+
+  public static final VectorizedArrowReader NULL_VALUES_READER =
+      new VectorizedArrowReader() {
+        @Override
+        public VectorHolder read(int numValsToRead) {
+          return VectorHolder.NULL_VECTOR_HOLDER;
+        }
+
+        @Override
+        public void setRowGroupInfo(PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
+        }
+      };
+
+  private static boolean isFixedLengthDecimal(ColumnDescriptor desc) {
+    PrimitiveType primitive = desc.getPrimitiveType();
+    return primitive.getOriginalType() != null &&
+        primitive.getOriginalType() == OriginalType.DECIMAL &&
+        (primitive.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY ||
+            primitive.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.BINARY);
+  }
+
+  private static boolean isIntLongBackedDecimal(ColumnDescriptor desc) {
+    PrimitiveType primitive = desc.getPrimitiveType();
+    return primitive.getOriginalType() != null &&
+        primitive.getOriginalType() == OriginalType.DECIMAL &&
+        (primitive.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT64 ||
+            primitive.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32);
+  }
+
+  private static boolean isVarWidthType(ColumnDescriptor desc) {
+    PrimitiveType primitive = desc.getPrimitiveType();
+    OriginalType originalType = primitive.getOriginalType();
+    if (originalType != null &&
+        originalType != OriginalType.DECIMAL &&
+        (originalType == OriginalType.ENUM ||
+            originalType == OriginalType.JSON ||
+            originalType == OriginalType.UTF8 ||
+            originalType == OriginalType.BSON)) {
+      return true;
+    }
+    if (originalType == null && primitive.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.BINARY) {
+      return true;
+    }
+    return false;
+  }
+
+  private static boolean isBooleanType(ColumnDescriptor desc) {
+    PrimitiveType primitive = desc.getPrimitiveType();
+    OriginalType originalType = primitive.getOriginalType();
+    return originalType == null && primitive.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.BOOLEAN;
+  }
+
+  private static boolean isFixedWidthBinary(ColumnDescriptor desc) {
+    PrimitiveType primitive = desc.getPrimitiveType();
+    OriginalType originalType = primitive.getOriginalType();
+    if (originalType == null &&
+        primitive.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY) {
+      return true;
+    }
+    return false;
+  }
+
+  private static boolean isIntType(ColumnDescriptor desc) {
+    return desc.getPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32;
+  }
+
+  private static boolean isLongType(ColumnDescriptor desc) {
+    return desc.getPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT64;
+  }
+
+  private static boolean isDoubleType(ColumnDescriptor desc) {
+    return desc.getPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.DOUBLE;
+  }
+
+  private static boolean isFloatType(ColumnDescriptor desc) {
+    return desc.getPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FLOAT;
+  }
+
+  private static Map<ColumnPath, Boolean> buildColumnDictEncodedMap(BlockMetaData blockMetaData) {
+    Map<ColumnPath, Boolean> map = new HashMap<>();
+    for (ColumnChunkMetaData chunkMetaData : blockMetaData.getColumns()) {
+      ColumnPath path = chunkMetaData.getPath();
+      boolean rowGroupDictEncoded = !ParquetUtil.hasNonDictionaryPages(chunkMetaData);
+      map.merge(path, rowGroupDictEncoded, (previous, value) -> previous && value);
+    }
+    return map;
+  }
+}
+

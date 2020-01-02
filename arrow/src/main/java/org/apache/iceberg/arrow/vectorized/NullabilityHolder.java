@@ -17,28 +17,30 @@
  * under the License.
  */
 
-rootProject.name = 'iceberg'
-include 'api'
-include 'common'
-include 'core'
-include 'data'
-include 'orc'
-include 'parquet'
-include 'spark'
-include 'arrow'
-include 'spark-runtime'
-include 'pig'
-include 'hive'
+package org.apache.iceberg.arrow.vectorized;
 
-project(':api').name = 'iceberg-api'
-project(':common').name = 'iceberg-common'
-project(':core').name = 'iceberg-core'
-project(':data').name = 'iceberg-data'
-project(':orc').name = 'iceberg-orc'
-project(':arrow').name = 'iceberg-arrow'
-project(':parquet').name = 'iceberg-parquet'
-project(':spark').name = 'iceberg-spark'
-project(':spark-runtime').name = 'iceberg-spark-runtime'
-project(':pig').name = 'iceberg-pig'
-project(':hive').name = 'iceberg-hive'
+public class NullabilityHolder {
+  private final boolean[] isNull;
+  private int numNulls;
 
+  public NullabilityHolder(int batchSize) {
+    this.isNull = new boolean[batchSize];
+  }
+
+  public void setNull(int idx) {
+    isNull[idx] = true;
+    numNulls++;
+  }
+
+  public boolean isNullAt(int idx) {
+    return isNull[idx];
+  }
+
+  public boolean hasNulls() {
+    return numNulls > 0;
+  }
+
+  public int numNulls() {
+    return numNulls;
+  }
+}
