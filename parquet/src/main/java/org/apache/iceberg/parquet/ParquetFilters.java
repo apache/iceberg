@@ -136,29 +136,22 @@ class ParquetFilters {
             case NOT_EQ:
               return FilterApi.notEq(col, getParquetPrimitive(lit));
           }
-
+          break;
         case INTEGER:
+        case DATE:
           return pred(op, FilterApi.intColumn(path), getParquetPrimitive(lit));
         case LONG:
+        case TIME:
+        case TIMESTAMP:
           return pred(op, FilterApi.longColumn(path), getParquetPrimitive(lit));
         case FLOAT:
           return pred(op, FilterApi.floatColumn(path), getParquetPrimitive(lit));
         case DOUBLE:
           return pred(op, FilterApi.doubleColumn(path), getParquetPrimitive(lit));
-        case DATE:
-          return pred(op, FilterApi.intColumn(path), getParquetPrimitive(lit));
-        case TIME:
-          return pred(op, FilterApi.longColumn(path), getParquetPrimitive(lit));
-        case TIMESTAMP:
-          return pred(op, FilterApi.longColumn(path), getParquetPrimitive(lit));
         case STRING:
-          return pred(op, FilterApi.binaryColumn(path), getParquetPrimitive(lit));
         case UUID:
-          return pred(op, FilterApi.binaryColumn(path), getParquetPrimitive(lit));
         case FIXED:
-          return pred(op, FilterApi.binaryColumn(path), getParquetPrimitive(lit));
         case BINARY:
-          return pred(op, FilterApi.binaryColumn(path), getParquetPrimitive(lit));
         case DECIMAL:
           return pred(op, FilterApi.binaryColumn(path), getParquetPrimitive(lit));
       }

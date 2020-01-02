@@ -93,7 +93,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
   }
 
   @Override
-  public List<String> struct(Types.StructType readStruct, Iterable<List<String>> fieldErrorLists) {
+  public ImmutableList<String> struct(Types.StructType readStruct, Iterable<List<String>> fieldErrorLists) {
     Preconditions.checkNotNull(readStruct, "Evaluation must start with a schema.");
 
     if (!currentType.isStructType()) {
@@ -130,11 +130,11 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
       }
     }
 
-    return errors;
+    return ImmutableList.copyOf(errors);
   }
 
   @Override
-  public List<String> field(Types.NestedField readField, Supplier<List<String>> fieldErrors) {
+  public ImmutableList<String> field(Types.NestedField readField, Supplier<List<String>> fieldErrors) {
     Types.StructType struct = currentType.asStructType();
     Types.NestedField field = struct.field(readField.fieldId());
     List<String> errors = Lists.newArrayList();
@@ -163,15 +163,14 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
         }
       }
 
-      return errors;
-
+      return ImmutableList.copyOf(errors);
     } finally {
       this.currentType = struct;
     }
   }
 
   @Override
-  public List<String> list(Types.ListType readList, Supplier<List<String>> elementErrors) {
+  public ImmutableList<String> list(Types.ListType readList, Supplier<List<String>> elementErrors) {
     if (!currentType.isListType()) {
       return ImmutableList.of(String.format(": %s cannot be read as a list", currentType));
     }
@@ -187,15 +186,14 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
 
       errors.addAll(elementErrors.get());
 
-      return errors;
-
+      return ImmutableList.copyOf(errors);
     } finally {
       this.currentType = list;
     }
   }
 
   @Override
-  public List<String> map(Types.MapType readMap, Supplier<List<String>> keyErrors, Supplier<List<String>> valueErrors) {
+  public ImmutableList<String> map(Types.MapType readMap, Supplier<List<String>> keyErrors, Supplier<List<String>> valueErrors) {
     if (!currentType.isMapType()) {
       return ImmutableList.of(String.format(": %s cannot be read as a map", currentType));
     }
@@ -214,15 +212,14 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
       this.currentType = map.valueType();
       errors.addAll(valueErrors.get());
 
-      return errors;
-
+      return ImmutableList.copyOf(errors);
     } finally {
       this.currentType = map;
     }
   }
 
   @Override
-  public List<String> primitive(Type.PrimitiveType readPrimitive) {
+  public ImmutableList<String> primitive(Type.PrimitiveType readPrimitive) {
     if (currentType.equals(readPrimitive)) {
       return NO_ERRORS;
     }

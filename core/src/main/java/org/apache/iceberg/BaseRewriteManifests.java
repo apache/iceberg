@@ -53,7 +53,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
   private static final String REPLACED_MANIFESTS_COUNT = "manifests-replaced";
   private static final String PROCESSED_ENTRY_COUNT = "entries-processed";
 
-  private static final Set<ManifestEntry.Status> ALLOWED_ENTRY_STATUSES = ImmutableSet.of(
+  private static final ImmutableSet<ManifestEntry.Status> ALLOWED_ENTRY_STATUSES = ImmutableSet.of(
       ManifestEntry.Status.EXISTING);
 
   private final TableOperations ops;
