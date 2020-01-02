@@ -193,7 +193,8 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
   }
 
   @Override
-  public ImmutableList<String> map(Types.MapType readMap, Supplier<List<String>> keyErrors, Supplier<List<String>> valueErrors) {
+  public ImmutableList<String> map(
+      Types.MapType readMap, Supplier<List<String>> keyErrors, Supplier<List<String>> valueErrors) {
     if (!currentType.isMapType()) {
       return ImmutableList.of(String.format(": %s cannot be read as a map", currentType));
     }
