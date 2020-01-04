@@ -46,7 +46,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
   private final Converter[] converters;
 
   private GenericOrcWriter(TypeDescription schema) {
-    converters = buildConverters(schema);
+    this.converters = buildConverters(schema);
   }
 
   public static OrcValueWriter<Record> buildWriter(TypeDescription fileSchema) {
@@ -261,8 +261,8 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
     private final int scale;
 
     Decimal18Converter(TypeDescription schema) {
-      precision = schema.getPrecision();
-      scale = schema.getScale();
+      this.precision = schema.getPrecision();
+      this.scale = schema.getScale();
     }
 
     @Override
@@ -288,8 +288,8 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
     private final int scale;
 
     Decimal38Converter(TypeDescription schema) {
-      precision = schema.getPrecision();
-      scale = schema.getScale();
+      this.precision = schema.getPrecision();
+      this.scale = schema.getScale();
     }
 
     @Override
@@ -313,7 +313,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
     private final Converter[] children;
 
     StructConverter(TypeDescription schema) {
-      children = new Converter[schema.getChildren().size()];
+      this.children = new Converter[schema.getChildren().size()];
       for (int c = 0; c < children.length; ++c) {
         children[c] = buildConverter(schema.getChildren().get(c));
       }
@@ -343,7 +343,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
     private final Converter children;
 
     ListConverter(TypeDescription schema) {
-      children = buildConverter(schema.getChildren().get(0));
+      this.children = buildConverter(schema.getChildren().get(0));
     }
 
     @Override
@@ -379,8 +379,8 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
     private final Converter valueConverter;
 
     MapConverter(TypeDescription schema) {
-      keyConverter = buildConverter(schema.getChildren().get(0));
-      valueConverter = buildConverter(schema.getChildren().get(1));
+      this.keyConverter = buildConverter(schema.getChildren().get(0));
+      this.valueConverter = buildConverter(schema.getChildren().get(1));
     }
 
     @Override

@@ -54,9 +54,9 @@ public class GenericOrcReader implements OrcValueReader<Record> {
   private final Converter[] converters;
 
   private GenericOrcReader(Schema expectedSchema, TypeDescription readSchema) {
-    schema = expectedSchema;
-    columns = readSchema.getChildren();
-    converters = buildConverters();
+    this.schema = expectedSchema;
+    this.columns = readSchema.getChildren();
+    this.converters = buildConverters();
   }
 
   private Converter[] buildConverters() {

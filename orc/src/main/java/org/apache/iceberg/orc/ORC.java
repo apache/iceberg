@@ -58,9 +58,9 @@ public class ORC {
     private WriteBuilder(OutputFile file) {
       this.file = file;
       if (file instanceof HadoopOutputFile) {
-        conf = new Configuration(((HadoopOutputFile) file).getConf());
+        this.conf = new Configuration(((HadoopOutputFile) file).getConf());
       } else {
-        conf = new Configuration();
+        this.conf = new Configuration();
       }
     }
 
@@ -123,9 +123,9 @@ public class ORC {
       Preconditions.checkNotNull(file, "Input file cannot be null");
       this.file = file;
       if (file instanceof HadoopInputFile) {
-        conf = new Configuration(((HadoopInputFile) file).getConf());
+        this.conf = new Configuration(((HadoopInputFile) file).getConf());
       } else {
-        conf = new Configuration();
+        this.conf = new Configuration();
       }
     }
 
