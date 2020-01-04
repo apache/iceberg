@@ -156,14 +156,14 @@ public abstract class TestReadProjection {
     );
 
     Record projected = writeAndRead("rename_and_add_column_projection", schema, renamedAdded, record);
-    Assert.assertEquals("Should contain the correct value in colum 1", projected.get(0), 100L);
-    Assert.assertEquals("Should contain the correct value in colum a", projected.getField("a"), 100L);
-    Assert.assertEquals("Should contain the correct value in colum 2", projected.get(1), 200L);
-    Assert.assertEquals("Should contain the correct value in colum b", projected.getField("b"), 200L);
-    Assert.assertEquals("Should contain the correct value in colum 3", projected.get(2), 300L);
-    Assert.assertEquals("Should contain the correct value in colum c", projected.getField("c"), 300L);
+    Assert.assertEquals("Should contain the correct value in column 1", projected.get(0), 100L);
+    Assert.assertEquals("Should contain the correct value in column a", projected.getField("a"), 100L);
+    Assert.assertEquals("Should contain the correct value in column 2", projected.get(1), 200L);
+    Assert.assertEquals("Should contain the correct value in column b", projected.getField("b"), 200L);
+    Assert.assertEquals("Should contain the correct value in column 3", projected.get(2), 300L);
+    Assert.assertEquals("Should contain the correct value in column c", projected.getField("c"), 300L);
     Assert.assertNull("Should contain empty value on new column 4", projected.get(3));
-    Assert.assertNull("Should contain the correct value in colum d", projected.getField("d"));
+    Assert.assertNull("Should contain the correct value in column d", projected.getField("d"));
   }
 
   @Test
