@@ -74,7 +74,7 @@ public final class ORCSchemaUtil {
   private static final String ICEBERG_INTEGER_TYPE_ATTRIBUTE = "iceberg.integer-type";
   private static final String ICEBERG_FIELD_LENGTH = "iceberg.length";
 
-  private static final Map<Type.TypeID, TypeDescription.Category> TYPE_MAPPING =
+  private static final ImmutableMap<Type.TypeID, TypeDescription.Category> TYPE_MAPPING =
       ImmutableMap.<Type.TypeID, TypeDescription.Category>builder()
           .put(Type.TypeID.BOOLEAN, TypeDescription.Category.BOOLEAN)
           .put(Type.TypeID.INTEGER, TypeDescription.Category.INT)
