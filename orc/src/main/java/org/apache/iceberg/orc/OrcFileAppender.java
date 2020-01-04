@@ -80,8 +80,8 @@ class OrcFileAppender<D> implements FileAppender<D> {
         writer.addRowBatch(batch);
         batch.reset();
       }
-    } catch (IOException e) {
-      throw new RuntimeException("Problem writing to ORC file " + file.location(), e);
+    } catch (IOException ioe) {
+      throw new RuntimeIOException(ioe, "Problem writing to ORC file " + file.location());
     }
   }
 
@@ -104,8 +104,8 @@ class OrcFileAppender<D> implements FileAppender<D> {
     Reader reader;
     try {
       reader = OrcFile.createReader(new Path(fileLoc), new OrcFile.ReaderOptions(conf));
-    } catch (IOException e) {
-      throw new RuntimeIOException("Cannot read file " + fileLoc, e);
+    } catch (IOException ioe) {
+      throw new RuntimeIOException(ioe, "Cannot read file " + fileLoc);
     }
 
     List<StripeInformation> stripes = reader.getStripes();
@@ -134,8 +134,8 @@ class OrcFileAppender<D> implements FileAppender<D> {
 
     try {
       writer = OrcFile.createWriter(locPath, options);
-    } catch (IOException e) {
-      throw new RuntimeException("Can't create file " + locPath, e);
+    } catch (IOException ioe) {
+      throw new RuntimeIOException(ioe, "Can't create file " + locPath);
     }
 
     metadata.forEach((key, value) -> writer.addUserMetadata(key, ByteBuffer.wrap(value)));
