@@ -64,5 +64,5 @@ Iceberg has four mailing lists:
     - [Subscribe](mailto:issues-subscribe@iceberg.apache.org)
     - [Unsubscribe](mailto:issues-unsubscribe@iceberg.apache.org)
     - [Archive](https://lists.apache.org/list.html?issues@iceberg.apache.org)
-* **Private**: <private@iceberg.apache.org> -- private list for the PMC to discuss issues related to the health of the project
+* **Private**: <private@iceberg.apache.org> -- private list for the PMC to discuss sensitive issues related to the health of the project
     - [Archive](https://lists.apache.org/list.html?private@iceberg.apache.org)
