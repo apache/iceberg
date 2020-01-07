@@ -58,9 +58,9 @@ public class ORC {
     private WriteBuilder(OutputFile file) {
       this.file = file;
       if (file instanceof HadoopOutputFile) {
-        conf = new Configuration(((HadoopOutputFile) file).getConf());
+        this.conf = new Configuration(((HadoopOutputFile) file).getConf());
       } else {
-        conf = new Configuration();
+        this.conf = new Configuration();
       }
     }
 
@@ -100,7 +100,7 @@ public class ORC {
 
     public <D> FileAppender<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
-      return new OrcFileAppender<>(TypeConversion.toOrc(schema, new ColumnIdMap()),
+      return new OrcFileAppender<>(schema,
           this.file, createWriterFunc, conf, metadata,
           conf.getInt(VECTOR_ROW_BATCH_SIZE, VectorizedRowBatch.DEFAULT_SIZE));
     }
@@ -117,15 +117,15 @@ public class ORC {
     private Long start = null;
     private Long length = null;
 
-    private Function<Schema, OrcValueReader<?>> readerFunc;
+    private Function<TypeDescription, OrcValueReader<?>> readerFunc;
 
     private ReadBuilder(InputFile file) {
       Preconditions.checkNotNull(file, "Input file cannot be null");
       this.file = file;
       if (file instanceof HadoopInputFile) {
-        conf = new Configuration(((HadoopInputFile) file).getConf());
+        this.conf = new Configuration(((HadoopInputFile) file).getConf());
       } else {
-        conf = new Configuration();
+        this.conf = new Configuration();
       }
     }
 
@@ -157,7 +157,7 @@ public class ORC {
       return this;
     }
 
-    public ReadBuilder createReaderFunc(Function<Schema, OrcValueReader<?>> readerFunction) {
+    public ReadBuilder createReaderFunc(Function<TypeDescription, OrcValueReader<?>> readerFunction) {
       this.readerFunc = readerFunction;
       return this;
     }
