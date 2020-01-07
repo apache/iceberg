@@ -325,6 +325,7 @@ project(':iceberg-spark-runtime') {
 
     // Relocate dependencies to avoid conflicts
     relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
+    relocate 'com.google.common', 'org.apache.iceberg.shaded.com.google.common'
     relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
     relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
     relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'
