@@ -200,17 +200,10 @@ public interface Table {
   ExpireSnapshots expireSnapshots();
 
   /**
-   * Create a new {@link Rollback rollback API} to roll back to a previous snapshot and commit.
-   *
-   * @return a new {@link Rollback}
-   */
-  Rollback rollback();
-
-  /**
-   *
+   * Create a new {@link ManageSnapshots API} to manage snapshots in this table and commit.
    * @return
    */
-  CherryPick cherrypick();
+  ManageSnapshots manageSnapshots();
 
   /**
    * Create a new {@link Transaction transaction API} to commit multiple table operations at once.

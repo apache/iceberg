@@ -155,13 +155,8 @@ public class BaseTable implements Table, HasTableOperations {
   }
 
   @Override
-  public Rollback rollback() {
-    return new RollbackToSnapshot(ops);
-  }
-
-  @Override
-  public CherryPick cherrypick() {
-    return new CherryPickFromSnapshot(ops);
+  public ManageSnapshots manageSnapshots() {
+    return new SnapshotManager(ops);
   }
 
   @Override

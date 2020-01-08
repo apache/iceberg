@@ -581,13 +581,8 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
-    public Rollback rollback() {
-      throw new UnsupportedOperationException("Transaction tables do not support rollback");
-    }
-
-    @Override
-    public CherryPick cherrypick() {
-      throw new UnsupportedOperationException("Transaction tables do not support cherrypick");
+    public ManageSnapshots manageSnapshots() {
+      throw new UnsupportedOperationException("Transaction tables do not support managing snapshots");
     }
 
     @Override

@@ -326,7 +326,7 @@ public class TableMetadata {
     return snapshotsPublishedByWapId;
   }
 
-  boolean isWapIdPublished(long wapId) {
+  boolean isWapIdPublished(String wapId) {
     return snapshotsPublishedByWapId.containsKey(String.valueOf(wapId));
   }
 
@@ -401,17 +401,34 @@ public class TableMetadata {
   }
 
   public TableMetadata replaceCurrentSnapshot(Snapshot snapshot) {
-    List<Snapshot> newSnapshots = ImmutableList.<Snapshot>builder()
-        .addAll(snapshots)
-        .add(snapshot)
-        .build();
-    List<HistoryEntry> newSnapshotLog = ImmutableList.<HistoryEntry>builder()
-        .addAll(snapshotLog)
-        .add(new SnapshotLogEntry(snapshot.timestampMillis(), snapshot.snapshotId()))
-        .build();
-    return new TableMetadata(null, uuid, location,
-        snapshot.timestampMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
-        snapshot.snapshotId(), newSnapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
+    // there can be operations (viz. rollback, cherrypick) where an existing snapshot could be replacing current
+    if (snapshotsById.containsKey(snapshot.snapshotId())) {
+      long nowMillis = System.currentTimeMillis();
+      List<HistoryEntry> newSnapshotLog = ImmutableList.<HistoryEntry>builder()
+          .addAll(snapshotLog)
+          .add(new SnapshotLogEntry(nowMillis, snapshot.snapshotId()))
+          .build();
+
+      return new TableMetadata(null, uuid, location,
+          nowMillis, lastColumnId, schema, defaultSpecId, specs, properties,
+          snapshot.snapshotId(), snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
+
+    } else {
+
+      List<Snapshot> newSnapshots = ImmutableList.<Snapshot>builder()
+          .addAll(snapshots)
+          .add(snapshot)
+          .build();
+      List<HistoryEntry> newSnapshotLog = ImmutableList.<HistoryEntry>builder()
+          .addAll(snapshotLog)
+          .add(new SnapshotLogEntry(snapshot.timestampMillis(),
+              snapshot.snapshotId()))
+          .build();
+
+      return new TableMetadata(null, uuid, location,
+          snapshot.timestampMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
+          snapshot.snapshotId(), newSnapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
+    }
   }
 
   public TableMetadata removeSnapshotsIf(Predicate<Snapshot> removeIf) {
@@ -461,9 +478,9 @@ public class TableMetadata {
         snapshot.snapshotId(), snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
-  public TableMetadata cherrypickFrom(Snapshot snapshot) {
-    return rollbackTo(snapshot);
-  }
+  // public TableMetadata cherrypickFrom(Snapshot snapshot) {
+  //   return rollbackTo(snapshot);
+  // }
 
   public TableMetadata replaceProperties(Map<String, String> newProperties) {
     ValidationException.check(newProperties != null, "Cannot set properties to null");

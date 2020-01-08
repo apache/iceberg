@@ -20,17 +20,27 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.exceptions.CommitFailedException;
-
 /**
- * API for rolling table data back to the state at an older table {@link Snapshot snapshot}.
- * <p>
- * This API does not allow conflicting calls to {@link #toSnapshotId(long)} and
- * {@link #toSnapshotAtTime(long)}.
- * <p>
- * When committing, these changes will be applied to the current table metadata. Commit conflicts
- * will not be resolved and will result in a {@link CommitFailedException}.
+ * API for managing snapshots. Allows rolling table data back to a stated at an older table {@link Snapshot snapshot}.
+ * Rollback:
+ *  <p>
+ *  This API does not allow conflicting calls to {@link #rollback(long)} and
+ *  {@link #rollbackAtTime(long)}.
+ *  <p>
+ *  When committing, these changes will be applied to the current table metadata. Commit conflicts
+ *  will not be resolved and will result in a {@link CommitFailedException}.
+ * Cherrypick:
+ *  <p>
+ *  In an audit workflow, new data is written to an orphan {@link Snapshot snapshot} that is not committed as
+ *  the table's current state until it is audited. After auditing a change, it may need to be applied or cherry-picked
+ *  on top of the latest snapshot instead of the one that was current when the audited changes were created.
+ *  This class adds support for cherry-picking the changes from an orphan snapshot by applying them to
+ *  the current snapshot. The output of the operation is a new snapshot with the changes from cherry-picked
+ *  snapshot.
+ *  <p>
  */
-public interface Rollback extends PendingUpdate<Snapshot> {
+
+public interface ManageSnapshots extends PendingUpdate<Snapshot> {
 
   /**
    * Roll this table's data back to a specific {@link Snapshot} identified by id.
@@ -39,7 +49,7 @@ public interface Rollback extends PendingUpdate<Snapshot> {
    * @return this for method chaining
    * @throws IllegalArgumentException If the table has no snapshot with the given id
    */
-  Rollback toSnapshotId(long snapshotId);
+  ManageSnapshots rollback(long snapshotId);
 
   /**
    * Roll this table's data back to the last {@link Snapshot} before the given timestamp.
@@ -48,6 +58,7 @@ public interface Rollback extends PendingUpdate<Snapshot> {
    * @return this for method chaining
    * @throws IllegalArgumentException If the table has no old snapshot before the given timestamp
    */
-  Rollback toSnapshotAtTime(long timestampMillis);
+  ManageSnapshots rollbackAtTime(long timestampMillis);
 
+  ManageSnapshots cherrypick(long snapshotId);
 }
