@@ -22,10 +22,7 @@ package org.apache.iceberg.spark.data;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.util.List;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.orc.ColumnIdMap;
 import org.apache.iceberg.orc.OrcValueReader;
-import org.apache.iceberg.orc.TypeConversion;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
@@ -57,27 +54,25 @@ import org.apache.spark.unsafe.Platform;
  */
 public class SparkOrcReader implements OrcValueReader<InternalRow> {
   private static final int INITIAL_SIZE = 128 * 1024;
-  private final int numFields;
-  private final TypeDescription readSchema;
+  private final List<TypeDescription> columns;
   private final Converter[] converters;
 
-  public SparkOrcReader(Schema readSchema) {
-    this.readSchema = TypeConversion.toOrc(readSchema, new ColumnIdMap());
-    numFields = readSchema.columns().size();
+  public SparkOrcReader(TypeDescription readOrcSchema) {
+    columns = readOrcSchema.getChildren();
     converters = buildConverters();
   }
 
   private Converter[] buildConverters() {
-    final Converter[] newConverters = new Converter[numFields];
-    for (int c = 0; c < numFields; ++c) {
-      newConverters[c] = buildConverter(readSchema.getChildren().get(c));
+    final Converter[] newConverters = new Converter[columns.size()];
+    for (int c = 0; c < newConverters.length; ++c) {
+      newConverters[c] = buildConverter(columns.get(c));
     }
     return newConverters;
   }
 
   @Override
   public InternalRow read(VectorizedRowBatch batch, int row) {
-    final UnsafeRowWriter rowWriter = new UnsafeRowWriter(numFields, INITIAL_SIZE);
+    final UnsafeRowWriter rowWriter = new UnsafeRowWriter(columns.size(), INITIAL_SIZE);
     rowWriter.reset();
     rowWriter.zeroOutNullBytes();
     for (int c = 0; c < batch.cols.length; ++c) {
@@ -424,7 +419,8 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
         writer.setNullAt(column);
       } else {
         BytesColumnVector bytesVector = (BytesColumnVector) vector;
-        writer.write(column, bytesVector.vector[rowIndex], bytesVector.start[rowIndex], bytesVector.length[rowIndex]);
+        writer.write(column, bytesVector.vector[rowIndex],
+            bytesVector.start[rowIndex], bytesVector.length[rowIndex]);
       }
     }
 
@@ -526,7 +522,6 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
       for (int c = 0; c < children.length; ++c) {
         children[c] = buildConverter(schema.getChildren().get(c));
       }
-
     }
 
     int writeStruct(UnsafeWriter parentWriter, StructColumnVector vector, int row) {

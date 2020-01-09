@@ -20,9 +20,11 @@
 package org.apache.iceberg.expressions;
 
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
@@ -264,11 +266,37 @@ public class InclusiveMetricsEvaluator {
 
     @Override
     public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
+      Integer id = ref.fieldId();
+
+      if (containsNullsOnly(id)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      Collection<T> literals = literalSet;
+
+      if (lowerBounds != null && lowerBounds.containsKey(id)) {
+        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+        literals = literals.stream().filter(v -> ref.comparator().compare(lower, v) <= 0).collect(Collectors.toList());
+        if (literals.isEmpty()) { // if all values are less than lower bound, rows cannot match.
+          return ROWS_CANNOT_MATCH;
+        }
+      }
+
+      if (upperBounds != null && upperBounds.containsKey(id)) {
+        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
+        literals = literals.stream().filter(v -> ref.comparator().compare(upper, v) >= 0).collect(Collectors.toList());
+        if (literals.isEmpty()) { // if all remaining values are greater than upper bound, rows cannot match.
+          return ROWS_CANNOT_MATCH;
+        }
+      }
+
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
     public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
+      // because the bounds are not necessarily a min or max value, this cannot be answered using
+      // them. notIn(col, {X, ...}) with (X, Y) doesn't guarantee that X is a value in col.
       return ROWS_MIGHT_MATCH;
     }
 

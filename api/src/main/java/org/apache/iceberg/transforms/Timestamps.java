@@ -25,6 +25,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
@@ -82,6 +83,8 @@ enum Timestamps implements Transform<Long, Integer> {
       return Expressions.predicate(pred.op(), fieldName);
     } else if (pred.isLiteralPredicate()) {
       return ProjectionUtil.truncateLong(fieldName, pred.asLiteralPredicate(), this);
+    } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
+      return ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), this);
     }
     return null;
   }
@@ -96,6 +99,8 @@ enum Timestamps implements Transform<Long, Integer> {
       return Expressions.predicate(pred.op(), fieldName);
     } else if (pred.isLiteralPredicate()) {
       return ProjectionUtil.truncateLongStrict(fieldName, pred.asLiteralPredicate(), this);
+    } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.NOT_IN) {
+      return ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), this);
     }
     return null;
   }

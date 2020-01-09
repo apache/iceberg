@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Joiner;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import io.netty.util.internal.ConcurrentSet;
@@ -59,6 +60,7 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   private final TableOperations ops;
   private final Set<Long> idsToRemove = Sets.newHashSet();
+  private final Set<Long> idsToRetain = Sets.newHashSet();
   private TableMetadata base;
   private Long expireOlderThan = null;
   private Consumer<String> deleteFunc = defaultDelete;
@@ -83,6 +85,21 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   @Override
+  public ExpireSnapshots retainLast(int numSnapshots) {
+    Preconditions.checkArgument(1 <= numSnapshots,
+            "Number of snapshots to retain must be at least 1, cannot be: %s", numSnapshots);
+    idsToRetain.clear();
+    List<Long> ancestorIds = SnapshotUtil.ancestorIds(base.currentSnapshot(), base::snapshot);
+    if (numSnapshots >= ancestorIds.size()) {
+      idsToRetain.addAll(ancestorIds);
+    } else {
+      idsToRetain.addAll(ancestorIds.subList(0, numSnapshots));
+    }
+
+    return this;
+  }
+
+  @Override
   public ExpireSnapshots deleteWith(Consumer<String> newDeleteFunc) {
     this.deleteFunc = newDeleteFunc;
     return this;
@@ -102,7 +119,8 @@ class RemoveSnapshots implements ExpireSnapshots {
 
     return base.removeSnapshotsIf(snapshot ->
         idsToRemove.contains(snapshot.snapshotId()) ||
-        (expireOlderThan != null && snapshot.timestampMillis() < expireOlderThan));
+        (expireOlderThan != null && snapshot.timestampMillis() < expireOlderThan &&
+            !idsToRetain.contains(snapshot.snapshotId())));
   }
 
   @Override

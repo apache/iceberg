@@ -22,6 +22,9 @@ package org.apache.iceberg.parquet;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -33,36 +36,41 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.schema.MessageType;
 
-public class ParquetReader<T> extends CloseableGroup implements CloseableIterable<T> {
+public class VectorizedParquetReader<T> extends CloseableGroup implements CloseableIterable<T> {
   private final InputFile input;
   private final Schema expectedSchema;
   private final ParquetReadOptions options;
-  private final Function<MessageType, ParquetValueReader<?>> readerFunc;
+  private final Function<MessageType, VectorizedReader<?>> batchReaderFunc;
   private final Expression filter;
-  private final boolean reuseContainers;
+  private boolean reuseContainers;
   private final boolean caseSensitive;
+  private final int batchSize;
 
-  public ParquetReader(InputFile input, Schema expectedSchema, ParquetReadOptions options,
-                       Function<MessageType, ParquetValueReader<?>> readerFunc,
-                       Expression filter, boolean reuseContainers, boolean caseSensitive) {
+  public VectorizedParquetReader(
+      InputFile input, Schema expectedSchema, ParquetReadOptions options,
+      Function<MessageType, VectorizedReader<?>> readerFunc,
+      Expression filter, boolean reuseContainers, boolean caseSensitive, int maxRecordsPerBatch) {
     this.input = input;
     this.expectedSchema = expectedSchema;
     this.options = options;
-    this.readerFunc = readerFunc;
+    this.batchReaderFunc = readerFunc;
     // replace alwaysTrue with null to avoid extra work evaluating a trivial filter
     this.filter = filter == Expressions.alwaysTrue() ? null : filter;
     this.reuseContainers = reuseContainers;
     this.caseSensitive = caseSensitive;
+    this.batchSize = maxRecordsPerBatch;
   }
 
-  private ReadConf<T> conf = null;
+  private ReadConf conf = null;
 
-  private ReadConf<T> init() {
+  private ReadConf init() {
     if (conf == null) {
-      ReadConf<T> readConf = new ReadConf<>(
-          input, options, expectedSchema, filter, readerFunc, null, reuseContainers, caseSensitive, null);
+      ReadConf readConf = new ReadConf(
+          input, options, expectedSchema, filter, null, batchReaderFunc, reuseContainers, caseSensitive, batchSize);
       this.conf = readConf.copy();
       return readConf;
     }
@@ -79,21 +87,23 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   private static class FileIterator<T> implements Iterator<T>, Closeable {
     private final ParquetFileReader reader;
     private final boolean[] shouldSkip;
-    private final ParquetValueReader<T> model;
+    private final VectorizedReader<T> model;
     private final long totalValues;
-    private final boolean reuseContainers;
-
+    private final int batchSize;
+    private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetadata;
     private int nextRowGroup = 0;
     private long nextRowGroupStart = 0;
     private long valuesRead = 0;
     private T last = null;
 
-    FileIterator(ReadConf<T> conf) {
+    FileIterator(ReadConf conf) {
       this.reader = conf.reader();
       this.shouldSkip = conf.shouldSkip();
-      this.model = conf.model();
+      this.model = conf.vectorizedModel();
       this.totalValues = conf.totalValues();
-      this.reuseContainers = conf.reuseContainers();
+      this.model.reuseContainers(conf.reuseContainers());
+      this.batchSize = conf.batchSize();
+      this.columnChunkMetadata = conf.columnChunkMetadataForRowGroups();
     }
 
     @Override
@@ -103,17 +113,16 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
     @Override
     public T next() {
+      if (!hasNext()) {
+        throw new NoSuchElementException();
+      }
       if (valuesRead >= nextRowGroupStart) {
         advance();
       }
-
-      if (reuseContainers) {
-        this.last = model.read(last);
-      } else {
-        this.last = model.read(null);
-      }
-      valuesRead += 1;
-
+      long numValuesToRead = Math.min(nextRowGroupStart - valuesRead, batchSize);
+      // batchSize is an integer, so casting to integer is safe
+      this.last = model.read((int) numValuesToRead);
+      valuesRead += numValuesToRead;
       return last;
     }
 
@@ -122,18 +131,15 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
         nextRowGroup += 1;
         reader.skipNextRowGroup();
       }
-
       PageReadStore pages;
       try {
         pages = reader.readNextRowGroup();
       } catch (IOException e) {
         throw new RuntimeIOException(e);
       }
-
+      model.setRowGroupInfo(pages, columnChunkMetadata.get(nextRowGroup));
       nextRowGroupStart += pages.getRowCount();
       nextRowGroup += 1;
-
-      model.setPageSource(pages);
     }
 
     @Override

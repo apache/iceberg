@@ -50,7 +50,7 @@ Issues are tracked in GitHub:
 
 ## Mailing Lists
 
-Iceberg has three mailing lists:
+Iceberg has four mailing lists:
 
 * **Developers**: <dev@iceberg.apache.org> -- used for community discussions
     - [Subscribe](mailto:dev-subscribe@iceberg.apache.org)
@@ -60,5 +60,9 @@ Iceberg has three mailing lists:
     - [Subscribe](mailto:commits-subscribe@iceberg.apache.org)
     - [Unsubscribe](mailto:commits-unsubscribe@iceberg.apache.org)
     - [Archive](https://lists.apache.org/list.html?commits@iceberg.apache.org)
-* **Private**: <private@iceberg.apache.org> -- private PMC list for committer nominations
+* **Issues**: <issues@iceberg.apache.org> -- Github issue tracking
+    - [Subscribe](mailto:issues-subscribe@iceberg.apache.org)
+    - [Unsubscribe](mailto:issues-unsubscribe@iceberg.apache.org)
+    - [Archive](https://lists.apache.org/list.html?issues@iceberg.apache.org)
+* **Private**: <private@iceberg.apache.org> -- private list for the PMC to discuss sensitive issues related to the health of the project
     - [Archive](https://lists.apache.org/list.html?private@iceberg.apache.org)

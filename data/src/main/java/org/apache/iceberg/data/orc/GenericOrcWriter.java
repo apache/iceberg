@@ -17,9 +17,15 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.data;
+package org.apache.iceberg.data.orc;
 
+import com.google.common.collect.Lists;
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.common.type.HiveDecimal;
@@ -33,28 +39,26 @@ import org.apache.orc.storage.ql.exec.vector.MapColumnVector;
 import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
-import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
-import org.apache.spark.sql.catalyst.util.ArrayData;
-import org.apache.spark.sql.catalyst.util.MapData;
 
 /**
- * This class acts as an adaptor from an OrcFileAppender to a
- * FileAppender&lt;InternalRow&gt;.
  */
-public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
-
+public class GenericOrcWriter implements OrcValueWriter<Record> {
   private final Converter[] converters;
 
-  public SparkOrcWriter(TypeDescription schema) {
-    converters = buildConverters(schema);
+  private GenericOrcWriter(TypeDescription schema) {
+    this.converters = buildConverters(schema);
   }
 
+  public static OrcValueWriter<Record> buildWriter(TypeDescription fileSchema) {
+    return new GenericOrcWriter(fileSchema);
+  }
+
+  @SuppressWarnings("unchecked")
   @Override
-  public void write(InternalRow value, VectorizedRowBatch output) {
+  public void write(Record value, VectorizedRowBatch output) throws IOException {
     int row = output.size++;
     for (int c = 0; c < converters.length; ++c) {
-      converters[c].addValue(row, c, value, output.cols[c]);
+      converters[c].addValue(row, value.get(c, converters[c].getJavaClass()), output.cols[c]);
     }
   }
 
@@ -62,293 +66,345 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
    * The interface for the conversion from Spark's SpecializedGetters to
    * ORC's ColumnVectors.
    */
-  interface Converter {
+  interface Converter<T> {
+
+    Class<T> getJavaClass();
+
     /**
      * Take a value from the Spark data value and add it to the ORC output.
      * @param rowId the row in the ColumnVector
-     * @param column either the column number or element number
      * @param data either an InternalRow or ArrayData
      * @param output the ColumnVector to put the value into
      */
-    void addValue(int rowId, int column, SpecializedGetters data,
-                  ColumnVector output);
+    void addValue(int rowId, T data, ColumnVector output);
   }
 
-  static class BooleanConverter implements Converter {
+  static class BooleanConverter implements Converter<Boolean> {
     @Override
-    public void addValue(int rowId, int column, SpecializedGetters data,
-                         ColumnVector output) {
-      if (data.isNullAt(column)) {
+    public Class<Boolean> getJavaClass() {
+      return Boolean.class;
+    }
+
+    @Override
+    public void addValue(int rowId, Boolean data, ColumnVector output) {
+      if (data == null) {
         output.noNulls = false;
         output.isNull[rowId] = true;
       } else {
         output.isNull[rowId] = false;
-        ((LongColumnVector) output).vector[rowId] = data.getBoolean(column) ? 1 : 0;
+        ((LongColumnVector) output).vector[rowId] = data ? 1 : 0;
       }
     }
   }
 
-  static class ByteConverter implements Converter {
+  static class ByteConverter implements Converter<Byte> {
     @Override
-    public void addValue(int rowId, int column, SpecializedGetters data,
-                         ColumnVector output) {
-      if (data.isNullAt(column)) {
+    public Class<Byte> getJavaClass() {
+      return Byte.class;
+    }
+
+    public void addValue(int rowId, Byte data, ColumnVector output) {
+      if (data == null) {
         output.noNulls = false;
         output.isNull[rowId] = true;
       } else {
         output.isNull[rowId] = false;
-        ((LongColumnVector) output).vector[rowId] = data.getByte(column);
+        ((LongColumnVector) output).vector[rowId] = data;
       }
     }
   }
 
-  static class ShortConverter implements Converter {
+  static class ShortConverter implements Converter<Short> {
     @Override
-    public void addValue(int rowId, int column, SpecializedGetters data,
-                         ColumnVector output) {
-      if (data.isNullAt(column)) {
+    public Class<Short> getJavaClass() {
+      return Short.class;
+    }
+
+    public void addValue(int rowId, Short data, ColumnVector output) {
+      if (data == null) {
         output.noNulls = false;
         output.isNull[rowId] = true;
       } else {
         output.isNull[rowId] = false;
-        ((LongColumnVector) output).vector[rowId] = data.getShort(column);
+        ((LongColumnVector) output).vector[rowId] = data;
       }
     }
   }
 
-  static class IntConverter implements Converter {
+  static class IntConverter implements Converter<Integer> {
     @Override
-    public void addValue(int rowId, int column, SpecializedGetters data,
-                         ColumnVector output) {
-      if (data.isNullAt(column)) {
+    public Class<Integer> getJavaClass() {
+      return Integer.class;
+    }
+
+    public void addValue(int rowId, Integer data, ColumnVector output) {
+      if (data == null) {
         output.noNulls = false;
         output.isNull[rowId] = true;
       } else {
         output.isNull[rowId] = false;
-        ((LongColumnVector) output).vector[rowId] = data.getInt(column);
+        ((LongColumnVector) output).vector[rowId] = data;
       }
     }
   }
 
-  static class LongConverter implements Converter {
+  static class LongConverter implements Converter<Long> {
     @Override
-    public void addValue(int rowId, int column, SpecializedGetters data,
-                         ColumnVector output) {
-      if (data.isNullAt(column)) {
+    public Class<Long> getJavaClass() {
+      return Long.class;
+    }
+
+    public void addValue(int rowId, Long data, ColumnVector output) {
+      if (data == null) {
         output.noNulls = false;
         output.isNull[rowId] = true;
       } else {
         output.isNull[rowId] = false;
-        ((LongColumnVector) output).vector[rowId] = data.getLong(column);
+        ((LongColumnVector) output).vector[rowId] = data;
       }
     }
   }
 
-  static class FloatConverter implements Converter {
+  static class FloatConverter implements Converter<Float> {
     @Override
-    public void addValue(int rowId, int column, SpecializedGetters data,
-                         ColumnVector output) {
-      if (data.isNullAt(column)) {
+    public Class<Float> getJavaClass() {
+      return Float.class;
+    }
+
+    public void addValue(int rowId, Float data, ColumnVector output) {
+      if (data == null) {
         output.noNulls = false;
         output.isNull[rowId] = true;
       } else {
         output.isNull[rowId] = false;
-        ((DoubleColumnVector) output).vector[rowId] = data.getFloat(column);
+        ((DoubleColumnVector) output).vector[rowId] = data;
       }
     }
   }
 
-  static class DoubleConverter implements Converter {
+  static class DoubleConverter implements Converter<Double> {
     @Override
-    public void addValue(int rowId, int column, SpecializedGetters data,
-                         ColumnVector output) {
-      if (data.isNullAt(column)) {
+    public Class<Double> getJavaClass() {
+      return Double.class;
+    }
+
+    public void addValue(int rowId, Double data, ColumnVector output) {
+      if (data == null) {
         output.noNulls = false;
         output.isNull[rowId] = true;
       } else {
         output.isNull[rowId] = false;
-        ((DoubleColumnVector) output).vector[rowId] = data.getDouble(column);
+        ((DoubleColumnVector) output).vector[rowId] = data;
       }
     }
   }
 
-  static class StringConverter implements Converter {
+  static class StringConverter implements Converter<String> {
     @Override
-    public void addValue(int rowId, int column, SpecializedGetters data,
-                         ColumnVector output) {
-      if (data.isNullAt(column)) {
+    public Class<String> getJavaClass() {
+      return String.class;
+    }
+
+    public void addValue(int rowId, String data, ColumnVector output) {
+      if (data == null) {
         output.noNulls = false;
         output.isNull[rowId] = true;
       } else {
         output.isNull[rowId] = false;
-        byte[] value = data.getUTF8String(column).getBytes();
+        byte[] value = data.getBytes(StandardCharsets.UTF_8);
         ((BytesColumnVector) output).setRef(rowId, value, 0, value.length);
       }
     }
   }
 
-  static class BytesConverter implements Converter {
+  static class BytesConverter implements Converter<byte[]> {
     @Override
-    public void addValue(int rowId, int column, SpecializedGetters data,
-                         ColumnVector output) {
-      if (data.isNullAt(column)) {
+    public Class<byte[]> getJavaClass() {
+      return byte[].class;
+    }
+
+    public void addValue(int rowId, byte[] data, ColumnVector output) {
+      if (data == null) {
         output.noNulls = false;
         output.isNull[rowId] = true;
       } else {
         output.isNull[rowId] = false;
         // getBinary always makes a copy, so we don't need to worry about it
         // being changed behind our back.
-        byte[] value = data.getBinary(column);
-        ((BytesColumnVector) output).setRef(rowId, value, 0, value.length);
+        ((BytesColumnVector) output).setRef(rowId, data, 0, data.length);
       }
     }
   }
 
-  static class TimestampConverter implements Converter {
+  static class TimestampConverter implements Converter<Long> {
     @Override
-    public void addValue(int rowId, int column, SpecializedGetters data,
-                         ColumnVector output) {
-      if (data.isNullAt(column)) {
+    public Class<Long> getJavaClass() {
+      return Long.class;
+    }
+
+    public void addValue(int rowId, Long data, ColumnVector output) {
+      if (data == null) {
         output.noNulls = false;
         output.isNull[rowId] = true;
       } else {
         output.isNull[rowId] = false;
         TimestampColumnVector cv = (TimestampColumnVector) output;
-        long micros = data.getLong(column);
+        long micros = data;
         cv.time[rowId] = micros / 1_000; // millis
         cv.nanos[rowId] = (int) (micros % 1_000_000) * 1_000; // nanos
       }
     }
   }
 
-  static class Decimal18Converter implements Converter {
+  static class Decimal18Converter implements Converter<BigDecimal> {
     private final int precision;
     private final int scale;
 
     Decimal18Converter(TypeDescription schema) {
-      precision = schema.getPrecision();
-      scale = schema.getScale();
+      this.precision = schema.getPrecision();
+      this.scale = schema.getScale();
     }
 
     @Override
-    public void addValue(int rowId, int column, SpecializedGetters data,
-                         ColumnVector output) {
-      if (data.isNullAt(column)) {
+    public Class<BigDecimal> getJavaClass() {
+      return BigDecimal.class;
+    }
+
+    public void addValue(int rowId, BigDecimal data, ColumnVector output) {
+      // TODO: validate precision and scale from schema
+      if (data == null) {
         output.noNulls = false;
         output.isNull[rowId] = true;
       } else {
         output.isNull[rowId] = false;
-        ((DecimalColumnVector) output).vector[rowId].setFromLongAndScale(
-            data.getDecimal(column, precision, scale).toUnscaledLong(), scale);
+        ((DecimalColumnVector) output).vector[rowId]
+            .setFromLongAndScale(data.longValueExact(), scale);
       }
     }
   }
 
-  static class Decimal38Converter implements Converter {
+  static class Decimal38Converter implements Converter<BigDecimal> {
     private final int precision;
     private final int scale;
 
     Decimal38Converter(TypeDescription schema) {
-      precision = schema.getPrecision();
-      scale = schema.getScale();
+      this.precision = schema.getPrecision();
+      this.scale = schema.getScale();
     }
 
     @Override
-    public void addValue(int rowId, int column, SpecializedGetters data,
-                         ColumnVector output) {
-      if (data.isNullAt(column)) {
+    public Class<BigDecimal> getJavaClass() {
+      return BigDecimal.class;
+    }
+
+    public void addValue(int rowId, BigDecimal data, ColumnVector output) {
+      // TODO: validate precision and scale from schema
+      if (data == null) {
         output.noNulls = false;
         output.isNull[rowId] = true;
       } else {
         output.isNull[rowId] = false;
-        ((DecimalColumnVector) output).vector[rowId].set(
-            HiveDecimal.create(data.getDecimal(column, precision, scale)
-                .toJavaBigDecimal()));
+        ((DecimalColumnVector) output).vector[rowId].set(HiveDecimal.create(data));
       }
     }
   }
 
-  static class StructConverter implements Converter {
+  static class StructConverter implements Converter<Record> {
     private final Converter[] children;
 
     StructConverter(TypeDescription schema) {
-      children = new Converter[schema.getChildren().size()];
+      this.children = new Converter[schema.getChildren().size()];
       for (int c = 0; c < children.length; ++c) {
         children[c] = buildConverter(schema.getChildren().get(c));
       }
     }
 
     @Override
-    public void addValue(int rowId, int column, SpecializedGetters data,
-                         ColumnVector output) {
-      if (data.isNullAt(column)) {
+    public Class<Record> getJavaClass() {
+      return Record.class;
+    }
+
+    @SuppressWarnings("unchecked")
+    public void addValue(int rowId, Record data, ColumnVector output) {
+      if (data == null) {
         output.noNulls = false;
         output.isNull[rowId] = true;
       } else {
         output.isNull[rowId] = false;
-        InternalRow value = data.getStruct(column, children.length);
         StructColumnVector cv = (StructColumnVector) output;
         for (int c = 0; c < children.length; ++c) {
-          children[c].addValue(rowId, c, value, cv.fields[c]);
+          children[c].addValue(rowId, data.get(c, children[c].getJavaClass()), cv.fields[c]);
         }
       }
     }
   }
 
-  static class ListConverter implements Converter {
+  static class ListConverter implements Converter<List> {
     private final Converter children;
 
     ListConverter(TypeDescription schema) {
-      children = buildConverter(schema.getChildren().get(0));
+      this.children = buildConverter(schema.getChildren().get(0));
     }
 
     @Override
-    public void addValue(int rowId, int column, SpecializedGetters data,
-                         ColumnVector output) {
-      if (data.isNullAt(column)) {
+    public Class<List> getJavaClass() {
+      return List.class;
+    }
+
+    @SuppressWarnings("unchecked")
+    public void addValue(int rowId, List data, ColumnVector output) {
+      if (data == null) {
         output.noNulls = false;
         output.isNull[rowId] = true;
       } else {
         output.isNull[rowId] = false;
-        ArrayData value = data.getArray(column);
+        List<Object> value = (List<Object>) data;
         ListColumnVector cv = (ListColumnVector) output;
         // record the length and start of the list elements
-        cv.lengths[rowId] = value.numElements();
+        cv.lengths[rowId] = value.size();
         cv.offsets[rowId] = cv.childCount;
         cv.childCount += cv.lengths[rowId];
         // make sure the child is big enough
         cv.child.ensureSize(cv.childCount, true);
         // Add each element
         for (int e = 0; e < cv.lengths[rowId]; ++e) {
-          children.addValue((int) (e + cv.offsets[rowId]), e, value, cv.child);
+          children.addValue((int) (e + cv.offsets[rowId]), value.get(e), cv.child);
         }
       }
     }
   }
 
-  static class MapConverter implements Converter {
+  static class MapConverter implements Converter<Map> {
     private final Converter keyConverter;
     private final Converter valueConverter;
 
     MapConverter(TypeDescription schema) {
-      keyConverter = buildConverter(schema.getChildren().get(0));
-      valueConverter = buildConverter(schema.getChildren().get(1));
+      this.keyConverter = buildConverter(schema.getChildren().get(0));
+      this.valueConverter = buildConverter(schema.getChildren().get(1));
     }
 
     @Override
-    public void addValue(int rowId, int column, SpecializedGetters data,
-                         ColumnVector output) {
-      if (data.isNullAt(column)) {
+    public Class<Map> getJavaClass() {
+      return Map.class;
+    }
+
+    @SuppressWarnings("unchecked")
+    public void addValue(int rowId, Map data, ColumnVector output) {
+      if (data == null) {
         output.noNulls = false;
         output.isNull[rowId] = true;
       } else {
         output.isNull[rowId] = false;
-        MapData map = data.getMap(column);
-        ArrayData key = map.keyArray();
-        ArrayData value = map.valueArray();
+        Map<String, Object> map = (Map<String, Object>) data;
+        List<String> keys = Lists.newArrayListWithExpectedSize(map.size());
+        List<Object> values = Lists.newArrayListWithExpectedSize(map.size());
+        for (Map.Entry<String, ?> entry : map.entrySet()) {
+          keys.add(entry.getKey());
+          values.add(entry.getValue());
+        }
         MapColumnVector cv = (MapColumnVector) output;
         // record the length and start of the list elements
-        cv.lengths[rowId] = value.numElements();
+        cv.lengths[rowId] = map.size();
         cv.offsets[rowId] = cv.childCount;
         cv.childCount += cv.lengths[rowId];
         // make sure the child is big enough
@@ -357,8 +413,8 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
         // Add each element
         for (int e = 0; e < cv.lengths[rowId]; ++e) {
           int pos = (int) (e + cv.offsets[rowId]);
-          keyConverter.addValue(pos, e, key, cv.keys);
-          valueConverter.addValue(pos, e, value, cv.values);
+          keyConverter.addValue(pos, keys.get(e), cv.keys);
+          valueConverter.addValue(pos, values.get(e), cv.values);
         }
       }
     }
@@ -407,6 +463,7 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
     if (schema.getCategory() != TypeDescription.Category.STRUCT) {
       throw new IllegalArgumentException("Top level must be a struct " + schema);
     }
+
     List<TypeDescription> children = schema.getChildren();
     Converter[] result = new Converter[children.size()];
     for (int c = 0; c < children.size(); ++c) {
@@ -414,5 +471,4 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
     }
     return result;
   }
-
 }
