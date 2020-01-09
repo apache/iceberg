@@ -120,7 +120,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
   private StructType requestedSchema = null;
   private List<Expression> filterExpressions = null;
   private Filter[] pushedFilters = NO_FILTERS;
-  private final boolean enableLocality;
+  private final boolean localityPreferred;
 
   // lazy variables
   private Schema schema = null;
@@ -149,7 +149,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     } catch (IOException ioe) {
       LOG.warn("Failed to get Hadoop Filesystem", ioe);
     }
-    this.enableLocality = options.get("locality").map(Boolean::parseBoolean)
+    this.localityPreferred = options.get("locality").map(Boolean::parseBoolean)
         .orElse(LOCALITY_WHITELIST_FS.contains(scheme));
 
     this.schema = table.schema();
@@ -190,7 +190,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     for (CombinedScanTask task : tasks()) {
       readTasks.add(
           new ReadTask(task, tableSchemaString, expectedSchemaString, io, encryptionManager,
-              caseSensitive, enableLocality));
+              caseSensitive, localityPreferred));
     }
 
     return readTasks;
@@ -309,21 +309,21 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     private final Broadcast<FileIO> io;
     private final Broadcast<EncryptionManager> encryptionManager;
     private final boolean caseSensitive;
-    private final boolean enableLocality;
+    private final boolean localityPreferred;
 
     private transient Schema tableSchema = null;
     private transient Schema expectedSchema = null;
 
     private ReadTask(CombinedScanTask task, String tableSchemaString, String expectedSchemaString,
                      Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
-                     boolean caseSensitive, boolean enableLocality) {
+                     boolean caseSensitive, boolean localityPreferred) {
       this.task = task;
       this.tableSchemaString = tableSchemaString;
       this.expectedSchemaString = expectedSchemaString;
       this.io = io;
       this.encryptionManager = encryptionManager;
       this.caseSensitive = caseSensitive;
-      this.enableLocality = enableLocality;
+      this.localityPreferred = localityPreferred;
     }
 
     @Override
@@ -334,7 +334,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
 
     @Override
     public String[] preferredLocations() {
-      if (!enableLocality) {
+      if (!localityPreferred) {
         return new String[0];
       }
 
