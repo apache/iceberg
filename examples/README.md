@@ -7,7 +7,8 @@ If you've stumbled across this module, hopefully you're looking for some guidanc
 
 The examples are structured as JUnit tests that you can download and run locally if you want to mess around with Iceberg yourself. 
 
-## Running Iceberg yourself in a Maven project
+## Using Iceberg 
+### Maven
 If you'd like to try out Iceberg in your own project, you can use the `spark-iceberg-runtime` dependency:
 ```xml
    <dependency>
@@ -24,6 +25,14 @@ You'll also need `spark-sql`:
     <artifactId>spark-sql_2.12</artifactId>
     <version>2.4.4</version>
   </dependency>
+```
+
+### Gradle
+To add a dependency on Iceberg in Gradle, add the following to `build.gradle`:
+```
+dependencies {
+  compile 'org.apache.iceberg:iceberg-core:0.7.0-incubating'
+}
 ```
 
 ## Key features investigated

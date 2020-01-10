@@ -15,7 +15,7 @@
  - limitations under the License.
  -->
 
-# Spark API Quickstart
+# Java API Quickstart
 
 ## Create a table
 
@@ -25,28 +25,26 @@ Tables are created using either a [`Catalog`](/javadoc/master/index.html?org/apa
 
 The Hive catalog connects to a Hive MetaStore to keep track of Iceberg tables. This example uses Spark's Hadoop configuration to get a Hive catalog:
 
-```scala
-import org.apache.iceberg.hive.HiveCatalog
+```java
+import org.apache.iceberg.hive.HiveCatalog;
 
-val catalog = new HiveCatalog(spark.sessionState.newHadoopConf())
+Catalog catalog = new HiveCatalog(spark.sparkContext().hadoopConfiguration());
 ```
 
 The `Catalog` interface defines methods for working with tables, like `createTable`, `loadTable`, `renameTable`, and `dropTable`.
 
 To create a table, pass an `Identifier` and a `Schema` along with other initial metadata:
 
-```scala
-val name = TableIdentifier.of("logging", "logs")
-val table = catalog.createTable(name, schema, spec)
+```java
+import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
 
-// write into the new logs table with Spark 2.4
-logsDF.write
-    .format("iceberg")
-    .mode("append")
-    .save("logging.logs")
+TableIdentifier name = TableIdentifier.of("logging", "logs");
+Table table = catalog.createTable(name, schema, spec);
 ```
 
 The logs [schema](#create-a-schema) and [partition spec](#create-a-partition-spec) are created below.
+
 
 ### Using Hadoop tables
 
@@ -54,18 +52,14 @@ Iceberg also supports tables that are stored in a directory in HDFS or the local
 
 To create a table in HDFS, use `HadoopTables`:
 
-```scala
-import org.apache.iceberg.hadoop.HadoopTables
+```java
+import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.Table;
 
-val tables = new HadoopTables(spark.sessionState.newHadoopConf())
-
-val table = tables.create(schema, spec, "hdfs:/tables/logging/logs")
-
-// write into the new logs table with Spark 2.4
-logsDF.write
-    .format("iceberg")
-    .mode("append")
-    .save("hdfs:/tables/logging/logs")
+Configuration conf = new Configuration():
+HadoopTables tables = new HadoopTables(conf);
+Table table = tables.create(schema, spec, table_location);
 ```
 
 !!! Warning
@@ -88,16 +82,16 @@ To read and write to tables from Spark see:
 
 This example creates a schema for a `logs` table:
 
-```scala
-import org.apache.iceberg.Schema
-import org.apache.iceberg.types.Types._
+```java
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Types;
 
-val schema = new Schema(
-    NestedField.required(1, "level", StringType.get()),
-    NestedField.required(2, "event_time", TimestampType.withZone()),
-    NestedField.required(3, "message", StringType.get()),
-    NestedField.optional(4, "call_stack", ListType.ofRequired(5, StringType.get()))
-  )
+Schema schema = new Schema(
+      Types.NestedField.required(1, "level", Types.StringType.get()),
+      Types.NestedField.required(2, "event_time", Types.TimestampType.withZone()),
+      Types.NestedField.required(3, "message", Types.StringType.get()),
+      Types.NestedField.optional(4, "call_stack", Types.ListType.ofRequired(5, Types.StringType.get()))
+    );
 ```
 
 When using the Iceberg API directly, type IDs are required. Conversions from other schema formats, like Spark, Avro, and Parquet will automatically assign new IDs.
@@ -108,25 +102,24 @@ When a table is created, all IDs in the schema are re-assigned to ensure uniquen
 
 To create an Iceberg schema from an existing Avro schema, use converters in `AvroSchemaUtil`:
 
-```scala
-import org.apache.avro.Schema.Parser
-import org.apache.iceberg.avro.AvroSchemaUtil
+```java
+import org.apache.avro.Schema;
+import org.apache.avro.Schema.Parser;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 
-val avroSchema = new Parser().parse("""{"type": "record", ... }""")
-
-val icebergSchema = AvroSchemaUtil.toIceberg(avroSchema)
+Schema avroSchema = new Parser().parse("{\"type\": \"record\" , ... }");
+Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
 ```
 
 ### Convert a schema from Spark
 
 To create an Iceberg schema from an existing table, use converters in `SparkSchemaUtil`:
 
-```scala
-import org.apache.iceberg.spark.SparkSchemaUtil
+```java
+import org.apache.iceberg.spark.SparkSchemaUtil;
 
-val schema = SparkSchemaUtil.convert(spark.table("db.table").schema)
+Schema schema = SparkSchemaUtil.schemaForTable(sparkSession, table_name);
 ```
-
 
 ## Partitioning
 
@@ -136,11 +129,13 @@ Partition specs describe how Iceberg should group records into data files. Parti
 
 This example creates a partition spec for the `logs` table that partitions records by the hour of the log event's timestamp and by log level:
 
-```scala
-import org.apache.iceberg.PartitionSpec
+```java
+import org.apache.iceberg.PartitionSpec;
 
-val spec = PartitionSpec.builderFor(schema)
-                        .hour("event_time")
-                        .identity("level")
-                        .build()
+PartitionSpec spec = PartitionSpec.builderFor(schema)
+      .hour("event_time")
+      .identity("level")
+      .build();
 ```
+
+For more information on the different partition transforms that Iceberg offers, visit [this page](../spec#partitioning).
