@@ -243,7 +243,7 @@ public class TestIcebergSourceHadoopTables {
     long secondSnapshotId = table.currentSnapshot().snapshotId();
 
     // rollback the table state to the first snapshot
-    table.manageSnapshots().rollback(firstSnapshotId).commit();
+    table.rollback().toSnapshotId(firstSnapshotId).commit();
     long rollbackTimestamp = Iterables.getLast(table.history()).timestampMillis();
 
     inputDf.select("id", "data").write()
@@ -315,7 +315,7 @@ public class TestIcebergSourceHadoopTables {
     String secondManifestList = table.currentSnapshot().manifestListLocation();
 
     // rollback the table state to the first snapshot
-    table.manageSnapshots().rollback(firstSnapshotId).commit();
+    table.rollback().toSnapshotId(firstSnapshotId).commit();
 
     List<Row> actual = spark.read()
         .format("iceberg")

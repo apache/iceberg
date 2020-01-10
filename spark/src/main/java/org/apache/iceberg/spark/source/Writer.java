@@ -125,10 +125,8 @@ class Writer implements DataSourceWriter {
   }
 
   private boolean isWapTable(DataSourceOptions options) {
-    Optional<String> wapOption = options.get("write-wap-enabled");
-    String wapEnabledString = wapOption.orElse(table.properties().getOrDefault(
-        TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
-    return Boolean.parseBoolean(wapEnabledString);
+    return Boolean.parseBoolean(table.properties().getOrDefault(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED,
+        TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
   }
 
   @Override

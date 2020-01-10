@@ -403,16 +403,7 @@ public class TableMetadata {
   public TableMetadata replaceCurrentSnapshot(Snapshot snapshot) {
     // there can be operations (viz. rollback, cherrypick) where an existing snapshot could be replacing current
     if (snapshotsById.containsKey(snapshot.snapshotId())) {
-      long nowMillis = System.currentTimeMillis();
-      List<HistoryEntry> newSnapshotLog = ImmutableList.<HistoryEntry>builder()
-          .addAll(snapshotLog)
-          .add(new SnapshotLogEntry(nowMillis, snapshot.snapshotId()))
-          .build();
-
-      return new TableMetadata(null, uuid, location,
-          nowMillis, lastColumnId, schema, defaultSpecId, specs, properties,
-          snapshot.snapshotId(), snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
-
+      return setCurrentSnapshotTo(snapshot);
     } else {
 
       List<Snapshot> newSnapshots = ImmutableList.<Snapshot>builder()
@@ -463,7 +454,7 @@ public class TableMetadata {
         addPreviousFile(file, lastUpdatedMillis));
   }
 
-  public TableMetadata rollbackTo(Snapshot snapshot) {
+  public TableMetadata setCurrentSnapshotTo(Snapshot snapshot) {
     ValidationException.check(snapshotsById.containsKey(snapshot.snapshotId()),
         "Cannot set current snapshot to unknown: %s", snapshot.snapshotId());
 
@@ -477,10 +468,6 @@ public class TableMetadata {
         nowMillis, lastColumnId, schema, defaultSpecId, specs, properties,
         snapshot.snapshotId(), snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
-
-  // public TableMetadata cherrypickFrom(Snapshot snapshot) {
-  //   return rollbackTo(snapshot);
-  // }
 
   public TableMetadata replaceProperties(Map<String, String> newProperties) {
     ValidationException.check(newProperties != null, "Cannot set properties to null");

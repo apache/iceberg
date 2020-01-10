@@ -581,6 +581,11 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
+    public Rollback rollback() {
+      throw new UnsupportedOperationException("Transaction tables do not support rollback");
+    }
+
+    @Override
     public ManageSnapshots manageSnapshots() {
       throw new UnsupportedOperationException("Transaction tables do not support managing snapshots");
     }

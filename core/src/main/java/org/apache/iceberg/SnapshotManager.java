@@ -20,6 +20,8 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
+import java.util.HashSet;
+import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
 
 public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> implements ManageSnapshots {
@@ -28,6 +30,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
   private SnapshotManagerOperation operation;
   private TableMetadata base;
   private Long targetSnapshotId = null;
+  private Set<Long> snapshotsAlreadyCherrypicked;
 
   enum SnapshotManagerOperation {
     CHERRYPICK,
@@ -38,6 +41,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
     super(ops);
     this.ops = ops;
     this.base = ops.current();
+    this.snapshotsAlreadyCherrypicked = new HashSet<>();
   }
 
   @Override
@@ -72,7 +76,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
   }
 
   @Override
-  public ManageSnapshots rollbackAtTime(long timestampMillis) {
+  public ManageSnapshots rollbackToTime(long timestampMillis) {
     long snapshotId = 0;
     long snapshotTimestamp = 0;
     operation = SnapshotManagerOperation.ROLLBACK;
@@ -101,32 +105,37 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
     ValidationException.check(operation != null,
         "Need to define operation on snapshot: call rollback, rollbackAtTime or cherrypick");
 
-    if (operation == SnapshotManagerOperation.CHERRYPICK) {
+    switch (operation) {
+      case CHERRYPICK:
+        Snapshot cherryPickSnapshot = base.snapshot(this.targetSnapshotId);
+        String wapId = stagedWapId(cherryPickSnapshot);
+        boolean isWapWorkflow =  wapId != null && !"".equals(wapId);
+        if (isWapWorkflow) {
+          ValidationException.check(!base.isWapIdPublished(wapId),
+              "Duplicate request to cherry pick wap id that was published already: %s", wapId);
+        }
+        // only append operations are currently supported
+        if (!cherryPickSnapshot.operation().equals(DataOperations.APPEND)) {
+          throw new UnsupportedOperationException("Can cherry pick only append operations");
+        }
+        // this is to ensure we add files only once for each targetSnapshotId, to protect from
+        // duplicate additions if commit retries the same cherrypick operation on failure.
+        if (!snapshotsAlreadyCherrypicked.contains(targetSnapshotId)) {
+          for (DataFile addedFile : cherryPickSnapshot.addedFiles()) {
+            add(addedFile);
+          }
+          // this property is set on target snapshot that will get published
+          if (isWapWorkflow) {
+            set(SnapshotSummary.PUBLISHED_WAP_ID_PROP, wapId);
+          }
+          snapshotsAlreadyCherrypicked.add(targetSnapshotId);
+        }
 
-      Snapshot cherryPickSnapshot = base.snapshot(this.targetSnapshotId);
-      String wapId = stagedWapId(cherryPickSnapshot);
-      ValidationException.check(!base.isWapIdPublished(wapId),
-          "Duplicate request to cherry pick wap id that was published already: %s", wapId);
-
-      // only append operations are currently supported
-      if (!cherryPickSnapshot.operation().equals(DataOperations.APPEND)) {
-        throw new UnsupportedOperationException("Can cherry pick only append operations");
-      }
-
-      // Todo:
-      //  - Check if files to be deleted exist in current snapshot,
-      //    ignore those files or reject incoming snapshot entirely?
-      //  - Check if there are overwrites, ignore those files or reject incoming snapshot entirely?
-
-      for (DataFile addedFile : cherryPickSnapshot.addedFiles()) {
-        add(addedFile);
-      }
-      // this property is set on target snapshot that will get published
-      set(SnapshotSummary.PUBLISHED_WAP_ID_PROP, wapId);
-
-      return super.apply();
-    } else {
-      return base.snapshot(targetSnapshotId);
+        return super.apply();
+      case ROLLBACK:
+        return base.snapshot(targetSnapshotId);
+      default:
+        throw new ValidationException("Invalid SnapshotManagerOperation, only cherrypick, rollback are supported");
     }
   }
 

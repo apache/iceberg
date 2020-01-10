@@ -20,12 +20,13 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.exceptions.CommitFailedException;
+
 /**
  * API for managing snapshots. Allows rolling table data back to a stated at an older table {@link Snapshot snapshot}.
  * Rollback:
  *  <p>
  *  This API does not allow conflicting calls to {@link #rollback(long)} and
- *  {@link #rollbackAtTime(long)}.
+ *  {@link #rollbackToTime(long)}.
  *  <p>
  *  When committing, these changes will be applied to the current table metadata. Commit conflicts
  *  will not be resolved and will result in a {@link CommitFailedException}.
@@ -39,7 +40,6 @@ import org.apache.iceberg.exceptions.CommitFailedException;
  *  snapshot.
  *  <p>
  */
-
 public interface ManageSnapshots extends PendingUpdate<Snapshot> {
 
   /**
@@ -58,7 +58,13 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
    * @return this for method chaining
    * @throws IllegalArgumentException If the table has no old snapshot before the given timestamp
    */
-  ManageSnapshots rollbackAtTime(long timestampMillis);
+  ManageSnapshots rollbackToTime(long timestampMillis);
 
+  /**
+   * Apply supported changes in given snapshot and create a new snapshot which will be set as the
+   * current snapshot on commit.
+   * @param snapshotId a snapshotId whose changes to apply
+   * @return this for method chaining
+   */
   ManageSnapshots cherrypick(long snapshotId);
 }

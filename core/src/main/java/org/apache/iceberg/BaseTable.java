@@ -155,6 +155,11 @@ public class BaseTable implements Table, HasTableOperations {
   }
 
   @Override
+  public Rollback rollback() {
+    return new RollbackToSnapshot(ops);
+  }
+
+  @Override
   public ManageSnapshots manageSnapshots() {
     return new SnapshotManager(ops);
   }
