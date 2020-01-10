@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import org.apache.hadoop.conf.Configuration;
+import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -48,13 +48,11 @@ public class ConcurrencyTest {
 
   private static final Logger log = LoggerFactory.getLogger(ConcurrencyTest.class);
 
-  private Configuration conf = new Configuration();
   private Schema schema = new Schema(
       optional(1, "key", Types.LongType.get()),
       optional(2, "value", Types.StringType.get())
   );
-  private SparkSession sparkReader;
-  private SparkSession sparkWriter;
+  private SparkSession spark;
   private File tableLocation;
   private Table table;
 
@@ -64,13 +62,10 @@ public class ConcurrencyTest {
   public void before() throws IOException {
     tableLocation = Files.createTempDirectory("temp").toFile();
 
-    sparkReader = SparkSession.builder().master("local[2]").getOrCreate();
-    sparkWriter = SparkSession.builder().master("local[2]").getOrCreate();
+    spark = SparkSession.builder().master("local[2]").getOrCreate();
+    spark.sparkContext().setLogLevel("WARN");
 
-    sparkReader.sparkContext().setLogLevel("WARN");
-    sparkWriter.sparkContext().setLogLevel("WARN");
-
-    HadoopTables tables = new HadoopTables(conf);
+    HadoopTables tables = new HadoopTables(spark.sparkContext().hadoopConfiguration());
     table = tables.create(schema, tableLocation.toString());
 
     for (int i = 0; i < 1000000; i++) {
@@ -105,7 +100,7 @@ public class ConcurrencyTest {
   }
 
   private Void readTable() {
-    Dataset<Row> results = sparkReader.read()
+    Dataset<Row> results = spark.read()
         .format("iceberg")
         .load(tableLocation.toString());
 
@@ -114,7 +109,7 @@ public class ConcurrencyTest {
   }
   private Void writeToTable(List<SimpleRecord> writeData) {
     log.info("WRITING!");
-    Dataset<Row> df = sparkWriter.createDataFrame(writeData, SimpleRecord.class);
+    Dataset<Row> df = spark.createDataFrame(writeData, SimpleRecord.class);
     df.select("key",  "value").write()
         .format("iceberg")
         .mode("append")
@@ -123,8 +118,8 @@ public class ConcurrencyTest {
   }
 
   @After
-  public void after() {
-    sparkReader.stop();
-    sparkWriter.stop();
+  public void after() throws IOException {
+    spark.stop();
+    FileUtils.deleteDirectory(tableLocation);
   }
 }

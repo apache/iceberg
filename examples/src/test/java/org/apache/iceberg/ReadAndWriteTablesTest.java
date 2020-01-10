@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
 import org.apache.commons.io.FileUtils;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -54,9 +53,7 @@ public class ReadAndWriteTablesTest {
     spark = SparkSession.builder().master("local[2]").getOrCreate();
 
     pathToTable = Files.createTempDirectory("temp").toFile();
-
-    Configuration conf = new Configuration();
-    tables = new HadoopTables(conf);
+    tables = new HadoopTables(spark.sparkContext().hadoopConfiguration());
 
     schema = new Schema(
         optional(1, "id", Types.IntegerType.get()),

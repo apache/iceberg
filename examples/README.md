@@ -7,7 +7,7 @@ If you've stumbled across this module, hopefully you're looking for some guidanc
 
 The examples are structured as JUnit tests that you can download and run locally if you want to mess around with Iceberg yourself. 
 
-## Running Iceberg yourself
+## Running Iceberg yourself in a Maven project
 If you'd like to try out Iceberg in your own project, you can use the `spark-iceberg-runtime` dependency:
 ```xml
    <dependency>
@@ -38,7 +38,7 @@ Code examples:
 - [Unpartitioned tables](src/test/java/WriteToUnpartitionedTableTest.java)
 - [Partitioned tables](src/test/java/WriteToPartitionedTableTest.java)
 
-#### A look quick look at file structures
+#### A quick look at file structures
 It could be interesting to note that when writing partitioned data, Iceberg will layout your files in a similar manner to Hive:
 
 ``` 
@@ -54,6 +54,9 @@ It could be interesting to note that when writing partitioned data, Iceberg will
 └── metadata
     └── version-hint.text
 ```
+**WARNING** 
+It should be noted that it is not possible to just drag-and-drop data files into an Iceberg table like the one shown above and expect to see your data in the table. 
+Each file is tracked individually and is managed by Iceberg, and so must be written into the table using the Iceberg API. 
 
 ### Reading data from tables
 Reading Iceberg tables is fairly simple using the Spark `DataFrameReader`.
@@ -63,7 +66,7 @@ Code examples:
 - [Partitioned tabled](src/test/java/ReadFromPartitionedTableTest.java)
 
 ### A look at the metadata
-This section looks a little bit closer at the metadata produced by Iceberg tables. Consider an example where you've written a single json file to a table. Your metadata folder will look something like this:
+This section looks a little bit closer at the metadata produced by Iceberg tables. Consider an example where you've written some data to a table. Your files will look something like this:
 
 ``` 
 ├── data
@@ -76,7 +79,9 @@ This section looks a little bit closer at the metadata produced by Iceberg table
     └── version-hint.text
 ```
 
-The metadata for your table is kept in json files (`v1.metadata.json` and `v2.metadata.json`). Version 1 of the metadata is written when your table is first created. It contains things like the table location, the schema and the partition spec:
+The metadata for your table is kept in json files and each commit to a table will produce a new metadata file. For tables using a metastore for the metadata, the file used is whichever file the metastore points at. For HadoopTables, the file used will be the latest version available. Look [here](https://iceberg.incubator.apache.org/spec/#table-metadata) for more information on metadata.
+
+The metadata file will contain things like the table location, the schema and the partition spec:
 
 ```json
 {
@@ -106,8 +111,6 @@ The metadata for your table is kept in json files (`v1.metadata.json` and `v2.me
 }
 ```
 
-It's interesting to note the `current-snapshot-id` field set to `-1`, because no data has been added to the table yet. Similarly, you can see the empty `snapshots` field. 
-
 When you then add your first chunk of data, you get a new version of the metadata (`v2.metadata.json`) that is the same as the first version except for the snapshot section at the bottom, which gets updated to:
 
 ```json
@@ -134,14 +137,14 @@ When you then add your first chunk of data, you get a new version of the metadat
 
 Here you get information on the data you have just written to the table, such as `added-records` and `added-data-files` as well as where the manifest list is located. 
 
-After having added your data with a new snapshot, you also get the manifest list added, which is what you see in the screenshot above as the second Avro file. 
 
 ### Snapshot based functionality
 Iceberg uses [snapshots](https://iceberg.apache.org/terms/#snapshot) as part of its implementation, and provides a lot of useful functionality from this, such as **time travel**.
 
 - Iceberg creates a new snapshot for all table operations that modify the table, such as appends and overwrites.
 - You are able to access the whole list of snapshots generated for a table.
-- Iceberg will store all snapshots generated until _you_ say the snapshots should be deleted.
+- Iceberg will store all snapshots generated until you delete the snapshots.
+    - **NOTE**: A VACUUM operation with Spark is in the works for a future release to make this process easier. 
 - You can delete all snapshots earlier than a certain timestamp.
 - You can delete snaphots based on `SnapshotID` values.
 - You can read data from an old snapshot using the `SnapshotID`.
@@ -153,7 +156,7 @@ Code examples can be found [here](src/test/java/SnapshotFunctionalityTest.java).
 Iceberg provides support to handle schema evolution of your tables over time:
 
 1. Add a new column
-    1. The new column is always added at the end of the table.
+    1. The new column is always added at the end of the table (**NOTE**: This will be fixed with Spark 3.0 which has implemented AFTER and FIRST operations).
     1. You are only able to add a column at the end of the schema, not somewhere in the middle. 
     1. Any rows using the earlier schema return a `null` value for this new column. You cannot use an alternative default value.
     1. This column automatically becomes an `optional` column, meaning adding data to this column isn't enforced for each future write. 
@@ -173,10 +176,12 @@ However, this means you need to occasionally deal with concurrent writer conflic
 
 Iceberg deals with this by attempting retries of the write based on the new metadata. This can happen if the files the first write changed aren't touched by the second write, then it's deemed safe to commit the second update. 
 
-[This test](src/test/java/ConcurrencyTest.java) looks to experiment with how optimistic concurrency works. 
+[This test](src/test/java/ConcurrencyTest.java) looks to experiment with how optimistic concurrency works. For more information on conflict resolution, look [here](https://iceberg.incubator.apache.org/spec/#table-metadata).
 
 By default, Iceberg has set the `commit.retry.num-retries` property to **4**. You can edit this default by creating an `UpdateProperties` object and assigning a new number to that property:
 
 ```java
   table.updateProperties().set("commit.retry.num-retries", "1").commit();
 ```
+
+You can find more information on other table properties you can set [here](https://iceberg.incubator.apache.org/configuration/#table-properties).

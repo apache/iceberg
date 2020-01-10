@@ -23,7 +23,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import org.apache.commons.io.FileUtils;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -54,8 +53,6 @@ public class SchemaEvolutionTest {
   public void before() throws IOException {
     spark = SparkSession.builder().master("local[2]").getOrCreate();
     tableLocation = Files.createTempDirectory("temp").toFile();
-
-    Configuration conf = new Configuration();
     Schema schema = new Schema(
         optional(1, "title", Types.StringType.get()),
         optional(2, "price", Types.IntegerType.get()),
@@ -67,7 +64,7 @@ public class SchemaEvolutionTest {
         .year("published")
         .build();
 
-    HadoopTables tables = new HadoopTables(conf);
+    HadoopTables tables = new HadoopTables(spark.sparkContext().hadoopConfiguration());
     table = tables.create(schema, spec, tableLocation.toString());
 
     Dataset<Row> df = spark.read().json(dataLocation + "/books.json");
@@ -142,10 +139,9 @@ public class SchemaEvolutionTest {
   @Test
   public void floatToDouble() throws IOException {
     // Set up a new table to test this conversion
-    Configuration conf = new Configuration();
     Schema schema = new Schema(optional(1, "float", Types.FloatType.get()));
     File location = Files.createTempDirectory("temp").toFile();
-    HadoopTables tables = new HadoopTables(conf);
+    HadoopTables tables = new HadoopTables(spark.sparkContext().hadoopConfiguration());
     Table floatTable = tables.create(schema, location.toString());
 
     floatTable.updateSchema().updateColumn("float", Types.DoubleType.get()).commit();
@@ -156,10 +152,9 @@ public class SchemaEvolutionTest {
   @Test
   public void widenDecimalPrecision() throws IOException {
     // Set up a new table to test this conversion
-    Configuration conf = new Configuration();
     Schema schema = new Schema(optional(1, "decimal", Types.DecimalType.of(2, 2)));
     File location = Files.createTempDirectory("temp").toFile();
-    HadoopTables tables = new HadoopTables(conf);
+    HadoopTables tables = new HadoopTables(spark.sparkContext().hadoopConfiguration());
     Table decimalTable = tables.create(schema, location.toString());
 
     decimalTable.updateSchema().updateColumn("decimal", Types.DecimalType.of(4, 2)).commit();

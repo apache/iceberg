@@ -27,7 +27,6 @@ import java.util.Iterator;
 import java.util.List;
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.io.FileUtils;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -55,7 +54,6 @@ public class SnapshotFunctionalityTest {
 
   @Before
   public void before() throws IOException {
-    Configuration conf = new Configuration();
     Schema schema = new Schema(
         optional(1, "id", Types.IntegerType.get()),
         optional(2, "data", Types.StringType.get())
@@ -65,7 +63,7 @@ public class SnapshotFunctionalityTest {
 
     tableLocation = Files.createTempDirectory("temp").toFile();
 
-    HadoopTables tables = new HadoopTables(conf);
+    HadoopTables tables = new HadoopTables(spark.sparkContext().hadoopConfiguration());
     PartitionSpec spec = PartitionSpec.unpartitioned();
     table = tables.create(schema, spec, tableLocation.toString());
 
