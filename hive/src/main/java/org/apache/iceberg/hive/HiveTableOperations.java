@@ -166,7 +166,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       if (base != null) {
         metaClients.run(client -> {
           client.alter_table(database, tableName, tbl,
-                  new EnvironmentContext(Collections.singletonMap(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE)));
+                  new EnvironmentContext(
+                          Collections.singletonMap(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE)
+                  ));
           return null;
         });
       } else {
