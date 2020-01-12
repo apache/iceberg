@@ -161,17 +161,18 @@ class BaseSnapshot implements Snapshot {
     // read only manifests that were created by this snapshot
     Iterable<ManifestFile> changedManifests = Iterables.filter(manifests(),
         manifest -> Objects.equal(manifest.snapshotId(), snapshotId));
-    try (CloseableIterable<ManifestEntry> entries = new ManifestGroup(io, changedManifests)
+    try (CloseableIterable<ManifestEntry> entries = ManifestGroup.builder(io, changedManifests)
         .ignoreExisting()
         .select(ManifestReader.ALL_COLUMNS)
+        .build()
         .entries()) {
       for (ManifestEntry entry : entries) {
         switch (entry.status()) {
           case ADDED:
-            adds.add(entry.file().copy());
+            adds.add(entry.file());
             break;
           case DELETED:
-            deletes.add(entry.file().copyWithoutStats());
+            deletes.add(entry.file());
             break;
           default:
             throw new IllegalStateException(

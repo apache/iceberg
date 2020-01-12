@@ -19,11 +19,22 @@
 
 package org.apache.iceberg;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+import java.io.File;
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
+import java.util.UUID;
+import org.apache.avro.generic.GenericData;
+import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.avro.RandomAvroData;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -54,6 +65,28 @@ public class TestFindFiles extends TableTestBase {
         .collect();
 
     Assert.assertEquals(pathSet(FILE_A), pathSet(files));
+  }
+
+  @Test
+  public void testWithRecordsMatching() {
+    table.newAppend()
+        .appendFile(DataFiles.builder(SPEC)
+            .withInputFile(Files.localInput("/path/to/data-e.parquet"))
+            .withPartitionPath("data_bucket=4")
+            .withMetrics(new Metrics(3L,
+                null, // no column sizes
+                ImmutableMap.of(1, 3L), // value count
+                ImmutableMap.of(1, 0L), // null count
+                ImmutableMap.of(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1)),  // lower bounds
+                ImmutableMap.of(1, Conversions.toByteBuffer(Types.IntegerType.get(), 5)))) // lower bounds
+            .build())
+        .commit();
+
+    final Iterable<DataFile> files = FindFiles.in(table)
+        .withRecordsMatching(Expressions.equal("id", 1))
+        .collect();
+
+    Assert.assertEquals(Sets.newHashSet("/path/to/data-e.parquet"), pathSet(files));
   }
 
   @Test
@@ -170,5 +203,28 @@ public class TestFindFiles extends TableTestBase {
 
   private Set<String> pathSet(Iterable<DataFile> files) {
     return Sets.newHashSet(Iterables.transform(files, file -> file.path().toString()));
+  }
+
+  private DataFile createDataFile(File dataPath, String partValue) throws IOException {
+    List<GenericData.Record> expected = RandomAvroData.generate(SCHEMA, 100, 0L);
+
+    File dataFile = new File(dataPath, FileFormat.AVRO.addExtension(UUID.randomUUID().toString()));
+    try (FileAppender<GenericData.Record> writer = Avro.write(Files.localOutput(dataFile))
+        .schema(SCHEMA)
+        .named("test")
+        .build()) {
+      for (GenericData.Record rec : expected) {
+        rec.put("part", partValue); // create just one partition
+        writer.add(rec);
+      }
+    }
+
+    PartitionData partition = new PartitionData(SPEC.partitionType());
+    partition.set(0, partValue);
+    return DataFiles.builder(SPEC)
+        .withInputFile(Files.localInput(dataFile))
+        .withPartition(partition)
+        .withRecordCount(100)
+        .build();
   }
 }

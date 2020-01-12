@@ -95,60 +95,31 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
       Evaluator evaluator = evaluator();
       InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
 
-      return CloseableIterable.filter(reader.entries(projection(fileSchema, columns, caseSensitive)),
+      // ensure stats columns are present for metrics evaluation
+      Collection<String> projectColumns = withStatsColumns(columns);
+
+      CloseableIterable<ManifestEntry> entries = CloseableIterable.filter(
+          reader.entries(projection(fileSchema, projectColumns, caseSensitive)),
           entry -> entry != null &&
               evaluator.eval(entry.file().partition()) &&
               metricsEvaluator.eval(entry.file()));
 
+      boolean dropStats = dropColumnStats(columns);
+      return CloseableIterable.transform(entries, e -> dropStats ? e.copyWithoutStats() : e.copy());
+
     } else {
-      return reader.entries(projection(fileSchema, columns, caseSensitive));
+      return CloseableIterable.transform(
+          reader.entries(projection(fileSchema, columns, caseSensitive)), ManifestEntry::copy);
     }
   }
 
   CloseableIterable<ManifestEntry> liveEntries() {
-    if ((rowFilter != null && rowFilter != Expressions.alwaysTrue()) ||
-        (partFilter != null && partFilter != Expressions.alwaysTrue())) {
-      Evaluator evaluator = evaluator();
-      InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
-
-      return CloseableIterable.filter(reader.entries(projection(fileSchema, columns, caseSensitive)),
-          entry -> entry != null &&
-              entry.status() != Status.DELETED &&
-              evaluator.eval(entry.file().partition()) &&
-              metricsEvaluator.eval(entry.file()));
-
-    } else {
-      return CloseableIterable.filter(reader.entries(projection(fileSchema, columns, caseSensitive)),
-          entry -> entry != null && entry.status() != Status.DELETED);
-    }
+    return CloseableIterable.filter(allEntries(), entry -> entry != null && entry.status() != Status.DELETED);
   }
 
   @Override
   public Iterator<DataFile> iterator() {
-    if ((rowFilter != null && rowFilter != Expressions.alwaysTrue()) ||
-        (partFilter != null && partFilter != Expressions.alwaysTrue())) {
-      Evaluator evaluator = evaluator();
-      InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
-
-      // ensure stats columns are present for metrics evaluation
-      List<String> projectColumns = Lists.newArrayList(columns);
-      projectColumns.addAll(STATS_COLUMNS); // order doesn't matter
-
-      // if no stats columns were projected, drop them
-      boolean dropStats = Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS).isEmpty();
-
-      return Iterators.transform(
-          Iterators.filter(reader.iterator(partFilter, projection(fileSchema, projectColumns, caseSensitive)),
-              input -> input != null &&
-                  evaluator.eval(input.partition()) &&
-                  metricsEvaluator.eval(input)),
-          dropStats ? DataFile::copyWithoutStats : DataFile::copy);
-
-    } else {
-      return Iterators.transform(
-          reader.iterator(partFilter, projection(fileSchema, columns, caseSensitive)),
-          DataFile::copy);
-    }
+    return Iterators.transform(liveEntries().iterator(), ManifestEntry::file);
   }
 
   @Override
@@ -192,5 +163,20 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
       }
     }
     return lazyMetricsEvaluator;
+  }
+
+  private static boolean dropColumnStats(Collection<String> columns) {
+    return !columns.contains("*") &&
+        Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS).isEmpty();
+  }
+
+  private static Collection<String> withStatsColumns(Collection<String> columns) {
+    if (columns.contains("*")) {
+      return columns;
+    } else {
+      List<String> projectColumns = Lists.newArrayList(columns);
+      projectColumns.addAll(STATS_COLUMNS); // order doesn't matter
+      return projectColumns;
+    }
   }
 }

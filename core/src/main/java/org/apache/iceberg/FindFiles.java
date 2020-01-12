@@ -197,13 +197,14 @@ public class FindFiles {
       }
 
       // when snapshot is not null
-      CloseableIterable<ManifestEntry> entries = new ManifestGroup(ops.io(), snapshot.manifests(),
-          ops.current().specsById())
+      CloseableIterable<ManifestEntry> entries = ManifestGroup.builder(ops.io(), snapshot.manifests())
+          .specsById(ops.current().specsById())
           .filterData(rowFilter)
           .filterFiles(fileFilter)
           .filterPartitions(partitionFilter)
           .ignoreDeleted()
           .caseSensitive(caseSensitive)
+          .build()
           .entries();
 
       return CloseableIterable.transform(entries, entry -> entry.file().copyWithoutStats());

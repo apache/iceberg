@@ -226,11 +226,11 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
 
   @Override
   public Iterator<DataFile> iterator() {
-    return iterator(alwaysTrue(), fileSchema);
+    return iterator(fileSchema);
   }
 
   // visible for use by PartialManifest
-  Iterator<DataFile> iterator(Expression partFilter, Schema fileProjection) {
+  Iterator<DataFile> iterator(Schema fileProjection) {
     return Iterables.transform(Iterables.filter(
         entries(fileProjection),
         entry -> entry.status() != ManifestEntry.Status.DELETED),

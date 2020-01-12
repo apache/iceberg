@@ -25,7 +25,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -54,15 +53,6 @@ class ManifestGroup {
 
   private final LoadingCache<Integer, ManifestEvaluator> evalCache;
 
-  ManifestGroup(FileIO io, Iterable<ManifestFile> manifests) {
-    this(io, manifests, null);
-  }
-
-  ManifestGroup(FileIO io, Iterable<ManifestFile> manifests, Map<Integer, PartitionSpec> specsById) {
-    this(io, Sets.newHashSet(manifests), specsById, Expressions.alwaysTrue(), Expressions.alwaysTrue(),
-        Expressions.alwaysTrue(), false, false, ImmutableList.of("*"), true);
-  }
-
   private ManifestGroup(FileIO io, Set<ManifestFile> manifests, Map<Integer, PartitionSpec> specsById,
                         Expression dataFilter, Expression fileFilter, Expression partitionFilter,
                         boolean ignoreDeleted, boolean ignoreExisting, List<String> columns,
@@ -83,63 +73,10 @@ class ManifestGroup {
       this.evalCache = Caffeine.newBuilder().build(specId -> {
         PartitionSpec spec = specsById.get(specId);
         return ManifestEvaluator.forPartitionFilter(
-            Expressions.and(partitionFilter, Projections.inclusive(spec).project(dataFilter)),
+            Expressions.and(partitionFilter, Projections.inclusive(spec, caseSensitive).project(dataFilter)),
             spec, caseSensitive);
       });
     }
-  }
-
-  public ManifestGroup caseSensitive(boolean filterCaseSensitive) {
-    return new ManifestGroup(io, manifests, specsById, dataFilter, fileFilter, partitionFilter,
-        ignoreDeleted, ignoreExisting, columns, filterCaseSensitive);
-  }
-
-  public ManifestGroup filterData(Expression expr) {
-    return new ManifestGroup(
-        io, manifests, specsById, Expressions.and(dataFilter, expr), fileFilter, partitionFilter,
-        ignoreDeleted, ignoreExisting, columns, caseSensitive);
-  }
-
-  public ManifestGroup filterFiles(Expression expr) {
-    return new ManifestGroup(
-        io, manifests, specsById, dataFilter, Expressions.and(fileFilter, expr), partitionFilter,
-        ignoreDeleted, ignoreExisting, columns, caseSensitive);
-  }
-
-  public ManifestGroup filterPartitions(Expression expr) {
-    return new ManifestGroup(
-        io, manifests, specsById, dataFilter, fileFilter, Expressions.and(partitionFilter, expr),
-        ignoreDeleted, ignoreExisting, columns, caseSensitive);
-  }
-
-  public ManifestGroup ignoreDeleted() {
-    return new ManifestGroup(io, manifests, specsById, dataFilter, fileFilter, partitionFilter, true,
-        ignoreExisting, columns, caseSensitive);
-  }
-
-  public ManifestGroup ignoreDeleted(boolean shouldIgnoreDeleted) {
-    return new ManifestGroup(io, manifests, specsById, dataFilter, fileFilter, partitionFilter,
-        shouldIgnoreDeleted, ignoreExisting, columns, caseSensitive);
-  }
-
-  public ManifestGroup ignoreExisting() {
-    return new ManifestGroup(io, manifests, specsById, dataFilter, fileFilter, partitionFilter,
-        ignoreDeleted, true, columns, caseSensitive);
-  }
-
-  public ManifestGroup ignoreExisting(boolean shouldIgnoreExisting) {
-    return new ManifestGroup(io, manifests, specsById, dataFilter, fileFilter, partitionFilter,
-        ignoreDeleted, shouldIgnoreExisting, columns, caseSensitive);
-  }
-
-  public ManifestGroup select(List<String> columnNames) {
-    return new ManifestGroup(
-        io, manifests, specsById, dataFilter, fileFilter, partitionFilter, ignoreDeleted, ignoreExisting,
-        Lists.newArrayList(columnNames), caseSensitive);
-  }
-
-  public ManifestGroup select(String... columnNames) {
-    return select(Arrays.asList(columnNames));
   }
 
   /**
@@ -203,5 +140,79 @@ class ManifestGroup {
         });
 
     return CloseableIterable.concat(readers);
+  }
+
+  static Builder builder(FileIO io, Iterable<ManifestFile> manifests) {
+    return new Builder(io, manifests);
+  }
+
+  static class Builder {
+    private final FileIO io;
+    private final Set<ManifestFile> manifests;
+    private Map<Integer, PartitionSpec> specsById;
+    private Expression dataFilter;
+    private Expression fileFilter;
+    private Expression partitionFilter;
+    private boolean ignoreDeleted;
+    private boolean ignoreExisting;
+    private List<String> columns;
+    private boolean caseSensitive;
+
+    Builder(FileIO io, Iterable<ManifestFile> manifests) {
+      this.io = io;
+      this.manifests = Sets.newHashSet(manifests);
+      this.dataFilter = Expressions.alwaysTrue();
+      this.fileFilter = Expressions.alwaysTrue();
+      this.partitionFilter = Expressions.alwaysTrue();
+      this.ignoreDeleted = false;
+      this.ignoreExisting = false;
+      this.columns = ImmutableList.of("*");
+      this.caseSensitive = true;
+    }
+
+    Builder specsById(Map<Integer, PartitionSpec> newSpecsById) {
+      this.specsById = newSpecsById;
+      return this;
+    }
+
+    Builder filterData(Expression newDataFilter) {
+      this.dataFilter = Expressions.and(dataFilter, newDataFilter);
+      return this;
+    }
+
+    Builder filterFiles(Expression newFileFilter) {
+      this.fileFilter = Expressions.and(fileFilter, newFileFilter);
+      return this;
+    }
+
+    Builder filterPartitions(Expression newPartitionFilter) {
+      this.partitionFilter = Expressions.and(partitionFilter, newPartitionFilter);
+      return this;
+    }
+
+    Builder ignoreDeleted() {
+      this.ignoreDeleted = true;
+      return this;
+    }
+
+    Builder ignoreExisting() {
+      this.ignoreExisting = true;
+      return this;
+    }
+
+    Builder select(List<String> newColumns) {
+      this.columns = Lists.newArrayList(newColumns);
+      return this;
+    }
+
+    Builder caseSensitive(boolean newCaseSensitive) {
+      this.caseSensitive = newCaseSensitive;
+      return this;
+    }
+
+    ManifestGroup build() {
+      return new ManifestGroup(io, manifests, specsById, dataFilter, fileFilter, partitionFilter, ignoreDeleted,
+          ignoreExisting, columns, caseSensitive);
+    }
   }
 }
