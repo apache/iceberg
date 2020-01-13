@@ -39,7 +39,9 @@ dependencies {
 The following section will break down the different areas of Iceberg explored in the examples, with links to the code and extra information that could be useful for new users. 
 
 ### Writing data to tables
-There are multiple ways of creating tables with Iceberg, including using the Hive Metastore to keep track of tables (HiveCatalog), or using HDFS/ your local file system to store the tables. To limit complexity, these examples create tables on your local file system using the HadoopTables class.
+There are multiple ways of creating tables with Iceberg, including using the Hive Metastore to keep track of tables ([HiveCatalog](https://iceberg.apache.org/api-quickstart/#using-a-hive-catalog)), or using HDFS / your local file system ([HadoopTables](https://iceberg.apache.org/api-quickstart/#using-a-hive-catalog)) to store the tables. However, directory tables don’t support all catalog operations, like rename.
+It should be noted that Hadoop tables _shouldn’t_ be used with file systems that do not support atomic rename as Iceberg depends on this to synchronize concurrent commits. 
+To limit complexity, these examples create tables on your local file system using the HadoopTables class.
 
 To write Iceberg tables you will need to use the Iceberg API to create a `Schema` and `PartitionSpec` which you use with a Spark `DataFrameWriter` to create Iceberg an `Table`.
 
