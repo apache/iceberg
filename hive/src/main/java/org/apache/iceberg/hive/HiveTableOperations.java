@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.hive;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -165,10 +166,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
       if (base != null) {
         metaClients.run(client -> {
-          client.alter_table(database, tableName, tbl,
-                  new EnvironmentContext(
-                          Collections.singletonMap(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE)
-                  ));
+          EnvironmentContext envContext = new EnvironmentContext(
+              ImmutableMap.of(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE)
+          );
+          client.alter_table(database, tableName, tbl, envContext);
           return null;
         });
       } else {
