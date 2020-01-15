@@ -65,10 +65,15 @@ import org.slf4j.LoggerFactory;
 public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HiveTableOperations.class);
 
+  private static final String HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS = "hive.lock.acquire-timeout-ms";
+  private static final long   HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
+
   private final HiveClientPool metaClients;
   private final String database;
   private final String tableName;
   private final Configuration conf;
+
+  private final long lockAcquireTimeout;
 
   private FileIO fileIO;
 
@@ -77,6 +82,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     this.metaClients = metaClients;
     this.database = database;
     this.tableName = table;
+
+    this.lockAcquireTimeout =
+        conf.getLong(HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS, HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT);
   }
 
   @Override
@@ -249,11 +257,30 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     LockResponse lockResponse = metaClients.run(client -> client.lock(lockRequest));
     LockState state = lockResponse.getState();
     long lockId = lockResponse.getLockid();
-    //TODO add timeout
+
+    final long start = System.currentTimeMillis();
+    long duration = 0;
+    boolean timeout = false;
     while (state.equals(LockState.WAITING)) {
       lockResponse = metaClients.run(client -> client.checkLock(lockId));
       state = lockResponse.getState();
+
+      // check timeout
+      duration = System.currentTimeMillis() - start;
+      if (duration > lockAcquireTimeout) {
+        timeout = true;
+        break;
+      }
+
       Thread.sleep(50);
+    }
+
+    // timeout and do not have lock acquired
+    if (timeout && !state.equals(LockState.ACQUIRED)) {
+      throw new CommitFailedException(String.format("Timeout when acquiring the lock on %s.%s, " +
+          "have waited for %s ms, more than %s ms set by %s",
+          database, tableName,
+          duration, lockAcquireTimeout, HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS));
     }
 
     if (!state.equals(LockState.ACQUIRED)) {
