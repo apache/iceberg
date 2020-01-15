@@ -130,7 +130,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
       }
     }
 
-    return errors;
+    return ImmutableList.copyOf(errors);
   }
 
   @Override
@@ -163,8 +163,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
         }
       }
 
-      return errors;
-
+      return ImmutableList.copyOf(errors);
     } finally {
       this.currentType = struct;
     }
@@ -187,15 +186,15 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
 
       errors.addAll(elementErrors.get());
 
-      return errors;
-
+      return ImmutableList.copyOf(errors);
     } finally {
       this.currentType = list;
     }
   }
 
   @Override
-  public List<String> map(Types.MapType readMap, Supplier<List<String>> keyErrors, Supplier<List<String>> valueErrors) {
+  public List<String> map(
+      Types.MapType readMap, Supplier<List<String>> keyErrors, Supplier<List<String>> valueErrors) {
     if (!currentType.isMapType()) {
       return ImmutableList.of(String.format(": %s cannot be read as a map", currentType));
     }
@@ -214,8 +213,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
       this.currentType = map.valueType();
       errors.addAll(valueErrors.get());
 
-      return errors;
-
+      return ImmutableList.copyOf(errors);
     } finally {
       this.currentType = map;
     }
