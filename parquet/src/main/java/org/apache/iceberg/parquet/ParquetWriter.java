@@ -48,6 +48,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   // We have one for Parquet 1.10 and one for 1.11. The signature changed, but we still want
   // to be compatible with both of them
   private static DynConstructors.Ctor<PageWriteStore> pageStoreCtorParquet;
+
   static {
     try {
       // Parquet 1.11
