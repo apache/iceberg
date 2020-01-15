@@ -93,7 +93,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
   }
 
   @Override
-  public ImmutableList<String> struct(Types.StructType readStruct, Iterable<List<String>> fieldErrorLists) {
+  public List<String> struct(Types.StructType readStruct, Iterable<List<String>> fieldErrorLists) {
     Preconditions.checkNotNull(readStruct, "Evaluation must start with a schema.");
 
     if (!currentType.isStructType()) {
@@ -134,7 +134,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
   }
 
   @Override
-  public ImmutableList<String> field(Types.NestedField readField, Supplier<List<String>> fieldErrors) {
+  public List<String> field(Types.NestedField readField, Supplier<List<String>> fieldErrors) {
     Types.StructType struct = currentType.asStructType();
     Types.NestedField field = struct.field(readField.fieldId());
     List<String> errors = Lists.newArrayList();
@@ -170,7 +170,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
   }
 
   @Override
-  public ImmutableList<String> list(Types.ListType readList, Supplier<List<String>> elementErrors) {
+  public List<String> list(Types.ListType readList, Supplier<List<String>> elementErrors) {
     if (!currentType.isListType()) {
       return ImmutableList.of(String.format(": %s cannot be read as a list", currentType));
     }
@@ -193,7 +193,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
   }
 
   @Override
-  public ImmutableList<String> map(
+  public List<String> map(
       Types.MapType readMap, Supplier<List<String>> keyErrors, Supplier<List<String>> valueErrors) {
     if (!currentType.isMapType()) {
       return ImmutableList.of(String.format(": %s cannot be read as a map", currentType));
@@ -220,7 +220,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
   }
 
   @Override
-  public ImmutableList<String> primitive(Type.PrimitiveType readPrimitive) {
+  public List<String> primitive(Type.PrimitiveType readPrimitive) {
     if (currentType.equals(readPrimitive)) {
       return NO_ERRORS;
     }
