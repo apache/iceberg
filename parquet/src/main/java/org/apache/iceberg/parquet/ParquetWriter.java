@@ -44,14 +44,32 @@ import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
 
 class ParquetWriter<T> implements FileAppender<T>, Closeable {
-  private static final DynConstructors.Ctor<PageWriteStore> pageStoreCtor = DynConstructors
-      .builder(PageWriteStore.class)
-      .hiddenImpl("org.apache.parquet.hadoop.ColumnChunkPageWriteStore",
-          CodecFactory.BytesCompressor.class,
-          MessageType.class,
-          ByteBufferAllocator.class,
-          int.class)
-      .build();
+
+  // We have one for Parquet 1.10 and one for 1.11. The signature changed, but we still want
+  // to be compatible with both of them
+  private static DynConstructors.Ctor<PageWriteStore> pageStoreCtorParquet;
+  static {
+    try {
+      // Parquet 1.11
+      pageStoreCtorParquet = DynConstructors
+          .builder(PageWriteStore.class)
+          .hiddenImpl("org.apache.parquet.hadoop.ColumnChunkPageWriteStore",
+              CodecFactory.BytesCompressor.class,
+              MessageType.class,
+              ByteBufferAllocator.class,
+              int.class)
+          .build();
+    } catch (RuntimeException e) {
+      // Parquet 1.10
+      pageStoreCtorParquet = DynConstructors
+          .builder(PageWriteStore.class)
+          .hiddenImpl("org.apache.parquet.hadoop.ColumnChunkPageWriteStore",
+              CodecFactory.BytesCompressor.class,
+              MessageType.class,
+              ByteBufferAllocator.class)
+          .build();
+    }
+  }
 
   private static final DynMethods.UnboundMethod flushToWriter = DynMethods
       .builder("flushToFileWriter")
@@ -172,8 +190,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.nextCheckRecordCount = Math.min(Math.max(recordCount / 2, 100), 10000);
     this.recordCount = 0;
 
-    PageWriteStore pageStore = pageStoreCtor.newInstance(
-        compressor, parquetSchema, props.getAllocator(), Integer.MAX_VALUE);
+    PageWriteStore pageStore = pageStoreCtorParquet.newInstance(
+          compressor, parquetSchema, props.getAllocator(), Integer.MAX_VALUE);
 
     this.flushPageStoreToWriter = flushToWriter.bind(pageStore);
     this.writeStore = props.newColumnWriteStore(parquetSchema, pageStore);
