@@ -78,7 +78,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
 
   private CheckCompatibility(Schema schema, boolean checkOrdering, boolean checkNullability) {
     this.schema = schema;
-    this.checkOrdering = checkOrdering;
+    this.checkOrdering = false;
     this.checkNullability = checkNullability;
   }
 

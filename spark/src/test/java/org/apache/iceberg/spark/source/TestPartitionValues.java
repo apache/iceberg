@@ -47,10 +47,9 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
+import  static org.apache.spark.sql.functions.lit;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
-
 @RunWith(Parameterized.class)
 public class TestPartitionValues {
   @Parameterized.Parameters
@@ -132,7 +131,7 @@ public class TestPartitionValues {
 
     try {
       // TODO: incoming columns must be ordered according to the table's schema
-      df.select("id", "data").write()
+      df.withColumn("newfield",lit("newvalue")).select("data", "id", "newfield").write()
           .format("iceberg")
           .mode("append")
           .save(location.toString());

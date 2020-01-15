@@ -52,6 +52,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkAvroWriter;
 import org.apache.iceberg.spark.data.SparkParquetWriters;
 import org.apache.iceberg.util.PropertyUtil;
@@ -91,7 +92,7 @@ class Writer implements DataSourceWriter {
   private final String applicationId;
   private final String wapId;
   private final long targetFileSize;
-  private final Schema dsSchema;
+  public final Schema dsSchema;
 
   Writer(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
          DataSourceOptions options, boolean replacePartitions, String applicationId, Schema dsSchema) {
@@ -279,9 +280,9 @@ class Writer implements DataSourceWriter {
       AppenderFactory<InternalRow> appenderFactory = new SparkAppenderFactory();
 
       if (spec.fields().isEmpty()) {
-        return new UnpartitionedWriter(spec, format, appenderFactory, fileFactory, io.value(), targetFileSize);
+        return new UnpartitionedWriter(spec, format, appenderFactory, fileFactory, io.value(), targetFileSize, dsSchema);
       } else {
-        return new PartitionedWriter(spec, format, appenderFactory, fileFactory, io.value(), targetFileSize);
+        return new PartitionedWriter(spec, format, appenderFactory, fileFactory, io.value(), targetFileSize, dsSchema);
       }
     }
 
@@ -375,15 +376,17 @@ class Writer implements DataSourceWriter {
     private FileAppender<InternalRow> currentAppender = null;
     private EncryptedOutputFile currentFile = null;
     private long currentRows = 0;
+    public final Schema schema;
 
     BaseWriter(PartitionSpec spec, FileFormat format, AppenderFactory<InternalRow> appenderFactory,
-               WriterFactory.OutputFileFactory fileFactory, FileIO fileIo, long targetFileSize) {
+               WriterFactory.OutputFileFactory fileFactory, FileIO fileIo, long targetFileSize, Schema schema) {
       this.spec = spec;
       this.format = format;
       this.appenderFactory = appenderFactory;
       this.fileFactory = fileFactory;
       this.fileIo = fileIo;
       this.targetFileSize = targetFileSize;
+      this.schema = schema;
     }
 
     @Override
@@ -469,8 +472,9 @@ class Writer implements DataSourceWriter {
         AppenderFactory<InternalRow> appenderFactory,
         WriterFactory.OutputFileFactory fileFactory,
         FileIO fileIo,
-        long targetFileSize) {
-      super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize);
+        long targetFileSize,
+        Schema schema) {
+      super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize, schema);
 
       openCurrent();
     }
@@ -484,17 +488,17 @@ class Writer implements DataSourceWriter {
   private static class PartitionedWriter extends BaseWriter {
     private final PartitionKey key;
     private final Set<PartitionKey> completedPartitions = Sets.newHashSet();
-
     PartitionedWriter(
         PartitionSpec spec,
         FileFormat format,
         AppenderFactory<InternalRow> appenderFactory,
         WriterFactory.OutputFileFactory fileFactory,
         FileIO fileIo,
-        long targetFileSize) {
-      super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize);
+        long targetFileSize,
+        Schema schema) {
+      super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize, schema);
 
-      this.key = new PartitionKey(spec);
+      this.key = new PartitionKey(spec, schema);
     }
 
     @Override
@@ -506,7 +510,7 @@ class Writer implements DataSourceWriter {
         closeCurrent();
         completedPartitions.add(currentKey);
 
-        if (completedPartitions.contains(key)) {
+       if (completedPartitions.contains(key)) {
           // if rows are not correctly grouped, detect and fail the write
           PartitionKey existingKey = Iterables.find(completedPartitions, key::equals, null);
           LOG.warn("Duplicate key: {} == {}", existingKey, key);

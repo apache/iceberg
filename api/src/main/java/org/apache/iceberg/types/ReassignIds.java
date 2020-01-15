@@ -56,6 +56,9 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(length);
     for (int i = 0; i < length; i += 1) {
       Types.NestedField field = fields.get(i);
+      if (sourceStruct.field(field.name()) == null) {
+        continue;
+      }
       int sourceFieldId = sourceStruct.field(field.name()).fieldId();
       if (field.isRequired()) {
         newFields.add(Types.NestedField.required(sourceFieldId, field.name(), types.get(i), field.doc()));
@@ -74,10 +77,10 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     Types.StructType sourceStruct = sourceType.asStructType();
     Types.NestedField sourceField = sourceStruct.field(field.name());
     if (sourceField == null) {
-      throw new IllegalArgumentException("Field " + field.name() + " not found in source schema");
+      //throw new IllegalArgumentException("Field " + field.name() + " not found in source schema");
+    } else {
+      this.sourceType = sourceField.type();
     }
-
-    this.sourceType = sourceField.type();
     try {
       return future.get();
     } finally {
