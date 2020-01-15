@@ -379,7 +379,7 @@ class GenericDataFile
       case 12:
         return upperBounds;
       case 13:
-        return keyMetadata;
+        return keyMetadata();
       case 14:
         return splitOffsets;
       default:
