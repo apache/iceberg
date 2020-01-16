@@ -312,8 +312,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         ops.io().newInputFile(manifest.path()), ops.current().specsById())) {
       PartitionSummary stats = new PartitionSummary(ops.current().spec(manifest.partitionSpecId()));
       int addedFiles = 0;
+      long addedRows = 0L;
       int existingFiles = 0;
+      long existingRows = 0L;
       int deletedFiles = 0;
+      long deletedRows = 0L;
 
       Long snapshotId = null;
       long maxSnapshotId = Long.MIN_VALUE;
@@ -325,15 +328,18 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         switch (entry.status()) {
           case ADDED:
             addedFiles += 1;
+            addedRows += entry.file().recordCount();
             if (snapshotId == null) {
               snapshotId = entry.snapshotId();
             }
             break;
           case EXISTING:
             existingFiles += 1;
+            existingRows += entry.file().recordCount();
             break;
           case DELETED:
             deletedFiles += 1;
+            deletedRows += entry.file().recordCount();
             if (snapshotId == null) {
               snapshotId = entry.snapshotId();
             }
@@ -349,7 +355,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       }
 
       return new GenericManifestFile(manifest.path(), manifest.length(), manifest.partitionSpecId(),
-          snapshotId, addedFiles, existingFiles, deletedFiles, stats.summaries());
+          snapshotId, addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows,
+          stats.summaries());
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read manifest: %s", manifest.path());

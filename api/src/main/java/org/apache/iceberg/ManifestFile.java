@@ -42,7 +42,10 @@ public interface ManifestFile {
           required(509, "contains_null", Types.BooleanType.get()),
           optional(510, "lower_bound", Types.BinaryType.get()), // null if no non-null values
           optional(511, "upper_bound", Types.BinaryType.get())
-      ))));
+      ))),
+      optional(512, "added_rows_count", Types.LongType.get()),
+      optional(513, "existing_rows_count", Types.LongType.get()),
+      optional(514, "deleted_rows_count", Types.LongType.get()));
 
   static Schema schema() {
     return SCHEMA;
@@ -83,6 +86,11 @@ public interface ManifestFile {
   Integer addedFilesCount();
 
   /**
+   * @return the total number of rows in all data files with status ADDED in the manifest file
+   */
+  Long addedRowsCount();
+
+  /**
    * Returns true if the manifest contains EXISTING entries or if the count is not known.
    *
    * @return whether this manifest contains entries with EXISTING status
@@ -97,6 +105,11 @@ public interface ManifestFile {
   Integer existingFilesCount();
 
   /**
+   * @return the total number of rows in all data files with status EXISTING in the manifest file
+   */
+  Long existingRowsCount();
+
+  /**
    * Returns true if the manifest contains DELETED entries or if the count is not known.
    *
    * @return whether this manifest contains entries with DELETED status
@@ -109,6 +122,11 @@ public interface ManifestFile {
    * @return the number of data files with status DELETED in the manifest file
    */
   Integer deletedFilesCount();
+
+  /**
+   * @return the total number of rows in all data files with status DELETED in the manifest file
+   */
+  Long deletedRowsCount();
 
   /**
    * Returns a list of {@link PartitionFieldSummary partition field summaries}.
