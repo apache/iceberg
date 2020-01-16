@@ -65,14 +65,13 @@ import org.slf4j.LoggerFactory;
 public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HiveTableOperations.class);
 
-  private static final String HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS = "hive.lock.acquire-timeout-ms";
-  private static final long   HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
+  private static final String HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS = "iceberg.hive.lock-timeout-ms";
+  private static final long HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
 
   private final HiveClientPool metaClients;
   private final String database;
   private final String tableName;
   private final Configuration conf;
-
   private final long lockAcquireTimeout;
 
   private FileIO fileIO;
@@ -82,7 +81,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     this.metaClients = metaClients;
     this.database = database;
     this.tableName = table;
-
     this.lockAcquireTimeout =
         conf.getLong(HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS, HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT);
   }
@@ -261,7 +259,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     final long start = System.currentTimeMillis();
     long duration = 0;
     boolean timeout = false;
-    while (state.equals(LockState.WAITING)) {
+    while (!timeout && state.equals(LockState.WAITING)) {
       lockResponse = metaClients.run(client -> client.checkLock(lockId));
       state = lockResponse.getState();
 
@@ -269,18 +267,15 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       duration = System.currentTimeMillis() - start;
       if (duration > lockAcquireTimeout) {
         timeout = true;
-        break;
+      } else {
+        Thread.sleep(50);
       }
-
-      Thread.sleep(50);
     }
 
     // timeout and do not have lock acquired
     if (timeout && !state.equals(LockState.ACQUIRED)) {
-      throw new CommitFailedException(String.format("Timeout when acquiring the lock on %s.%s, " +
-          "have waited for %s ms, more than %s ms set by %s",
-          database, tableName,
-          duration, lockAcquireTimeout, HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS));
+      throw new CommitFailedException(String.format("Timed out after %s ms waiting for lock on %s.%s",
+          duration, database, tableName));
     }
 
     if (!state.equals(LockState.ACQUIRED)) {
