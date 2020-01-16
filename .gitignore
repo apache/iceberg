@@ -31,4 +31,8 @@ coverage.xml
 spark/tmp/
 
 # vscode/eclipse files
+.classpath
 .project
+.settings
+bin/
+
