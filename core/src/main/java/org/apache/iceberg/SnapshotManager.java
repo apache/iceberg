@@ -64,6 +64,33 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
 
     operation = SnapshotManagerOperation.CHERRYPICK;
     this.targetSnapshotId = snapshotId;
+
+    // Pick modifications from the snapshot
+    Snapshot cherryPickSnapshot = base.snapshot(this.targetSnapshotId);
+    String wapId = stagedWapId(cherryPickSnapshot);
+    boolean isWapWorkflow =  wapId != null && !"".equals(wapId);
+    if (isWapWorkflow) {
+      if (base.isWapIdPublished(wapId)) {
+        throw new DuplicateWAPCommitException(wapId);
+      }
+    }
+    // only append operations are currently supported
+    if (!cherryPickSnapshot.operation().equals(DataOperations.APPEND)) {
+      throw new UnsupportedOperationException("Can cherry pick only append operations");
+    }
+    // this is to ensure we add files only once for each targetSnapshotId, to protect from
+    // duplicate additions if commit retries the same cherrypick operation on failure.
+    if (!snapshotsAlreadyCherrypicked.contains(targetSnapshotId)) {
+      for (DataFile addedFile : cherryPickSnapshot.addedFiles()) {
+        add(addedFile);
+      }
+      // this property is set on target snapshot that will get published
+      if (isWapWorkflow) {
+        set(SnapshotSummary.PUBLISHED_WAP_ID_PROP, wapId);
+      }
+      snapshotsAlreadyCherrypicked.add(targetSnapshotId);
+    }
+
     return this;
   }
 
@@ -74,21 +101,18 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
 
     operation = SnapshotManagerOperation.ROLLBACK;
     this.targetSnapshotId = snapshotId;
+
     return this;
   }
 
   @Override
   public ManageSnapshots rollbackToTime(long timestampMillis) {
-    long snapshotId = 0;
-    long snapshotTimestamp = 0;
     operation = SnapshotManagerOperation.ROLLBACK;
     // find the latest snapshot by timestamp older than timestampMillis
     Snapshot snapshot = SnapshotUtil.findLatestSnapshotOlderThan(base, timestampMillis);
     Preconditions.checkArgument(snapshot != null,
         "Cannot roll back, no valid snapshot older than: %s", timestampMillis);
-    snapshotId = snapshot.snapshotId();
-
-    this.targetSnapshotId = snapshotId;
+    this.targetSnapshotId = snapshot.snapshotId();
 
     return this;
   }
@@ -103,31 +127,6 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
 
     switch (operation) {
       case CHERRYPICK:
-        Snapshot cherryPickSnapshot = base.snapshot(this.targetSnapshotId);
-        String wapId = stagedWapId(cherryPickSnapshot);
-        boolean isWapWorkflow =  wapId != null && !"".equals(wapId);
-        if (isWapWorkflow) {
-          if (base.isWapIdPublished(wapId)) {
-            throw new DuplicateWAPCommitException(wapId);
-          }
-        }
-        // only append operations are currently supported
-        if (!cherryPickSnapshot.operation().equals(DataOperations.APPEND)) {
-          throw new UnsupportedOperationException("Can cherry pick only append operations");
-        }
-        // this is to ensure we add files only once for each targetSnapshotId, to protect from
-        // duplicate additions if commit retries the same cherrypick operation on failure.
-        if (!snapshotsAlreadyCherrypicked.contains(targetSnapshotId)) {
-          for (DataFile addedFile : cherryPickSnapshot.addedFiles()) {
-            add(addedFile);
-          }
-          // this property is set on target snapshot that will get published
-          if (isWapWorkflow) {
-            set(SnapshotSummary.PUBLISHED_WAP_ID_PROP, wapId);
-          }
-          snapshotsAlreadyCherrypicked.add(targetSnapshotId);
-        }
-
         return super.apply();
       case ROLLBACK:
         return base.snapshot(targetSnapshotId);
