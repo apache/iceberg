@@ -20,7 +20,7 @@
 package org.apache.iceberg;
 
 import com.google.common.collect.Iterables;
-import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.exceptions.DuplicateWAPCommitException;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -486,7 +486,7 @@ public class TestWapWorkflow extends TableTestBase {
     Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 2,
         base.snapshotLog().size());
 
-    AssertHelpers.assertThrows("should throw exception", ValidationException.class,
+    AssertHelpers.assertThrows("should throw exception", DuplicateWAPCommitException.class,
         String.format("Duplicate request to cherry pick wap id that was published already: %s", 12345678), () -> {
           // duplicate cherry-pick snapshot
           table.manageSnapshots().cherrypick(wapSnapshot.snapshotId()).commit();

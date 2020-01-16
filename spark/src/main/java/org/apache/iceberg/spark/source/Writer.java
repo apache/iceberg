@@ -109,7 +109,7 @@ class Writer implements DataSourceWriter {
     this.replacePartitions = replacePartitions;
     this.applicationId = applicationId;
     this.wapId = wapId;
-    this.isWapEnabled = isWapTable(options);
+    this.isWapEnabled = isWapTable();
     this.dsSchema = dsSchema;
 
     long tableTargetFileSize = PropertyUtil.propertyAsLong(
@@ -124,9 +124,9 @@ class Writer implements DataSourceWriter {
     return FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
   }
 
-  private boolean isWapTable(DataSourceOptions options) {
-    return Boolean.parseBoolean(table.properties().getOrDefault(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED,
-        TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
+  private boolean isWapTable() {
+    return Boolean.parseBoolean(table.properties().getOrDefault(
+        TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
   }
 
   @Override

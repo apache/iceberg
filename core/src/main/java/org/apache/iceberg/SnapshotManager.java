@@ -22,7 +22,9 @@ package org.apache.iceberg;
 import com.google.common.base.Preconditions;
 import java.util.HashSet;
 import java.util.Set;
+import org.apache.iceberg.exceptions.DuplicateWAPCommitException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.util.SnapshotUtil;
 
 public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> implements ManageSnapshots {
 
@@ -81,16 +83,10 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
     long snapshotTimestamp = 0;
     operation = SnapshotManagerOperation.ROLLBACK;
     // find the latest snapshot by timestamp older than timestampMillis
-    for (Snapshot snapshot : base.snapshots()) {
-      if (snapshot.timestampMillis() < timestampMillis &&
-          snapshot.timestampMillis() > snapshotTimestamp) {
-        snapshotId = snapshot.snapshotId();
-        snapshotTimestamp = snapshot.timestampMillis();
-      }
-    }
-
-    Preconditions.checkArgument(base.snapshot(snapshotId) != null,
+    Snapshot snapshot = SnapshotUtil.findLatestSnapshotOlderThan(base, timestampMillis);
+    Preconditions.checkArgument(snapshot != null,
         "Cannot roll back, no valid snapshot older than: %s", timestampMillis);
+    snapshotId = snapshot.snapshotId();
 
     this.targetSnapshotId = snapshotId;
 
@@ -111,8 +107,9 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
         String wapId = stagedWapId(cherryPickSnapshot);
         boolean isWapWorkflow =  wapId != null && !"".equals(wapId);
         if (isWapWorkflow) {
-          ValidationException.check(!base.isWapIdPublished(wapId),
-              "Duplicate request to cherry pick wap id that was published already: %s", wapId);
+          if (base.isWapIdPublished(wapId)) {
+            throw new DuplicateWAPCommitException(wapId);
+          }
         }
         // only append operations are currently supported
         if (!cherryPickSnapshot.operation().equals(DataOperations.APPEND)) {

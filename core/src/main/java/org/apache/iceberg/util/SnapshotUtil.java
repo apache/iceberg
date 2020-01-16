@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
 
 public class SnapshotUtil {
   private SnapshotUtil() {
@@ -54,5 +55,18 @@ public class SnapshotUtil {
       }
     }
     return ancestorIds;
+  }
+
+  public static Snapshot findLatestSnapshotOlderThan(TableMetadata tableMeta, long timestampMillis) {
+    long snapshotTimestamp = 0;
+    Snapshot result = null;
+    for (Snapshot snapshot : tableMeta.snapshots()) {
+      if (snapshot.timestampMillis() < timestampMillis &&
+          snapshot.timestampMillis() > snapshotTimestamp) {
+        result = snapshot;
+        snapshotTimestamp = snapshot.timestampMillis();
+      }
+    }
+    return result;
   }
 }
