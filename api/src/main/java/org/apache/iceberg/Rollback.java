@@ -38,7 +38,7 @@ public interface Rollback extends PendingUpdate<Snapshot> {
    * @param snapshotId long id of the snapshot to roll back table data to
    * @return this for method chaining
    * @throws IllegalArgumentException If the table has no snapshot with the given id
-   * @deprecated Replaced by {@link ManageSnapshots#rollback(long)}
+   * @deprecated Replaced by {@link ManageSnapshots#setCurrentSnapshot(long)}
    */
   @Deprecated
   Rollback toSnapshotId(long snapshotId);

@@ -29,7 +29,7 @@ class RollbackToSnapshot extends SnapshotManager implements Rollback {
 
   @Override
   public Rollback toSnapshotId(long snapshotId) {
-    return (Rollback) super.rollback(snapshotId);
+    return (Rollback) super.setCurrentSnapshot(snapshotId);
   }
 
   @Override

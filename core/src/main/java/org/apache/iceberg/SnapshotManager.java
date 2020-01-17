@@ -28,7 +28,6 @@ import org.apache.iceberg.util.SnapshotUtil;
 
 public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> implements ManageSnapshots {
 
-  private final TableOperations ops;
   private SnapshotManagerOperation operation;
   private TableMetadata base;
   private Long targetSnapshotId = null;
@@ -41,7 +40,6 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
 
   SnapshotManager(TableOperations ops) {
     super(ops);
-    this.ops = ops;
     this.base = ops.current();
     this.snapshotsAlreadyCherrypicked = new HashSet<>();
   }
@@ -95,7 +93,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
   }
 
   @Override
-  public ManageSnapshots rollback(long snapshotId) {
+  public ManageSnapshots setCurrentSnapshot(long snapshotId) {
     Preconditions.checkArgument(base.snapshot(snapshotId) != null,
         "Cannot roll back to unknown snapshot id: %s", snapshotId);
 
@@ -118,12 +116,23 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
   }
 
   @Override
+  public ManageSnapshots rollbackTo(long snapshotId) {
+    Preconditions.checkArgument(base.snapshot(snapshotId) != null,
+        "Cannot roll back to unknown snapshot id: %s", snapshotId);
+
+    ValidationException.check(SnapshotUtil.isCurrentAncestor(base, snapshotId),
+        "Not a valid snapshot to rollback to. Cannot rollback to a snapshot " +
+            "that's not an ancestor of the current snapshot.");
+    return setCurrentSnapshot(snapshotId);
+  }
+
+  @Override
   public Snapshot apply() {
     // common checks
     ValidationException.check(targetSnapshotId != null,
-        "Cannot run operations on an unknown version: call rollback, rollbackAtTime or cherrypick");
+        "Cannot run operations on an unknown version: call setCurrentSnapshot, rollbackAtTime or cherrypick");
     ValidationException.check(operation != null,
-        "Need to define operation on snapshot: call rollback, rollbackAtTime or cherrypick");
+        "Need to define operation on snapshot: call setCurrentSnapshot, rollbackAtTime or cherrypick");
 
     switch (operation) {
       case CHERRYPICK:
@@ -131,7 +140,8 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
       case ROLLBACK:
         return base.snapshot(targetSnapshotId);
       default:
-        throw new ValidationException("Invalid SnapshotManagerOperation, only cherrypick, rollback are supported");
+        throw new ValidationException("Invalid SnapshotManagerOperation, " +
+            "only cherrypick, rollback are supported");
     }
   }
 

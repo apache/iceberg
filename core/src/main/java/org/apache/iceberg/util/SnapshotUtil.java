@@ -57,6 +57,17 @@ public class SnapshotUtil {
     return ancestorIds;
   }
 
+  public static boolean isCurrentAncestor(TableMetadata tableMeta, long snapshotId) {
+    List<Long> currentAncestors = SnapshotUtil.ancestorIds(tableMeta.currentSnapshot(), tableMeta::snapshot);
+    return currentAncestors.contains(snapshotId);
+  }
+
+  /**
+   * Return the latest snapshot whose timestamp is before the provided timestamp.
+   * @param tableMeta TableMetadata representing the table state on which the snapshot is being looked up
+   * @param timestampMillis lookup snapshots before this timestamp
+   * @return
+   */
   public static Snapshot findLatestSnapshotOlderThan(TableMetadata tableMeta, long timestampMillis) {
     long snapshotTimestamp = 0;
     Snapshot result = null;

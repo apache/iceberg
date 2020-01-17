@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import com.google.common.collect.Iterables;
 import org.apache.iceberg.exceptions.DuplicateWAPCommitException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -33,7 +34,76 @@ public class TestWapWorkflow extends TableTestBase {
   }
 
   @Test
-  public void testWithRollback() {
+  public void testCurrentSnapshotOperation() {
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+    TableMetadata base = readMetadata();
+    long firstSnapshotId = base.currentSnapshot().snapshotId();
+
+    table.newAppend()
+        .appendFile(FILE_B)
+        .set("wap.id", "123456789")
+        .stageOnly()
+        .commit();
+    base = readMetadata();
+
+    Snapshot wapSnapshot = base.snapshots().get(1);
+
+    Assert.assertEquals("Metadata should have both snapshots", 2, base.snapshots().size());
+    Assert.assertEquals("Snapshot should have wap id in summary", "123456789",
+        wapSnapshot.summary().get("wap.id"));
+    Assert.assertEquals("Current snapshot should be first commit's snapshot",
+        firstSnapshotId, base.currentSnapshot().snapshotId());
+    Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 1,
+        base.snapshotLog().size());
+
+    // do setCurrentSnapshot
+    table.manageSnapshots().setCurrentSnapshot(wapSnapshot.snapshotId()).commit();
+    base = readMetadata();
+
+    Assert.assertEquals("Current snapshot should be what we rolled back to",
+        wapSnapshot.snapshotId(), base.currentSnapshot().snapshotId());
+    Assert.assertEquals("Metadata should have both snapshots", 2, base.snapshots().size());
+    Assert.assertEquals("Should contain manifests for both files", 2, base.currentSnapshot().manifests().size());
+    Assert.assertEquals("Should contain append from last commit", 1,
+        Iterables.size(base.currentSnapshot().addedFiles()));
+    Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 2,
+        base.snapshotLog().size());
+  }
+
+  @Test
+  public void testSetCurrentSnapshotNoWAP() {
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+    TableMetadata base = readMetadata();
+    Snapshot firstSnapshot = base.currentSnapshot();
+    long firstSnapshotId = firstSnapshot.snapshotId();
+
+    table.newAppend()
+        .appendFile(FILE_B)
+        .commit();
+    base = readMetadata();
+
+    // do setCurrentSnapshot
+    table.manageSnapshots().setCurrentSnapshot(firstSnapshotId).commit();
+    base = readMetadata();
+
+    Assert.assertEquals("Current snapshot should be what we rolled back to",
+        firstSnapshotId, base.currentSnapshot().snapshotId());
+    Assert.assertEquals("Metadata should have both snapshots", 2, base.snapshots().size());
+    Assert.assertEquals("Should contain manifests for both files", 1, base.currentSnapshot().manifests().size());
+    Assert.assertEquals("Should contain append from last commit", 1,
+        Iterables.size(base.currentSnapshot().addedFiles()));
+    Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 3,
+        base.snapshotLog().size());
+  }
+
+  @Test
+  public void testRollbackOnInvalidNonAncestor() {
 
     table.newAppend()
         .appendFile(FILE_A)
@@ -59,21 +129,28 @@ public class TestWapWorkflow extends TableTestBase {
         base.snapshotLog().size());
 
     // do rollback
-    table.manageSnapshots().rollback(wapSnapshot.snapshotId()).commit();
+    AssertHelpers.assertThrows("should fail on invalid snapshot", ValidationException.class,
+        "Not a valid snapshot to rollback to. Cannot rollback to a snapshot " +
+            "that's not an ancestor of the current snapshot.",
+        () -> {
+          // rollback to snapshot that is not an ancestor
+          table.manageSnapshots().rollbackTo(wapSnapshot.snapshotId()).commit();
+        });
     base = readMetadata();
 
-    Assert.assertEquals("Current snapshot should be what we rolled back to",
-        wapSnapshot.snapshotId(), base.currentSnapshot().snapshotId());
+    Assert.assertEquals("Current snapshot should be what we rolled back to", firstSnapshotId,
+        base.currentSnapshot().snapshotId());
     Assert.assertEquals("Metadata should have both snapshots", 2, base.snapshots().size());
-    Assert.assertEquals("Should contain manifests for both files", 2, base.currentSnapshot().manifests().size());
+    Assert.assertEquals("Should contain manifests for one snapshot", 1,
+        base.currentSnapshot().manifests().size());
     Assert.assertEquals("Should contain append from last commit", 1,
         Iterables.size(base.currentSnapshot().addedFiles()));
-    Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 2,
+    Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 1,
         base.snapshotLog().size());
   }
 
   @Test
-  public void testRollbackAndFastForward() {
+  public void testRollbackAndCherrypick() {
     // first snapshot
     table.newAppend()
         .appendFile(FILE_A)
@@ -97,7 +174,7 @@ public class TestWapWorkflow extends TableTestBase {
     Snapshot thirdSnapshot = base.currentSnapshot();
 
     // rollback to first snapshot
-    table.manageSnapshots().rollback(firstSnapshotId).commit();
+    table.manageSnapshots().rollbackTo(firstSnapshotId).commit();
     base = readMetadata();
     Assert.assertEquals("Should be at first snapshot", firstSnapshotId, base.currentSnapshot().snapshotId());
     Assert.assertEquals("Should have all three snapshots in the system", 3, base.snapshots().size());
@@ -118,8 +195,9 @@ public class TestWapWorkflow extends TableTestBase {
   }
 
   @Test
-  public void testRollbackNoWAP() {
+  public void testRollbackToTime() {
 
+    // first snapshot
     table.newAppend()
         .appendFile(FILE_A)
         .commit();
@@ -127,23 +205,26 @@ public class TestWapWorkflow extends TableTestBase {
     Snapshot firstSnapshot = base.currentSnapshot();
     long firstSnapshotId = firstSnapshot.snapshotId();
 
+    // second snapshot
     table.newAppend()
         .appendFile(FILE_B)
         .commit();
     base = readMetadata();
+    Snapshot secondSnapshot = base.currentSnapshot();
 
-    // do rollback
-    table.manageSnapshots().rollback(firstSnapshotId).commit();
+    // third snapshot
+    table.newAppend()
+        .appendFile(FILE_C)
+        .commit();
+    base = readMetadata();
+    Snapshot thirdSnapshot = base.currentSnapshot();
+
+    // rollback to before the second snapshot's time
+    table.manageSnapshots().rollbackToTime(secondSnapshot.timestampMillis()).commit();
     base = readMetadata();
 
-    Assert.assertEquals("Current snapshot should be what we rolled back to",
-        firstSnapshotId, base.currentSnapshot().snapshotId());
-    Assert.assertEquals("Metadata should have both snapshots", 2, base.snapshots().size());
-    Assert.assertEquals("Should contain manifests for both files", 1, base.currentSnapshot().manifests().size());
-    Assert.assertEquals("Should contain append from last commit", 1,
-        Iterables.size(base.currentSnapshot().addedFiles()));
-    Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 3,
-        base.snapshotLog().size());
+    Assert.assertEquals("Should be at first snapshot", firstSnapshotId, base.currentSnapshot().snapshotId());
+    Assert.assertEquals("Should have all three snapshots in the system", 3, base.snapshots().size());
   }
 
   @Test

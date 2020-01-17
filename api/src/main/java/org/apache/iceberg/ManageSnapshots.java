@@ -20,12 +20,14 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.DuplicateWAPCommitException;
+import org.apache.iceberg.exceptions.ValidationException;
 
 /**
  * API for managing snapshots. Allows rolling table data back to a stated at an older table {@link Snapshot snapshot}.
  * Rollback:
  *  <p>
- *  This API does not allow conflicting calls to {@link #rollback(long)} and
+ *  This API does not allow conflicting calls to {@link #setCurrentSnapshot(long)} and
  *  {@link #rollbackToTime(long)}.
  *  <p>
  *  When committing, these changes will be applied to the current table metadata. Commit conflicts
@@ -49,7 +51,7 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
    * @return this for method chaining
    * @throws IllegalArgumentException If the table has no snapshot with the given id
    */
-  ManageSnapshots rollback(long snapshotId);
+  ManageSnapshots setCurrentSnapshot(long snapshotId);
 
   /**
    * Roll this table's data back to the last {@link Snapshot} before the given timestamp.
@@ -61,10 +63,21 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
   ManageSnapshots rollbackToTime(long timestampMillis);
 
   /**
+   * Rollback table's tate to a specific {@link Snapshot} identified by id.
+   * @param snapshotId long id of snapshot id to roll back table to. Must be an ancestor of the current snapshot
+   * @throws IllegalArgumentException If the table has no snapshot with the given id
+   * @throws ValidationException If given snapshot id is not an ancestor of the current state
+   */
+  ManageSnapshots rollbackTo(long snapshotId);
+
+  /**
    * Apply supported changes in given snapshot and create a new snapshot which will be set as the
    * current snapshot on commit.
    * @param snapshotId a snapshotId whose changes to apply
    * @return this for method chaining
+   * @throws IllegalArgumentException If the table has no snapshot with the given id
+   * @throws DuplicateWAPCommitException In case of a WAP workflow and if the table has has a duplicate commit with same
+   * wapId
    */
   ManageSnapshots cherrypick(long snapshotId);
 }
