@@ -454,7 +454,7 @@ public class TableMetadata {
         addPreviousFile(file, lastUpdatedMillis));
   }
 
-  public TableMetadata setCurrentSnapshotTo(Snapshot snapshot) {
+  private TableMetadata setCurrentSnapshotTo(Snapshot snapshot) {
     ValidationException.check(snapshotsById.containsKey(snapshot.snapshotId()),
         "Cannot set current snapshot to unknown: %s", snapshot.snapshotId());
 

@@ -23,7 +23,7 @@ import com.google.common.collect.Lists;
 import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.Table;
+import org.apache.iceberg.Table;  
 import org.apache.iceberg.TableMetadata;
 
 public class SnapshotUtil {

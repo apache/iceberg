@@ -20,8 +20,6 @@
 package org.apache.iceberg;
 
 class RollbackToSnapshot extends SnapshotManager implements Rollback {
-  private TableMetadata base = null;
-  private Long targetSnapshotId = null;
 
   RollbackToSnapshot(TableOperations ops) {
     super(ops);
@@ -29,11 +27,13 @@ class RollbackToSnapshot extends SnapshotManager implements Rollback {
 
   @Override
   public Rollback toSnapshotId(long snapshotId) {
-    return (Rollback) super.setCurrentSnapshot(snapshotId);
+    super.setCurrentSnapshot(snapshotId);
+    return this;
   }
 
   @Override
   public Rollback toSnapshotAtTime(long timestampMillis) {
-    return (Rollback) super.rollbackToTime(timestampMillis);
+    super.rollbackToTime(timestampMillis);
+    return this;
   }
 }

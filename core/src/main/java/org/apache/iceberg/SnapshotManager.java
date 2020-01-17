@@ -66,7 +66,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
     // Pick modifications from the snapshot
     Snapshot cherryPickSnapshot = base.snapshot(this.targetSnapshotId);
     String wapId = stagedWapId(cherryPickSnapshot);
-    boolean isWapWorkflow =  wapId != null && !"".equals(wapId);
+    boolean isWapWorkflow =  wapId != null && !wapId.isEmpty();
     if (isWapWorkflow) {
       if (base.isWapIdPublished(wapId)) {
         throw new DuplicateWAPCommitException(wapId);
@@ -121,8 +121,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
         "Cannot roll back to unknown snapshot id: %s", snapshotId);
 
     ValidationException.check(SnapshotUtil.isCurrentAncestor(base, snapshotId),
-        "Not a valid snapshot to rollback to. Cannot rollback to a snapshot " +
-            "that's not an ancestor of the current snapshot.");
+        "Cannot roll back to snapshot, not an ancestor of the current state: %s", snapshotId);
     return setCurrentSnapshot(snapshotId);
   }
 

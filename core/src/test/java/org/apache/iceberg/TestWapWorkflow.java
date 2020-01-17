@@ -130,8 +130,7 @@ public class TestWapWorkflow extends TableTestBase {
 
     // do rollback
     AssertHelpers.assertThrows("should fail on invalid snapshot", ValidationException.class,
-        "Not a valid snapshot to rollback to. Cannot rollback to a snapshot " +
-            "that's not an ancestor of the current snapshot.",
+        "Cannot roll back to snapshot, not an ancestor of the current state: 2",
         () -> {
           // rollback to snapshot that is not an ancestor
           table.manageSnapshots().rollbackTo(wapSnapshot.snapshotId()).commit();
