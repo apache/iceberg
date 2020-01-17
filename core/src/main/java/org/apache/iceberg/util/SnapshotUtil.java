@@ -23,8 +23,7 @@ import com.google.common.collect.Lists;
 import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.Table;  
-import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.Table;
 
 public class SnapshotUtil {
   private SnapshotUtil() {
@@ -57,21 +56,21 @@ public class SnapshotUtil {
     return ancestorIds;
   }
 
-  public static boolean isCurrentAncestor(TableMetadata tableMeta, long snapshotId) {
-    List<Long> currentAncestors = SnapshotUtil.ancestorIds(tableMeta.currentSnapshot(), tableMeta::snapshot);
+  public static boolean isCurrentAncestor(Table table, long snapshotId) {
+    List<Long> currentAncestors = SnapshotUtil.ancestorIds(table.currentSnapshot(), table::snapshot);
     return currentAncestors.contains(snapshotId);
   }
 
   /**
    * Return the latest snapshot whose timestamp is before the provided timestamp.
-   * @param tableMeta TableMetadata representing the table state on which the snapshot is being looked up
+   * @param table Table representing the table state on which the snapshot is being looked up
    * @param timestampMillis lookup snapshots before this timestamp
    * @return
    */
-  public static Snapshot findLatestSnapshotOlderThan(TableMetadata tableMeta, long timestampMillis) {
+  public static Snapshot findLatestSnapshotOlderThan(Table table, long timestampMillis) {
     long snapshotTimestamp = 0;
     Snapshot result = null;
-    for (Snapshot snapshot : tableMeta.snapshots()) {
+    for (Snapshot snapshot : table.snapshots()) {
       if (snapshot.timestampMillis() < timestampMillis &&
           snapshot.timestampMillis() > snapshotTimestamp) {
         result = snapshot;

@@ -32,15 +32,17 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
   private TableMetadata base;
   private Long targetSnapshotId = null;
   private Set<Long> snapshotsAlreadyCherrypicked;
+  private Table table;
 
   enum SnapshotManagerOperation {
     CHERRYPICK,
     ROLLBACK
   }
 
-  SnapshotManager(TableOperations ops) {
+  SnapshotManager(TableOperations ops, Table table) {
     super(ops);
     this.base = ops.current();
+    this.table = table;
     this.snapshotsAlreadyCherrypicked = new HashSet<>();
   }
 
@@ -107,7 +109,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
   public ManageSnapshots rollbackToTime(long timestampMillis) {
     operation = SnapshotManagerOperation.ROLLBACK;
     // find the latest snapshot by timestamp older than timestampMillis
-    Snapshot snapshot = SnapshotUtil.findLatestSnapshotOlderThan(base, timestampMillis);
+    Snapshot snapshot = SnapshotUtil.findLatestSnapshotOlderThan(table, timestampMillis);
     Preconditions.checkArgument(snapshot != null,
         "Cannot roll back, no valid snapshot older than: %s", timestampMillis);
     this.targetSnapshotId = snapshot.snapshotId();
@@ -120,7 +122,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
     Preconditions.checkArgument(base.snapshot(snapshotId) != null,
         "Cannot roll back to unknown snapshot id: %s", snapshotId);
 
-    ValidationException.check(SnapshotUtil.isCurrentAncestor(base, snapshotId),
+    ValidationException.check(SnapshotUtil.isCurrentAncestor(table, snapshotId),
         "Cannot roll back to snapshot, not an ancestor of the current state: %s", snapshotId);
     return setCurrentSnapshot(snapshotId);
   }

@@ -156,12 +156,12 @@ public class BaseTable implements Table, HasTableOperations {
 
   @Override
   public Rollback rollback() {
-    return new RollbackToSnapshot(ops);
+    return new RollbackToSnapshot(ops, this);
   }
 
   @Override
   public ManageSnapshots manageSnapshots() {
-    return new SnapshotManager(ops);
+    return new SnapshotManager(ops, this);
   }
 
   @Override
