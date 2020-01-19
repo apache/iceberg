@@ -108,7 +108,7 @@ public class FileHistory {
         CharSequenceWrapper locationWrapper = CharSequenceWrapper.wrap(null);
         for (ManifestEntry entry : entries) {
           if (entry != null && locations.contains(locationWrapper.set(entry.file().path()))) {
-            results.add(entry);
+            results.add(entry.copy());
           }
         }
       } catch (IOException e) {

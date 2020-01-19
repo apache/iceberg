@@ -22,17 +22,9 @@ package org.apache.iceberg;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
-import java.io.File;
-import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Set;
-import java.util.UUID;
-import org.apache.avro.generic.GenericData;
-import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.avro.RandomAvroData;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -203,28 +195,5 @@ public class TestFindFiles extends TableTestBase {
 
   private Set<String> pathSet(Iterable<DataFile> files) {
     return Sets.newHashSet(Iterables.transform(files, file -> file.path().toString()));
-  }
-
-  private DataFile createDataFile(File dataPath, String partValue) throws IOException {
-    List<GenericData.Record> expected = RandomAvroData.generate(SCHEMA, 100, 0L);
-
-    File dataFile = new File(dataPath, FileFormat.AVRO.addExtension(UUID.randomUUID().toString()));
-    try (FileAppender<GenericData.Record> writer = Avro.write(Files.localOutput(dataFile))
-        .schema(SCHEMA)
-        .named("test")
-        .build()) {
-      for (GenericData.Record rec : expected) {
-        rec.put("part", partValue); // create just one partition
-        writer.add(rec);
-      }
-    }
-
-    PartitionData partition = new PartitionData(SPEC.partitionType());
-    partition.set(0, partValue);
-    return DataFiles.builder(SPEC)
-        .withInputFile(Files.localInput(dataFile))
-        .withPartition(partition)
-        .withRecordCount(100)
-        .build();
   }
 }

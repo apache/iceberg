@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import java.io.IOException;
@@ -96,7 +95,8 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
       InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
 
       // ensure stats columns are present for metrics evaluation
-      Collection<String> projectColumns = withStatsColumns(columns);
+      boolean requireStatsProjection = requireStatsProjection();
+      Collection<String> projectColumns = requireStatsProjection ? withStatsColumns(columns) : columns;
 
       CloseableIterable<ManifestEntry> entries = CloseableIterable.filter(
           reader.entries(projection(fileSchema, projectColumns, caseSensitive)),
@@ -104,12 +104,11 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
               evaluator.eval(entry.file().partition()) &&
               metricsEvaluator.eval(entry.file()));
 
-      boolean dropStats = dropColumnStats(columns);
-      return CloseableIterable.transform(entries, e -> dropStats ? e.copyWithoutStats() : e.copy());
-
+      // note that columns itself could have stats projected, that's ok.
+      // We only drop stats if we have forced stats projection.
+      return CloseableIterable.transform(entries, e -> requireStatsProjection ? e.copyWithoutStats() : e);
     } else {
-      return CloseableIterable.transform(
-          reader.entries(projection(fileSchema, columns, caseSensitive)), ManifestEntry::copy);
+      return reader.entries(projection(fileSchema, columns, caseSensitive));
     }
   }
 
@@ -117,9 +116,16 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
     return CloseableIterable.filter(allEntries(), entry -> entry != null && entry.status() != Status.DELETED);
   }
 
+  /**
+   * @return an Iterator of DataFile. Makes defensive copies of files before returning
+   */
   @Override
   public Iterator<DataFile> iterator() {
-    return Iterators.transform(liveEntries().iterator(), ManifestEntry::file);
+    // If requireStatsProjection is true, we don't create a defensive
+    // copy of manifest entry as it was already done by allEntries()
+    boolean requireStatsProjection = requireStatsProjection();
+    return CloseableIterable.transform(liveEntries(),
+        e -> requireStatsProjection ? e.file() : e.copy().file()).iterator();
   }
 
   @Override
@@ -165,13 +171,15 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
     return lazyMetricsEvaluator;
   }
 
-  private static boolean dropColumnStats(Collection<String> columns) {
-    return !columns.contains("*") &&
+  private boolean requireStatsProjection() {
+    return rowFilter != Expressions.alwaysTrue() &&
+        // projected columns do not contain stats column
+        !columns.containsAll(ManifestReader.ALL_COLUMNS) &&
         Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS).isEmpty();
   }
 
   private static Collection<String> withStatsColumns(Collection<String> columns) {
-    if (columns.contains("*")) {
+    if (columns.containsAll(ManifestReader.ALL_COLUMNS)) {
       return columns;
     } else {
       List<String> projectColumns = Lists.newArrayList(columns);
