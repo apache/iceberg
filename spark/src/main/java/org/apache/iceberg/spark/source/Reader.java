@@ -59,6 +59,7 @@ import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -142,15 +143,20 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     this.splitLookback = options.get("lookback").map(Integer::parseInt).orElse(null);
     this.splitOpenFileCost = options.get("file-open-cost").map(Long::parseLong).orElse(null);
 
-    String scheme = "no_exist";
-    try {
-      FileSystem fs = FileSystem.get(SparkSession.active().sparkContext().hadoopConfiguration());
-      scheme = fs.getScheme().toLowerCase(Locale.ENGLISH);
-    } catch (IOException ioe) {
-      LOG.warn("Failed to get Hadoop Filesystem", ioe);
+    if (io.getValue() instanceof HadoopFileIO) {
+      String scheme = "no_exist";
+      try {
+        FileSystem fs = new Path(table.location()).getFileSystem(
+            SparkSession.active().sparkContext().hadoopConfiguration());
+        scheme = fs.getScheme().toLowerCase(Locale.ENGLISH);
+      } catch (IOException ioe) {
+        LOG.warn("Failed to get Hadoop Filesystem", ioe);
+      }
+      this.localityPreferred = options.get("locality").map(Boolean::parseBoolean)
+          .orElse(LOCALITY_WHITELIST_FS.contains(scheme));
+    } else {
+      this.localityPreferred = false;
     }
-    this.localityPreferred = options.get("locality").map(Boolean::parseBoolean)
-        .orElse(LOCALITY_WHITELIST_FS.contains(scheme));
 
     this.schema = table.schema();
     this.io = io;
@@ -313,6 +319,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
 
     private transient Schema tableSchema = null;
     private transient Schema expectedSchema = null;
+    private transient String[] preferredLocations;
 
     private ReadTask(CombinedScanTask task, String tableSchemaString, String expectedSchemaString,
                      Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
@@ -324,6 +331,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       this.encryptionManager = encryptionManager;
       this.caseSensitive = caseSensitive;
       this.localityPreferred = localityPreferred;
+      this.preferredLocations = getPreferredLocations();
     }
 
     @Override
@@ -334,6 +342,24 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
 
     @Override
     public String[] preferredLocations() {
+      return preferredLocations;
+    }
+
+    private Schema lazyTableSchema() {
+      if (tableSchema == null) {
+        this.tableSchema = SchemaParser.fromJson(tableSchemaString);
+      }
+      return tableSchema;
+    }
+
+    private Schema lazyExpectedSchema() {
+      if (expectedSchema == null) {
+        this.expectedSchema = SchemaParser.fromJson(expectedSchemaString);
+      }
+      return expectedSchema;
+    }
+
+    private String[] getPreferredLocations() {
       if (!localityPreferred) {
         return new String[0];
       }
@@ -353,20 +379,6 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       }
 
       return locations.toArray(new String[0]);
-    }
-
-    private Schema lazyTableSchema() {
-      if (tableSchema == null) {
-        this.tableSchema = SchemaParser.fromJson(tableSchemaString);
-      }
-      return tableSchema;
-    }
-
-    private Schema lazyExpectedSchema() {
-      if (expectedSchema == null) {
-        this.expectedSchema = SchemaParser.fromJson(expectedSchemaString);
-      }
-      return expectedSchema;
     }
   }
 
