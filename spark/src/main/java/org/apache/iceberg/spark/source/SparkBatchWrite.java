@@ -530,7 +530,7 @@ class SparkBatchWrite implements BatchWrite {
           // if rows are not correctly grouped, detect and fail the write
           PartitionKey existingKey = Iterables.find(completedPartitions, key::equals, null);
           LOG.warn("Duplicate key: {} == {}", existingKey, key);
-          throw new IllegalStateException("Already closed files for partition: " + key.toPath());
+          //throw new IllegalStateException("Already closed files for partition: " + key.toPath());
         }
 
         setCurrentKey(key.copy());
