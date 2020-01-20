@@ -62,6 +62,7 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.write.BatchWrite;
 import org.apache.spark.sql.connector.write.DataWriter;
 import org.apache.spark.sql.connector.write.DataWriterFactory;
+import org.apache.spark.sql.connector.write.PhysicalWriteInfo;
 import org.apache.spark.sql.connector.write.WriterCommitMessage;
 import org.apache.spark.sql.connector.write.streaming.StreamingDataWriterFactory;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -127,10 +128,10 @@ class SparkBatchWrite implements BatchWrite {
   }
 
   @Override
-  public WriterFactory createBatchWriterFactory() {
+  public WriterFactory createBatchWriterFactory(PhysicalWriteInfo info) {
     return new WriterFactory(
-        table.spec(), format, table.locationProvider(), table.properties(), fileIo, encryptionManager, targetFileSize,
-        dsSchema);
+            table.spec(), format, table.locationProvider(), table.properties(), fileIo, encryptionManager,
+            targetFileSize, dsSchema);
   }
 
   @Override
@@ -286,10 +287,12 @@ class SparkBatchWrite implements BatchWrite {
       this.dsSchema = dsSchema;
     }
 
+    @Override
     public DataWriter<InternalRow> createWriter(int partitionId, long taskId) {
       return createWriter(partitionId, taskId, 0);
     }
 
+    @Override
     public DataWriter<InternalRow> createWriter(int partitionId, long taskId, long epochId) {
       OutputFileFactory fileFactory = new OutputFileFactory(partitionId, taskId, epochId);
       AppenderFactory<InternalRow> appenderFactory = new SparkAppenderFactory();
@@ -493,6 +496,9 @@ class SparkBatchWrite implements BatchWrite {
     public void write(InternalRow row) throws IOException {
       writeInternal(row);
     }
+
+    @Override
+    public void close() {}
   }
 
   private static class PartitionedWriter extends BaseWriter {
@@ -533,5 +539,8 @@ class SparkBatchWrite implements BatchWrite {
 
       writeInternal(row);
     }
+
+    @Override
+    public void close() {}
   }
 }

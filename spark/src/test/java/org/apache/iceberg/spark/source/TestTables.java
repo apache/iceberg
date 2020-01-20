@@ -37,7 +37,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
-import parquet.Preconditions;
+import org.apache.parquet.Preconditions;
 
 // TODO: Use the copy of this from core.
 class TestTables {

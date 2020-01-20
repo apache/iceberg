@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeoutException;
 import org.apache.avro.generic.GenericData;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
@@ -125,7 +126,7 @@ public class TestForwardCompatibility {
   }
 
   @Test
-  public void testSparkStreamingWriteFailsUnknownTransform() throws IOException {
+  public void testSparkStreamingWriteFailsUnknownTransform() throws IOException, TimeoutException {
     File parent = temp.newFolder("avro");
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");

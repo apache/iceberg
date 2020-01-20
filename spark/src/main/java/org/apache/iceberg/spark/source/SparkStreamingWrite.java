@@ -28,6 +28,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.spark.sql.connector.write.PhysicalWriteInfo;
 import org.apache.spark.sql.connector.write.WriterCommitMessage;
 import org.apache.spark.sql.connector.write.streaming.StreamingDataWriterFactory;
 import org.apache.spark.sql.connector.write.streaming.StreamingWrite;
@@ -52,9 +53,9 @@ public class SparkStreamingWrite extends SparkBatchWrite implements StreamingWri
   }
 
   @Override
-  public StreamingDataWriterFactory createStreamingWriterFactory() {
+  public StreamingDataWriterFactory createStreamingWriterFactory(PhysicalWriteInfo info) {
     // the writer factory works for both batch and streaming
-    return createBatchWriterFactory();
+    return createBatchWriterFactory(info);
   }
 
   @Override

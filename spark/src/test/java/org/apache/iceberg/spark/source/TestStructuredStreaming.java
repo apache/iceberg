@@ -24,6 +24,7 @@ import com.google.common.collect.Lists;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -79,7 +80,7 @@ public class TestStructuredStreaming {
   }
 
   @Test
-  public void testStreamingWriteAppendMode() throws IOException {
+  public void testStreamingWriteAppendMode() throws IOException, TimeoutException {
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test-table");
     File checkpoint = new File(parent, "checkpoint");
@@ -139,7 +140,7 @@ public class TestStructuredStreaming {
   }
 
   @Test
-  public void testStreamingWriteCompleteMode() throws IOException {
+  public void testStreamingWriteCompleteMode() throws IOException, TimeoutException {
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test-table");
     File checkpoint = new File(parent, "checkpoint");
@@ -200,7 +201,7 @@ public class TestStructuredStreaming {
   }
 
   @Test
-  public void testStreamingWriteCompleteModeWithProjection() throws IOException {
+  public void testStreamingWriteCompleteModeWithProjection() throws IOException, TimeoutException {
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test-table");
     File checkpoint = new File(parent, "checkpoint");
@@ -261,7 +262,7 @@ public class TestStructuredStreaming {
   }
 
   @Test
-  public void testStreamingWriteUpdateMode() throws IOException {
+  public void testStreamingWriteUpdateMode() throws IOException, TimeoutException {
     exceptionRule.expect(StreamingQueryException.class);
 
     // The following error message to verify is issued by
