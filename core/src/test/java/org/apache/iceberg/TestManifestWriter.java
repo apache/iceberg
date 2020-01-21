@@ -56,9 +56,9 @@ public class TestManifestWriter extends TableTestBase {
 
   private DataFile newFile(long recordCount) {
     String fileName = UUID.randomUUID().toString();
-    return DataFiles.builder()
-        .withPath(fileName + ".parquet")
-        .withFileSizeInBytes(0)
+    return DataFiles.builder(SPEC)
+        .withPath("data_bucket=0/" + fileName + ".parquet")
+        .withFileSizeInBytes(1024)
         .withRecordCount(recordCount)
         .build();
   }
