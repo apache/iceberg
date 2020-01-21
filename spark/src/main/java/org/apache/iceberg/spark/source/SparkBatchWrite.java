@@ -62,6 +62,7 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.write.BatchWrite;
 import org.apache.spark.sql.connector.write.DataWriter;
 import org.apache.spark.sql.connector.write.DataWriterFactory;
+import org.apache.spark.sql.connector.write.PhysicalWriteInfo;
 import org.apache.spark.sql.connector.write.WriterCommitMessage;
 import org.apache.spark.sql.connector.write.streaming.StreamingDataWriterFactory;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -127,7 +128,7 @@ class SparkBatchWrite implements BatchWrite {
   }
 
   @Override
-  public WriterFactory createBatchWriterFactory() {
+  public WriterFactory createBatchWriterFactory(PhysicalWriteInfo info) {
     return new WriterFactory(
         table.spec(), format, table.locationProvider(), table.properties(), fileIo, encryptionManager, targetFileSize,
         dsSchema);
@@ -493,6 +494,12 @@ class SparkBatchWrite implements BatchWrite {
     public void write(InternalRow row) throws IOException {
       writeInternal(row);
     }
+
+    @Override
+    public void close() {
+      // close is called after abort or commit is called. Both abort and commit will close
+      // the current data file so there is no more cleanup to do here.
+    }
   }
 
   private static class PartitionedWriter extends BaseWriter {
@@ -532,6 +539,13 @@ class SparkBatchWrite implements BatchWrite {
       }
 
       writeInternal(row);
+    }
+
+
+    @Override
+    public void close() {
+      // close is called after abort or commit is called. Both abort and commit will close
+      // the current data file so there is no more cleanup to do here.
     }
   }
 }

@@ -125,7 +125,7 @@ public class TestForwardCompatibility {
   }
 
   @Test
-  public void testSparkStreamingWriteFailsUnknownTransform() throws IOException {
+  public void testSparkStreamingWriteFailsUnknownTransform() throws Exception {
     File parent = temp.newFolder("avro");
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");

@@ -242,6 +242,7 @@ project(':iceberg-spark') {
     compileOnly "org.apache.avro:avro"
     compileOnly("org.apache.spark:spark-hive_2.12") {
       exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.pentaho' // missing dependency
     }
 
     testCompile "org.apache.hadoop:hadoop-hdfs::tests"

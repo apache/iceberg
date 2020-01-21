@@ -22,7 +22,6 @@ package org.apache.iceberg.spark.source;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import java.io.File;
-import java.io.IOException;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionSpec;
@@ -79,7 +78,7 @@ public class TestStructuredStreaming {
   }
 
   @Test
-  public void testStreamingWriteAppendMode() throws IOException {
+  public void testStreamingWriteAppendMode() throws Exception {
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test-table");
     File checkpoint = new File(parent, "checkpoint");
@@ -139,7 +138,7 @@ public class TestStructuredStreaming {
   }
 
   @Test
-  public void testStreamingWriteCompleteMode() throws IOException {
+  public void testStreamingWriteCompleteMode() throws Exception {
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test-table");
     File checkpoint = new File(parent, "checkpoint");
@@ -200,7 +199,7 @@ public class TestStructuredStreaming {
   }
 
   @Test
-  public void testStreamingWriteCompleteModeWithProjection() throws IOException {
+  public void testStreamingWriteCompleteModeWithProjection() throws Exception {
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test-table");
     File checkpoint = new File(parent, "checkpoint");
@@ -261,7 +260,7 @@ public class TestStructuredStreaming {
   }
 
   @Test
-  public void testStreamingWriteUpdateMode() throws IOException {
+  public void testStreamingWriteUpdateMode() throws Exception {
     exceptionRule.expect(StreamingQueryException.class);
 
     // The following error message to verify is issued by
