@@ -85,12 +85,17 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private final ParquetValueWriter<T> model;
   private final ParquetFileWriter writer;
   private final MetricsConfig metricsConfig;
+  private final int columnIndexTruncateLength;
 
   private DynMethods.BoundMethod flushPageStoreToWriter;
   private ColumnWriteStore writeStore;
   private long nextRowGroupSize = 0;
   private long recordCount = 0;
   private long nextCheckRecordCount = 10;
+
+  // Copied from Parquet 1.11.0 to keep support for 1.10.0
+  private static final String COLUMN_INDEX_TRUNCATE_LENGTH = "parquet.columnindex.truncate.length";
+  private static final int DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH = 64;
 
   @SuppressWarnings("unchecked")
   ParquetWriter(Configuration conf, OutputFile output, Schema schema, long rowGroupSize,
@@ -107,6 +112,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.parquetSchema = ParquetSchemaUtil.convert(schema, "table");
     this.model = (ParquetValueWriter<T>) createWriterFunc.apply(parquetSchema);
     this.metricsConfig = metricsConfig;
+    this.columnIndexTruncateLength = conf.getInt(COLUMN_INDEX_TRUNCATE_LENGTH, DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH);
 
     try {
       this.writer = new ParquetFileWriter(ParquetIO.file(output, conf), parquetSchema,
@@ -192,7 +198,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.recordCount = 0;
 
     PageWriteStore pageStore = pageStoreCtorParquet.newInstance(
-          compressor, parquetSchema, props.getAllocator(), Integer.MAX_VALUE);
+          compressor, parquetSchema, props.getAllocator(), this.columnIndexTruncateLength);
 
     this.flushPageStoreToWriter = flushToWriter.bind(pageStore);
     this.writeStore = props.newColumnWriteStore(parquetSchema, pageStore);
