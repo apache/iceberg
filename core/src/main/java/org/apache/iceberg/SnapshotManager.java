@@ -20,8 +20,6 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
-import java.util.HashSet;
-import java.util.Set;
 import org.apache.iceberg.exceptions.DuplicateWAPCommitException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -32,7 +30,6 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
   private SnapshotManagerOperation operation;
   private TableMetadata base;
   private Long targetSnapshotId = null;
-  private Set<Long> snapshotsAlreadyCherrypicked;
   private Table table;
 
   enum SnapshotManagerOperation {
@@ -44,7 +41,6 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
     super(ops);
     this.base = ops.current();
     this.table = table;
-    this.snapshotsAlreadyCherrypicked = new HashSet<>();
   }
 
   @Override
@@ -72,19 +68,15 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
     if (!cherryPickSnapshot.operation().equals(DataOperations.APPEND)) {
       throw new UnsupportedOperationException("Can cherry pick only append operations");
     }
-    // this is to ensure we add files only once for each targetSnapshotId, to protect from
-    // duplicate additions if commit retries the same cherrypick operation on failure.
-    if (!snapshotsAlreadyCherrypicked.contains(targetSnapshotId)) {
-      for (DataFile addedFile : cherryPickSnapshot.addedFiles()) {
-        add(addedFile);
-      }
-      // this property is set on target snapshot that will get published
-      String wapId = stagedWapId(cherryPickSnapshot);
-      boolean isWapWorkflow =  wapId != null && !wapId.isEmpty();
-      if (isWapWorkflow) {
-        set(SnapshotSummary.PUBLISHED_WAP_ID_PROP, wapId);
-      }
-      snapshotsAlreadyCherrypicked.add(targetSnapshotId);
+
+    for (DataFile addedFile : cherryPickSnapshot.addedFiles()) {
+      add(addedFile);
+    }
+    // this property is set on target snapshot that will get published
+    String wapId = stagedWapId(cherryPickSnapshot);
+    boolean isWapWorkflow =  wapId != null && !wapId.isEmpty();
+    if (isWapWorkflow) {
+      set(SnapshotSummary.PUBLISHED_WAP_ID_PROP, wapId);
     }
 
     return this;
@@ -126,11 +118,13 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
   @Override
   public Snapshot apply() {
     // common checks
-    ValidationException.check(targetSnapshotId != null,
-        "Cannot run operations on an unknown version: call setCurrentSnapshot, rollbackAtTime or cherrypick");
     ValidationException.check(operation != null,
         "Need to define operation on snapshot: call setCurrentSnapshot, rollbackAtTime or cherrypick");
 
+    if (targetSnapshotId == null) {
+      // if no target snapshot was configured then NOOP by returning current state
+      return table.currentSnapshot();
+    }
     switch (operation) {
       case CHERRYPICK:
         Snapshot cherryPickSnapshot = base.snapshot(this.targetSnapshotId);
