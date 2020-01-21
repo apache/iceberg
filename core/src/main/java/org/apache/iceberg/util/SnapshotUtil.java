@@ -70,7 +70,8 @@ public class SnapshotUtil {
   public static Snapshot findLatestSnapshotOlderThan(Table table, long timestampMillis) {
     long snapshotTimestamp = 0;
     Snapshot result = null;
-    for (Snapshot snapshot : table.snapshots()) {
+    for (Long snapshotId : currentAncestors(table)) {
+      Snapshot snapshot = table.snapshot(snapshotId);
       if (snapshot.timestampMillis() < timestampMillis &&
           snapshot.timestampMillis() > snapshotTimestamp) {
         result = snapshot;

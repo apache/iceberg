@@ -326,10 +326,6 @@ public class TableMetadata {
     return snapshotsPublishedByWapId;
   }
 
-  boolean isWapIdPublished(String wapId) {
-    return snapshotsPublishedByWapId.containsKey(String.valueOf(wapId));
-  }
-
   public List<MetadataLogEntry> previousFiles() {
     return previousFiles;
   }

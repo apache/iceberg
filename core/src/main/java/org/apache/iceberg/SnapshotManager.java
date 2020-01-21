@@ -25,6 +25,7 @@ import java.util.Set;
 import org.apache.iceberg.exceptions.DuplicateWAPCommitException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.iceberg.util.WapUtil;
 
 public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> implements ManageSnapshots {
 
@@ -67,13 +68,6 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
 
     // Pick modifications from the snapshot
     Snapshot cherryPickSnapshot = base.snapshot(this.targetSnapshotId);
-    String wapId = stagedWapId(cherryPickSnapshot);
-    boolean isWapWorkflow =  wapId != null && !wapId.isEmpty();
-    if (isWapWorkflow) {
-      if (base.isWapIdPublished(wapId)) {
-        throw new DuplicateWAPCommitException(wapId);
-      }
-    }
     // only append operations are currently supported
     if (!cherryPickSnapshot.operation().equals(DataOperations.APPEND)) {
       throw new UnsupportedOperationException("Can cherry pick only append operations");
@@ -85,6 +79,8 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
         add(addedFile);
       }
       // this property is set on target snapshot that will get published
+      String wapId = stagedWapId(cherryPickSnapshot);
+      boolean isWapWorkflow =  wapId != null && !wapId.isEmpty();
       if (isWapWorkflow) {
         set(SnapshotSummary.PUBLISHED_WAP_ID_PROP, wapId);
       }
@@ -137,6 +133,14 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
 
     switch (operation) {
       case CHERRYPICK:
+        Snapshot cherryPickSnapshot = base.snapshot(this.targetSnapshotId);
+        String wapId = stagedWapId(cherryPickSnapshot);
+        boolean isWapWorkflow =  wapId != null && !wapId.isEmpty();
+        if (isWapWorkflow) {
+          if (WapUtil.isWapIdPublished(table, wapId)) {
+            throw new DuplicateWAPCommitException(wapId);
+          }
+        }
         return super.apply();
       case ROLLBACK:
         return base.snapshot(targetSnapshotId);
