@@ -105,16 +105,7 @@ public class ManifestEntriesTable extends BaseMetadataTable {
     @Override
     protected CloseableIterable<FileScanTask> planFiles(
         TableOperations ops, Snapshot snapshot, Expression rowFilter, boolean caseSensitive, boolean colStats) {
-      CloseableIterable<ManifestFile> manifests = Avro
-          .read(ops.io().newInputFile(snapshot.manifestListLocation()))
-          .rename("manifest_file", GenericManifestFile.class.getName())
-          .rename("partitions", GenericPartitionFieldSummary.class.getName())
-          // 508 is the id used for the partition field, and r508 is the record name created for it in Avro schemas
-          .rename("r508", GenericPartitionFieldSummary.class.getName())
-          .project(ManifestFile.schema())
-          .reuseContainers(false)
-          .build();
-
+      CloseableIterable<ManifestFile> manifests = CloseableIterable.withNoopClose(snapshot.manifests());
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
 
