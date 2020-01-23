@@ -153,7 +153,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         throw new NoSuchTableException("Table does not exist: " + baseTableIdentifier);
       }
 
-      Table baseTable = new BaseTable(ops, fullTableName(name(), identifier));
+      Table baseTable = new BaseTable(ops, fullTableName(name(), baseTableIdentifier));
 
       switch (type) {
         case ENTRIES:
