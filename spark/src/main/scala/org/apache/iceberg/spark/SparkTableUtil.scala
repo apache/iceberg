@@ -454,9 +454,15 @@ object SparkTableUtil {
 
       override def addedFilesCount: Integer = null
 
+      override def addedRowsCount(): java.lang.Long = null
+
       override def existingFilesCount: Integer = null
 
+      override def existingRowsCount(): java.lang.Long = null
+
       override def deletedFilesCount: Integer = null
+
+      override def deletedRowsCount(): java.lang.Long = null
 
       override def partitions: java.util.List[ManifestFile.PartitionFieldSummary] = null
 

@@ -105,8 +105,11 @@ public class ManifestWriter implements FileAppender<DataFile> {
 
   private boolean closed = false;
   private int addedFiles = 0;
+  private long addedRows = 0L;
   private int existingFiles = 0;
+  private long existingRows = 0L;
   private int deletedFiles = 0;
+  private long deletedRows = 0L;
 
   ManifestWriter(PartitionSpec spec, OutputFile file, long snapshotId) {
     this.file = file;
@@ -121,12 +124,15 @@ public class ManifestWriter implements FileAppender<DataFile> {
     switch (entry.status()) {
       case ADDED:
         addedFiles += 1;
+        addedRows += entry.file().recordCount();
         break;
       case EXISTING:
         existingFiles += 1;
+        existingRows += entry.file().recordCount();
         break;
       case DELETED:
         deletedFiles += 1;
+        deletedRows += entry.file().recordCount();
         break;
     }
     stats.update(entry.file().partition());
@@ -195,7 +201,7 @@ public class ManifestWriter implements FileAppender<DataFile> {
   public ManifestFile toManifestFile() {
     Preconditions.checkState(closed, "Cannot build ManifestFile, writer is not closed");
     return new GenericManifestFile(file.location(), writer.length(), specId, snapshotId,
-        addedFiles, existingFiles, deletedFiles, stats.summaries());
+        addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows, stats.summaries());
   }
 
   @Override
