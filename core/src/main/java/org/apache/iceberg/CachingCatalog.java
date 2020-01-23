@@ -107,7 +107,7 @@ public class CachingCatalog implements Catalog {
 
   @Override
   public boolean dropTable(TableIdentifier ident, boolean purge) {
-    boolean dropped = catalog.dropTable(ident, false);
+    boolean dropped = catalog.dropTable(ident, purge);
     tableCache.invalidate(canonicalizeIdentifier(ident));
     return dropped;
   }
