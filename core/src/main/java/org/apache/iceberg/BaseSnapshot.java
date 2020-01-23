@@ -161,10 +161,9 @@ class BaseSnapshot implements Snapshot {
     // read only manifests that were created by this snapshot
     Iterable<ManifestFile> changedManifests = Iterables.filter(manifests(),
         manifest -> Objects.equal(manifest.snapshotId(), snapshotId));
-    try (CloseableIterable<ManifestEntry> entries = ManifestGroup.builder(io, changedManifests)
+    try (CloseableIterable<ManifestEntry> entries = new ManifestGroup(io, changedManifests)
         .ignoreExisting()
         .select(ManifestReader.ALL_COLUMNS)
-        .build()
         .entries()) {
       for (ManifestEntry entry : entries) {
         switch (entry.status()) {

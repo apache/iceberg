@@ -218,12 +218,11 @@ public class ScanSummary {
       TopN<String, PartitionMetrics> topN = new TopN<>(
           limit, throwIfLimited, Comparators.charSequences());
 
-      try (CloseableIterable<ManifestEntry> entries = ManifestGroup.builder(ops.io(), manifests)
+      try (CloseableIterable<ManifestEntry> entries = new ManifestGroup(ops.io(), manifests)
           .specsById(ops.current().specsById())
           .filterData(rowFilter)
           .ignoreDeleted()
           .select(SCAN_SUMMARY_COLUMNS)
-          .build()
           .entries()) {
 
         PartitionSpec spec = table.spec();

@@ -98,12 +98,10 @@ public class FileHistory {
           manifest -> manifest.snapshotId() == null || matchingIds.contains(manifest.snapshotId()));
 
       // a manifest group will only read each manifest once
-      ManifestGroup group = ManifestGroup.builder(((HasTableOperations) table).operations().io(), manifests)
-          .select(HISTORY_COLUMNS)
-          .build();
+      ManifestGroup group = new ManifestGroup(((HasTableOperations) table).operations().io(), manifests);
 
       List<ManifestEntry> results = Lists.newArrayList();
-      try (CloseableIterable<ManifestEntry> entries = group.entries()) {
+      try (CloseableIterable<ManifestEntry> entries = group.select(HISTORY_COLUMNS).entries()) {
         // TODO: replace this with an IN predicate
         CharSequenceWrapper locationWrapper = CharSequenceWrapper.wrap(null);
         for (ManifestEntry entry : entries) {

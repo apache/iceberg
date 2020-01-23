@@ -98,15 +98,11 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
       boolean requireStatsProjection = requireStatsProjection();
       Collection<String> projectColumns = requireStatsProjection ? withStatsColumns(columns) : columns;
 
-      CloseableIterable<ManifestEntry> entries = CloseableIterable.filter(
+      return CloseableIterable.filter(
           reader.entries(projection(fileSchema, projectColumns, caseSensitive)),
           entry -> entry != null &&
               evaluator.eval(entry.file().partition()) &&
               metricsEvaluator.eval(entry.file()));
-
-      // note that columns itself could have stats projected, that's ok.
-      // We only drop stats if we have forced stats projection.
-      return CloseableIterable.transform(entries, e -> requireStatsProjection ? e.copyWithoutStats() : e);
     } else {
       return reader.entries(projection(fileSchema, columns, caseSensitive));
     }
@@ -121,11 +117,9 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
    */
   @Override
   public Iterator<DataFile> iterator() {
-    // If requireStatsProjection is true, we don't create a defensive
-    // copy of manifest entry as it was already done by allEntries()
     boolean requireStatsProjection = requireStatsProjection();
     return CloseableIterable.transform(liveEntries(),
-        e -> requireStatsProjection ? e.file() : e.copy().file()).iterator();
+        e -> requireStatsProjection ? e.file().copyWithoutStats() : e.file().copy()).iterator();
   }
 
   @Override
