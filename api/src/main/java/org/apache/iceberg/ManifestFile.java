@@ -36,16 +36,16 @@ public interface ManifestFile {
       required(502, "partition_spec_id", Types.IntegerType.get()),
       optional(503, "added_snapshot_id", Types.LongType.get()),
       optional(504, "added_data_files_count", Types.IntegerType.get()),
-      optional(512, "added_rows_count", Types.LongType.get()),
       optional(505, "existing_data_files_count", Types.IntegerType.get()),
-      optional(513, "existing_rows_count", Types.LongType.get()),
       optional(506, "deleted_data_files_count", Types.IntegerType.get()),
-      optional(514, "deleted_rows_count", Types.LongType.get()),
       optional(507, "partitions", Types.ListType.ofRequired(508, Types.StructType.of(
           required(509, "contains_null", Types.BooleanType.get()),
           optional(510, "lower_bound", Types.BinaryType.get()), // null if no non-null values
           optional(511, "upper_bound", Types.BinaryType.get())
-      ))));
+      ))),
+      optional(512, "added_rows_count", Types.LongType.get()),
+      optional(513, "existing_rows_count", Types.LongType.get()),
+      optional(514, "deleted_rows_count", Types.LongType.get()));
 
   static Schema schema() {
     return SCHEMA;
