@@ -117,9 +117,9 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
    */
   @Override
   public Iterator<DataFile> iterator() {
-    boolean requireStatsProjection = requireStatsProjection();
+    boolean dropStats = dropStats();
     return CloseableIterable.transform(liveEntries(),
-        e -> requireStatsProjection ? e.file().copyWithoutStats() : e.file().copy()).iterator();
+        e -> dropStats ? e.file().copyWithoutStats() : e.file().copy()).iterator();
   }
 
   @Override
@@ -166,8 +166,16 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
   }
 
   private boolean requireStatsProjection() {
+    // Make sure we have all stats columns for metrics evaluator
     return rowFilter != Expressions.alwaysTrue() &&
-        // projected columns do not contain stats column
+        !columns.containsAll(ManifestReader.ALL_COLUMNS) &&
+        !columns.containsAll(STATS_COLUMNS);
+  }
+
+  private boolean dropStats() {
+    // Make sure we only drop all stats if we had projected all stats
+    // We do not drop stats even if we had partially added some stats columns
+    return rowFilter != Expressions.alwaysTrue() &&
         !columns.containsAll(ManifestReader.ALL_COLUMNS) &&
         Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS).isEmpty();
   }
