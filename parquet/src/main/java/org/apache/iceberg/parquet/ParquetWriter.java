@@ -47,30 +47,23 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   // We have one for Parquet 1.10 and one for 1.11. The signature changed, but we still want
   // to be compatible with both of them
-  private static DynConstructors.Ctor<PageWriteStore> pageStoreCtorParquet;
-
-  static {
-    try {
-      // Parquet 1.11
-      pageStoreCtorParquet = DynConstructors
+  private static DynConstructors.Ctor<PageWriteStore> pageStoreCtorParquet = DynConstructors
           .builder(PageWriteStore.class)
+
+          // Parquet 1.11
           .hiddenImpl("org.apache.parquet.hadoop.ColumnChunkPageWriteStore",
               CodecFactory.BytesCompressor.class,
               MessageType.class,
               ByteBufferAllocator.class,
               int.class)
-          .build();
-    } catch (RuntimeException e) {
-      // Parquet 1.10
-      pageStoreCtorParquet = DynConstructors
-          .builder(PageWriteStore.class)
+
+          // Parquet 1.10
           .hiddenImpl("org.apache.parquet.hadoop.ColumnChunkPageWriteStore",
               CodecFactory.BytesCompressor.class,
               MessageType.class,
               ByteBufferAllocator.class)
+
           .build();
-    }
-  }
 
   private static final DynMethods.UnboundMethod flushToWriter = DynMethods
       .builder("flushToFileWriter")
@@ -198,7 +191,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.recordCount = 0;
 
     PageWriteStore pageStore = pageStoreCtorParquet.newInstance(
-          compressor, parquetSchema, props.getAllocator(), this.columnIndexTruncateLength);
+        compressor, parquetSchema, props.getAllocator(), this.columnIndexTruncateLength);
 
     this.flushPageStoreToWriter = flushToWriter.bind(pageStore);
     this.writeStore = props.newColumnWriteStore(parquetSchema, pageStore);
