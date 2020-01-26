@@ -56,6 +56,7 @@ import org.apache.spark.sql.sources.And;
 import org.apache.spark.sql.sources.EqualTo;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.GreaterThan;
+import org.apache.spark.sql.sources.In;
 import org.apache.spark.sql.sources.LessThan;
 import org.apache.spark.sql.sources.StringStartsWith;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
@@ -423,6 +424,21 @@ public class TestFilteredScan {
               "ts < cast('2017-12-22 08:00:00+00:00' as timestamp)",
           "id"));
     }
+  }
+
+  @Test
+  public void testInFilter() {
+    File location = buildPartitionedTable("partitioned_by_data", PARTITION_BY_DATA, "data_ident", "data");
+
+    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
+        "path", location.toString())
+    );
+
+    IcebergSource source = new IcebergSource();
+    DataSourceReader reader = source.createReader(options);
+    pushFilters(reader, new In("data", new String[]{"foo", "junction", "brush"}));
+
+    Assert.assertEquals(2, reader.planInputPartitions().size());
   }
 
   @Test

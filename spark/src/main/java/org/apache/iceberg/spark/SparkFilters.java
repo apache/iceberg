@@ -41,11 +41,11 @@ import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.sources.Or;
 import org.apache.spark.sql.sources.StringStartsWith;
 
-import static org.apache.iceberg.expressions.Expressions.alwaysFalse;
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.in;
 import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
@@ -122,11 +122,7 @@ public class SparkFilters {
 
         case IN:
           In inFilter = (In) filter;
-          Expression in = alwaysFalse();
-          for (Object value : inFilter.values()) {
-            in = or(in, equal(inFilter.attribute(), convertLiteral(value)));
-          }
-          return in;
+          return in(inFilter.attribute(), inFilter.values());
 
         case NOT:
           Not notFilter = (Not) filter;
