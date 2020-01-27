@@ -63,7 +63,7 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
   ManageSnapshots rollbackToTime(long timestampMillis);
 
   /**
-   * Rollback table's tate to a specific {@link Snapshot} identified by id.
+   * Rollback table's state to a specific {@link Snapshot} identified by id.
    * @param snapshotId long id of snapshot id to roll back table to. Must be an ancestor of the current snapshot
    * @throws IllegalArgumentException If the table has no snapshot with the given id
    * @throws ValidationException If given snapshot id is not an ancestor of the current state

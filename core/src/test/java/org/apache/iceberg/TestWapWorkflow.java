@@ -323,7 +323,8 @@ public class TestWapWorkflow extends TableTestBase {
 
     // check if the effective current snapshot is set to the new snapshot created
     //   as a result of the cherry-pick operation
-    Assert.assertEquals("Current snapshot should be set to one after wap snapshot",
+    Assert.assertEquals(
+        "Current snapshot should be set to one after wap snapshot",
         parentSnapshot.snapshotId() + 2 /* two staged snapshots */ + 1,
         base.currentSnapshot().snapshotId());
     Assert.assertEquals("Should contain manifests for both files", 2,
@@ -455,7 +456,6 @@ public class TestWapWorkflow extends TableTestBase {
         base.snapshotLog().size());
   }
 
-
   @Test
   public void testWithCherryPickingWithCommitRetry() {
 
@@ -510,7 +510,8 @@ public class TestWapWorkflow extends TableTestBase {
 
     // check if the effective current snapshot is set to the new snapshot created
     //   as a result of the cherry-pick operation
-    Assert.assertEquals("Current snapshot should be set to one after wap snapshot",
+    Assert.assertEquals(
+        "Current snapshot should be set to one after wap snapshot",
         parentSnapshot.snapshotId() + 1 /* one staged snapshot */ + 1,
         base.currentSnapshot().snapshotId());
     Assert.assertEquals("Should contain manifests for both files", 2,
@@ -522,7 +523,6 @@ public class TestWapWorkflow extends TableTestBase {
     Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 2,
         base.snapshotLog().size());
   }
-
 
   @Test
   public void testCherrypickingAncestor() {
@@ -605,7 +605,7 @@ public class TestWapWorkflow extends TableTestBase {
         .commit();
     base = readMetadata();
 
-      // pick the snapshot that's staged but not committed
+    // pick the snapshot that's staged but not committed
     Snapshot wapSnapshot1 = base.snapshots().get(1);
     Snapshot wapSnapshot2 = base.snapshots().get(2);
 
@@ -636,5 +636,55 @@ public class TestWapWorkflow extends TableTestBase {
           table.manageSnapshots().cherrypick(wapSnapshot2.snapshotId()).commit();
         }
     );
+  }
+
+  @Test
+  public void testNonWapCherrypick() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+    TableMetadata base = readMetadata();
+    long firstSnapshotId = base.currentSnapshot().snapshotId();
+
+    table.newAppend()
+        .appendFile(FILE_B)
+        .commit();
+    base = readMetadata();
+    long secondSnapshotId = base.currentSnapshot().snapshotId();
+
+    table.newAppend()
+        .appendFile(FILE_C)
+        .commit();
+    base = readMetadata();
+    long thirdSnapshotId = base.currentSnapshot().snapshotId();
+
+    Assert.assertEquals("Should be pointing to third snapshot", thirdSnapshotId, table.currentSnapshot().snapshotId());
+    // NOOP commit
+    table.manageSnapshots().commit();
+    Assert.assertEquals("Should still be pointing to third snapshot", thirdSnapshotId,
+        table.currentSnapshot().snapshotId());
+
+    // Rollback to second snapshot
+    table.manageSnapshots().rollbackTo(secondSnapshotId).commit();
+    Assert.assertEquals("Should be pointing to second snapshot", secondSnapshotId, table.currentSnapshot().snapshotId());
+
+    // Cherrypick down to third
+    table.manageSnapshots().cherrypick(thirdSnapshotId).commit();
+    Assert.assertEquals("Should be pointing to a new fourth snapshot after cherrypick", 4,
+        table.currentSnapshot().snapshotId());
+
+    // try double cherrypicking of the third snapshot
+    AssertHelpers.assertThrows("should not allow double cherrypick", CherrypickAncestorCommitException.class,
+        String.format("Cannot cherrypick snapshot %s which was picked already to create an ancestor %s", 3, 4), () -> {
+      // double cherrypicking of second snapshot
+          table.manageSnapshots().cherrypick(thirdSnapshotId).commit();
+        });
+
+    // try cherrypicking an ancestor
+    AssertHelpers.assertThrows("should not allow double cherrypick", CherrypickAncestorCommitException.class,
+        String.format("Cannot cherrypick snapshot %s which is already an ancestor", firstSnapshotId), () -> {
+          // double cherrypicking of second snapshot
+          table.manageSnapshots().cherrypick(firstSnapshotId).commit();
+        });
   }
 }
