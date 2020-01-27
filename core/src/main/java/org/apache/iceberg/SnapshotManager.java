@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
-import org.apache.iceberg.exceptions.DuplicateWAPCommitException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.WapUtil;
@@ -73,11 +72,13 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
       add(addedFile);
     }
     // this property is set on target snapshot that will get published
-    String wapId = stagedWapId(cherryPickSnapshot);
+    String wapId = WapUtil.stagedWapId(cherryPickSnapshot);
     boolean isWapWorkflow =  wapId != null && !wapId.isEmpty();
     if (isWapWorkflow) {
       set(SnapshotSummary.PUBLISHED_WAP_ID_PROP, wapId);
     }
+    // link the snapshot about to be published on commit with the picked snapshot
+    set(SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP, String.valueOf(this.targetSnapshotId));
 
     return this;
   }
@@ -117,24 +118,14 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
 
   @Override
   public Snapshot apply() {
-    // common checks
-    ValidationException.check(operation != null,
-        "Need to define operation on snapshot: call setCurrentSnapshot, rollbackAtTime or cherrypick");
-
     if (targetSnapshotId == null) {
       // if no target snapshot was configured then NOOP by returning current state
       return table.currentSnapshot();
     }
     switch (operation) {
       case CHERRYPICK:
-        Snapshot cherryPickSnapshot = base.snapshot(this.targetSnapshotId);
-        String wapId = stagedWapId(cherryPickSnapshot);
-        boolean isWapWorkflow =  wapId != null && !wapId.isEmpty();
-        if (isWapWorkflow) {
-          if (WapUtil.isWapIdPublished(table, wapId)) {
-            throw new DuplicateWAPCommitException(wapId);
-          }
-        }
+        WapUtil.validateNonAncestor(this.table, this.targetSnapshotId);
+        WapUtil.validateWapPublish(this.table, this.targetSnapshotId);
         return super.apply();
       case ROLLBACK:
         return base.snapshot(targetSnapshotId);
@@ -143,9 +134,4 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
             "only cherrypick, rollback are supported");
     }
   }
-
-  private static String stagedWapId(Snapshot snapshot) {
-    return snapshot.summary() != null ? snapshot.summary().getOrDefault("wap.id", null) : null;
-  }
-
 }

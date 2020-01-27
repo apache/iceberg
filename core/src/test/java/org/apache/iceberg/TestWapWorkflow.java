@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import com.google.common.collect.Iterables;
+import org.apache.iceberg.exceptions.CherrypickAncestorCommitException;
 import org.apache.iceberg.exceptions.DuplicateWAPCommitException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.junit.Assert;
@@ -524,7 +525,7 @@ public class TestWapWorkflow extends TableTestBase {
 
 
   @Test
-  public void testWithDuplicateCherryPicking() {
+  public void testCherrypickingAncestor() {
 
     table.newAppend()
         .appendFile(FILE_A)
@@ -554,6 +555,7 @@ public class TestWapWorkflow extends TableTestBase {
     // cherry-pick snapshot
     table.manageSnapshots().cherrypick(wapSnapshot.snapshotId()).commit();
     base = readMetadata();
+    long wapPublishedId = table.currentSnapshot().snapshotId();
 
     // check if the effective current snapshot is set to the new snapshot created
     //   as a result of the cherry-pick operation
@@ -566,10 +568,72 @@ public class TestWapWorkflow extends TableTestBase {
     Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 2,
         base.snapshotLog().size());
 
-    AssertHelpers.assertThrows("should throw exception", DuplicateWAPCommitException.class,
-        String.format("Duplicate request to cherry pick wap id that was published already: %s", 12345678), () -> {
+    AssertHelpers.assertThrows("should throw exception", CherrypickAncestorCommitException.class,
+        String.format("Cannot cherrypick snapshot %s which was picked already to create an ancestor %s", 2, 3), () -> {
           // duplicate cherry-pick snapshot
           table.manageSnapshots().cherrypick(wapSnapshot.snapshotId()).commit();
+        }
+    );
+
+    AssertHelpers.assertThrows("should throw exception", CherrypickAncestorCommitException.class,
+        String.format("Cannot cherrypick snapshot %s which is already an ancestor", 1), () -> {
+          // duplicate cherry-pick snapshot
+          table.manageSnapshots().cherrypick(firstSnapshotId).commit();
+        }
+    );
+  }
+
+  @Test
+  public void testDuplicateCherrypick() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+    TableMetadata base = readMetadata();
+    long firstSnapshotId = base.currentSnapshot().snapshotId();
+
+    // stage first WAP commit
+    table.newAppend()
+        .appendFile(FILE_B)
+        .set("wap.id", "123456789")
+        .stageOnly()
+        .commit();
+    // stage second WAP commit with same wap.id
+    table.newAppend()
+        .appendFile(FILE_C)
+        .set("wap.id", "123456789")
+        .stageOnly()
+        .commit();
+    base = readMetadata();
+
+      // pick the snapshot that's staged but not committed
+    Snapshot wapSnapshot1 = base.snapshots().get(1);
+    Snapshot wapSnapshot2 = base.snapshots().get(2);
+
+    Assert.assertEquals("Should have both snapshots", 3, base.snapshots().size());
+    Assert.assertEquals("Should have wap id in first wap snapshot summary", "123456789",
+        wapSnapshot1.summary().get("wap.id"));
+    Assert.assertEquals("Should have wap id in second wap snapshot summary", "123456789",
+        wapSnapshot2.summary().get("wap.id"));
+    Assert.assertEquals("Current snapshot should be first commit's snapshot",
+        firstSnapshotId, base.currentSnapshot().snapshotId());
+    Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 1,
+        base.snapshotLog().size());
+
+    // cherry-pick snapshot
+    table.manageSnapshots().cherrypick(wapSnapshot1.snapshotId()).commit();
+    base = readMetadata();
+
+    Assert.assertEquals("Should have four snapshots", 4, base.snapshots().size());
+    Assert.assertEquals("Should contain manifests for both files", 2, base.currentSnapshot().manifests().size());
+    Assert.assertEquals("Should contain append from last commit", 1,
+        Iterables.size(base.currentSnapshot().addedFiles()));
+    Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 2,
+        base.snapshotLog().size());
+
+    AssertHelpers.assertThrows("should throw exception", DuplicateWAPCommitException.class,
+        String.format("Duplicate request to cherry pick wap id that was published already: %s", 123456789), () -> {
+          // duplicate cherry-pick snapshot
+          table.manageSnapshots().cherrypick(wapSnapshot2.snapshotId()).commit();
         }
     );
   }

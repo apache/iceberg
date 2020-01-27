@@ -139,7 +139,7 @@ abstract class BaseMetadataTable implements Table {
 
   @Override
   public Rollback rollback() {
-    throw new UnsupportedOperationException("Cannot rollback snapshots from a metadata table");
+    throw new UnsupportedOperationException("Cannot roll back a metadata table");
   }
 
   @Override
