@@ -118,7 +118,7 @@ list_var = ListType.of_required(1, IntegerType.get());
 ```
 
 ## Expressions
-Iceberg’s `Expressions` are used to configure table scans. To create Expressions`, use the factory methods in `Expressions`.
+Iceberg’s `Expressions` are used to configure table scans. To create `Expressions`, use the factory methods in `Expressions`.
 
 Supported `Predicate` expressions are:
 
