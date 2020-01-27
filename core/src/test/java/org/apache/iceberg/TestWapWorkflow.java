@@ -666,7 +666,8 @@ public class TestWapWorkflow extends TableTestBase {
 
     // Rollback to second snapshot
     table.manageSnapshots().rollbackTo(secondSnapshotId).commit();
-    Assert.assertEquals("Should be pointing to second snapshot", secondSnapshotId, table.currentSnapshot().snapshotId());
+    Assert.assertEquals("Should be pointing to second snapshot", secondSnapshotId,
+        table.currentSnapshot().snapshotId());
 
     // Cherrypick down to third
     table.manageSnapshots().cherrypick(thirdSnapshotId).commit();
