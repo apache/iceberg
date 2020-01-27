@@ -39,7 +39,7 @@ public interface VectorizedReader<T> {
   /**
    *
    * @param pages row group information for all the columns
-   * @param metadata map of {@link ColumnPath} -> {@link ColumnChunkMetaData} for the row group
+   * @param metadata map of {@link ColumnPath} -&gt; {@link ColumnChunkMetaData} for the row group
    */
   void setRowGroupInfo(PageReadStore pages, Map<ColumnPath, ColumnChunkMetaData> metadata);
 
