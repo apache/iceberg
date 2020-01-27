@@ -110,7 +110,7 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @Override
-  public void commit(TableMetadata base, TableMetadata metadata) {
+  public synchronized void commit(TableMetadata base, TableMetadata metadata) {
     if (base != current()) {
       throw new CommitFailedException("Cannot commit changes based on stale table metadata");
     }
