@@ -36,7 +36,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.types.Conversions;
@@ -52,8 +51,6 @@ import org.apache.orc.StringColumnStatistics;
 import org.apache.orc.TimestampColumnStatistics;
 import org.apache.orc.Writer;
 import org.apache.orc.storage.common.type.HiveDecimal;
-
-import static org.apache.iceberg.types.Conversions.toByteBuffer;
 
 public class OrcMetrics {
 
@@ -180,24 +177,6 @@ public class OrcMetrics {
       }
     }
     return Optional.ofNullable(max);
-  }
-
-  static Map<Integer, ?> fromBufferMap(Schema schema, Map<Integer, ByteBuffer> map) {
-    Map<Integer, ?> values = Maps.newHashMap();
-    for (Map.Entry<Integer, ByteBuffer> entry : map.entrySet()) {
-      values.put(entry.getKey(),
-          Conversions.fromByteBuffer(schema.findType(entry.getKey()), entry.getValue()));
-    }
-    return values;
-  }
-
-  static Map<Integer, ByteBuffer> toBufferMap(Schema schema, Map<Integer, Literal<?>> map) {
-    Map<Integer, ByteBuffer> bufferMap = Maps.newHashMap();
-    for (Map.Entry<Integer, Literal<?>> entry : map.entrySet()) {
-      bufferMap.put(entry.getKey(),
-          Conversions.toByteBuffer(schema.findType(entry.getKey()), entry.getValue().value()));
-    }
-    return bufferMap;
   }
 
   static Metrics fromWriter(Writer writer) {
