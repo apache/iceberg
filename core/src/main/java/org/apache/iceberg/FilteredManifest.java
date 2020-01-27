@@ -117,9 +117,11 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
    */
   @Override
   public Iterator<DataFile> iterator() {
-    boolean dropStats = dropStats();
-    return CloseableIterable.transform(liveEntries(),
-        e -> dropStats ? e.file().copyWithoutStats() : e.file().copy()).iterator();
+    if (dropStats()) {
+      return CloseableIterable.transform(liveEntries(), e -> e.file().copyWithoutStats()).iterator();
+    } else {
+      return CloseableIterable.transform(liveEntries(), e -> e.file().copy()).iterator();
+    }
   }
 
   @Override
