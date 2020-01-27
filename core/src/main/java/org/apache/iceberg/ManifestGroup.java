@@ -25,7 +25,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -43,103 +42,65 @@ class ManifestGroup {
 
   private final FileIO io;
   private final Set<ManifestFile> manifests;
-  private final Map<Integer, PartitionSpec> specsById;
-  private final Expression dataFilter;
-  private final Expression fileFilter;
-  private final Expression partitionFilter;
-  private final boolean ignoreDeleted;
-  private final boolean ignoreExisting;
-  private final List<String> columns;
-  private final boolean caseSensitive;
-
-  private final LoadingCache<Integer, ManifestEvaluator> evalCache;
+  private Map<Integer, PartitionSpec> specsById;
+  private Expression dataFilter;
+  private Expression fileFilter;
+  private Expression partitionFilter;
+  private boolean ignoreDeleted;
+  private boolean ignoreExisting;
+  private List<String> columns;
+  private boolean caseSensitive;
 
   ManifestGroup(FileIO io, Iterable<ManifestFile> manifests) {
-    this(io, manifests, null);
-  }
-
-  ManifestGroup(FileIO io, Iterable<ManifestFile> manifests, Map<Integer, PartitionSpec> specsById) {
-    this(io, Sets.newHashSet(manifests), specsById, Expressions.alwaysTrue(), Expressions.alwaysTrue(),
-        Expressions.alwaysTrue(), false, false, ImmutableList.of("*"), true);
-  }
-
-  private ManifestGroup(FileIO io, Set<ManifestFile> manifests, Map<Integer, PartitionSpec> specsById,
-                        Expression dataFilter, Expression fileFilter, Expression partitionFilter,
-                        boolean ignoreDeleted, boolean ignoreExisting, List<String> columns,
-                        boolean caseSensitive) {
     this.io = io;
-    this.manifests = manifests;
-    this.specsById = specsById;
-    this.dataFilter = dataFilter;
-    this.fileFilter = fileFilter;
-    this.partitionFilter = partitionFilter;
-    this.ignoreDeleted = ignoreDeleted;
-    this.ignoreExisting = ignoreExisting;
-    this.columns = columns;
-    this.caseSensitive = caseSensitive;
-    if (specsById == null) {
-      this.evalCache = null;
-    } else {
-      this.evalCache = Caffeine.newBuilder().build(specId -> {
-        PartitionSpec spec = specsById.get(specId);
-        return ManifestEvaluator.forPartitionFilter(
-            Expressions.and(partitionFilter, Projections.inclusive(spec).project(dataFilter)),
-            spec, caseSensitive);
-      });
-    }
+    this.manifests = Sets.newHashSet(manifests);
+    this.dataFilter = Expressions.alwaysTrue();
+    this.fileFilter = Expressions.alwaysTrue();
+    this.partitionFilter = Expressions.alwaysTrue();
+    this.ignoreDeleted = false;
+    this.ignoreExisting = false;
+    this.columns = ImmutableList.of("*");
+    this.caseSensitive = true;
   }
 
-  public ManifestGroup caseSensitive(boolean filterCaseSensitive) {
-    return new ManifestGroup(io, manifests, specsById, dataFilter, fileFilter, partitionFilter,
-        ignoreDeleted, ignoreExisting, columns, filterCaseSensitive);
+  ManifestGroup specsById(Map<Integer, PartitionSpec> newSpecsById) {
+    this.specsById = newSpecsById;
+    return this;
   }
 
-  public ManifestGroup filterData(Expression expr) {
-    return new ManifestGroup(
-        io, manifests, specsById, Expressions.and(dataFilter, expr), fileFilter, partitionFilter,
-        ignoreDeleted, ignoreExisting, columns, caseSensitive);
+  ManifestGroup filterData(Expression newDataFilter) {
+    this.dataFilter = Expressions.and(dataFilter, newDataFilter);
+    return this;
   }
 
-  public ManifestGroup filterFiles(Expression expr) {
-    return new ManifestGroup(
-        io, manifests, specsById, dataFilter, Expressions.and(fileFilter, expr), partitionFilter,
-        ignoreDeleted, ignoreExisting, columns, caseSensitive);
+  ManifestGroup filterFiles(Expression newFileFilter) {
+    this.fileFilter = Expressions.and(fileFilter, newFileFilter);
+    return this;
   }
 
-  public ManifestGroup filterPartitions(Expression expr) {
-    return new ManifestGroup(
-        io, manifests, specsById, dataFilter, fileFilter, Expressions.and(partitionFilter, expr),
-        ignoreDeleted, ignoreExisting, columns, caseSensitive);
+  ManifestGroup filterPartitions(Expression newPartitionFilter) {
+    this.partitionFilter = Expressions.and(partitionFilter, newPartitionFilter);
+    return this;
   }
 
-  public ManifestGroup ignoreDeleted() {
-    return new ManifestGroup(io, manifests, specsById, dataFilter, fileFilter, partitionFilter, true,
-        ignoreExisting, columns, caseSensitive);
+  ManifestGroup ignoreDeleted() {
+    this.ignoreDeleted = true;
+    return this;
   }
 
-  public ManifestGroup ignoreDeleted(boolean shouldIgnoreDeleted) {
-    return new ManifestGroup(io, manifests, specsById, dataFilter, fileFilter, partitionFilter,
-        shouldIgnoreDeleted, ignoreExisting, columns, caseSensitive);
+  ManifestGroup ignoreExisting() {
+    this.ignoreExisting = true;
+    return this;
   }
 
-  public ManifestGroup ignoreExisting() {
-    return new ManifestGroup(io, manifests, specsById, dataFilter, fileFilter, partitionFilter,
-        ignoreDeleted, true, columns, caseSensitive);
+  ManifestGroup select(List<String> newColumns) {
+    this.columns = Lists.newArrayList(newColumns);
+    return this;
   }
 
-  public ManifestGroup ignoreExisting(boolean shouldIgnoreExisting) {
-    return new ManifestGroup(io, manifests, specsById, dataFilter, fileFilter, partitionFilter,
-        ignoreDeleted, shouldIgnoreExisting, columns, caseSensitive);
-  }
-
-  public ManifestGroup select(List<String> columnNames) {
-    return new ManifestGroup(
-        io, manifests, specsById, dataFilter, fileFilter, partitionFilter, ignoreDeleted, ignoreExisting,
-        Lists.newArrayList(columnNames), caseSensitive);
-  }
-
-  public ManifestGroup select(String... columnNames) {
-    return select(Arrays.asList(columnNames));
+  ManifestGroup caseSensitive(boolean newCaseSensitive) {
+    this.caseSensitive = newCaseSensitive;
+    return this;
   }
 
   /**
@@ -151,6 +112,14 @@ class ManifestGroup {
    * @return a CloseableIterable of manifest entries.
    */
   public CloseableIterable<ManifestEntry> entries() {
+    LoadingCache<Integer, ManifestEvaluator> evalCache = specsById == null ?
+        null : Caffeine.newBuilder().build(specId -> {
+          PartitionSpec spec = specsById.get(specId);
+          return ManifestEvaluator.forPartitionFilter(
+              Expressions.and(partitionFilter, Projections.inclusive(spec).project(dataFilter)),
+              spec, caseSensitive);
+        });
+
     Evaluator evaluator = new Evaluator(DataFile.getType(EMPTY_STRUCT), fileFilter, caseSensitive);
 
     Iterable<ManifestFile> matchingManifests = evalCache == null ? manifests : Iterables.filter(manifests,
