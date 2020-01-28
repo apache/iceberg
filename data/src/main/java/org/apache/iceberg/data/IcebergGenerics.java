@@ -20,11 +20,9 @@
 package org.apache.iceberg.data;
 
 import com.google.common.collect.ImmutableList;
-import java.util.List;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Expressions;
 
 public class IcebergGenerics {
   private IcebergGenerics() {
@@ -43,16 +41,11 @@ public class IcebergGenerics {
   public static class ScanBuilder {
     private final Table table;
     private TableScan tableScan;
-    private final Expression defaultWhere = Expressions.alwaysTrue();
-    private final List<String> defaultColumns = ImmutableList.of("*");
     private boolean reuseContainers = false;
-    private final boolean defaultCaseSensitive = true;
 
     public ScanBuilder(Table table) {
       this.table = table;
-      this.tableScan = table.newScan()
-          .select(this.defaultColumns)
-          .caseSensitive(this.defaultCaseSensitive);
+      this.tableScan = table.newScan();
     }
 
     public ScanBuilder reuseContainers() {
@@ -61,34 +54,34 @@ public class IcebergGenerics {
     }
 
     public ScanBuilder where(Expression rowFilter) {
-      this.tableScan = this.tableScan.filter(Expressions.and(defaultWhere, rowFilter));
+      this.tableScan = tableScan.filter(rowFilter);
       return this;
     }
 
     public ScanBuilder caseInsensitive() {
-      this.tableScan = this.tableScan.caseSensitive(false);
+      this.tableScan = tableScan.caseSensitive(false);
       return this;
     }
 
     public ScanBuilder select(String... selectedColumns) {
-      this.tableScan = this.tableScan.select(ImmutableList.copyOf(selectedColumns));
+      this.tableScan = tableScan.select(ImmutableList.copyOf(selectedColumns));
       return this;
     }
 
     public ScanBuilder useSnapshot(long scanSnapshotId) {
-      this.tableScan = this.tableScan.useSnapshot(scanSnapshotId);
+      this.tableScan = tableScan.useSnapshot(scanSnapshotId);
       return this;
     }
 
     public ScanBuilder asOfTime(long scanTimestampMillis) {
-      this.tableScan = this.tableScan.asOfTime(scanTimestampMillis);
+      this.tableScan = tableScan.asOfTime(scanTimestampMillis);
       return this;
     }
 
     public Iterable<Record> build() {
       return new TableScanIterable(
-        this.tableScan,
-        reuseContainers
+          tableScan,
+          reuseContainers
       );
     }
   }

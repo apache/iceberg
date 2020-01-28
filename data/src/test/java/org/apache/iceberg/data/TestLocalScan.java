@@ -21,6 +21,7 @@ package org.apache.iceberg.data;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import java.io.File;
@@ -34,9 +35,10 @@ import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Metrics;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -49,14 +51,12 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -70,7 +70,6 @@ import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.hadoop.HadoopOutputFile.fromPath;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.hamcrest.CoreMatchers.startsWith;
 
 @RunWith(Parameterized.class)
 public class TestLocalScan {
@@ -83,9 +82,6 @@ public class TestLocalScan {
 
   @Rule
   public final TemporaryFolder temp = new TemporaryFolder();
-
-  @Rule
-  public ExpectedException exceptionRule = ExpectedException.none();
 
   @Parameterized.Parameters
   public static Object[][] parameters() {
@@ -103,12 +99,76 @@ public class TestLocalScan {
 
   private String sharedTableLocation = null;
   private Table sharedTable = null;
+  private List<Record> file1Records = null;
+  private List<Record> file2Records = null;
+  private List<Record> file3Records = null;
   private List<Record> file1FirstSnapshotRecords = null;
   private List<Record> file2FirstSnapshotRecords = null;
   private List<Record> file3FirstSnapshotRecords = null;
   private List<Record> file1SecondSnapshotRecords = null;
   private List<Record> file2SecondSnapshotRecords = null;
   private List<Record> file3SecondSnapshotRecords = null;
+
+
+  private void overwriteExistingData() throws IOException {
+    Record record = GenericRecord.create(SCHEMA);
+
+    this.file1FirstSnapshotRecords = Lists.newArrayList(
+        record.copy(ImmutableMap.of("id", 4L, "data", "obscure")),
+        record.copy(ImmutableMap.of("id", 5L, "data", "secure")),
+        record.copy(ImmutableMap.of("id", 6L, "data", "fetta"))
+    );
+    DataFile file11 = writeFile(sharedTableLocation, format.addExtension("file-11"), file1FirstSnapshotRecords);
+
+    this.file2FirstSnapshotRecords = Lists.newArrayList(
+        record.copy(ImmutableMap.of("id", 14L, "data", "radical")),
+        record.copy(ImmutableMap.of("id", 15L, "data", "collocation")),
+        record.copy(ImmutableMap.of("id", 16L, "data", "book"))
+    );
+    DataFile file21 = writeFile(sharedTableLocation, format.addExtension("file-21"), file2FirstSnapshotRecords);
+
+    this.file3FirstSnapshotRecords = Lists.newArrayList(
+        record.copy(ImmutableMap.of("id", 24L, "data", "cloud")),
+        record.copy(ImmutableMap.of("id", 25L, "data", "zen")),
+        record.copy(ImmutableMap.of("id", 26L, "data", "sky"))
+    );
+    DataFile file31 = writeFile(sharedTableLocation, format.addExtension("file-31"), file3FirstSnapshotRecords);
+
+    sharedTable.newOverwrite()
+        .overwriteByRowFilter(Expressions.alwaysTrue())
+        .addFile(file11)
+        .addFile(file21)
+        .addFile(file31)
+        .commit();
+
+    this.file1SecondSnapshotRecords = Lists.newArrayList(
+        record.copy(ImmutableMap.of("id", 6L, "data", "brainy")),
+        record.copy(ImmutableMap.of("id", 7L, "data", "film")),
+        record.copy(ImmutableMap.of("id", 8L, "data", "fetta"))
+    );
+    DataFile file12 = writeFile(sharedTableLocation, format.addExtension("file-12"), file1SecondSnapshotRecords);
+
+    this.file2SecondSnapshotRecords = Lists.newArrayList(
+        record.copy(ImmutableMap.of("id", 16L, "data", "cake")),
+        record.copy(ImmutableMap.of("id", 17L, "data", "intrinsic")),
+        record.copy(ImmutableMap.of("id", 18L, "data", "paper"))
+    );
+    DataFile file22 = writeFile(sharedTableLocation, format.addExtension("file-22"), file2SecondSnapshotRecords);
+
+    this.file3SecondSnapshotRecords = Lists.newArrayList(
+        record.copy(ImmutableMap.of("id", 26L, "data", "belleview")),
+        record.copy(ImmutableMap.of("id", 27L, "data", "overview")),
+        record.copy(ImmutableMap.of("id", 28L, "data", "tender"))
+    );
+    DataFile file32 = writeFile(sharedTableLocation, format.addExtension("file-32"), file3SecondSnapshotRecords);
+
+    sharedTable.newOverwrite()
+        .overwriteByRowFilter(Expressions.alwaysTrue())
+        .addFile(file12)
+        .addFile(file22)
+        .addFile(file32)
+        .commit();
+  }
 
   @Before
   public void createTables() throws IOException {
@@ -122,112 +182,36 @@ public class TestLocalScan {
 
     Record record = GenericRecord.create(SCHEMA);
 
-    this.file1FirstSnapshotRecords = Lists.newArrayList(
-            record.copy(ImmutableMap.of("id", 4L, "data", "obscure")),
-            record.copy(ImmutableMap.of("id", 5L, "data", "secure")),
-            record.copy(ImmutableMap.of("id", 6L, "data", "fetta"))
-    );
-    InputFile file11 = writeFile(sharedTableLocation, format.addExtension("file-11"), file1FirstSnapshotRecords);
-
-    this.file2FirstSnapshotRecords = Lists.newArrayList(
-            record.copy(ImmutableMap.of("id", 14L, "data", "radical")),
-            record.copy(ImmutableMap.of("id", 15L, "data", "collocation")),
-            record.copy(ImmutableMap.of("id", 16L, "data", "book"))
-    );
-    InputFile file21 = writeFile(sharedTableLocation, format.addExtension("file-21"), file2FirstSnapshotRecords);
-
-    this.file3FirstSnapshotRecords = Lists.newArrayList(
-            record.copy(ImmutableMap.of("id", 24L, "data", "cloud")),
-            record.copy(ImmutableMap.of("id", 25L, "data", "zen")),
-            record.copy(ImmutableMap.of("id", 26L, "data", "sky"))
-    );
-    InputFile file31 = writeFile(sharedTableLocation, format.addExtension("file-31"), file3FirstSnapshotRecords);
-
-    this.file1SecondSnapshotRecords = Lists.newArrayList(
+    this.file1Records = Lists.newArrayList(
         record.copy(ImmutableMap.of("id", 0L, "data", "clarification")),
         record.copy(ImmutableMap.of("id", 1L, "data", "risky")),
         record.copy(ImmutableMap.of("id", 2L, "data", "falafel"))
     );
-    InputFile file12 = writeFile(sharedTableLocation, format.addExtension("file-12"), file1SecondSnapshotRecords);
+    DataFile file1 = writeFile(sharedTableLocation, format.addExtension("file-1"), file1Records);
 
     Record nullData = record.copy();
     nullData.setField("id", 11L);
     nullData.setField("data", null);
 
-    this.file2SecondSnapshotRecords = Lists.newArrayList(
+    this.file2Records = Lists.newArrayList(
         record.copy(ImmutableMap.of("id", 10L, "data", "clammy")),
         record.copy(ImmutableMap.of("id", 11L, "data", "evacuate")),
         record.copy(ImmutableMap.of("id", 12L, "data", "tissue"))
     );
-    InputFile file22 = writeFile(sharedTableLocation, format.addExtension("file-22"), file2SecondSnapshotRecords);
+    DataFile file2 = writeFile(sharedTableLocation, format.addExtension("file-2"), file2Records);
 
-    this.file3SecondSnapshotRecords = Lists.newArrayList(
+    this.file3Records = Lists.newArrayList(
         record.copy(ImmutableMap.of("id", 20L, "data", "ocean")),
         record.copy(ImmutableMap.of("id", 21L, "data", "holistic")),
         record.copy(ImmutableMap.of("id", 22L, "data", "preventative"))
     );
-    InputFile file32 = writeFile(sharedTableLocation, format.addExtension("file-32"), file3SecondSnapshotRecords);
+    DataFile file3 = writeFile(sharedTableLocation, format.addExtension("file-3"), file3Records);
 
     // commit the test data
     sharedTable.newAppend()
-        .appendFile(DataFiles.builder(PartitionSpec.unpartitioned())
-            .withInputFile(file11)
-            .withMetrics(new Metrics(3L,
-                null, // no column sizes
-                ImmutableMap.of(1, 3L), // value count
-                ImmutableMap.of(1, 0L), // null count
-                ImmutableMap.of(1, longToBuffer(4L)), // lower bounds
-                ImmutableMap.of(1, longToBuffer(6L)))) // upper bounds)
-            .build())
-        .appendFile(DataFiles.builder(PartitionSpec.unpartitioned())
-            .withInputFile(file21)
-            .withMetrics(new Metrics(3L,
-                null, // no column sizes
-                ImmutableMap.of(1, 3L), // value count
-                ImmutableMap.of(1, 0L), // null count
-                ImmutableMap.of(1, longToBuffer(14L)), // lower bounds
-                ImmutableMap.of(1, longToBuffer(16L)))) // upper bounds)
-            .build())
-        .appendFile(DataFiles.builder(PartitionSpec.unpartitioned())
-            .withInputFile(file31)
-            .withMetrics(new Metrics(3L,
-                null, // no column sizes
-                ImmutableMap.of(1, 3L), // value count
-                ImmutableMap.of(1, 0L), // null count
-                ImmutableMap.of(1, longToBuffer(24L)), // lower bounds
-                ImmutableMap.of(1, longToBuffer(26L)))) // upper bounds)
-            .build())
-        .commit();
-
-    sharedTable.newOverwrite()
-        .overwriteByRowFilter(Expressions.alwaysTrue())
-        .addFile(DataFiles.builder(PartitionSpec.unpartitioned())
-            .withInputFile(file12)
-            .withMetrics(new Metrics(3L,
-                null, // no column sizes
-                ImmutableMap.of(1, 3L), // value count
-                ImmutableMap.of(1, 0L), // null count
-                ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
-                ImmutableMap.of(1, longToBuffer(2L)))) // upper bounds)
-            .build())
-        .addFile(DataFiles.builder(PartitionSpec.unpartitioned())
-            .withInputFile(file22)
-            .withMetrics(new Metrics(3L,
-                null, // no column sizes
-                ImmutableMap.of(1, 3L), // value count
-                ImmutableMap.of(1, 0L), // null count
-                ImmutableMap.of(1, longToBuffer(10L)), // lower bounds
-                ImmutableMap.of(1, longToBuffer(12L)))) // upper bounds)
-            .build())
-        .addFile(DataFiles.builder(PartitionSpec.unpartitioned())
-            .withInputFile(file32)
-            .withMetrics(new Metrics(3L,
-                null, // no column sizes
-                ImmutableMap.of(1, 3L), // value count
-                ImmutableMap.of(1, 0L), // null count
-                ImmutableMap.of(1, longToBuffer(20L)), // lower bounds
-                ImmutableMap.of(1, longToBuffer(22L)))) // upper bounds)
-            .build())
+        .appendFile(file1)
+        .appendFile(file2)
+        .appendFile(file3)
         .commit();
   }
 
@@ -275,77 +259,15 @@ public class TestLocalScan {
     Iterable<Record> results = IcebergGenerics.read(sharedTable).build();
 
     Set<Record> expected = Sets.newHashSet();
-    expected.addAll(file1SecondSnapshotRecords);
-    expected.addAll(file2SecondSnapshotRecords);
-    expected.addAll(file3SecondSnapshotRecords);
+    expected.addAll(file1Records);
+    expected.addAll(file2Records);
+    expected.addAll(file3Records);
 
     Set<Record> records = Sets.newHashSet(results);
     Assert.assertEquals("Should produce correct number of records",
         expected.size(), records.size());
     Assert.assertEquals("Random record set should match",
         Sets.newHashSet(expected), records);
-    Assert.assertNotNull(records.stream().findFirst().get().getField("id"));
-    Assert.assertNotNull(records.stream().findFirst().get().getField("data"));
-  }
-
-  @Test
-  public void testUnknownSnapshotId() {
-    exceptionRule.expect(IllegalArgumentException.class);
-    exceptionRule.expectMessage(startsWith("Cannot find snapshot with ID "));
-
-    Long minSnapshotId = sharedTable.history().stream().map(h -> h.snapshotId()).min(Long::compareTo).get();
-
-    IcebergGenerics.read(sharedTable)
-        .useSnapshot(/* unknown snapshot id */ minSnapshotId - 1);
-  }
-
-  @Test
-  public void testAsOfTimeOlderThanFirstSnapshot() {
-    exceptionRule.expect(IllegalArgumentException.class);
-    exceptionRule.expectMessage(startsWith("Cannot find a snapshot older than "));
-
-    IcebergGenerics.read(sharedTable)
-        .asOfTime(/* older than first snapshot */ sharedTable.history().get(0).timestampMillis() - 1);
-  }
-
-  @Test
-  public void testUseSnapshot() {
-    Iterable<Record> results = IcebergGenerics.read(sharedTable)
-        .useSnapshot(/* first snapshot */ sharedTable.history().get(0).snapshotId())
-        .build();
-
-    Set<Record> expected = Sets.newHashSet();
-    expected.addAll(file1FirstSnapshotRecords);
-    expected.addAll(file2FirstSnapshotRecords);
-    expected.addAll(file3FirstSnapshotRecords);
-
-    Set<Record> records = Sets.newHashSet(results);
-    Assert.assertEquals("Should produce correct number of records",
-        expected.size(), records.size());
-    Assert.assertEquals("Random record set should match",
-        Sets.newHashSet(expected), records);
-    Assert.assertNotNull(records.stream().findFirst().get().getField("id"));
-    Assert.assertNotNull(records.stream().findFirst().get().getField("data"));
-  }
-
-  @Test
-  public void testAsOfTime() {
-    Iterable<Record> results = IcebergGenerics.read(sharedTable)
-        .asOfTime(/* timestamp first snapshot */ sharedTable.history().get(0).timestampMillis())
-        .build();
-
-    Set<Record> expected = Sets.newHashSet();
-    expected.addAll(file1FirstSnapshotRecords);
-    expected.addAll(file2FirstSnapshotRecords);
-    expected.addAll(file3FirstSnapshotRecords);
-
-    Set<Record> records = Sets.newHashSet(results);
-    Assert.assertEquals("Should produce correct number of records",
-        expected.size(), records.size());
-    Assert.assertEquals("Random record set should match",
-        Sets.newHashSet(expected), records);
-    Assert.assertNotNull(records.stream().findFirst().get().getField("id"));
-    Assert.assertNotNull(records.stream().findFirst().get().getField("data"));
   }
 
   @Test
@@ -353,12 +275,12 @@ public class TestLocalScan {
     Iterable<Record> result = IcebergGenerics.read(sharedTable).where(lessThan("id", 3)).build();
 
     Assert.assertEquals("Records should match file 1",
-        Sets.newHashSet(file1SecondSnapshotRecords), Sets.newHashSet(result));
+        Sets.newHashSet(file1Records), Sets.newHashSet(result));
 
     result = IcebergGenerics.read(sharedTable).where(lessThanOrEqual("id", 1)).build();
 
     Assert.assertEquals("Records should match file 1 without id 2",
-        Sets.newHashSet(filter(file1SecondSnapshotRecords, r -> (Long) r.getField("id") <= 1)),
+        Sets.newHashSet(filter(file1Records, r -> (Long) r.getField("id") <= 1)),
         Sets.newHashSet(result));
   }
 
@@ -367,9 +289,9 @@ public class TestLocalScan {
     Iterable<Record> results = IcebergGenerics.read(sharedTable).select("id").build();
 
     Set<Long> expected = Sets.newHashSet();
-    expected.addAll(Lists.transform(file1SecondSnapshotRecords, record -> (Long) record.getField("id")));
-    expected.addAll(Lists.transform(file2SecondSnapshotRecords, record -> (Long) record.getField("id")));
-    expected.addAll(Lists.transform(file3SecondSnapshotRecords, record -> (Long) record.getField("id")));
+    expected.addAll(Lists.transform(file1Records, record -> (Long) record.getField("id")));
+    expected.addAll(Lists.transform(file2Records, record -> (Long) record.getField("id")));
+    expected.addAll(Lists.transform(file3Records, record -> (Long) record.getField("id")));
 
     results.forEach(record ->
         Assert.assertEquals("Record should have one projected field", 1, record.size()));
@@ -386,7 +308,7 @@ public class TestLocalScan {
         .select("data").build();
 
     Set<String> expected = Sets.newHashSet();
-    for (Record record : concat(file1SecondSnapshotRecords, file2SecondSnapshotRecords, file3SecondSnapshotRecords)) {
+    for (Record record : concat(file1Records, file2Records, file3Records)) {
       Long id = (Long) record.getField("id");
       if (id >= 1 && id < 21) {
         expected.add(record.getField("data").toString());
@@ -401,31 +323,107 @@ public class TestLocalScan {
         Sets.newHashSet(transform(results, record -> record.getField("data").toString())));
   }
 
-  private InputFile writeFile(String location, String filename, List<Record> records) throws IOException {
+  @Test
+  public void testUseSnapshot() throws IOException {
+    overwriteExistingData();
+    Iterable<Record> results = IcebergGenerics.read(sharedTable)
+        .useSnapshot(/* first snapshot */ sharedTable.history().get(1).snapshotId())
+        .build();
+
+    Set<Record> expected = Sets.newHashSet();
+    expected.addAll(file1FirstSnapshotRecords);
+    expected.addAll(file2FirstSnapshotRecords);
+    expected.addAll(file3FirstSnapshotRecords);
+
+    Set<Record> records = Sets.newHashSet(results);
+    Assert.assertEquals("Should produce correct number of records",
+        expected.size(), records.size());
+    Assert.assertEquals("Record set should match",
+        Sets.newHashSet(expected), records);
+    Assert.assertNotNull(Iterables.get(records, 0).getField("id"));
+    Assert.assertNotNull(Iterables.get(records, 0).getField("data"));
+  }
+
+  @Test
+  public void testAsOfTime() throws IOException {
+    overwriteExistingData();
+    Iterable<Record> results = IcebergGenerics.read(sharedTable)
+        .asOfTime(/* timestamp first snapshot */ sharedTable.history().get(2).timestampMillis())
+        .build();
+
+    Set<Record> expected = Sets.newHashSet();
+    expected.addAll(file1SecondSnapshotRecords);
+    expected.addAll(file2SecondSnapshotRecords);
+    expected.addAll(file3SecondSnapshotRecords);
+
+    Set<Record> records = Sets.newHashSet(results);
+    Assert.assertEquals("Should produce correct number of records",
+        expected.size(), records.size());
+    Assert.assertEquals("Record set should match",
+        Sets.newHashSet(expected), records);
+    Assert.assertNotNull(Iterables.get(records, 0).getField("id"));
+    Assert.assertNotNull(Iterables.get(records, 0).getField("data"));
+  }
+
+  @Test
+  public void testUnknownSnapshotId() {
+    Long minSnapshotId = sharedTable.history().stream().map(h -> h.snapshotId()).min(Long::compareTo).get();
+
+    IcebergGenerics.ScanBuilder scanBuilder = IcebergGenerics.read(sharedTable);
+
+    AssertHelpers.assertThrows("Should fail on unknown snapshot id",
+        IllegalArgumentException.class,
+        "Cannot find snapshot with ID ",
+        () -> scanBuilder.useSnapshot(/* unknown snapshot id */ minSnapshotId - 1));
+  }
+
+  @Test
+  public void testAsOfTimeOlderThanFirstSnapshot() {
+    IcebergGenerics.ScanBuilder scanBuilder = IcebergGenerics.read(sharedTable);
+
+    AssertHelpers.assertThrows("Should fail on timestamp sooner than first write",
+        IllegalArgumentException.class,
+        "Cannot find a snapshot older than ",
+        () -> scanBuilder.asOfTime(/* older than first snapshot */ sharedTable.history().get(0).timestampMillis() - 1));
+  }
+
+  private DataFile writeFile(String location, String filename, List<Record> records) throws IOException {
     Path path = new Path(location, filename);
     FileFormat fileFormat = FileFormat.fromFileName(filename);
     Preconditions.checkNotNull(fileFormat, "Cannot determine format for file: %s", filename);
     switch (fileFormat) {
       case AVRO:
-        try (FileAppender<Record> appender = Avro.write(fromPath(path, CONF))
+        FileAppender avroAppender = Avro.write(fromPath(path, CONF))
             .schema(SCHEMA)
             .createWriterFunc(DataWriter::create)
             .named(fileFormat.name())
-            .build()) {
-          appender.addAll(records);
+            .build();
+        try {
+          avroAppender.addAll(records);
+        } finally {
+          avroAppender.close();
         }
 
-        return HadoopInputFile.fromPath(path, CONF);
+        return DataFiles.builder(PartitionSpec.unpartitioned())
+            .withInputFile(HadoopInputFile.fromPath(path, CONF))
+            .withMetrics(avroAppender.metrics())
+            .build();
 
       case PARQUET:
-        try (FileAppender<Record> appender = Parquet.write(fromPath(path, CONF))
+        FileAppender<Record> orcAppender = Parquet.write(fromPath(path, CONF))
             .schema(SCHEMA)
             .createWriterFunc(GenericParquetWriter::buildWriter)
-            .build()) {
-          appender.addAll(records);
+            .build();
+        try {
+          orcAppender.addAll(records);
+        } finally {
+          orcAppender.close();
         }
 
-        return HadoopInputFile.fromPath(path, CONF);
+        return DataFiles.builder(PartitionSpec.unpartitioned())
+            .withInputFile(HadoopInputFile.fromPath(path, CONF))
+            .withMetrics(orcAppender.metrics())
+            .build();
 
       default:
         throw new UnsupportedOperationException("Cannot write format: " + fileFormat);
