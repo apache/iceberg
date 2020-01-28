@@ -25,12 +25,12 @@ package org.apache.iceberg.exceptions;
  */
 public class CherrypickAncestorCommitException extends ValidationException {
 
-  public CherrypickAncestorCommitException(Long snapshotId) {
-    super("Cannot cherrypick snapshot %s which is already an ancestor", String.valueOf(snapshotId));
+  public CherrypickAncestorCommitException(long snapshotId) {
+    super("Cannot cherrypick snapshot %s: already an ancestor", String.valueOf(snapshotId));
   }
 
-  public CherrypickAncestorCommitException(Long snapshotId, Long publishedAncestorId) {
-    super("Cannot cherrypick snapshot %s which was picked already to create an ancestor %s",
+  public CherrypickAncestorCommitException(long snapshotId, long publishedAncestorId) {
+    super("Cannot cherrypick snapshot %s: already picked to create ancestor %s",
         String.valueOf(snapshotId), String.valueOf(publishedAncestorId));
   }
 }

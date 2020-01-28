@@ -394,22 +394,19 @@ public class TableMetadata {
     // there can be operations (viz. rollback, cherrypick) where an existing snapshot could be replacing current
     if (snapshotsById.containsKey(snapshot.snapshotId())) {
       return setCurrentSnapshotTo(snapshot);
-    } else {
-
-      List<Snapshot> newSnapshots = ImmutableList.<Snapshot>builder()
-          .addAll(snapshots)
-          .add(snapshot)
-          .build();
-      List<HistoryEntry> newSnapshotLog = ImmutableList.<HistoryEntry>builder()
-          .addAll(snapshotLog)
-          .add(new SnapshotLogEntry(snapshot.timestampMillis(),
-              snapshot.snapshotId()))
-          .build();
-
-      return new TableMetadata(null, uuid, location,
-          snapshot.timestampMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
-          snapshot.snapshotId(), newSnapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
     }
+
+    List<Snapshot> newSnapshots = ImmutableList.<Snapshot>builder()
+        .addAll(snapshots)
+        .add(snapshot)
+        .build();
+    List<HistoryEntry> newSnapshotLog = ImmutableList.<HistoryEntry>builder()
+        .addAll(snapshotLog)
+        .add(new SnapshotLogEntry(snapshot.timestampMillis(), snapshot.snapshotId()))
+        .build();
+    return new TableMetadata(null, uuid, location,
+        snapshot.timestampMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
+        snapshot.snapshotId(), newSnapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   public TableMetadata removeSnapshotsIf(Predicate<Snapshot> removeIf) {
@@ -447,6 +444,11 @@ public class TableMetadata {
   private TableMetadata setCurrentSnapshotTo(Snapshot snapshot) {
     ValidationException.check(snapshotsById.containsKey(snapshot.snapshotId()),
         "Cannot set current snapshot to unknown: %s", snapshot.snapshotId());
+
+    if (currentSnapshotId == snapshot.snapshotId()) {
+      // change is a noop
+      return this;
+    }
 
     long nowMillis = System.currentTimeMillis();
     List<HistoryEntry> newSnapshotLog = ImmutableList.<HistoryEntry>builder()

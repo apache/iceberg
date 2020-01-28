@@ -40,6 +40,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -152,7 +153,7 @@ class Writer implements DataSourceWriter {
     if (isWapTable() && wapId != null) {
       // write-audit-publish is enabled for this table and job
       // stage the changes without changing the current snapshot
-      operation.set("wap.id", wapId);
+      operation.set(SnapshotSummary.STAGED_WAP_ID_PROP, wapId);
       operation.stageOnly();
     }
 

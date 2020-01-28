@@ -244,6 +244,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
               updated = base.replaceCurrentSnapshot(newSnapshot);
             }
 
+            if (updated == base) {
+              // do not commit if the metadata has not changed. for example, this may happen when setting the current
+              // snapshot to an ID that is already current. note that this check uses identity.
+              return;
+            }
+
             // if the table UUID is missing, add it here. the UUID will be re-created each time this operation retries
             // to ensure that if a concurrent operation assigns the UUID, this operation will not fail.
             taskOps.commit(base, updated.withUUID());
