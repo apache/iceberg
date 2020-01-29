@@ -119,7 +119,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
     ValidationException.check(current.snapshot(snapshotId) != null,
         "Cannot roll back to unknown snapshot id: %s", snapshotId);
     ValidationException.check(
-        !SnapshotUtil.ancestorIds(current.currentSnapshot(), current::snapshot).contains(snapshotId),
+        isCurrentAncestor(current, snapshotId),
         "Cannot roll back to snapshot, not an ancestor of the current state: %s", snapshotId);
     return setCurrentSnapshot(snapshotId);
   }
@@ -148,7 +148,8 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
 
     switch (managerOperation) {
       case CHERRYPICK:
-        if (base.currentSnapshot().snapshotId() == base.snapshot(targetSnapshotId).parentId()) {
+        if (base.snapshot(targetSnapshotId).parentId() != null &&
+            base.currentSnapshot().snapshotId() == base.snapshot(targetSnapshotId).parentId()) {
           // the snapshot to cherrypick is already based on the current state: fast-forward
           validate(base);
           return base.snapshot(targetSnapshotId);

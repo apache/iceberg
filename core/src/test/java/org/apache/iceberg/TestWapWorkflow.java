@@ -261,9 +261,9 @@ public class TestWapWorkflow extends TableTestBase {
 
     // check if the effective current snapshot is set to the new snapshot created
     //   as a result of the cherry-pick operation
-    Assert.assertEquals("Current snapshot should be set to one after wap snapshot",
-        wapSnapshot.snapshotId() + 1, base.currentSnapshot().snapshotId());
-    Assert.assertEquals("Should have three snapshots", 3, base.snapshots().size());
+    Assert.assertEquals("Current snapshot should be fast-forwarded to wap snapshot",
+        wapSnapshot.snapshotId(), base.currentSnapshot().snapshotId());
+    Assert.assertEquals("Should have two snapshots", 2, base.snapshots().size());
     Assert.assertEquals("Should contain manifests for both files", 2, base.currentSnapshot().manifests().size());
     Assert.assertEquals("Should contain append from last commit", 1,
         Iterables.size(base.currentSnapshot().addedFiles()));
@@ -325,7 +325,7 @@ public class TestWapWorkflow extends TableTestBase {
     //   as a result of the cherry-pick operation
     Assert.assertEquals(
         "Current snapshot should be set to one after wap snapshot",
-        parentSnapshot.snapshotId() + 2 /* two staged snapshots */ + 1,
+        parentSnapshot.snapshotId() + 1,
         base.currentSnapshot().snapshotId());
     Assert.assertEquals("Should contain manifests for both files", 2,
         base.currentSnapshot().manifests().size());
@@ -345,7 +345,8 @@ public class TestWapWorkflow extends TableTestBase {
     // check if the effective current snapshot is set to the new snapshot created
     //   as a result of the cherry-pick operation
     Assert.assertEquals("Current snapshot should be set to one after wap snapshot",
-        parentSnapshot.snapshotId() + 1, base.currentSnapshot().snapshotId());
+        parentSnapshot.snapshotId() + 1 /* one fast-forwarded snapshot */ + 1,
+        base.currentSnapshot().snapshotId());
     Assert.assertEquals("Should contain manifests for both files", 3, base.currentSnapshot().manifests().size());
     Assert.assertEquals("Should contain append from last commit", 1,
         Iterables.size(base.currentSnapshot().addedFiles()));
@@ -512,7 +513,7 @@ public class TestWapWorkflow extends TableTestBase {
     //   as a result of the cherry-pick operation
     Assert.assertEquals(
         "Current snapshot should be set to one after wap snapshot",
-        parentSnapshot.snapshotId() + 1 /* one staged snapshot */ + 1,
+        parentSnapshot.snapshotId() + 1,
         base.currentSnapshot().snapshotId());
     Assert.assertEquals("Should contain manifests for both files", 2,
         base.currentSnapshot().manifests().size());
@@ -559,9 +560,9 @@ public class TestWapWorkflow extends TableTestBase {
 
     // check if the effective current snapshot is set to the new snapshot created
     //   as a result of the cherry-pick operation
-    Assert.assertEquals("Current snapshot should be set to one after wap snapshot",
-        wapSnapshot.snapshotId() + 1, base.currentSnapshot().snapshotId());
-    Assert.assertEquals("Should have three snapshots", 3, base.snapshots().size());
+    Assert.assertEquals("Current snapshot should be fast-forwarded to wap snapshot",
+        wapSnapshot.snapshotId(), base.currentSnapshot().snapshotId());
+    Assert.assertEquals("Should have two snapshots", 2, base.snapshots().size());
     Assert.assertEquals("Should contain manifests for both files", 2, base.currentSnapshot().manifests().size());
     Assert.assertEquals("Should contain append from last commit", 1,
         Iterables.size(base.currentSnapshot().addedFiles()));
@@ -569,14 +570,7 @@ public class TestWapWorkflow extends TableTestBase {
         base.snapshotLog().size());
 
     AssertHelpers.assertThrows("should throw exception", CherrypickAncestorCommitException.class,
-        String.format("Cannot cherrypick snapshot %s which was picked already to create an ancestor %s", 2, 3), () -> {
-          // duplicate cherry-pick snapshot
-          table.manageSnapshots().cherrypick(wapSnapshot.snapshotId()).commit();
-        }
-    );
-
-    AssertHelpers.assertThrows("should throw exception", CherrypickAncestorCommitException.class,
-        String.format("Cannot cherrypick snapshot %s which is already an ancestor", 1), () -> {
+        String.format("Cannot cherrypick snapshot %s: already an ancestor", 1), () -> {
           // duplicate cherry-pick snapshot
           table.manageSnapshots().cherrypick(firstSnapshotId).commit();
         }
@@ -623,7 +617,7 @@ public class TestWapWorkflow extends TableTestBase {
     table.manageSnapshots().cherrypick(wapSnapshot1.snapshotId()).commit();
     base = readMetadata();
 
-    Assert.assertEquals("Should have four snapshots", 4, base.snapshots().size());
+    Assert.assertEquals("Should have three snapshots", 3, base.snapshots().size());
     Assert.assertEquals("Should contain manifests for both files", 2, base.currentSnapshot().manifests().size());
     Assert.assertEquals("Should contain append from last commit", 1,
         Iterables.size(base.currentSnapshot().addedFiles()));
@@ -658,7 +652,9 @@ public class TestWapWorkflow extends TableTestBase {
     base = readMetadata();
     long thirdSnapshotId = base.currentSnapshot().snapshotId();
 
-    Assert.assertEquals("Should be pointing to third snapshot", thirdSnapshotId, table.currentSnapshot().snapshotId());
+    Assert.assertEquals("Should be pointing to third snapshot", thirdSnapshotId,
+        table.currentSnapshot().snapshotId());
+
     // NOOP commit
     table.manageSnapshots().commit();
     Assert.assertEquals("Should still be pointing to third snapshot", thirdSnapshotId,
@@ -671,19 +667,19 @@ public class TestWapWorkflow extends TableTestBase {
 
     // Cherrypick down to third
     table.manageSnapshots().cherrypick(thirdSnapshotId).commit();
-    Assert.assertEquals("Should be pointing to a new fourth snapshot after cherrypick", 4,
+    Assert.assertEquals("Should be re-using wap snapshot after cherrypick", 3,
         table.currentSnapshot().snapshotId());
 
     // try double cherrypicking of the third snapshot
-    AssertHelpers.assertThrows("should not allow double cherrypick", CherrypickAncestorCommitException.class,
-        String.format("Cannot cherrypick snapshot %s which was picked already to create an ancestor %s", 3, 4), () -> {
+    AssertHelpers.assertThrows("should not allow cherrypicking ancestor", CherrypickAncestorCommitException.class,
+        String.format("Cannot cherrypick snapshot %s: already an ancestor", 3), () -> {
       // double cherrypicking of second snapshot
           table.manageSnapshots().cherrypick(thirdSnapshotId).commit();
         });
 
     // try cherrypicking an ancestor
     AssertHelpers.assertThrows("should not allow double cherrypick", CherrypickAncestorCommitException.class,
-        String.format("Cannot cherrypick snapshot %s which is already an ancestor", firstSnapshotId), () -> {
+        String.format("Cannot cherrypick snapshot %s: already an ancestor", firstSnapshotId), () -> {
           // double cherrypicking of second snapshot
           table.manageSnapshots().cherrypick(firstSnapshotId).commit();
         });
