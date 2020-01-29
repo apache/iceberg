@@ -9,7 +9,7 @@ The examples are structured as JUnit tests that you can download and run locally
 
 ## Using Iceberg 
 ### Maven
-If you'd like to try out Iceberg in your own project, you can use the `spark-iceberg-runtime` dependency:
+If you'd like to try out Iceberg in your own project using Spark, you can use the `iceberg-spark-runtime` dependency:
 ```xml
    <dependency>
      <groupId>org.apache.iceberg</groupId>
@@ -39,7 +39,7 @@ dependencies {
 The following section will break down the different areas of Iceberg explored in the examples, with links to the code and extra information that could be useful for new users. 
 
 ### Writing data to tables
-There are multiple ways of creating tables with Iceberg, including using the Hive Metastore to keep track of tables ([HiveCatalog](https://iceberg.apache.org/api-quickstart/#using-a-hive-catalog)), or using HDFS / your local file system ([HadoopTables](https://iceberg.apache.org/api-quickstart/#using-a-hive-catalog)) to store the tables. However, directory tables don’t support all catalog operations, like rename.
+There are multiple ways of creating tables with Iceberg, including using the Hive Metastore to keep track of tables ([HiveCatalog](https://iceberg.apache.org/api-quickstart/#using-a-hive-catalog)), or using HDFS / your local file system ([HadoopTables](https://iceberg.incubator.apache.org/api-quickstart/#using-hadoop-tables)) to store the tables. However, it should be noted that directory tables (such as those using `HadoopTables`)  don’t support all catalog operations, like rename and therefore use the `Tables` interface instead of the `Catalog` interface.
 It should be noted that Hadoop tables _shouldn’t_ be used with file systems that do not support atomic rename as Iceberg depends on this to synchronize concurrent commits. 
 To limit complexity, these examples create tables on your local file system using the HadoopTables class.
 
@@ -187,7 +187,7 @@ However, this means you need to occasionally deal with concurrent writer conflic
 
 Iceberg deals with this by attempting retries of the write based on the new metadata. This can happen if the files the first write changed aren't touched by the second write, then it's deemed safe to commit the second update. 
 
-[This test](src/test/java/ConcurrencyTest.java) looks to experiment with how optimistic concurrency works. For more information on conflict resolution, look [here](https://iceberg.incubator.apache.org/spec/#table-metadata).
+[This test](src/test/java/ConcurrencyTest.java) looks to experiment with how optimistic concurrency works. For more information on conflict resolution, look [here](https://iceberg.incubator.apache.org/spec/#table-metadata) and for information on write concurrency, look [here](https://iceberg.incubator.apache.org/reliability/#concurrent-write-operations).
 
 By default, Iceberg has set the `commit.retry.num-retries` property to **4**. You can edit this default by creating an `UpdateProperties` object and assigning a new number to that property:
 
@@ -195,4 +195,4 @@ By default, Iceberg has set the `commit.retry.num-retries` property to **4**. Yo
   table.updateProperties().set("commit.retry.num-retries", "1").commit();
 ```
 
-You can find more information on other table properties you can set [here](https://iceberg.incubator.apache.org/configuration/#table-properties).
+You can find more information on other table properties you can configure [here](https://iceberg.incubator.apache.org/configuration/#table-properties).

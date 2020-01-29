@@ -54,7 +54,7 @@ dependencies {
 ```
 
 ### Maven 
-If you'd like to try out Iceberg in a Maven project using the Spark Iceberg API, you can add the `spark-iceberg-runtime` dependency to your `pom.xml` file:
+If you'd like to try out Iceberg in a Maven project using the Spark Iceberg API, you can add the `iceberg-spark-runtime` dependency to your `pom.xml` file:
 ```xml
    <dependency>
      <groupId>org.apache.iceberg</groupId>
