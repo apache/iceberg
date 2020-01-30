@@ -101,7 +101,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
     Schema dsSchema = SparkSchemaUtil.convert(table.schema(), dsStruct);
-    validateWriteSchema(table.schema(), dsSchema, checkNullability(options));
+    validateWriteSchema(table.schema(), dsSchema, checkNullability(options), checkOrdering(options));
     validatePartitionTransforms(table.spec());
     String appId = lazySparkSession().sparkContext().applicationId();
     String wapId = lazySparkSession().conf().get("spark.wap.id", null);
@@ -122,7 +122,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
     Schema dsSchema = SparkSchemaUtil.convert(table.schema(), dsStruct);
-    validateWriteSchema(table.schema(), dsSchema, checkNullability(options));
+    validateWriteSchema(table.schema(), dsSchema, checkNullability(options), checkOrdering(options));
     validatePartitionTransforms(table.spec());
     // Spark 2.4.x passes runId to createStreamWriter instead of real queryId,
     // so we fetch it directly from sparkContext to make writes idempotent
@@ -189,12 +189,13 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
         .forEach(key -> baseConf.set(key.replaceFirst("hadoop.", ""), options.get(key)));
   }
 
-  private void validateWriteSchema(Schema tableSchema, Schema dsSchema, Boolean checkNullability) {
+  private void validateWriteSchema(
+          Schema tableSchema, Schema dsSchema, Boolean checkNullability, Boolean checkOrdering) {
     List<String> errors;
     if (checkNullability) {
-      errors = CheckCompatibility.writeCompatibilityErrors(tableSchema, dsSchema);
+      errors = CheckCompatibility.writeCompatibilityErrors(tableSchema, dsSchema, checkOrdering);
     } else {
-      errors = CheckCompatibility.typeCompatibilityErrors(tableSchema, dsSchema);
+      errors = CheckCompatibility.typeCompatibilityErrors(tableSchema, dsSchema, checkOrdering);
     }
     if (!errors.isEmpty()) {
       StringBuilder sb = new StringBuilder();
@@ -226,6 +227,13 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
         .get("spark.sql.iceberg.check-nullability", "true"));
     boolean dataFrameCheckNullability = options.getBoolean("check-nullability", true);
     return sparkCheckNullability && dataFrameCheckNullability;
+  }
+
+  private boolean checkOrdering(DataSourceOptions options) {
+    boolean sparkCheckOrdering = Boolean.parseBoolean(lazySpark.conf()
+            .get("spark.sql.iceberg.check-ordering", "true"));
+    boolean dataFrameCheckOrdering = options.getBoolean("check-ordering", true);
+    return sparkCheckOrdering && dataFrameCheckOrdering;
   }
 
   private FileIO fileIO(Table table) {

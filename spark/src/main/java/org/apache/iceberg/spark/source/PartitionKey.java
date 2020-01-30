@@ -48,7 +48,7 @@ class PartitionKey implements StructLike {
   private final Accessor<InternalRow>[] accessors;
 
   @SuppressWarnings("unchecked")
-  PartitionKey(PartitionSpec spec) {
+  PartitionKey(PartitionSpec spec, Schema inputSchema) {
     this.spec = spec;
 
     List<PartitionField> fields = spec.fields();
@@ -58,7 +58,7 @@ class PartitionKey implements StructLike {
     this.accessors = (Accessor<InternalRow>[]) Array.newInstance(Accessor.class, size);
 
     Schema schema = spec.schema();
-    Map<Integer, Accessor<InternalRow>> newAccessors = buildAccessors(schema);
+    Map<Integer, Accessor<InternalRow>> newAccessors = buildAccessors(inputSchema);
     for (int i = 0; i < size; i += 1) {
       PartitionField field = fields.get(i);
       Accessor<InternalRow> accessor = newAccessors.get(field.sourceId());

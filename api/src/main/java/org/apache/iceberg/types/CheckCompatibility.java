@@ -39,7 +39,36 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
    * @return a list of error details, or an empty list if there are no compatibility problems
    */
   public static List<String> writeCompatibilityErrors(Schema readSchema, Schema writeSchema) {
-    return TypeUtil.visit(readSchema, new CheckCompatibility(writeSchema, true, true));
+    return writeCompatibilityErrors(readSchema, writeSchema, true);
+  }
+
+  /**
+   * Returns a list of compatibility errors for writing with the given write schema.
+   * This includes nullability: writing optional (nullable) values to a required field is an error
+   * Optionally this method allows case where input schema has different ordering than table schema.
+   * @param readSchema a read schema
+   * @param writeSchema a write schema
+   * @param checkOrdering If false, allow input schema to have different ordering than table schema
+   * @return a list of error details, or an empty list if there are no compatibility problems
+   */
+  public static List<String> writeCompatibilityErrors(Schema readSchema, Schema writeSchema, Boolean checkOrdering) {
+    return TypeUtil.visit(readSchema, new CheckCompatibility(writeSchema, checkOrdering, true));
+  }
+
+  /**
+   * Returns a list of compatibility errors for writing with the given write schema.
+   * This checks type compatibility and not nullability: writing optional (nullable) values
+   * to a required field is not an error. To check nullability as well as types,
+   * Optionally this method allows case where input schema has different ordering than table schema.
+   * use {@link #writeCompatibilityErrors(Schema, Schema)}.
+   *
+   * @param readSchema a read schema
+   * @param writeSchema a write schema
+   * @param checkOrdering If false, allow input schema to have different ordering than table schema
+   * @return a list of error details, or an empty list if there are no compatibility problems
+   */
+  public static List<String> typeCompatibilityErrors(Schema readSchema, Schema writeSchema, Boolean checkOrdering) {
+    return TypeUtil.visit(readSchema, new CheckCompatibility(writeSchema, checkOrdering, false));
   }
 
   /**
