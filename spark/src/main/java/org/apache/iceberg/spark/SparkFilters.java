@@ -23,6 +23,9 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
@@ -122,7 +125,11 @@ public class SparkFilters {
 
         case IN:
           In inFilter = (In) filter;
-          return in(inFilter.attribute(), inFilter.values());
+          return in(inFilter.attribute(),
+              Stream.of(inFilter.values())
+                  .filter(Objects::nonNull)
+                  .map(SparkFilters::convertLiteral)
+                  .collect(Collectors.toList()));
 
         case NOT:
           Not notFilter = (Not) filter;
