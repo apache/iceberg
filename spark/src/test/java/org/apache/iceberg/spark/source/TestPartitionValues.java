@@ -48,6 +48,7 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import static org.apache.spark.sql.functions.lit;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -192,6 +193,64 @@ public class TestPartitionValues {
       Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
       Assert.assertEquals("Result rows should match", expected, actual);
 
+    } finally {
+      TestTables.clearTables();
+    }
+  }
+
+  @Test
+  public void testSchemaEvolution() throws Exception {
+    String desc = "reorder_columns";
+    File parent = temp.newFolder(desc);
+    File location = new File(parent, "test");
+    File dataFolder = new File(location, "data");
+    Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
+
+    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
+    Table table = tables.create(SIMPLE_SCHEMA, SPEC, location.toString());
+    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
+    table.updateSchema().addColumn("field1", Types.IntegerType.get()).commit();
+
+    List<SimpleRecord> expected = Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "c")
+    );
+
+    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
+
+    try {
+      df.select("data", "id").write()
+              .format("iceberg")
+              .mode("append")
+              .option("check-ordering", "false")
+              .save(location.toString());
+
+      List<SimpleRecord> recordsWithAdditionalColumn = Lists.newArrayList(
+              new SimpleRecord(4, "d"),
+              new SimpleRecord(5, "e"),
+              new SimpleRecord(6, "f")
+      );
+
+      Dataset<Row> dfWithAdditionalColumn = spark.createDataFrame(recordsWithAdditionalColumn, SimpleRecord.class);
+
+      dfWithAdditionalColumn.withColumn("field1", lit(3)).select("data", "id", "field1").write()
+              .format("iceberg")
+              .mode("append")
+              .option("check-ordering", "false")
+              .save(location.toString());
+
+      Dataset<Row> result = spark.read()
+              .format("iceberg")
+              .load(location.toString());
+
+      Assert.assertEquals("Result rows should match", result.collectAsList().stream().filter(row -> {
+        if(row.isNullAt(2)){
+          return false;
+        }else {
+          return row.getInt(2) == 3;
+        }
+      }).count(), 3);
     } finally {
       TestTables.clearTables();
     }
