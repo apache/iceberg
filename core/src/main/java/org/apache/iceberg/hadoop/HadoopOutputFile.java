@@ -34,21 +34,29 @@ import org.apache.iceberg.io.PositionOutputStream;
  * {@link OutputFile} implementation using the Hadoop {@link FileSystem} API.
  */
 public class HadoopOutputFile implements OutputFile {
-  public static OutputFile fromPath(Path path, Configuration conf) {
-    return new HadoopOutputFile(path, conf);
-  }
 
+  private final FileSystem fs;
   private final Path path;
   private final Configuration conf;
 
-  private HadoopOutputFile(Path path, Configuration conf) {
+  public static OutputFile fromLocation(CharSequence location, Configuration conf) {
+    Path path = new Path(location.toString());
+    return fromPath(path, conf);
+  }
+
+  public static OutputFile fromPath(Path path, Configuration conf) {
+    FileSystem fs = Util.getFs(path, conf);
+    return new HadoopOutputFile(fs, path, conf);
+  }
+
+  private HadoopOutputFile(FileSystem fs, Path path, Configuration conf) {
+    this.fs = fs;
     this.path = path;
     this.conf = conf;
   }
 
   @Override
   public PositionOutputStream create() {
-    FileSystem fs = Util.getFs(path, conf);
     try {
       return HadoopStreams.wrap(fs.create(path, false /* createOrOverwrite */));
     } catch (FileAlreadyExistsException e) {
@@ -60,7 +68,6 @@ public class HadoopOutputFile implements OutputFile {
 
   @Override
   public PositionOutputStream createOrOverwrite() {
-    FileSystem fs = Util.getFs(path, conf);
     try {
       return HadoopStreams.wrap(fs.create(path, true /* createOrOverwrite */));
     } catch (IOException e) {
@@ -83,7 +90,7 @@ public class HadoopOutputFile implements OutputFile {
 
   @Override
   public InputFile toInputFile() {
-    return HadoopInputFile.fromPath(path, conf);
+    return HadoopInputFile.fromPath(fs, path, conf);
   }
 
   @Override

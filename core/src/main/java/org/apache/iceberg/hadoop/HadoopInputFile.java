@@ -55,30 +55,21 @@ public class HadoopInputFile implements InputFile {
   }
 
   public static HadoopInputFile fromPath(Path path, Configuration conf) {
-    try {
-      FileSystem fs = path.getFileSystem(conf);
-      return new HadoopInputFile(fs, path, conf);
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to get file system for path: %s", path);
-    }
+    return fromPath(Util.getFs(path, conf), path, conf);
   }
 
   public static HadoopInputFile fromPath(Path path, long length, Configuration conf) {
-    try {
-      FileSystem fs = path.getFileSystem(conf);
-      return new HadoopInputFile(fs, path, length, conf);
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to get file system for path: %s", path);
-    }
+    FileSystem fs = Util.getFs(path, conf);
+    return new HadoopInputFile(fs, path, length, conf);
+  }
+
+  static HadoopInputFile fromPath(FileSystem fs, Path path, Configuration conf) {
+    return new HadoopInputFile(fs, path, conf);
   }
 
   public static HadoopInputFile fromStatus(FileStatus stat, Configuration conf) {
-    try {
-      FileSystem fs = stat.getPath().getFileSystem(conf);
-      return new HadoopInputFile(fs, stat, conf);
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to get file system for path: %s", stat.getPath());
-    }
+    FileSystem fs = Util.getFs(stat.getPath(), conf);
+    return new HadoopInputFile(fs, stat, conf);
   }
 
   private HadoopInputFile(FileSystem fs, Path path, Configuration conf) {
