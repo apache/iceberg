@@ -168,6 +168,12 @@ public abstract class BaseMetastoreCatalog implements Catalog {
           return new ManifestsTable(ops, baseTable);
         case PARTITIONS:
           return new PartitionsTable(ops, baseTable);
+        case ALL_DATA_FILES:
+          return new AllDataFilesTable(ops, baseTable);
+        case ALL_MANIFESTS:
+          return new AllManifestsTable(ops, baseTable);
+        case ALL_ENTRIES:
+          return new AllEntriesTable(ops, baseTable);
         default:
           throw new NoSuchTableException("Unknown metadata table type: %s for %s", type, baseTableIdentifier);
       }

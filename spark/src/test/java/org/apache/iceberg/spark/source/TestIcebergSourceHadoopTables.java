@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import java.io.File;
+import java.util.Comparator;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
@@ -31,6 +32,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.Avro;
@@ -124,6 +126,57 @@ public class TestIcebergSourceHadoopTables {
     Assert.assertEquals("Entries table should have one row", 1, expected.size());
     Assert.assertEquals("Actual results should have one row", 1, actual.size());
     TestHelpers.assertEqualsSafe(entriesTable.schema().asStruct(), expected.get(0), actual.get(0));
+  }
+
+  @Test
+  public void testAllEntriesTable() throws Exception {
+    Table table = TABLES.create(SCHEMA, tableLocation);
+    System.out.println(tableLocation);
+    Table entriesTable = TABLES.load(tableLocation + "#all_entries");
+
+    Dataset<Row> df1 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
+    Dataset<Row> df2 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(2, "b")), SimpleRecord.class);
+
+    df1.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    // delete the first file to test that not only live files are listed
+    table.newDelete().deleteFromRowFilter(Expressions.equal("id", 1)).commit();
+
+    // add a second file
+    df2.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    // ensure table data isn't stale
+    table.refresh();
+
+    List<Row> actual = spark.read()
+        .format("iceberg")
+        .load(tableLocation + "#all_entries")
+        .orderBy("snapshot_id")
+        .collectAsList();
+
+    List<GenericData.Record> expected = Lists.newArrayList();
+    for (ManifestFile manifest : Iterables.concat(Iterables.transform(table.snapshots(), Snapshot::manifests))) {
+      InputFile in = table.io().newInputFile(manifest.path());
+      try (CloseableIterable<GenericData.Record> rows = Avro.read(in).project(entriesTable.schema()).build()) {
+        for (GenericData.Record record : rows) {
+          expected.add(record);
+        }
+      }
+    }
+
+    expected.sort(Comparator.comparing(o -> (Long) o.get("snapshot_id")));
+
+    Assert.assertEquals("Entries table should have 3 rows", 3, expected.size());
+    Assert.assertEquals("Actual results should have 3 rows", 3, actual.size());
+    for (int i = 0; i < expected.size(); i += 1) {
+      TestHelpers.assertEqualsSafe(entriesTable.schema().asStruct(), expected.get(i), actual.get(i));
+    }
   }
 
   @Test
@@ -269,6 +322,60 @@ public class TestIcebergSourceHadoopTables {
     Assert.assertEquals("Files table should have one row", 1, expected.size());
     Assert.assertEquals("Actual results should have one row", 1, actual.size());
     TestHelpers.assertEqualsSafe(filesTable.schema().asStruct(), expected.get(0), actual.get(0));
+  }
+
+  @Test
+  public void testAllDataFilesTable() throws Exception {
+    Table table = TABLES.create(SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build(), tableLocation);
+    Table entriesTable = TABLES.load(tableLocation + "#entries");
+    Table filesTable = TABLES.load(tableLocation + "#all_data_files");
+
+    Dataset<Row> df1 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
+    Dataset<Row> df2 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(2, "b")), SimpleRecord.class);
+
+    df1.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    // delete the first file to test that not only live files are listed
+    table.newDelete().deleteFromRowFilter(Expressions.equal("id", 1)).commit();
+
+    // add a second file
+    df2.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    // ensure table data isn't stale
+    table.refresh();
+
+    List<Row> actual = spark.read()
+        .format("iceberg")
+        .load(tableLocation + "#all_data_files")
+        .orderBy("file_path")
+        .collectAsList();
+    actual.sort(Comparator.comparing(o -> o.getString(0)));
+
+    List<GenericData.Record> expected = Lists.newArrayList();
+    for (ManifestFile manifest : Iterables.concat(Iterables.transform(table.snapshots(), Snapshot::manifests))) {
+      InputFile in = table.io().newInputFile(manifest.path());
+      try (CloseableIterable<GenericData.Record> rows = Avro.read(in).project(entriesTable.schema()).build()) {
+        for (GenericData.Record record : rows) {
+          if ((Integer) record.get("status") < 2 /* added or existing */) {
+            expected.add((GenericData.Record) record.get("data_file"));
+          }
+        }
+      }
+    }
+
+    expected.sort(Comparator.comparing(o -> o.get("file_path").toString()));
+
+    Assert.assertEquals("Files table should have two rows", 2, expected.size());
+    Assert.assertEquals("Actual results should have two rows", 2, actual.size());
+    for (int i = 0; i < expected.size(); i += 1) {
+      TestHelpers.assertEqualsSafe(filesTable.schema().asStruct(), expected.get(i), actual.get(i));
+    }
   }
 
   @Test
@@ -455,6 +562,64 @@ public class TestIcebergSourceHadoopTables {
 
     Assert.assertEquals("Manifests table should have one manifest row", 1, actual.size());
     TestHelpers.assertEqualsSafe(manifestTable.schema().asStruct(), expected.get(0), actual.get(0));
+  }
+
+  @Test
+  public void testAllManifestsTable() {
+    Table table = TABLES.create(SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build(), tableLocation);
+    Table manifestTable = TABLES.load(tableLocation + "#all_manifests");
+
+    Dataset<Row> df1 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
+
+    List<ManifestFile> manifests = Lists.newArrayList();
+
+    df1.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    manifests.addAll(table.currentSnapshot().manifests());
+
+    table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();
+
+    manifests.addAll(table.currentSnapshot().manifests());
+
+    List<Row> actual = spark.read()
+        .format("iceberg")
+        .load(tableLocation + "#all_manifests")
+        .orderBy("path")
+        .collectAsList();
+
+    table.refresh();
+
+    GenericRecordBuilder builder = new GenericRecordBuilder(AvroSchemaUtil.convert(
+        manifestTable.schema(), "manifests"));
+    GenericRecordBuilder summaryBuilder = new GenericRecordBuilder(AvroSchemaUtil.convert(
+        manifestTable.schema().findType("partition_summaries.element").asStructType(), "partition_summary"));
+    List<GenericData.Record> expected = Lists.newArrayList(Iterables.transform(manifests, manifest ->
+        builder.set("path", manifest.path())
+            .set("length", manifest.length())
+            .set("partition_spec_id", manifest.partitionSpecId())
+            .set("added_snapshot_id", manifest.snapshotId())
+            .set("added_data_files_count", manifest.addedFilesCount())
+            .set("existing_data_files_count", manifest.existingFilesCount())
+            .set("deleted_data_files_count", manifest.deletedFilesCount())
+            .set("partition_summaries", Lists.transform(manifest.partitions(), partition ->
+                summaryBuilder
+                    .set("contains_null", false)
+                    .set("lower_bound", "1")
+                    .set("upper_bound", "1")
+                    .build()
+            ))
+            .build()
+    ));
+
+    expected.sort(Comparator.comparing(o -> o.get("path").toString()));
+
+    Assert.assertEquals("Manifests table should have two manifest rows", 2, actual.size());
+    for (int i = 0; i < expected.size(); i += 1) {
+      TestHelpers.assertEqualsSafe(manifestTable.schema().asStruct(), expected.get(i), actual.get(i));
+    }
   }
 
   @Test

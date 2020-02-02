@@ -126,7 +126,7 @@ class BaseSnapshot implements Snapshot {
         this.manifests = Lists.newLinkedList(files);
 
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Cannot read snapshot file: %s", manifestList.location());
+        throw new RuntimeIOException(e, "Cannot read manifest list file: %s", manifestList.location());
       }
     }
 
