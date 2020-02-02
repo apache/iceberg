@@ -24,8 +24,10 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -40,7 +42,7 @@ class IncrementalDataTableScan extends DataTableScan {
                            Collection<String> selectedColumns, ImmutableMap<String, String> options,
                            long fromSnapshotId, long toSnapshotId) {
     super(ops, table, null, schema, rowFilter, caseSensitive, colStats, selectedColumns, options);
-    Preconditions.checkArgument(fromSnapshotId != toSnapshotId, "fromSnapshotId and toSnapshotId cannot be the same");
+    validateSnapshotIds(table, fromSnapshotId, toSnapshotId);
     this.fromSnapshotId = fromSnapshotId;
     this.toSnapshotId = toSnapshotId;
   }
@@ -61,10 +63,7 @@ class IncrementalDataTableScan extends DataTableScan {
 
   @Override
   public TableScan appendsBetween(long newFromSnapshotId, long newToSnapshotId) {
-    Preconditions.checkArgument(
-        table().snapshot(newFromSnapshotId) != null, "fromSnapshotId: %s does not exist", newFromSnapshotId);
-    Preconditions.checkArgument(
-        table().snapshot(newToSnapshotId) != null, "toSnapshotId: %s does not exist", newToSnapshotId);
+    validateSnapshotIdsRefinement(newFromSnapshotId, newToSnapshotId);
     return new IncrementalDataTableScan(
         tableOps(), table(), schema(), filter(), isCaseSensitive(), colStats(), selectedColumns(), options(),
         newFromSnapshotId, newToSnapshotId);
@@ -136,5 +135,30 @@ class IncrementalDataTableScan extends DataTableScan {
       }
     }
     return snapshots;
+  }
+
+  private void validateSnapshotIdsRefinement(long newFromSnapshotId, long newToSnapshotId) {
+    Set<Long> snapshotIdsRange = Sets.newHashSet(
+        SnapshotUtil.snapshotIdsBetween(table(), fromSnapshotId, toSnapshotId));
+    // since snapshotIdsBetween return ids in range (fromSnapshotId, toSnapshotId]
+    snapshotIdsRange.add(fromSnapshotId);
+    Preconditions.checkArgument(
+        snapshotIdsRange.contains(newFromSnapshotId),
+        "newFromSnapshotId %s not in existing snapshot ids range (%s, %s]",
+        newFromSnapshotId, fromSnapshotId, newToSnapshotId);
+    Preconditions.checkArgument(
+        snapshotIdsRange.contains(newToSnapshotId),
+        "newToSnapshotId %s not in existing snapshot ids range (%s, %s]",
+        newToSnapshotId, fromSnapshotId, toSnapshotId);
+  }
+
+  private static void validateSnapshotIds(Table table, long fromSnapshotId, long toSnapshotId) {
+    Preconditions.checkArgument(fromSnapshotId != toSnapshotId, "fromSnapshotId and toSnapshotId cannot be the same");
+    Preconditions.checkArgument(
+        table.snapshot(fromSnapshotId) != null, "fromSnapshotId: %s does not exist", fromSnapshotId);
+    Preconditions.checkArgument(
+        table.snapshot(toSnapshotId) != null, "toSnapshotId: %s does not exist", toSnapshotId);
+    Preconditions.checkArgument(SnapshotUtil.ancestorOf(table, toSnapshotId, fromSnapshotId),
+        "fromSnapshotId: %s is not an ancestor of toSnapshotId: %s", fromSnapshotId, toSnapshotId);
   }
 }
