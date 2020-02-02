@@ -20,12 +20,14 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
-import com.google.common.base.Predicate;
+import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -82,28 +84,25 @@ class IncrementalDataTableScan extends DataTableScan {
   public CloseableIterable<FileScanTask> planFiles() {
     //TODO publish an incremental appends scan event
     List<Snapshot> snapshots = snapshotsWithin(table(), fromSnapshotId, toSnapshotId);
-    Iterable<CloseableIterable<FileScanTask>> files = Iterables.transform(snapshots, this::planFiles);
-    return CloseableIterable.concat(files);
-  }
+    Set<Long> snapshotIds = Sets.newHashSet(Iterables.transform(snapshots, Snapshot::snapshotId));
+    Set<ManifestFile> manifests = FluentIterable
+        .from(snapshots)
+        .transformAndConcat(s -> s.manifests())
+        .filter(manifestFile -> snapshotIds.contains(manifestFile.snapshotId()))
+        .toSet();
 
-  private CloseableIterable<FileScanTask> planFiles(Snapshot snapshot) {
-    Predicate<ManifestFile> matchingManifests = manifest -> manifest.snapshotId() == snapshot.snapshotId();
-
-    Predicate<ManifestEntry> matchingManifestEntries =
-        manifestEntry ->
-            manifestEntry.snapshotId() == snapshot.snapshotId() &&
-            manifestEntry.status() == ManifestEntry.Status.ADDED;
-
-    ManifestGroup manifestGroup = new ManifestGroup(tableOps().io(), snapshot.manifests())
+    ManifestGroup manifestGroup = new ManifestGroup(tableOps().io(), manifests)
         .caseSensitive(isCaseSensitive())
         .select(colStats() ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS)
         .filterData(filter())
-        .filterManifests(matchingManifests)
-        .filterManifestEntries(matchingManifestEntries)
+        .filterManifestEntries(
+            manifestEntry ->
+                snapshotIds.contains(manifestEntry.snapshotId()) &&
+                manifestEntry.status() == ManifestEntry.Status.ADDED)
         .specsById(tableOps().current().specsById())
         .ignoreDeleted();
 
-    if (PLAN_SCANS_WITH_WORKER_POOL && snapshot.manifests().size() > 1) {
+    if (PLAN_SCANS_WITH_WORKER_POOL && manifests.size() > 1) {
       manifestGroup = manifestGroup.planWith(ThreadPools.getWorkerPool());
     }
 
