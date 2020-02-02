@@ -22,6 +22,7 @@ package org.apache.iceberg.expressions;
 import java.io.Serializable;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
@@ -193,6 +194,26 @@ public class ResidualEvaluator implements Serializable {
     public <T> Expression notEq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
       return (cmp.compare(ref.eval(struct), lit.value()) != 0) ? alwaysTrue() : alwaysFalse();
+    }
+
+    @Override
+    public <T> Expression in(BoundReference<T> ref, Set<T> literalSet) {
+      T val = ref.eval(struct);
+      if (literalSet.stream().anyMatch(lit -> ref.comparator().compare(val, lit) == 0)) {
+        return alwaysTrue();
+      } else {
+        return alwaysFalse();
+      }
+    }
+
+    @Override
+    public <T> Expression notIn(BoundReference<T> ref, Set<T> literalSet) {
+      T val = ref.eval(struct);
+      if (literalSet.stream().anyMatch(lit -> ref.comparator().compare(val, lit) == 0)) {
+        return alwaysFalse();
+      } else {
+        return alwaysTrue();
+      }
     }
 
     @Override

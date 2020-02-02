@@ -39,7 +39,9 @@ import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
+import static org.apache.iceberg.expressions.Expressions.in;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.or;
 
 public class TestResiduals {
@@ -155,5 +157,47 @@ public class TestResiduals {
       Assert.assertEquals("Should return expression",
           expr, residualEvaluator.residualFor(Row.of()));
     }
+  }
+
+  @Test
+  public void testIn() {
+    Schema schema = new Schema(
+        Types.NestedField.optional(50, "dateint", Types.IntegerType.get()),
+        Types.NestedField.optional(51, "hour", Types.IntegerType.get())
+    );
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .identity("dateint")
+        .build();
+
+    ResidualEvaluator resEval = ResidualEvaluator.of(spec,
+        in("dateint", 20170815, 20170816, 20170817), true);
+
+    Expression residual = resEval.residualFor(Row.of(20170815));
+    Assert.assertEquals("Residual should be alwaysTrue", alwaysTrue(), residual);
+
+    residual = resEval.residualFor(Row.of(20180815));
+    Assert.assertEquals("Residual should be alwaysFalse", alwaysFalse(), residual);
+  }
+
+  @Test
+  public void testNotIn() {
+    Schema schema = new Schema(
+        Types.NestedField.optional(50, "dateint", Types.IntegerType.get()),
+        Types.NestedField.optional(51, "hour", Types.IntegerType.get())
+    );
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .identity("dateint")
+        .build();
+
+    ResidualEvaluator resEval = ResidualEvaluator.of(spec,
+        notIn("dateint", 20170815, 20170816, 20170817), true);
+
+    Expression residual = resEval.residualFor(Row.of(20180815));
+    Assert.assertEquals("Residual should be alwaysTrue", alwaysTrue(), residual);
+
+    residual = resEval.residualFor(Row.of(20170815));
+    Assert.assertEquals("Residual should be alwaysFalse", alwaysFalse(), residual);
   }
 }
