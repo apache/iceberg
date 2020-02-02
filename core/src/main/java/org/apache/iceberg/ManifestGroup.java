@@ -21,27 +21,33 @@ package org.apache.iceberg;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.function.BiFunction;
+import java.util.function.Predicate;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.Projections;
+import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ParallelIterable;
 
 class ManifestGroup {
   private static final Types.StructType EMPTY_STRUCT = Types.StructType.of();
 
   private final FileIO io;
   private final Set<ManifestFile> manifests;
+  private Predicate<ManifestFile> manifestPredicate;
+  private Predicate<ManifestEntry> manifestEntryPredicate;
   private Map<Integer, PartitionSpec> specsById;
   private Expression dataFilter;
   private Expression fileFilter;
@@ -50,6 +56,7 @@ class ManifestGroup {
   private boolean ignoreExisting;
   private List<String> columns;
   private boolean caseSensitive;
+  private ExecutorService executorService;
 
   ManifestGroup(FileIO io, Iterable<ManifestFile> manifests) {
     this.io = io;
@@ -59,8 +66,10 @@ class ManifestGroup {
     this.partitionFilter = Expressions.alwaysTrue();
     this.ignoreDeleted = false;
     this.ignoreExisting = false;
-    this.columns = ImmutableList.of("*");
+    this.columns = ManifestReader.ALL_COLUMNS;
     this.caseSensitive = true;
+    this.manifestPredicate = m -> true;
+    this.manifestEntryPredicate = e -> true;
   }
 
   ManifestGroup specsById(Map<Integer, PartitionSpec> newSpecsById) {
@@ -80,6 +89,16 @@ class ManifestGroup {
 
   ManifestGroup filterPartitions(Expression newPartitionFilter) {
     this.partitionFilter = Expressions.and(partitionFilter, newPartitionFilter);
+    return this;
+  }
+
+  ManifestGroup filterManifests(Predicate<ManifestFile> newManifestPredicate) {
+    this.manifestPredicate = manifestPredicate.and(newManifestPredicate);
+    return this;
+  }
+
+  ManifestGroup filterManifestEntries(Predicate<ManifestEntry> newManifestEntryPredicate) {
+    this.manifestEntryPredicate = manifestEntryPredicate.and(newManifestEntryPredicate);
     return this;
   }
 
@@ -103,7 +122,35 @@ class ManifestGroup {
     return this;
   }
 
+  ManifestGroup planWith(ExecutorService newExecutorService) {
+    this.executorService = newExecutorService;
+    return this;
+  }
+
   /**
+   * Returns a iterable of scan tasks. It is safe to add entries of this iterable
+   * to a collection as {@link DataFile} in each {@link FileScanTask} is defensively
+   * copied.
+   * @return a {@link CloseableIterable} of {@link FileScanTask}
+   */
+  public CloseableIterable<FileScanTask> planFiles() {
+    Iterable<CloseableIterable<FileScanTask>> tasks = entries((manifest, entries) -> {
+      PartitionSpec spec = specsById.get(manifest.partitionSpecId());
+      String schemaString = SchemaParser.toJson(spec.schema());
+      String specString = PartitionSpecParser.toJson(spec);
+      ResidualEvaluator residuals = ResidualEvaluator.of(spec, dataFilter, caseSensitive);
+      return CloseableIterable.transform(entries, e -> new BaseFileScanTask(
+          e.copy().file(), schemaString, specString, residuals));
+    });
+
+    if (executorService != null) {
+      return new ParallelIterable<>(tasks, executorService);
+    } else {
+      return CloseableIterable.concat(tasks);
+    }
+  }
+
+ /**
    * Returns an iterable for manifest entries in the set of manifests.
    * <p>
    * Entries are not copied and it is the caller's responsibility to make defensive copies if
@@ -112,11 +159,16 @@ class ManifestGroup {
    * @return a CloseableIterable of manifest entries.
    */
   public CloseableIterable<ManifestEntry> entries() {
+    return CloseableIterable.concat(entries((manifest, entries) -> entries));
+  }
+
+  private <T> Iterable<CloseableIterable<T>> entries(
+      BiFunction<ManifestFile, CloseableIterable<ManifestEntry>, CloseableIterable<T>> entryFn) {
     LoadingCache<Integer, ManifestEvaluator> evalCache = specsById == null ?
         null : Caffeine.newBuilder().build(specId -> {
           PartitionSpec spec = specsById.get(specId);
           return ManifestEvaluator.forPartitionFilter(
-              Expressions.and(partitionFilter, Projections.inclusive(spec).project(dataFilter)),
+              Expressions.and(partitionFilter, Projections.inclusive(spec, caseSensitive).project(dataFilter)),
               spec, caseSensitive);
         });
 
@@ -141,7 +193,9 @@ class ManifestGroup {
           manifest -> manifest.hasAddedFiles() || manifest.hasDeletedFiles());
     }
 
-    Iterable<CloseableIterable<ManifestEntry>> readers = Iterables.transform(
+    matchingManifests = Iterables.filter(matchingManifests, manifestPredicate::test);
+
+    Iterable<CloseableIterable<T>> readers = Iterables.transform(
         matchingManifests,
         manifest -> {
           ManifestReader reader = ManifestReader.read(
@@ -151,6 +205,7 @@ class ManifestGroup {
           FilteredManifest filtered = reader
               .filterRows(dataFilter)
               .filterPartitions(partitionFilter)
+              .caseSensitive(caseSensitive)
               .select(columns);
 
           CloseableIterable<ManifestEntry> entries = filtered.allEntries();
@@ -168,9 +223,10 @@ class ManifestGroup {
                 entry -> evaluator.eval((GenericDataFile) entry.file()));
           }
 
-          return entries;
+          entries = CloseableIterable.filter(entries, manifestEntryPredicate);
+          return entryFn.apply(manifest, entries);
         });
 
-    return CloseableIterable.concat(readers);
+    return readers;
   }
 }
