@@ -95,7 +95,7 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
       InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
 
       // ensure stats columns are present for metrics evaluation
-      boolean requireStatsProjection = requireStatsProjection();
+      boolean requireStatsProjection = requireStatsProjection(rowFilter, columns);
       Collection<String> projectColumns = requireStatsProjection ? withStatsColumns(columns) : columns;
 
       return CloseableIterable.filter(
@@ -117,7 +117,7 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
    */
   @Override
   public Iterator<DataFile> iterator() {
-    if (dropStats()) {
+    if (dropStats(rowFilter, columns)) {
       return CloseableIterable.transform(liveEntries(), e -> e.file().copyWithoutStats()).iterator();
     } else {
       return CloseableIterable.transform(liveEntries(), e -> e.file().copy()).iterator();
@@ -167,14 +167,14 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
     return lazyMetricsEvaluator;
   }
 
-  private boolean requireStatsProjection() {
+  static boolean requireStatsProjection(Expression rowFilter, Collection<String> columns) {
     // Make sure we have all stats columns for metrics evaluator
     return rowFilter != Expressions.alwaysTrue() &&
         !columns.containsAll(ManifestReader.ALL_COLUMNS) &&
         !columns.containsAll(STATS_COLUMNS);
   }
 
-  private boolean dropStats() {
+  static boolean dropStats(Expression rowFilter, Collection<String> columns) {
     // Make sure we only drop all stats if we had projected all stats
     // We do not drop stats even if we had partially added some stats columns
     return rowFilter != Expressions.alwaysTrue() &&

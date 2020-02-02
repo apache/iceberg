@@ -30,6 +30,24 @@ public class SnapshotUtil {
   }
 
   /**
+   * @return whether ancestorSnapshotId is an ancestor of snapshotId
+   */
+  public static boolean ancestorOf(Table table, long snapshotId, long ancestorSnapshotId) {
+    Snapshot current = table.snapshot(snapshotId);
+    while (current != null) {
+      long id = current.snapshotId();
+      if (ancestorSnapshotId == id) {
+        return true;
+      } else if (current.parentId() != null) {
+        current = table.snapshot(current.parentId());
+      } else {
+        return false;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Return the snapshot IDs for the ancestors of the current table state.
    * <p>
    * Ancestor IDs are ordered by commit time, descending. The first ID is the current snapshot, followed by its parent,
