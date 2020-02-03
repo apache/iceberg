@@ -85,21 +85,21 @@ public class ManifestWriter implements FileAppender<DataFile> {
   /**
    * Create a new {@link ManifestWriter}.
    * <p>
-   * Manifests created by this writer are not part of a snapshot and have all entry snapshot IDs
-   * set to -1.
+   * Manifests created by this writer have all entry snapshot IDs set to null.
+   * All entries will inherit the snapshot ID that will be assigned to the manifest on commit.
    *
    * @param spec {@link PartitionSpec} used to produce {@link DataFile} partition tuples
    * @param outputFile the destination file location
    * @return a manifest writer
    */
   public static ManifestWriter write(PartitionSpec spec, OutputFile outputFile) {
-    return new ManifestWriter(spec, outputFile, -1);
+    return new ManifestWriter(spec, outputFile, null);
   }
 
   private final OutputFile file;
   private final int specId;
   private final FileAppender<ManifestEntry> writer;
-  private final long snapshotId;
+  private final Long snapshotId;
   private final ManifestEntry reused;
   private final PartitionSummary stats;
 
@@ -111,7 +111,7 @@ public class ManifestWriter implements FileAppender<DataFile> {
   private int deletedFiles = 0;
   private long deletedRows = 0L;
 
-  ManifestWriter(PartitionSpec spec, OutputFile file, long snapshotId) {
+  ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
     this.file = file;
     this.specId = spec.specId();
     this.writer = newAppender(FileFormat.AVRO, spec, file);

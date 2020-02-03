@@ -60,6 +60,11 @@ Iceberg tables support table properties to configure table behavior, like the de
 | commit.manifest.min-count-to-merge | 100              | Minimum number of manifests to accumulate before merging      |
 | commit.manifest-merge.enabled      | true             | Controls whether to automatically merge manifests on writes   |
 
+### Compatibility flags
+
+| Property                                      | Default  | Description                                                   |
+| --------------------------------------------- | -------- | ------------------------------------------------------------- |
+| compatibility.snapshot-id-inheritance.enabled | false    | Enables committing snapshots without explicit snapshot IDs    |
 
 ## Spark options
 

@@ -44,7 +44,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.Files.localInput;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TestParquetWrite {
@@ -104,7 +103,7 @@ public class TestParquetWrite {
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
     for (ManifestFile manifest : table.currentSnapshot().manifests()) {
-      for (DataFile file : ManifestReader.read(localInput(manifest.path()), null)) {
+      for (DataFile file : ManifestReader.read(manifest, table.io())) {
         Assert.assertNotNull("Split offsets not present", file.splitOffsets());
         Assert.assertEquals("Should have reported record count as 1", 1, file.recordCount());
         Assert.assertNotNull("Column sizes metric not present", file.columnSizes());
@@ -286,7 +285,7 @@ public class TestParquetWrite {
 
     List<DataFile> files = Lists.newArrayList();
     for (ManifestFile manifest : table.currentSnapshot().manifests()) {
-      for (DataFile file : ManifestReader.read(localInput(manifest.path()), null)) {
+      for (DataFile file : ManifestReader.read(manifest, table.io())) {
         files.add(file);
       }
     }
@@ -331,7 +330,7 @@ public class TestParquetWrite {
 
     List<DataFile> files = Lists.newArrayList();
     for (ManifestFile manifest : table.currentSnapshot().manifests()) {
-      for (DataFile file : ManifestReader.read(localInput(manifest.path()), null)) {
+      for (DataFile file : ManifestReader.read(manifest, table.io())) {
         files.add(file);
       }
     }

@@ -33,6 +33,7 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -42,6 +43,7 @@ import org.apache.iceberg.hive.HiveClientPool;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -225,6 +227,65 @@ public class TestIcebergSourceHiveTables {
       TestHelpers.assertEqualsSafe(filesTable.schema().asStruct(), expected.get(0), actual.get(0));
 
     } finally {
+      clients.run(client -> {
+        client.dropTable(tableIdentifier.namespace().level(0), tableIdentifier.name());
+        return null;
+      });
+    }
+  }
+
+  @Test
+  public synchronized void testHiveFilesTableWithSnapshotIdInheritance() throws Exception {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "files_inheritance_test");
+    try {
+      PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
+      Table table = catalog.createTable(tableIdentifier, SCHEMA, spec);
+
+      table.updateProperties()
+          .set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true")
+          .commit();
+
+      Table entriesTable = catalog.loadTable(TableIdentifier.of("db", "files_inheritance_test", "entries"));
+      Table filesTable = catalog.loadTable(TableIdentifier.of("db", "files_inheritance_test", "files"));
+
+      List<SimpleRecord> records = Lists.newArrayList(
+          new SimpleRecord(1, "a"),
+          new SimpleRecord(2, "b")
+      );
+
+      Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
+      inputDF.select("id", "data").write()
+          .format("parquet")
+          .mode("append")
+          .partitionBy("id")
+          .saveAsTable("parquet_table");
+
+      String stagingLocation = table.location() + "/metadata";
+      SparkTableUtil.importSparkTable(
+          spark, new org.apache.spark.sql.catalyst.TableIdentifier("parquet_table"), table, stagingLocation);
+
+      List<Row> actual = spark.read()
+          .format("iceberg")
+          .load(tableIdentifier + ".files")
+          .collectAsList();
+
+      List<GenericData.Record> expected = Lists.newArrayList();
+      for (ManifestFile manifest : table.currentSnapshot().manifests()) {
+        InputFile in = table.io().newInputFile(manifest.path());
+        try (CloseableIterable<GenericData.Record> rows = Avro.read(in).project(entriesTable.schema()).build()) {
+          for (GenericData.Record record : rows) {
+            expected.add((GenericData.Record) record.get("data_file"));
+          }
+        }
+      }
+
+      Assert.assertEquals("Files table should have one row", 2, expected.size());
+      Assert.assertEquals("Actual results should have one row", 2, actual.size());
+      TestHelpers.assertEqualsSafe(filesTable.schema().asStruct(), expected.get(0), actual.get(0));
+      TestHelpers.assertEqualsSafe(filesTable.schema().asStruct(), expected.get(1), actual.get(1));
+
+    } finally {
+      spark.sql("DROP TABLE parquet_table");
       clients.run(client -> {
         client.dropTable(tableIdentifier.namespace().level(0), tableIdentifier.name());
         return null;
