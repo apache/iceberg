@@ -23,6 +23,9 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
+/**
+ * Iceberg file format metrics.
+ */
 public class Metrics implements Serializable {
 
   private Long rowCount = null;
@@ -59,26 +62,56 @@ public class Metrics implements Serializable {
     this.upperBounds = upperBounds;
   }
 
+  /**
+   * Get the number of records (rows) in file.
+   *
+   * @return
+   */
   public Long recordCount() {
     return rowCount;
   }
 
+  /**
+   * Get the number of bytes for all fields in a file.
+   *
+   * @return a Map of fieldId to size in bytes
+   */
   public Map<Integer, Long> columnSizes() {
     return columnSizes;
   }
 
+  /**
+   * Get the number of non-null values.
+   *
+   * @return
+   */
   public Map<Integer, Long> valueCounts() {
     return valueCounts;
   }
 
+  /**
+   * Get the number of null values for all fields in a file.
+   *
+   * @return a Map of fieldId to number of nulls
+   */
   public Map<Integer, Long> nullValueCounts() {
     return nullValueCounts;
   }
 
+  /**
+   * Get the non-null lower bound values for all fields in a file.
+   *
+   * @return a Map of fieldId to lower bound value as a ByteBuffer
+   */
   public Map<Integer, ByteBuffer> lowerBounds() {
     return lowerBounds;
   }
 
+  /**
+   * Get the non-null upper bound values for all fields in a file.
+   *
+   * @return a Map of fieldId to upper bound value as a ByteBuffer
+   */
   public Map<Integer, ByteBuffer> upperBounds() {
     return upperBounds;
   }
