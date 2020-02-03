@@ -374,7 +374,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
         cv.child.ensureSize(cv.childCount, true);
         // Add each element
         for (long e = 0; e < cv.lengths[rowId]; ++e) {
-          children.addValue((int) (e + cv.offsets[rowId]), value.get((int)e), cv.child);
+          children.addValue((int) (e + cv.offsets[rowId]), value.get((int) e), cv.child);
         }
       }
     }
