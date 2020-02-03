@@ -37,6 +37,10 @@
         <property name="format" value="^\n\n$"/>
         <property name="message" value="Two consecutive blank lines are not permitted."/>
     </module>
+    <module name="RegexpSingleline">
+        <property name="format" value="sparkContext\(\)\.hadoopConfiguration\(\)"/>
+        <property name="message" value="Are you sure that you want to use sparkContext().hadoopConfiguration()? In most cases, you should use sessionState().newHadoopConf() instead, so that the hadoop configurations specified in Spark session configuration will come into effect."/>
+    </module>
     <module name="SuppressionFilter"> <!-- baseline-gradle: README.md -->
         <property name="file" value="${config_loc}/checkstyle-suppressions.xml"/>
     </module>

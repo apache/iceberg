@@ -146,8 +146,8 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     if (io.getValue() instanceof HadoopFileIO) {
       String scheme = "no_exist";
       try {
-        FileSystem fs = new Path(table.location()).getFileSystem(
-            SparkSession.active().sparkContext().hadoopConfiguration());
+        Configuration conf = SparkSession.active().sessionState().newHadoopConf();
+        FileSystem fs = new Path(table.location()).getFileSystem(conf);
         scheme = fs.getScheme().toLowerCase(Locale.ENGLISH);
       } catch (IOException ioe) {
         LOG.warn("Failed to get Hadoop Filesystem", ioe);
@@ -364,7 +364,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
         return new String[0];
       }
 
-      Configuration conf = SparkSession.active().sparkContext().hadoopConfiguration();
+      Configuration conf = SparkSession.active().sessionState().newHadoopConf();
       Set<String> locations = Sets.newHashSet();
       for (FileScanTask f : task.files()) {
         Path path = new Path(f.file().path().toString());
