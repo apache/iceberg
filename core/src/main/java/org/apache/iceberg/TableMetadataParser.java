@@ -207,6 +207,10 @@ public class TableMetadataParser {
     generator.writeEndObject();
   }
 
+  public static TableMetadata read(FileIO io, String path) {
+    return read(io, io.newInputFile(path));
+  }
+
   public static TableMetadata read(FileIO io, InputFile file) {
     Codec codec = Codec.fromFileName(file.location());
     try (InputStream is = codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
