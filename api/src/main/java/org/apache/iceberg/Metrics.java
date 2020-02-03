@@ -74,16 +74,16 @@ public class Metrics implements Serializable {
   /**
    * Get the number of bytes for all fields in a file.
    *
-   * @return a Map of fieldId to size in bytes
+   * @return a Map of fieldId to the size in bytes
    */
   public Map<Integer, Long> columnSizes() {
     return columnSizes;
   }
 
   /**
-   * Get the number of non-null values.
+   * Get the number of all values, including null and repeated.
    *
-   * @return
+   * @return a Map of fieldId to the number of all values
    */
   public Map<Integer, Long> valueCounts() {
     return valueCounts;
@@ -92,7 +92,7 @@ public class Metrics implements Serializable {
   /**
    * Get the number of null values for all fields in a file.
    *
-   * @return a Map of fieldId to number of nulls
+   * @return a Map of fieldId to the number of nulls
    */
   public Map<Integer, Long> nullValueCounts() {
     return nullValueCounts;
@@ -101,7 +101,7 @@ public class Metrics implements Serializable {
   /**
    * Get the non-null lower bound values for all fields in a file.
    *
-   * @return a Map of fieldId to lower bound value as a ByteBuffer
+   * @return a Map of fieldId to the lower bound value as a ByteBuffer
    */
   public Map<Integer, ByteBuffer> lowerBounds() {
     return lowerBounds;
@@ -110,7 +110,7 @@ public class Metrics implements Serializable {
   /**
    * Get the non-null upper bound values for all fields in a file.
    *
-   * @return a Map of fieldId to upper bound value as a ByteBuffer
+   * @return a Map of fieldId to the upper bound value as a ByteBuffer
    */
   public Map<Integer, ByteBuffer> upperBounds() {
     return upperBounds;
