@@ -452,13 +452,14 @@ public class TestFilteredScan {
     IcebergSource source = new IcebergSource();
     DataSourceReader reader = source.createReader(options);
     pushFilters(reader, new In("ts", new Timestamp[]{
-        new Timestamp(timestamp("2017-12-22T00:00:00+00:00")),
+        new Timestamp(timestamp("2017-12-22T00:00:00.123+00:00") / 1000),
         new Timestamp(timestamp("2017-12-22T09:20:44.294+00:00") / 1000),
         new Timestamp(timestamp("2017-12-22T00:34:00.184+00:00") / 1000),
+        new Timestamp(timestamp("2017-12-21T15:15:16.230+00:00") / 1000),
         null
     }));
 
-    Assert.assertEquals(2, reader.planInputPartitions().size());
+    Assert.assertEquals("Should create 1 task for 2017-12-21: 15", 1, reader.planInputPartitions().size());
   }
 
   @Test
@@ -579,11 +580,11 @@ public class TestFilteredScan {
 
   private List<Record> testRecords(org.apache.avro.Schema avroSchema) {
     return Lists.newArrayList(
-        record(avroSchema, 0L, timestamp("2017-12-22T09:20:44.294+00:00"), "junction"),
+        record(avroSchema, 0L, timestamp("2017-12-22T09:20:44.294658+00:00"), "junction"),
         record(avroSchema, 1L, timestamp("2017-12-22T07:15:34.582910+00:00"), "alligator"),
         record(avroSchema, 2L, timestamp("2017-12-22T06:02:09.243857+00:00"), "forrest"),
         record(avroSchema, 3L, timestamp("2017-12-22T03:10:11.134509+00:00"), "clapping"),
-        record(avroSchema, 4L, timestamp("2017-12-22T00:34:00.184+00:00"), "brush"),
+        record(avroSchema, 4L, timestamp("2017-12-22T00:34:00.184671+00:00"), "brush"),
         record(avroSchema, 5L, timestamp("2017-12-21T22:20:08.935889+00:00"), "trap"),
         record(avroSchema, 6L, timestamp("2017-12-21T21:55:30.589712+00:00"), "element"),
         record(avroSchema, 7L, timestamp("2017-12-21T17:31:14.532797+00:00"), "limited"),
