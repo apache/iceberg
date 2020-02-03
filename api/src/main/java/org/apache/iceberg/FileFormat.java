@@ -25,21 +25,27 @@ import org.apache.iceberg.types.Comparators;
  * Enum of supported file formats.
  */
 public enum FileFormat {
-  ORC("orc", true),
-  PARQUET("parquet", true),
-  AVRO("avro", true),
-  METADATA("metadata.json", false);
+  ORC("orc", true, true),
+  PARQUET("parquet", true, true),
+  AVRO("avro", true, false),
+  METADATA("metadata.json", false, false);
 
   private final String ext;
   private final boolean splittable;
+  private final boolean nullCounts;
 
-  FileFormat(String ext, boolean splittable) {
+  FileFormat(String ext, boolean splittable, boolean nullCounts) {
     this.ext = "." + ext;
     this.splittable = splittable;
+    this.nullCounts = nullCounts;
   }
 
   public boolean isSplittable() {
     return splittable;
+  }
+
+  public boolean hasNullCounts() {
+    return nullCounts;
   }
 
   /**

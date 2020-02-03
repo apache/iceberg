@@ -67,17 +67,17 @@ public abstract class TestMetrics {
       optional(6, "leafBinaryCol", BinaryType.get())
   );
 
-  private static final StructType NESTED_STRUCT_TYPE = StructType.of(
+  protected static final StructType NESTED_STRUCT_TYPE = StructType.of(
       required(3, "longCol", LongType.get()),
       required(4, "leafStructCol", LEAF_STRUCT_TYPE)
   );
 
-  private static final Schema NESTED_SCHEMA = new Schema(
+  protected static final Schema NESTED_SCHEMA = new Schema(
       required(1, "intCol", IntegerType.get()),
       required(2, "nestedStructCol", NESTED_STRUCT_TYPE)
   );
 
-  private static final Schema SIMPLE_SCHEMA = new Schema(
+  protected static final Schema SIMPLE_SCHEMA = new Schema(
       optional(1, "booleanCol", BooleanType.get()),
       required(2, "intCol", IntegerType.get()),
       optional(3, "longCol", LongType.get()),
@@ -93,6 +93,8 @@ public abstract class TestMetrics {
   );
 
   private final byte[] fixed = "abcd".getBytes(StandardCharsets.UTF_8);
+
+  protected abstract FileFormat fileFormat();
 
   public abstract Metrics getMetrics(InputFile file);
 
@@ -409,12 +411,14 @@ public abstract class TestMetrics {
 
   private void assertCounts(int fieldId, long valueCount, long nullValueCount, Metrics metrics) {
     Map<Integer, Long> valueCounts = metrics.valueCounts();
-    Map<Integer, Long> nullValueCounts = metrics.nullValueCounts();
     Assert.assertEquals(valueCount, (long) valueCounts.get(fieldId));
-    Assert.assertEquals(nullValueCount, (long) nullValueCounts.get(fieldId));
+    if (fileFormat().hasNullCounts()) {
+      Map<Integer, Long> nullValueCounts = metrics.nullValueCounts();
+      Assert.assertEquals(nullValueCount, (long) nullValueCounts.get(fieldId));
+    }
   }
 
-  private <T> void assertBounds(int fieldId, Type type, T lowerBound, T upperBound, Metrics metrics) {
+  protected <T> void assertBounds(int fieldId, Type type, T lowerBound, T upperBound, Metrics metrics) {
     Map<Integer, ByteBuffer> lowerBounds = metrics.lowerBounds();
     Map<Integer, ByteBuffer> upperBounds = metrics.upperBounds();
 

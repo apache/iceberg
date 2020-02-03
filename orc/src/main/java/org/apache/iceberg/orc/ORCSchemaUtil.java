@@ -65,10 +65,28 @@ public final class ORCSchemaUtil {
     public TypeDescription type() {
       return type;
     }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+
+      OrcField orcField = (OrcField) o;
+      return Objects.equals(name, orcField.name) && Objects.equals(type, orcField.type);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(name, type);
+    }
   }
 
-  private static final String ICEBERG_ID_ATTRIBUTE = "iceberg.id";
-  private static final String ICEBERG_REQUIRED_ATTRIBUTE = "iceberg.required";
+  static final String ICEBERG_ID_ATTRIBUTE = "iceberg.id";
+  static final String ICEBERG_REQUIRED_ATTRIBUTE = "iceberg.required";
 
   /**
    * The name of the ORC {@link TypeDescription} attribute indicating the Iceberg type corresponding to an
@@ -81,6 +99,7 @@ public final class ORCSchemaUtil {
    */
   public static final String ICEBERG_LONG_TYPE_ATTRIBUTE = "iceberg.long-type";
   private static final String ICEBERG_FIELD_LENGTH = "iceberg.length";
+  static final String ICEBERG_INTEGER_TYPE_ATTRIBUTE = "iceberg.integer-type";
 
   private static final ImmutableMap<Type.TypeID, TypeDescription.Category> TYPE_MAPPING =
       ImmutableMap.<Type.TypeID, TypeDescription.Category>builder()
@@ -312,7 +331,7 @@ public final class ORCSchemaUtil {
     return orcType;
   }
 
-  private static Map<Integer, OrcField> icebergToOrcMapping(String name, TypeDescription orcType) {
+  static Map<Integer, OrcField> icebergToOrcMapping(String name, TypeDescription orcType) {
     Map<Integer, OrcField> icebergToOrc = Maps.newHashMap();
     switch (orcType.getCategory()) {
       case STRUCT:
@@ -377,7 +396,7 @@ public final class ORCSchemaUtil {
     }
   }
 
-  private static Optional<Integer> icebergID(TypeDescription orcType) {
+  static Optional<Integer> icebergID(TypeDescription orcType) {
     return Optional.ofNullable(orcType.getAttributeValue(ICEBERG_ID_ATTRIBUTE))
         .map(Integer::parseInt);
   }
