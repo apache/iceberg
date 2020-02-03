@@ -319,8 +319,8 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
         // make sure the child is big enough
         cv.child.ensureSize(cv.childCount, true);
         // Add each element
-        for (int e = 0; e < cv.lengths[rowId]; ++e) {
-          children.addValue((int) (e + cv.offsets[rowId]), e, value, cv.child);
+        for (long e = 0; e < cv.lengths[rowId]; ++e) {
+          children.addValue((int) (e + cv.offsets[rowId]), (int) e, value, cv.child);
         }
       }
     }
@@ -355,10 +355,10 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
         cv.keys.ensureSize(cv.childCount, true);
         cv.values.ensureSize(cv.childCount, true);
         // Add each element
-        for (int e = 0; e < cv.lengths[rowId]; ++e) {
+        for (long e = 0; e < cv.lengths[rowId]; ++e) {
           int pos = (int) (e + cv.offsets[rowId]);
-          keyConverter.addValue(pos, e, key, cv.keys);
-          valueConverter.addValue(pos, e, value, cv.values);
+          keyConverter.addValue(pos, (int) e, key, cv.keys);
+          valueConverter.addValue(pos, (int) e, value, cv.values);
         }
       }
     }

@@ -320,7 +320,6 @@ class Writer implements DataSourceWriter {
     private class OutputFileFactory {
       private final int partitionId;
       private final long taskId;
-      private final long epochId;
       // The purpose of this uuid is to be able to know from two paths that they were written by the same operation.
       // That's useful, for example, if a Spark job dies and leaves files in the file system, you can identify them all
       // with a recursive listing and grep.
@@ -330,7 +329,6 @@ class Writer implements DataSourceWriter {
       OutputFileFactory(int partitionId, long taskId, long epochId) {
         this.partitionId = partitionId;
         this.taskId = taskId;
-        this.epochId = epochId;
         this.fileCount = 0;
       }
 
