@@ -139,7 +139,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   @Override
   public Snapshot apply() {
-    this.base = ops.refresh();
+    this.base = refresh();
     Long parentSnapshotId = base.currentSnapshot() != null ?
         base.currentSnapshot().snapshotId() : null;
 
@@ -219,6 +219,15 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         summary, SnapshotSummary.ADDED_FILES_PROP, SnapshotSummary.DELETED_FILES_PROP);
 
     return builder.build();
+  }
+
+  protected TableMetadata current() {
+    return base;
+  }
+
+  protected TableMetadata refresh() {
+    this.base = ops.refresh();
+    return base;
   }
 
   @Override

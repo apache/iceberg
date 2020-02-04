@@ -34,14 +34,12 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
     ROLLBACK
   }
 
-  private final TableOperations ops;
   private SnapshotManagerOperation managerOperation = null;
   private Long targetSnapshotId = null;
   private String snapshotOperation = null;
 
   SnapshotManager(TableOperations ops) {
     super(ops);
-    this.ops = ops;
   }
 
   @Override
@@ -58,11 +56,11 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
 
   @Override
   public ManageSnapshots cherrypick(long snapshotId) {
-    TableMetadata base = ops.current();
-    ValidationException.check(base.snapshot(snapshotId) != null,
+    TableMetadata current = current();
+    ValidationException.check(current.snapshot(snapshotId) != null,
         "Cannot cherry pick unknown snapshot id: %s", snapshotId);
 
-    Snapshot cherryPickSnapshot = base.snapshot(snapshotId);
+    Snapshot cherryPickSnapshot = current.snapshot(snapshotId);
     // only append operations are currently supported
     if (!cherryPickSnapshot.operation().equals(DataOperations.APPEND)) {
       throw new UnsupportedOperationException("Can cherry pick only append operations");
@@ -78,7 +76,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
     }
 
     // this property is set on target snapshot that will get published
-    String wapId = WapUtil.validateWapPublish(base, targetSnapshotId);
+    String wapId = WapUtil.validateWapPublish(current, targetSnapshotId);
     if (wapId != null) {
       set(SnapshotSummary.PUBLISHED_WAP_ID_PROP, wapId);
     }
@@ -91,7 +89,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
 
   @Override
   public ManageSnapshots setCurrentSnapshot(long snapshotId) {
-    ValidationException.check(ops.current().snapshot(snapshotId) != null,
+    ValidationException.check(current().snapshot(snapshotId) != null,
         "Cannot roll back to unknown snapshot id: %s", snapshotId);
 
     this.managerOperation = SnapshotManagerOperation.ROLLBACK;
@@ -103,7 +101,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
   @Override
   public ManageSnapshots rollbackToTime(long timestampMillis) {
     // find the latest snapshot by timestamp older than timestampMillis
-    Snapshot snapshot = findLatestAncestorOlderThan(ops.current(), timestampMillis);
+    Snapshot snapshot = findLatestAncestorOlderThan(current(), timestampMillis);
     Preconditions.checkArgument(snapshot != null,
         "Cannot roll back, no valid snapshot older than: %s", timestampMillis);
 
@@ -115,7 +113,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
 
   @Override
   public ManageSnapshots rollbackTo(long snapshotId) {
-    TableMetadata current = ops.current();
+    TableMetadata current = current();
     ValidationException.check(current.snapshot(snapshotId) != null,
         "Cannot roll back to unknown snapshot id: %s", snapshotId);
     ValidationException.check(
@@ -139,7 +137,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
 
   @Override
   public Snapshot apply() {
-    TableMetadata base = ops.refresh();
+    TableMetadata base = refresh();
 
     if (targetSnapshotId == null) {
       // if no target snapshot was configured then NOOP by returning current state
