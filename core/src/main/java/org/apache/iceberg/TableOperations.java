@@ -114,4 +114,17 @@ public interface TableOperations {
     return Math.abs(mostSignificantBits ^ leastSignificantBits);
   }
 
+  /**
+   * Create a new sequence number for a snapshot
+   *
+   * @return a long sequence number
+   */
+  default long newSequenceNumber() {
+    if (current().currentSnapshot() == null || current().currentSnapshot().sequenceNumber() == null) {
+      return 1L;
+    } else {
+      return current().currentSnapshot().sequenceNumber() + 1;
+    }
+  }
+
 }

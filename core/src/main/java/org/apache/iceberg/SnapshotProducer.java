@@ -78,6 +78,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private final AtomicInteger attempt = new AtomicInteger(0);
   private final List<String> manifestLists = Lists.newArrayList();
   private Long snapshotId = null;
+  private Long sequenceNumber = null;
   private TableMetadata base = null;
   private boolean stageOnly = false;
   private Consumer<String> deleteFunc = defaultDelete;
@@ -144,13 +145,13 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         base.currentSnapshot().snapshotId() : null;
 
     List<ManifestFile> manifests = apply(base);
-    long newSequenceNumber = base.currentSnapshot() == null ? 1 : base.currentSnapshot().sequenceNumber() + 1;
+    long newSequenceNumber = sequenceNumber();
 
     if (base.propertyAsBoolean(MANIFEST_LISTS_ENABLED, MANIFEST_LISTS_ENABLED_DEFAULT)) {
       OutputFile manifestList = manifestListPath();
 
       try (ManifestListWriter writer = new ManifestListWriter(
-          manifestList, snapshotId(), parentSnapshotId)) {
+          manifestList, snapshotId(), parentSnapshotId, newSequenceNumber)) {
 
         // keep track of the manifest lists created
         manifestLists.add(manifestList.location());
@@ -245,6 +246,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
               updated = base.replaceCurrentSnapshot(newSnapshot);
             }
 
+            // reset sequence number to null so that the sequence number can be updated when retry
+            this.sequenceNumber = null;
+
             // if the table UUID is missing, add it here. the UUID will be re-created each time this operation retries
             // to ensure that if a concurrent operation assigns the UUID, this operation will not fail.
             taskOps.commit(base, updated.withUUID());
@@ -306,6 +310,13 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       this.snapshotId = ops.newSnapshotId();
     }
     return snapshotId;
+  }
+
+  protected long sequenceNumber() {
+    if (sequenceNumber == null) {
+      this.sequenceNumber = ops.newSequenceNumber();
+    }
+    return sequenceNumber;
   }
 
   private static ManifestFile addMetadata(TableOperations ops, ManifestFile manifest) {

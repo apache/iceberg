@@ -65,6 +65,7 @@ class GenericDataFile
   private Map<Integer, ByteBuffer> upperBounds = null;
   private List<Long> splitOffsets = null;
   private byte[] keyMetadata = null;
+  private Long sequenceNumber = null;
 
   // cached schema
   private transient org.apache.avro.Schema avroSchema = null;
@@ -271,6 +272,11 @@ class GenericDataFile
   }
 
   @Override
+  public Long sequenceNumber() {
+    return sequenceNumber;
+  }
+
+  @Override
   public org.apache.avro.Schema getSchema() {
     if (avroSchema == null) {
       this.avroSchema = getAvroSchema(partitionType);
@@ -332,6 +338,9 @@ class GenericDataFile
       case 14:
         this.splitOffsets = (List<Long>) v;
         return;
+      case 15:
+        this.sequenceNumber = (Long) v;
+        return;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -382,6 +391,8 @@ class GenericDataFile
         return keyMetadata();
       case 14:
         return splitOffsets;
+      case 15:
+        return sequenceNumber;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }

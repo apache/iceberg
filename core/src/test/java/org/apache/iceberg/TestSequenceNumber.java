@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -26,6 +27,7 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -40,6 +42,58 @@ public class TestSequenceNumber extends TableTestBase {
   }
 
   @Test
+  public void testSequenceNumberForFastAppend() throws IOException {
+    ManifestFile manifestFile = writeManifest(FILE_A, FILE_B);
+    table.newFastAppend().appendManifest(manifestFile).commit();
+    Assert.assertEquals(1, table.currentSnapshot().sequenceNumber().longValue());
+
+    manifestFile = table.currentSnapshot().manifests().get(0);
+
+    Assert.assertEquals(1, manifestFile.sequenceNumber().longValue());
+
+    for (ManifestEntry entry : ManifestReader.read(manifestFile,
+        table.io(), table.ops().current().specsById()).entries()) {
+      if (entry.file().path().equals(FILE_A.path()) || entry.file().path().equals(FILE_B.path())) {
+        Assert.assertEquals(1, entry.sequenceNumber().longValue());
+      }
+    }
+
+    table.newFastAppend().appendFile(FILE_C).appendFile(FILE_D).commit();
+
+    manifestFile = table.currentSnapshot().manifests().stream()
+        .filter(manifest -> manifest.snapshotId() == table.currentSnapshot().snapshotId())
+        .collect(Collectors.toList()).get(0);
+
+    Assert.assertEquals("minimum sequence number should be 2",
+        2, manifestFile.sequenceNumber().longValue());
+  }
+
+  @Test
+  public void testSequenceNumberForMergeAppend() {
+    table.updateProperties()
+        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1")
+        .commit();
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    Assert.assertEquals(1, table.currentSnapshot().manifests().size());
+    table.newAppend().appendFile(FILE_C).appendFile(FILE_D).commit();
+    ManifestFile manifestFile = table.currentSnapshot().manifests().get(0);
+
+    Assert.assertEquals("sequence number should be 2",
+        2, manifestFile.sequenceNumber().longValue());
+
+    for (ManifestEntry entry : ManifestReader.read(manifestFile,
+        table.io(), table.ops().current().specsById()).entries()) {
+      if (entry.file().path().equals(FILE_A.path()) || entry.file().path().equals(FILE_B.path())) {
+        Assert.assertEquals(1, entry.sequenceNumber().longValue());
+      }
+
+      if (entry.file().path().equals(FILE_C.path()) || entry.file().path().equals(FILE_D.path())) {
+        Assert.assertEquals(2, entry.sequenceNumber().longValue());
+      }
+    }
+  }
+
+  @Test
   public void testCommitConflict() {
     Transaction txn = table.newTransaction();
 
@@ -51,6 +105,47 @@ public class TestSequenceNumber extends TableTestBase {
 
     Assert.assertEquals(1, TestTables.load(tableDir, "test").currentSnapshot().sequenceNumber()
         .longValue());
+
+    AppendFiles appendFiles = table.newFastAppend().appendFile(FILE_C);
+    appendFiles.apply();
+    table.newFastAppend().appendFile(FILE_D).commit();
+    appendFiles.commit();
+
+    ManifestFile manifestFile = table.currentSnapshot().manifests().stream()
+        .filter(manifest -> manifest.snapshotId() == table.currentSnapshot().snapshotId())
+        .collect(Collectors.toList()).get(0);
+
+    for (ManifestEntry entry : ManifestReader.read(manifestFile, table.io(),
+        table.ops().current().specsById()).entries()) {
+      if (entry.file().path().equals(FILE_C.path())) {
+        Assert.assertEquals(table.currentSnapshot().sequenceNumber(), entry.sequenceNumber());
+      }
+    }
+  }
+
+  @Test
+  public void testSequenceNumberForRewrite() throws IOException {
+    ManifestFile manifest = writeManifestWithName("manifest-file-1.avro", FILE_A);
+
+    table.newFastAppend()
+        .appendManifest(manifest)
+        .commit();
+
+    table.rewriteManifests()
+        .clusterBy(file -> "")
+        .commit();
+
+    ManifestFile newManifest = table.currentSnapshot().manifests().get(0);
+
+    Assert.assertEquals("the snapshot sequence number should be 1",
+        2, table.currentSnapshot().sequenceNumber().longValue());
+
+    for (ManifestEntry entry : ManifestReader.read(newManifest,
+        table.io(), table.ops().current().specsById()).entries()) {
+      if (entry.file().path().equals(FILE_A.path())) {
+        Assert.assertEquals(1, entry.sequenceNumber().longValue());
+      }
+    }
   }
 
   @Test

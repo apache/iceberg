@@ -100,7 +100,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
       summaryBuilder.addedManifest(manifest);
       appendManifests.add(manifest);
     } else {
-      // the manifest must be rewritten with this update's snapshot ID
+      // the manifest must be rewritten with this update's snapshot ID and sequence number
       ManifestFile copiedManifest = copyManifest(manifest);
       rewrittenAppendManifests.add(copiedManifest);
     }
@@ -130,17 +130,25 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
       throw new RuntimeIOException(e, "Failed to write manifest");
     }
 
-    // TODO: add sequence numbers here
+    Iterable<ManifestFile> newManifestsWithMetadata = Iterables.transform(newManifests,
+        manifest -> GenericManifestFile.copyOf(manifest).withSequenceNumber(sequenceNumber()).build());
+
     Iterable<ManifestFile> appendManifestsWithMetadata = Iterables.transform(
         Iterables.concat(appendManifests, rewrittenAppendManifests),
-        manifest -> GenericManifestFile.copyOf(manifest).withSnapshotId(snapshotId()).build());
-    Iterables.addAll(newManifests, appendManifestsWithMetadata);
+        manifest -> GenericManifestFile.copyOf(manifest).withSnapshotId(snapshotId())
+            .withSequenceNumber(sequenceNumber())
+            .build());
+
+    List<ManifestFile> manifestsWithMetadata = Lists.newArrayList();
+    Iterables.addAll(manifestsWithMetadata, newManifestsWithMetadata);
+    Iterables.addAll(manifestsWithMetadata, appendManifestsWithMetadata);
+
 
     if (base.currentSnapshot() != null) {
-      newManifests.addAll(base.currentSnapshot().manifests());
+      manifestsWithMetadata.addAll(base.currentSnapshot().manifests());
     }
 
-    return newManifests;
+    return manifestsWithMetadata;
   }
 
   @Override

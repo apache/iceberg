@@ -180,11 +180,11 @@ public class TableTestBase {
     ManifestEntry entry = new ManifestEntry(table.spec().partitionType());
     switch (status) {
       case ADDED:
-        return entry.wrapAppend(snapshotId, file);
+        return entry.wrapAppend(snapshotId, null, file);
       case EXISTING:
-        return entry.wrapExisting(snapshotId, file);
+        return entry.wrapExisting(snapshotId, null, file);
       case DELETED:
-        return entry.wrapDelete(snapshotId, file);
+        return entry.wrapDelete(snapshotId, null,  file);
       default:
         throw new IllegalArgumentException("Unexpected entry status: " + status);
     }

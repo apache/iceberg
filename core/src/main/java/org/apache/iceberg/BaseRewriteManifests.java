@@ -146,7 +146,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
     if (snapshotIdInheritanceEnabled && manifest.snapshotId() == null) {
       addedManifests.add(manifest);
     } else {
-      // the manifest must be rewritten with this update's snapshot ID
+      // the manifest must be rewritten with this update's snapshot ID and sequence number
       ManifestFile copiedManifest = copyManifest(manifest);
       rewrittenAddedManifests.add(copiedManifest);
     }
@@ -178,10 +178,11 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
 
     validateFilesCounts();
 
-    // TODO: add sequence numbers here
     Iterable<ManifestFile> newManifestsWithMetadata = Iterables.transform(
         Iterables.concat(newManifests, addedManifests, rewrittenAddedManifests),
-        manifest -> GenericManifestFile.copyOf(manifest).withSnapshotId(snapshotId()).build());
+        manifest -> GenericManifestFile.copyOf(manifest).withSnapshotId(snapshotId())
+            .withSequenceNumber(sequenceNumber())
+            .build());
 
     // put new manifests at the beginning
     List<ManifestFile> apply = new ArrayList<>();

@@ -53,6 +53,7 @@ public class GenericManifestFile
   private Integer deletedFilesCount = null;
   private Long deletedRowsCount = null;
   private List<PartitionFieldSummary> partitions = null;
+  private Long sequenceNumber = null;
 
   /**
    * Used by Avro reflection to instantiate this class when reading manifest files.
@@ -136,6 +137,26 @@ public class GenericManifestFile
     this.fromProjectionPos = null;
   }
 
+  public GenericManifestFile(String path, long length, int specId, Long snapshotId, Long sequenceNumber,
+                             int addedFilesCount, long addedRowsCount, int existingFilesCount,
+                             long existingRowsCount, int deletedFilesCount, long deletedRowsCount,
+                             List<PartitionFieldSummary> partitions) {
+    this.avroSchema = AVRO_SCHEMA;
+    this.manifestPath = path;
+    this.length = length;
+    this.specId = specId;
+    this.snapshotId = snapshotId;
+    this.sequenceNumber = sequenceNumber;
+    this.addedFilesCount = addedFilesCount;
+    this.addedRowsCount = addedRowsCount;
+    this.existingFilesCount = existingFilesCount;
+    this.existingRowsCount = existingRowsCount;
+    this.deletedFilesCount = deletedFilesCount;
+    this.deletedRowsCount = deletedRowsCount;
+    this.partitions = partitions;
+    this.fromProjectionPos = null;
+  }
+
   /**
    * Copy constructor.
    *
@@ -155,6 +176,7 @@ public class GenericManifestFile
     this.deletedRowsCount = toCopy.deletedRowsCount;
     this.partitions = ImmutableList.copyOf(Iterables.transform(toCopy.partitions, PartitionFieldSummary::copy));
     this.fromProjectionPos = toCopy.fromProjectionPos;
+    this.sequenceNumber = toCopy.sequenceNumber;
   }
 
   /**
@@ -227,6 +249,11 @@ public class GenericManifestFile
   }
 
   @Override
+  public Long sequenceNumber() {
+    return sequenceNumber;
+  }
+
+  @Override
   public List<PartitionFieldSummary> partitions() {
     return partitions;
   }
@@ -271,6 +298,8 @@ public class GenericManifestFile
         return existingRowsCount;
       case 10:
         return deletedRowsCount;
+      case 11:
+        return sequenceNumber;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -318,6 +347,9 @@ public class GenericManifestFile
         return;
       case 10:
         this.deletedRowsCount = (Long) value;
+        return;
+      case 11:
+        this.sequenceNumber = (Long) value;
         return;
       default:
         // ignore the object, it must be from a newer version of the format
@@ -393,6 +425,11 @@ public class GenericManifestFile
 
     public CopyBuilder withSnapshotId(Long newSnapshotId) {
       manifestFile.snapshotId = newSnapshotId;
+      return this;
+    }
+
+    public CopyBuilder withSequenceNumber(Long newSequenceNumber) {
+      manifestFile.sequenceNumber = newSequenceNumber;
       return this;
     }
 

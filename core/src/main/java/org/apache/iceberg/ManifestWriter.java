@@ -110,12 +110,23 @@ public class ManifestWriter implements FileAppender<DataFile> {
   private long existingRows = 0L;
   private int deletedFiles = 0;
   private long deletedRows = 0L;
+  private Long sequenceNumber = null;
 
   ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
     this.file = file;
     this.specId = spec.specId();
     this.writer = newAppender(FileFormat.AVRO, spec, file);
     this.snapshotId = snapshotId;
+    this.reused = new ManifestEntry(spec.partitionType());
+    this.stats = new PartitionSummary(spec);
+  }
+
+  ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId, Long sequenceNumber) {
+    this.file = file;
+    this.specId = spec.specId();
+    this.writer = newAppender(FileFormat.AVRO, spec, file);
+    this.snapshotId = snapshotId;
+    this.sequenceNumber = sequenceNumber;
     this.reused = new ManifestEntry(spec.partitionType());
     this.stats = new PartitionSummary(spec);
   }
@@ -150,11 +161,11 @@ public class ManifestWriter implements FileAppender<DataFile> {
   public void add(DataFile addedFile) {
     // TODO: this assumes that file is a GenericDataFile that can be written directly to Avro
     // Eventually, this should check in case there are other DataFile implementations.
-    addEntry(reused.wrapAppend(snapshotId, addedFile));
+    addEntry(reused.wrapAppend(snapshotId, sequenceNumber, addedFile));
   }
 
   public void add(ManifestEntry entry) {
-    addEntry(reused.wrapAppend(snapshotId, entry.file()));
+    addEntry(reused.wrapAppend(snapshotId, sequenceNumber, entry.file()));
   }
 
   /**
@@ -163,12 +174,12 @@ public class ManifestWriter implements FileAppender<DataFile> {
    * @param existingFile a data file
    * @param fileSnapshotId snapshot ID when the data file was added to the table
    */
-  public void existing(DataFile existingFile, long fileSnapshotId) {
-    addEntry(reused.wrapExisting(fileSnapshotId, existingFile));
+  public void existing(DataFile existingFile, long fileSnapshotId, long fileSequenceNumber) {
+    addEntry(reused.wrapExisting(fileSnapshotId, fileSequenceNumber, existingFile));
   }
 
   void existing(ManifestEntry entry) {
-    addEntry(reused.wrapExisting(entry.snapshotId(), entry.file()));
+    addEntry(reused.wrapExisting(entry.snapshotId(), entry.sequenceNumber(), entry.file()));
   }
 
   /**
@@ -179,13 +190,13 @@ public class ManifestWriter implements FileAppender<DataFile> {
    * @param deletedFile a data file
    */
   public void delete(DataFile deletedFile) {
-    addEntry(reused.wrapDelete(snapshotId, deletedFile));
+    addEntry(reused.wrapDelete(snapshotId, sequenceNumber, deletedFile));
   }
 
   void delete(ManifestEntry entry) {
     // Use the current Snapshot ID for the delete. It is safe to delete the data file from disk
     // when this Snapshot has been removed or when there are no Snapshots older than this one.
-    addEntry(reused.wrapDelete(snapshotId, entry.file()));
+    addEntry(reused.wrapDelete(snapshotId, sequenceNumber, entry.file()));
   }
 
   @Override

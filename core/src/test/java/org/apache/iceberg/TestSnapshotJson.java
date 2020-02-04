@@ -87,6 +87,7 @@ public class TestSnapshotJson {
   public void testJsonConversionWithManifestList() throws IOException {
     long parentId = 1;
     long id = 2;
+    long seq = 3;
     List<ManifestFile> manifests = ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manifest1.avro"), 0),
         new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0));
@@ -96,14 +97,14 @@ public class TestSnapshotJson {
     manifestList.deleteOnExit();
 
     try (ManifestListWriter writer = new ManifestListWriter(
-        Files.localOutput(manifestList), id, parentId)) {
+        Files.localOutput(manifestList), id, parentId, seq)) {
       writer.addAll(manifests);
     }
 
     Snapshot expected = new BaseSnapshot(
-        ops.io(), id, parentId, System.currentTimeMillis(), null, null, localInput(manifestList));
+        ops.io(), id, parentId, System.currentTimeMillis(), null, null, localInput(manifestList), seq);
     Snapshot inMemory = new BaseSnapshot(
-        ops.io(), id, parentId, expected.timestampMillis(), null, null, manifests);
+        ops.io(), id, parentId, expected.timestampMillis(), null, null, manifests, seq);
 
     Assert.assertEquals("Files should match in memory list",
         inMemory.manifests(), expected.manifests());
@@ -123,5 +124,6 @@ public class TestSnapshotJson {
         expected.manifests(), snapshot.manifests());
     Assert.assertNull("Operation should be null", snapshot.operation());
     Assert.assertNull("Summary should be null", snapshot.summary());
+    Assert.assertEquals("Sequence number should match", expected.sequenceNumber(), snapshot.sequenceNumber());
   }
 }

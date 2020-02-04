@@ -215,7 +215,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       appendManifests.add(manifest);
       appendedManifest = manifest;
     } else {
-      // the manifest must be rewritten with this update's snapshot ID
+      // the manifest must be rewritten with this update's snapshot ID and sequence number
       ManifestFile copiedManifest = copyManifest(manifest);
       rewrittenAppendManifests.add(copiedManifest);
       appendedManifest = copiedManifest;
@@ -274,10 +274,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         newManifests = Iterables.concat(appendManifests, rewrittenAppendManifests);
       }
 
-      // TODO: add sequence numbers here
       Iterable<ManifestFile> newManifestsWithMetadata = Iterables.transform(
           newManifests,
-          manifest -> GenericManifestFile.copyOf(manifest).withSnapshotId(snapshotId()).build());
+          manifest -> GenericManifestFile.copyOf(manifest).withSnapshotId(snapshotId())
+              .withSequenceNumber(sequenceNumber())
+              .build());
 
       // filter any existing manifests
       List<ManifestFile> filtered;
@@ -667,11 +668,20 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
               // should be added to the new manifest
               if (entry.snapshotId() == snapshotId()) {
                 writer.addEntry(entry);
+              } else {
+                // since the original manifest will be cleanup, it needs to save the sequence number to the entry.
+                if (entry.sequenceNumber() == null) {
+                  entry.setSequenceNumber(manifest.sequenceNumber());
+                }
               }
             } else if (entry.status() == Status.ADDED && entry.snapshotId() == snapshotId()) {
               // adds from this snapshot are still adds, otherwise they should be existing
               writer.addEntry(entry);
             } else {
+              // since the original manifest will be cleanup, it needs to save the sequence number to the entry.
+              if (entry.sequenceNumber() == null) {
+                entry.setSequenceNumber(manifest.sequenceNumber());
+              }
               // add all files from the old manifest as existing files
               writer.existing(entry);
             }
@@ -682,7 +692,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       writer.close();
     }
 
-    ManifestFile manifest = writer.toManifestFile();
+    ManifestFile manifest = GenericManifestFile.copyOf(writer.toManifestFile())
+        .withSequenceNumber(sequenceNumber()).build();
 
     // update the cache
     mergeManifests.put(bin, manifest);

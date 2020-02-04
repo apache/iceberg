@@ -31,10 +31,13 @@ import org.apache.iceberg.io.OutputFile;
 class ManifestListWriter implements FileAppender<ManifestFile> {
   private final FileAppender<ManifestFile> writer;
 
-  ManifestListWriter(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId) {
+  ManifestListWriter(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId, Long sequenceNumber) {
     this.writer = newAppender(snapshotFile, ImmutableMap.of(
         "snapshot-id", String.valueOf(snapshotId),
-        "parent-snapshot-id", String.valueOf(parentSnapshotId)));
+        "parent-snapshot-id", String.valueOf(parentSnapshotId),
+        "sequence-number", String.valueOf(sequenceNumber)
+        )
+    );
   }
 
   @Override

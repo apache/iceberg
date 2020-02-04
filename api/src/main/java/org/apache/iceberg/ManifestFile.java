@@ -45,7 +45,9 @@ public interface ManifestFile {
       ))),
       optional(512, "added_rows_count", Types.LongType.get()),
       optional(513, "existing_rows_count", Types.LongType.get()),
-      optional(514, "deleted_rows_count", Types.LongType.get()));
+      optional(514, "deleted_rows_count", Types.LongType.get()),
+      optional(515, "sequence_number", Types.LongType.get())
+  );
 
   static Schema schema() {
     return SCHEMA;
@@ -127,6 +129,13 @@ public interface ManifestFile {
    * @return the total number of rows in all data files with status DELETED in the manifest file
    */
   Long deletedRowsCount();
+
+  /**
+   * @return the sequence number of this manifest. The sequence number of manifest stores in manifest list file. Since
+   * The data files' sequence number is optional, it should inherit the manifest's sequence number if the reader reads
+   * null from manifest file.
+   */
+  Long sequenceNumber();
 
   /**
    * Returns a list of {@link PartitionFieldSummary partition field summaries}.
