@@ -92,16 +92,20 @@ public class HadoopTableOperations implements TableOperations {
         nextMetadataFile = getMetadataFile(ver + 1);
       }
 
-      this.version = ver;
+      // only load if the current version is out of date
+      if (version == null || version != ver) {
+        this.version = ver;
 
-      TableMetadata newMetadata = TableMetadataParser.read(io(), io().newInputFile(metadataFile.toString()));
-      String newUUID = newMetadata.uuid();
-      if (currentMetadata != null) {
-        Preconditions.checkState(newUUID == null || newUUID.equals(currentMetadata.uuid()),
-            "Table UUID does not match: current=%s != refreshed=%s", currentMetadata.uuid(), newUUID);
+        TableMetadata newMetadata = TableMetadataParser.read(io(), io().newInputFile(metadataFile.toString()));
+        String newUUID = newMetadata.uuid();
+        if (currentMetadata != null) {
+          Preconditions.checkState(newUUID == null || newUUID.equals(currentMetadata.uuid()),
+              "Table UUID does not match: current=%s != refreshed=%s", currentMetadata.uuid(), newUUID);
+        }
+
+        this.currentMetadata = newMetadata;
       }
 
-      this.currentMetadata = newMetadata;
       this.shouldRefresh = false;
       return currentMetadata;
     } catch (IOException e) {
