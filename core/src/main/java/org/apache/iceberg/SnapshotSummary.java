@@ -34,6 +34,9 @@ public class SnapshotSummary {
   public static final String TOTAL_RECORDS_PROP = "total-records";
   public static final String DELETED_DUPLICATE_FILES = "deleted-duplicate-files";
   public static final String CHANGED_PARTITION_COUNT_PROP = "changed-partition-count";
+  public static final String STAGED_WAP_ID_PROP = "wap.id";
+  public static final String PUBLISHED_WAP_ID_PROP = "published-wap-id";
+  public static final String SOURCE_SNAPSHOT_ID_PROP = "source-snapshot-id";
 
   private SnapshotSummary() {
   }

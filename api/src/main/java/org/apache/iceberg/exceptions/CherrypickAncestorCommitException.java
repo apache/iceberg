@@ -17,23 +17,20 @@
  * under the License.
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.exceptions;
 
-class RollbackToSnapshot extends SnapshotManager implements Rollback {
+/**
+ * This exception occurs when one cherrypicks an ancestor or when the picked snapshot is already linked to
+ * a published ancestor. This additionally helps avoid duplicate cherrypicks on non-WAP snapshots.
+ */
+public class CherrypickAncestorCommitException extends ValidationException {
 
-  RollbackToSnapshot(TableOperations ops) {
-    super(ops);
+  public CherrypickAncestorCommitException(long snapshotId) {
+    super("Cannot cherrypick snapshot %s: already an ancestor", String.valueOf(snapshotId));
   }
 
-  @Override
-  public Rollback toSnapshotId(long snapshotId) {
-    super.setCurrentSnapshot(snapshotId);
-    return this;
-  }
-
-  @Override
-  public Rollback toSnapshotAtTime(long timestampMillis) {
-    super.rollbackToTime(timestampMillis);
-    return this;
+  public CherrypickAncestorCommitException(long snapshotId, long publishedAncestorId) {
+    super("Cannot cherrypick snapshot %s: already picked to create ancestor %s",
+        String.valueOf(snapshotId), String.valueOf(publishedAncestorId));
   }
 }

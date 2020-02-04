@@ -17,23 +17,15 @@
  * under the License.
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.exceptions;
 
-class RollbackToSnapshot extends SnapshotManager implements Rollback {
+/**
+ * This exception occurs when the WAP workflow detects a duplicate wap commit. This helps clients
+ * to detect duplicate snapshots that are connected by the same wap id.
+ */
+public class DuplicateWAPCommitException extends ValidationException {
 
-  RollbackToSnapshot(TableOperations ops) {
-    super(ops);
-  }
-
-  @Override
-  public Rollback toSnapshotId(long snapshotId) {
-    super.setCurrentSnapshot(snapshotId);
-    return this;
-  }
-
-  @Override
-  public Rollback toSnapshotAtTime(long timestampMillis) {
-    super.rollbackToTime(timestampMillis);
-    return this;
+  public DuplicateWAPCommitException(String wapId) {
+    super("Duplicate request to cherry pick wap id that was published already: %s", wapId);
   }
 }
