@@ -41,12 +41,12 @@ import org.apache.orc.TypeDescription;
  */
 public final class ORCSchemaUtil {
 
-  private enum BinaryType {
+  public enum BinaryType {
     UUID, FIXED, BINARY
   }
 
-  private enum IntegerType {
-    TIME, INTEGER
+  public enum LongType {
+    TIME, LONG
   }
 
   private static class OrcField {
@@ -70,20 +70,19 @@ public final class ORCSchemaUtil {
   private static final String ICEBERG_ID_ATTRIBUTE = "iceberg.id";
   private static final String ICEBERG_REQUIRED_ATTRIBUTE = "iceberg.required";
 
-  private static final String ICEBERG_BINARY_TYPE_ATTRIBUTE = "iceberg.binary-type";
-  private static final String ICEBERG_INTEGER_TYPE_ATTRIBUTE = "iceberg.integer-type";
-  private static final String ICEBERG_FIELD_LENGTH = "iceberg.length";
+  public static final String ICEBERG_BINARY_TYPE_ATTRIBUTE = "iceberg.binary-type";
+  public static final String ICEBERG_LONG_TYPE_ATTRIBUTE = "iceberg.long-type";
+  public static final String ICEBERG_FIELD_LENGTH = "iceberg.length";
 
   private static final ImmutableMap<Type.TypeID, TypeDescription.Category> TYPE_MAPPING =
       ImmutableMap.<Type.TypeID, TypeDescription.Category>builder()
           .put(Type.TypeID.BOOLEAN, TypeDescription.Category.BOOLEAN)
           .put(Type.TypeID.INTEGER, TypeDescription.Category.INT)
-          .put(Type.TypeID.TIME, TypeDescription.Category.INT)
           .put(Type.TypeID.LONG, TypeDescription.Category.LONG)
+          .put(Type.TypeID.TIME, TypeDescription.Category.LONG)
           .put(Type.TypeID.FLOAT, TypeDescription.Category.FLOAT)
           .put(Type.TypeID.DOUBLE, TypeDescription.Category.DOUBLE)
           .put(Type.TypeID.DATE, TypeDescription.Category.DATE)
-          .put(Type.TypeID.TIMESTAMP, TypeDescription.Category.TIMESTAMP)
           .put(Type.TypeID.STRING, TypeDescription.Category.STRING)
           .put(Type.TypeID.UUID, TypeDescription.Category.BINARY)
           .put(Type.TypeID.FIXED, TypeDescription.Category.BINARY)
@@ -112,14 +111,14 @@ public final class ORCSchemaUtil {
         break;
       case INTEGER:
         orcType = TypeDescription.createInt();
-        orcType.setAttribute(ICEBERG_INTEGER_TYPE_ATTRIBUTE, IntegerType.INTEGER.toString());
         break;
       case TIME:
-        orcType = TypeDescription.createInt();
-        orcType.setAttribute(ICEBERG_INTEGER_TYPE_ATTRIBUTE, IntegerType.TIME.toString());
+        orcType = TypeDescription.createLong();
+        orcType.setAttribute(ICEBERG_LONG_TYPE_ATTRIBUTE, LongType.TIME.toString());
         break;
       case LONG:
         orcType = TypeDescription.createLong();
+        orcType.setAttribute(ICEBERG_LONG_TYPE_ATTRIBUTE, LongType.LONG.toString());
         break;
       case FLOAT:
         orcType = TypeDescription.createFloat();
@@ -131,7 +130,12 @@ public final class ORCSchemaUtil {
         orcType = TypeDescription.createDate();
         break;
       case TIMESTAMP:
-        orcType = TypeDescription.createTimestamp();
+        Types.TimestampType tsType = (Types.TimestampType) type;
+        if (tsType.shouldAdjustToUTC()) {
+          orcType = TypeDescription.createTimestampInstant();
+        } else {
+          orcType = TypeDescription.createTimestamp();
+        }
         break;
       case STRING:
         orcType = TypeDescription.createString();
@@ -355,7 +359,14 @@ public final class ORCSchemaUtil {
   }
 
   private static boolean isSameType(TypeDescription orcType, Type icebergType) {
-    return Objects.equals(TYPE_MAPPING.get(icebergType.typeId()), orcType.getCategory());
+    if (icebergType.typeId() == Type.TypeID.TIMESTAMP) {
+      Types.TimestampType tsType = (Types.TimestampType) icebergType;
+      return Objects.equals(
+          tsType.shouldAdjustToUTC() ? TypeDescription.Category.TIMESTAMP_INSTANT : TypeDescription.Category.TIMESTAMP,
+          orcType.getCategory());
+    } else {
+      return Objects.equals(TYPE_MAPPING.get(icebergType.typeId()), orcType.getCategory());
+    }
   }
 
   private static Optional<Integer> icebergID(TypeDescription orcType) {
@@ -390,19 +401,18 @@ public final class ORCSchemaUtil {
       case BYTE:
       case SHORT:
       case INT:
-        IntegerType integerType = IntegerType.valueOf(
-            orcType.getAttributeValue(ICEBERG_INTEGER_TYPE_ATTRIBUTE)
-        );
-        switch (integerType) {
+        return getIcebergType(icebergID, name, Types.IntegerType.get(), isRequired);
+      case LONG:
+        LongType longType = LongType.valueOf(
+            orcType.getAttributeValue(ICEBERG_LONG_TYPE_ATTRIBUTE));
+        switch (longType) {
           case TIME:
             return getIcebergType(icebergID, name, Types.TimeType.get(), isRequired);
-          case INTEGER:
-            return getIcebergType(icebergID, name, Types.IntegerType.get(), isRequired);
+          case LONG:
+            return getIcebergType(icebergID, name, Types.LongType.get(), isRequired);
           default:
-            throw new IllegalStateException("Invalid Integer type found in ORC type attribute");
+            throw new IllegalStateException("Invalid Long type found in ORC type attribute");
         }
-      case LONG:
-        return getIcebergType(icebergID, name, Types.LongType.get(), isRequired);
       case FLOAT:
         return getIcebergType(icebergID, name, Types.FloatType.get(), isRequired);
       case DOUBLE:
@@ -428,6 +438,8 @@ public final class ORCSchemaUtil {
       case DATE:
         return getIcebergType(icebergID, name, Types.DateType.get(), isRequired);
       case TIMESTAMP:
+        return getIcebergType(icebergID, name, Types.TimestampType.withoutZone(), isRequired);
+      case TIMESTAMP_INSTANT:
         return getIcebergType(icebergID, name, Types.TimestampType.withZone(), isRequired);
       case DECIMAL:
         return getIcebergType(icebergID, name,

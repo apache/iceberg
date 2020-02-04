@@ -22,10 +22,20 @@ package org.apache.iceberg.data.orc;
 import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.common.type.HiveDecimal;
@@ -40,10 +50,14 @@ import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
+
 /**
  */
 public class GenericOrcWriter implements OrcValueWriter<Record> {
   private final Converter[] converters;
+  private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
+  private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
+  private static final ZoneOffset LOCAL_ZONE_OFFSET = OffsetDateTime.now().getOffset();
 
   private GenericOrcWriter(TypeDescription schema) {
     this.converters = buildConverters(schema);
@@ -151,6 +165,23 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
     }
   }
 
+  static class TimeConverter implements Converter<LocalTime> {
+    @Override
+    public Class<LocalTime> getJavaClass() {
+      return LocalTime.class;
+    }
+
+    public void addValue(int rowId, LocalTime data, ColumnVector output) {
+      if (data == null) {
+        output.noNulls = false;
+        output.isNull[rowId] = true;
+      } else {
+        output.isNull[rowId] = false;
+        ((LongColumnVector) output).vector[rowId] = data.toNanoOfDay() / 1_000;
+      }
+    }
+  }
+
   static class LongConverter implements Converter<Long> {
     @Override
     public Class<Long> getJavaClass() {
@@ -224,7 +255,44 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
     }
   }
 
-  static class BytesConverter implements Converter<byte[]> {
+  static class BytesConverter implements Converter<ByteBuffer> {
+    @Override
+    public Class<ByteBuffer> getJavaClass() {
+      return ByteBuffer.class;
+    }
+
+    public void addValue(int rowId, ByteBuffer data, ColumnVector output) {
+      if (data == null) {
+        output.noNulls = false;
+        output.isNull[rowId] = true;
+      } else {
+        output.isNull[rowId] = false;
+        ((BytesColumnVector) output).setRef(rowId, data.array(), 0, data.array().length);
+      }
+    }
+  }
+
+  static class UUIDConverter implements Converter<UUID> {
+    @Override
+    public Class<UUID> getJavaClass() {
+      return UUID.class;
+    }
+
+    public void addValue(int rowId, UUID data, ColumnVector output) {
+      if (data == null) {
+        output.noNulls = false;
+        output.isNull[rowId] = true;
+      } else {
+        output.isNull[rowId] = false;
+        ByteBuffer buffer = ByteBuffer.allocate(16);
+        buffer.putLong(data.getMostSignificantBits());
+        buffer.putLong(data.getLeastSignificantBits());
+        ((BytesColumnVector) output).setRef(rowId, buffer.array(), 0, buffer.array().length);
+      }
+    }
+  }
+
+  static class FixedConverter implements Converter<byte[]> {
     @Override
     public Class<byte[]> getJavaClass() {
       return byte[].class;
@@ -237,28 +305,65 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
         output.isNull[rowId] = true;
       } else {
         output.isNull[rowId] = false;
-        // getBinary always makes a copy, so we don't need to worry about it
-        // being changed behind our back.
         ((BytesColumnVector) output).setRef(rowId, data, 0, data.length);
       }
     }
   }
 
-  static class TimestampConverter implements Converter<Long> {
+  static class DateConverter implements Converter<LocalDate> {
     @Override
-    public Class<Long> getJavaClass() {
-      return Long.class;
+    public Class<LocalDate> getJavaClass() {
+      return LocalDate.class;
     }
 
     @Override
-    public void addValue(int rowId, Long data, ColumnVector output) {
+    public void addValue(int rowId, LocalDate data, ColumnVector output) {
+      if (data == null) {
+        output.noNulls = false;
+        output.isNull[rowId] = true;
+      } else {
+        output.isNull[rowId] = false;
+        ((LongColumnVector) output).vector[rowId] = ChronoUnit.DAYS.between(EPOCH_DAY, data);
+      }
+    }
+  }
+
+  static class TimestampTzConverter implements Converter<OffsetDateTime> {
+    @Override
+    public Class<OffsetDateTime> getJavaClass() {
+      return OffsetDateTime.class;
+    }
+
+    @Override
+    public void addValue(int rowId, OffsetDateTime data, ColumnVector output) {
       if (data == null) {
         output.noNulls = false;
         output.isNull[rowId] = true;
       } else {
         output.isNull[rowId] = false;
         TimestampColumnVector cv = (TimestampColumnVector) output;
-        long micros = data;
+        long micros = ChronoUnit.MICROS.between(EPOCH, data);
+        cv.time[rowId] = micros / 1_000; // millis
+        cv.nanos[rowId] = (int) (micros % 1_000_000) * 1_000; // nanos
+      }
+    }
+  }
+
+  static class TimestampConverter implements Converter<LocalDateTime> {
+    @Override
+    public Class<LocalDateTime> getJavaClass() {
+      return LocalDateTime.class;
+    }
+
+    @Override
+    public void addValue(int rowId, LocalDateTime data, ColumnVector output) {
+      if (data == null) {
+        output.noNulls = false;
+        output.isNull[rowId] = true;
+      } else {
+        output.isNull[rowId] = false;
+        TimestampColumnVector cv = (TimestampColumnVector) output;
+        long micros = ChronoUnit.MICROS.between(EPOCH, data.atOffset(LOCAL_ZONE_OFFSET));
         cv.time[rowId] = micros / 1_000; // millis
         cv.nanos[rowId] = (int) (micros % 1_000_000) * 1_000; // nanos
       }
@@ -308,7 +413,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
         output.isNull[rowId] = true;
       } else {
         output.isNull[rowId] = false;
-        ((DecimalColumnVector) output).vector[rowId].set(HiveDecimal.create(data));
+        ((DecimalColumnVector) output).vector[rowId].set(HiveDecimal.create(data, false));
       }
     }
   }
@@ -402,10 +507,10 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
         output.isNull[rowId] = true;
       } else {
         output.isNull[rowId] = false;
-        Map<String, Object> map = (Map<String, Object>) data;
-        List<String> keys = Lists.newArrayListWithExpectedSize(map.size());
+        Map<Object, Object> map = (Map<Object, Object>) data;
+        List<Object> keys = Lists.newArrayListWithExpectedSize(map.size());
         List<Object> values = Lists.newArrayListWithExpectedSize(map.size());
-        for (Map.Entry<String, ?> entry : map.entrySet()) {
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
           keys.add(entry.getKey());
           values.add(entry.getValue());
         }
@@ -436,26 +541,51 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       case SHORT:
         return new ShortConverter();
       case DATE:
+        return new DateConverter();
       case INT:
         return new IntConverter();
       case LONG:
-        return new LongConverter();
+        ORCSchemaUtil.LongType longType = ORCSchemaUtil.LongType.valueOf(
+            schema.getAttributeValue(ORCSchemaUtil.ICEBERG_LONG_TYPE_ATTRIBUTE));
+        switch (longType) {
+          case TIME:
+            return new TimeConverter();
+          case LONG:
+            return new LongConverter();
+          default:
+            throw new IllegalStateException("Invalid Long type found in ORC type attribute");
+        }
       case FLOAT:
         return new FloatConverter();
       case DOUBLE:
         return new DoubleConverter();
       case BINARY:
-        return new BytesConverter();
+        ORCSchemaUtil.BinaryType binaryType = ORCSchemaUtil.BinaryType.valueOf(
+            schema.getAttributeValue(ORCSchemaUtil.ICEBERG_BINARY_TYPE_ATTRIBUTE));
+        switch (binaryType) {
+          case UUID:
+            return new UUIDConverter();
+          case FIXED:
+            return new FixedConverter();
+          case BINARY:
+            return new BytesConverter();
+          default:
+            throw new IllegalStateException("Invalid Binary type found in ORC type attribute");
+        }
       case STRING:
       case CHAR:
       case VARCHAR:
         return new StringConverter();
       case DECIMAL:
-        return schema.getPrecision() <= 18 ?
-            new Decimal18Converter(schema) :
-            new Decimal38Converter(schema);
+        // TODO: Figure out the right cases in which to use the fastpath Decimal18Converter
+        // The condition of precision <= 18 is insufficient and leads to rounding errors
+        //    return schema.getPrecision() <= 18 ?
+        //        new Decimal18Converter(schema) :
+        return new Decimal38Converter(schema);
       case TIMESTAMP:
         return new TimestampConverter();
+      case TIMESTAMP_INSTANT:
+        return new TimestampTzConverter();
       case STRUCT:
         return new StructConverter(schema);
       case LIST:

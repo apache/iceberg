@@ -486,25 +486,25 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 
 **Data Type Mappings**
 
-| Type               | ORC type    | Notes                                                                                   |
-|--------------------|-------------|-----------------------------------------------------------------------------------------|
-| **`boolean`**      | `boolean`   |                                                                                         |
-| **`int`**          | `int`       | ORC `tinyint` and `smallint` would also map to **`int`**.                               |
-| **`long`**         | `long`      |                                                                                         |
-| **`float`**        | `float`     |                                                                                         |
-| **`double`**       | `double`    |                                                                                         |
-| **`decimal(P,S)`** | `decimal`   |                                                                                         |
-| **`date`**         | `date`      |                                                                                         |
-| **`time`**         | `int`       | Stores microseconds from midnight.                                                      |
-| **`timestamp`**    | `timestamp` |                                                                                         |
-| **`timestamptz`**  | `struct`    | We should add this to ORC’s type model (ORC-294).                                       |
-| **`string`**       | `string`    | ORC `varchar` and `char` would also map to **`string`**.                                |
-| **`uuid`**         | `binary`    |                                                                                         |
-| **`fixed(L)`**     | `binary`    | The length would not be checked by the ORC reader and should be checked by the adapter. |
-| **`binary`**       | `binary`    |                                                                                         |
-| **`struct`**       | `struct`    | ORC `uniontype` would also map to **`struct`**.                                         |
-| **`list`**         | `array`     |                                                                                         |
-| **`map`**          | `map`       |                                                                                         |
+| Type               | ORC type            | Notes                                                                                   |
+|--------------------|---------------------|-----------------------------------------------------------------------------------------|
+| **`boolean`**      | `boolean`           |                                                                                         |
+| **`int`**          | `int`               | ORC `tinyint` and `smallint` would also map to **`int`**.                               |
+| **`long`**         | `long`              |                                                                                         |
+| **`float`**        | `float`             |                                                                                         |
+| **`double`**       | `double`            |                                                                                         |
+| **`decimal(P,S)`** | `decimal`           |                                                                                         |
+| **`date`**         | `date`              |                                                                                         |
+| **`time`**         | `long`              | Stores microseconds from midnight.                                                      |
+| **`timestamp`**    | `timestamp`         |                                                                                         |
+| **`timestamptz`**  | `timestamp_instant` |                                       |
+| **`string`**       | `string`            | ORC `varchar` and `char` would also map to **`string`**.                                |
+| **`uuid`**         | `binary`            |                                                                                         |
+| **`fixed(L)`**     | `binary`            | The length would not be checked by the ORC reader and should be checked by the adapter. |
+| **`binary`**       | `binary`            |                                                                                         |
+| **`struct`**       | `struct`            | ORC `uniontype` would also map to **`struct`**.                                         |
+| **`list`**         | `array`             |                                                                                         |
+| **`map`**          | `map`               |                                                                                         |
 
 
 One of the interesting challenges with this is how to map Iceberg’s schema evolution (id based) on to ORC’s (name based). In theory, we could use Iceberg’s column ids as the column and field names, but that would suck from a user’s point of view. 
@@ -651,5 +651,3 @@ This serialization scheme is for storing single values as individual binary valu
 | **`struct`**                 | Not supported                                                                                                |
 | **`list`**                   | Not supported                                                                                                |
 | **`map`**                    | Not supported                                                                                                |
-
-
