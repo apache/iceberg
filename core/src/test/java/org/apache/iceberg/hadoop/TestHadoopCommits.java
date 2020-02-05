@@ -357,7 +357,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     // inject the mockFS into the TableOperations
     doReturn(mockFs).when(spyOps).getFileSystem(any(), any());
     try {
-      spyOps.commit(spyOps.current(), meta1);
+      spyOps.commit(tops.current(), meta1);
       fail("Commit should fail due to mock file system");
     } catch (CommitFailedException expected) {
     }

@@ -140,7 +140,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   @Override
   public Snapshot apply() {
-    this.base = ops.refresh();
+    this.base = refresh();
     Long parentSnapshotId = base.currentSnapshot() != null ?
         base.currentSnapshot().snapshotId() : null;
 
@@ -223,6 +223,15 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return builder.build();
   }
 
+  protected TableMetadata current() {
+    return base;
+  }
+
+  protected TableMetadata refresh() {
+    this.base = ops.refresh();
+    return base;
+  }
+
   @Override
   public void commit() {
     // this is always set to the latest commit attempt's snapshot id.
@@ -244,6 +253,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
               updated = base.addStagedSnapshot(newSnapshot);
             } else {
               updated = base.replaceCurrentSnapshot(newSnapshot);
+            }
+
+            if (updated == base) {
+              // do not commit if the metadata has not changed. for example, this may happen when setting the current
+              // snapshot to an ID that is already current. note that this check uses identity.
+              return;
             }
 
             // reset sequence number to null so that the sequence number can be updated when retry

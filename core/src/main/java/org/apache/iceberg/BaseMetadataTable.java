@@ -143,6 +143,11 @@ abstract class BaseMetadataTable implements Table {
   }
 
   @Override
+  public ManageSnapshots manageSnapshots() {
+    throw new UnsupportedOperationException("Cannot manage snapshots in a metadata table");
+  }
+
+  @Override
   public Transaction newTransaction() {
     throw new UnsupportedOperationException("Cannot create transactions for a metadata table");
   }

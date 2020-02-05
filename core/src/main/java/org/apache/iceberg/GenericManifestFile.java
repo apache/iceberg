@@ -21,10 +21,11 @@ package org.apache.iceberg;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData.SchemaConstructable;
@@ -174,7 +175,7 @@ public class GenericManifestFile
     this.existingRowsCount = toCopy.existingRowsCount;
     this.deletedFilesCount = toCopy.deletedFilesCount;
     this.deletedRowsCount = toCopy.deletedRowsCount;
-    this.partitions = ImmutableList.copyOf(Iterables.transform(toCopy.partitions, PartitionFieldSummary::copy));
+    this.partitions = copyList(toCopy.partitions, PartitionFieldSummary::copy);
     this.fromProjectionPos = toCopy.fromProjectionPos;
     this.sequenceNumber = toCopy.sequenceNumber;
   }
@@ -419,7 +420,7 @@ public class GenericManifestFile
             toCopy.path(), toCopy.length(), toCopy.partitionSpecId(), toCopy.snapshotId(),
             toCopy.addedFilesCount(), toCopy.addedRowsCount(), toCopy.existingFilesCount(),
             toCopy.existingRowsCount(), toCopy.deletedFilesCount(), toCopy.deletedRowsCount(),
-            toCopy.partitions());
+            copyList(toCopy.partitions(), PartitionFieldSummary::copy));
       }
     }
 
@@ -436,5 +437,16 @@ public class GenericManifestFile
     public ManifestFile build() {
       return manifestFile;
     }
+  }
+
+  private static <E, R> List<R> copyList(List<E> list, Function<E, R> transform) {
+    if (list != null) {
+      List<R> copy = Lists.newArrayListWithExpectedSize(list.size());
+      for (E element : list) {
+        copy.add(transform.apply(element));
+      }
+      return Collections.unmodifiableList(copy);
+    }
+    return null;
   }
 }
