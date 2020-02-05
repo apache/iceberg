@@ -198,22 +198,12 @@ public class ResidualEvaluator implements Serializable {
 
     @Override
     public <T> Expression in(BoundReference<T> ref, Set<T> literalSet) {
-      T val = ref.eval(struct);
-      if (literalSet.stream().anyMatch(lit -> ref.comparator().compare(val, lit) == 0)) {
-        return alwaysTrue();
-      } else {
-        return alwaysFalse();
-      }
+      return literalSet.contains(ref.eval(struct)) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
     public <T> Expression notIn(BoundReference<T> ref, Set<T> literalSet) {
-      T val = ref.eval(struct);
-      if (literalSet.stream().anyMatch(lit -> ref.comparator().compare(val, lit) == 0)) {
-        return alwaysFalse();
-      } else {
-        return alwaysTrue();
-      }
+      return literalSet.contains(ref.eval(struct)) ? alwaysFalse() : alwaysTrue();
     }
 
     @Override
