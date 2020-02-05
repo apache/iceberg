@@ -259,4 +259,42 @@ public class TestSequenceNumber extends TableTestBase {
     Assert.assertEquals(6, TestTables.load(tableDir, "test").currentSnapshot().sequenceNumber()
         .longValue());
   }
+
+  @Test
+  public void testSequenceNumberForCherryPicking() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    // WAP commit
+    table.newAppend()
+        .appendFile(FILE_B)
+        .set("wap.id", "123456789")
+        .stageOnly()
+        .commit();
+
+    Assert.assertEquals("the snapshot sequence number should be 1",
+        1, table.currentSnapshot().sequenceNumber().longValue());
+
+    // pick the snapshot that's staged but not committed
+    Snapshot wapSnapshot = readMetadata().snapshots().get(1);
+
+    Assert.assertEquals("the snapshot sequence number should be 2",
+        2, wapSnapshot.sequenceNumber().longValue());
+
+    // table has new commit
+    table.newAppend()
+        .appendFile(FILE_C)
+        .commit();
+
+    Assert.assertEquals("the snapshot sequence number should be 2",
+        2, wapSnapshot.sequenceNumber().longValue());
+
+    // cherry-pick snapshot
+    table.manageSnapshots().cherrypick(wapSnapshot.snapshotId()).commit();
+
+    Assert.assertEquals("the snapshot sequence number should be 3",
+        3, table.currentSnapshot().sequenceNumber().longValue());
+
+  }
 }
