@@ -20,6 +20,8 @@
 package org.apache.iceberg;
 
 import com.google.common.collect.Lists;
+import java.util.List;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -27,7 +29,6 @@ public class TestRemoveSnapshots extends TableTestBase {
 
   @Test
   public void testRetainLastWithExpireOlderThan() {
-    long t0 = System.currentTimeMillis();
     table.newAppend()
         .appendFile(FILE_A) // data_bucket=0
         .commit();
@@ -69,7 +70,6 @@ public class TestRemoveSnapshots extends TableTestBase {
 
   @Test
   public void testRetainLastWithExpireById() {
-    long t0 = System.currentTimeMillis();
     table.newAppend()
         .appendFile(FILE_A) // data_bucket=0
         .commit();
@@ -111,7 +111,6 @@ public class TestRemoveSnapshots extends TableTestBase {
 
   @Test
   public void testRetainNAvailableSnapshotsWithTransaction() {
-    long t0 = System.currentTimeMillis();
     table.newAppend()
         .appendFile(FILE_A) // data_bucket=0
         .commit();
@@ -155,7 +154,6 @@ public class TestRemoveSnapshots extends TableTestBase {
 
   @Test
   public void testRetainLastWithTooFewSnapshots() {
-    long t0 = System.currentTimeMillis();
     table.newAppend()
         .appendFile(FILE_A) // data_bucket=0
         .appendFile(FILE_B) // data_bucket=1
@@ -190,7 +188,6 @@ public class TestRemoveSnapshots extends TableTestBase {
 
   @Test
   public void testRetainLastKeepsExpiringSnapshot() {
-    long t0 = System.currentTimeMillis();
     table.newAppend()
         .appendFile(FILE_A) // data_bucket=0
         .commit();
@@ -241,7 +238,6 @@ public class TestRemoveSnapshots extends TableTestBase {
 
   @Test
   public void testExpireOlderThanMultipleCalls() {
-    long t0 = System.currentTimeMillis();
     table.newAppend()
         .appendFile(FILE_A) // data_bucket=0
         .commit();
@@ -284,7 +280,6 @@ public class TestRemoveSnapshots extends TableTestBase {
 
   @Test
   public void testRetainLastMultipleCalls() {
-    long t0 = System.currentTimeMillis();
     table.newAppend()
         .appendFile(FILE_A) // data_bucket=0
         .commit();
@@ -332,5 +327,157 @@ public class TestRemoveSnapshots extends TableTestBase {
         IllegalArgumentException.class,
         "Number of snapshots to retain must be at least 1, cannot be: 0",
         () -> table.expireSnapshots().retainLast(0).commit());
+  }
+
+  @Test
+  public void testExpireMetadata() {
+    table.newAppend()
+        .appendFile(FILE_A) // data_bucket=0
+        .commit();
+
+    long t1 = System.currentTimeMillis();
+    while (t1 <= table.currentSnapshot().timestampMillis()) {
+      t1 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_B) // data_bucket=1
+        .commit();
+
+    long t2 = System.currentTimeMillis();
+    while (t2 <= table.currentSnapshot().timestampMillis()) {
+      t2 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_C) // data_bucket=2
+        .commit();
+
+    long t3 = System.currentTimeMillis();
+    while (t3 <= table.currentSnapshot().timestampMillis()) {
+      t3 = System.currentTimeMillis();
+    }
+
+    List<TableMetadata.MetadataLogEntry> previousFiles = Lists.newArrayList();
+    previousFiles.addAll(table.ops().current().previousFiles());
+
+    // Retain last 2 metadata files
+    table.expireSnapshots()
+        .expireMetadataRetainLast(2)
+        .commit();
+
+    AssertHelpers.assertThrows("Should fail read v1.metadata.json metadata file, as file is deleted",
+        NotFoundException.class,
+        "Failed to read file: " + previousFiles.get(1).file(),
+        () -> TableMetadataParser.read(table.ops().io(), table.ops().io().newInputFile(previousFiles.get(1).file())));
+
+    TableMetadata latestPreviousMetadata =
+        TableMetadataParser.read(table.ops().io(), table.ops().io().newInputFile(previousFiles.get(2).file()));
+    Assert.assertNotNull(latestPreviousMetadata);
+  }
+
+  @Test
+  public void testExpireSnapshotsAndMetadata() {
+    table.newAppend()
+        .appendFile(FILE_A) // data_bucket=0
+        .commit();
+    long t1 = System.currentTimeMillis();
+    while (t1 <= table.currentSnapshot().timestampMillis()) {
+      t1 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_B) // data_bucket=1
+        .commit();
+
+    long t2 = System.currentTimeMillis();
+    while (t2 <= table.currentSnapshot().timestampMillis()) {
+      t2 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_C) // data_bucket=2
+        .commit();
+
+    long t3 = System.currentTimeMillis();
+    while (t3 <= table.currentSnapshot().timestampMillis()) {
+      t3 = System.currentTimeMillis();
+    }
+
+    List<TableMetadata.MetadataLogEntry> previousFiles = Lists.newArrayList();
+    previousFiles.addAll(table.ops().current().previousFiles());
+
+    // Expire snapshots older than t3 and retain last 1 metadata file
+    table.expireSnapshots()
+        .expireOlderThan(t3)
+        .expireMetadataRetainLast(1)
+        .commit();
+
+    Assert.assertEquals("Should have one snapshots.",
+        1, Lists.newArrayList(table.snapshots()).size());
+
+    AssertHelpers.assertThrows("Should fail read v2.metadata.json metadata file, as file is deleted",
+        NotFoundException.class,
+        "Failed to read file: " + previousFiles.get(2).file(),
+        () -> TableMetadataParser.read(table.ops().io(), table.ops().io().newInputFile(previousFiles.get(2).file())));
+  }
+
+  @Test
+  public void testExpireMetadataRetainMoreThanAvailable() {
+    table.newAppend()
+        .appendFile(FILE_A) // data_bucket=0
+        .commit();
+
+    long t0 = System.currentTimeMillis();
+    while (t0 <= table.currentSnapshot().timestampMillis()) {
+      t0 = System.currentTimeMillis();
+    }
+
+    table.updateProperties()
+        .set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "20")
+        .set(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "true")
+        .commit();
+
+    long t1 = System.currentTimeMillis();
+    while (t1 <= table.currentSnapshot().timestampMillis()) {
+      t1 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_B) // data_bucket=1
+        .commit();
+
+    long t2 = System.currentTimeMillis();
+    while (t2 <= table.currentSnapshot().timestampMillis()) {
+      t2 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_C) // data_bucket=2
+        .commit();
+
+    long t3 = System.currentTimeMillis();
+    while (t3 <= table.currentSnapshot().timestampMillis()) {
+      t3 = System.currentTimeMillis();
+    }
+
+    // Retain at least last 10 metadata files
+    table.expireSnapshots()
+        .expireMetadataRetainLast(10)
+        .commit();
+
+    List<TableMetadata.MetadataLogEntry> previousMetadata = Lists.newArrayList();
+    previousMetadata.addAll(table.ops().current().previousFiles());
+
+    Assert.assertEquals("Should have 4 previous metadata files.",
+        4, previousMetadata.size());
+
+    TableMetadata oldestPreviousMetadata =
+        TableMetadataParser.read(table.ops().io(), table.ops().io().newInputFile(previousMetadata.get(0).file()));
+    Assert.assertNotNull(oldestPreviousMetadata);
+
+    TableMetadata latestPreviousMetadata =
+        TableMetadataParser.read(table.ops().io(), table.ops().io().newInputFile(previousMetadata.get(3).file()));
+    Assert.assertNotNull(latestPreviousMetadata);
   }
 }

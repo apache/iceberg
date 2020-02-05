@@ -25,12 +25,16 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import io.netty.util.internal.ConcurrentSet;
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -63,6 +67,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   private final Set<Long> idsToRetain = Sets.newHashSet();
   private TableMetadata base;
   private Long expireOlderThan = null;
+  private Integer numMetadataFiles = null;
   private Consumer<String> deleteFunc = defaultDelete;
 
   RemoveSnapshots(TableOperations ops) {
@@ -96,6 +101,12 @@ class RemoveSnapshots implements ExpireSnapshots {
       idsToRetain.addAll(ancestorIds.subList(0, numSnapshots));
     }
 
+    return this;
+  }
+
+  @Override
+  public ExpireSnapshots expireMetadataRetainLast(int numFiles) {
+    this.numMetadataFiles = numFiles;
     return this;
   }
 
@@ -168,14 +179,14 @@ class RemoveSnapshots implements ExpireSnapshots {
       }
     }
 
-    if (expiredIds.isEmpty()) {
-      // if no snapshots were expired, skip cleanup
-      return;
+    if (!expiredIds.isEmpty()) {
+      // if snapshots were expired, do cleanup
+      LOG.info("Committed snapshot changes; cleaning up expired manifests and data files.");
+      cleanExpiredFiles(current.snapshots(), validIds, expiredIds);
     }
 
-    LOG.info("Committed snapshot changes; cleaning up expired manifests and data files.");
-
-    cleanExpiredFiles(current.snapshots(), validIds, expiredIds);
+    LOG.info("cleaning up expired metadata json files.");
+    cleanExpiredMetadata(current.previousFiles());
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
@@ -256,10 +267,10 @@ class RemoveSnapshots implements ExpireSnapshots {
     }
 
     deleteDataFiles(manifestsToScan, manifestsToRevert, validIds);
-    deleteMetadataFiles(manifestsToDelete, manifestListsToDelete);
+    deleteManifestFiles(manifestsToDelete, manifestListsToDelete);
   }
 
-  private void deleteMetadataFiles(Set<String> manifestsToDelete, Set<String> manifestListsToDelete) {
+  private void deleteManifestFiles(Set<String> manifestsToDelete, Set<String> manifestListsToDelete) {
     LOG.warn("Manifests to delete: {}", Joiner.on(", ").join(manifestsToDelete));
 
     Tasks.foreach(manifestsToDelete)
@@ -341,5 +352,55 @@ class RemoveSnapshots implements ExpireSnapshots {
     } else {
       return CloseableIterable.withNoopClose(snapshot.manifests());
     }
+  }
+
+  private void cleanExpiredMetadata(List<TableMetadata.MetadataLogEntry> previousFiles) {
+    //previousFiles.size() + 1 to include current metadata file.
+    if (numMetadataFiles != null && previousFiles != null && (previousFiles.size() + 1) > numMetadataFiles) {
+      // if previous metadata files are empty or less than the num of files to retain, skip cleanup
+      List<TableMetadata.MetadataLogEntry> previousFilesToDelete =
+              Lists.newArrayList(previousFiles.subList(0, (previousFiles.size() + 1) - numMetadataFiles));
+      SortedSet<TableMetadata.MetadataLogEntry> filesToDelete = findMetadataFilesToDelete(previousFilesToDelete);
+      deleteMetadataFiles(filesToDelete);
+    }
+  }
+
+  private SortedSet<TableMetadata.MetadataLogEntry> findMetadataFilesToDelete(
+      List<TableMetadata.MetadataLogEntry> metadataFiles) {
+    SortedSet<TableMetadata.MetadataLogEntry> filesToDelete =
+        Sets.newTreeSet(Comparator.comparingLong(TableMetadata.MetadataLogEntry::timestampMillis));
+    List<TableMetadata.MetadataLogEntry> previousFiles = Lists.newArrayList(metadataFiles);
+
+    while (previousFiles != null && !previousFiles.isEmpty()) {
+      filesToDelete.addAll(previousFiles);
+      String metadataFile = previousFiles.get(0).file();
+
+      AtomicReference<TableMetadata> metadata = new AtomicReference<>();
+      if (metadataFile != null) {
+        Tasks.foreach(metadataFile)
+            .retry(20)
+            .exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */)
+            .throwFailureWhenFinished()
+            .run(metadataLocation -> {
+              try {
+                metadata.set(TableMetadataParser.read(ops.io(),
+                    ops.io().newInputFile(metadataLocation)));
+              } catch (NotFoundException exc) {
+                LOG.warn("metadata file not found : {}", metadataLocation, exc);
+                metadata.set(null);
+              }
+            });
+      }
+      previousFiles = (metadata.get() == null) ? null : metadata.get().previousFiles();
+    }
+    return filesToDelete;
+  }
+
+  private void deleteMetadataFiles(SortedSet<TableMetadata.MetadataLogEntry> metadataFilesToDelete) {
+    LOG.warn("Metadata files to delete: {}", Joiner.on(", ").join(metadataFilesToDelete));
+    Tasks.foreach(metadataFilesToDelete)
+        .noRetry().suppressFailureWhenFinished()
+        .onFailure((metadataLocation, exc) -> LOG.warn("Delete failed for metadata file: {}", metadataLocation, exc))
+        .run(metadataLocation -> deleteFunc.accept(metadataLocation.file()));
   }
 }

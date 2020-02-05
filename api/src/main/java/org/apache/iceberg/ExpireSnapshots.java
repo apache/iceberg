@@ -71,6 +71,17 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
   ExpireSnapshots retainLast(int numSnapshots);
 
   /**
+   * Retains the most recent metadata json files.
+   *
+   * This may keep more than {@code numFiles} metadata files if snapshots are added concurrently. This
+   * may keep less than {@code numFiles} metadata files if the current table state does not have that many.
+   *
+   * @param numFiles the number of metadata files to retain
+   * @return this for method chaining
+   */
+  ExpireSnapshots expireMetadataRetainLast(int numFiles);
+
+  /**
    * Passes an alternative delete implementation that will be used for manifests and data files.
    * <p>
    * Manifest files that are no longer used by valid snapshots will be deleted. Data files that were

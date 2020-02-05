@@ -22,8 +22,10 @@ package org.apache.iceberg;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import java.io.File;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -31,6 +33,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.util.Tasks;
 
 import static org.apache.iceberg.TableMetadata.newTableMetadata;
 
@@ -168,10 +171,14 @@ public class TestTables {
             this.failCommits -= 1;
             throw new CommitFailedException("Injected failure");
           }
-          Integer version = VERSIONS.get(tableName);
-          VERSIONS.put(tableName, version == null ? 0 : version + 1);
-          METADATA.put(tableName, updatedMetadata);
-          this.current = updatedMetadata;
+          Integer version = VERSIONS.get(tableName) == null ? 0 : VERSIONS.get(tableName) + 1;
+          String fileExtension = TableMetadataParser.getFileExtension(TableMetadataParser.Codec.NONE);
+          String metadataFile = updatedMetadata.location() + "/v" + version.intValue() + fileExtension;
+          TableMetadataParser.overwrite(updatedMetadata, io().newOutputFile(metadataFile));
+          this.current = TableMetadataParser.read(io(), io().newInputFile(metadataFile));
+          VERSIONS.put(tableName, version);
+          METADATA.put(tableName, current);
+          deleteRemovedMetadataFiles(base, updatedMetadata);
         } else {
           throw new CommitFailedException(
               "Commit failed: table was updated at %d", current.lastUpdatedMillis());
@@ -202,6 +209,25 @@ public class TestTables {
       this.lastSnapshotId = nextSnapshotId;
       return nextSnapshotId;
     }
+
+    private void deleteRemovedMetadataFiles(TableMetadata base, TableMetadata updated) {
+      if (base == null) {
+        return;
+      }
+
+      boolean deleteAfterCommit = updated.propertyAsBoolean(
+          TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
+          TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
+
+      Set<TableMetadata.MetadataLogEntry> removedPreviousMetadataFiles = Sets.newHashSet(base.previousFiles());
+      removedPreviousMetadataFiles.removeAll(updated.previousFiles());
+
+      if (deleteAfterCommit) {
+        Tasks.foreach(removedPreviousMetadataFiles)
+            .noRetry().suppressFailureWhenFinished()
+            .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
+      }
+    }
   }
 
   static class LocalFileIO implements FileIO {
@@ -218,7 +244,7 @@ public class TestTables {
 
     @Override
     public void deleteFile(String path) {
-      if (!new File(path).delete()) {
+      if (new File(path).exists() && !new File(path).delete()) {
         throw new RuntimeIOException("Failed to delete file: " + path);
       }
     }

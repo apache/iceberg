@@ -499,10 +499,11 @@ public class TableMetadata {
       }
     }
 
-    ImmutableList.Builder<PartitionSpec> builder = ImmutableList.<PartitionSpec>builder()
-        .addAll(specs);
+    ImmutableList.Builder<PartitionSpec> builder = ImmutableList.<PartitionSpec>builder();
     if (!specsById.containsKey(specId)) {
       builder.add(freshSpec);
+    } else {
+      builder.addAll(specs);
     }
 
     Map<String, String> newProperties = Maps.newHashMap();

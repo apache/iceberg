@@ -113,7 +113,7 @@ public class TestTransaction extends TableTestBase {
     Assert.assertEquals("Table should have one manifest after commit",
         1, readMetadata().currentSnapshot().manifests().size());
     Assert.assertEquals("Table snapshot should be the delete snapshot",
-        deleteSnapshot, readMetadata().currentSnapshot());
+        deleteSnapshot.snapshotId(), readMetadata().currentSnapshot().snapshotId());
     validateManifestEntries(readMetadata().currentSnapshot().manifests().get(0),
         ids(deleteSnapshot.snapshotId(), appendSnapshot.snapshotId()),
         files(FILE_A, FILE_B), statuses(Status.DELETED, Status.EXISTING));
@@ -164,7 +164,7 @@ public class TestTransaction extends TableTestBase {
     Assert.assertEquals("Table should have one manifest after commit",
         1, readMetadata().currentSnapshot().manifests().size());
     Assert.assertEquals("Table snapshot should be the delete snapshot",
-        deleteSnapshot, readMetadata().currentSnapshot());
+        deleteSnapshot.snapshotId(), readMetadata().currentSnapshot().snapshotId());
     validateManifestEntries(readMetadata().currentSnapshot().manifests().get(0),
         ids(deleteSnapshot.snapshotId(), appendSnapshot.snapshotId()),
         files(FILE_A, FILE_B), statuses(Status.DELETED, Status.EXISTING));
