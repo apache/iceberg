@@ -65,7 +65,6 @@ public class GenericOrcReader implements OrcValueReader<Record> {
 
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
-  private static final ZoneOffset LOCAL_ZONE_OFFSET = OffsetDateTime.now().getOffset();
 
   private GenericOrcReader(Schema expectedSchema, TypeDescription readSchema) {
     this.schema = expectedSchema;
@@ -226,8 +225,14 @@ public class GenericOrcReader implements OrcValueReader<Record> {
   }
 
   private static class TimestampConverter implements Converter<LocalDateTime> {
+    private final ZoneOffset localZoneOffset;
+
+    TimestampConverter() {
+      this.localZoneOffset = OffsetDateTime.now().getOffset();
+    }
+
     private LocalDateTime convert(TimestampColumnVector vector, int row) {
-      return LocalDateTime.ofEpochSecond(vector.time[row] / 1_000, vector.nanos[row], LOCAL_ZONE_OFFSET);
+      return LocalDateTime.ofEpochSecond(vector.time[row] / 1_000, vector.nanos[row], localZoneOffset);
     }
 
     @Override

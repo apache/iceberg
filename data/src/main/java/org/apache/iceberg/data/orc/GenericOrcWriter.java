@@ -57,7 +57,6 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
   private final Converter[] converters;
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
-  private static final ZoneOffset LOCAL_ZONE_OFFSET = OffsetDateTime.now().getOffset();
 
   private GenericOrcWriter(TypeDescription schema) {
     this.converters = buildConverters(schema);
@@ -350,6 +349,12 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
   }
 
   static class TimestampConverter implements Converter<LocalDateTime> {
+    private final ZoneOffset localZoneOffset;
+
+    TimestampConverter() {
+      this.localZoneOffset = OffsetDateTime.now().getOffset();
+    }
+
     @Override
     public Class<LocalDateTime> getJavaClass() {
       return LocalDateTime.class;
@@ -363,7 +368,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       } else {
         output.isNull[rowId] = false;
         TimestampColumnVector cv = (TimestampColumnVector) output;
-        long micros = ChronoUnit.MICROS.between(EPOCH, data.atOffset(LOCAL_ZONE_OFFSET));
+        long micros = ChronoUnit.MICROS.between(EPOCH, data.atOffset(localZoneOffset));
         cv.time[rowId] = micros / 1_000; // millis
         cv.nanos[rowId] = (int) (micros % 1_000_000) * 1_000; // nanos
       }
