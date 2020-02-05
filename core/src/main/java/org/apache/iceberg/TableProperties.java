@@ -77,6 +77,8 @@ public class TableProperties {
   public static final String OBJECT_STORE_ENABLED = "write.object-storage.enabled";
   public static final boolean OBJECT_STORE_ENABLED_DEFAULT = false;
 
+  public static final String EVENTUAL_READ_AFTER_RIGHT = "write.read-after-right.eventual";
+
   public static final String OBJECT_STORE_PATH = "write.object-storage.path";
 
   // This only applies to files written after this property is set. Files previously written aren't

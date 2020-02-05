@@ -163,6 +163,11 @@ public class Tasks {
       return this;
     }
 
+    public Builder<I> onlyRetryOn(Collection<Class<? extends Exception>> exceptions) {
+      this.onlyRetryExceptions = Lists.newArrayList(exceptions);
+      return this;
+    }
+
     public Builder<I> onlyRetryOn(Class<? extends Exception> exception) {
       this.onlyRetryExceptions = Collections.singletonList(exception);
       return this;
