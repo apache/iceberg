@@ -34,61 +34,94 @@ import org.junit.Test;
 public class TestSequenceNumber extends TableTestBase {
 
   @Test
-  public void testReadWriteSequenceNumber() {
+  public void testSequenceNumberForFastAppend() throws IOException {
     table.newFastAppend().appendFile(FILE_A).commit();
     Assert.assertEquals(1, table.currentSnapshot().sequenceNumber().longValue());
-    table.newFastAppend().appendFile(FILE_B).commit();
-    Assert.assertEquals(2, table.currentSnapshot().sequenceNumber().longValue());
-  }
-
-  @Test
-  public void testSequenceNumberForFastAppend() throws IOException {
-    ManifestFile manifestFile = writeManifest(FILE_A, FILE_B);
-    table.newFastAppend().appendManifest(manifestFile).commit();
-    Assert.assertEquals(1, table.currentSnapshot().sequenceNumber().longValue());
-
-    manifestFile = table.currentSnapshot().manifests().get(0);
-
+    ManifestFile manifestFile = table.currentSnapshot().manifests().get(0);
     Assert.assertEquals(1, manifestFile.sequenceNumber().longValue());
 
-    for (ManifestEntry entry : ManifestReader.read(manifestFile,
-        table.io(), table.ops().current().specsById()).entries()) {
-      if (entry.file().path().equals(FILE_A.path()) || entry.file().path().equals(FILE_B.path())) {
-        Assert.assertEquals(1, entry.sequenceNumber().longValue());
-      }
-    }
+    table.newFastAppend().appendFile(FILE_B).commit();
+    Assert.assertEquals(2, table.currentSnapshot().sequenceNumber().longValue());
+    manifestFile = table.currentSnapshot().manifests().stream()
+        .filter(manifest -> manifest.snapshotId() == table.currentSnapshot().snapshotId())
+        .collect(Collectors.toList()).get(0);
+    Assert.assertEquals(2, manifestFile.sequenceNumber().longValue());
 
-    table.newFastAppend().appendFile(FILE_C).appendFile(FILE_D).commit();
+    manifestFile = writeManifest(FILE_C, FILE_D);
+    table.newFastAppend().appendManifest(manifestFile).commit();
+    Assert.assertEquals(3, table.currentSnapshot().sequenceNumber().longValue());
 
     manifestFile = table.currentSnapshot().manifests().stream()
         .filter(manifest -> manifest.snapshotId() == table.currentSnapshot().snapshotId())
         .collect(Collectors.toList()).get(0);
-
-    Assert.assertEquals("minimum sequence number should be 2",
-        2, manifestFile.sequenceNumber().longValue());
-  }
-
-  @Test
-  public void testSequenceNumberForMergeAppend() {
-    table.updateProperties()
-        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1")
-        .commit();
-    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
-    Assert.assertEquals(1, table.currentSnapshot().manifests().size());
-    table.newAppend().appendFile(FILE_C).appendFile(FILE_D).commit();
-    ManifestFile manifestFile = table.currentSnapshot().manifests().get(0);
-
-    Assert.assertEquals("sequence number should be 2",
-        2, manifestFile.sequenceNumber().longValue());
+    Assert.assertEquals(3, manifestFile.sequenceNumber().longValue());
 
     for (ManifestEntry entry : ManifestReader.read(manifestFile,
         table.io(), table.ops().current().specsById()).entries()) {
-      if (entry.file().path().equals(FILE_A.path()) || entry.file().path().equals(FILE_B.path())) {
-        Assert.assertEquals(1, entry.sequenceNumber().longValue());
+      if (entry.file().path().equals(FILE_C.path()) || entry.file().path().equals(FILE_D.path())) {
+        Assert.assertEquals(3, entry.sequenceNumber().longValue());
+      }
+    }
+  }
+
+  @Test
+  public void testSequenceNumberForMergeAppend() throws IOException {
+    table.updateProperties()
+        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1")
+        .commit();
+    table.newAppend().appendFile(FILE_A).commit();
+    Assert.assertEquals(1, table.currentSnapshot().sequenceNumber().longValue());
+
+    table.newAppend().appendFile(FILE_B).commit();
+    Assert.assertEquals(2, table.currentSnapshot().sequenceNumber().longValue());
+
+    ManifestFile manifestFile = writeManifest(FILE_C, FILE_D);
+    table.newAppend().appendManifest(manifestFile).commit();
+    Assert.assertEquals(3, table.currentSnapshot().sequenceNumber().longValue());
+
+    manifestFile = table.currentSnapshot().manifests().get(0);
+
+    Assert.assertEquals("the sequence number of manifest should be 3",
+        3, manifestFile.sequenceNumber().longValue());
+
+    for (ManifestEntry entry : ManifestReader.read(manifestFile,
+        table.io(), table.ops().current().specsById()).entries()) {
+      if (entry.file().path().equals(FILE_A.path())) {
+        Assert.assertEquals("the sequence number of data file should be 1", 1, entry.sequenceNumber().longValue());
+      }
+
+      if (entry.file().path().equals(FILE_B.path())) {
+        Assert.assertEquals("the sequence number of data file should be 2", 2, entry.sequenceNumber().longValue());
       }
 
       if (entry.file().path().equals(FILE_C.path()) || entry.file().path().equals(FILE_D.path())) {
-        Assert.assertEquals(2, entry.sequenceNumber().longValue());
+        Assert.assertEquals("the sequence number of data file should be 3", 3, entry.sequenceNumber().longValue());
+      }
+    }
+  }
+
+  @Test
+  public void testSequenceNumberForRewrite() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.newFastAppend().appendFile(FILE_B).commit();
+    Assert.assertEquals(2, table.currentSnapshot().sequenceNumber().longValue());
+
+    table.rewriteManifests().clusterBy(file -> "").commit();
+    Assert.assertEquals("the sequence number of snapshot should be 3",
+        3, table.currentSnapshot().sequenceNumber().longValue());
+
+    ManifestFile newManifest = table.currentSnapshot().manifests().get(0);
+    Assert.assertEquals("the sequence number of manifest should be 3",
+        3, newManifest.sequenceNumber().longValue());
+
+    for (ManifestEntry entry : ManifestReader.read(newManifest,
+        table.io(), table.ops().current().specsById()).entries()) {
+      if (entry.file().path().equals(FILE_A.path())) {
+        Assert.assertEquals("the sequence number of data file should be 1", 1, entry.sequenceNumber().longValue());
+      }
+
+      if (entry.file().path().equals(FILE_B.path())) {
+        Assert.assertEquals("the sequence number of data file should be 1", 2, entry.sequenceNumber().longValue());
       }
     }
   }
@@ -119,31 +152,6 @@ public class TestSequenceNumber extends TableTestBase {
         table.ops().current().specsById()).entries()) {
       if (entry.file().path().equals(FILE_C.path())) {
         Assert.assertEquals(table.currentSnapshot().sequenceNumber(), entry.sequenceNumber());
-      }
-    }
-  }
-
-  @Test
-  public void testSequenceNumberForRewrite() throws IOException {
-    ManifestFile manifest = writeManifestWithName("manifest-file-1.avro", FILE_A);
-
-    table.newFastAppend()
-        .appendManifest(manifest)
-        .commit();
-
-    table.rewriteManifests()
-        .clusterBy(file -> "")
-        .commit();
-
-    ManifestFile newManifest = table.currentSnapshot().manifests().get(0);
-
-    Assert.assertEquals("the snapshot sequence number should be 1",
-        2, table.currentSnapshot().sequenceNumber().longValue());
-
-    for (ManifestEntry entry : ManifestReader.read(newManifest,
-        table.io(), table.ops().current().specsById()).entries()) {
-      if (entry.file().path().equals(FILE_A.path())) {
-        Assert.assertEquals(1, entry.sequenceNumber().longValue());
       }
     }
   }
