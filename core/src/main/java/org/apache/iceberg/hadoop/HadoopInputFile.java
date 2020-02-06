@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.hadoop;
 
+import com.google.common.base.Preconditions;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import org.apache.hadoop.conf.Configuration;
@@ -54,21 +55,53 @@ public class HadoopInputFile implements InputFile {
     return fromPath(path, length, conf);
   }
 
+  public static HadoopInputFile fromLocation(CharSequence location, FileSystem fs) {
+    Path path = new Path(location.toString());
+    return fromPath(path, fs);
+  }
+
+  public static HadoopInputFile fromLocation(CharSequence location, long length,
+                                             FileSystem fs) {
+    Path path = new Path(location.toString());
+    return fromPath(path, length, fs);
+  }
+
   public static HadoopInputFile fromPath(Path path, Configuration conf) {
-    return fromPath(Util.getFs(path, conf), path, conf);
+    FileSystem fs = Util.getFs(path, conf);
+    return fromPath(path, fs, conf);
   }
 
   public static HadoopInputFile fromPath(Path path, long length, Configuration conf) {
     FileSystem fs = Util.getFs(path, conf);
-    return new HadoopInputFile(fs, path, length, conf);
+    return fromPath(path, length, fs, conf);
   }
 
-  static HadoopInputFile fromPath(FileSystem fs, Path path, Configuration conf) {
+  public static HadoopInputFile fromPath(Path path, FileSystem fs) {
+    return fromPath(path, fs, fs.getConf());
+  }
+
+  public static HadoopInputFile fromPath(Path path, long length, FileSystem fs) {
+    return fromPath(path, length, fs, fs.getConf());
+  }
+
+  public static HadoopInputFile fromPath(Path path, FileSystem fs, Configuration conf) {
     return new HadoopInputFile(fs, path, conf);
+  }
+
+  public static HadoopInputFile fromPath(Path path, long length, FileSystem fs, Configuration conf) {
+    return new HadoopInputFile(fs, path, length, conf);
   }
 
   public static HadoopInputFile fromStatus(FileStatus stat, Configuration conf) {
     FileSystem fs = Util.getFs(stat.getPath(), conf);
+    return fromStatus(stat, fs, conf);
+  }
+
+  public static HadoopInputFile fromStatus(FileStatus stat, FileSystem fs) {
+    return fromStatus(stat, fs, fs.getConf());
+  }
+
+  public static HadoopInputFile fromStatus(FileStatus stat, FileSystem fs, Configuration conf) {
     return new HadoopInputFile(fs, stat, conf);
   }
 
@@ -79,6 +112,7 @@ public class HadoopInputFile implements InputFile {
   }
 
   private HadoopInputFile(FileSystem fs, Path path, long length, Configuration conf) {
+    Preconditions.checkArgument(length >= 0, "Invalid file length: %s", length);
     this.fs = fs;
     this.path = path;
     this.conf = conf;

@@ -44,8 +44,21 @@ public class HadoopOutputFile implements OutputFile {
     return fromPath(path, conf);
   }
 
+  public static OutputFile fromLocation(CharSequence location, FileSystem fs) {
+    Path path = new Path(location.toString());
+    return fromPath(path, fs);
+  }
+
   public static OutputFile fromPath(Path path, Configuration conf) {
     FileSystem fs = Util.getFs(path, conf);
+    return fromPath(path, fs, conf);
+  }
+
+  public static OutputFile fromPath(Path path, FileSystem fs) {
+    return fromPath(path, fs, fs.getConf());
+  }
+
+  public static OutputFile fromPath(Path path, FileSystem fs, Configuration conf) {
     return new HadoopOutputFile(fs, path, conf);
   }
 
@@ -90,7 +103,7 @@ public class HadoopOutputFile implements OutputFile {
 
   @Override
   public InputFile toInputFile() {
-    return HadoopInputFile.fromPath(fs, path, conf);
+    return HadoopInputFile.fromPath(path, fs, conf);
   }
 
   @Override
