@@ -58,8 +58,13 @@ class StaticTableScan extends BaseTableScan {
   }
 
   @Override
+  public CloseableIterable<FileScanTask> planFiles() {
+    return CloseableIterable.withNoopClose(buildTask.apply(this));
+  }
+
+  @Override
   protected CloseableIterable<FileScanTask> planFiles(
       TableOperations ops, Snapshot snapshot, Expression rowFilter, boolean caseSensitive, boolean colStats) {
-    return CloseableIterable.withNoopClose(buildTask.apply(this));
+    throw new UnsupportedOperationException("Not supported for a static table");
   }
 }
