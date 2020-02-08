@@ -158,6 +158,6 @@ public interface DataFile {
    * @return The sequence number to identify the order in which data files and deletion files are to be processed.
    * If the sequence number is not specified it is inherited from the manifest file struct in the manifest list file.
    */
-  Long sequenceNumber();
+  long sequenceNumber();
 
 }

@@ -379,8 +379,8 @@ public class TestHelpers {
     }
 
     @Override
-    public Long sequenceNumber() {
-      return null;
+    public long sequenceNumber() {
+      return 0;
     }
   }
 }

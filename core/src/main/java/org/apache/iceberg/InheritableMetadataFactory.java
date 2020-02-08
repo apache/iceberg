@@ -47,7 +47,7 @@ class InheritableMetadataFactory {
       if (manifestEntry.snapshotId() == null) {
         manifestEntry.setSnapshotId(snapshotId);
       }
-      if (manifestEntry.sequenceNumber() == null) {
+      if (manifestEntry.sequenceNumber() == null && this.sequenceNumber != null) {
         manifestEntry.setSequenceNumber(sequenceNumber);
       }
       return manifestEntry;

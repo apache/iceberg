@@ -55,6 +55,7 @@ class MergeAppend extends MergingSnapshotProducer<AppendFiles> implements Append
     Preconditions.checkArgument(
         manifest.snapshotId() == null || manifest.snapshotId() == -1,
         "Snapshot id must be assigned during commit");
+    Preconditions.checkArgument(manifest.sequenceNumber() == null, "Sequence number must be assigned during commit");
     add(manifest);
     return this;
   }

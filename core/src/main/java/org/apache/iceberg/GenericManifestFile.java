@@ -138,26 +138,6 @@ public class GenericManifestFile
     this.fromProjectionPos = null;
   }
 
-  public GenericManifestFile(String path, long length, int specId, Long snapshotId, Long sequenceNumber,
-                             int addedFilesCount, long addedRowsCount, int existingFilesCount,
-                             long existingRowsCount, int deletedFilesCount, long deletedRowsCount,
-                             List<PartitionFieldSummary> partitions) {
-    this.avroSchema = AVRO_SCHEMA;
-    this.manifestPath = path;
-    this.length = length;
-    this.specId = specId;
-    this.snapshotId = snapshotId;
-    this.sequenceNumber = sequenceNumber;
-    this.addedFilesCount = addedFilesCount;
-    this.addedRowsCount = addedRowsCount;
-    this.existingFilesCount = existingFilesCount;
-    this.existingRowsCount = existingRowsCount;
-    this.deletedFilesCount = deletedFilesCount;
-    this.deletedRowsCount = deletedRowsCount;
-    this.partitions = partitions;
-    this.fromProjectionPos = null;
-  }
-
   /**
    * Copy constructor.
    *

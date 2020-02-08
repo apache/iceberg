@@ -272,8 +272,8 @@ class GenericDataFile
   }
 
   @Override
-  public Long sequenceNumber() {
-    return sequenceNumber;
+  public long sequenceNumber() {
+    return sequenceNumber == null ? 0 : sequenceNumber;
   }
 
   @Override
