@@ -153,7 +153,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         throw new NoSuchTableException("Table does not exist: " + baseTableIdentifier);
       }
 
-      Table baseTable = new BaseTable(ops, fullTableName(name(), identifier));
+      Table baseTable = new BaseTable(ops, fullTableName(name(), baseTableIdentifier));
 
       switch (type) {
         case ENTRIES:
@@ -255,7 +255,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         .executeWith(ThreadPools.getWorkerPool())
         .onFailure((item, exc) -> LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc))
         .run(manifest -> {
-          try (ManifestReader reader = ManifestReader.read(io.newInputFile(manifest.path()))) {
+          try (ManifestReader reader = ManifestReader.read(manifest, io)) {
             for (ManifestEntry entry : reader.entries()) {
               // intern the file path because the weak key map uses identity (==) instead of equals
               String path = entry.file().path().toString().intern();

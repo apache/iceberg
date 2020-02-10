@@ -22,7 +22,6 @@ package org.apache.iceberg.parquet;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -34,7 +33,6 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
-import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.schema.MessageType;
 
 public class ParquetReader<T> extends CloseableGroup implements CloseableIterable<T> {
@@ -59,122 +57,15 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     this.caseSensitive = caseSensitive;
   }
 
-  private static class ReadConf<T> {
-    private final ParquetFileReader reader;
-    private final InputFile file;
-    private final ParquetReadOptions options;
-    private final MessageType projection;
-    private final ParquetValueReader<T> model;
-    private final List<BlockMetaData> rowGroups;
-    private final boolean[] shouldSkip;
-    private final long totalValues;
-    private final boolean reuseContainers;
-
-    @SuppressWarnings("unchecked")
-    ReadConf(InputFile file, ParquetReadOptions options, Schema expectedSchema, Expression filter,
-             Function<MessageType, ParquetValueReader<?>> readerFunc, boolean reuseContainers,
-             boolean caseSensitive) {
-      this.file = file;
-      this.options = options;
-      this.reader = newReader(file, options);
-
-      MessageType fileSchema = reader.getFileMetaData().getSchema();
-
-      boolean hasIds = ParquetSchemaUtil.hasIds(fileSchema);
-      MessageType typeWithIds = hasIds ? fileSchema : ParquetSchemaUtil.addFallbackIds(fileSchema);
-
-      this.projection = hasIds ?
-          ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema) :
-          ParquetSchemaUtil.pruneColumnsFallback(fileSchema, expectedSchema);
-      this.model = (ParquetValueReader<T>) readerFunc.apply(typeWithIds);
-      this.rowGroups = reader.getRowGroups();
-      this.shouldSkip = new boolean[rowGroups.size()];
-
-      ParquetMetricsRowGroupFilter statsFilter = null;
-      ParquetDictionaryRowGroupFilter dictFilter = null;
-      if (filter != null) {
-        statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, caseSensitive);
-        dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive);
-      }
-
-      long computedTotalValues = 0L;
-      for (int i = 0; i < shouldSkip.length; i += 1) {
-        BlockMetaData rowGroup = rowGroups.get(i);
-        boolean shouldRead = filter == null || (
-            statsFilter.shouldRead(typeWithIds, rowGroup) &&
-            dictFilter.shouldRead(typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup)));
-        this.shouldSkip[i] = !shouldRead;
-        if (shouldRead) {
-          computedTotalValues += rowGroup.getRowCount();
-        }
-      }
-
-      this.totalValues = computedTotalValues;
-      this.reuseContainers = reuseContainers;
-    }
-
-    ReadConf(ReadConf<T> toCopy) {
-      this.reader = null;
-      this.file = toCopy.file;
-      this.options = toCopy.options;
-      this.projection = toCopy.projection;
-      this.model = toCopy.model;
-      this.rowGroups = toCopy.rowGroups;
-      this.shouldSkip = toCopy.shouldSkip;
-      this.totalValues = toCopy.totalValues;
-      this.reuseContainers = toCopy.reuseContainers;
-    }
-
-    ParquetFileReader reader() {
-      if (reader != null) {
-        reader.setRequestedSchema(projection);
-        return reader;
-      }
-
-      ParquetFileReader newReader = newReader(file, options);
-      newReader.setRequestedSchema(projection);
-      return newReader;
-    }
-
-    ParquetValueReader<T> model() {
-      return model;
-    }
-
-    boolean[] shouldSkip() {
-      return shouldSkip;
-    }
-
-    long totalValues() {
-      return totalValues;
-    }
-
-    boolean reuseContainers() {
-      return reuseContainers;
-    }
-
-    ReadConf<T> copy() {
-      return new ReadConf<>(this);
-    }
-
-    private static ParquetFileReader newReader(InputFile file, ParquetReadOptions options) {
-      try {
-        return ParquetFileReader.open(ParquetIO.file(file), options);
-      } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to open Parquet file: %s", file.location());
-      }
-    }
-  }
-
   private ReadConf<T> conf = null;
 
   private ReadConf<T> init() {
     if (conf == null) {
       ReadConf<T> readConf = new ReadConf<>(
-          input, options, expectedSchema, filter, readerFunc, reuseContainers, caseSensitive);
+          input, options, expectedSchema, filter, readerFunc, null, reuseContainers, caseSensitive, null);
       this.conf = readConf.copy();
       return readConf;
     }
-
     return conf;
   }
 

@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import com.google.common.base.MoreObjects;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
@@ -40,8 +41,8 @@ public class GenericPartitionFieldSummary
 
   // data fields
   private boolean containsNull = false;
-  private ByteBuffer lowerBound = null;
-  private ByteBuffer upperBound = null;
+  private byte[] lowerBound = null;
+  private byte[] upperBound = null;
 
   /**
    * Used by Avro reflection to instantiate this class when reading manifest files.
@@ -75,8 +76,8 @@ public class GenericPartitionFieldSummary
                                       ByteBuffer upperBound) {
     this.avroSchema = AVRO_SCHEMA;
     this.containsNull = containsNull;
-    this.lowerBound = lowerBound;
-    this.upperBound = upperBound;
+    this.lowerBound = ByteBuffers.toByteArray(lowerBound);
+    this.upperBound = ByteBuffers.toByteArray(upperBound);
     this.fromProjectionPos = null;
   }
 
@@ -88,8 +89,8 @@ public class GenericPartitionFieldSummary
   private GenericPartitionFieldSummary(GenericPartitionFieldSummary toCopy) {
     this.avroSchema = toCopy.avroSchema;
     this.containsNull = toCopy.containsNull;
-    this.lowerBound = ByteBuffers.copy(toCopy.lowerBound);
-    this.upperBound = ByteBuffers.copy(toCopy.upperBound);
+    this.lowerBound = toCopy.lowerBound == null ? null : Arrays.copyOf(toCopy.lowerBound, toCopy.lowerBound.length);
+    this.upperBound = toCopy.upperBound == null ? null : Arrays.copyOf(toCopy.upperBound, toCopy.upperBound.length);
     this.fromProjectionPos = toCopy.fromProjectionPos;
   }
 
@@ -106,12 +107,12 @@ public class GenericPartitionFieldSummary
 
   @Override
   public ByteBuffer lowerBound() {
-    return lowerBound;
+    return lowerBound != null ? ByteBuffer.wrap(lowerBound) : null;
   }
 
   @Override
   public ByteBuffer upperBound() {
-    return upperBound;
+    return upperBound != null ? ByteBuffer.wrap(upperBound) : null;
   }
 
   @Override
@@ -135,9 +136,9 @@ public class GenericPartitionFieldSummary
       case 0:
         return containsNull;
       case 1:
-        return lowerBound;
+        return lowerBound();
       case 2:
-        return upperBound;
+        return upperBound();
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -156,10 +157,10 @@ public class GenericPartitionFieldSummary
         this.containsNull = (Boolean) value;
         return;
       case 1:
-        this.lowerBound = (ByteBuffer) value;
+        this.lowerBound = ByteBuffers.toByteArray((ByteBuffer) value);
         return;
       case 2:
-        this.upperBound = (ByteBuffer) value;
+        this.upperBound = ByteBuffers.toByteArray((ByteBuffer) value);
         return;
       default:
         // ignore the object, it must be from a newer version of the format

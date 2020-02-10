@@ -119,59 +119,35 @@ public class DataFilesTable extends BaseMetadataTable {
 
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
+      ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(rowFilter);
 
       // Data tasks produce the table schema, not the projection schema and projection is done by processing engines.
       // This data task needs to use the table schema, which may not include a partition schema to avoid having an
       // empty struct in the schema for unpartitioned tables. Some engines, like Spark, can't handle empty structs in
       // all cases.
       return CloseableIterable.transform(manifests, manifest ->
-          new ManifestReadTask(ops.io(), new BaseFileScanTask(
-              DataFiles.fromManifest(manifest), schemaString, specString, ResidualEvaluator.unpartitioned(rowFilter)),
-              fileSchema));
+          new ManifestReadTask(ops.io(), manifest, fileSchema, schemaString, specString, residuals));
     }
   }
 
-  private static class ManifestReadTask implements DataTask {
+  private static class ManifestReadTask extends BaseFileScanTask implements DataTask {
     private final FileIO io;
-    private final FileScanTask manifestTask;
+    private final ManifestFile manifest;
     private final Schema schema;
 
-    private ManifestReadTask(FileIO io, FileScanTask manifestTask, Schema schema) {
+    private ManifestReadTask(FileIO io, ManifestFile manifest, Schema schema, String schemaString,
+                             String specString, ResidualEvaluator residuals) {
+      super(DataFiles.fromManifest(manifest), schemaString, specString, residuals);
       this.io = io;
-      this.manifestTask = manifestTask;
+      this.manifest = manifest;
       this.schema = schema;
     }
 
     @Override
     public CloseableIterable<StructLike> rows() {
       return CloseableIterable.transform(
-          ManifestReader.read(io.newInputFile(manifestTask.file().path().toString())).project(schema),
+          ManifestReader.read(manifest, io).project(schema),
           file -> (GenericDataFile) file);
-    }
-
-    @Override
-    public DataFile file() {
-      return manifestTask.file();
-    }
-
-    @Override
-    public PartitionSpec spec() {
-      return manifestTask.spec();
-    }
-
-    @Override
-    public long start() {
-      return 0;
-    }
-
-    @Override
-    public long length() {
-      return manifestTask.length();
-    }
-
-    @Override
-    public Expression residual() {
-      return manifestTask.residual();
     }
 
     @Override

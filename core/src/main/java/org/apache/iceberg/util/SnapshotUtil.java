@@ -42,6 +42,16 @@ public class SnapshotUtil {
     return ancestorIds(table.currentSnapshot(), table::snapshot);
   }
 
+  /**
+   * @return List of snapshot ids in the range - (fromSnapshotId, toSnapshotId]
+   * This method assumes that fromSnapshotId is an ancestor of toSnapshotId
+   */
+  public static List<Long> snapshotIdsBetween(Table table, long fromSnapshotId, long toSnapshotId) {
+    List<Long> snapshotIds = Lists.newArrayList(ancestorIds(table.snapshot(toSnapshotId),
+        snapshotId -> snapshotId != fromSnapshotId ? table.snapshot(snapshotId) : null));
+    return snapshotIds;
+  }
+
   public static List<Long> ancestorIds(Snapshot snapshot, Function<Long, Snapshot> lookup) {
     List<Long> ancestorIds = Lists.newArrayList();
     Snapshot current = snapshot;

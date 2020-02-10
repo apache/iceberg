@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Joiner;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import io.netty.util.internal.ConcurrentSet;
@@ -59,6 +60,7 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   private final TableOperations ops;
   private final Set<Long> idsToRemove = Sets.newHashSet();
+  private final Set<Long> idsToRetain = Sets.newHashSet();
   private TableMetadata base;
   private Long expireOlderThan = null;
   private Consumer<String> deleteFunc = defaultDelete;
@@ -83,6 +85,21 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   @Override
+  public ExpireSnapshots retainLast(int numSnapshots) {
+    Preconditions.checkArgument(1 <= numSnapshots,
+            "Number of snapshots to retain must be at least 1, cannot be: %s", numSnapshots);
+    idsToRetain.clear();
+    List<Long> ancestorIds = SnapshotUtil.ancestorIds(base.currentSnapshot(), base::snapshot);
+    if (numSnapshots >= ancestorIds.size()) {
+      idsToRetain.addAll(ancestorIds);
+    } else {
+      idsToRetain.addAll(ancestorIds.subList(0, numSnapshots));
+    }
+
+    return this;
+  }
+
+  @Override
   public ExpireSnapshots deleteWith(Consumer<String> newDeleteFunc) {
     this.deleteFunc = newDeleteFunc;
     return this;
@@ -102,7 +119,8 @@ class RemoveSnapshots implements ExpireSnapshots {
 
     return base.removeSnapshotsIf(snapshot ->
         idsToRemove.contains(snapshot.snapshotId()) ||
-        (expireOlderThan != null && snapshot.timestampMillis() < expireOlderThan));
+        (expireOlderThan != null && snapshot.timestampMillis() < expireOlderThan &&
+            !idsToRetain.contains(snapshot.snapshotId())));
   }
 
   @Override
@@ -171,7 +189,7 @@ class RemoveSnapshots implements ExpireSnapshots {
     Set<Long> ancestorIds = Sets.newHashSet(SnapshotUtil.ancestorIds(base.currentSnapshot(), base::snapshot));
 
     Set<String> validManifests = Sets.newHashSet();
-    Set<String> manifestsToScan = Sets.newHashSet();
+    Set<ManifestFile> manifestsToScan = Sets.newHashSet();
     for (Snapshot snapshot : snapshots) {
       try (CloseableIterable<ManifestFile> manifests = readManifestFiles(snapshot)) {
         for (ManifestFile manifest : manifests) {
@@ -180,7 +198,7 @@ class RemoveSnapshots implements ExpireSnapshots {
           boolean fromValidSnapshots = validIds.contains(manifest.snapshotId());
           boolean isFromAncestor = ancestorIds.contains(manifest.snapshotId());
           if (!fromValidSnapshots && isFromAncestor && manifest.hasDeletedFiles()) {
-            manifestsToScan.add(manifest.path());
+            manifestsToScan.add(manifest);
           }
         }
 
@@ -192,7 +210,7 @@ class RemoveSnapshots implements ExpireSnapshots {
 
     Set<String> manifestListsToDelete = Sets.newHashSet();
     Set<String> manifestsToDelete = Sets.newHashSet();
-    Set<String> manifestsToRevert = Sets.newHashSet();
+    Set<ManifestFile> manifestsToRevert = Sets.newHashSet();
     for (Snapshot snapshot : base.snapshots()) {
       long snapshotId = snapshot.snapshotId();
       if (!validIds.contains(snapshotId)) {
@@ -210,7 +228,7 @@ class RemoveSnapshots implements ExpireSnapshots {
                 // snapshot is an ancestor of the current table state. Otherwise, a snapshot that
                 // deleted files and was rolled back will delete files that could be in the current
                 // table state.
-                manifestsToScan.add(manifest.path());
+                manifestsToScan.add(manifest);
               }
 
               if (!isFromAncestor && isFromExpiringSnapshot && manifest.hasAddedFiles()) {
@@ -221,7 +239,7 @@ class RemoveSnapshots implements ExpireSnapshots {
                 // written and this expiration is known and there is no missing history. If history
                 // were missing, then the snapshot could be an ancestor of the table state but the
                 // ancestor ID set would not contain it and this would be unsafe.
-                manifestsToRevert.add(manifest.path());
+                manifestsToRevert.add(manifest);
               }
             }
           }
@@ -255,7 +273,8 @@ class RemoveSnapshots implements ExpireSnapshots {
         .run(deleteFunc::accept);
   }
 
-  private void deleteDataFiles(Set<String> manifestsToScan, Set<String> manifestsToRevert, Set<Long> validIds) {
+  private void deleteDataFiles(Set<ManifestFile> manifestsToScan, Set<ManifestFile> manifestsToRevert,
+                               Set<Long> validIds) {
     Set<String> filesToDelete = findFilesToDelete(manifestsToScan, manifestsToRevert, validIds);
     Tasks.foreach(filesToDelete)
         .noRetry().suppressFailureWhenFinished()
@@ -263,8 +282,8 @@ class RemoveSnapshots implements ExpireSnapshots {
         .run(file -> deleteFunc.accept(file));
   }
 
-  private Set<String> findFilesToDelete(
-      Set<String> manifestsToScan, Set<String> manifestsToRevert, Set<Long> validIds) {
+  private Set<String> findFilesToDelete(Set<ManifestFile> manifestsToScan, Set<ManifestFile> manifestsToRevert,
+                                        Set<Long> validIds) {
     Set<String> filesToDelete = new ConcurrentSet<>();
     Tasks.foreach(manifestsToScan)
         .noRetry().suppressFailureWhenFinished()
@@ -272,8 +291,7 @@ class RemoveSnapshots implements ExpireSnapshots {
         .onFailure((item, exc) -> LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc))
         .run(manifest -> {
           // the manifest has deletes, scan it to find files to delete
-          try (ManifestReader reader = ManifestReader.read(
-              ops.io().newInputFile(manifest), ops.current().specsById())) {
+          try (ManifestReader reader = ManifestReader.read(manifest, ops.io(), ops.current().specsById())) {
             for (ManifestEntry entry : reader.entries()) {
               // if the snapshot ID of the DELETE entry is no longer valid, the data can be deleted
               if (entry.status() == ManifestEntry.Status.DELETED &&
@@ -293,8 +311,7 @@ class RemoveSnapshots implements ExpireSnapshots {
         .onFailure((item, exc) -> LOG.warn("Failed to get added files: this may cause orphaned data files", exc))
         .run(manifest -> {
           // the manifest has deletes, scan it to find files to delete
-          try (ManifestReader reader = ManifestReader.read(
-              ops.io().newInputFile(manifest), ops.current().specsById())) {
+          try (ManifestReader reader = ManifestReader.read(manifest, ops.io(), ops.current().specsById())) {
             for (ManifestEntry entry : reader.entries()) {
               // delete any ADDED file from manifests that were reverted
               if (entry.status() == ManifestEntry.Status.ADDED) {

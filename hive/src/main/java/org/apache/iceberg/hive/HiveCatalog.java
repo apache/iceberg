@@ -50,7 +50,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
   private boolean closed;
 
   public HiveCatalog(Configuration conf) {
-    this.clients = new HiveClientPool(2, conf);
+    this.clients = new HiveClientPool(conf);
     this.conf = conf;
     this.createStack = Thread.currentThread().getStackTrace();
     this.closed = false;

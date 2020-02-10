@@ -113,4 +113,7 @@ public class TableProperties {
 
   public static final String WRITE_TARGET_FILE_SIZE_BYTES = "write.target-file-size-bytes";
   public static final long WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT = Long.MAX_VALUE;
+
+  public static final String SNAPSHOT_ID_INHERITANCE_ENABLED = "compatibility.snapshot-id-inheritance.enabled";
+  public static final boolean SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT = false;
 }

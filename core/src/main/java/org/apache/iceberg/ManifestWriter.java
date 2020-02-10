@@ -85,30 +85,33 @@ public class ManifestWriter implements FileAppender<DataFile> {
   /**
    * Create a new {@link ManifestWriter}.
    * <p>
-   * Manifests created by this writer are not part of a snapshot and have all entry snapshot IDs
-   * set to -1.
+   * Manifests created by this writer have all entry snapshot IDs set to null.
+   * All entries will inherit the snapshot ID that will be assigned to the manifest on commit.
    *
    * @param spec {@link PartitionSpec} used to produce {@link DataFile} partition tuples
    * @param outputFile the destination file location
    * @return a manifest writer
    */
   public static ManifestWriter write(PartitionSpec spec, OutputFile outputFile) {
-    return new ManifestWriter(spec, outputFile, -1);
+    return new ManifestWriter(spec, outputFile, null);
   }
 
   private final OutputFile file;
   private final int specId;
   private final FileAppender<ManifestEntry> writer;
-  private final long snapshotId;
+  private final Long snapshotId;
   private final ManifestEntry reused;
   private final PartitionSummary stats;
 
   private boolean closed = false;
   private int addedFiles = 0;
+  private long addedRows = 0L;
   private int existingFiles = 0;
+  private long existingRows = 0L;
   private int deletedFiles = 0;
+  private long deletedRows = 0L;
 
-  ManifestWriter(PartitionSpec spec, OutputFile file, long snapshotId) {
+  ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
     this.file = file;
     this.specId = spec.specId();
     this.writer = newAppender(FileFormat.AVRO, spec, file);
@@ -121,12 +124,15 @@ public class ManifestWriter implements FileAppender<DataFile> {
     switch (entry.status()) {
       case ADDED:
         addedFiles += 1;
+        addedRows += entry.file().recordCount();
         break;
       case EXISTING:
         existingFiles += 1;
+        existingRows += entry.file().recordCount();
         break;
       case DELETED:
         deletedFiles += 1;
+        deletedRows += entry.file().recordCount();
         break;
     }
     stats.update(entry.file().partition());
@@ -195,7 +201,7 @@ public class ManifestWriter implements FileAppender<DataFile> {
   public ManifestFile toManifestFile() {
     Preconditions.checkState(closed, "Cannot build ManifestFile, writer is not closed");
     return new GenericManifestFile(file.location(), writer.length(), specId, snapshotId,
-        addedFiles, existingFiles, deletedFiles, stats.summaries());
+        addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows, stats.summaries());
   }
 
   @Override

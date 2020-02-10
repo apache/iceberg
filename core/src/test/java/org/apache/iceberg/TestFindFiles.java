@@ -19,11 +19,14 @@
 
 package org.apache.iceberg;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import java.util.Arrays;
 import java.util.Set;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -54,6 +57,28 @@ public class TestFindFiles extends TableTestBase {
         .collect();
 
     Assert.assertEquals(pathSet(FILE_A), pathSet(files));
+  }
+
+  @Test
+  public void testWithRecordsMatching() {
+    table.newAppend()
+        .appendFile(DataFiles.builder(SPEC)
+            .withInputFile(Files.localInput("/path/to/data-e.parquet"))
+            .withPartitionPath("data_bucket=4")
+            .withMetrics(new Metrics(3L,
+                null, // no column sizes
+                ImmutableMap.of(1, 3L), // value count
+                ImmutableMap.of(1, 0L), // null count
+                ImmutableMap.of(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1)),  // lower bounds
+                ImmutableMap.of(1, Conversions.toByteBuffer(Types.IntegerType.get(), 5)))) // lower bounds
+            .build())
+        .commit();
+
+    final Iterable<DataFile> files = FindFiles.in(table)
+        .withRecordsMatching(Expressions.equal("id", 1))
+        .collect();
+
+    Assert.assertEquals(Sets.newHashSet("/path/to/data-e.parquet"), pathSet(files));
   }
 
   @Test

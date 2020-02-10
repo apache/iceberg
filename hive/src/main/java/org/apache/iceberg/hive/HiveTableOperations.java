@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.hive;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -31,7 +32,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.metastore.TableType;
+import org.apache.hadoop.hive.metastore.api.EnvironmentContext;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.LockComponent;
 import org.apache.hadoop.hive.metastore.api.LockLevel;
@@ -62,10 +65,14 @@ import org.slf4j.LoggerFactory;
 public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HiveTableOperations.class);
 
+  private static final String HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS = "iceberg.hive.lock-timeout-ms";
+  private static final long HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
+
   private final HiveClientPool metaClients;
   private final String database;
   private final String tableName;
   private final Configuration conf;
+  private final long lockAcquireTimeout;
 
   private FileIO fileIO;
 
@@ -74,6 +81,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     this.metaClients = metaClients;
     this.database = database;
     this.tableName = table;
+    this.lockAcquireTimeout =
+        conf.getLong(HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS, HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT);
   }
 
   @Override
@@ -163,7 +172,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
       if (base != null) {
         metaClients.run(client -> {
-          client.alter_table(database, tableName, tbl);
+          EnvironmentContext envContext = new EnvironmentContext(
+              ImmutableMap.of(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE)
+          );
+          client.alter_table(database, tableName, tbl, envContext);
           return null;
         });
       } else {
@@ -243,11 +255,27 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     LockResponse lockResponse = metaClients.run(client -> client.lock(lockRequest));
     LockState state = lockResponse.getState();
     long lockId = lockResponse.getLockid();
-    //TODO add timeout
-    while (state.equals(LockState.WAITING)) {
+
+    final long start = System.currentTimeMillis();
+    long duration = 0;
+    boolean timeout = false;
+    while (!timeout && state.equals(LockState.WAITING)) {
       lockResponse = metaClients.run(client -> client.checkLock(lockId));
       state = lockResponse.getState();
-      Thread.sleep(50);
+
+      // check timeout
+      duration = System.currentTimeMillis() - start;
+      if (duration > lockAcquireTimeout) {
+        timeout = true;
+      } else {
+        Thread.sleep(50);
+      }
+    }
+
+    // timeout and do not have lock acquired
+    if (timeout && !state.equals(LockState.ACQUIRED)) {
+      throw new CommitFailedException(String.format("Timed out after %s ms waiting for lock on %s.%s",
+          duration, database, tableName));
     }
 
     if (!state.equals(LockState.ACQUIRED)) {

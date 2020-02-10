@@ -50,11 +50,13 @@ import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.in;
 import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
+import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
@@ -108,6 +110,9 @@ public class TestMetricsRowGroupFilter {
   private static MessageType parquetSchema = null;
   private static BlockMetaData rowGroupMetadata = null;
 
+  private static final int INT_MIN_VALUE = 30;
+  private static final int INT_MAX_VALUE = 79;
+
   @BeforeClass
   public static void createInputFile() throws IOException {
     if (parquetFile.exists()) {
@@ -123,8 +128,8 @@ public class TestMetricsRowGroupFilter {
         .build()) {
       GenericRecordBuilder builder = new GenericRecordBuilder(convert(FILE_SCHEMA, "table"));
       // create 50 records
-      for (int i = 0; i < 50; i += 1) {
-        builder.set("_id", 30 + i); // min=30, max=79, num-nulls=0
+      for (int i = 0; i < INT_MAX_VALUE - INT_MIN_VALUE + 1; i += 1) {
+        builder.set("_id", INT_MIN_VALUE + i); // min=30, max=79, num-nulls=0
         builder.set("_no_stats", TOO_LONG_FOR_STATS); // value longer than 4k will produce no stats
         builder.set("_required", "req"); // required, always non-null
         builder.set("_all_nulls", null); // never non-null
@@ -133,7 +138,7 @@ public class TestMetricsRowGroupFilter {
         builder.set("_str", i + "str" + i);
 
         Record structNotNull = new Record(structSchema);
-        structNotNull.put("_int_field", 30 + i);
+        structNotNull.put("_int_field", INT_MIN_VALUE + i);
         builder.set("_struct_not_null", structNotNull); // struct with int
 
         appender.add(builder.build());
@@ -276,11 +281,11 @@ public class TestMetricsRowGroupFilter {
   @Test
   public void testNot() {
     // this test case must use a real predicate, not alwaysTrue(), or binding will simplify it out
-    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(lessThan("id", 5)))
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(lessThan("id", INT_MIN_VALUE - 25)))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: not(false)", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(greaterThan("id", 5)))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(greaterThan("id", INT_MIN_VALUE - 25)))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should skip: not(true)", shouldRead);
   }
@@ -289,12 +294,17 @@ public class TestMetricsRowGroupFilter {
   public void testAnd() {
     // this test case must use a real predicate, not alwaysTrue(), or binding will simplify it out
     boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA,
-        and(lessThan("id", 5), greaterThanOrEqual("id", 0)))
+        and(lessThan("id", INT_MIN_VALUE - 25), greaterThanOrEqual("id", INT_MIN_VALUE - 30)))
+        .shouldRead(parquetSchema, rowGroupMetadata);
+    Assert.assertFalse("Should skip: and(false, true)", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA,
+        and(lessThan("id", INT_MIN_VALUE - 25), greaterThanOrEqual("id", INT_MAX_VALUE + 1)))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should skip: and(false, false)", shouldRead);
 
     shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA,
-        and(greaterThan("id", 5), lessThanOrEqual("id", 30)))
+        and(greaterThan("id", INT_MIN_VALUE - 25), lessThanOrEqual("id", INT_MIN_VALUE)))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: and(true, true)", shouldRead);
   }
@@ -303,326 +313,341 @@ public class TestMetricsRowGroupFilter {
   public void testOr() {
     // this test case must use a real predicate, not alwaysTrue(), or binding will simplify it out
     boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA,
-        or(lessThan("id", 5), greaterThanOrEqual("id", 80)))
+        or(lessThan("id", INT_MIN_VALUE - 25), greaterThanOrEqual("id", INT_MAX_VALUE + 1)))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should skip: or(false, false)", shouldRead);
 
     shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA,
-        or(lessThan("id", 5), greaterThanOrEqual("id", 60)))
+        or(lessThan("id", INT_MIN_VALUE - 25), greaterThanOrEqual("id", INT_MAX_VALUE - 19)))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: or(false, true)", shouldRead);
   }
 
   @Test
   public void testIntegerLt() {
-    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThan("id", 5))
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThan("id", INT_MIN_VALUE - 25))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id range below lower bound (5 < 30)", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThan("id", 30))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThan("id", INT_MIN_VALUE))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id range below lower bound (30 is not < 30)", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThan("id", 31))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThan("id", INT_MIN_VALUE + 1))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: one possible id", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThan("id", 79))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThan("id", INT_MAX_VALUE))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: may possible ids", shouldRead);
   }
 
   @Test
   public void testIntegerLtEq() {
-    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThanOrEqual("id", 5))
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThanOrEqual("id", INT_MIN_VALUE - 25))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id range below lower bound (5 < 30)", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThanOrEqual("id", 29))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThanOrEqual("id", INT_MIN_VALUE - 1))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id range below lower bound (29 < 30)", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThanOrEqual("id", 30))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThanOrEqual("id", INT_MIN_VALUE))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: one possible id", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThanOrEqual("id", 79))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThanOrEqual("id", INT_MAX_VALUE))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: many possible ids", shouldRead);
   }
 
   @Test
   public void testIntegerGt() {
-    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThan("id", 85))
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThan("id", INT_MAX_VALUE + 6))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id range above upper bound (85 < 79)", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThan("id", 79))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThan("id", INT_MAX_VALUE))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id range above upper bound (79 is not > 79)", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThan("id", 78))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThan("id", INT_MAX_VALUE - 1))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: one possible id", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThan("id", 75))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThan("id", INT_MAX_VALUE - 4))
           .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: may possible ids", shouldRead);
   }
 
   @Test
   public void testIntegerGtEq() {
-    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThanOrEqual("id", 85))
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThanOrEqual("id", INT_MAX_VALUE + 6))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id range above upper bound (85 < 79)", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThanOrEqual("id", 80))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThanOrEqual("id", INT_MAX_VALUE + 1))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id range above upper bound (80 > 79)", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThanOrEqual("id", 79))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThanOrEqual("id", INT_MAX_VALUE))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: one possible id", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThanOrEqual("id", 75))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThanOrEqual("id", INT_MAX_VALUE - 4))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: may possible ids", shouldRead);
   }
 
   @Test
   public void testIntegerEq() {
-    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("id", 5))
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("id", INT_MIN_VALUE - 25))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id below lower bound", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("id", 29))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("id", INT_MIN_VALUE - 1))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id below lower bound", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("id", 30))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("id", INT_MIN_VALUE))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("id", 75))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("id", INT_MAX_VALUE - 4))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("id", 79))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("id", INT_MAX_VALUE))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("id", 80))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("id", INT_MAX_VALUE + 1))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id above upper bound", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("id", 85))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("id", INT_MAX_VALUE + 6))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id above upper bound", shouldRead);
   }
 
   @Test
   public void testIntegerNotEq() {
-    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("id", 5))
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("id", INT_MIN_VALUE - 25))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id below lower bound", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("id", 29))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("id", INT_MIN_VALUE - 1))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id below lower bound", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("id", 30))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("id", INT_MIN_VALUE))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("id", 75))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("id", INT_MAX_VALUE - 4))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("id", 79))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("id", INT_MAX_VALUE))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("id", 80))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("id", INT_MAX_VALUE + 1))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id above upper bound", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("id", 85))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("id", INT_MAX_VALUE + 6))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id above upper bound", shouldRead);
   }
 
   @Test
   public void testIntegerNotEqRewritten() {
-    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(equal("id", 5)))
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(equal("id", INT_MIN_VALUE - 25)))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id below lower bound", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(equal("id", 29)))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(equal("id", INT_MIN_VALUE - 1)))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id below lower bound", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(equal("id", 30)))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(equal("id", INT_MIN_VALUE)))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(equal("id", 75)))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(equal("id", INT_MAX_VALUE - 4)))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(equal("id", 79)))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(equal("id", INT_MAX_VALUE)))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(equal("id", 80)))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(equal("id", INT_MAX_VALUE + 1)))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id above upper bound", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(equal("id", 85)))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, not(equal("id", INT_MAX_VALUE + 6)))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id above upper bound", shouldRead);
   }
 
   @Test
   public void testStructFieldLt() {
-    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThan("struct_not_null.int_field", 5))
-            .shouldRead(parquetSchema, rowGroupMetadata);
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA,
+        lessThan("struct_not_null.int_field", INT_MIN_VALUE - 25)
+    ).shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id range below lower bound (5 < 30)", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThan("struct_not_null.int_field", 30))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThan("struct_not_null.int_field", INT_MIN_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id range below lower bound (30 is not < 30)", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThan("struct_not_null.int_field", 31))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThan("struct_not_null.int_field", INT_MIN_VALUE + 1))
             .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: one possible id", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThan("struct_not_null.int_field", 79))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThan("struct_not_null.int_field", INT_MAX_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: may possible ids", shouldRead);
   }
 
   @Test
   public void testStructFieldLtEq() {
-    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThanOrEqual("struct_not_null.int_field", 5))
-            .shouldRead(parquetSchema, rowGroupMetadata);
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA,
+        lessThanOrEqual("struct_not_null.int_field", INT_MIN_VALUE - 25)
+    ).shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id range below lower bound (5 < 30)", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThanOrEqual("struct_not_null.int_field", 29))
-            .shouldRead(parquetSchema, rowGroupMetadata);
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA,
+        lessThanOrEqual("struct_not_null.int_field", INT_MIN_VALUE - 1)
+    ).shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id range below lower bound (29 < 30)", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThanOrEqual("struct_not_null.int_field", 30))
-            .shouldRead(parquetSchema, rowGroupMetadata);
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA,
+        lessThanOrEqual("struct_not_null.int_field", INT_MIN_VALUE)
+    ).shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: one possible id", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, lessThanOrEqual("struct_not_null.int_field", 79))
-            .shouldRead(parquetSchema, rowGroupMetadata);
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA,
+        lessThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE)
+    ).shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: many possible ids", shouldRead);
   }
 
   @Test
   public void testStructFieldGt() {
-    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThan("struct_not_null.int_field", 85))
-            .shouldRead(parquetSchema, rowGroupMetadata);
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA,
+        greaterThan("struct_not_null.int_field", INT_MAX_VALUE + 6)
+    ).shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id range above upper bound (85 < 79)", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThan("struct_not_null.int_field", 79))
-            .shouldRead(parquetSchema, rowGroupMetadata);
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA,
+        greaterThan("struct_not_null.int_field", INT_MAX_VALUE)
+    ).shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id range above upper bound (79 is not > 79)", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThan("struct_not_null.int_field", 78))
-            .shouldRead(parquetSchema, rowGroupMetadata);
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA,
+        greaterThan("struct_not_null.int_field", INT_MAX_VALUE - 1)
+    ).shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: one possible id", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThan("struct_not_null.int_field", 75))
-            .shouldRead(parquetSchema, rowGroupMetadata);
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA,
+        greaterThan("struct_not_null.int_field", INT_MAX_VALUE - 4)
+    ).shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: may possible ids", shouldRead);
   }
 
   @Test
   public void testStructFieldGtEq() {
-    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThanOrEqual("struct_not_null.int_field", 85))
-            .shouldRead(parquetSchema, rowGroupMetadata);
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA,
+        greaterThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE + 6)
+    ).shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id range above upper bound (85 < 79)", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThanOrEqual("struct_not_null.int_field", 80))
-            .shouldRead(parquetSchema, rowGroupMetadata);
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA,
+        greaterThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE + 1)
+    ).shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id range above upper bound (80 > 79)", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThanOrEqual("struct_not_null.int_field", 79))
-            .shouldRead(parquetSchema, rowGroupMetadata);
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA,
+        greaterThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE)
+    ).shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: one possible id", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, greaterThanOrEqual("struct_not_null.int_field", 75))
-            .shouldRead(parquetSchema, rowGroupMetadata);
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA,
+        greaterThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE - 4)
+    ).shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: may possible ids", shouldRead);
   }
 
   @Test
   public void testStructFieldEq() {
-    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", 5))
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA,
+        equal("struct_not_null.int_field", INT_MIN_VALUE - 25)
+    ).shouldRead(parquetSchema, rowGroupMetadata);
+    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", INT_MIN_VALUE - 1))
             .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id below lower bound", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", 29))
-            .shouldRead(parquetSchema, rowGroupMetadata);
-    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
-
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", 30))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", INT_MIN_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", 75))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", INT_MAX_VALUE - 4))
             .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", 79))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", INT_MAX_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", 80))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", INT_MAX_VALUE + 1))
             .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id above upper bound", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", 85))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", INT_MAX_VALUE + 6))
             .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id above upper bound", shouldRead);
   }
 
   @Test
   public void testStructFieldNotEq() {
-    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", 5))
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA,
+        notEqual("struct_not_null.int_field", INT_MIN_VALUE - 25)
+    ).shouldRead(parquetSchema, rowGroupMetadata);
+    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", INT_MIN_VALUE - 1))
             .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id below lower bound", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", 29))
-            .shouldRead(parquetSchema, rowGroupMetadata);
-    Assert.assertTrue("Should read: id below lower bound", shouldRead);
-
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", 30))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", INT_MIN_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", 75))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", INT_MAX_VALUE - 4))
             .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", 79))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", INT_MAX_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("id", 80))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("id", INT_MAX_VALUE + 1))
             .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id above upper bound", shouldRead);
 
-    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", 85))
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", INT_MAX_VALUE + 6))
             .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should read: id above upper bound", shouldRead);
   }
 
   @Test
   public void testCaseInsensitive() {
-    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("ID", 5), false)
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, equal("ID", INT_MIN_VALUE - 25), false)
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: id below lower bound", shouldRead);
   }
@@ -668,5 +693,91 @@ public class TestMetricsRowGroupFilter {
     shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, startsWith("str", "9str9aaa"))
         .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertFalse("Should not read: range doesn't match", shouldRead);
+  }
+
+  @Test
+  public void testIntegerIn() {
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, in("id", INT_MIN_VALUE - 25, INT_MIN_VALUE - 24))
+        .shouldRead(parquetSchema, rowGroupMetadata);
+    Assert.assertFalse("Should not read: id below lower bound (5 < 30, 6 < 30)", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, in("id", INT_MIN_VALUE - 2, INT_MIN_VALUE - 1))
+        .shouldRead(parquetSchema, rowGroupMetadata);
+    Assert.assertFalse("Should not read: id below lower bound (28 < 30, 29 < 30)", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, in("id", INT_MIN_VALUE - 1, INT_MIN_VALUE))
+        .shouldRead(parquetSchema, rowGroupMetadata);
+    Assert.assertTrue("Should read: id equal to lower bound (30 == 30)", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, in("id", INT_MAX_VALUE - 4, INT_MAX_VALUE - 3))
+        .shouldRead(parquetSchema, rowGroupMetadata);
+    Assert.assertTrue("Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, in("id", INT_MAX_VALUE, INT_MAX_VALUE + 1))
+        .shouldRead(parquetSchema, rowGroupMetadata);
+    Assert.assertTrue("Should read: id equal to upper bound (79 == 79)", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, in("id", INT_MAX_VALUE + 1, INT_MAX_VALUE + 2))
+        .shouldRead(parquetSchema, rowGroupMetadata);
+    Assert.assertFalse("Should not read: id above upper bound (80 > 79, 81 > 79)", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, in("id", INT_MAX_VALUE + 6, INT_MAX_VALUE + 7))
+        .shouldRead(parquetSchema, rowGroupMetadata);
+    Assert.assertFalse("Should not read: id above upper bound (85 > 79, 86 > 79)", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, in("all_nulls", 1, 2))
+        .shouldRead(parquetSchema, rowGroupMetadata);
+    Assert.assertFalse("Should skip: in on all nulls column", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, in("some_nulls", "aaa", "some"))
+        .shouldRead(parquetSchema, rowGroupMetadata);
+    Assert.assertTrue("Should read: in on some nulls column", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, in("no_nulls", "aaa", ""))
+        .shouldRead(parquetSchema, rowGroupMetadata);
+    Assert.assertTrue("Should read: in on no nulls column", shouldRead);
+  }
+
+  @Test
+  public void testIntegerNotIn() {
+    boolean shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notIn("id", INT_MIN_VALUE - 25, INT_MIN_VALUE - 24))
+        .shouldRead(parquetSchema, rowGroupMetadata);
+    Assert.assertTrue("Should read: id below lower bound (5 < 30, 6 < 30)", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notIn("id", INT_MIN_VALUE - 2, INT_MIN_VALUE - 1))
+        .shouldRead(parquetSchema, rowGroupMetadata);
+    Assert.assertTrue("Should read: id below lower bound (28 < 30, 29 < 30)", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notIn("id", INT_MIN_VALUE - 1, INT_MIN_VALUE))
+        .shouldRead(parquetSchema, rowGroupMetadata);
+    Assert.assertTrue("Should read: id equal to lower bound (30 == 30)", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notIn("id", INT_MAX_VALUE - 4, INT_MAX_VALUE - 3))
+        .shouldRead(parquetSchema, rowGroupMetadata);
+    Assert.assertTrue("Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notIn("id", INT_MAX_VALUE, INT_MAX_VALUE + 1))
+        .shouldRead(parquetSchema, rowGroupMetadata);
+    Assert.assertTrue("Should read: id equal to upper bound (79 == 79)", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notIn("id", INT_MAX_VALUE + 1, INT_MAX_VALUE + 2))
+        .shouldRead(parquetSchema, rowGroupMetadata);
+    Assert.assertTrue("Should read: id above upper bound (80 > 79, 81 > 79)", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notIn("id", INT_MAX_VALUE + 6, INT_MAX_VALUE + 7))
+        .shouldRead(parquetSchema, rowGroupMetadata);
+    Assert.assertTrue("Should read: id above upper bound (85 > 79, 86 > 79)", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notIn("all_nulls", 1, 2))
+        .shouldRead(parquetSchema, rowGroupMetadata);
+    Assert.assertTrue("Should read: notIn on all nulls column", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notIn("some_nulls", "aaa", "some"))
+        .shouldRead(parquetSchema, rowGroupMetadata);
+    Assert.assertTrue("Should read: notIn on some nulls column", shouldRead);
+
+    shouldRead = new ParquetMetricsRowGroupFilter(SCHEMA, notIn("no_nulls", "aaa", ""))
+        .shouldRead(parquetSchema, rowGroupMetadata);
+    Assert.assertTrue("Should read: notIn on no nulls column", shouldRead);
   }
 }

@@ -29,6 +29,7 @@ import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.orc.OrcFile;
 import org.apache.orc.Reader;
+import org.apache.orc.Writer;
 
 public class OrcMetrics {
 
@@ -40,12 +41,13 @@ public class OrcMetrics {
     return fromInputFile(file, config);
   }
 
-  public static Metrics fromInputFile(InputFile file, Configuration config) {
+  static Metrics fromInputFile(InputFile file, Configuration config) {
     try {
       final Reader orcReader = OrcFile.createReader(new Path(file.location()),
           OrcFile.readerOptions(config));
 
       // TODO: implement rest of the methods for ORC metrics
+      // https://github.com/apache/incubator-iceberg/pull/199
       return new Metrics(orcReader.getNumberOfRows(),
           null,
           null,
@@ -55,5 +57,16 @@ public class OrcMetrics {
     } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to read footer of file: %s", file);
     }
+  }
+
+  static Metrics fromWriter(Writer writer) {
+    // TODO: implement rest of the methods for ORC metrics in
+    // https://github.com/apache/incubator-iceberg/pull/199
+    return new Metrics(writer.getNumberOfRows(),
+        null,
+        null,
+        Collections.emptyMap(),
+        null,
+        null);
   }
 }

@@ -25,14 +25,15 @@ import java.util
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{Path, PathFilter}
 import org.apache.iceberg.{DataFile, DataFiles, FileFormat, ManifestFile, ManifestWriter}
-import org.apache.iceberg.{Metrics, MetricsConfig, PartitionSpec, Table}
+import org.apache.iceberg.{Metrics, MetricsConfig, PartitionSpec, Table, TableProperties}
 import org.apache.iceberg.exceptions.NoSuchTableException
 import org.apache.iceberg.hadoop.{HadoopFileIO, HadoopInputFile, SerializableConfiguration}
 import org.apache.iceberg.orc.OrcMetrics
 import org.apache.iceberg.parquet.ParquetUtil
+import org.apache.iceberg.util.PropertyUtil
 import org.apache.parquet.hadoop.ParquetFileReader
 import org.apache.spark.TaskContext
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.{DataFrame, Encoder, Encoders, SparkSession}
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.analysis.UnresolvedAttribute
 import org.apache.spark.sql.catalyst.catalog.{CatalogTable, CatalogTablePartition}
@@ -420,7 +421,7 @@ object SparkTableUtil {
   private def buildManifest(
       conf: SerializableConfiguration,
       spec: PartitionSpec,
-      basePath: String): Iterator[SparkDataFile] => Iterator[Manifest] = { files =>
+      basePath: String): Iterator[SparkDataFile] => Iterator[ManifestFile] = { files =>
     if (files.hasNext) {
       val io = new HadoopFileIO(conf.get())
       val ctx = TaskContext.get()
@@ -436,31 +437,9 @@ object SparkTableUtil {
       }
 
       val manifestFile = writer.toManifestFile
-      Seq(Manifest(manifestFile.path, manifestFile.length, manifestFile.partitionSpecId)).iterator
+      Seq(manifestFile).iterator
     } else {
       Seq.empty.iterator
-    }
-  }
-
-  private case class Manifest(location: String, fileLength: Long, specId: Int) {
-    def toManifestFile: ManifestFile = new ManifestFile {
-      override def path: String = location
-
-      override def length: Long = fileLength
-
-      override def partitionSpecId: Int = specId
-
-      override def snapshotId: java.lang.Long = null
-
-      override def addedFilesCount: Integer = null
-
-      override def existingFilesCount: Integer = null
-
-      override def deletedFilesCount: Integer = null
-
-      override def partitions: java.util.List[ManifestFile.PartitionFieldSummary] = null
-
-      override def copy: ManifestFile = this
     }
   }
 
@@ -536,6 +515,8 @@ object SparkTableUtil {
       spec: PartitionSpec,
       stagingDir: String): Unit = {
 
+    implicit val manifestFileEncoder: Encoder[ManifestFile] = Encoders.javaSerialization[ManifestFile]
+
     import spark.implicits._
 
     val conf = spark.sessionState.newHadoopConf()
@@ -553,14 +534,24 @@ object SparkTableUtil {
       .collect()
 
     try {
+      val snapshotIdInheritanceEnabled = PropertyUtil.propertyAsBoolean(
+        targetTable.properties,
+        TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED,
+        TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT)
+
       val append = targetTable.newAppend()
-      manifests.foreach(manifest => append.appendManifest(manifest.toManifestFile))
+      manifests.foreach(manifest => append.appendManifest(manifest))
       append.commit()
-    } finally {
-      val io = new HadoopFileIO(conf)
-      manifests.foreach { manifest =>
-        Try(io.deleteFile(manifest.location))
+
+      if (!snapshotIdInheritanceEnabled) {
+        // delete original manifests as they were rewritten before the commit
+        manifests.foreach(manifest => Try(targetTable.io.deleteFile(manifest.path)))
       }
+    } catch {
+      case e: Throwable =>
+        // always clean up created manifests if the append fails
+        manifests.foreach(manifest => Try(targetTable.io.deleteFile(manifest.path)))
+        throw e;
     }
   }
 }

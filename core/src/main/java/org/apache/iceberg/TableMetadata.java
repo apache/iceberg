@@ -391,6 +391,11 @@ public class TableMetadata {
   }
 
   public TableMetadata replaceCurrentSnapshot(Snapshot snapshot) {
+    // there can be operations (viz. rollback, cherrypick) where an existing snapshot could be replacing current
+    if (snapshotsById.containsKey(snapshot.snapshotId())) {
+      return setCurrentSnapshotTo(snapshot);
+    }
+
     List<Snapshot> newSnapshots = ImmutableList.<Snapshot>builder()
         .addAll(snapshots)
         .add(snapshot)
@@ -436,9 +441,14 @@ public class TableMetadata {
         addPreviousFile(file, lastUpdatedMillis));
   }
 
-  public TableMetadata rollbackTo(Snapshot snapshot) {
+  private TableMetadata setCurrentSnapshotTo(Snapshot snapshot) {
     ValidationException.check(snapshotsById.containsKey(snapshot.snapshotId()),
         "Cannot set current snapshot to unknown: %s", snapshot.snapshotId());
+
+    if (currentSnapshotId == snapshot.snapshotId()) {
+      // change is a noop
+      return this;
+    }
 
     long nowMillis = System.currentTimeMillis();
     List<HistoryEntry> newSnapshotLog = ImmutableList.<HistoryEntry>builder()

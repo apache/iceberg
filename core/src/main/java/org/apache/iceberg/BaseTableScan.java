@@ -80,6 +80,26 @@ abstract class BaseTableScan implements TableScan {
     this.options = options != null ? options : ImmutableMap.of();
   }
 
+  protected TableOperations tableOps() {
+    return ops;
+  }
+
+  protected Long snapshotId() {
+    return snapshotId;
+  }
+
+  protected boolean colStats() {
+    return colStats;
+  }
+
+  protected Collection<String> selectedColumns() {
+    return selectedColumns;
+  }
+
+  protected ImmutableMap<String, String> options() {
+    return options;
+  }
+
   @SuppressWarnings("checkstyle:HiddenField")
   protected abstract long targetSplitSize(TableOperations ops);
 
@@ -99,9 +119,19 @@ abstract class BaseTableScan implements TableScan {
   }
 
   @Override
+  public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
+    throw new UnsupportedOperationException("Incremental scan is not supported");
+  }
+
+  @Override
+  public TableScan appendsAfter(long fromSnapshotId) {
+    throw new UnsupportedOperationException("Incremental scan is not supported");
+  }
+
+  @Override
   public TableScan useSnapshot(long scanSnapshotId) {
     Preconditions.checkArgument(this.snapshotId == null,
-        "Cannot override snapshot, already set to id=%s", scanSnapshotId);
+        "Cannot override snapshot, already set to id=%s", snapshotId);
     Preconditions.checkArgument(ops.current().snapshot(scanSnapshotId) != null,
         "Cannot find snapshot with ID %s", scanSnapshotId);
     return newRefinedScan(

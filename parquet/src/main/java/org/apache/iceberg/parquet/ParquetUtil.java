@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +43,8 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.BinaryUtil;
 import org.apache.iceberg.util.UnicodeUtil;
+import org.apache.parquet.column.Encoding;
+import org.apache.parquet.column.EncodingStats;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
@@ -126,7 +129,6 @@ public class ParquetUtil {
     return new Metrics(rowCount, columnSizes, valueCounts, nullValueCounts,
         toBufferMap(fileSchema, lowerBounds), toBufferMap(fileSchema, upperBounds));
   }
-
 
   /**
    * @return a list of offsets in ascending order determined by the starting position
@@ -224,5 +226,33 @@ public class ParquetUtil {
           Conversions.toByteBuffer(schema.findType(entry.getKey()), entry.getValue().value()));
     }
     return bufferMap;
+  }
+
+  @SuppressWarnings("deprecation")
+  public static boolean hasNonDictionaryPages(ColumnChunkMetaData meta) {
+    EncodingStats stats = meta.getEncodingStats();
+    if (stats != null) {
+      return stats.hasNonDictionaryEncodedPages();
+    }
+
+    // without EncodingStats, fall back to testing the encoding list
+    Set<Encoding> encodings = new HashSet<Encoding>(meta.getEncodings());
+    if (encodings.remove(Encoding.PLAIN_DICTIONARY)) {
+      // if remove returned true, PLAIN_DICTIONARY was present, which means at
+      // least one page was dictionary encoded and 1.0 encodings are used
+
+      // RLE and BIT_PACKED are only used for repetition or definition levels
+      encodings.remove(Encoding.RLE);
+      encodings.remove(Encoding.BIT_PACKED);
+
+      // when empty, no encodings other than dictionary or rep/def levels
+      return !encodings.isEmpty();
+    } else {
+      // if PLAIN_DICTIONARY wasn't present, then either the column is not
+      // dictionary-encoded, or the 2.0 encoding, RLE_DICTIONARY, was used.
+      // for 2.0, this cannot determine whether a page fell back without
+      // page encoding stats
+      return true;
+    }
   }
 }

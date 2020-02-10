@@ -48,6 +48,7 @@ public class BoundReference<T> implements BoundTerm<T>, Reference<T> {
     return this;
   }
 
+  @Override
   public Type type() {
     return field.type();
   }

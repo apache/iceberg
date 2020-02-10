@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import java.io.IOException;
@@ -95,59 +94,33 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
       Evaluator evaluator = evaluator();
       InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
 
-      return CloseableIterable.filter(reader.entries(projection(fileSchema, columns, caseSensitive)),
+      // ensure stats columns are present for metrics evaluation
+      boolean requireStatsProjection = requireStatsProjection();
+      Collection<String> projectColumns = requireStatsProjection ? withStatsColumns(columns) : columns;
+
+      return CloseableIterable.filter(
+          reader.entries(projection(fileSchema, projectColumns, caseSensitive)),
           entry -> entry != null &&
               evaluator.eval(entry.file().partition()) &&
               metricsEvaluator.eval(entry.file()));
-
     } else {
       return reader.entries(projection(fileSchema, columns, caseSensitive));
     }
   }
 
   CloseableIterable<ManifestEntry> liveEntries() {
-    if ((rowFilter != null && rowFilter != Expressions.alwaysTrue()) ||
-        (partFilter != null && partFilter != Expressions.alwaysTrue())) {
-      Evaluator evaluator = evaluator();
-      InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
-
-      return CloseableIterable.filter(reader.entries(projection(fileSchema, columns, caseSensitive)),
-          entry -> entry != null &&
-              entry.status() != Status.DELETED &&
-              evaluator.eval(entry.file().partition()) &&
-              metricsEvaluator.eval(entry.file()));
-
-    } else {
-      return CloseableIterable.filter(reader.entries(projection(fileSchema, columns, caseSensitive)),
-          entry -> entry != null && entry.status() != Status.DELETED);
-    }
+    return CloseableIterable.filter(allEntries(), entry -> entry != null && entry.status() != Status.DELETED);
   }
 
+  /**
+   * @return an Iterator of DataFile. Makes defensive copies of files before returning
+   */
   @Override
   public Iterator<DataFile> iterator() {
-    if ((rowFilter != null && rowFilter != Expressions.alwaysTrue()) ||
-        (partFilter != null && partFilter != Expressions.alwaysTrue())) {
-      Evaluator evaluator = evaluator();
-      InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
-
-      // ensure stats columns are present for metrics evaluation
-      List<String> projectColumns = Lists.newArrayList(columns);
-      projectColumns.addAll(STATS_COLUMNS); // order doesn't matter
-
-      // if no stats columns were projected, drop them
-      boolean dropStats = Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS).isEmpty();
-
-      return Iterators.transform(
-          Iterators.filter(reader.iterator(partFilter, projection(fileSchema, projectColumns, caseSensitive)),
-              input -> input != null &&
-                  evaluator.eval(input.partition()) &&
-                  metricsEvaluator.eval(input)),
-          dropStats ? DataFile::copyWithoutStats : DataFile::copy);
-
+    if (dropStats()) {
+      return CloseableIterable.transform(liveEntries(), e -> e.file().copyWithoutStats()).iterator();
     } else {
-      return Iterators.transform(
-          reader.iterator(partFilter, projection(fileSchema, columns, caseSensitive)),
-          DataFile::copy);
+      return CloseableIterable.transform(liveEntries(), e -> e.file().copy()).iterator();
     }
   }
 
@@ -192,5 +165,30 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
       }
     }
     return lazyMetricsEvaluator;
+  }
+
+  private boolean requireStatsProjection() {
+    // Make sure we have all stats columns for metrics evaluator
+    return rowFilter != Expressions.alwaysTrue() &&
+        !columns.containsAll(ManifestReader.ALL_COLUMNS) &&
+        !columns.containsAll(STATS_COLUMNS);
+  }
+
+  private boolean dropStats() {
+    // Make sure we only drop all stats if we had projected all stats
+    // We do not drop stats even if we had partially added some stats columns
+    return rowFilter != Expressions.alwaysTrue() &&
+        !columns.containsAll(ManifestReader.ALL_COLUMNS) &&
+        Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS).isEmpty();
+  }
+
+  private static Collection<String> withStatsColumns(Collection<String> columns) {
+    if (columns.containsAll(ManifestReader.ALL_COLUMNS)) {
+      return columns;
+    } else {
+      List<String> projectColumns = Lists.newArrayList(columns);
+      projectColumns.addAll(STATS_COLUMNS); // order doesn't matter
+      return projectColumns;
+    }
   }
 }

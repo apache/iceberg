@@ -29,10 +29,9 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.UUID;
-import org.apache.iceberg.expressions.BoundLiteralPredicate;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
-import org.apache.iceberg.expressions.BoundUnaryPredicate;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
@@ -116,25 +115,18 @@ abstract class Bucket<T> implements Transform<T, Integer> {
       return ProjectionUtil.projectTransformPredicate(this, name, predicate);
     }
 
-    if (predicate instanceof BoundUnaryPredicate) {
+    if (predicate.isUnaryPredicate()) {
       return Expressions.predicate(predicate.op(), name);
-    } else if (predicate instanceof BoundLiteralPredicate) {
-      BoundLiteralPredicate<T> pred = predicate.asLiteralPredicate();
-      switch (pred.op()) {
-        case EQ:
-          return Expressions.predicate(
-              pred.op(), name, apply(pred.literal().value()));
-//      case IN:
-//        return Expressions.predicate();
-        case STARTS_WITH:
-        default:
-          // comparison predicates can't be projected, notEq can't be projected
-          // TODO: small ranges can be projected.
-          // for example, (x > 0) and (x < 3) can be turned into in({1, 2}) and projected.
-          return null;
-      }
+    } else if (predicate.isLiteralPredicate() && predicate.op() == Expression.Operation.EQ) {
+      return Expressions.predicate(
+          predicate.op(), name, apply(predicate.asLiteralPredicate().literal().value()));
+    } else if (predicate.isSetPredicate() && predicate.op() == Expression.Operation.IN) { // notIn can't be projected
+      return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), this);
     }
 
+    // comparison predicates can't be projected, notEq can't be projected
+    // TODO: small ranges can be projected.
+    // for example, (x > 0) and (x < 3) can be turned into in({1, 2}) and projected.
     return null;
   }
 
@@ -144,21 +136,16 @@ abstract class Bucket<T> implements Transform<T, Integer> {
       return ProjectionUtil.projectTransformPredicate(this, name, predicate);
     }
 
-    if (predicate instanceof BoundUnaryPredicate) {
+    if (predicate.isUnaryPredicate()) {
       return Expressions.predicate(predicate.op(), name);
-    } else if (predicate instanceof BoundLiteralPredicate) {
-      BoundLiteralPredicate<T> pred = predicate.asLiteralPredicate();
-      switch (pred.op()) {
-        case NOT_EQ: // TODO: need to translate not(eq(...)) into notEq in expressions
-          return Expressions.predicate(pred.op(), name, apply(pred.literal().value()));
-//      case NOT_IN:
-//        return null;
-        default:
-          // no strict projection for comparison or equality
-          return null;
-      }
+    } else if (predicate.isLiteralPredicate() && predicate.op() == Expression.Operation.NOT_EQ) {
+      // TODO: need to translate not(eq(...)) into notEq in expressions
+      return Expressions.predicate(predicate.op(), name, apply(predicate.asLiteralPredicate().literal().value()));
+    } else if (predicate.isSetPredicate() && predicate.op() == Expression.Operation.NOT_IN) {
+      return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), this);
     }
 
+    // no strict projection for comparison or equality
     return null;
   }
 

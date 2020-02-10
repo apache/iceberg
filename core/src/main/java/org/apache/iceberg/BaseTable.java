@@ -160,6 +160,11 @@ public class BaseTable implements Table, HasTableOperations {
   }
 
   @Override
+  public ManageSnapshots manageSnapshots() {
+    return new SnapshotManager(ops);
+  }
+
+  @Override
   public Transaction newTransaction() {
     return Transactions.newTransaction(ops);
   }

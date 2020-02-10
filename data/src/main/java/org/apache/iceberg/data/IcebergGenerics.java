@@ -20,10 +20,9 @@
 package org.apache.iceberg.data;
 
 import com.google.common.collect.ImmutableList;
-import java.util.List;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Expressions;
 
 public class IcebergGenerics {
   private IcebergGenerics() {
@@ -41,13 +40,12 @@ public class IcebergGenerics {
 
   public static class ScanBuilder {
     private final Table table;
-    private Expression where = Expressions.alwaysTrue();
-    private List<String> columns = ImmutableList.of("*");
+    private TableScan tableScan;
     private boolean reuseContainers = false;
-    private boolean caseSensitive = true;
 
     public ScanBuilder(Table table) {
       this.table = table;
+      this.tableScan = table.newScan();
     }
 
     public ScanBuilder reuseContainers() {
@@ -56,28 +54,34 @@ public class IcebergGenerics {
     }
 
     public ScanBuilder where(Expression rowFilter) {
-      this.where = Expressions.and(where, rowFilter);
+      this.tableScan = tableScan.filter(rowFilter);
       return this;
     }
 
     public ScanBuilder caseInsensitive() {
-      this.caseSensitive = false;
+      this.tableScan = tableScan.caseSensitive(false);
       return this;
     }
 
     public ScanBuilder select(String... selectedColumns) {
-      this.columns = ImmutableList.copyOf(selectedColumns);
+      this.tableScan = tableScan.select(ImmutableList.copyOf(selectedColumns));
+      return this;
+    }
+
+    public ScanBuilder useSnapshot(long scanSnapshotId) {
+      this.tableScan = tableScan.useSnapshot(scanSnapshotId);
+      return this;
+    }
+
+    public ScanBuilder asOfTime(long scanTimestampMillis) {
+      this.tableScan = tableScan.asOfTime(scanTimestampMillis);
       return this;
     }
 
     public Iterable<Record> build() {
       return new TableScanIterable(
-        table
-          .newScan()
-          .filter(where)
-          .caseSensitive(caseSensitive)
-          .select(columns),
-        reuseContainers
+          tableScan,
+          reuseContainers
       );
     }
   }

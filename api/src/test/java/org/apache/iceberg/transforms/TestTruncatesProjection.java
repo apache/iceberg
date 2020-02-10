@@ -19,8 +19,11 @@
 
 package org.apache.iceberg.transforms;
 
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
@@ -35,9 +38,11 @@ import static org.apache.iceberg.TestHelpers.assertAndUnwrapUnbound;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.in;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
+import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TestTruncatesProjection {
@@ -50,10 +55,19 @@ public class TestTruncatesProjection {
 
     Assert.assertEquals(expectedOp, predicate.op());
 
-    Literal literal = predicate.literal();
+    Assert.assertNotEquals("Strict projection never runs for IN", Expression.Operation.IN, predicate.op());
+
     Truncate transform = (Truncate) spec.getFieldsBySourceId(1).get(0).transform();
-    String output = transform.toHumanString(literal.value());
-    Assert.assertEquals(expectedLiteral, output);
+    if (predicate.op() == Expression.Operation.NOT_IN) {
+      Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
+      String actual = Lists.newArrayList(values).stream().sorted()
+          .map(v -> transform.toHumanString(v)).collect(Collectors.toList()).toString();
+      Assert.assertEquals(expectedLiteral, actual);
+    } else {
+      Literal literal = predicate.literal();
+      String output = transform.toHumanString(literal.value());
+      Assert.assertEquals(expectedLiteral, output);
+    }
   }
 
   public void assertProjectionStrictValue(PartitionSpec spec, UnboundPredicate<?> filter,
@@ -77,10 +91,19 @@ public class TestTruncatesProjection {
 
     Assert.assertEquals(predicate.op(), expectedOp);
 
-    Literal literal = predicate.literal();
+    Assert.assertNotEquals("Inclusive projection never runs for NOT_IN", Expression.Operation.NOT_IN, predicate.op());
+
     Truncate transform = (Truncate) spec.getFieldsBySourceId(1).get(0).transform();
-    String output = transform.toHumanString(literal.value());
-    Assert.assertEquals(expectedLiteral, output);
+    if (predicate.op() == Expression.Operation.IN) {
+      Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
+      String actual = Lists.newArrayList(values).stream().sorted()
+          .map(v -> transform.toHumanString(v)).collect(Collectors.toList()).toString();
+      Assert.assertEquals(expectedLiteral, actual);
+    } else {
+      Literal literal = predicate.literal();
+      String output = transform.toHumanString(literal.value());
+      Assert.assertEquals(expectedLiteral, output);
+    }
   }
 
   @Test
@@ -95,6 +118,10 @@ public class TestTruncatesProjection {
     assertProjectionStrict(spec, greaterThanOrEqual("value", value), Expression.Operation.GT, "90");
     assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "100");
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
+
+    assertProjectionStrict(spec, notIn("value", value - 1, value, value + 1),
+        Expression.Operation.NOT_IN, "[90, 100, 100]");
+    assertProjectionStrictValue(spec, in("value", value, value + 1), Expression.Operation.FALSE);
   }
 
   @Test
@@ -109,6 +136,10 @@ public class TestTruncatesProjection {
     assertProjectionStrict(spec, greaterThanOrEqual("value", value), Expression.Operation.GT, "90");
     assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "90");
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
+
+    assertProjectionStrict(spec, notIn("value", value - 1, value, value + 1),
+        Expression.Operation.NOT_IN, "[90, 90, 100]");
+    assertProjectionStrictValue(spec, in("value", value, value - 1), Expression.Operation.FALSE);
   }
 
   @Test
@@ -123,6 +154,10 @@ public class TestTruncatesProjection {
     assertProjectionInclusive(spec, greaterThanOrEqual("value", value), Expression.Operation.GT_EQ, "100");
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "100");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
+
+    assertProjectionInclusive(spec, in("value", value - 1, value, value + 1),
+        Expression.Operation.IN, "[90, 100, 100]");
+    assertProjectionInclusiveValue(spec, notIn("value", value, value + 1), Expression.Operation.TRUE);
   }
 
   @Test
@@ -137,6 +172,10 @@ public class TestTruncatesProjection {
     assertProjectionInclusive(spec, greaterThanOrEqual("value", value), Expression.Operation.GT_EQ, "90");
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "90");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
+
+    assertProjectionInclusive(spec, in("value", value - 1, value, value + 1),
+        Expression.Operation.IN, "[90, 90, 100]");
+    assertProjectionInclusiveValue(spec, notIn("value", value, value - 1), Expression.Operation.TRUE);
   }
 
   @Test
@@ -151,6 +190,10 @@ public class TestTruncatesProjection {
     assertProjectionStrict(spec, greaterThanOrEqual("value", value), Expression.Operation.GT, "90");
     assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "100");
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
+
+    assertProjectionStrict(spec, notIn("value", value - 1, value, value + 1),
+        Expression.Operation.NOT_IN, "[90, 100, 100]");
+    assertProjectionStrictValue(spec, in("value", value, value + 1), Expression.Operation.FALSE);
   }
 
   @Test
@@ -165,6 +208,10 @@ public class TestTruncatesProjection {
     assertProjectionStrict(spec, greaterThanOrEqual("value", value), Expression.Operation.GT, "90");
     assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "90");
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
+
+    assertProjectionStrict(spec, notIn("value", value - 1, value, value + 1),
+        Expression.Operation.NOT_IN, "[90, 90, 100]");
+    assertProjectionStrictValue(spec, in("value", value, value - 1), Expression.Operation.FALSE);
   }
 
   @Test
@@ -179,6 +226,10 @@ public class TestTruncatesProjection {
     assertProjectionInclusive(spec, greaterThanOrEqual("value", value), Expression.Operation.GT_EQ, "100");
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "100");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
+
+    assertProjectionInclusive(spec, in("value", value - 1, value, value + 1),
+        Expression.Operation.IN, "[90, 100, 100]");
+    assertProjectionInclusiveValue(spec, notIn("value", value, value + 1), Expression.Operation.TRUE);
   }
 
   @Test
@@ -193,6 +244,10 @@ public class TestTruncatesProjection {
     assertProjectionInclusive(spec, greaterThanOrEqual("value", value), Expression.Operation.GT_EQ, "90");
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "90");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
+
+    assertProjectionInclusive(spec, in("value", value - 1, value, value + 1),
+        Expression.Operation.IN, "[90, 90, 100]");
+    assertProjectionInclusiveValue(spec, notIn("value", value, value - 1), Expression.Operation.TRUE);
   }
 
   @Test
@@ -208,6 +263,11 @@ public class TestTruncatesProjection {
     assertProjectionStrict(spec, greaterThanOrEqual("value", value), Expression.Operation.GT, "99.90");
     assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "100.00");
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
+
+    BigDecimal delta = new BigDecimal(1);
+    assertProjectionStrict(spec, notIn("value", value.add(delta), value, value.subtract(delta)),
+            Expression.Operation.NOT_IN, "[99.00, 100.00, 101.00]");
+    assertProjectionStrictValue(spec, in("value", value, value.add(delta)), Expression.Operation.FALSE);
   }
 
   @Test
@@ -223,6 +283,11 @@ public class TestTruncatesProjection {
     assertProjectionStrict(spec, greaterThanOrEqual("value", value), Expression.Operation.GT, "99.90");
     assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "99.90");
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
+
+    BigDecimal delta = new BigDecimal(1);
+    assertProjectionStrict(spec, notIn("value", value.add(delta), value, value.subtract(delta)),
+        Expression.Operation.NOT_IN, "[98.90, 99.90, 100.90]");
+    assertProjectionStrictValue(spec, in("value", value, value.subtract(delta)), Expression.Operation.FALSE);
   }
 
   @Test
@@ -238,6 +303,11 @@ public class TestTruncatesProjection {
     assertProjectionInclusive(spec, greaterThanOrEqual("value", value), Expression.Operation.GT_EQ, "100.00");
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "100.00");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
+
+    BigDecimal delta = new BigDecimal(1);
+    assertProjectionInclusive(spec, in("value", value.add(delta), value, value.subtract(delta)),
+        Expression.Operation.IN, "[99.00, 100.00, 101.00]");
+    assertProjectionInclusiveValue(spec, notIn("value", value, value.add(delta)), Expression.Operation.TRUE);
   }
 
   @Test
@@ -253,6 +323,11 @@ public class TestTruncatesProjection {
     assertProjectionInclusive(spec, greaterThanOrEqual("value", value), Expression.Operation.GT_EQ, "99.90");
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "99.90");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
+
+    BigDecimal delta = new BigDecimal(1);
+    assertProjectionInclusive(spec, in("value", value.add(delta), value, value.subtract(delta)),
+        Expression.Operation.IN, "[98.90, 99.90, 100.90]");
+    assertProjectionInclusiveValue(spec, notIn("value", value, value.subtract(delta)), Expression.Operation.TRUE);
   }
 
   @Test
@@ -267,6 +342,10 @@ public class TestTruncatesProjection {
     assertProjectionStrict(spec, greaterThanOrEqual("value", value), Expression.Operation.GT, "abcde");
     assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, "abcde");
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
+
+    assertProjectionStrict(spec, notIn("value", value, value + "abc"),
+        Expression.Operation.NOT_IN, "[abcde, abcde]");
+    assertProjectionStrictValue(spec, in("value", value, value + "abc"), Expression.Operation.FALSE);
   }
 
   @Test
@@ -281,6 +360,10 @@ public class TestTruncatesProjection {
     assertProjectionInclusive(spec, greaterThanOrEqual("value", value), Expression.Operation.GT_EQ, "abcde");
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "abcde");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
+
+    assertProjectionInclusive(spec, in("value", value, value + "abc"),
+        Expression.Operation.IN, "[abcde, abcde]");
+    assertProjectionInclusiveValue(spec, notIn("value", value, value + "abc"), Expression.Operation.TRUE);
   }
 
   @Test
@@ -296,6 +379,11 @@ public class TestTruncatesProjection {
     assertProjectionStrict(spec, greaterThanOrEqual("value", value), Expression.Operation.GT, expectedValue);
     assertProjectionStrict(spec, notEqual("value", value), Expression.Operation.NOT_EQ, expectedValue);
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
+
+    ByteBuffer anotherValue = ByteBuffer.wrap("abcdehij".getBytes("UTF-8"));
+    assertProjectionStrict(spec, notIn("value", value, anotherValue),
+        Expression.Operation.NOT_IN, String.format("[%s, %s]", expectedValue, expectedValue));
+    assertProjectionStrictValue(spec, in("value", value, anotherValue), Expression.Operation.FALSE);
   }
 
   @Test
@@ -311,5 +399,10 @@ public class TestTruncatesProjection {
     assertProjectionInclusive(spec, greaterThanOrEqual("value", value), Expression.Operation.GT_EQ, expectedValue);
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, expectedValue);
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
+
+    ByteBuffer anotherValue = ByteBuffer.wrap("abcdehij".getBytes("UTF-8"));
+    assertProjectionInclusive(spec, in("value", value, anotherValue),
+        Expression.Operation.IN, String.format("[%s, %s]", expectedValue, expectedValue));
+    assertProjectionInclusiveValue(spec, notIn("value", value, anotherValue), Expression.Operation.TRUE);
   }
 }

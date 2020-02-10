@@ -100,6 +100,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
    * @return an {@link Expression}
    * @throws ValidationException if literals do not match bound references, or if comparison on expression is invalid
    */
+  @Override
   public Expression bind(StructType struct, boolean caseSensitive) {
     BoundTerm<T> bound = term().bind(struct, caseSensitive);
 

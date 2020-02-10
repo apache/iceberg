@@ -21,10 +21,11 @@ package org.apache.iceberg;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData.SchemaConstructable;
@@ -47,8 +48,11 @@ public class GenericManifestFile
   private int specId = -1;
   private Long snapshotId = null;
   private Integer addedFilesCount = null;
+  private Long addedRowsCount = null;
   private Integer existingFilesCount = null;
+  private Long existingRowsCount = null;
   private Integer deletedFilesCount = null;
+  private Long deletedRowsCount = null;
   private List<PartitionFieldSummary> partitions = null;
 
   /**
@@ -87,13 +91,16 @@ public class GenericManifestFile
     this.specId = specId;
     this.snapshotId = null;
     this.addedFilesCount = null;
+    this.addedRowsCount = null;
     this.existingFilesCount = null;
+    this.existingRowsCount = null;
     this.deletedFilesCount = null;
+    this.deletedRowsCount = null;
     this.partitions = null;
     this.fromProjectionPos = null;
   }
 
-  public GenericManifestFile(String path, long length, int specId, long snapshotId,
+  public GenericManifestFile(String path, long length, int specId, Long snapshotId,
                              int addedFilesCount, int existingFilesCount, int deletedFilesCount,
                              List<PartitionFieldSummary> partitions) {
     this.avroSchema = AVRO_SCHEMA;
@@ -102,8 +109,30 @@ public class GenericManifestFile
     this.specId = specId;
     this.snapshotId = snapshotId;
     this.addedFilesCount = addedFilesCount;
+    this.addedRowsCount = null;
     this.existingFilesCount = existingFilesCount;
+    this.existingRowsCount = null;
     this.deletedFilesCount = deletedFilesCount;
+    this.deletedRowsCount = null;
+    this.partitions = partitions;
+    this.fromProjectionPos = null;
+  }
+
+  public GenericManifestFile(String path, long length, int specId, Long snapshotId,
+                             int addedFilesCount, long addedRowsCount, int existingFilesCount,
+                             long existingRowsCount, int deletedFilesCount, long deletedRowsCount,
+                             List<PartitionFieldSummary> partitions) {
+    this.avroSchema = AVRO_SCHEMA;
+    this.manifestPath = path;
+    this.length = length;
+    this.specId = specId;
+    this.snapshotId = snapshotId;
+    this.addedFilesCount = addedFilesCount;
+    this.addedRowsCount = addedRowsCount;
+    this.existingFilesCount = existingFilesCount;
+    this.existingRowsCount = existingRowsCount;
+    this.deletedFilesCount = deletedFilesCount;
+    this.deletedRowsCount = deletedRowsCount;
     this.partitions = partitions;
     this.fromProjectionPos = null;
   }
@@ -120,9 +149,12 @@ public class GenericManifestFile
     this.specId = toCopy.specId;
     this.snapshotId = toCopy.snapshotId;
     this.addedFilesCount = toCopy.addedFilesCount;
+    this.addedRowsCount = toCopy.addedRowsCount;
     this.existingFilesCount = toCopy.existingFilesCount;
+    this.existingRowsCount = toCopy.existingRowsCount;
     this.deletedFilesCount = toCopy.deletedFilesCount;
-    this.partitions = ImmutableList.copyOf(Iterables.transform(toCopy.partitions, PartitionFieldSummary::copy));
+    this.deletedRowsCount = toCopy.deletedRowsCount;
+    this.partitions = copyList(toCopy.partitions, PartitionFieldSummary::copy);
     this.fromProjectionPos = toCopy.fromProjectionPos;
   }
 
@@ -171,13 +203,28 @@ public class GenericManifestFile
   }
 
   @Override
+  public Long addedRowsCount() {
+    return addedRowsCount;
+  }
+
+  @Override
   public Integer existingFilesCount() {
     return existingFilesCount;
   }
 
   @Override
+  public Long existingRowsCount() {
+    return existingRowsCount;
+  }
+
+  @Override
   public Integer deletedFilesCount() {
     return deletedFilesCount;
+  }
+
+  @Override
+  public Long deletedRowsCount() {
+    return deletedRowsCount;
   }
 
   @Override
@@ -219,6 +266,12 @@ public class GenericManifestFile
         return deletedFilesCount;
       case 7:
         return partitions;
+      case 8:
+        return addedRowsCount;
+      case 9:
+        return existingRowsCount;
+      case 10:
+        return deletedRowsCount;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -257,6 +310,15 @@ public class GenericManifestFile
         return;
       case 7:
         this.partitions = (List<PartitionFieldSummary>) value;
+        return;
+      case 8:
+        this.addedRowsCount = (Long) value;
+        return;
+      case 9:
+        this.existingRowsCount = (Long) value;
+        return;
+      case 10:
+        this.deletedRowsCount = (Long) value;
         return;
       default:
         // ignore the object, it must be from a newer version of the format
@@ -302,9 +364,52 @@ public class GenericManifestFile
         .add("partition_spec_id", specId)
         .add("added_snapshot_id", snapshotId)
         .add("added_data_files_count", addedFilesCount)
+        .add("added_rows_count", addedRowsCount)
         .add("existing_data_files_count", existingFilesCount)
+        .add("existing_rows_count", existingRowsCount)
         .add("deleted_data_files_count", deletedFilesCount)
+        .add("deleted_rows_count", deletedRowsCount)
         .add("partitions", partitions)
         .toString();
+  }
+
+  public static CopyBuilder copyOf(ManifestFile manifestFile) {
+    return new CopyBuilder(manifestFile);
+  }
+
+  public static class CopyBuilder {
+    private final GenericManifestFile manifestFile;
+
+    private CopyBuilder(ManifestFile toCopy) {
+      if (toCopy instanceof GenericManifestFile) {
+        this.manifestFile = new GenericManifestFile((GenericManifestFile) toCopy);
+      } else {
+        this.manifestFile = new GenericManifestFile(
+            toCopy.path(), toCopy.length(), toCopy.partitionSpecId(), toCopy.snapshotId(),
+            toCopy.addedFilesCount(), toCopy.addedRowsCount(), toCopy.existingFilesCount(),
+            toCopy.existingRowsCount(), toCopy.deletedFilesCount(), toCopy.deletedRowsCount(),
+            copyList(toCopy.partitions(), PartitionFieldSummary::copy));
+      }
+    }
+
+    public CopyBuilder withSnapshotId(Long newSnapshotId) {
+      manifestFile.snapshotId = newSnapshotId;
+      return this;
+    }
+
+    public ManifestFile build() {
+      return manifestFile;
+    }
+  }
+
+  private static <E, R> List<R> copyList(List<E> list, Function<E, R> transform) {
+    if (list != null) {
+      List<R> copy = Lists.newArrayListWithExpectedSize(list.size());
+      for (E element : list) {
+        copy.add(transform.apply(element));
+      }
+      return Collections.unmodifiableList(copy);
+    }
+    return null;
   }
 }

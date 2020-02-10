@@ -231,6 +231,51 @@ public class TestSparkTableUtilWithInMemoryCatalog {
     }
   }
 
+  @Test
+  public void testImportPartitionsWithSnapshotInheritance() throws IOException {
+    Table table = TABLES.create(SCHEMA, SPEC, tableLocation);
+
+    table.updateProperties()
+        .set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true")
+        .commit();
+
+    List<SimpleRecord> records = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b"),
+        new SimpleRecord(3, "c")
+    );
+
+    File parquetTableDir = temp.newFolder("parquet_table");
+    String parquetTableLocation = parquetTableDir.toURI().toString();
+
+    try {
+      Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
+      inputDF.select("id", "data").write()
+          .format("parquet")
+          .mode("append")
+          .option("path", parquetTableLocation)
+          .partitionBy("data")
+          .saveAsTable("parquet_table");
+
+      File stagingDir = temp.newFolder("staging-dir");
+      Seq<SparkPartition> partitions = SparkTableUtil.getPartitionsByFilter(spark, "parquet_table", "data = 'a'");
+      SparkTableUtil.importSparkPartitions(spark, partitions, table, table.spec(), stagingDir.toString());
+
+      List<SimpleRecord> expectedRecords = Lists.newArrayList(new SimpleRecord(1, "a"));
+
+      List<SimpleRecord> actualRecords = spark.read()
+          .format("iceberg")
+          .load(tableLocation)
+          .orderBy("id")
+          .as(Encoders.bean(SimpleRecord.class))
+          .collectAsList();
+
+      Assert.assertEquals("Result rows should match", expectedRecords, actualRecords);
+    } finally {
+      spark.sql("DROP TABLE parquet_table");
+    }
+  }
+
   private void checkFieldMetrics(Dataset<Row> fileDF, Types.NestedField field, boolean isNull) {
     List<Row> metricRows = fileDF
         .selectExpr(

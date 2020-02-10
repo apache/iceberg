@@ -155,6 +155,9 @@ Supported predicate expressions are:
 * `lessThanOrEqual`
 * `greaterThan`
 * `greaterThanOrEqual`
+* `in`
+* `notIn`
+* `startsWith`
 
 Supported expression operations are:
 
