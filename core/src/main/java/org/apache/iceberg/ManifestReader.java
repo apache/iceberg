@@ -32,6 +32,8 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.True;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
@@ -39,8 +41,6 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 
 /**
  * Reader for manifest files.
@@ -58,6 +58,7 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
       .addAll(CHANGE_COLUMNS)
       .add("value_counts", "null_value_counts", "lower_bounds", "upper_bounds")
       .build();
+  private static final True ALWAYS_TRUE = Expressions.alwaysTrue();
 
   /**
    * Returns a new {@link ManifestReader} for an {@link InputFile}.
@@ -174,27 +175,27 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
 
   @Override
   public FilteredManifest select(Collection<String> columns) {
-    return new FilteredManifest(this, alwaysTrue(), alwaysTrue(), fileSchema, columns, true);
+    return new FilteredManifest(this, ALWAYS_TRUE, ALWAYS_TRUE, fileSchema, columns, true);
   }
 
   @Override
   public FilteredManifest project(Schema fileProjection) {
-    return new FilteredManifest(this, alwaysTrue(), alwaysTrue(), fileProjection, ALL_COLUMNS, true);
+    return new FilteredManifest(this, ALWAYS_TRUE, ALWAYS_TRUE, fileProjection, ALL_COLUMNS, true);
   }
 
   @Override
   public FilteredManifest filterPartitions(Expression expr) {
-    return new FilteredManifest(this, expr, alwaysTrue(), fileSchema, ALL_COLUMNS, true);
+    return new FilteredManifest(this, expr, ALWAYS_TRUE, fileSchema, ALL_COLUMNS, true);
   }
 
   @Override
   public FilteredManifest filterRows(Expression expr) {
-    return new FilteredManifest(this, alwaysTrue(), expr, fileSchema, ALL_COLUMNS, true);
+    return new FilteredManifest(this, ALWAYS_TRUE, expr, fileSchema, ALL_COLUMNS, true);
   }
 
   @Override
   public FilteredManifest caseSensitive(boolean caseSensitive) {
-    return new FilteredManifest(this, alwaysTrue(), alwaysTrue(), fileSchema, ALL_COLUMNS, caseSensitive);
+    return new FilteredManifest(this, ALWAYS_TRUE, ALWAYS_TRUE, fileSchema, ALL_COLUMNS, caseSensitive);
   }
 
   public List<ManifestEntry> addedFiles() {

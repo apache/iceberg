@@ -26,6 +26,7 @@ import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -33,8 +34,6 @@ import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.Type;
-
-import static java.util.Collections.emptyIterator;
 
 public class ParquetValueReaders {
   private ParquetValueReaders() {
@@ -435,7 +434,7 @@ public class ParquetValueReaders {
         this.elements = reuse.iterator();
       } else {
         this.lastList = null;
-        this.elements = emptyIterator();
+        this.elements = Collections.emptyIterator();
       }
 
       return list;
@@ -555,7 +554,7 @@ public class ParquetValueReaders {
         this.pairs = reuse.entrySet().iterator();
       } else {
         this.lastMap = null;
-        this.pairs = emptyIterator();
+        this.pairs = Collections.emptyIterator();
       }
 
       return map;

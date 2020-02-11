@@ -35,8 +35,6 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.BinaryUtil;
 
-import static org.apache.iceberg.expressions.Expressions.rewriteNot;
-
 /**
  * Evaluates an {@link Expression} on a {@link ManifestFile} to test whether the file contains
  * matching partitions.
@@ -70,7 +68,7 @@ public class ManifestEvaluator {
 
   private ManifestEvaluator(PartitionSpec spec, Expression partitionFilter, boolean caseSensitive) {
     this.struct = spec.partitionType();
-    this.expr = Binder.bind(struct, rewriteNot(partitionFilter), caseSensitive);
+    this.expr = Binder.bind(struct, Expressions.rewriteNot(partitionFilter), caseSensitive);
   }
 
   /**

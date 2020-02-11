@@ -27,6 +27,7 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -40,8 +41,6 @@ import org.apache.avro.io.Decoder;
 import org.apache.avro.io.ResolvingDecoder;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.common.DynConstructors;
-
-import static java.util.Collections.emptyIterator;
 
 public class ValueReaders {
   private ValueReaders() {
@@ -436,7 +435,7 @@ public class ValueReaders {
       }
 
       long chunkLength = decoder.readArrayStart();
-      Iterator<?> elIter = lastList != null ? lastList.iterator() : emptyIterator();
+      Iterator<?> elIter = lastList != null ? lastList.iterator() : Collections.emptyIterator();
 
       while (chunkLength > 0) {
         for (long i = 0; i < chunkLength; i += 1) {
@@ -481,7 +480,7 @@ public class ValueReaders {
       long chunkLength = decoder.readArrayStart();
       Iterator<Map.Entry<?, ?>> kvIter = lastMap != null ?
           lastMap.entrySet().iterator() :
-          emptyIterator();
+          Collections.emptyIterator();
 
       while (chunkLength > 0) {
         for (long i = 0; i < chunkLength; i += 1) {
@@ -535,7 +534,7 @@ public class ValueReaders {
       long chunkLength = decoder.readMapStart();
       Iterator<Map.Entry<?, ?>> kvIter = lastMap != null ?
           lastMap.entrySet().iterator() :
-          emptyIterator();
+          Collections.emptyIterator();
 
       while (chunkLength > 0) {
         for (long i = 0; i < chunkLength; i += 1) {

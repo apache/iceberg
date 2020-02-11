@@ -33,8 +33,6 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.BinaryUtil;
 
-import static org.apache.iceberg.expressions.Expressions.rewriteNot;
-
 /**
  * Evaluates an {@link Expression} on a {@link DataFile} to test whether rows in the file may match.
  * <p>
@@ -61,7 +59,7 @@ public class InclusiveMetricsEvaluator {
 
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound, boolean caseSensitive) {
     StructType struct = schema.asStruct();
-    this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
+    this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), caseSensitive);
   }
 
   /**

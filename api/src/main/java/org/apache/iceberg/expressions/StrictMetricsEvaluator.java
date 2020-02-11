@@ -32,8 +32,6 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 
-import static org.apache.iceberg.expressions.Expressions.rewriteNot;
-
 /**
  * Evaluates an {@link Expression} on a {@link DataFile} to test whether all rows in the file match.
  * <p>
@@ -60,7 +58,7 @@ public class StrictMetricsEvaluator {
   public StrictMetricsEvaluator(Schema schema, Expression unbound) {
     this.schema = schema;
     this.struct = schema.asStruct();
-    this.expr = Binder.bind(struct, rewriteNot(unbound), true);
+    this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), true);
   }
 
   /**
