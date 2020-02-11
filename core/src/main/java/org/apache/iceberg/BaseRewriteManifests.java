@@ -301,17 +301,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
   }
 
   private WriterWrapper getWriter(Object key) {
-    WriterWrapper writer = writers.get(key);
-    if (writer == null) {
-      synchronized (writers) {
-        writer = writers.get(key); // check again after getting lock
-        if (writer == null) {
-          writer = new WriterWrapper();
-          writers.put(key, writer);
-        }
-      }
-    }
-    return writer;
+    return writers.computeIfAbsent(key, k -> new WriterWrapper());
   }
 
   @Override
