@@ -145,7 +145,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
           .throwFailureWhenFinished()
           .shouldRetryTest(shouldRetry)
           .run(metadataLocation -> newMetadata.set(
-              TableMetadataParser.read(io(), io().newInputFile(metadataLocation))));
+              TableMetadataParser.read(io(), metadataLocation)));
 
       String newUUID = newMetadata.get().uuid();
       if (currentMetadata != null) {
