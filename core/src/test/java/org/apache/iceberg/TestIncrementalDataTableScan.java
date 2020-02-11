@@ -22,8 +22,8 @@ package org.apache.iceberg;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -32,7 +32,7 @@ public class TestIncrementalDataTableScan extends TableTestBase {
 
   @Before
   public void setupTableProperties() {
-    table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "2").commit();
+    table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "3").commit();
   }
 
   @Test
@@ -40,8 +40,21 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     add(table.newAppend(), files("A"));
     AssertHelpers.assertThrows(
         "from and to snapshots cannot be the same, since from snapshot is exclusive and not part of the scan",
-        IllegalArgumentException.class, "fromSnapshotId and toSnapshotId cannot be the same",
+        IllegalArgumentException.class, "from and to snapshot ids cannot be the same",
         () -> appendsBetweenScan(1, 1));
+
+    add(table.newAppend(), files("B"));
+    add(table.newAppend(), files("C"));
+    add(table.newAppend(), files("D"));
+    add(table.newAppend(), files("E"));
+    AssertHelpers.assertThrows(
+        "Check refinement api",
+        IllegalArgumentException.class, "from snapshot id 1 not in existing snapshot ids range (2, 4]",
+        () -> table.newScan().appendsBetween(2, 5).appendsBetween(1, 4));
+    AssertHelpers.assertThrows(
+        "Check refinement api",
+        IllegalArgumentException.class, "to snapshot id 3 not in existing snapshot ids range (1, 2]",
+        () -> table.newScan().appendsBetween(1, 2).appendsBetween(1, 3));
   }
 
   @Test
@@ -51,8 +64,8 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     add(table.newAppend(), files("C"));
     add(table.newAppend(), files("D"));
     add(table.newAppend(), files("E")); // 5
-    Assert.assertEquals(Sets.newHashSet("B", "C", "D", "E"), appendsBetweenScan(1, 5));
-    Assert.assertEquals(Sets.newHashSet("C", "D", "E"), appendsBetweenScan(2, 5));
+    filesMatch(Lists.newArrayList("B", "C", "D", "E"), appendsBetweenScan(1, 5));
+    filesMatch(Lists.newArrayList("C", "D", "E"), appendsBetweenScan(2, 5));
   }
 
   @Test
@@ -62,11 +75,12 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     add(table.newAppend(), files("C"));
     add(table.newAppend(), files("D"));
     add(table.newAppend(), files("E")); // 5
-    Assert.assertEquals(Sets.newHashSet("B", "C", "D", "E"), appendsBetweenScan(1, 5));
+    filesMatch(Lists.newArrayList("B", "C", "D", "E"), appendsBetweenScan(1, 5));
 
     replace(table.newRewrite(), files("A", "B", "C"), files("F", "G")); // 6
-    Assert.assertEquals("Replace commits are ignored", Sets.newHashSet("B", "C", "D", "E"), appendsBetweenScan(1, 6));
-    Assert.assertEquals(Sets.newHashSet("E"), appendsBetweenScan(4, 6));
+    // Replace commits are ignored
+    filesMatch(Lists.newArrayList("B", "C", "D", "E"), appendsBetweenScan(1, 6));
+    filesMatch(Lists.newArrayList("E"), appendsBetweenScan(4, 6));
     // 6th snapshot is a replace. No new content is added
     Assert.assertTrue("Replace commits are ignored", appendsBetweenScan(5, 6).isEmpty());
     delete(table.newDelete(), files("D")); // 7
@@ -75,9 +89,9 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     Assert.assertTrue("Delete commits are ignored", appendsBetweenScan(6, 7).isEmpty());
     add(table.newAppend(), files("I")); // 8
     // snapshots 6 and 7 are ignored
-    Assert.assertEquals(Sets.newHashSet("B", "C", "D", "E", "I"), appendsBetweenScan(1, 8));
-    Assert.assertEquals(Sets.newHashSet("I"), appendsBetweenScan(6, 8));
-    Assert.assertEquals(Sets.newHashSet("I"), appendsBetweenScan(7, 8));
+    filesMatch(Lists.newArrayList("B", "C", "D", "E", "I"), appendsBetweenScan(1, 8));
+    filesMatch(Lists.newArrayList("I"), appendsBetweenScan(6, 8));
+    filesMatch(Lists.newArrayList("I"), appendsBetweenScan(7, 8));
 
     overwrite(table.newOverwrite(), files("H"), files("E")); // 9
     AssertHelpers.assertThrows(
@@ -96,13 +110,14 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     add(transaction.newAppend(), files("D"));
     add(transaction.newAppend(), files("E")); // 5
     transaction.commitTransaction();
-    Assert.assertEquals(Sets.newHashSet("B", "C", "D", "E"), appendsBetweenScan(1, 5));
+    filesMatch(Lists.newArrayList("B", "C", "D", "E"), appendsBetweenScan(1, 5));
 
     transaction = table.newTransaction();
     replace(transaction.newRewrite(), files("A", "B", "C"), files("F", "G")); // 6
     transaction.commitTransaction();
-    Assert.assertEquals("Replace commits are ignored", Sets.newHashSet("B", "C", "D", "E"), appendsBetweenScan(1, 6));
-    Assert.assertEquals(Sets.newHashSet("E"), appendsBetweenScan(4, 6));
+    // Replace commits are ignored
+    filesMatch(Lists.newArrayList("B", "C", "D", "E"), appendsBetweenScan(1, 6));
+    filesMatch(Lists.newArrayList("E"), appendsBetweenScan(4, 6));
     // 6th snapshot is a replace. No new content is added
     Assert.assertTrue("Replace commits are ignored", appendsBetweenScan(5, 6).isEmpty());
 
@@ -117,9 +132,9 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     add(transaction.newAppend(), files("I")); // 8
     transaction.commitTransaction();
     // snapshots 6, 7 and 8 are ignored
-    Assert.assertEquals(Sets.newHashSet("B", "C", "D", "E", "I"), appendsBetweenScan(1, 8));
-    Assert.assertEquals(Sets.newHashSet("I"), appendsBetweenScan(6, 8));
-    Assert.assertEquals(Sets.newHashSet("I"), appendsBetweenScan(7, 8));
+    filesMatch(Lists.newArrayList("B", "C", "D", "E", "I"), appendsBetweenScan(1, 8));
+    filesMatch(Lists.newArrayList("I"), appendsBetweenScan(6, 8));
+    filesMatch(Lists.newArrayList("I"), appendsBetweenScan(7, 8));
   }
 
   @Test
@@ -130,8 +145,8 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     // Go back to snapshot "B"
     table.rollback().toSnapshotId(2).commit(); // 2
     Assert.assertEquals(2, table.currentSnapshot().snapshotId());
-    Assert.assertEquals(Sets.newHashSet("B"), appendsBetweenScan(1, 2));
-    Assert.assertEquals(Sets.newHashSet("B"), appendsAfterScan(1));
+    filesMatch(Lists.newArrayList("B"), appendsBetweenScan(1, 2));
+    filesMatch(Lists.newArrayList("B"), appendsAfterScan(1));
 
     Transaction transaction = table.newTransaction();
     add(transaction.newAppend(), files("D")); // 4
@@ -141,8 +156,8 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     // Go back to snapshot "E"
     table.rollback().toSnapshotId(5).commit();
     Assert.assertEquals(5, table.currentSnapshot().snapshotId());
-    Assert.assertEquals(Sets.newHashSet("B", "D", "E"), appendsBetweenScan(1, 5));
-    Assert.assertEquals(Sets.newHashSet("B", "D", "E"), appendsAfterScan(1));
+    filesMatch(Lists.newArrayList("B", "D", "E"), appendsBetweenScan(1, 5));
+    filesMatch(Lists.newArrayList("B", "D", "E"), appendsAfterScan(1));
   }
 
   private static DataFile file(String name) {
@@ -187,23 +202,29 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     return Lists.transform(Lists.newArrayList(names), TestIncrementalDataTableScan::file);
   }
 
-  private Set<String> appendsAfterScan(long fromSnapshotId) {
+  private List<String> appendsAfterScan(long fromSnapshotId) {
     final TableScan appendsAfter = table.newScan().appendsAfter(fromSnapshotId);
     return filesToScan(appendsAfter);
   }
 
-  private Set<String> appendsBetweenScan(long fromSnapshotId, long toSnapshotId) {
+  private List<String> appendsBetweenScan(long fromSnapshotId, long toSnapshotId) {
     Snapshot s1 = table.snapshot(fromSnapshotId);
     Snapshot s2 = table.snapshot(toSnapshotId);
     TableScan appendsBetween = table.newScan().appendsBetween(s1.snapshotId(), s2.snapshotId());
     return filesToScan(appendsBetween);
   }
 
-  private static Set<String> filesToScan(TableScan tableScan) {
+  private static List<String> filesToScan(TableScan tableScan) {
     Iterable<String> filesToRead = Iterables.transform(tableScan.planFiles(), t -> {
       String path = t.file().path().toString();
       return path.split("\\.")[0];
     });
-    return Sets.newHashSet(filesToRead);
+    return Lists.newArrayList(filesToRead);
+  }
+
+  private static void filesMatch(List<String> expected, List<String> actual) {
+    Collections.sort(expected);
+    Collections.sort(actual);
+    Assert.assertEquals(expected, actual);
   }
 }
