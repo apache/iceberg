@@ -144,21 +144,21 @@ class IncrementalDataTableScan extends DataTableScan {
     snapshotIdsRange.add(fromSnapshotId);
     Preconditions.checkArgument(
         snapshotIdsRange.contains(newFromSnapshotId),
-        "newFromSnapshotId %s not in existing snapshot ids range (%s, %s]",
+        "from snapshot id %s not in existing snapshot ids range (%s, %s]",
         newFromSnapshotId, fromSnapshotId, newToSnapshotId);
     Preconditions.checkArgument(
         snapshotIdsRange.contains(newToSnapshotId),
-        "newToSnapshotId %s not in existing snapshot ids range (%s, %s]",
+        "to snapshot id %s not in existing snapshot ids range (%s, %s]",
         newToSnapshotId, fromSnapshotId, toSnapshotId);
   }
 
   private static void validateSnapshotIds(Table table, long fromSnapshotId, long toSnapshotId) {
-    Preconditions.checkArgument(fromSnapshotId != toSnapshotId, "fromSnapshotId and toSnapshotId cannot be the same");
+    Preconditions.checkArgument(fromSnapshotId != toSnapshotId, "from and to snapshot ids cannot be the same");
     Preconditions.checkArgument(
-        table.snapshot(fromSnapshotId) != null, "fromSnapshotId: %s does not exist", fromSnapshotId);
+        table.snapshot(fromSnapshotId) != null, "from snapshot %s does not exist", fromSnapshotId);
     Preconditions.checkArgument(
-        table.snapshot(toSnapshotId) != null, "toSnapshotId: %s does not exist", toSnapshotId);
+        table.snapshot(toSnapshotId) != null, "to snapshot %s does not exist", toSnapshotId);
     Preconditions.checkArgument(SnapshotUtil.ancestorOf(table, toSnapshotId, fromSnapshotId),
-        "fromSnapshotId: %s is not an ancestor of toSnapshotId: %s", fromSnapshotId, toSnapshotId);
+        "from snapshot %s is not an ancestor of to snapshot  %s", fromSnapshotId, toSnapshotId);
   }
 }

@@ -40,7 +40,7 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     add(table.newAppend(), files("A"));
     AssertHelpers.assertThrows(
         "from and to snapshots cannot be the same, since from snapshot is exclusive and not part of the scan",
-        IllegalArgumentException.class, "fromSnapshotId and toSnapshotId cannot be the same",
+        IllegalArgumentException.class, "from and to snapshot ids cannot be the same",
         () -> appendsBetweenScan(1, 1));
 
     add(table.newAppend(), files("B"));
@@ -49,11 +49,11 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     add(table.newAppend(), files("E"));
     AssertHelpers.assertThrows(
         "Check refinement api",
-        IllegalArgumentException.class, "newFromSnapshotId 1 not in existing snapshot ids range (2, 4]",
+        IllegalArgumentException.class, "from snapshot id 1 not in existing snapshot ids range (2, 4]",
         () -> table.newScan().appendsBetween(2, 5).appendsBetween(1, 4));
     AssertHelpers.assertThrows(
         "Check refinement api",
-        IllegalArgumentException.class, "newToSnapshotId 3 not in existing snapshot ids range (1, 2]",
+        IllegalArgumentException.class, "to snapshot id 3 not in existing snapshot ids range (1, 2]",
         () -> table.newScan().appendsBetween(1, 2).appendsBetween(1, 3));
   }
 
