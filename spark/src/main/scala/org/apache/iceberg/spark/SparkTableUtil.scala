@@ -20,8 +20,6 @@
 package org.apache.iceberg.spark
 
 import com.google.common.collect.Maps
-import java.nio.ByteBuffer
-import java.util
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{Path, PathFilter}
 import org.apache.iceberg.{DataFile, DataFiles, FileFormat, ManifestFile, ManifestWriter}
@@ -157,11 +155,11 @@ object SparkTableUtil {
    */
   def listPartition(
       partition: SparkPartition,
+      spec: PartitionSpec,
       conf: SerializableConfiguration,
-      metricsConfig: MetricsConfig,
-      spec: PartitionSpec): Seq[DataFile] = {
+      metricsConfig: MetricsConfig): Seq[DataFile] = {
 
-    listPartition(partition.values, partition.uri, partition.format, conf.get(), metricsConfig, spec)
+    listPartition(partition.values, partition.uri, partition.format, spec, conf.get(), metricsConfig)
   }
 
   /**
@@ -181,17 +179,17 @@ object SparkTableUtil {
       partition: Map[String, String],
       uri: String,
       format: String,
+      spec: PartitionSpec,
       conf: Configuration = new Configuration(),
-      metricsConfig: MetricsConfig = MetricsConfig.getDefault,
-      spec: PartitionSpec): Seq[DataFile] = {
+      metricsConfig: MetricsConfig = MetricsConfig.getDefault): Seq[DataFile] = {
 
     if (format.contains("avro")) {
-      listAvroPartition(partition, uri, conf, spec)
+      listAvroPartition(partition, uri, spec, conf)
     } else if (format.contains("parquet")) {
-      listParquetPartition(partition, uri, conf, metricsConfig, spec)
+      listParquetPartition(partition, uri, spec, conf, metricsConfig)
     } else if (format.contains("orc")) {
       // TODO: use MetricsConfig in listOrcPartition
-      listOrcPartition(partition, uri, conf, spec)
+      listOrcPartition(partition, uri, spec, conf)
     } else {
       throw new UnsupportedOperationException(s"Unknown partition format: $format")
     }
@@ -201,69 +199,6 @@ object SparkTableUtil {
    * Case class representing a table partition.
    */
   case class SparkPartition(values: Map[String, String], uri: String, format: String)
-
-  private def bytesMapToArray(map: java.util.Map[Integer, ByteBuffer]): Seq[Array[Byte]] = {
-    if (map != null && !map.isEmpty) {
-      val keys = map.keySet.asScala
-      val max = keys.max
-      val arr = Array.fill(max + 1)(null.asInstanceOf[Array[Byte]])
-
-      keys.foreach { key =>
-        val buffer = map.get(key)
-
-        val copy = if (buffer.hasArray) {
-          val bytes = buffer.array()
-          if (buffer.arrayOffset() == 0 && buffer.position() == 0 &&
-              bytes.length == buffer.remaining()) {
-            bytes
-          } else {
-            val start = buffer.arrayOffset() + buffer.position()
-            val end = start + buffer.remaining()
-            util.Arrays.copyOfRange(bytes, start, end)
-          }
-        } else {
-          val bytes = Array.fill(buffer.remaining())(0.asInstanceOf[Byte])
-          buffer.get(bytes)
-          bytes
-        }
-
-        arr.update(key, copy)
-      }
-
-      arr
-    } else {
-      null
-    }
-  }
-
-  private def mapToArray(map: java.util.Map[Integer, java.lang.Long]): Array[Long] = {
-    if (map != null && !map.isEmpty) {
-      val keys = map.keySet.asScala
-      val max = keys.max
-      val arr = Array.fill(max + 1)(-1L)
-
-      keys.foreach { key =>
-        arr.update(key, map.get(key))
-      }
-
-      arr
-    } else {
-      null
-    }
-  }
-
-  private def arrayToMap(arr: Seq[Array[Byte]]): java.util.Map[Integer, ByteBuffer] = {
-    if (arr != null) {
-      val map: java.util.Map[Integer, ByteBuffer] = Maps.newHashMap()
-      arr.zipWithIndex.foreach {
-        case (null, _) => // skip
-        case (value, index) => map.put(index, ByteBuffer.wrap(value))
-      }
-      map
-    } else {
-      null
-    }
-  }
 
   private def arrayToMap(arr: Array[Long]): java.util.Map[Integer, java.lang.Long] = {
     if (arr != null) {
@@ -287,12 +222,13 @@ object SparkTableUtil {
   private def listAvroPartition(
       partitionPath: Map[String, String],
       partitionUri: String,
-      conf: Configuration,
-      spec: PartitionSpec): Seq[DataFile] = {
+      spec: PartitionSpec,
+      conf: Configuration): Seq[DataFile] = {
     val partition = new Path(partitionUri)
     val fs = partition.getFileSystem(conf)
 
     fs.listStatus(partition, HiddenPathFilter).filter(_.isFile).map { stat =>
+      val metrics = new Metrics(-1L, arrayToMap(null), arrayToMap(null), arrayToMap(null))
       val partitionKey = spec.fields.asScala.map(_.name).map { name =>
         s"$name=${partitionPath(name)}"
       }.mkString("/")
@@ -301,10 +237,7 @@ object SparkTableUtil {
         .withPath(stat.getPath.toString)
         .withFormat("avro")
         .withFileSizeInBytes(stat.getLen)
-        .withMetrics(new Metrics(-1L,
-          arrayToMap(null),
-          arrayToMap(null),
-          arrayToMap(null)))
+        .withMetrics(metrics)
         .withPartitionPath(partitionKey)
         .build()
     }
@@ -314,9 +247,9 @@ object SparkTableUtil {
   private def listParquetPartition(
       partitionPath: Map[String, String],
       partitionUri: String,
+      spec: PartitionSpec,
       conf: Configuration,
-      metricsSpec: MetricsConfig,
-      spec: PartitionSpec): Seq[DataFile] = {
+      metricsSpec: MetricsConfig): Seq[DataFile] = {
     val partition = new Path(partitionUri)
     val fs = partition.getFileSystem(conf)
 
@@ -339,8 +272,8 @@ object SparkTableUtil {
   private def listOrcPartition(
       partitionPath: Map[String, String],
       partitionUri: String,
-      conf: Configuration,
-      spec: PartitionSpec): Seq[DataFile] = {
+      spec: PartitionSpec,
+      conf: Configuration): Seq[DataFile] = {
     val partition = new Path(partitionUri)
     val fs = partition.getFileSystem(conf)
 
@@ -451,11 +384,12 @@ object SparkTableUtil {
     val format = sourceTable.storage.serde.orElse(sourceTable.provider)
     require(format.nonEmpty, "Could not determine table format")
 
+    val partition = Map.empty[String, String]
+    val spec = PartitionSpec.unpartitioned()
     val conf = spark.sessionState.newHadoopConf()
     val metricsConfig = MetricsConfig.fromProperties(targetTable.properties)
 
-    val files = listPartition(Map.empty, sourceTable.location.toString, format.get, conf, metricsConfig,
-      PartitionSpec.unpartitioned())
+    val files = listPartition(partition, sourceTable.location.toString, format.get, spec, conf, metricsConfig)
 
     val append = targetTable.newAppend()
     files.foreach(append.appendFile)
@@ -491,7 +425,7 @@ object SparkTableUtil {
     val metricsConfig = MetricsConfig.fromProperties(targetTable.properties)
 
     val manifests = partitionDS
-      .flatMap(partition => listPartition(partition, serializableConf, metricsConfig, spec))
+      .flatMap(partition => listPartition(partition, spec, serializableConf, metricsConfig))
       .repartition(numShufflePartitions)
       .mapPartitions(buildManifest(serializableConf, spec, stagingDir))
       .collect()
