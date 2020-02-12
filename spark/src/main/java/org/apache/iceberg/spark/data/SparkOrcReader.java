@@ -146,8 +146,10 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
         return row.getDecimal(ord, schema.getPrecision(), schema.getScale()).toString();
       case DATE:
         return "\"" + new DateWritable(row.getInt(ord)) + "\"";
-      case TIMESTAMP:
-        return "\"" + new Timestamp(row.getLong(ord)) + "\"";
+      case TIMESTAMP_INSTANT:
+        Timestamp ts = new Timestamp((row.getLong(ord) / 1_000_000) * 1_000); // initialize with seconds
+        ts.setNanos((int) (row.getLong(ord) % 1_000_000) * 1_000); // add the rest (millis to nanos)
+        return "\"" + ts + "\"";
       case STRUCT:
         return rowToString(row.getStruct(ord, schema.getChildren().size()), schema);
       case LIST: {
