@@ -210,7 +210,7 @@ public class GenericOrcReader implements OrcValueReader<Record> {
 
   private static class TimestampTzConverter implements Converter<OffsetDateTime> {
     private OffsetDateTime convert(TimestampColumnVector vector, int row) {
-      return EPOCH.plus(vector.time[row], ChronoUnit.MILLIS).plus(vector.nanos[row] % 1_000_000, ChronoUnit.NANOS);
+      return EPOCH.plus(vector.time[row] / 1_000, ChronoUnit.SECONDS).plus(vector.nanos[row], ChronoUnit.NANOS);
     }
 
     @Override

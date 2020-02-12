@@ -381,7 +381,7 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
     }
   }
 
-  private static class TimestampConverter implements Converter {
+  private static class TimestampTzConverter implements Converter {
 
     private long convert(TimestampColumnVector vector, int row) {
       // compute microseconds past 1970.
@@ -693,8 +693,8 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
         return new FloatConverter();
       case DOUBLE:
         return new DoubleConverter();
-      case TIMESTAMP:
-        return new TimestampConverter();
+      case TIMESTAMP_INSTANT:
+        return new TimestampTzConverter();
       case DECIMAL:
         if (schema.getPrecision() <= Decimal.MAX_LONG_DIGITS()) {
           return new Decimal18Converter(schema.getPrecision(), schema.getScale());

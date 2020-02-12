@@ -204,7 +204,7 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
     }
   }
 
-  static class TimestampConverter implements Converter {
+  static class TimestampTzConverter implements Converter {
     @Override
     public void addValue(int rowId, int column, SpecializedGetters data,
                          ColumnVector output) {
@@ -391,8 +391,8 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
         return schema.getPrecision() <= 18 ?
             new Decimal18Converter(schema) :
             new Decimal38Converter(schema);
-      case TIMESTAMP:
-        return new TimestampConverter();
+      case TIMESTAMP_INSTANT:
+        return new TimestampTzConverter();
       case STRUCT:
         return new StructConverter(schema);
       case LIST:
