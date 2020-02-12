@@ -50,9 +50,6 @@ import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
-
-/**
- */
 public class GenericOrcWriter implements OrcValueWriter<Record> {
   private final Converter[] converters;
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
@@ -558,7 +555,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
           case LONG:
             return new LongConverter();
           default:
-            throw new IllegalStateException("Invalid Long type found in ORC type attribute");
+            throw new IllegalStateException("Unhandled Long type found in ORC type attribute: " + longType);
         }
       case FLOAT:
         return new FloatConverter();
@@ -575,7 +572,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
           case BINARY:
             return new BytesConverter();
           default:
-            throw new IllegalStateException("Invalid Binary type found in ORC type attribute");
+            throw new IllegalStateException("Unhandled Binary type found in ORC type attribute: " + binaryType);
         }
       case STRING:
       case CHAR:

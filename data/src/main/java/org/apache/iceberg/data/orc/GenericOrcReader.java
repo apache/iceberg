@@ -369,7 +369,6 @@ public class GenericOrcReader implements OrcValueReader<Record> {
       final int offset = (int) vector.offsets[row];
       final int length = (int) vector.lengths[row];
 
-      // serialize the keys
       Map<Object, Object> map = Maps.newHashMapWithExpectedSize(length);
       for (int c = 0; c < length; ++c) {
         Object key = keyConvert.convert(vector.keys, offset + c);
@@ -448,7 +447,7 @@ public class GenericOrcReader implements OrcValueReader<Record> {
           case LONG:
             return new LongConverter();
           default:
-            throw new IllegalStateException("Invalid Long type found in ORC type attribute");
+            throw new IllegalStateException("Unhandled Long type found in ORC type attribute: " + longType);
         }
       case FLOAT:
         return new FloatConverter();
@@ -471,7 +470,7 @@ public class GenericOrcReader implements OrcValueReader<Record> {
           case BINARY:
             return new BinaryConverter();
           default:
-            throw new IllegalStateException("Invalid Binary type found in ORC type attribute");
+            throw new IllegalStateException("Unhandled Binary type found in ORC type attribute: " + binaryType);
         }
       case STRING:
       case CHAR:
