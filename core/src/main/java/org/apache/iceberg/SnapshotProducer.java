@@ -78,7 +78,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private final AtomicInteger attempt = new AtomicInteger(0);
   private final List<String> manifestLists = Lists.newArrayList();
   private Long snapshotId = null;
-  private Long sequenceNumber = null;
+  private volatile Long sequenceNumber = null;
   private TableMetadata base = null;
   private boolean stageOnly = false;
   private Consumer<String> deleteFunc = defaultDelete;
@@ -329,7 +329,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   protected long sequenceNumber() {
     if (sequenceNumber == null) {
-      this.sequenceNumber = ops.newSequenceNumber();
+      synchronized (this) {
+        if (sequenceNumber == null) {
+          this.sequenceNumber = ops.newSequenceNumber();
+        }
+      }
     }
     return sequenceNumber;
   }
