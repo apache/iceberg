@@ -77,7 +77,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private final String commitUUID = UUID.randomUUID().toString();
   private final AtomicInteger attempt = new AtomicInteger(0);
   private final List<String> manifestLists = Lists.newArrayList();
-  private Long snapshotId = null;
+  private volatile Long snapshotId = null;
   private TableMetadata base = null;
   private boolean stageOnly = false;
   private Consumer<String> deleteFunc = defaultDelete;
@@ -317,7 +317,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   protected long snapshotId() {
     if (snapshotId == null) {
-      this.snapshotId = ops.newSnapshotId();
+      synchronized (this) {
+        if (snapshotId == null) {
+          this.snapshotId = ops.newSnapshotId();
+        }
+      }
     }
     return snapshotId;
   }
