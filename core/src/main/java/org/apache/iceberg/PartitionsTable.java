@@ -60,14 +60,22 @@ public class PartitionsTable extends BaseMetadataTable {
 
   @Override
   public Schema schema() {
+    if (table.spec().fields().size() < 1) {
+      return schema.select("record_count", "file_count");
+    }
     return schema;
   }
 
   private DataTask task(TableScan scan) {
-    return StaticDataTask.of(
-        ops.io().newInputFile(ops.current().metadataFileLocation()),
-        partitions(table, scan.snapshot().snapshotId()),
-        PartitionsTable::convertPartition);
+    Iterable<Partition> partitions = partitions(table, scan.snapshot().snapshotId());
+    if (table.spec().fields().size() < 1) {
+      // the table is unpartitioned, partitions contains only the root partition
+      return StaticDataTask.of(io().newInputFile(ops.current().metadataFileLocation()), partitions,
+          root -> StaticDataTask.Row.of(root.recordCount, root.fileCount));
+    } else {
+      return StaticDataTask.of(io().newInputFile(ops.current().metadataFileLocation()), partitions,
+          PartitionsTable::convertPartition);
+    }
   }
 
   private static StaticDataTask.Row convertPartition(Partition partition) {
@@ -91,7 +99,7 @@ public class PartitionsTable extends BaseMetadataTable {
 
   private class PartitionsScan extends StaticTableScan {
     PartitionsScan() {
-      super(ops, table, schema, PartitionsTable.this::task);
+      super(ops, table, PartitionsTable.this.schema(), PartitionsTable.this::task);
     }
   }
 
