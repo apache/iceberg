@@ -65,7 +65,7 @@ public class Metrics implements Serializable {
   /**
    * Get the number of records (rows) in file.
    *
-   * @return
+   * @return the count of records (rows) in the file as a long
    */
   public Long recordCount() {
     return rowCount;
@@ -81,9 +81,9 @@ public class Metrics implements Serializable {
   }
 
   /**
-   * Get the number of all values, including null and repeated.
+   * Get the number of all values, including nulls, NaN and repeated.
    *
-   * @return a Map of fieldId to the number of all values
+   * @return a Map of fieldId to the number of all values including nulls, NaN and repeated
    */
   public Map<Integer, Long> valueCounts() {
     return valueCounts;
@@ -101,7 +101,12 @@ public class Metrics implements Serializable {
   /**
    * Get the non-null lower bound values for all fields in a file.
    *
+   * To convert the {@link ByteBuffer} back to a value, use
+   * {@link org.apache.iceberg.types.Conversions#fromByteBuffer}.
+   *
    * @return a Map of fieldId to the lower bound value as a ByteBuffer
+   * @see <a href="https://iceberg.apache.org/spec/#appendix-d-single-value-serialization">
+   *   Iceberg Spec - Appendix D: Single-value serialization</a>
    */
   public Map<Integer, ByteBuffer> lowerBounds() {
     return lowerBounds;
