@@ -105,6 +105,11 @@ public class BaseTable implements Table, HasTableOperations {
   }
 
   @Override
+  public UpdateNameMapping updateNameMapping() {
+    return new NameMappingUpdate(ops);
+  }
+
+  @Override
   public UpdateProperties updateProperties() {
     return new PropertiesUpdate(ops);
   }

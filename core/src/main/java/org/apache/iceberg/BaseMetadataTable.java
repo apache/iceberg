@@ -93,6 +93,11 @@ abstract class BaseMetadataTable implements Table {
   }
 
   @Override
+  public UpdateNameMapping updateNameMapping() {
+    throw new UnsupportedOperationException("Cannot update the name-mapping of a metadata table");
+  }
+
+  @Override
   public UpdateProperties updateProperties() {
     throw new UnsupportedOperationException("Cannot update the properties of a metadata table");
   }

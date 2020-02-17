@@ -43,6 +43,11 @@ class CommitCallbackTransaction implements Transaction {
   }
 
   @Override
+  public UpdateNameMapping updateNameMapping() {
+    return wrapped.updateNameMapping();
+  }
+
+  @Override
   public UpdateProperties updateProperties() {
     return wrapped.updateProperties();
   }

@@ -101,6 +101,14 @@ class BaseTransaction implements Transaction {
   }
 
   @Override
+  public UpdateNameMapping updateNameMapping() {
+    checkLastOperationCommitted("UpdateNameMapping");
+    UpdateNameMapping nameMappingUpdate = new NameMappingUpdate(transactionOps);
+    updates.add(nameMappingUpdate);
+    return nameMappingUpdate;
+  }
+
+  @Override
   public UpdateProperties updateProperties() {
     checkLastOperationCommitted("UpdateProperties");
     UpdateProperties props = new PropertiesUpdate(transactionOps);
@@ -528,6 +536,11 @@ class BaseTransaction implements Transaction {
     @Override
     public UpdateSchema updateSchema() {
       return BaseTransaction.this.updateSchema();
+    }
+
+    @Override
+    public UpdateNameMapping updateNameMapping() {
+      return BaseTransaction.this.updateNameMapping();
     }
 
     @Override

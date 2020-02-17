@@ -106,25 +106,31 @@ class SchemaUpdate implements UpdateSchema {
     return this;
   }
 
+  static Types.NestedField findParentField(String parent, Schema schema) {
+    Types.NestedField parentField = schema.findField(parent);
+    Preconditions.checkArgument(parentField != null, "Cannot find parent struct: %s", parent);
+    Type parentType = parentField.type();
+    if (parentType.isNestedType()) {
+      Type.NestedType nested = parentType.asNestedType();
+      if (nested.isMapType()) {
+        // fields are added to the map value type
+        parentField = nested.asMapType().fields().get(1);
+      } else if (nested.isListType()) {
+        // fields are added to the element type
+        parentField = nested.asListType().fields().get(0);
+      }
+    }
+
+    Preconditions.checkArgument(
+        parentField.type().isNestedType() && parentField.type().asNestedType().isStructType(),
+        "Cannot add to non-struct column: %s: %s", parent, parentField.type());
+    return parentField;
+  }
+
   private void internalAddColumn(String parent, String name, boolean isOptional, Type type, String doc) {
     int parentId = TABLE_ROOT_ID;
     if (parent != null) {
-      Types.NestedField parentField = schema.findField(parent);
-      Preconditions.checkArgument(parentField != null, "Cannot find parent struct: %s", parent);
-      Type parentType = parentField.type();
-      if (parentType.isNestedType()) {
-        Type.NestedType nested = parentType.asNestedType();
-        if (nested.isMapType()) {
-          // fields are added to the map value type
-          parentField = nested.asMapType().fields().get(1);
-        } else if (nested.isListType()) {
-          // fields are added to the element type
-          parentField = nested.asListType().fields().get(0);
-        }
-      }
-      Preconditions.checkArgument(
-          parentField.type().isNestedType() && parentField.type().asNestedType().isStructType(),
-          "Cannot add to non-struct column: %s: %s", parent, parentField.type());
+      Types.NestedField parentField = findParentField(parent, schema);
       parentId = parentField.fieldId();
       Preconditions.checkArgument(!deletes.contains(parentId),
           "Cannot add to a column that will be deleted: %s", parent);

@@ -41,6 +41,13 @@ public interface Transaction {
   UpdateSchema updateSchema();
 
   /**
+   * Create a new {@link UpdateNameMapping} to update the name mapping of this table.
+   *
+   * @return a new {@link UpdateNameMapping}
+   */
+  UpdateNameMapping updateNameMapping();
+
+  /**
    * Create a new {@link UpdateProperties} to update table properties.
    *
    * @return a new {@link UpdateProperties}
