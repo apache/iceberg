@@ -98,8 +98,8 @@ public class HadoopTableOperations implements TableOperations {
 
         TableMetadata newMetadata = TableMetadataParser.read(io(), metadataFile.toString());
         String newUUID = newMetadata.uuid();
-        if (currentMetadata != null) {
-          Preconditions.checkState(newUUID == null || newUUID.equals(currentMetadata.uuid()),
+        if (currentMetadata != null && currentMetadata.uuid() != null && newUUID != null) {
+          Preconditions.checkState(newUUID.equals(currentMetadata.uuid()),
               "Table UUID does not match: current=%s != refreshed=%s", currentMetadata.uuid(), newUUID);
         }
 
