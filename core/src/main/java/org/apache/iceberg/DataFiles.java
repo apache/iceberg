@@ -161,6 +161,10 @@ public class DataFiles {
         manifest.length());
   }
 
+  public static DataFile fromManifestList(InputFile manifestList) {
+    return new GenericDataFile(manifestList.location(), FileFormat.AVRO, 1, manifestList.getLength());
+  }
+
   public static Builder builder(PartitionSpec spec) {
     return new Builder(spec);
   }

@@ -25,6 +25,9 @@ import java.util.Map;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.AllDataFilesTable;
+import org.apache.iceberg.AllEntriesTable;
+import org.apache.iceberg.AllManifestsTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFilesTable;
 import org.apache.iceberg.HistoryTable;
@@ -109,6 +112,12 @@ public class HadoopTables implements Tables, Configurable {
         return new ManifestsTable(ops, baseTable);
       case PARTITIONS:
         return new PartitionsTable(ops, baseTable);
+      case ALL_DATA_FILES:
+        return new AllDataFilesTable(ops, baseTable);
+      case ALL_MANIFESTS:
+        return new AllManifestsTable(ops, baseTable);
+      case ALL_ENTRIES:
+        return new AllEntriesTable(ops, baseTable);
       default:
         throw new NoSuchTableException(String.format("Unknown metadata table type: %s for %s", type, location));
     }
