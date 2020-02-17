@@ -44,8 +44,13 @@ public interface VectorizedReader<T> {
   void setRowGroupInfo(PageReadStore pages, Map<ColumnPath, ColumnChunkMetaData> metadata);
 
   /**
-   * Set up the reader to reuse the underlying containers used for storing batches
+   * Setup the reader to reuse the underlying containers used for storing batches
    */
   void reuseContainers(boolean reuse);
+
+  /**
+   * Release any resources allocated
+   */
+  void close();
 }
 

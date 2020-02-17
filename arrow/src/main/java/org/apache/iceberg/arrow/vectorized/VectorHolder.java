@@ -52,11 +52,11 @@ public class VectorHolder {
     this.nullabilityHolder = holder;
   }
 
-  public ColumnDescriptor getDescriptor() {
+  public ColumnDescriptor descriptor() {
     return columnDescriptor;
   }
 
-  public FieldVector getVector() {
+  public FieldVector vector() {
     return vector;
   }
 
@@ -64,11 +64,11 @@ public class VectorHolder {
     return isDictionaryEncoded;
   }
 
-  public Dictionary getDictionary() {
+  public Dictionary dictionary() {
     return dictionary;
   }
 
-  public NullabilityHolder getNullabilityHolder() {
+  public NullabilityHolder nullabilityHolder() {
     return nullabilityHolder;
   }
 }

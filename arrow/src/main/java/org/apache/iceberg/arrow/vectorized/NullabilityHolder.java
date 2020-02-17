@@ -19,21 +19,51 @@
 
 package org.apache.iceberg.arrow.vectorized;
 
-public class NullabilityHolder {
-  private final boolean[] isNull;
-  private int numNulls;
+import java.util.Arrays;
 
-  public NullabilityHolder(int batchSize) {
-    this.isNull = new boolean[batchSize];
+/**
+ * Instances of this class simply track whether a value at an index is null.
+ * For simplicity and performance, it is expected that various setter methods
+ * {@link #setNull(int)}, {@link #setNulls(int, int)}, {@link #setNotNull(int)}
+ * and {@link #setNotNulls(int, int)} are invoked with monotonically
+ * increasing values for the index parameter.
+ */
+public class NullabilityHolder {
+  private final byte[] isNull;
+  private int numNulls;
+  private final byte[] nonNulls;
+  private final byte[] nulls;
+
+  public NullabilityHolder(int size) {
+    this.isNull = new byte[size];
+    this.nonNulls = new byte[size];
+    Arrays.fill(nonNulls, (byte) 0);
+    this.nulls = new byte[size];
+    Arrays.fill(nulls, (byte) 1);
   }
 
-  public void setNull(int idx) {
-    isNull[idx] = true;
+  public void setNull(int index) {
+    isNull[index] = 1;
     numNulls++;
   }
 
-  public boolean isNullAt(int idx) {
-    return isNull[idx];
+  public void setNotNull(int index) {
+    isNull[index] = 0;
+  }
+
+  public void setNulls(int startIndex, int num) {
+    System.arraycopy(nulls, 0, isNull, startIndex, num);
+  }
+
+  public void setNotNulls(int startIndex, int num) {
+    System.arraycopy(nonNulls, 0, isNull, startIndex, num);
+  }
+
+  /**
+   * @return 1 if null, 0 otherwise
+   */
+  public byte isNullAt(int index) {
+    return isNull[index];
   }
 
   public boolean hasNulls() {
@@ -42,5 +72,9 @@ public class NullabilityHolder {
 
   public int numNulls() {
     return numNulls;
+  }
+
+  public void reset() {
+    numNulls = 0;
   }
 }

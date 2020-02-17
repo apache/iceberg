@@ -37,15 +37,10 @@ import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 
 public class ArrowSchemaUtil {
-  static final String ORIGINAL_TYPE = "originalType";
-  static final String MAP_TYPE = "mapType";
-  static final String MAP_KEY = "key";
-  static final String MAP_VALUE = "value";
+  private static final String ORIGINAL_TYPE = "originalType";
+  private static final String MAP_TYPE = "mapType";
 
   private ArrowSchemaUtil() { }
 
@@ -56,7 +51,7 @@ public class ArrowSchemaUtil {
    * @return arrow schema
    */
   public static Schema convert(final org.apache.iceberg.Schema schema) {
-    final ImmutableList.Builder<Field> fields = ImmutableList.builder();
+    ImmutableList.Builder<Field> fields = ImmutableList.builder();
 
     for (NestedField f : schema.columns()) {
       fields.add(convert(f));
@@ -81,10 +76,10 @@ public class ArrowSchemaUtil {
         arrowType = ArrowType.Bool.INSTANCE;
         break;
       case INTEGER:
-        arrowType = new ArrowType.Int(Integer.SIZE, true);
+        arrowType = new ArrowType.Int(Integer.SIZE, true /* signed */);
         break;
       case LONG:
-        arrowType = new ArrowType.Int(Long.SIZE, true);
+        arrowType = new ArrowType.Int(Long.SIZE, true /* signed */);
         break;
       case FLOAT:
         arrowType = new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE);
@@ -103,7 +98,8 @@ public class ArrowSchemaUtil {
         arrowType = new ArrowType.Time(TimeUnit.MICROSECOND, Long.SIZE);
         break;
       case TIMESTAMP:
-        arrowType = new ArrowType.Timestamp(TimeUnit.MICROSECOND, "UTC");
+        arrowType = new ArrowType.Timestamp(TimeUnit.MICROSECOND,
+            ((Types.TimestampType) field.type()).shouldAdjustToUTC() ? "UTC" : null);
         break;
       case DATE:
         arrowType = new ArrowType.Date(DateUnit.DAY);
@@ -125,21 +121,16 @@ public class ArrowSchemaUtil {
         }
         break;
       case MAP:
-        //Maps are represented as List<Struct<key, value>>
         metadata = ImmutableMap.of(ORIGINAL_TYPE, MAP_TYPE);
         final MapType mapType = field.type().asMapType();
-        arrowType = ArrowType.List.INSTANCE;
-
-        final List<Field> entryFields = Lists.newArrayList(
-            convert(required(0, MAP_KEY, mapType.keyType())),
-            convert(optional(0, MAP_VALUE, mapType.valueType()))
-        );
-
-        final Field entry = new Field("",
-            new FieldType(true, new ArrowType.Struct(), null), entryFields);
+        arrowType = new ArrowType.Map(false);
+        List<Field> entryFields = Lists.transform(mapType.fields(), ArrowSchemaUtil::convert);
+        Field entry = new Field("",
+            new FieldType(field.isOptional(), arrowType, null), entryFields);
         children.add(entry);
         break;
-      default: throw new UnsupportedOperationException("Unsupported field type: " + field);
+      default:
+        throw new UnsupportedOperationException("Unsupported field type: " + field);
     }
 
     return new Field(field.name(), new FieldType(field.isOptional(), arrowType, null, metadata), children);

@@ -20,6 +20,7 @@
 package org.apache.iceberg.arrow.vectorized.parquet;
 
 import java.io.IOException;
+import org.apache.arrow.util.Preconditions;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
@@ -47,10 +48,13 @@ public class VectorizedColumnIterator {
   private long advanceNextPageCount = 0L;
   private final int batchSize;
 
-  public VectorizedColumnIterator(ColumnDescriptor desc, String writerVersion, int batchSize) {
+  public VectorizedColumnIterator(ColumnDescriptor desc, String writerVersion, int batchSize,
+                                  boolean setArrowValidityVector) {
+    Preconditions.checkArgument(desc.getMaxRepetitionLevel() == 0,
+        "Only non-nested columns are supported for vectorized reads");
     this.desc = desc;
     this.batchSize = batchSize;
-    this.vectorizedPageIterator = new VectorizedPageIterator(desc, writerVersion, batchSize);
+    this.vectorizedPageIterator = new VectorizedPageIterator(desc, writerVersion, setArrowValidityVector);
   }
 
   public Dictionary setRowGroupInfo(PageReadStore store, boolean allPagesDictEncoded) {
