@@ -206,11 +206,12 @@ The partition spec for a manifest and the current table schema must be stored in
 
 The schema of a manifest file is a struct called `manifest_entry` with the following fields:
 
-| Field id, name       | Type                                                      | Description                                                     |
-|----------------------|-----------------------------------------------------------|-----------------------------------------------------------------|
-| **`0  status`**      | `int` with meaning: `0: EXISTING` `1: ADDED` `2: DELETED` | Used to track additions and deletions                           |
-| **`1  snapshot_id`** | `long`                                                    | Snapshot id where the file was added, or deleted if status is 2 |
-| **`2  data_file`**   | `data_file` `struct` (see below)                          | File path, partition tuple, metrics, ...                        |
+| Field id, name          | Type                                                      | Description                                                             |
+|-------------------------|-----------------------------------------------------------|-------------------------------------------------------------------------|
+| **`0  status`**         | `int` with meaning: `0: EXISTING` `1: ADDED` `2: DELETED` | Used to track additions and deletions                                   |
+| **`1  snapshot_id`**    | `long`                                                    | Snapshot id where the file was added, or deleted if status is 2         |
+| **`2  data_file`**      | `data_file` `struct` (see below)                          | File path, partition tuple, metrics, ...                                |
+| **`3  sequence_number`**| `optional long`                                           | Sequence number of the snapshot in which the file was added             |
 
 `data_file` is a struct with the following fields:
 
@@ -232,6 +233,7 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 | **`128  upper_bounds`**           | `optional map<129: int, 130: binary>` | Map from column id to upper bound in the column serialized as binary [1]. Each value must be greater than or equal to all values in the column for the file.                                         |
 | **`131  key_metadata`**           | `optional binary`                     | Implementation-specific key metadata for encryption                                                                                                                                                  |
 | **`132  split_offsets`**          | `optional list`                       | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending.                                                                                     |
+| **`134  sequence_number`**        | `optional long`                       | Sequence number of the snapshot in which the file was added                                                                                                                         |
 
 Notes:
 
@@ -246,9 +248,9 @@ Each manifest file must store its partition spec and the current table schema in
 
 The manifest entry fields are used to keep track of the snapshot in which files were added or logically deleted. The `data_file` struct is nested inside of the manifest entry so that it can be easily passed to job planning without the manifest entry fields.
 
-When a data file is added to the dataset, it’s manifest entry should store the snapshot ID in which the file was added and set status to 1 (added).
+When a data file is added to the dataset, it’s manifest entry should store the snapshot ID and the sequence number in which the file was added and set status to 1 (added).
 
-When a data file is replaced or deleted from the dataset, it’s manifest entry fields store the snapshot ID in which the file was deleted and status 2 (deleted). The file may be deleted from the file system when the snapshot in which it was deleted is garbage collected, assuming that older snapshots have also been garbage collected [1].
+When a data file is replaced or deleted from the dataset, it’s manifest entry fields store the snapshot ID and the sequence number in which the file was deleted and status 2 (deleted). The file may be deleted from the file system when the snapshot in which it was deleted is garbage collected, assuming that older snapshots have also been garbage collected [1].
 
 Notes:
 
@@ -259,6 +261,7 @@ Notes:
 A snapshot consists of the following fields:
 
 *   **`snapshot-id`** -- A unique long ID.
+*   **`sequence-number`** -- A monotonically increasing value that identifies the order in which data files and deletion files are to be processed
 *   **`parent-snapshot-id`** -- (Optional) The snapshot ID of the snapshot’s parent. This field is not present for snapshots that have no parent snapshot, such as snapshots created before this field was added or the first snapshot of a table.
 *   **`timestamp-ms`** -- A timestamp when the snapshot was created. This is used when garbage collecting snapshots.
 *   **`manifests`** -- A list of manifest file locations. The data files in a snapshot are the union of all data files listed in these manifests. (Deprecated in favor of `manifest-list`)
@@ -308,8 +311,12 @@ Manifest list files store `manifest_file`, a struct with the following fields:
 | **`503 added_snapshot_id`**    | `long`                                 | ID of the snapshot where the  manifest file was added                                                                                                |
 | **`504 added_files_count`**    | `int`                                  | Number of entries in the manifest that have status `ADDED` (1)                                                                                       |
 | **`505 existing_files_count`** | `int`                                  | Number of entries in the manifest that have status `EXISTING` (0)                                                                                    |
-| **`506 deleted_files_count`**  | `int`                                  | Number of entries in the manifest that have status `DELETED` (2)                                                                                       |
+| **`506 deleted_files_count`**  | `int`                                  | Number of entries in the manifest that have status `DELETED` (2)                                                                                     |
 | **`507 partitions`**           | `list<508: field_summary>` (see below) | A list of field summaries for each partition field in the spec. Each field in the list corresponds to a field in the manifest file’s partition spec. |
+| **`512 added_row_count`**      | `long`                                 | Number of rows in all of files in the manifest that have status `ADDED`                                                                              |
+| **`513 existing_row_count`**   | `long`                                 | Number of rows in all of files in the manifest that have status `EXISTING`                                                                           |
+| **`514 deleted_row_count`**    | `long`                                 | Number of rows in all of files in the manifest that have status `DELETED`                                                                            |
+| **`515 sequence_number`**      | `long`                                 | Sequence number of the snapshot where the manifest file was added                                                                                    |
 
 `field_summary` is a struct with the following fields
 
