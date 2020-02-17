@@ -105,6 +105,10 @@ public class ManifestsTable extends BaseMetadataTable {
   }
 
   private List<StaticDataTask.Row> partitionSummariesToRows(List<ManifestFile.PartitionFieldSummary> summaries) {
+    if (summaries == null) {
+      return null;
+    }
+
     List<StaticDataTask.Row> rows = Lists.newArrayList();
 
     for (int i = 0; i < spec.fields().size(); i += 1) {
