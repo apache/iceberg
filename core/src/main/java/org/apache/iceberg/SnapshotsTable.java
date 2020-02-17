@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.types.Types;
 
 /**
@@ -77,6 +78,12 @@ public class SnapshotsTable extends BaseMetadataTable {
   private class SnapshotsTableScan extends StaticTableScan {
     SnapshotsTableScan() {
       super(ops, table, SNAPSHOT_SCHEMA, SnapshotsTable.this::task);
+    }
+
+    @Override
+    public CloseableIterable<FileScanTask> planFiles() {
+      // override planFiles to avoid the check for a current snapshot because this metadata table is for all snapshots
+      return CloseableIterable.withNoopClose(SnapshotsTable.this.task(this));
     }
   }
 

@@ -79,8 +79,9 @@ public class ManifestsTable extends BaseMetadataTable {
   }
 
   protected DataTask task(TableScan scan) {
+    String manifestListLocation = scan.snapshot().manifestListLocation();
     return StaticDataTask.of(
-        ops.io().newInputFile(scan.snapshot().manifestListLocation()),
+        ops.io().newInputFile(manifestListLocation != null ? manifestListLocation : ops.current().file().location()),
         scan.snapshot().manifests(),
         manifest -> ManifestsTable.manifestFileToRow(spec, manifest));
   }
@@ -106,6 +107,10 @@ public class ManifestsTable extends BaseMetadataTable {
 
   static List<StaticDataTask.Row> partitionSummariesToRows(PartitionSpec spec,
                                                            List<ManifestFile.PartitionFieldSummary> summaries) {
+    if (summaries == null) {
+      return null;
+    }
+
     List<StaticDataTask.Row> rows = Lists.newArrayList();
 
     for (int i = 0; i < spec.fields().size(); i += 1) {
