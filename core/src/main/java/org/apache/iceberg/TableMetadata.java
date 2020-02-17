@@ -43,7 +43,7 @@ import org.apache.iceberg.util.PropertyUtil;
  * Metadata for a table.
  */
 public class TableMetadata {
-  static final int TABLE_FORMAT_VERSION = 1;
+  static final int TABLE_FORMAT_VERSION = 2;
   static final int INITIAL_SPEC_ID = 0;
 
   public static TableMetadata newTableMetadata(Schema schema,
