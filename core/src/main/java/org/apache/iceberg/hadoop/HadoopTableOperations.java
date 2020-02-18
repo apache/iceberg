@@ -96,14 +96,7 @@ public class HadoopTableOperations implements TableOperations {
       if (version == null || version != ver) {
         this.version = ver;
 
-        TableMetadata newMetadata = TableMetadataParser.read(io(), metadataFile.toString());
-        String newUUID = newMetadata.uuid();
-        if (currentMetadata != null && currentMetadata.uuid() != null && newUUID != null) {
-          Preconditions.checkState(newUUID.equals(currentMetadata.uuid()),
-              "Table UUID does not match: current=%s != refreshed=%s", currentMetadata.uuid(), newUUID);
-        }
-
-        this.currentMetadata = newMetadata;
+        this.currentMetadata = checkUUID(currentMetadata, TableMetadataParser.read(io(), metadataFile.toString()));
       }
 
       this.shouldRefresh = false;
@@ -320,5 +313,14 @@ public class HadoopTableOperations implements TableOperations {
               LOG.warn("Delete failed for previous metadata file: {}", previousMetadataFile, exc))
           .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
     }
+  }
+
+  private static TableMetadata checkUUID(TableMetadata currentMetadata, TableMetadata newMetadata) {
+    String newUUID = newMetadata.uuid();
+    if (currentMetadata != null && currentMetadata.uuid() != null && newUUID != null) {
+      Preconditions.checkState(newUUID.equals(currentMetadata.uuid()),
+          "Table UUID does not match: current=%s != refreshed=%s", currentMetadata.uuid(), newUUID);
+    }
+    return newMetadata;
   }
 }
