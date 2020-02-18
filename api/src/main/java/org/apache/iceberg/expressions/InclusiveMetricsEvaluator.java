@@ -85,8 +85,15 @@ public class InclusiveMetricsEvaluator {
     private Map<Integer, ByteBuffer> upperBounds = null;
 
     private boolean eval(DataFile file) {
-      if (file.recordCount() <= 0) {
+      if (file.recordCount() == 0) {
         return ROWS_CANNOT_MATCH;
+      }
+
+      if (file.recordCount() < 0) {
+        // we haven't implemented parsing record count from avro file and thus set record count -1
+        // when importing avro tables to iceberg tables. This should be updated once we implemented
+        // and set correct record count.
+        return ROWS_MIGHT_MATCH;
       }
 
       this.valueCounts = file.valueCounts();
