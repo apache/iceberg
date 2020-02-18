@@ -22,6 +22,7 @@ package org.apache.iceberg.mapping;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
@@ -30,6 +31,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
@@ -114,15 +117,29 @@ public class MappingUtil {
         return mapping;
       }
 
-      List<MappedField> fields = Lists.newArrayList();
-      if (mapping != null) {
-        fields.addAll(mapping.fields());
-      }
-
+      List<MappedField> newFields = Lists.newArrayList();
       for (Types.NestedField add : fieldsToAdd) {
         MappedFields nestedMapping = TypeUtil.visit(add.type(), CreateMapping.INSTANCE);
-        fields.add(MappedField.of(add.fieldId(), add.name(), nestedMapping));
+        newFields.add(MappedField.of(add.fieldId(), add.name(), nestedMapping));
       }
+
+      if (mapping == null || mapping.fields().isEmpty()) {
+        return MappedFields.of(newFields);
+      }
+
+      Set<String> assignedNames = fieldsToAdd.stream().map(Types.NestedField::name).collect(Collectors.toSet());
+
+      // create a copy of fields that can be updated (append new fields, replace existing for reassignment)
+      List<MappedField> fields = Lists.newArrayList();
+      for (MappedField field : mapping.fields()) {
+        if (field.names().stream().anyMatch(assignedNames::contains)) {
+          fields.add(MappedField.of(field.id(), Sets.difference(field.names(), assignedNames), field.nestedMapping()));
+        } else {
+          fields.add(field);
+        }
+      }
+
+      fields.addAll(newFields);
 
       return MappedFields.of(fields);
     }
