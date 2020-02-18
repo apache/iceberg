@@ -607,11 +607,7 @@ class BaseTransaction implements Transaction {
 
     @Override
     public LocationProvider locationProvider() {
-      if (currentSnapshot() != null) {
-        return transactionOps.locationProvider();
-      } else {
-        return LocationProviders.locationsFor(location(), properties());
-      }
+      return transactionOps.locationProvider();
     }
   }
 
