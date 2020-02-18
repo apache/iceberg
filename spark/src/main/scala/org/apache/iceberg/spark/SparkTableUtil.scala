@@ -414,8 +414,7 @@ object SparkTableUtil {
 
     implicit val manifestFileEncoder: Encoder[ManifestFile] = Encoders.javaSerialization[ManifestFile]
     implicit val dataFileEncoder: Encoder[DataFile] = Encoders.javaSerialization[DataFile]
-    implicit val pathDataFileEncoder: Encoder[(String, DataFile)] = Encoders.tuple(Encoders.STRING,
-      Encoders.javaSerialization[DataFile])
+    implicit val pathDataFileEncoder: Encoder[(String, DataFile)] = Encoders.tuple(Encoders.STRING, dataFileEncoder)
 
     import spark.implicits._
 
