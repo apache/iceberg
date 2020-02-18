@@ -36,6 +36,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -178,6 +179,51 @@ public class HadoopTableOperations implements TableOperations {
   @Override
   public String metadataFileLocation(String fileName) {
     return metadataPath(fileName).toString();
+  }
+
+  @Override
+  public TableOperations temp(TableMetadata uncommittedMetadata) {
+    return new TableOperations() {
+      @Override
+      public TableMetadata current() {
+        return uncommittedMetadata;
+      }
+
+      @Override
+      public TableMetadata refresh() {
+        throw new UnsupportedOperationException("Cannot call refresh on temporary table operations");
+      }
+
+      @Override
+      public void commit(TableMetadata base, TableMetadata metadata) {
+        throw new UnsupportedOperationException("Cannot call commit on temporary table operations");
+      }
+
+      @Override
+      public String metadataFileLocation(String fileName) {
+        return HadoopTableOperations.this.metadataFileLocation(fileName);
+      }
+
+      @Override
+      public LocationProvider locationProvider() {
+        return LocationProviders.locationsFor(uncommittedMetadata.location(), uncommittedMetadata.properties());
+      }
+
+      @Override
+      public FileIO io() {
+        return HadoopTableOperations.this.io();
+      }
+
+      @Override
+      public EncryptionManager encryption() {
+        return HadoopTableOperations.this.encryption();
+      }
+
+      @Override
+      public long newSnapshotId() {
+        return HadoopTableOperations.this.newSnapshotId();
+      }
+    };
   }
 
   private Path getMetadataFile(int metadataVersion) throws IOException {
