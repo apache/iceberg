@@ -29,21 +29,21 @@ import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.parquet.column.Dictionary;
 
+/**
+ * This decoder reads Parquet dictionary encoded data in a vectorized fashion. Unlike other
+ * vectorized readers, methods in this decoder don't need to read definition levels. In other
+ * words, these methods are called when there are non-null values to be read.
+ */
 public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectorizedParquetValuesReader {
 
   public VectorizedDictionaryEncodedParquetValuesReader(int maxDefLevel, boolean setValidityVector) {
     super(maxDefLevel, setValidityVector);
   }
 
-  // Used for reading dictionary ids in a vectorized fashion. Unlike other methods, this doesn't
-  // check definition level.
-  void readBatchOfDictionaryIds(
-      final IntVector intVector,
-      final int numValsInVector,
-      final int numValuesToRead,
-      NullabilityHolder nullabilityHolder) {
+  void readBatchOfDictionaryIds(IntVector intVector, int startOffset, int numValuesToRead,
+                                NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
-    int idx = numValsInVector;
+    int idx = startOffset;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -71,12 +71,8 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedLongs(
-      FieldVector vector,
-      int index,
-      int numValuesToRead,
-      Dictionary dict,
-      NullabilityHolder nullabilityHolder) {
+  void readBatchOfDictionaryEncodedLongs(FieldVector vector, int index, int numValuesToRead, Dictionary dict,
+                                         NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
     int idx = index;
     while (left > 0) {
@@ -114,12 +110,8 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedIntegers(
-      FieldVector vector,
-      int index,
-      int numValuesToRead,
-      Dictionary dict,
-      NullabilityHolder nullabilityHolder) {
+  void readBatchOfDictionaryEncodedIntegers(FieldVector vector, int index, int numValuesToRead, Dictionary dict,
+                                            NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
     int idx = index;
     while (left > 0) {
@@ -157,12 +149,8 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedFloats(
-      FieldVector vector,
-      int index,
-      int numValuesToRead,
-      Dictionary dict,
-      NullabilityHolder nullabilityHolder) {
+  void readBatchOfDictionaryEncodedFloats(FieldVector vector, int index, int numValuesToRead, Dictionary dict,
+                                          NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
     int idx = index;
     while (left > 0) {
@@ -199,11 +187,8 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedDoubles(
-      FieldVector vector,
-      int index,
-      int numValuesToRead,
-      Dictionary dict, NullabilityHolder nullabilityHolder) {
+  void readBatchOfDictionaryEncodedDoubles(FieldVector vector, int index, int numValuesToRead, Dictionary dict,
+                                           NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
     int idx = index;
     while (left > 0) {
@@ -241,13 +226,8 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedFixedWidthBinary(
-      FieldVector vector,
-      int typeWidth,
-      int index,
-      int numValuesToRead,
-      Dictionary dict,
-      NullabilityHolder nullabilityHolder) {
+  void readBatchOfDictionaryEncodedFixedWidthBinary(FieldVector vector, int typeWidth, int index, int numValuesToRead,
+                                                    Dictionary dict, NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
     int idx = index;
     while (left > 0) {
@@ -289,12 +269,9 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedFixedLengthDecimals(
-      FieldVector vector,
-      int typeWidth,
-      int index,
-      int numValuesToRead,
-      Dictionary dict, NullabilityHolder nullabilityHolder) {
+  void readBatchOfDictionaryEncodedFixedLengthDecimals(FieldVector vector, int typeWidth, int index,
+                                                       int numValuesToRead, Dictionary dict,
+                                                       NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
     int idx = index;
     while (left > 0) {
@@ -329,11 +306,8 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedVarWidthBinary(
-      FieldVector vector,
-      int index,
-      int numValuesToRead,
-      Dictionary dict, NullabilityHolder nullabilityHolder) {
+  void readBatchOfDictionaryEncodedVarWidthBinary(FieldVector vector, int index, int numValuesToRead, Dictionary dict,
+                                                  NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
     int idx = index;
     while (left > 0) {
@@ -366,12 +340,9 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedIntLongBackedDecimals(
-      FieldVector vector,
-      final int typeWidth,
-      int index,
-      int numValuesToRead,
-      Dictionary dict, NullabilityHolder nullabilityHolder) {
+  void readBatchOfDictionaryEncodedIntLongBackedDecimals(FieldVector vector, int typeWidth, int index,
+                                                         int numValuesToRead, Dictionary dict,
+                                                         NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
     int idx = index;
     while (left > 0) {

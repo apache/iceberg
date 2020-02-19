@@ -19,13 +19,9 @@
 
 package org.apache.iceberg.parquet;
 
-import java.io.IOException;
 import org.apache.parquet.column.ColumnDescriptor;
-import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.page.DataPage;
-import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.PageReader;
-import org.apache.parquet.io.ParquetDecodingException;
 import org.apache.parquet.io.api.Binary;
 
 public abstract class ColumnIterator<T> implements TripleIterator<T> {
@@ -101,7 +97,7 @@ public abstract class ColumnIterator<T> implements TripleIterator<T> {
     this.triplesRead = 0L;
     this.advanceNextPageCount = 0L;
     this.pageIterator.reset();
-    this.pageIterator.setDictionary(readDictionary(desc, pageSource));
+    this.pageIterator.setDictionary(ParquetUtil.readDictionary(desc, pageSource));
     advance();
   }
 
@@ -185,18 +181,4 @@ public abstract class ColumnIterator<T> implements TripleIterator<T> {
     return pageIterator.nextNull();
   }
 
-  private static Dictionary readDictionary(ColumnDescriptor desc, PageReader pageSource) {
-    DictionaryPage dictionaryPage = pageSource.readDictionaryPage();
-    if (dictionaryPage != null) {
-      try {
-        return dictionaryPage.getEncoding().initDictionary(desc, dictionaryPage);
-//        if (converter.hasDictionarySupport()) {
-//          converter.setDictionary(dictionary);
-//        }
-      } catch (IOException e) {
-        throw new ParquetDecodingException("could not decode the dictionary for " + desc, e);
-      }
-    }
-    return null;
-  }
 }

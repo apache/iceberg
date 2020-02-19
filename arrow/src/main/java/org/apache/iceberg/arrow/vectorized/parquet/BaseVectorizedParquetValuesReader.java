@@ -31,7 +31,7 @@ import org.apache.parquet.io.ParquetDecodingException;
 
 /**
  * A values reader for Parquet's run-length encoded data that reads column data in batches instead of one value at a
- * time. This is based off of the version in Apache Spark with these changes:
+ * time. This is based off of the VectorizedRleValuesReader class in Apache Spark with these changes:
  * <p>
  * <tr>Writes batches of values retrieved to Arrow vectors</tr>
  * <tr>If all pages of a column within the row group are not dictionary encoded, then
@@ -43,7 +43,7 @@ public class BaseVectorizedParquetValuesReader extends ValuesReader {
   // Current decoding mode. The encoded data contains groups of either run length encoded data
   // (RLE) or bit packed data. Each group contains a header that indicates which group it is and
   // the number of values in the group.
-  enum MODE {
+  enum Mode {
     RLE,
     PACKED
   }
@@ -57,7 +57,7 @@ public class BaseVectorizedParquetValuesReader extends ValuesReader {
   private BytePacker packer;
 
   // Current decoding mode and values
-  MODE mode;
+  Mode mode;
   int currentCount;
   int currentValue;
 
@@ -108,7 +108,7 @@ public class BaseVectorizedParquetValuesReader extends ValuesReader {
     }
     if (bitWidth == 0) {
       // 0 bit width, treat this as an RLE run of valueCount number of 0's.
-      this.mode = MODE.RLE;
+      this.mode = Mode.RLE;
       this.currentCount = valueCount;
       this.currentValue = 0;
     } else {
@@ -185,7 +185,7 @@ public class BaseVectorizedParquetValuesReader extends ValuesReader {
   void readNextGroup() {
     try {
       int header = readUnsignedVarInt();
-      this.mode = (header & 1) == 0 ? MODE.RLE : MODE.PACKED;
+      this.mode = (header & 1) == 0 ? Mode.RLE : Mode.PACKED;
       switch (mode) {
         case RLE:
           this.currentCount = header >>> 1;
@@ -221,7 +221,7 @@ public class BaseVectorizedParquetValuesReader extends ValuesReader {
 
   @Override
   public void skip() {
-    this.readInteger();
+    throw new UnsupportedOperationException();
   }
 
   @Override

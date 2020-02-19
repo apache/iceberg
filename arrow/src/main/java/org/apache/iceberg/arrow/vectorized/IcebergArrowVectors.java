@@ -24,6 +24,15 @@ import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 
+/**
+ * The general way of getting a value at an index in the Arrow vector
+ * is by calling get(index). Expensive isSet() checks in such get(index) calls can be
+ * avoided by setting the arrow system property arrow.enable_null_check_for_get to false.
+ * However, for the implementations in this class, we have code paths where we
+ * get values out of the vector that call isSet() without looking at this
+ * system property. For such cases, we have specialized the isSet() call to use the
+ * {@link NullabilityHolder}.
+ */
 public class IcebergArrowVectors {
 
   /**

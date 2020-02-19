@@ -47,14 +47,15 @@ import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.PrimitiveType;
 
-/***
+/**
  * {@link VectorizedReader VectorReader(s)} that read in a batch of values into Arrow vectors.
  * It also takes care of allocating the right kind of Arrow vectors depending on the corresponding
  * Iceberg/Parquet data types.
  */
 public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   public static final int DEFAULT_BATCH_SIZE = 5000;
-  public static final int UNKNOWN_WIDTH = -1;
+  private static final Integer UNKNOWN_WIDTH = null;
+  private static final int AVERAGE_VARIABLE_WIDTH_RECORD_SIZE = 10;
 
   private final ColumnDescriptor columnDescriptor;
   private final int batchSize;
@@ -62,7 +63,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   private final Types.NestedField icebergField;
   private final BufferAllocator rootAlloc;
   private FieldVector vec;
-  private int typeWidth;
+  private Integer typeWidth;
   private ReadType readType;
   private boolean reuseContainers = true;
   private NullabilityHolder nullabilityHolder;
@@ -72,10 +73,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   // present in the vector may not necessarily be dictionary encoded.
   private Dictionary dictionary;
   private boolean allPagesDictEncoded;
-
-  // This value is copied from Arrow's BaseVariableWidthVector. We may need to change
-  // this value if Arrow ends up changing this default.
-  private static final int DEFAULT_RECORD_BYTE_COUNT = 8;
 
   public VectorizedArrowReader(
       ColumnDescriptor desc,
@@ -168,9 +165,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           null);
       this.vec = field.createVector(rootAlloc);
       ((IntVector) vec).allocateNew(batchSize);
-      typeWidth = IntVector.TYPE_WIDTH;
+      this.typeWidth = (int) IntVector.TYPE_WIDTH;
     } else {
       PrimitiveType primitive = columnDescriptor.getPrimitiveType();
+      Field arrowField = ArrowSchemaUtil.convert(icebergField);
       if (primitive.getOriginalType() != null) {
         switch (columnDescriptor.getPrimitiveType().getOriginalType()) {
           case ENUM:
@@ -179,37 +177,37 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           case BSON:
             this.vec = new IcebergArrowVectors.VarcharArrowVector(icebergField.name(), rootAlloc);
             //TODO: Possibly use the uncompressed page size info to set the initial capacity
-            vec.setInitialCapacity(batchSize * 10);
+            vec.setInitialCapacity(batchSize * AVERAGE_VARIABLE_WIDTH_RECORD_SIZE);
             vec.allocateNewSafe();
-            readType = ReadType.VARCHAR;
-            typeWidth = UNKNOWN_WIDTH;
+            this.readType =  ReadType.VARCHAR;
+            this.typeWidth = UNKNOWN_WIDTH;
             break;
           case INT_8:
           case INT_16:
           case INT_32:
-            this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
+            this.vec = arrowField.createVector(rootAlloc);
             ((IntVector) vec).allocateNew(batchSize);
-            readType = ReadType.INT;
-            typeWidth = IntVector.TYPE_WIDTH;
+            this.readType =  ReadType.INT;
+            this.typeWidth = (int) IntVector.TYPE_WIDTH;
             break;
           case DATE:
-            this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
+            this.vec = arrowField.createVector(rootAlloc);
             ((DateDayVector) vec).allocateNew(batchSize);
-            readType = ReadType.INT;
-            typeWidth = IntVector.TYPE_WIDTH;
+            this.readType =  ReadType.INT;
+            this.typeWidth = (int) IntVector.TYPE_WIDTH;
             break;
           case INT_64:
           case TIMESTAMP_MILLIS:
-            this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
+            this.vec = arrowField.createVector(rootAlloc);
             ((BigIntVector) vec).allocateNew(batchSize);
-            readType = ReadType.LONG;
-            typeWidth = BigIntVector.TYPE_WIDTH;
+            this.readType =  ReadType.LONG;
+            this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
             break;
           case TIMESTAMP_MICROS:
-            this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
+            this.vec = arrowField.createVector(rootAlloc);
             ((TimeStampMicroTZVector) vec).allocateNew(batchSize);
-            readType = ReadType.LONG;
-            typeWidth = BigIntVector.TYPE_WIDTH;
+            this.readType =  ReadType.LONG;
+            this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
             break;
           case DECIMAL:
             DecimalMetadata decimal = primitive.getDecimalMetadata();
@@ -219,16 +217,16 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
             switch (primitive.getPrimitiveTypeName()) {
               case BINARY:
               case FIXED_LEN_BYTE_ARRAY:
-                readType = ReadType.FIXED_LENGTH_DECIMAL;
-                typeWidth = primitive.getTypeLength();
+                this.readType =  ReadType.FIXED_LENGTH_DECIMAL;
+                this.typeWidth = primitive.getTypeLength();
                 break;
               case INT64:
-                readType = ReadType.INT_LONG_BACKED_DECIMAL;
-                typeWidth = BigIntVector.TYPE_WIDTH;
+                this.readType =  ReadType.INT_LONG_BACKED_DECIMAL;
+                this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
                 break;
               case INT32:
-                readType = ReadType.INT_LONG_BACKED_DECIMAL;
-                typeWidth = IntVector.TYPE_WIDTH;
+                this.readType =  ReadType.INT_LONG_BACKED_DECIMAL;
+                this.typeWidth = (int) IntVector.TYPE_WIDTH;
                 break;
               default:
                 throw new UnsupportedOperationException(
@@ -244,49 +242,48 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           case FIXED_LEN_BYTE_ARRAY:
             int len = ((Types.FixedType) icebergField.type()).length();
             this.vec = new IcebergArrowVectors.VarBinaryArrowVector(icebergField.name(), rootAlloc);
-            int factor = (len + DEFAULT_RECORD_BYTE_COUNT - 1) / DEFAULT_RECORD_BYTE_COUNT;
-            vec.setInitialCapacity(batchSize * factor);
+            vec.setInitialCapacity(batchSize * len);
             vec.allocateNew();
-            readType = ReadType.FIXED_WIDTH_BINARY;
-            typeWidth = len;
+            this.readType =  ReadType.FIXED_WIDTH_BINARY;
+            this.typeWidth = len;
             break;
           case BINARY:
             this.vec = new IcebergArrowVectors.VarBinaryArrowVector(icebergField.name(), rootAlloc);
             //TODO: Possibly use the uncompressed page size info to set the initial capacity
-            vec.setInitialCapacity(batchSize * 10);
+            vec.setInitialCapacity(batchSize * AVERAGE_VARIABLE_WIDTH_RECORD_SIZE);
             vec.allocateNewSafe();
-            readType = ReadType.VARBINARY;
-            typeWidth = UNKNOWN_WIDTH;
+            this.readType =  ReadType.VARBINARY;
+            this.typeWidth = UNKNOWN_WIDTH;
             break;
           case INT32:
-            this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
+            this.vec = arrowField.createVector(rootAlloc);
             ((IntVector) vec).allocateNew(batchSize);
-            readType = ReadType.INT;
-            typeWidth = IntVector.TYPE_WIDTH;
+            this.readType =  ReadType.INT;
+            this.typeWidth = (int) IntVector.TYPE_WIDTH;
             break;
           case FLOAT:
-            this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
+            this.vec = arrowField.createVector(rootAlloc);
             ((Float4Vector) vec).allocateNew(batchSize);
-            readType = ReadType.FLOAT;
-            typeWidth = Float4Vector.TYPE_WIDTH;
+            this.readType =  ReadType.FLOAT;
+            this.typeWidth = (int) Float4Vector.TYPE_WIDTH;
             break;
           case BOOLEAN:
-            this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
+            this.vec = arrowField.createVector(rootAlloc);
             ((BitVector) vec).allocateNew(batchSize);
-            readType = ReadType.BOOLEAN;
-            typeWidth = UNKNOWN_WIDTH;
+            this.readType =  ReadType.BOOLEAN;
+            this.typeWidth = UNKNOWN_WIDTH;
             break;
           case INT64:
-            this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
+            this.vec = arrowField.createVector(rootAlloc);
             ((BigIntVector) vec).allocateNew(batchSize);
-            readType = ReadType.LONG;
-            typeWidth = BigIntVector.TYPE_WIDTH;
+            this.readType =  ReadType.LONG;
+            this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
             break;
           case DOUBLE:
-            this.vec = ArrowSchemaUtil.convert(icebergField).createVector(rootAlloc);
+            this.vec = arrowField.createVector(rootAlloc);
             ((Float8Vector) vec).allocateNew(batchSize);
-            readType = ReadType.DOUBLE;
-            typeWidth = Float8Vector.TYPE_WIDTH;
+            this.readType =  ReadType.DOUBLE;
+            this.typeWidth = (int) Float8Vector.TYPE_WIDTH;
             break;
           default:
             throw new UnsupportedOperationException("Unsupported type: " + primitive);

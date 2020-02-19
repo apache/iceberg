@@ -57,7 +57,6 @@ public abstract class BasePageIterator {
   protected Encoding valueEncoding = null;
   protected IntIterator definitionLevels = null;
   protected IntIterator repetitionLevels = null;
-  protected ValuesReader vectorizedDefinitionLevelReader = null;
   protected ValuesReader values = null;
 
   protected BasePageIterator(ColumnDescriptor descriptor, String writerVersion) {
@@ -67,13 +66,12 @@ public abstract class BasePageIterator {
 
   protected abstract void reset();
 
-  protected abstract boolean supportsVectorizedReads();
-
-  protected abstract IntIterator newNonVectorizedDefinitionLevelReader(ValuesReader dlReader);
-
-  protected abstract ValuesReader newVectorizedDefinitionLevelReader(ColumnDescriptor descriptor);
-
   protected abstract void initDataReader(Encoding dataEncoding, ByteBufferInputStream in, int valueCount);
+
+  protected abstract void initDefinitionLevelsReader(DataPageV1 dataPageV1, ColumnDescriptor descriptor,
+                                                     ByteBufferInputStream in, int count) throws IOException;
+
+  protected abstract void initDefinitionLevelsReader(DataPageV2 dataPageV2, ColumnDescriptor descriptor);
 
   public void setPage(DataPage page) {
     Preconditions.checkNotNull(page, "Cannot read from null page");
@@ -97,15 +95,8 @@ public abstract class BasePageIterator {
 
   protected void initFromPage(DataPageV1 initPage) {
     this.triplesCount = initPage.getValueCount();
-    ValuesReader dlReader = null;
-    if (supportsVectorizedReads()) {
-      this.vectorizedDefinitionLevelReader = newVectorizedDefinitionLevelReader(desc);
-    } else {
-      dlReader = initPage.getDlEncoding().getValuesReader(desc, ValuesType.DEFINITION_LEVEL);
-      this.definitionLevels = newNonVectorizedDefinitionLevelReader(dlReader);
-    }
     ValuesReader rlReader = initPage.getRlEncoding().getValuesReader(desc, ValuesType.REPETITION_LEVEL);
-    this.repetitionLevels = new PageIterator.ValuesReaderIntIterator(rlReader);
+    this.repetitionLevels = new ValuesReaderIntIterator(rlReader);
     try {
       BytesInput bytes = initPage.getBytes();
       LOG.debug("page size {} bytes and {} records", bytes.size(), triplesCount);
@@ -113,11 +104,7 @@ public abstract class BasePageIterator {
       ByteBufferInputStream in = bytes.toInputStream();
       rlReader.initFromPage(triplesCount, in);
       LOG.debug("reading definition levels at {}", in.position());
-      if (supportsVectorizedReads()) {
-        this.vectorizedDefinitionLevelReader.initFromPage(triplesCount, in);
-      } else {
-        dlReader.initFromPage(triplesCount, in);
-      }
+      initDefinitionLevelsReader(initPage, desc, in, triplesCount);
       LOG.debug("reading data at {}", in.position());
       initDataReader(initPage.getValueEncoding(), in, initPage.getValueCount());
     } catch (IOException e) {
@@ -128,30 +115,12 @@ public abstract class BasePageIterator {
   protected void initFromPage(DataPageV2 initPage) {
     this.triplesCount = initPage.getValueCount();
     this.repetitionLevels = newRLEIterator(desc.getMaxRepetitionLevel(), initPage.getRepetitionLevels());
-    if (supportsVectorizedReads()) {
-      this.vectorizedDefinitionLevelReader = newVectorizedDefinitionLevelReader(desc);
-    } else {
-      this.definitionLevels = newRLEIterator(desc.getMaxDefinitionLevel(), initPage.getDefinitionLevels());
-    }
-    LOG.debug("page data size {} bytes and {} records", initPage.getData().size(), triplesCount);
     try {
+      initDefinitionLevelsReader(initPage, desc);
+      LOG.debug("page data size {} bytes and {} records", initPage.getData().size(), triplesCount);
       initDataReader(initPage.getDataEncoding(), initPage.getData().toInputStream(), triplesCount);
     } catch (IOException e) {
       throw new ParquetDecodingException("could not read page " + initPage + " in col " + desc, e);
-    }
-  }
-
-  private IntIterator newRLEIterator(int maxLevel, BytesInput bytes) {
-    try {
-      if (maxLevel == 0) {
-        return new NullIntIterator();
-      }
-      return new RLEIntIterator(
-          new RunLengthBitPackingHybridDecoder(
-              BytesUtils.getWidthFromMaxInt(maxLevel),
-              bytes.toInputStream()));
-    } catch (IOException e) {
-      throw new ParquetDecodingException("could not read levels in page for col " + desc, e);
     }
   }
 
@@ -176,6 +145,20 @@ public abstract class BasePageIterator {
     }
   }
 
+  IntIterator newRLEIterator(int maxLevel, BytesInput bytes) {
+    try {
+      if (maxLevel == 0) {
+        return new PageIterator.NullIntIterator();
+      }
+      return new RLEIntIterator(
+          new RunLengthBitPackingHybridDecoder(
+              BytesUtils.getWidthFromMaxInt(maxLevel),
+              bytes.toInputStream()));
+    } catch (IOException e) {
+      throw new ParquetDecodingException("could not read levels in page for col " + desc, e);
+    }
+  }
+
   static class RLEIntIterator extends IntIterator {
     private final RunLengthBitPackingHybridDecoder delegate;
 
@@ -193,10 +176,11 @@ public abstract class BasePageIterator {
     }
   }
 
-  private static final class NullIntIterator extends IntIterator {
+  static final class NullIntIterator extends IntIterator {
     @Override
     int nextInt() {
       return 0;
     }
   }
+
 }

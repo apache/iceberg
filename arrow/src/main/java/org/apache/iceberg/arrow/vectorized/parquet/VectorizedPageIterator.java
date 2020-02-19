@@ -33,6 +33,8 @@ import org.apache.parquet.bytes.BytesUtils;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.Encoding;
+import org.apache.parquet.column.page.DataPageV1;
+import org.apache.parquet.column.page.DataPageV2;
 import org.apache.parquet.column.values.RequiresPreviousReader;
 import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.io.ParquetDecodingException;
@@ -49,6 +51,7 @@ public class VectorizedPageIterator extends BasePageIterator {
   private ValuesAsBytesReader plainValuesReader = null;
   private VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader = null;
   private boolean allPagesDictEncoded;
+  private VectorizedParquetValuesReader vectorizedDefinitionLevelReader;
 
   // Dictionary is set per row group
   public void setDictionaryForColumn(Dictionary dict, boolean allDictEncoded) {
@@ -87,7 +90,7 @@ public class VectorizedPageIterator extends BasePageIterator {
     if (actualBatchSize <= 0) {
       return 0;
     }
-    ((VectorizedParquetValuesReader) vectorizedDefinitionLevelReader).readBatchOfDictionaryIds(
+    vectorizedDefinitionLevelReader.readBatchOfDictionaryIds(
         vector,
         numValsInVector,
         actualBatchSize,
@@ -110,7 +113,7 @@ public class VectorizedPageIterator extends BasePageIterator {
       return 0;
     }
     if (eagerDecodeDictionary) {
-      ((VectorizedParquetValuesReader) vectorizedDefinitionLevelReader).readBatchOfDictionaryEncodedIntegers(
+      vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedIntegers(
           vector,
           numValsInVector,
           typeWidth,
@@ -119,7 +122,7 @@ public class VectorizedPageIterator extends BasePageIterator {
           dictionaryEncodedValuesReader,
           dictionary);
     } else {
-      ((VectorizedParquetValuesReader) vectorizedDefinitionLevelReader).readBatchOfIntegers(
+      vectorizedDefinitionLevelReader.readBatchOfIntegers(
           vector,
           numValsInVector,
           typeWidth,
@@ -144,7 +147,7 @@ public class VectorizedPageIterator extends BasePageIterator {
       return 0;
     }
     if (eagerDecodeDictionary) {
-      ((VectorizedParquetValuesReader) vectorizedDefinitionLevelReader).readBatchOfDictionaryEncodedLongs(
+      vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedLongs(
           vector,
           numValsInVector,
           typeWidth,
@@ -153,7 +156,7 @@ public class VectorizedPageIterator extends BasePageIterator {
           dictionaryEncodedValuesReader,
           dictionary);
     } else {
-      ((VectorizedParquetValuesReader) vectorizedDefinitionLevelReader).readBatchOfLongs(
+      vectorizedDefinitionLevelReader.readBatchOfLongs(
           vector,
           numValsInVector,
           typeWidth,
@@ -178,7 +181,7 @@ public class VectorizedPageIterator extends BasePageIterator {
       return 0;
     }
     if (eagerDecodeDictionary) {
-      ((VectorizedParquetValuesReader) vectorizedDefinitionLevelReader).readBatchOfDictionaryEncodedFloats(
+      vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedFloats(
           vector,
           numValsInVector,
           typeWidth,
@@ -187,7 +190,7 @@ public class VectorizedPageIterator extends BasePageIterator {
           dictionaryEncodedValuesReader,
           dictionary);
     } else {
-      ((VectorizedParquetValuesReader) vectorizedDefinitionLevelReader).readBatchOfFloats(
+      vectorizedDefinitionLevelReader.readBatchOfFloats(
           vector,
           numValsInVector,
           typeWidth,
@@ -212,7 +215,7 @@ public class VectorizedPageIterator extends BasePageIterator {
       return 0;
     }
     if (eagerDecodeDictionary) {
-      ((VectorizedParquetValuesReader) vectorizedDefinitionLevelReader).readBatchOfDictionaryEncodedDoubles(
+      vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedDoubles(
           vector,
           numValsInVector,
           typeWidth,
@@ -221,7 +224,7 @@ public class VectorizedPageIterator extends BasePageIterator {
           dictionaryEncodedValuesReader,
           dictionary);
     } else {
-      ((VectorizedParquetValuesReader) vectorizedDefinitionLevelReader).readBatchOfDoubles(
+      vectorizedDefinitionLevelReader.readBatchOfDoubles(
           vector,
           numValsInVector,
           typeWidth,
@@ -250,7 +253,7 @@ public class VectorizedPageIterator extends BasePageIterator {
       return 0;
     }
     if (eagerDecodeDictionary) {
-      ((VectorizedParquetValuesReader) vectorizedDefinitionLevelReader)
+      vectorizedDefinitionLevelReader
           .readBatchOfDictionaryEncodedIntLongBackedDecimals(
               vector,
               numValsInVector,
@@ -260,7 +263,7 @@ public class VectorizedPageIterator extends BasePageIterator {
               dictionaryEncodedValuesReader,
               dictionary);
     } else {
-      ((VectorizedParquetValuesReader) vectorizedDefinitionLevelReader).readBatchOfIntLongBackedDecimals(
+      vectorizedDefinitionLevelReader.readBatchOfIntLongBackedDecimals(
           vector,
           numValsInVector,
           typeWidth,
@@ -288,7 +291,7 @@ public class VectorizedPageIterator extends BasePageIterator {
       return 0;
     }
     if (eagerDecodeDictionary) {
-      ((VectorizedParquetValuesReader) vectorizedDefinitionLevelReader).readBatchOfDictionaryEncodedFixedLengthDecimals(
+      vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedFixedLengthDecimals(
           vector,
           numValsInVector,
           typeWidth,
@@ -297,7 +300,7 @@ public class VectorizedPageIterator extends BasePageIterator {
           dictionaryEncodedValuesReader,
           dictionary);
     } else {
-      ((VectorizedParquetValuesReader) vectorizedDefinitionLevelReader).readBatchOfFixedLengthDecimals(
+      vectorizedDefinitionLevelReader.readBatchOfFixedLengthDecimals(
           vector,
           numValsInVector,
           typeWidth,
@@ -323,7 +326,7 @@ public class VectorizedPageIterator extends BasePageIterator {
       return 0;
     }
     if (eagerDecodeDictionary) {
-      ((VectorizedParquetValuesReader) vectorizedDefinitionLevelReader).readBatchOfDictionaryEncodedVarWidth(
+      vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedVarWidth(
           vector,
           numValsInVector,
           actualBatchSize,
@@ -331,7 +334,7 @@ public class VectorizedPageIterator extends BasePageIterator {
           dictionaryEncodedValuesReader,
           dictionary);
     } else {
-      ((VectorizedParquetValuesReader) vectorizedDefinitionLevelReader).readBatchVarWidth(
+      vectorizedDefinitionLevelReader.readBatchVarWidth(
           vector,
           numValsInVector,
           actualBatchSize,
@@ -356,7 +359,7 @@ public class VectorizedPageIterator extends BasePageIterator {
       return 0;
     }
     if (eagerDecodeDictionary) {
-      ((VectorizedParquetValuesReader) vectorizedDefinitionLevelReader).readBatchOfDictionaryEncodedFixedWidthBinary(
+      vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedFixedWidthBinary(
           vector,
           numValsInVector,
           typeWidth,
@@ -365,7 +368,7 @@ public class VectorizedPageIterator extends BasePageIterator {
           dictionaryEncodedValuesReader,
           dictionary);
     } else {
-      ((VectorizedParquetValuesReader) vectorizedDefinitionLevelReader).readBatchOfFixedWidthBinary(
+      vectorizedDefinitionLevelReader.readBatchOfFixedWidthBinary(
           vector,
           numValsInVector,
           typeWidth,
@@ -390,28 +393,12 @@ public class VectorizedPageIterator extends BasePageIterator {
     if (actualBatchSize <= 0) {
       return 0;
     }
-    ((VectorizedParquetValuesReader) vectorizedDefinitionLevelReader)
+    vectorizedDefinitionLevelReader
         .readBatchOfBooleans(vector, numValsInVector, actualBatchSize,
             nullabilityHolder, plainValuesReader);
     triplesRead += actualBatchSize;
     this.hasNext = triplesRead < triplesCount;
     return actualBatchSize;
-  }
-
-  @Override
-  protected boolean supportsVectorizedReads() {
-    return true;
-  }
-
-  @Override
-  protected BasePageIterator.IntIterator newNonVectorizedDefinitionLevelReader(ValuesReader dlReader) {
-    throw new UnsupportedOperationException("Non-vectorized reads not supported");
-  }
-
-  @Override
-  protected ValuesReader newVectorizedDefinitionLevelReader(ColumnDescriptor desc) {
-    int bitwidth = BytesUtils.getWidthFromMaxInt(desc.getMaxDefinitionLevel());
-    return new VectorizedParquetValuesReader(bitwidth, desc.getMaxDefinitionLevel(), setArrowValidityVector);
   }
 
   @Override
@@ -439,6 +426,23 @@ public class VectorizedPageIterator extends BasePageIterator {
       // previous reader can only be set if reading sequentially
       ((RequiresPreviousReader) plainValuesReader).setPreviousReader(previousReader);
     }
+  }
+
+  @Override
+  protected void initDefinitionLevelsReader(DataPageV1 dataPageV1, ColumnDescriptor desc, ByteBufferInputStream in,
+                                            int triplesCount) throws IOException {
+    this.vectorizedDefinitionLevelReader = newVectorizedDefinitionLevelReader(desc);
+    this.vectorizedDefinitionLevelReader.initFromPage(triplesCount, in);
+  }
+
+  @Override
+  protected void initDefinitionLevelsReader(DataPageV2 dataPageV2, ColumnDescriptor desc) {
+    this.vectorizedDefinitionLevelReader = newVectorizedDefinitionLevelReader(desc);
+  }
+
+  private VectorizedParquetValuesReader newVectorizedDefinitionLevelReader(ColumnDescriptor desc) {
+    int bitwidth = BytesUtils.getWidthFromMaxInt(desc.getMaxDefinitionLevel());
+    return new VectorizedParquetValuesReader(bitwidth, desc.getMaxDefinitionLevel(), setArrowValidityVector);
   }
 
 }

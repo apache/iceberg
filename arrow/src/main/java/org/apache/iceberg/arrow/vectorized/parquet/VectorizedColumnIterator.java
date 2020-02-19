@@ -19,18 +19,16 @@
 
 package org.apache.iceberg.arrow.vectorized.parquet;
 
-import java.io.IOException;
 import org.apache.arrow.util.Preconditions;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
+import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.page.DataPage;
-import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.column.page.PageReader;
-import org.apache.parquet.io.ParquetDecodingException;
 
 /**
  * Vectorized version of the ColumnIterator that reads column values in data pages of a column in a row group in a
@@ -63,7 +61,7 @@ public class VectorizedColumnIterator {
     this.valuesRead = 0L;
     this.advanceNextPageCount = 0L;
     this.vectorizedPageIterator.reset();
-    Dictionary dict = readDictionaryForColumn(store);
+    Dictionary dict = ParquetUtil.readDictionary(desc, this.columnPageReader);
     this.vectorizedPageIterator.setDictionaryForColumn(dict, allPagesDictEncoded);
     advance();
     return dict;
@@ -88,9 +86,6 @@ public class VectorizedColumnIterator {
     return valuesRead < totalValuesCount;
   }
 
-  /**
-   * Method for reading a batch of non-decimal numeric data types (INT32, INT64, FLOAT, DOUBLE, DATE, TIMESTAMP)
-   */
   public void nextBatchIntegers(FieldVector fieldVector, int typeWidth, NullabilityHolder holder) {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {
@@ -103,9 +98,6 @@ public class VectorizedColumnIterator {
     }
   }
 
-  /**
-   * Method for reading a batch of non-decimal numeric data types (INT32, INT64, FLOAT, DOUBLE, DATE, TIMESTAMP)
-   */
   public void nextBatchDictionaryIds(IntVector vector, NullabilityHolder holder) {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {
@@ -118,9 +110,6 @@ public class VectorizedColumnIterator {
     }
   }
 
-  /**
-   * Method for reading a batch of non-decimal numeric data types (INT32, INT64, FLOAT, DOUBLE, DATE, TIMESTAMP)
-   */
   public void nextBatchLongs(FieldVector fieldVector, int typeWidth, NullabilityHolder holder) {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {
@@ -133,9 +122,6 @@ public class VectorizedColumnIterator {
     }
   }
 
-  /**
-   * Method for reading a batch of non-decimal numeric data types (INT32, INT64, FLOAT, DOUBLE, DATE, TIMESTAMP)
-   */
   public void nextBatchFloats(FieldVector fieldVector, int typeWidth, NullabilityHolder holder) {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {
@@ -148,9 +134,6 @@ public class VectorizedColumnIterator {
     }
   }
 
-  /**
-   * Method for reading a batch of non-decimal numeric data types (INT32, INT64, FLOAT, DOUBLE, DATE, TIMESTAMP)
-   */
   public void nextBatchDoubles(FieldVector fieldVector, int typeWidth, NullabilityHolder holder) {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {
@@ -163,9 +146,6 @@ public class VectorizedColumnIterator {
     }
   }
 
-  /**
-   * Method for reading a batch of decimals backed by INT32 and INT64 parquet data types.
-   */
   public void nextBatchIntLongBackedDecimal(
       FieldVector fieldVector,
       int typeWidth,
@@ -182,9 +162,6 @@ public class VectorizedColumnIterator {
     }
   }
 
-  /**
-   * Method for reading a batch of decimals backed by fixed length byte array parquet data type.
-   */
   public void nextBatchFixedLengthDecimal(
       FieldVector fieldVector,
       int typeWidth,
@@ -201,9 +178,6 @@ public class VectorizedColumnIterator {
     }
   }
 
-  /**
-   * Method for reading a batch of variable width data type (ENUM, JSON, UTF8, BSON).
-   */
   public void nextBatchVarWidthType(FieldVector fieldVector, NullabilityHolder nullabilityHolder) {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {
@@ -216,9 +190,6 @@ public class VectorizedColumnIterator {
     }
   }
 
-  /**
-   * Method for reading batches of fixed width binary type (e.g. BYTE[7]).
-   */
   public void nextBatchFixedWidthBinary(FieldVector fieldVector, int typeWidth, NullabilityHolder nullabilityHolder) {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {
@@ -232,9 +203,6 @@ public class VectorizedColumnIterator {
     }
   }
 
-  /**
-   * Method for reading batches of booleans.
-   */
   public void nextBatchBoolean(FieldVector fieldVector, NullabilityHolder nullabilityHolder) {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {
@@ -247,16 +215,4 @@ public class VectorizedColumnIterator {
     }
   }
 
-  private Dictionary readDictionaryForColumn(
-      PageReadStore pageReadStore) {
-    DictionaryPage dictionaryPage = pageReadStore.getPageReader(desc).readDictionaryPage();
-    if (dictionaryPage != null) {
-      try {
-        return dictionaryPage.getEncoding().initDictionary(desc, dictionaryPage);
-      } catch (IOException e) {
-        throw new ParquetDecodingException("could not decode the dictionary for " + desc, e);
-      }
-    }
-    return null;
-  }
 }

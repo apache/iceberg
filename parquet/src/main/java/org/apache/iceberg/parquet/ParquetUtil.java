@@ -266,9 +266,6 @@ public class ParquetUtil {
     if (dictionaryPage != null) {
       try {
         return dictionaryPage.getEncoding().initDictionary(desc, dictionaryPage);
-//        if (converter.hasDictionarySupport()) {
-//          converter.setDictionary(dictionary);
-//        }
       } catch (IOException e) {
         throw new ParquetDecodingException("could not decode the dictionary for " + desc, e);
       }

@@ -27,6 +27,8 @@ import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.ValuesType;
 import org.apache.parquet.column.page.DataPage;
+import org.apache.parquet.column.page.DataPageV1;
+import org.apache.parquet.column.page.DataPageV2;
 import org.apache.parquet.column.values.RequiresPreviousReader;
 import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.io.ParquetDecodingException;
@@ -265,17 +267,16 @@ abstract class PageIterator<T> extends BasePageIterator implements TripleIterato
   }
 
   @Override
-  protected IntIterator newNonVectorizedDefinitionLevelReader(ValuesReader dlReader) {
-    return new ValuesReaderIntIterator(dlReader);
+  protected void initDefinitionLevelsReader(DataPageV1 dataPageV1, ColumnDescriptor desc, ByteBufferInputStream in,
+                                            int triplesCount) throws IOException {
+    ValuesReader dlReader = dataPageV1.getDlEncoding().getValuesReader(desc, ValuesType.DEFINITION_LEVEL);
+    this.definitionLevels = new ValuesReaderIntIterator(dlReader);
+    dlReader.initFromPage(triplesCount, in);
   }
 
   @Override
-  protected ValuesReader newVectorizedDefinitionLevelReader(ColumnDescriptor desc) {
-    throw new UnsupportedOperationException("Vectorized reads not supported");
+  protected void initDefinitionLevelsReader(DataPageV2 dataPageV2, ColumnDescriptor desc) {
+    this.definitionLevels = newRLEIterator(desc.getMaxDefinitionLevel(), dataPageV2.getDefinitionLevels());
   }
 
-  @Override
-  protected boolean supportsVectorizedReads() {
-    return false;
-  }
 }

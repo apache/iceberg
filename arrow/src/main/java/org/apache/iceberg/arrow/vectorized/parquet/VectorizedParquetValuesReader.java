@@ -612,11 +612,6 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
     }
   }
 
-  /**
-   * Method for reading a batch of non-decimal numeric data types (INT32, INT64, FLOAT, DOUBLE, DATE, TIMESTAMP) This
-   * method reads batches of bytes from Parquet and writes them into the data buffer underneath the Arrow vector. It
-   * appropriately sets the validity buffer in the Arrow vector.
-   */
   public void readBatchVarWidth(
       final FieldVector vector,
       final int numValsInVector,
