@@ -185,6 +185,48 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
   }
 
   @Test
+  public void testDeleteAndRenameColumnReassign() {
+    NameMapping mapping = MappingUtil.create(table.schema());
+    String mappingJson = NameMappingParser.toJson(mapping);
+
+    table.updateProperties()
+        .set(TableProperties.DEFAULT_NAME_MAPPING, mappingJson)
+        .commit();
+
+    int startIdColumnId = table.schema().findField("id").fieldId(); // the original field ID
+
+    table.updateSchema()
+        .deleteColumn("id")
+        .commit();
+
+    // rename the data column to id
+    table.updateSchema()
+        .renameColumn("data", "id")
+        .commit();
+
+    String updatedJson = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
+    NameMapping updated = NameMappingParser.fromJson(updatedJson);
+
+    int idColumnId = table.schema().findField("id").fieldId(); // the new field ID
+    Set<Integer> changedIds = Sets.newHashSet(startIdColumnId, idColumnId);
+    validateUnchanged(
+        Iterables.filter(mapping.asMappedFields().fields(), field -> !changedIds.contains(field.id())),
+        updated);
+
+    MappedField newMapping = updated.find("id");
+    Assert.assertNotNull("Mapping for id column should exist", newMapping);
+    Assert.assertEquals("Mapping should use the new field ID", (Integer) idColumnId, newMapping.id());
+    Assert.assertEquals("Should have both names", Sets.newHashSet("id", "data"), newMapping.names());
+    Assert.assertNull("Should not contain a nested mapping", newMapping.nestedMapping());
+
+    MappedField updatedMapping = updated.find(startIdColumnId);
+    Assert.assertNotNull("Mapping for original id column should exist", updatedMapping);
+    Assert.assertEquals("Mapping should use the original field ID", (Integer) startIdColumnId, updatedMapping.id());
+    Assert.assertFalse("Should not use id as a name", updatedMapping.names().contains("id"));
+    Assert.assertNull("Should not contain a nested mapping", updatedMapping.nestedMapping());
+  }
+
+  @Test
   public void testRenameAndAddColumnReassign() {
     NameMapping mapping = MappingUtil.create(table.schema());
     String mappingJson = NameMappingParser.toJson(mapping);
@@ -203,7 +245,8 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
     Assert.assertEquals("Renamed column should have both names",
         Sets.newHashSet("id", "object_id"), afterRename.find(startIdColumnId).names());
 
-    // add the same column name back to the table with a different field ID
+    // add a new column with the renamed column's old name
+    // also, rename the original column again to ensure its names are handled correctly
     table.updateSchema()
         .renameColumn("object_id", "oid")
         .addColumn("id", Types.StringType.get())
@@ -249,7 +292,8 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
     Assert.assertEquals("Renamed column should have both names",
         Sets.newHashSet("id", "object_id"), afterRename.find(startIdColumnId).names());
 
-    // add the same column name back to the table with a different field ID
+    // rename the data column to the renamed column's old name
+    // also, rename the original column again to ensure its names are handled correctly
     table.updateSchema()
         .renameColumn("object_id", "oid")
         .renameColumn("data", "id")
