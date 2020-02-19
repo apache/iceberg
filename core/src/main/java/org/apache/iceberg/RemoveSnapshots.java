@@ -198,7 +198,7 @@ class RemoveSnapshots implements ExpireSnapshots {
           boolean fromValidSnapshots = validIds.contains(manifest.snapshotId());
           boolean isFromAncestor = ancestorIds.contains(manifest.snapshotId());
           if (!fromValidSnapshots && isFromAncestor && manifest.hasDeletedFiles()) {
-            manifestsToScan.add(manifest);
+            manifestsToScan.add(manifest.copy());
           }
         }
 
@@ -228,7 +228,7 @@ class RemoveSnapshots implements ExpireSnapshots {
                 // snapshot is an ancestor of the current table state. Otherwise, a snapshot that
                 // deleted files and was rolled back will delete files that could be in the current
                 // table state.
-                manifestsToScan.add(manifest);
+                manifestsToScan.add(manifest.copy());
               }
 
               if (!isFromAncestor && isFromExpiringSnapshot && manifest.hasAddedFiles()) {
@@ -239,7 +239,7 @@ class RemoveSnapshots implements ExpireSnapshots {
                 // written and this expiration is known and there is no missing history. If history
                 // were missing, then the snapshot could be an ancestor of the table state but the
                 // ancestor ID set would not contain it and this would be unsafe.
-                manifestsToRevert.add(manifest);
+                manifestsToRevert.add(manifest.copy());
               }
             }
           }
