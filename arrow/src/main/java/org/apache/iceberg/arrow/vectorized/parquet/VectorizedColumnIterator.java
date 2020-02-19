@@ -122,6 +122,18 @@ public class VectorizedColumnIterator {
     }
   }
 
+  public void nextBatchTimestampMillis(FieldVector fieldVector, int typeWidth, NullabilityHolder holder) {
+    int rowsReadSoFar = 0;
+    while (rowsReadSoFar < batchSize && hasNext()) {
+      advance();
+      int rowsInThisBatch = vectorizedPageIterator.nextBatchTimestampMillis(fieldVector, batchSize - rowsReadSoFar,
+          rowsReadSoFar, typeWidth, holder);
+      rowsReadSoFar += rowsInThisBatch;
+      this.valuesRead += rowsInThisBatch;
+      fieldVector.setValueCount(rowsReadSoFar);
+    }
+  }
+
   public void nextBatchFloats(FieldVector fieldVector, int typeWidth, NullabilityHolder holder) {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {

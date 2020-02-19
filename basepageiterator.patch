@@ -1,0 +1,953 @@
+diff --git a/arrow/src/main/java/org/apache/iceberg/arrow/vectorized/NullabilityHolder.java b/arrow/src/main/java/org/apache/iceberg/arrow/vectorized/NullabilityHolder.java
+index b1da2e4a..63235a64 100644
+--- a/arrow/src/main/java/org/apache/iceberg/arrow/vectorized/NullabilityHolder.java
++++ b/arrow/src/main/java/org/apache/iceberg/arrow/vectorized/NullabilityHolder.java
+@@ -37,6 +37,9 @@ public class NullabilityHolder {
+     numNulls++;
+   }
+ 
++  /**
++   * @return 1 if null, 0 otherwise
++   */
+   public byte isNullAt(int idx) {
+     return isNull[idx];
+   }
+diff --git a/arrow/src/main/java/org/apache/iceberg/arrow/vectorized/VectorizedArrowReader.java b/arrow/src/main/java/org/apache/iceberg/arrow/vectorized/VectorizedArrowReader.java
+index 26705ff6..c54045e4 100644
+--- a/arrow/src/main/java/org/apache/iceberg/arrow/vectorized/VectorizedArrowReader.java
++++ b/arrow/src/main/java/org/apache/iceberg/arrow/vectorized/VectorizedArrowReader.java
+@@ -140,7 +140,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
+       } else {
+         if (isFixedLengthDecimal) {
+           vectorizedColumnIterator.nextBatchFixedLengthDecimal(vec, typeWidth, nullabilityHolder);
+-          ((IcebergArrowVectors.DecimalArrowVector) vec).setNullabilityHolder(nullabilityHolder);
++          if (vec instanceof IcebergArrowVectors.DecimalArrowVector) {
++            ((IcebergArrowVectors.DecimalArrowVector) vec).setNullabilityHolder(nullabilityHolder);
++          }
+         } else if (isFixedWidthBinary) {
+           // Fixed width binary type values are stored in an IcebergVarBinaryArrowVector as well
+           if (vec instanceof IcebergArrowVectors.VarBinaryArrowVector) {
+diff --git a/arrow/src/main/java/org/apache/iceberg/arrow/vectorized/parquet/VectorizedPageIterator.java b/arrow/src/main/java/org/apache/iceberg/arrow/vectorized/parquet/VectorizedPageIterator.java
+index 5466ac0b..c06bca7c 100644
+--- a/arrow/src/main/java/org/apache/iceberg/arrow/vectorized/parquet/VectorizedPageIterator.java
++++ b/arrow/src/main/java/org/apache/iceberg/arrow/vectorized/parquet/VectorizedPageIterator.java
+@@ -19,81 +19,36 @@
+ 
+ package org.apache.iceberg.arrow.vectorized.parquet;
+ 
+-import com.google.common.base.Preconditions;
+ import java.io.IOException;
+ import org.apache.arrow.vector.DecimalVector;
+ import org.apache.arrow.vector.FieldVector;
+ import org.apache.arrow.vector.IntVector;
+ import org.apache.arrow.vector.VarBinaryVector;
+ import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
++import org.apache.iceberg.parquet.BasePageIterator;
+ import org.apache.iceberg.parquet.ValuesAsBytesReader;
+ import org.apache.parquet.CorruptDeltaByteArrays;
+ import org.apache.parquet.bytes.ByteBufferInputStream;
+-import org.apache.parquet.bytes.BytesInput;
+ import org.apache.parquet.bytes.BytesUtils;
+ import org.apache.parquet.column.ColumnDescriptor;
+ import org.apache.parquet.column.Dictionary;
+ import org.apache.parquet.column.Encoding;
+-import org.apache.parquet.column.ValuesType;
+-import org.apache.parquet.column.page.DataPage;
+-import org.apache.parquet.column.page.DataPageV1;
+-import org.apache.parquet.column.page.DataPageV2;
+ import org.apache.parquet.column.values.RequiresPreviousReader;
+ import org.apache.parquet.column.values.ValuesReader;
+-import org.apache.parquet.column.values.rle.RunLengthBitPackingHybridDecoder;
+ import org.apache.parquet.io.ParquetDecodingException;
+-import org.slf4j.Logger;
+-import org.slf4j.LoggerFactory;
+ 
+-public class VectorizedPageIterator {
+-  private static final Logger LOG = LoggerFactory.getLogger(VectorizedPageIterator.class);
++public class VectorizedPageIterator extends BasePageIterator {
+ 
+   public VectorizedPageIterator(ColumnDescriptor desc, String writerVersion, int batchSize) {
+-    this.desc = desc;
+-    this.writerVersion = writerVersion;
++    //TODO: samarth remove batchSize from param
++    super(desc, writerVersion);
+   }
+ 
+-  private final ColumnDescriptor desc;
+-  private final String writerVersion;
+-
+-  // iterator state
+-  private boolean hasNext = false;
+-  private int triplesRead = 0;
+-
+-  // page bookkeeping
+-  private Dictionary dictionary = null;
+-  private DataPage page = null;
+-  private int triplesCount = 0;
+-
+-  // Needed once we add support for complex types. Unused for now.
+-  private IntIterator repetitionLevels = null;
+-  private int currentRL = 0;
+-
+-  private VectorizedParquetValuesReader definitionLevelReader;
+   private boolean eagerDecodeDictionary;
+   private ValuesAsBytesReader plainValuesReader = null;
+   private VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader = null;
+   private boolean allPagesDictEncoded;
+ 
+-  public void setPage(DataPage dataPage) {
+-    this.page = Preconditions.checkNotNull(dataPage, "Cannot read from null page");
+-    this.page.accept(new DataPage.Visitor<ValuesReader>() {
+-      @Override
+-      public ValuesReader visit(DataPageV1 dataPageV1) {
+-        initFromPage(dataPageV1);
+-        return null;
+-      }
+-
+-      @Override
+-      public ValuesReader visit(DataPageV2 dataPageV2) {
+-        initFromPage(dataPageV2);
+-        return null;
+-      }
+-    });
+-    this.triplesRead = 0;
+-    this.hasNext = triplesRead < triplesCount;
+-  }
+-
+   // Dictionary is set per row group
+   public void setDictionaryForColumn(Dictionary dict, boolean allDictEncoded) {
+     this.dictionary = dict;
+@@ -106,7 +61,7 @@ public class VectorizedPageIterator {
+     this.triplesRead = 0;
+     this.repetitionLevels = null;
+     this.plainValuesReader = null;
+-    this.definitionLevelReader = null;
++    this.vectorizedDefinitionLevelsReader = null;
+     this.hasNext = false;
+   }
+ 
+@@ -130,7 +85,7 @@ public class VectorizedPageIterator {
+     if (actualBatchSize <= 0) {
+       return 0;
+     }
+-    definitionLevelReader.readBatchOfDictionaryIds(
++    ((VectorizedParquetValuesReader)vectorizedDefinitionLevelsReader).readBatchOfDictionaryIds(
+         vector,
+         numValsInVector,
+         actualBatchSize,
+@@ -153,7 +108,7 @@ public class VectorizedPageIterator {
+       return 0;
+     }
+     if (eagerDecodeDictionary) {
+-      definitionLevelReader.readBatchOfDictionaryEncodedIntegers(
++      ((VectorizedParquetValuesReader)vectorizedDefinitionLevelsReader).readBatchOfDictionaryEncodedIntegers(
+           vector,
+           numValsInVector,
+           typeWidth,
+@@ -162,7 +117,7 @@ public class VectorizedPageIterator {
+           dictionaryEncodedValuesReader,
+           dictionary);
+     } else {
+-      definitionLevelReader.readBatchOfIntegers(
++      ((VectorizedParquetValuesReader)vectorizedDefinitionLevelsReader).readBatchOfIntegers(
+           vector,
+           numValsInVector,
+           typeWidth,
+@@ -187,7 +142,7 @@ public class VectorizedPageIterator {
+       return 0;
+     }
+     if (eagerDecodeDictionary) {
+-      definitionLevelReader.readBatchOfDictionaryEncodedLongs(
++      ((VectorizedParquetValuesReader)vectorizedDefinitionLevelsReader).readBatchOfDictionaryEncodedLongs(
+           vector,
+           numValsInVector,
+           typeWidth,
+@@ -196,7 +151,7 @@ public class VectorizedPageIterator {
+           dictionaryEncodedValuesReader,
+           dictionary);
+     } else {
+-      definitionLevelReader.readBatchOfLongs(
++      ((VectorizedParquetValuesReader)vectorizedDefinitionLevelsReader).readBatchOfLongs(
+           vector,
+           numValsInVector,
+           typeWidth,
+@@ -221,7 +176,7 @@ public class VectorizedPageIterator {
+       return 0;
+     }
+     if (eagerDecodeDictionary) {
+-      definitionLevelReader.readBatchOfDictionaryEncodedFloats(
++      ((VectorizedParquetValuesReader)vectorizedDefinitionLevelsReader).readBatchOfDictionaryEncodedFloats(
+           vector,
+           numValsInVector,
+           typeWidth,
+@@ -230,7 +185,7 @@ public class VectorizedPageIterator {
+           dictionaryEncodedValuesReader,
+           dictionary);
+     } else {
+-      definitionLevelReader.readBatchOfFloats(
++      ((VectorizedParquetValuesReader)vectorizedDefinitionLevelsReader).readBatchOfFloats(
+           vector,
+           numValsInVector,
+           typeWidth,
+@@ -255,7 +210,7 @@ public class VectorizedPageIterator {
+       return 0;
+     }
+     if (eagerDecodeDictionary) {
+-      definitionLevelReader.readBatchOfDictionaryEncodedDoubles(
++      ((VectorizedParquetValuesReader)vectorizedDefinitionLevelsReader).readBatchOfDictionaryEncodedDoubles(
+           vector,
+           numValsInVector,
+           typeWidth,
+@@ -264,7 +219,7 @@ public class VectorizedPageIterator {
+           dictionaryEncodedValuesReader,
+           dictionary);
+     } else {
+-      definitionLevelReader.readBatchOfDoubles(
++      ((VectorizedParquetValuesReader)vectorizedDefinitionLevelsReader).readBatchOfDoubles(
+           vector,
+           numValsInVector,
+           typeWidth,
+@@ -293,7 +248,7 @@ public class VectorizedPageIterator {
+       return 0;
+     }
+     if (eagerDecodeDictionary) {
+-      definitionLevelReader.readBatchOfDictionaryEncodedIntLongBackedDecimals(
++      ((VectorizedParquetValuesReader)vectorizedDefinitionLevelsReader).readBatchOfDictionaryEncodedIntLongBackedDecimals(
+           vector,
+           numValsInVector,
+           typeWidth,
+@@ -302,7 +257,7 @@ public class VectorizedPageIterator {
+           dictionaryEncodedValuesReader,
+           dictionary);
+     } else {
+-      definitionLevelReader.readBatchOfIntLongBackedDecimals(
++      ((VectorizedParquetValuesReader)vectorizedDefinitionLevelsReader).readBatchOfIntLongBackedDecimals(
+           vector,
+           numValsInVector,
+           typeWidth,
+@@ -330,7 +285,7 @@ public class VectorizedPageIterator {
+       return 0;
+     }
+     if (eagerDecodeDictionary) {
+-      definitionLevelReader.readBatchOfDictionaryEncodedFixedLengthDecimals(
++      ((VectorizedParquetValuesReader)vectorizedDefinitionLevelsReader).readBatchOfDictionaryEncodedFixedLengthDecimals(
+           vector,
+           numValsInVector,
+           typeWidth,
+@@ -339,7 +294,7 @@ public class VectorizedPageIterator {
+           dictionaryEncodedValuesReader,
+           dictionary);
+     } else {
+-      definitionLevelReader.readBatchOfFixedLengthDecimals(
++      ((VectorizedParquetValuesReader)vectorizedDefinitionLevelsReader).readBatchOfFixedLengthDecimals(
+           vector,
+           numValsInVector,
+           typeWidth,
+@@ -365,7 +320,7 @@ public class VectorizedPageIterator {
+       return 0;
+     }
+     if (eagerDecodeDictionary) {
+-      definitionLevelReader.readBatchOfDictionaryEncodedVarWidth(
++      ((VectorizedParquetValuesReader)vectorizedDefinitionLevelsReader).readBatchOfDictionaryEncodedVarWidth(
+           vector,
+           numValsInVector,
+           actualBatchSize,
+@@ -373,7 +328,7 @@ public class VectorizedPageIterator {
+           dictionaryEncodedValuesReader,
+           dictionary);
+     } else {
+-      definitionLevelReader.readBatchVarWidth(
++      ((VectorizedParquetValuesReader)vectorizedDefinitionLevelsReader).readBatchVarWidth(
+           vector,
+           numValsInVector,
+           actualBatchSize,
+@@ -398,7 +353,7 @@ public class VectorizedPageIterator {
+       return 0;
+     }
+     if (eagerDecodeDictionary) {
+-      definitionLevelReader.readBatchOfDictionaryEncodedFixedWidthBinary(
++      ((VectorizedParquetValuesReader)vectorizedDefinitionLevelsReader).readBatchOfDictionaryEncodedFixedWidthBinary(
+           vector,
+           numValsInVector,
+           typeWidth,
+@@ -407,7 +362,7 @@ public class VectorizedPageIterator {
+           dictionaryEncodedValuesReader,
+           dictionary);
+     } else {
+-      definitionLevelReader.readBatchOfFixedWidthBinary(
++      ((VectorizedParquetValuesReader)vectorizedDefinitionLevelsReader).readBatchOfFixedWidthBinary(
+           vector,
+           numValsInVector,
+           typeWidth,
+@@ -420,9 +375,6 @@ public class VectorizedPageIterator {
+     return actualBatchSize;
+   }
+ 
+-  /**
+-   * Method for reading batches of booleans.
+-   */
+   public int nextBatchBoolean(
+       final FieldVector vector,
+       final int expectedBatchSize,
+@@ -432,14 +384,31 @@ public class VectorizedPageIterator {
+     if (actualBatchSize <= 0) {
+       return 0;
+     }
+-    definitionLevelReader.readBatchOfBooleans(vector, numValsInVector, actualBatchSize,
++    ((VectorizedParquetValuesReader)vectorizedDefinitionLevelsReader).readBatchOfBooleans(vector, numValsInVector, actualBatchSize,
+         nullabilityHolder, plainValuesReader);
+     triplesRead += actualBatchSize;
+     this.hasNext = triplesRead < triplesCount;
+     return actualBatchSize;
+   }
+ 
+-  private void initDataReader(Encoding dataEncoding, ByteBufferInputStream in, int valueCount) {
++  @Override
++  protected boolean supportsVectorizedReads() {
++    return true;
++  }
++
++  @Override
++  protected BasePageIterator.IntIterator newNonVectorizedDefinitionLevelReader(ValuesReader dlReader) {
++    throw new UnsupportedOperationException("Non-vectorized reads not supported");
++  }
++
++  @Override
++  protected ValuesReader newVectorizedDefinitionLevelReader(ColumnDescriptor desc) {
++    int bitWidth = BytesUtils.getWidthFromMaxInt(desc.getMaxDefinitionLevel());
++    return new VectorizedParquetValuesReader(bitWidth, desc.getMaxDefinitionLevel());
++  }
++
++  @Override
++  protected void initDataReader(Encoding dataEncoding, ByteBufferInputStream in, int valueCount) {
+     ValuesReader previousReader = plainValuesReader;
+     this.eagerDecodeDictionary = dataEncoding.usesDictionary() && dictionary != null && !allPagesDictEncoded;
+     if (dataEncoding.usesDictionary()) {
+@@ -465,93 +434,4 @@ public class VectorizedPageIterator {
+     }
+   }
+ 
+-  private void initFromPage(DataPageV1 dataPageV1) {
+-    this.triplesCount = dataPageV1.getValueCount();
+-    ValuesReader rlReader = dataPageV1.getRlEncoding().getValuesReader(desc, ValuesType.REPETITION_LEVEL);
+-    ValuesReader dlReader;
+-    int bitWidth = BytesUtils.getWidthFromMaxInt(desc.getMaxDefinitionLevel());
+-    this.definitionLevelReader = new VectorizedParquetValuesReader(
+-        bitWidth, desc.getMaxDefinitionLevel());
+-    dlReader = this.definitionLevelReader;
+-    this.repetitionLevels = new ValuesReaderIntIterator(rlReader);
+-    try {
+-      BytesInput bytes = dataPageV1.getBytes();
+-      ByteBufferInputStream in = bytes.toInputStream();
+-      rlReader.initFromPage(triplesCount, in);
+-      dlReader.initFromPage(triplesCount, in);
+-      initDataReader(dataPageV1.getValueEncoding(), in, dataPageV1.getValueCount());
+-    } catch (IOException e) {
+-      throw new ParquetDecodingException("could not read page " + dataPageV1 + " in col " + desc, e);
+-    }
+-  }
+-
+-  private void initFromPage(DataPageV2 dataPageV2) {
+-    this.triplesCount = dataPageV2.getValueCount();
+-    this.repetitionLevels = newRLEIterator(desc.getMaxRepetitionLevel(), dataPageV2.getRepetitionLevels());
+-    LOG.debug("page data size {} bytes and {} records", dataPageV2.getData().size(), triplesCount);
+-    try {
+-      int bitWidth = BytesUtils.getWidthFromMaxInt(desc.getMaxDefinitionLevel());
+-      initDataReader(dataPageV2.getDataEncoding(), dataPageV2.getData().toInputStream(), triplesCount);
+-      this.definitionLevelReader = new VectorizedParquetValuesReader(bitWidth, false,
+-          desc.getMaxDefinitionLevel());
+-      definitionLevelReader.initFromPage(triplesCount, dataPageV2.getDefinitionLevels().toInputStream());
+-    } catch (IOException e) {
+-      throw new ParquetDecodingException("could not read page " + dataPageV2 + " in col " + desc, e);
+-    }
+-  }
+-
+-  private IntIterator newRLEIterator(int maxLevel, BytesInput bytes) {
+-    try {
+-      if (maxLevel == 0) {
+-        return new NullIntIterator();
+-      }
+-      return new RLEIntIterator(
+-          new RunLengthBitPackingHybridDecoder(
+-              BytesUtils.getWidthFromMaxInt(maxLevel),
+-              bytes.toInputStream()));
+-    } catch (IOException e) {
+-      throw new ParquetDecodingException("could not read levels in page for col " + desc, e);
+-    }
+-  }
+-
+-  abstract static class IntIterator {
+-    abstract int nextInt();
+-  }
+-
+-  static class ValuesReaderIntIterator extends IntIterator {
+-    private final ValuesReader delegate;
+-
+-    ValuesReaderIntIterator(ValuesReader delegate) {
+-      this.delegate = delegate;
+-    }
+-
+-    @Override
+-    int nextInt() {
+-      return delegate.readInteger();
+-    }
+-  }
+-
+-  static class RLEIntIterator extends IntIterator {
+-    private final RunLengthBitPackingHybridDecoder delegate;
+-
+-    RLEIntIterator(RunLengthBitPackingHybridDecoder delegate) {
+-      this.delegate = delegate;
+-    }
+-
+-    @Override
+-    int nextInt() {
+-      try {
+-        return delegate.readInt();
+-      } catch (IOException e) {
+-        throw new ParquetDecodingException(e);
+-      }
+-    }
+-  }
+-
+-  private static final class NullIntIterator extends IntIterator {
+-    @Override
+-    int nextInt() {
+-      return 0;
+-    }
+-  }
+ }
+diff --git a/arrow/src/main/java/org/apache/iceberg/arrow/vectorized/parquet/VectorizedParquetValuesReader.java b/arrow/src/main/java/org/apache/iceberg/arrow/vectorized/parquet/VectorizedParquetValuesReader.java
+index 57389ef5..db998b45 100644
+--- a/arrow/src/main/java/org/apache/iceberg/arrow/vectorized/parquet/VectorizedParquetValuesReader.java
++++ b/arrow/src/main/java/org/apache/iceberg/arrow/vectorized/parquet/VectorizedParquetValuesReader.java
+@@ -152,6 +152,7 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
+           for (int i = 0; i < numValues; i++) {
+             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
+               vector.getDataBuffer().setLong(idx, dict.decodeToLong(dictionaryEncodedValuesReader.readInteger()));
++              nullabilityHolder.setNotNull(idx);
+             } else {
+               setNull(nullabilityHolder, idx, validityBuffer);
+             }
+@@ -229,6 +230,7 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
+           for (int i = 0; i < num; i++) {
+             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
+               vector.getDataBuffer().setInt(idx, dict.decodeToInt(dictionaryEncodedValuesReader.readInteger()));
++              nullabilityHolder.setNotNull(idx);
+             } else {
+               setNull(nullabilityHolder, idx, vector.getValidityBuffer());
+             }
+@@ -307,6 +309,7 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
+           for (int i = 0; i < num; i++) {
+             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
+               vector.getDataBuffer().setFloat(idx, dict.decodeToFloat(dictionaryEncodedValuesReader.readInteger()));
++              nullabilityHolder.setNotNull(idx);
+             } else {
+               setNull(nullabilityHolder, idx, validityBuffer);
+             }
+@@ -385,6 +388,7 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
+           for (int i = 0; i < num; i++) {
+             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
+               vector.getDataBuffer().setDouble(idx, dict.decodeToDouble(dictionaryEncodedValuesReader.readInteger()));
++              nullabilityHolder.setNotNull(idx);
+             } else {
+               setNull(nullabilityHolder, idx, vector.getValidityBuffer());
+             }
+@@ -496,6 +500,7 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
+               byte[] byteArray = new byte[DecimalVector.TYPE_WIDTH];
+               valuesReader.getBuffer(typeWidth).get(byteArray, DecimalVector.TYPE_WIDTH - typeWidth, typeWidth);
+               ((DecimalVector) vector).setBigEndian(bufferIdx, byteArray);
++              nullabilityHolder.setNotNull(bufferIdx);
+               bufferIdx++;
+             }
+           } else {
+@@ -509,6 +514,7 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
+               byte[] byteArray = new byte[DecimalVector.TYPE_WIDTH];
+               valuesReader.getBuffer(typeWidth).get(byteArray, DecimalVector.TYPE_WIDTH - typeWidth, typeWidth);
+               ((DecimalVector) vector).setBigEndian(bufferIdx, byteArray);
++              nullabilityHolder.setNotNull(bufferIdx);
+             } else {
+               setNull(nullabilityHolder, bufferIdx, vector.getValidityBuffer());
+             }
+@@ -587,7 +593,7 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
+         case RLE:
+           if (currentValue == maxDefLevel) {
+             for (int i = 0; i < num; i++) {
+-              setVarWidthBinaryValue(vector, valuesReader, bufferIdx);
++              setVarWidthBinaryValue(vector, valuesReader, bufferIdx, nullabilityHolder);
+               bufferIdx++;
+             }
+           } else {
+@@ -598,7 +604,7 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
+         case PACKED:
+           for (int i = 0; i < num; i++) {
+             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
+-              setVarWidthBinaryValue(vector, valuesReader, bufferIdx);
++              setVarWidthBinaryValue(vector, valuesReader, bufferIdx, nullabilityHolder);
+             } else {
+               setNull(nullabilityHolder, bufferIdx, vector.getValidityBuffer());
+             }
+@@ -611,7 +617,7 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
+     }
+   }
+ 
+-  private void setVarWidthBinaryValue(FieldVector vector, ValuesAsBytesReader valuesReader, int bufferIdx) {
++  private void setVarWidthBinaryValue(FieldVector vector, ValuesAsBytesReader valuesReader, int bufferIdx, NullabilityHolder nullabilityHolder) {
+     int len = valuesReader.readInteger();
+     ByteBuffer buffer = valuesReader.getBuffer(len);
+     // Calling setValueLengthSafe takes care of allocating a larger buffer if
+@@ -623,6 +629,7 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
+     // Similarly, we need to get the latest reference to the validity buffer as well
+     // since reallocation changes reference of the validity buffers as well.
+     BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), bufferIdx);
++    nullabilityHolder.setNotNull(bufferIdx);
+   }
+ 
+   public void readBatchOfDictionaryEncodedVarWidth(
+@@ -682,10 +689,7 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
+         case RLE:
+           if (currentValue == maxDefLevel) {
+             for (int i = 0; i < num; i++) {
+-              byte[] byteArray = new byte[DecimalVector.TYPE_WIDTH];
+-              valuesReader.getBuffer(typeWidth).get(byteArray, 0, typeWidth);
+-              vector.getDataBuffer().setBytes(bufferIdx * DecimalVector.TYPE_WIDTH, byteArray);
+-              BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), bufferIdx);
++              setIntLongBackedDecimal(vector, typeWidth, nullabilityHolder, valuesReader, bufferIdx);
+               bufferIdx++;
+             }
+           } else {
+@@ -696,10 +700,7 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
+         case PACKED:
+           for (int i = 0; i < num; ++i) {
+             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
+-              byte[] byteArray = new byte[DecimalVector.TYPE_WIDTH];
+-              valuesReader.getBuffer(typeWidth).get(byteArray, 0, typeWidth);
+-              vector.getDataBuffer().setBytes(bufferIdx * DecimalVector.TYPE_WIDTH, byteArray);
+-              BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), bufferIdx);
++              setIntLongBackedDecimal(vector, typeWidth, nullabilityHolder, valuesReader, bufferIdx);
+             } else {
+               setNull(nullabilityHolder, bufferIdx, vector.getValidityBuffer());
+             }
+@@ -712,6 +713,14 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
+     }
+   }
+ 
++  private void setIntLongBackedDecimal(FieldVector vector, int typeWidth, NullabilityHolder nullabilityHolder, ValuesAsBytesReader valuesReader, int bufferIdx) {
++    byte[] byteArray = new byte[DecimalVector.TYPE_WIDTH];
++    valuesReader.getBuffer(typeWidth).get(byteArray, 0, typeWidth);
++    vector.getDataBuffer().setBytes(bufferIdx * DecimalVector.TYPE_WIDTH, byteArray);
++    BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), bufferIdx);
++    nullabilityHolder.setNotNull(bufferIdx);
++  }
++
+   public void readBatchOfDictionaryEncodedIntLongBackedDecimals(
+       final FieldVector vector,
+       final int numValsInVector,
+@@ -775,6 +784,7 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
+           if (currentValue == maxDefLevel) {
+             for (int i = 0; i < num; i++) {
+               ((BitVector) vector).setSafe(bufferIdx, valuesReader.readBoolean() ? 1 : 0);
++              nullabilityHolder.setNotNull(bufferIdx);
+               bufferIdx++;
+             }
+           } else {
+@@ -786,6 +796,7 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
+           for (int i = 0; i < num; ++i) {
+             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
+               ((BitVector) vector).setSafe(bufferIdx, valuesReader.readBoolean() ? 1 : 0);
++              nullabilityHolder.setNotNull(bufferIdx);
+             } else {
+               setNull(nullabilityHolder, bufferIdx, vector.getValidityBuffer());
+             }
+diff --git a/parquet/src/main/java/org/apache/iceberg/parquet/BasePageIterator.java b/parquet/src/main/java/org/apache/iceberg/parquet/BasePageIterator.java
+new file mode 100644
+index 00000000..fea0feb0
+--- /dev/null
++++ b/parquet/src/main/java/org/apache/iceberg/parquet/BasePageIterator.java
+@@ -0,0 +1,175 @@
++package org.apache.iceberg.parquet;
++
++import com.google.common.base.Preconditions;
++import java.io.IOException;
++import org.apache.parquet.bytes.ByteBufferInputStream;
++import org.apache.parquet.bytes.BytesInput;
++import org.apache.parquet.bytes.BytesUtils;
++import org.apache.parquet.column.ColumnDescriptor;
++import org.apache.parquet.column.Dictionary;
++import org.apache.parquet.column.Encoding;
++import org.apache.parquet.column.ValuesType;
++import org.apache.parquet.column.page.DataPage;
++import org.apache.parquet.column.page.DataPageV1;
++import org.apache.parquet.column.page.DataPageV2;
++import org.apache.parquet.column.values.ValuesReader;
++import org.apache.parquet.column.values.rle.RunLengthBitPackingHybridDecoder;
++import org.apache.parquet.io.ParquetDecodingException;
++import org.slf4j.Logger;
++import org.slf4j.LoggerFactory;
++
++public abstract class BasePageIterator {
++  private static final Logger LOG = LoggerFactory.getLogger(BasePageIterator.class);
++
++  protected final ColumnDescriptor desc;
++  protected final String writerVersion;
++
++  // iterator state
++  protected boolean hasNext = false;
++  protected int triplesRead = 0;
++  protected int currentDL = 0;
++  protected int currentRL = 0;
++
++  // page bookkeeping
++  protected Dictionary dictionary = null;
++  protected DataPage page = null;
++  protected int triplesCount = 0;
++  protected Encoding valueEncoding = null;
++  protected IntIterator definitionLevels = null;
++  protected IntIterator repetitionLevels = null;
++  protected ValuesReader vectorizedDefinitionLevelsReader = null;
++  protected ValuesReader values = null;
++
++  protected BasePageIterator(ColumnDescriptor desc, String writerVersion) {
++    this.desc = desc;
++    this.writerVersion = writerVersion;
++  }
++
++  protected abstract boolean supportsVectorizedReads();
++
++  protected abstract IntIterator newNonVectorizedDefinitionLevelReader(ValuesReader dlReader);
++
++  protected abstract ValuesReader newVectorizedDefinitionLevelReader(ColumnDescriptor desc);
++
++  protected abstract void initDataReader(Encoding dataEncoding, ByteBufferInputStream in, int valueCount);
++
++  public void setPage(DataPage page) {
++    Preconditions.checkNotNull(page, "Cannot read from null page");
++    this.page = page;
++    this.page.accept(new DataPage.Visitor<ValuesReader>() {
++      @Override
++      public ValuesReader visit(DataPageV1 dataPageV1) {
++        initFromPage(dataPageV1);
++        return null;
++      }
++
++      @Override
++      public ValuesReader visit(DataPageV2 dataPageV2) {
++        initFromPage(dataPageV2);
++        return null;
++      }
++    });
++    this.triplesRead = 0;
++  }
++
++  protected void initFromPage(DataPageV1 initPage) {
++    this.triplesCount = initPage.getValueCount();
++    ValuesReader dlReader = null;
++    if (supportsVectorizedReads()) {
++      this.vectorizedDefinitionLevelsReader = newVectorizedDefinitionLevelReader(desc);
++    } else {
++      dlReader = initPage.getDlEncoding().getValuesReader(desc, ValuesType.DEFINITION_LEVEL);
++      this.definitionLevels = newNonVectorizedDefinitionLevelReader(dlReader);
++    }
++    ValuesReader rlReader = initPage.getRlEncoding().getValuesReader(desc, ValuesType.REPETITION_LEVEL);
++    this.repetitionLevels = new PageIterator.ValuesReaderIntIterator(rlReader);
++    try {
++      BytesInput bytes = initPage.getBytes();
++      LOG.debug("page size {} bytes and {} records", bytes.size(), triplesCount);
++      LOG.debug("reading repetition levels at 0");
++      ByteBufferInputStream in = bytes.toInputStream();
++      rlReader.initFromPage(triplesCount, in);
++      LOG.debug("reading definition levels at {}", in.position());
++      if (supportsVectorizedReads()) {
++        this.vectorizedDefinitionLevelsReader.initFromPage(triplesCount, in);
++      } else {
++        dlReader.initFromPage(triplesCount, in);
++      }
++      LOG.debug("reading data at {}", in.position());
++      initDataReader(initPage.getValueEncoding(), in, initPage.getValueCount());
++    } catch (IOException e) {
++      throw new ParquetDecodingException("could not read page " + initPage + " in col " + desc, e);
++    }
++  }
++
++  protected void initFromPage(DataPageV2 initPage) {
++    this.triplesCount = initPage.getValueCount();
++    this.repetitionLevels = newRLEIterator(desc.getMaxRepetitionLevel(), initPage.getRepetitionLevels());
++    if (supportsVectorizedReads()) {
++      this.vectorizedDefinitionLevelsReader = newVectorizedDefinitionLevelReader(desc);
++    } else {
++      this.definitionLevels = newRLEIterator(desc.getMaxDefinitionLevel(), initPage.getDefinitionLevels());
++    }
++    LOG.debug("page data size {} bytes and {} records", initPage.getData().size(), triplesCount);
++    try {
++      initDataReader(initPage.getDataEncoding(), initPage.getData().toInputStream(), triplesCount);
++    } catch (IOException e) {
++      throw new ParquetDecodingException("could not read page " + initPage + " in col " + desc, e);
++    }
++  }
++
++  private IntIterator newRLEIterator(int maxLevel, BytesInput bytes) {
++    try {
++      if (maxLevel == 0) {
++        return new NullIntIterator();
++      }
++      return new RLEIntIterator(
++          new RunLengthBitPackingHybridDecoder(
++              BytesUtils.getWidthFromMaxInt(maxLevel),
++              bytes.toInputStream()));
++    } catch (IOException e) {
++      throw new ParquetDecodingException("could not read levels in page for col " + desc, e);
++    }
++  }
++
++  protected abstract static class IntIterator {
++    abstract int nextInt();
++  }
++
++  static class ValuesReaderIntIterator extends IntIterator {
++    private final ValuesReader delegate;
++
++    ValuesReaderIntIterator(ValuesReader delegate) {
++      this.delegate = delegate;
++    }
++
++    @Override
++    int nextInt() {
++      return delegate.readInteger();
++    }
++  }
++
++  static class RLEIntIterator extends IntIterator {
++    private final RunLengthBitPackingHybridDecoder delegate;
++
++    RLEIntIterator(RunLengthBitPackingHybridDecoder delegate) {
++      this.delegate = delegate;
++    }
++
++    @Override
++    int nextInt() {
++      try {
++        return delegate.readInt();
++      } catch (IOException e) {
++        throw new ParquetDecodingException(e);
++      }
++    }
++  }
++
++  private static final class NullIntIterator extends IntIterator {
++    @Override
++    int nextInt() {
++      return 0;
++    }
++  }
++}
+diff --git a/parquet/src/main/java/org/apache/iceberg/parquet/PageIterator.java b/parquet/src/main/java/org/apache/iceberg/parquet/PageIterator.java
+index bedb6738..442a323e 100644
+--- a/parquet/src/main/java/org/apache/iceberg/parquet/PageIterator.java
++++ b/parquet/src/main/java/org/apache/iceberg/parquet/PageIterator.java
+@@ -23,8 +23,6 @@ import com.google.common.base.Preconditions;
+ import java.io.IOException;
+ import org.apache.parquet.CorruptDeltaByteArrays;
+ import org.apache.parquet.bytes.ByteBufferInputStream;
+-import org.apache.parquet.bytes.BytesInput;
+-import org.apache.parquet.bytes.BytesUtils;
+ import org.apache.parquet.column.ColumnDescriptor;
+ import org.apache.parquet.column.Dictionary;
+ import org.apache.parquet.column.Encoding;
+@@ -34,15 +32,10 @@ import org.apache.parquet.column.page.DataPageV1;
+ import org.apache.parquet.column.page.DataPageV2;
+ import org.apache.parquet.column.values.RequiresPreviousReader;
+ import org.apache.parquet.column.values.ValuesReader;
+-import org.apache.parquet.column.values.rle.RunLengthBitPackingHybridDecoder;
+ import org.apache.parquet.io.ParquetDecodingException;
+ import org.apache.parquet.io.api.Binary;
+-import org.slf4j.Logger;
+-import org.slf4j.LoggerFactory;
+-
+-abstract class PageIterator<T> implements TripleIterator<T> {
+-  private static final Logger LOG = LoggerFactory.getLogger(PageIterator.class);
+ 
++abstract class PageIterator<T> extends BasePageIterator implements TripleIterator<T> {
+   @SuppressWarnings("unchecked")
+   static <T> PageIterator<T> newIterator(ColumnDescriptor desc, String writerVersion) {
+     switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
+@@ -95,51 +88,17 @@ abstract class PageIterator<T> implements TripleIterator<T> {
+     }
+   }
+ 
+-  private final ColumnDescriptor desc;
+-  private final String writerVersion;
+-
+-  // iterator state
+-  private boolean hasNext = false;
+-  private int triplesRead = 0;
+-  private int currentDL = 0;
+-  private int currentRL = 0;
+-
+-  // page bookkeeping
+-  private Dictionary dict = null;
+-  private DataPage page = null;
+-  private int triplesCount = 0;
+-  private Encoding valueEncoding = null;
+-  private IntIterator definitionLevels = null;
+-  private IntIterator repetitionLevels = null;
+-  private ValuesReader values = null;
+-
+   private PageIterator(ColumnDescriptor desc, String writerVersion) {
+-    this.desc = desc;
+-    this.writerVersion = writerVersion;
++    super(desc, writerVersion);
+   }
+ 
+   public void setPage(DataPage page) {
+-    Preconditions.checkNotNull(page, "Cannot read from null page");
+-    this.page = page;
+-    this.page.accept(new DataPage.Visitor<ValuesReader>() {
+-      @Override
+-      public ValuesReader visit(DataPageV1 dataPageV1) {
+-        initFromPage(dataPageV1);
+-        return null;
+-      }
+-
+-      @Override
+-      public ValuesReader visit(DataPageV2 dataPageV2) {
+-        initFromPage(dataPageV2);
+-        return null;
+-      }
+-    });
+-    this.triplesRead = 0;
++    super.setPage(page);
+     advance();
+   }
+ 
+   public void setDictionary(Dictionary dictionary) {
+-    this.dict = dictionary;
++    this.dictionary = dictionary;
+   }
+ 
+   public void reset() {
+@@ -273,7 +232,8 @@ abstract class PageIterator<T> implements TripleIterator<T> {
+         exception);
+   }
+ 
+-  private void initDataReader(Encoding dataEncoding, ByteBufferInputStream in, int valueCount) {
++  @Override
++  protected void initDataReader(Encoding dataEncoding, ByteBufferInputStream in, int valueCount) {
+     ValuesReader previousReader = values;
+ 
+     this.valueEncoding = dataEncoding;
+@@ -282,11 +242,11 @@ abstract class PageIterator<T> implements TripleIterator<T> {
+     // For dictionary columns, this class could rely on wrappers to correctly handle dictionaries
+     // This isn't currently possible because RLE must be read by getDictionaryBasedValuesReader
+     if (dataEncoding.usesDictionary()) {
+-      if (dict == null) {
++      if (dictionary == null) {
+         throw new ParquetDecodingException(
+             "could not read page in col " + desc + " as the dictionary was missing for encoding " + dataEncoding);
+       }
+-      this.values = dataEncoding.getDictionaryBasedValuesReader(desc, ValuesType.VALUES, dict);
++      this.values = dataEncoding.getDictionaryBasedValuesReader(desc, ValuesType.VALUES, dictionary);
+     } else {
+       this.values = dataEncoding.getValuesReader(desc, ValuesType.VALUES);
+     }
+@@ -310,92 +270,18 @@ abstract class PageIterator<T> implements TripleIterator<T> {
+     }
+   }
+ 
+-
+-  private void initFromPage(DataPageV1 initPage) {
+-    this.triplesCount = initPage.getValueCount();
+-    ValuesReader rlReader = initPage.getRlEncoding().getValuesReader(desc, ValuesType.REPETITION_LEVEL);
+-    ValuesReader dlReader = initPage.getDlEncoding().getValuesReader(desc, ValuesType.DEFINITION_LEVEL);
+-    this.repetitionLevels = new ValuesReaderIntIterator(rlReader);
+-    this.definitionLevels = new ValuesReaderIntIterator(dlReader);
+-    try {
+-      BytesInput bytes = initPage.getBytes();
+-      LOG.debug("page size {} bytes and {} records", bytes.size(), triplesCount);
+-      LOG.debug("reading repetition levels at 0");
+-      ByteBufferInputStream in = bytes.toInputStream();
+-      rlReader.initFromPage(triplesCount, in);
+-      LOG.debug("reading definition levels at {}", in.position());
+-      dlReader.initFromPage(triplesCount, in);
+-      LOG.debug("reading data at {}", in.position());
+-      initDataReader(initPage.getValueEncoding(), in, initPage.getValueCount());
+-    } catch (IOException e) {
+-      throw new ParquetDecodingException("could not read page " + initPage + " in col " + desc, e);
+-    }
+-  }
+-
+-  private void initFromPage(DataPageV2 initPage) {
+-    this.triplesCount = initPage.getValueCount();
+-    this.repetitionLevels = newRLEIterator(desc.getMaxRepetitionLevel(), initPage.getRepetitionLevels());
+-    this.definitionLevels = newRLEIterator(desc.getMaxDefinitionLevel(), initPage.getDefinitionLevels());
+-    LOG.debug("page data size {} bytes and {} records", initPage.getData().size(), triplesCount);
+-    try {
+-      initDataReader(initPage.getDataEncoding(), initPage.getData().toInputStream(), triplesCount);
+-    } catch (IOException e) {
+-      throw new ParquetDecodingException("could not read page " + initPage + " in col " + desc, e);
+-    }
+-  }
+-
+-  private IntIterator newRLEIterator(int maxLevel, BytesInput bytes) {
+-    try {
+-      if (maxLevel == 0) {
+-        return new NullIntIterator();
+-      }
+-      return new RLEIntIterator(
+-          new RunLengthBitPackingHybridDecoder(
+-              BytesUtils.getWidthFromMaxInt(maxLevel),
+-              bytes.toInputStream()));
+-    } catch (IOException e) {
+-      throw new ParquetDecodingException("could not read levels in page for col " + desc, e);
+-    }
+-  }
+-
+-  abstract static class IntIterator {
+-    abstract int nextInt();
+-  }
+-
+-  static class ValuesReaderIntIterator extends IntIterator {
+-    private final ValuesReader delegate;
+-
+-    ValuesReaderIntIterator(ValuesReader delegate) {
+-      this.delegate = delegate;
+-    }
+-
+-    @Override
+-    int nextInt() {
+-      return delegate.readInteger();
+-    }
++  @Override
++  protected IntIterator newNonVectorizedDefinitionLevelReader(ValuesReader dlReader) {
++    return new ValuesReaderIntIterator(dlReader);
+   }
+ 
+-  static class RLEIntIterator extends IntIterator {
+-    private final RunLengthBitPackingHybridDecoder delegate;
+-
+-    RLEIntIterator(RunLengthBitPackingHybridDecoder delegate) {
+-      this.delegate = delegate;
+-    }
+-
+-    @Override
+-    int nextInt() {
+-      try {
+-        return delegate.readInt();
+-      } catch (IOException e) {
+-        throw new ParquetDecodingException(e);
+-      }
+-    }
++  @Override
++  protected ValuesReader newVectorizedDefinitionLevelReader(ColumnDescriptor desc) {
++    throw new UnsupportedOperationException("Vectorized reads not supported");
+   }
+ 
+-  private static final class NullIntIterator extends IntIterator {
+-    @Override
+-    int nextInt() {
+-      return 0;
+-    }
++  @Override
++  protected boolean supportsVectorizedReads() {
++    return false;
+   }
+ }

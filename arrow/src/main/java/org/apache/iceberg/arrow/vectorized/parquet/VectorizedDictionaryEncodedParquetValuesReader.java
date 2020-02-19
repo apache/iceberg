@@ -110,6 +110,45 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
+  void readBatchOfDictionaryEncodedTimestampMillis(FieldVector vector, int index, int numValuesToRead, Dictionary dict,
+                                         NullabilityHolder nullabilityHolder) {
+    int left = numValuesToRead;
+    int idx = index;
+    while (left > 0) {
+      if (this.currentCount == 0) {
+        this.readNextGroup();
+      }
+      int numValues = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          for (int i = 0; i < numValues; i++) {
+            vector.getDataBuffer().setLong(idx, dict.decodeToLong(currentValue) * 1000);
+            if (setArrowValidityVector) {
+              BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
+            } else {
+              nullabilityHolder.setNotNull(idx);
+            }
+            idx++;
+          }
+          break;
+        case PACKED:
+          for (int i = 0; i < numValues; i++) {
+            vector.getDataBuffer()
+                .setLong(idx, dict.decodeToLong(packedValuesBuffer[packedValuesBufferIdx++]) * 1000);
+            if (setArrowValidityVector) {
+              BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
+            } else {
+              nullabilityHolder.setNotNull(idx);
+            }
+            idx++;
+          }
+          break;
+      }
+      left -= numValues;
+      currentCount -= numValues;
+    }
+  }
+
   void readBatchOfDictionaryEncodedIntegers(FieldVector vector, int index, int numValuesToRead, Dictionary dict,
                                             NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;

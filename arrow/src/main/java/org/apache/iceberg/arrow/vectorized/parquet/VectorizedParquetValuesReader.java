@@ -123,6 +123,56 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
     }
   }
 
+  public void readBatchOfTimestampMillis(
+      final FieldVector vector, final int numValsInVector,
+      final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder, ValuesAsBytesReader valuesReader) {
+    int bufferIdx = numValsInVector;
+    int left = batchSize;
+    while (left > 0) {
+      if (this.currentCount == 0) {
+        this.readNextGroup();
+      }
+      int numValues = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          ArrowBuf validityBuffer = vector.getValidityBuffer();
+          if (currentValue == maxDefLevel) {
+            for (int i = 0; i < numValues; i++) {
+              vector.getDataBuffer().setLong(bufferIdx * typeWidth, valuesReader.readLong() * 1000);
+            }
+            if (setArrowValidityVector) {
+              for (int i = 0; i < numValues; i++) {
+                BitVectorHelper.setValidityBitToOne(validityBuffer, bufferIdx + i);
+              }
+            } else {
+              nullabilityHolder.setNotNulls(bufferIdx, numValues);
+            }
+          } else {
+            setNulls(nullabilityHolder, bufferIdx, numValues, validityBuffer);
+          }
+          bufferIdx += numValues;
+          break;
+        case PACKED:
+          for (int i = 0; i < numValues; i++) {
+            if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
+              vector.getDataBuffer().setLong(bufferIdx * typeWidth, valuesReader.readLong() * 1000);
+              if (setArrowValidityVector) {
+                BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), bufferIdx);
+              } else {
+                nullabilityHolder.setNotNull(bufferIdx);
+              }
+            } else {
+              setNull(nullabilityHolder, bufferIdx, vector.getValidityBuffer());
+            }
+            bufferIdx++;
+          }
+          break;
+      }
+      left -= numValues;
+      currentCount -= numValues;
+    }
+  }
+
   public void readBatchOfDictionaryEncodedLongs(
       final FieldVector vector,
       final int numValsInVector,
@@ -153,6 +203,54 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
           for (int i = 0; i < numValues; i++) {
             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
               vector.getDataBuffer().setLong(idx, dict.decodeToLong(dictionaryEncodedValuesReader.readInteger()));
+              if (setArrowValidityVector) {
+                BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
+              } else {
+                nullabilityHolder.setNotNull(idx);
+              }
+            } else {
+              setNull(nullabilityHolder, idx, validityBuffer);
+            }
+            idx++;
+          }
+          break;
+      }
+      left -= numValues;
+      currentCount -= numValues;
+    }
+  }
+
+  public void readBatchOfDictionaryEncodedTimestampMillis(
+      final FieldVector vector,
+      final int numValsInVector,
+      final int typeWidth,
+      final int batchSize,
+      NullabilityHolder nullabilityHolder,
+      VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader,
+      Dictionary dict) {
+    int idx = numValsInVector;
+    int left = batchSize;
+    while (left > 0) {
+      if (this.currentCount == 0) {
+        this.readNextGroup();
+      }
+      int numValues = Math.min(left, this.currentCount);
+      ArrowBuf validityBuffer = vector.getValidityBuffer();
+      switch (mode) {
+        case RLE:
+          if (currentValue == maxDefLevel) {
+            dictionaryEncodedValuesReader.readBatchOfDictionaryEncodedTimestampMillis(vector,
+                idx, numValues, dict, nullabilityHolder);
+          } else {
+            setNulls(nullabilityHolder, idx, numValues, validityBuffer);
+          }
+          idx += numValues;
+          break;
+        case PACKED:
+          for (int i = 0; i < numValues; i++) {
+            if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
+              vector.getDataBuffer().setLong(idx,
+                  dict.decodeToLong(dictionaryEncodedValuesReader.readInteger()) * 1000);
               if (setArrowValidityVector) {
                 BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
               } else {

@@ -97,7 +97,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
   private enum ReadType {
     FIXED_LENGTH_DECIMAL, INT_LONG_BACKED_DECIMAL, VARCHAR, VARBINARY, FIXED_WIDTH_BINARY,
-    BOOLEAN, INT, LONG, FLOAT, DOUBLE
+    BOOLEAN, INT, LONG, FLOAT, DOUBLE, TIMESTAMP_MILLIS
   }
 
   @Override
@@ -149,6 +149,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           case DOUBLE:
             vectorizedColumnIterator.nextBatchDoubles(vec, typeWidth, nullabilityHolder);
             break;
+          case TIMESTAMP_MILLIS:
+            vectorizedColumnIterator.nextBatchTimestampMillis(vec, typeWidth, nullabilityHolder);
+            break;
         }
       }
     }
@@ -197,10 +200,15 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
             this.typeWidth = (int) IntVector.TYPE_WIDTH;
             break;
           case INT_64:
-          case TIMESTAMP_MILLIS:
             this.vec = arrowField.createVector(rootAlloc);
             ((BigIntVector) vec).allocateNew(batchSize);
             this.readType =  ReadType.LONG;
+            this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
+            break;
+          case TIMESTAMP_MILLIS:
+            this.vec = arrowField.createVector(rootAlloc);
+            ((BigIntVector) vec).allocateNew(batchSize);
+            this.readType =  ReadType.TIMESTAMP_MILLIS;
             this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
             break;
           case TIMESTAMP_MICROS:

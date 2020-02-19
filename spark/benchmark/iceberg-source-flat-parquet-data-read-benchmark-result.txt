@@ -1,0 +1,294 @@
+# JMH version: 1.21
+# VM version: JDK 1.8.0_222, OpenJDK 64-Bit Server VM, 25.222-b10
+# VM invoker: /Users/sjain/.sdkman/candidates/java/8.0.222-zulu/jre/bin/java
+# VM options: <none>
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 10 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.source.parquet.vectorized.VectorizedReadLongsBenchmark.readFileSourceVectorized10k
+
+# Run progress: 0.00% complete, ETA 00:00:00
+# Fork: 1 of 1
+# Warmup Iteration   1: 3.563 s/op
+# Warmup Iteration   2: 3.082 s/op
+# Warmup Iteration   3: 3.106 s/op
+Iteration   1: 3.061 s/op
+Iteration   2: 2.991 s/op
+Iteration   3: 2.988 s/op
+Iteration   4: 3.385 s/op
+Iteration   5: 3.524 s/op
+
+
+Result "org.apache.iceberg.spark.source.parquet.vectorized.VectorizedReadLongsBenchmark.readFileSourceVectorized10k":
+  N = 5
+  mean =      3.190 ±(99.9%) 0.956 s/op
+
+  Histogram, s/op:
+    [2.900, 2.950) = 0 
+    [2.950, 3.000) = 2 
+    [3.000, 3.050) = 0 
+    [3.050, 3.100) = 1 
+    [3.100, 3.150) = 0 
+    [3.150, 3.200) = 0 
+    [3.200, 3.250) = 0 
+    [3.250, 3.300) = 0 
+    [3.300, 3.350) = 0 
+    [3.350, 3.400) = 1 
+    [3.400, 3.450) = 0 
+    [3.450, 3.500) = 0 
+    [3.500, 3.550) = 1 
+
+  Percentiles, s/op:
+      p(0.0000) =      2.988 s/op
+     p(50.0000) =      3.061 s/op
+     p(90.0000) =      3.524 s/op
+     p(95.0000) =      3.524 s/op
+     p(99.0000) =      3.524 s/op
+     p(99.9000) =      3.524 s/op
+     p(99.9900) =      3.524 s/op
+     p(99.9990) =      3.524 s/op
+     p(99.9999) =      3.524 s/op
+    p(100.0000) =      3.524 s/op
+
+
+# JMH version: 1.21
+# VM version: JDK 1.8.0_222, OpenJDK 64-Bit Server VM, 25.222-b10
+# VM invoker: /Users/sjain/.sdkman/candidates/java/8.0.222-zulu/jre/bin/java
+# VM options: <none>
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 10 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.source.parquet.vectorized.VectorizedReadLongsBenchmark.readFileSourceVectorized5k
+
+# Run progress: 20.00% complete, ETA 00:06:04
+# Fork: 1 of 1
+# Warmup Iteration   1: 3.446 s/op
+# Warmup Iteration   2: 2.974 s/op
+# Warmup Iteration   3: 2.963 s/op
+Iteration   1: 3.048 s/op
+Iteration   2: 2.904 s/op
+Iteration   3: 2.905 s/op
+Iteration   4: 3.268 s/op
+Iteration   5: 3.484 s/op
+
+
+Result "org.apache.iceberg.spark.source.parquet.vectorized.VectorizedReadLongsBenchmark.readFileSourceVectorized5k":
+  N = 5
+  mean =      3.122 ±(99.9%) 0.967 s/op
+
+  Histogram, s/op:
+    [2.900, 2.950) = 2 
+    [2.950, 3.000) = 0 
+    [3.000, 3.050) = 1 
+    [3.050, 3.100) = 0 
+    [3.100, 3.150) = 0 
+    [3.150, 3.200) = 0 
+    [3.200, 3.250) = 0 
+    [3.250, 3.300) = 1 
+    [3.300, 3.350) = 0 
+    [3.350, 3.400) = 0 
+    [3.400, 3.450) = 0 
+
+  Percentiles, s/op:
+      p(0.0000) =      2.904 s/op
+     p(50.0000) =      3.048 s/op
+     p(90.0000) =      3.484 s/op
+     p(95.0000) =      3.484 s/op
+     p(99.0000) =      3.484 s/op
+     p(99.9000) =      3.484 s/op
+     p(99.9900) =      3.484 s/op
+     p(99.9990) =      3.484 s/op
+     p(99.9999) =      3.484 s/op
+    p(100.0000) =      3.484 s/op
+
+
+# JMH version: 1.21
+# VM version: JDK 1.8.0_222, OpenJDK 64-Bit Server VM, 25.222-b10
+# VM invoker: /Users/sjain/.sdkman/candidates/java/8.0.222-zulu/jre/bin/java
+# VM options: <none>
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 10 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.source.parquet.vectorized.VectorizedReadLongsBenchmark.readIcebergVectorized10k
+
+# Run progress: 40.00% complete, ETA 00:04:30
+# Fork: 1 of 1
+# Warmup Iteration   1: 4.598 s/op
+# Warmup Iteration   2: 4.140 s/op
+# Warmup Iteration   3: 4.150 s/op
+Iteration   1: 4.085 s/op
+Iteration   2: 4.076 s/op
+Iteration   3: 4.109 s/op
+Iteration   4: 4.033 s/op
+Iteration   5: 4.050 s/op
+
+
+Result "org.apache.iceberg.spark.source.parquet.vectorized.VectorizedReadLongsBenchmark.readIcebergVectorized10k":
+  N = 5
+  mean =      4.071 ±(99.9%) 0.115 s/op
+
+  Histogram, s/op:
+    [4.030, 4.035) = 1 
+    [4.035, 4.040) = 0 
+    [4.040, 4.045) = 0 
+    [4.045, 4.050) = 0 
+    [4.050, 4.055) = 1 
+    [4.055, 4.060) = 0 
+    [4.060, 4.065) = 0 
+    [4.065, 4.070) = 0 
+    [4.070, 4.075) = 0 
+    [4.075, 4.080) = 1 
+    [4.080, 4.085) = 1 
+    [4.085, 4.090) = 0 
+    [4.090, 4.095) = 0 
+    [4.095, 4.100) = 0 
+    [4.100, 4.105) = 0 
+    [4.105, 4.110) = 1 
+
+  Percentiles, s/op:
+      p(0.0000) =      4.033 s/op
+     p(50.0000) =      4.076 s/op
+     p(90.0000) =      4.109 s/op
+     p(95.0000) =      4.109 s/op
+     p(99.0000) =      4.109 s/op
+     p(99.9000) =      4.109 s/op
+     p(99.9900) =      4.109 s/op
+     p(99.9990) =      4.109 s/op
+     p(99.9999) =      4.109 s/op
+    p(100.0000) =      4.109 s/op
+
+
+# JMH version: 1.21
+# VM version: JDK 1.8.0_222, OpenJDK 64-Bit Server VM, 25.222-b10
+# VM invoker: /Users/sjain/.sdkman/candidates/java/8.0.222-zulu/jre/bin/java
+# VM options: <none>
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 10 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.source.parquet.vectorized.VectorizedReadLongsBenchmark.readIcebergVectorized1k
+
+# Run progress: 60.00% complete, ETA 00:03:05
+# Fork: 1 of 1
+# Warmup Iteration   1: 4.541 s/op
+# Warmup Iteration   2: 4.156 s/op
+# Warmup Iteration   3: 4.133 s/op
+Iteration   1: 4.136 s/op
+Iteration   2: 4.112 s/op
+Iteration   3: 4.077 s/op
+Iteration   4: 4.051 s/op
+Iteration   5: 4.099 s/op
+
+
+Result "org.apache.iceberg.spark.source.parquet.vectorized.VectorizedReadLongsBenchmark.readIcebergVectorized1k":
+  N = 5
+  mean =      4.095 ±(99.9%) 0.126 s/op
+
+  Histogram, s/op:
+    [4.050, 4.055) = 1 
+    [4.055, 4.060) = 0 
+    [4.060, 4.065) = 0 
+    [4.065, 4.070) = 0 
+    [4.070, 4.075) = 0 
+    [4.075, 4.080) = 1 
+    [4.080, 4.085) = 0 
+    [4.085, 4.090) = 0 
+    [4.090, 4.095) = 0 
+    [4.095, 4.100) = 1 
+    [4.100, 4.105) = 0 
+    [4.105, 4.110) = 0 
+    [4.110, 4.115) = 1 
+    [4.115, 4.120) = 0 
+    [4.120, 4.125) = 0 
+    [4.125, 4.130) = 0 
+    [4.130, 4.135) = 0 
+
+  Percentiles, s/op:
+      p(0.0000) =      4.051 s/op
+     p(50.0000) =      4.099 s/op
+     p(90.0000) =      4.136 s/op
+     p(95.0000) =      4.136 s/op
+     p(99.0000) =      4.136 s/op
+     p(99.9000) =      4.136 s/op
+     p(99.9900) =      4.136 s/op
+     p(99.9990) =      4.136 s/op
+     p(99.9999) =      4.136 s/op
+    p(100.0000) =      4.136 s/op
+
+
+# JMH version: 1.21
+# VM version: JDK 1.8.0_222, OpenJDK 64-Bit Server VM, 25.222-b10
+# VM invoker: /Users/sjain/.sdkman/candidates/java/8.0.222-zulu/jre/bin/java
+# VM options: <none>
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 10 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.source.parquet.vectorized.VectorizedReadLongsBenchmark.readIcebergVectorized5k
+
+# Run progress: 80.00% complete, ETA 00:01:33
+# Fork: 1 of 1
+# Warmup Iteration   1: 4.536 s/op
+# Warmup Iteration   2: 4.130 s/op
+# Warmup Iteration   3: 4.128 s/op
+Iteration   1: 4.127 s/op
+Iteration   2: 4.044 s/op
+Iteration   3: 4.021 s/op
+Iteration   4: 4.046 s/op
+Iteration   5: 3.997 s/op
+
+
+Result "org.apache.iceberg.spark.source.parquet.vectorized.VectorizedReadLongsBenchmark.readIcebergVectorized5k":
+  N = 5
+  mean =      4.047 ±(99.9%) 0.189 s/op
+
+  Histogram, s/op:
+    [3.900, 3.925) = 0 
+    [3.925, 3.950) = 0 
+    [3.950, 3.975) = 0 
+    [3.975, 4.000) = 1 
+    [4.000, 4.025) = 1 
+    [4.025, 4.050) = 2 
+    [4.050, 4.075) = 0 
+    [4.075, 4.100) = 0 
+    [4.100, 4.125) = 0 
+    [4.125, 4.150) = 1 
+    [4.150, 4.175) = 0 
+
+  Percentiles, s/op:
+      p(0.0000) =      3.997 s/op
+     p(50.0000) =      4.044 s/op
+     p(90.0000) =      4.127 s/op
+     p(95.0000) =      4.127 s/op
+     p(99.0000) =      4.127 s/op
+     p(99.9000) =      4.127 s/op
+     p(99.9900) =      4.127 s/op
+     p(99.9990) =      4.127 s/op
+     p(99.9999) =      4.127 s/op
+    p(100.0000) =      4.127 s/op
+
+
+# Run complete. Total time: 00:07:53
+
+REMEMBER: The numbers below are just data. To gain reusable insights, you need to follow up on
+why the numbers are the way they are. Use profilers (see -prof, -lprof), design factorial
+experiments, perform baseline and negative tests that provide experimental control, make sure
+the benchmarking environment is safe on JVM/OS/HW level, ask for reviews from the domain experts.
+Do not assume the numbers tell you what you want them to tell.
+
+Benchmark                                                 Mode  Cnt  Score   Error  Units
+VectorizedReadLongsBenchmark.readFileSourceVectorized10k    ss    5  3.190 ± 0.956   s/op
+VectorizedReadLongsBenchmark.readFileSourceVectorized5k     ss    5  3.122 ± 0.967   s/op
+VectorizedReadLongsBenchmark.readIcebergVectorized10k       ss    5  4.071 ± 0.115   s/op
+VectorizedReadLongsBenchmark.readIcebergVectorized1k        ss    5  4.095 ± 0.126   s/op
+VectorizedReadLongsBenchmark.readIcebergVectorized5k        ss    5  4.047 ± 0.189   s/op
+
+Benchmark result is saved to /Users/sjain/priceberg/incubator-iceberg/spark/build/reports/jmh/results.txt

@@ -170,6 +170,42 @@ public class VectorizedPageIterator extends BasePageIterator {
   }
 
   /**
+   * Method for reading a batch of values of TIMESTAMP_MILLIS data type. In iceberg, TIMESTAMP
+   * is always represented in micro-seconds. So we multiply values stored in millis with 1000
+   * before writing them to the vector.
+   */
+  public int nextBatchTimestampMillis(
+      final FieldVector vector, final int expectedBatchSize,
+      final int numValsInVector,
+      final int typeWidth, NullabilityHolder holder) {
+    final int actualBatchSize = getActualBatchSize(expectedBatchSize);
+    if (actualBatchSize <= 0) {
+      return 0;
+    }
+    if (eagerDecodeDictionary) {
+      vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedTimestampMillis(
+          vector,
+          numValsInVector,
+          typeWidth,
+          actualBatchSize,
+          holder,
+          dictionaryEncodedValuesReader,
+          dictionary);
+    } else {
+      vectorizedDefinitionLevelReader.readBatchOfTimestampMillis(
+          vector,
+          numValsInVector,
+          typeWidth,
+          actualBatchSize,
+          holder,
+          plainValuesReader);
+    }
+    triplesRead += actualBatchSize;
+    this.hasNext = triplesRead < triplesCount;
+    return actualBatchSize;
+  }
+
+  /**
    * Method for reading a batch of values of FLOAT data type.
    */
   public int nextBatchFloats(
