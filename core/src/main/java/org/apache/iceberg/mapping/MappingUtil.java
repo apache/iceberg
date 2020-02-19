@@ -147,10 +147,10 @@ public class MappingUtil {
       return MappedFields.of(fields);
     }
 
-    private static MappedField removeReassignedNames(MappedField field, Map<String, Integer> assigments) {
+    private static MappedField removeReassignedNames(MappedField field, Map<String, Integer> assignments) {
       MappedField newField = field;
       for (String name : field.names()) {
-        Integer assignedId = assigments.get(name);
+        Integer assignedId = assignments.get(name);
         if (assignedId != null && !Objects.equals(assignedId, field.id())) {
           newField = removeName(field, name);
         }
