@@ -30,6 +30,7 @@ import com.google.common.collect.Sets;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -94,7 +95,14 @@ public class MappingUtil {
 
     @Override
     public MappedFields fields(MappedFields fields, List<MappedField> fieldResults) {
-      return MappedFields.of(fieldResults);
+      ImmutableMap.Builder<String, Integer> builder = ImmutableMap.builder();
+      fieldResults.stream()
+          .map(MappedField::id).filter(Objects::nonNull)
+          .map(updates::get).filter(Objects::nonNull)
+          .forEach(field -> builder.put(field.name(), field.fieldId()));
+      Map<String, Integer> updateAssignments = builder.build();
+
+      return MappedFields.of(Lists.transform(fieldResults, field -> removeReassignedNames(field, updateAssignments)));
     }
 
     @Override
@@ -127,21 +135,34 @@ public class MappingUtil {
         return MappedFields.of(newFields);
       }
 
-      Set<String> assignedNames = fieldsToAdd.stream().map(Types.NestedField::name).collect(Collectors.toSet());
+      ImmutableMap.Builder<String, Integer> builder = ImmutableMap.builder();
+      fieldsToAdd.stream().forEach(field -> builder.put(field.name(), field.fieldId()));
+      Map<String, Integer> assignments = builder.build();
 
       // create a copy of fields that can be updated (append new fields, replace existing for reassignment)
       List<MappedField> fields = Lists.newArrayList();
       for (MappedField field : mapping.fields()) {
-        if (field.names().stream().anyMatch(assignedNames::contains)) {
-          fields.add(MappedField.of(field.id(), Sets.difference(field.names(), assignedNames), field.nestedMapping()));
-        } else {
-          fields.add(field);
-        }
+        fields.add(removeReassignedNames(field, assignments));
       }
 
       fields.addAll(newFields);
 
       return MappedFields.of(fields);
+    }
+
+    private static MappedField removeReassignedNames(MappedField field, Map<String, Integer> assigments) {
+      MappedField newField = field;
+      for (String name : field.names()) {
+        Integer assignedId = assigments.get(name);
+        if (assignedId != null && !Objects.equals(assignedId, field.id())) {
+          newField = removeName(field, name);
+        }
+      }
+      return newField;
+    }
+
+    private static MappedField removeName(MappedField field, String name) {
+      return MappedField.of(field.id(), Sets.difference(field.names(), Sets.newHashSet(name)), field.nestedMapping());
     }
   }
 
