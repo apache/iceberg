@@ -29,6 +29,7 @@ import com.google.common.collect.Sets;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Type;
@@ -91,7 +92,14 @@ public class MappingUtil {
 
     @Override
     public MappedFields fields(MappedFields fields, List<MappedField> fieldResults) {
-      return MappedFields.of(fieldResults);
+      ImmutableMap.Builder<String, Integer> builder = ImmutableMap.builder();
+      fieldResults.stream()
+          .map(MappedField::id).filter(Objects::nonNull)
+          .map(updates::get).filter(Objects::nonNull)
+          .forEach(field -> builder.put(field.name(), field.fieldId()));
+      Map<String, Integer> updateAssignments = builder.build();
+
+      return MappedFields.of(Lists.transform(fieldResults, field -> removeReassignedNames(field, updateAssignments)));
     }
 
     @Override
@@ -114,17 +122,44 @@ public class MappingUtil {
         return mapping;
       }
 
-      List<MappedField> fields = Lists.newArrayList();
-      if (mapping != null) {
-        fields.addAll(mapping.fields());
-      }
-
+      List<MappedField> newFields = Lists.newArrayList();
       for (Types.NestedField add : fieldsToAdd) {
         MappedFields nestedMapping = TypeUtil.visit(add.type(), CreateMapping.INSTANCE);
-        fields.add(MappedField.of(add.fieldId(), add.name(), nestedMapping));
+        newFields.add(MappedField.of(add.fieldId(), add.name(), nestedMapping));
       }
 
+      if (mapping == null || mapping.fields().isEmpty()) {
+        return MappedFields.of(newFields);
+      }
+
+      ImmutableMap.Builder<String, Integer> builder = ImmutableMap.builder();
+      fieldsToAdd.stream().forEach(field -> builder.put(field.name(), field.fieldId()));
+      Map<String, Integer> assignments = builder.build();
+
+      // create a copy of fields that can be updated (append new fields, replace existing for reassignment)
+      List<MappedField> fields = Lists.newArrayList();
+      for (MappedField field : mapping.fields()) {
+        fields.add(removeReassignedNames(field, assignments));
+      }
+
+      fields.addAll(newFields);
+
       return MappedFields.of(fields);
+    }
+
+    private static MappedField removeReassignedNames(MappedField field, Map<String, Integer> assignments) {
+      MappedField newField = field;
+      for (String name : field.names()) {
+        Integer assignedId = assignments.get(name);
+        if (assignedId != null && !Objects.equals(assignedId, field.id())) {
+          newField = removeName(field, name);
+        }
+      }
+      return newField;
+    }
+
+    private static MappedField removeName(MappedField field, String name) {
+      return MappedField.of(field.id(), Sets.difference(field.names(), Sets.newHashSet(name)), field.nestedMapping());
     }
   }
 
