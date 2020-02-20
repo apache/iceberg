@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Streams;
 import org.apache.iceberg.exceptions.CherrypickAncestorCommitException;
 import org.apache.iceberg.exceptions.DuplicateWAPCommitException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -32,6 +33,67 @@ public class TestWapWorkflow extends TableTestBase {
   @Before
   public void setupTableProperties() {
     table.updateProperties().set(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, "true").commit();
+  }
+
+  @Test
+  public void testCherryPickOverwrite() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    table.newOverwrite()
+        .deleteFile(FILE_A)
+        .addFile(FILE_B)
+        .stageOnly()
+        .commit();
+
+    // the overwrite should only be staged
+    validateTableFiles(table, FILE_A);
+
+    Snapshot overwrite = Streams.stream(table.snapshots())
+        .filter(snap -> DataOperations.OVERWRITE.equals(snap.operation()))
+        .findFirst()
+        .get();
+
+    // cherry-pick the overwrite; this works because it is a fast-forward commit
+    table.manageSnapshots().cherrypick(overwrite.snapshotId()).commit();
+
+    // the overwrite should only be staged
+    validateTableFiles(table, FILE_B);
+  }
+
+  @Test
+  public void testCherryPickOverwriteFailsIfCurrentHasChanged() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    table.newOverwrite()
+        .deleteFile(FILE_A)
+        .addFile(FILE_B)
+        .stageOnly()
+        .commit();
+
+    // add a commit after the overwrite that prevents it from being a fast-forward operation
+    table.newAppend()
+        .appendFile(FILE_C)
+        .commit();
+
+    // the overwrite should only be staged
+    validateTableFiles(table, FILE_A, FILE_C);
+
+    Snapshot overwrite = Streams.stream(table.snapshots())
+        .filter(snap -> DataOperations.OVERWRITE.equals(snap.operation()))
+        .findFirst()
+        .get();
+
+    // try to cherry-pick, which should fail because the overwrite's parent is no longer current
+    AssertHelpers.assertThrows("Should reject overwrite that is not a fast-forward commit",
+        ValidationException.class, "Cannot fast-forward to non-append snapshot",
+        () -> table.manageSnapshots().cherrypick(overwrite.snapshotId()).commit());
+
+    // the table state should not have changed
+    validateTableFiles(table, FILE_A, FILE_C);
   }
 
   @Test

@@ -37,6 +37,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
   private SnapshotManagerOperation managerOperation = null;
   private Long targetSnapshotId = null;
   private String snapshotOperation = null;
+  private Long requiredCurrentSnapshotId = null;
 
   SnapshotManager(TableOperations ops) {
     super(ops);
@@ -62,27 +63,31 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
 
     Snapshot cherryPickSnapshot = current.snapshot(snapshotId);
     // only append operations are currently supported
-    if (!cherryPickSnapshot.operation().equals(DataOperations.APPEND)) {
-      throw new UnsupportedOperationException("Can cherry pick only append operations");
+    if (cherryPickSnapshot.operation().equals(DataOperations.APPEND)) {
+      this.managerOperation = SnapshotManagerOperation.CHERRYPICK;
+      this.targetSnapshotId = snapshotId;
+      this.snapshotOperation = cherryPickSnapshot.operation();
+
+      // Pick modifications from the snapshot
+      for (DataFile addedFile : cherryPickSnapshot.addedFiles()) {
+        add(addedFile);
+      }
+
+      // this property is set on target snapshot that will get published
+      String wapId = WapUtil.validateWapPublish(current, targetSnapshotId);
+      if (wapId != null) {
+        set(SnapshotSummary.PUBLISHED_WAP_ID_PROP, wapId);
+      }
+
+      // link the snapshot about to be published on commit with the picked snapshot
+      set(SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP, String.valueOf(targetSnapshotId));
+    } else {
+      // cherry-pick should work if the table can be fast-forwarded
+      this.managerOperation = SnapshotManagerOperation.ROLLBACK;
+      this.requiredCurrentSnapshotId = cherryPickSnapshot.parentId();
+      this.targetSnapshotId = snapshotId;
+      validateCurrentSnapshot(current, requiredCurrentSnapshotId);
     }
-
-    this.managerOperation = SnapshotManagerOperation.CHERRYPICK;
-    this.targetSnapshotId = snapshotId;
-    this.snapshotOperation = cherryPickSnapshot.operation();
-
-    // Pick modifications from the snapshot
-    for (DataFile addedFile : cherryPickSnapshot.addedFiles()) {
-      add(addedFile);
-    }
-
-    // this property is set on target snapshot that will get published
-    String wapId = WapUtil.validateWapPublish(current, targetSnapshotId);
-    if (wapId != null) {
-      set(SnapshotSummary.PUBLISHED_WAP_ID_PROP, wapId);
-    }
-
-    // link the snapshot about to be published on commit with the picked snapshot
-    set(SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP, String.valueOf(targetSnapshotId));
 
     return this;
   }
@@ -123,6 +128,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
   }
 
   private void validate(TableMetadata base) {
+    validateCurrentSnapshot(base, requiredCurrentSnapshotId);
     validateNonAncestor(base, targetSnapshotId);
     WapUtil.validateWapPublish(base, targetSnapshotId);
   }
@@ -161,6 +167,14 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
 
       default:
         throw new ValidationException("Invalid SnapshotManagerOperation: only cherrypick, rollback are supported");
+    }
+  }
+
+  private static void validateCurrentSnapshot(TableMetadata meta, Long requiredSnapshotId) {
+    if (requiredSnapshotId != null) {
+      ValidationException.check(meta.currentSnapshot().snapshotId() == requiredSnapshotId,
+          "Cannot fast-forward to non-append snapshot; current has changed: current=%s != required=%s",
+          meta.currentSnapshot().snapshotId(), requiredSnapshotId);
     }
   }
 
