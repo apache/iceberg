@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 import org.apache.spark.sql.sources.And;
 import org.apache.spark.sql.sources.EqualNullSafe;
@@ -44,18 +45,6 @@ import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.sources.Or;
 import org.apache.spark.sql.sources.StringStartsWith;
 
-import static org.apache.iceberg.expressions.Expressions.and;
-import static org.apache.iceberg.expressions.Expressions.equal;
-import static org.apache.iceberg.expressions.Expressions.greaterThan;
-import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
-import static org.apache.iceberg.expressions.Expressions.in;
-import static org.apache.iceberg.expressions.Expressions.isNull;
-import static org.apache.iceberg.expressions.Expressions.lessThan;
-import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
-import static org.apache.iceberg.expressions.Expressions.not;
-import static org.apache.iceberg.expressions.Expressions.notNull;
-import static org.apache.iceberg.expressions.Expressions.or;
-import static org.apache.iceberg.expressions.Expressions.startsWith;
 
 public class SparkFilters {
   private SparkFilters() {
@@ -85,27 +74,27 @@ public class SparkFilters {
       switch (op) {
         case IS_NULL:
           IsNull isNullFilter = (IsNull) filter;
-          return isNull(isNullFilter.attribute());
+          return Expressions.isNull(isNullFilter.attribute());
 
         case NOT_NULL:
           IsNotNull notNullFilter = (IsNotNull) filter;
-          return notNull(notNullFilter.attribute());
+          return Expressions.notNull(notNullFilter.attribute());
 
         case LT:
           LessThan lt = (LessThan) filter;
-          return lessThan(lt.attribute(), convertLiteral(lt.value()));
+          return Expressions.lessThan(lt.attribute(), convertLiteral(lt.value()));
 
         case LT_EQ:
           LessThanOrEqual ltEq = (LessThanOrEqual) filter;
-          return lessThanOrEqual(ltEq.attribute(), convertLiteral(ltEq.value()));
+          return Expressions.lessThanOrEqual(ltEq.attribute(), convertLiteral(ltEq.value()));
 
         case GT:
           GreaterThan gt = (GreaterThan) filter;
-          return greaterThan(gt.attribute(), convertLiteral(gt.value()));
+          return Expressions.greaterThan(gt.attribute(), convertLiteral(gt.value()));
 
         case GT_EQ:
           GreaterThanOrEqual gtEq = (GreaterThanOrEqual) filter;
-          return greaterThanOrEqual(gtEq.attribute(), convertLiteral(gtEq.value()));
+          return Expressions.greaterThanOrEqual(gtEq.attribute(), convertLiteral(gtEq.value()));
 
         case EQ: // used for both eq and null-safe-eq
           if (filter instanceof EqualTo) {
@@ -113,19 +102,19 @@ public class SparkFilters {
             // comparison with null in normal equality is always null. this is probably a mistake.
             Preconditions.checkNotNull(eq.value(),
                 "Expression is always false (eq is not null-safe): %s", filter);
-            return equal(eq.attribute(), convertLiteral(eq.value()));
+            return Expressions.equal(eq.attribute(), convertLiteral(eq.value()));
           } else {
             EqualNullSafe eq = (EqualNullSafe) filter;
             if (eq.value() == null) {
-              return isNull(eq.attribute());
+              return Expressions.isNull(eq.attribute());
             } else {
-              return equal(eq.attribute(), convertLiteral(eq.value()));
+              return Expressions.equal(eq.attribute(), convertLiteral(eq.value()));
             }
           }
 
         case IN:
           In inFilter = (In) filter;
-          return in(inFilter.attribute(),
+          return Expressions.in(inFilter.attribute(),
               Stream.of(inFilter.values())
                   .filter(Objects::nonNull)
                   .map(SparkFilters::convertLiteral)
@@ -135,7 +124,7 @@ public class SparkFilters {
           Not notFilter = (Not) filter;
           Expression child = convert(notFilter.child());
           if (child != null) {
-            return not(child);
+            return Expressions.not(child);
           }
           return null;
 
@@ -144,7 +133,7 @@ public class SparkFilters {
           Expression left = convert(andFilter.left());
           Expression right = convert(andFilter.right());
           if (left != null && right != null) {
-            return and(left, right);
+            return Expressions.and(left, right);
           }
           return null;
         }
@@ -154,14 +143,14 @@ public class SparkFilters {
           Expression left = convert(orFilter.left());
           Expression right = convert(orFilter.right());
           if (left != null && right != null) {
-            return or(left, right);
+            return Expressions.or(left, right);
           }
           return null;
         }
 
         case STARTS_WITH: {
           StringStartsWith stringStartsWith = (StringStartsWith) filter;
-          return startsWith(stringStartsWith.attribute(), stringStartsWith.value());
+          return Expressions.startsWith(stringStartsWith.attribute(), stringStartsWith.value());
         }
       }
     }

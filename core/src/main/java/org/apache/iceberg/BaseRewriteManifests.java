@@ -44,12 +44,6 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 
-import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
-import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
-import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT;
-
-
 public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> implements RewriteManifests {
   private static final String KEPT_MANIFESTS_COUNT = "manifests-kept";
   private static final String CREATED_MANIFESTS_COUNT = "manifests-created";
@@ -84,11 +78,10 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
   BaseRewriteManifests(TableOperations ops) {
     super(ops);
     this.ops = ops;
-    this.specsById = ops.current().specsById();
-    this.manifestTargetSizeBytes =
-      ops.current().propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
-    this.snapshotIdInheritanceEnabled = ops.current()
-        .propertyAsBoolean(SNAPSHOT_ID_INHERITANCE_ENABLED, SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
+    TableMetadata metadata = ops.current();
+    this.specsById = metadata.specsById();
+    this.manifestTargetSizeBytes = TableProperties.getManifestTargetSizeBytes(metadata.properties());
+    this.snapshotIdInheritanceEnabled = TableProperties.isSnapshotIdInheritanceEnabled(metadata.properties());
   }
 
   @Override

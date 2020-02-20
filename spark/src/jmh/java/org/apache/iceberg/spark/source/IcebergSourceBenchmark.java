@@ -27,6 +27,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.Dataset;
@@ -42,8 +43,6 @@ import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
-
-import static org.apache.iceberg.TableProperties.WRITE_NEW_DATA_LOCATION;
 
 @Fork(1)
 @State(Scope.Benchmark)
@@ -80,7 +79,7 @@ public abstract class IcebergSourceBenchmark {
 
   protected String dataLocation() {
     Map<String, String> properties = table.properties();
-    return properties.getOrDefault(WRITE_NEW_DATA_LOCATION, String.format("%s/data", table.location()));
+    return properties.getOrDefault(TableProperties.WRITE_NEW_DATA_LOCATION, String.format("%s/data", table.location()));
   }
 
   protected void cleanupFiles() throws IOException {

@@ -32,6 +32,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
@@ -55,17 +56,6 @@ import org.apache.parquet.hadoop.api.ReadSupport;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
-
-import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
-import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT;
-import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
-import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL_DEFAULT;
-import static org.apache.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES_DEFAULT;
-import static org.apache.iceberg.TableProperties.PARQUET_PAGE_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.PARQUET_PAGE_SIZE_BYTES_DEFAULT;
-import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
 
 public class Parquet {
   private Parquet() {
@@ -162,7 +152,7 @@ public class Parquet {
     }
 
     private CompressionCodecName codec() {
-      String codec = config.getOrDefault(PARQUET_COMPRESSION, PARQUET_COMPRESSION_DEFAULT);
+      String codec = TableProperties.getParquetCompression(config);
       try {
         return CompressionCodecName.valueOf(codec.toUpperCase(Locale.ENGLISH));
       } catch (IllegalArgumentException e) {
@@ -178,14 +168,10 @@ public class Parquet {
       meta("iceberg.schema", SchemaParser.toJson(schema));
 
       // Map Iceberg properties to pass down to the Parquet writer
-      int rowGroupSize = Integer.parseInt(config.getOrDefault(
-          PARQUET_ROW_GROUP_SIZE_BYTES, PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT));
-      int pageSize = Integer.parseInt(config.getOrDefault(
-          PARQUET_PAGE_SIZE_BYTES, PARQUET_PAGE_SIZE_BYTES_DEFAULT));
-      int dictionaryPageSize = Integer.parseInt(config.getOrDefault(
-          PARQUET_DICT_SIZE_BYTES, PARQUET_DICT_SIZE_BYTES_DEFAULT));
-      String compressionLevel = config.getOrDefault(
-          PARQUET_COMPRESSION_LEVEL, PARQUET_COMPRESSION_LEVEL_DEFAULT);
+      int rowGroupSize = TableProperties.getParquetRowGroupSizeBytes(config);
+      int pageSize = TableProperties.getParquetPageSizeBytes(config);
+      int dictionaryPageSize = TableProperties.getParquetDictSizeBytes(config);
+      String compressionLevel = TableProperties.getParquetCompressionLevel(config);
 
       if (compressionLevel != null) {
         switch (codec()) {

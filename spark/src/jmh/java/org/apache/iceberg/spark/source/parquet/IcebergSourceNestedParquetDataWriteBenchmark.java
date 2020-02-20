@@ -26,14 +26,12 @@ import org.apache.iceberg.spark.source.IcebergSourceNestedDataBenchmark;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
+import org.apache.spark.sql.functions;
 import org.apache.spark.sql.internal.SQLConf;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
-
-import static org.apache.spark.sql.functions.expr;
-import static org.apache.spark.sql.functions.struct;
 
 /**
  * A benchmark that evaluates the performance of writing nested Parquet data using Iceberg
@@ -80,10 +78,10 @@ public class IcebergSourceNestedParquetDataWriteBenchmark extends IcebergSourceN
     return spark().range(NUM_ROWS)
         .withColumn(
             "nested",
-            struct(
-                expr("CAST(id AS string) AS col1"),
-                expr("CAST(id AS double) AS col2"),
-                expr("id AS col3")
+            functions.struct(
+                functions.expr("CAST(id AS string) AS col1"),
+                functions.expr("CAST(id AS double) AS col2"),
+                functions.expr("id AS col3")
             ))
         .coalesce(1);
   }

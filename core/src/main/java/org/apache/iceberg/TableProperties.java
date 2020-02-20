@@ -19,6 +19,9 @@
 
 package org.apache.iceberg;
 
+import java.util.Map;
+import org.apache.iceberg.util.PropertyUtil;
+
 public class TableProperties {
 
   private TableProperties() {}
@@ -26,44 +29,100 @@ public class TableProperties {
   public static final String COMMIT_NUM_RETRIES = "commit.retry.num-retries";
   public static final int COMMIT_NUM_RETRIES_DEFAULT = 4;
 
+  public static int getCommitNumRetries(Map<String, String> properties) {
+    return PropertyUtil.propertyAsInt(properties, COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
+  }
+
   public static final String COMMIT_MIN_RETRY_WAIT_MS = "commit.retry.min-wait-ms";
   public static final int COMMIT_MIN_RETRY_WAIT_MS_DEFAULT = 100;
+
+  public static int getCommitMinRetryWaitMs(Map<String, String> properties) {
+    return PropertyUtil.propertyAsInt(properties, COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT);
+  }
 
   public static final String COMMIT_MAX_RETRY_WAIT_MS = "commit.retry.max-wait-ms";
   public static final int COMMIT_MAX_RETRY_WAIT_MS_DEFAULT = 60000; // 1 minute
 
+  public static int getCommitMaxRetryWaitMs(Map<String, String> properties) {
+    return PropertyUtil.propertyAsInt(properties, COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT);
+  }
+
   public static final String COMMIT_TOTAL_RETRY_TIME_MS = "commit.retry.total-timeout-ms";
   public static final int COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT = 1800000; // 30 minutes
+
+  public static int getCommitTotalRetryTimeMs(Map<String, String> properties) {
+    return PropertyUtil.propertyAsInt(properties, COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT);
+  }
 
   public static final String MANIFEST_TARGET_SIZE_BYTES = "commit.manifest.target-size-bytes";
   public static final long MANIFEST_TARGET_SIZE_BYTES_DEFAULT = 8388608; // 8 MB
 
+  public static long getManifestTargetSizeBytes(Map<String, String> properties) {
+    return PropertyUtil.propertyAsLong(properties, MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
+  }
+
   public static final String MANIFEST_MIN_MERGE_COUNT = "commit.manifest.min-count-to-merge";
   public static final int MANIFEST_MIN_MERGE_COUNT_DEFAULT = 100;
+
+  public static int getManifestMinMergeCount(Map<String, String> properties) {
+    return PropertyUtil.propertyAsInt(properties, MANIFEST_MIN_MERGE_COUNT, MANIFEST_MIN_MERGE_COUNT_DEFAULT);
+  }
 
   public static final String MANIFEST_MERGE_ENABLED = "commit.manifest-merge.enabled";
   public static final boolean MANIFEST_MERGE_ENABLED_DEFAULT = true;
 
+  public static boolean isManifestMergeEnabled(Map<String, String> properties) {
+    return PropertyUtil.propertyAsBoolean(properties, MANIFEST_MERGE_ENABLED, MANIFEST_MERGE_ENABLED_DEFAULT);
+  }
+
   public static final String DEFAULT_FILE_FORMAT = "write.format.default";
   public static final String DEFAULT_FILE_FORMAT_DEFAULT = "parquet";
 
+  public static String getDefaultFileFormat(Map<String, String> properties) {
+    return properties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
+  }
+
   public static final String PARQUET_ROW_GROUP_SIZE_BYTES = "write.parquet.row-group-size-bytes";
-  public static final String PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT = "134217728"; // 128 MB
+  public static final int PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT = 128 * (1 << 20); // 128 MB
+
+  public static int getParquetRowGroupSizeBytes(Map<String, String> properties) {
+    return PropertyUtil.propertyAsInt(properties, PARQUET_ROW_GROUP_SIZE_BYTES, PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
+  }
 
   public static final String PARQUET_PAGE_SIZE_BYTES = "write.parquet.page-size-bytes";
-  public static final String PARQUET_PAGE_SIZE_BYTES_DEFAULT = "1048576"; // 1 MB
+  public static final int PARQUET_PAGE_SIZE_BYTES_DEFAULT = 1 << 20; // 1 MB
+
+  public static int getParquetPageSizeBytes(Map<String, String> properties) {
+    return PropertyUtil.propertyAsInt(properties, PARQUET_PAGE_SIZE_BYTES, PARQUET_PAGE_SIZE_BYTES_DEFAULT);
+  }
 
   public static final String PARQUET_DICT_SIZE_BYTES = "write.parquet.dict-size-bytes";
-  public static final String PARQUET_DICT_SIZE_BYTES_DEFAULT = "2097152"; // 2 MB
+  public static final int PARQUET_DICT_SIZE_BYTES_DEFAULT = 2 * (1 << 20); // 2 MB
+
+  public static int getParquetDictSizeBytes(Map<String, String> properties) {
+    return PropertyUtil.propertyAsInt(properties, PARQUET_DICT_SIZE_BYTES, PARQUET_DICT_SIZE_BYTES_DEFAULT);
+  }
 
   public static final String PARQUET_COMPRESSION = "write.parquet.compression-codec";
   public static final String PARQUET_COMPRESSION_DEFAULT = "gzip";
 
+  public static String getParquetCompression(Map<String, String> properties) {
+    return properties.getOrDefault(PARQUET_COMPRESSION, PARQUET_COMPRESSION_DEFAULT);
+  }
+
   public static final String PARQUET_COMPRESSION_LEVEL = "write.parquet.compression-level";
   public static final String PARQUET_COMPRESSION_LEVEL_DEFAULT = null;
 
+  public static String getParquetCompressionLevel(Map<String, String> properties) {
+    return properties.get(PARQUET_COMPRESSION_LEVEL);
+  }
+
   public static final String AVRO_COMPRESSION = "write.avro.compression-codec";
   public static final String AVRO_COMPRESSION_DEFAULT = "gzip";
+
+  public static String getAvroCompression(Map<String, String> properties) {
+    return properties.getOrDefault(AVRO_COMPRESSION, AVRO_COMPRESSION_DEFAULT);
+  }
 
   public static final String SPLIT_SIZE = "read.split.target-size";
   public static final long SPLIT_SIZE_DEFAULT = 134217728; // 128 MB
@@ -92,6 +151,10 @@ public class TableProperties {
   public static final String MANIFEST_LISTS_ENABLED = "write.manifest-lists.enabled";
   public static final boolean MANIFEST_LISTS_ENABLED_DEFAULT = true;
 
+  public static boolean isManifestListsEnabled(Map<String, String> properties) {
+    return PropertyUtil.propertyAsBoolean(properties, MANIFEST_LISTS_ENABLED, MANIFEST_LISTS_ENABLED_DEFAULT);
+  }
+
   public static final String METADATA_COMPRESSION = "write.metadata.compression-codec";
   public static final String METADATA_COMPRESSION_DEFAULT = "none";
 
@@ -106,6 +169,10 @@ public class TableProperties {
   public static final String DEFAULT_WRITE_METRICS_MODE = "write.metadata.metrics.default";
   public static final String DEFAULT_WRITE_METRICS_MODE_DEFAULT = "truncate(16)";
 
+  public static String getDefaultWriteMetricsMode(Map<String, String> properties) {
+    return properties.getOrDefault(DEFAULT_WRITE_METRICS_MODE, DEFAULT_WRITE_METRICS_MODE_DEFAULT);
+  }
+
   public static final String DEFAULT_NAME_MAPPING = "schema.name-mapping.default";
 
   public static final String WRITE_AUDIT_PUBLISH_ENABLED = "write.wap.enabled";
@@ -114,6 +181,15 @@ public class TableProperties {
   public static final String WRITE_TARGET_FILE_SIZE_BYTES = "write.target-file-size-bytes";
   public static final long WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT = Long.MAX_VALUE;
 
+  public static long getWriteTargetFileSizeBytes(Map<String, String> properties) {
+    return PropertyUtil.propertyAsLong(properties, WRITE_TARGET_FILE_SIZE_BYTES, WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
+  }
+
   public static final String SNAPSHOT_ID_INHERITANCE_ENABLED = "compatibility.snapshot-id-inheritance.enabled";
   public static final boolean SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT = false;
+
+  public static boolean isSnapshotIdInheritanceEnabled(Map<String, String> properties) {
+    return PropertyUtil.propertyAsBoolean(properties, SNAPSHOT_ID_INHERITANCE_ENABLED,
+            SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
+  }
 }

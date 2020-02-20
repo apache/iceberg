@@ -28,8 +28,6 @@ import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 
-import static org.apache.iceberg.TableProperties.OBJECT_STORE_PATH;
-
 public class LocationProviders {
 
   private LocationProviders() {}
@@ -72,7 +70,7 @@ public class LocationProviders {
     private final String context;
 
     ObjectStoreLocationProvider(String tableLocation, Map<String, String> properties) {
-      this.storageLocation = stripTrailingSlash(properties.get(OBJECT_STORE_PATH));
+      this.storageLocation = stripTrailingSlash(properties.get(TableProperties.OBJECT_STORE_PATH));
       this.context = pathContext(tableLocation);
     }
 

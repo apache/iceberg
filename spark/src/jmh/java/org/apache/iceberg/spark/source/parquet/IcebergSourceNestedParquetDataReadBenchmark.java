@@ -22,19 +22,16 @@ package org.apache.iceberg.spark.source.parquet;
 import com.google.common.collect.Maps;
 import java.io.IOException;
 import java.util.Map;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.spark.source.IcebergSourceNestedDataBenchmark;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.functions;
 import org.apache.spark.sql.internal.SQLConf;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
-
-import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
-import static org.apache.spark.sql.functions.expr;
-import static org.apache.spark.sql.functions.lit;
-import static org.apache.spark.sql.functions.struct;
 
 /**
  * A benchmark that evaluates the performance of reading nested Parquet data using Iceberg
@@ -68,7 +65,7 @@ public class IcebergSourceNestedParquetDataReadBenchmark extends IcebergSourceNe
   @Threads(1)
   public void readIceberg() {
     Map<String, String> tableProperties = Maps.newHashMap();
-    tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
+    tableProperties.put(TableProperties.SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
     withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
       Dataset<Row> df = spark().read().format("iceberg").load(tableLocation);
@@ -104,7 +101,7 @@ public class IcebergSourceNestedParquetDataReadBenchmark extends IcebergSourceNe
   @Threads(1)
   public void readWithProjectionIceberg() {
     Map<String, String> tableProperties = Maps.newHashMap();
-    tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
+    tableProperties.put(TableProperties.SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
     withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
       Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).selectExpr("nested.col3");
@@ -143,10 +140,10 @@ public class IcebergSourceNestedParquetDataReadBenchmark extends IcebergSourceNe
       Dataset<Row> df = spark().range(NUM_ROWS)
           .withColumn(
               "nested",
-              struct(
-                  expr("CAST(id AS string) AS col1"),
-                  expr("CAST(id AS double) AS col2"),
-                  lit(fileNum).cast("long").as("col3")
+              functions.struct(
+                  functions.expr("CAST(id AS string) AS col1"),
+                  functions.expr("CAST(id AS double) AS col2"),
+                  functions.lit(fileNum).cast("long").as("col3")
               ));
       appendAsFile(df);
     }

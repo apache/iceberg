@@ -31,9 +31,6 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.OutputFile;
 
-import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
-import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT;
-
 /**
  * {@link AppendFiles Append} implementation that adds a new manifest file for the write.
  * <p>
@@ -55,8 +52,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     super(ops);
     this.ops = ops;
     this.spec = ops.current().spec();
-    this.snapshotIdInheritanceEnabled = ops.current()
-        .propertyAsBoolean(SNAPSHOT_ID_INHERITANCE_ENABLED, SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
+    this.snapshotIdInheritanceEnabled = TableProperties.isSnapshotIdInheritanceEnabled(ops.current().properties());
   }
 
   @Override

@@ -10,7 +10,13 @@
     <suppress files="[/\\]src[/\\].*[Tt]est[/\\](java|groovy)[/\\]" checks="Javadoc*" />
     <suppress files="[/\\]src[/\\].*[Tt]est[/\\](java|groovy)[/\\]" checks="VariableDeclarationUsageDistance" />
     <suppress files="[/\\]src[/\\].*[Tt]est[/\\](java|groovy)[/\\]" checks="VisibilityModifier" />
-    <suppress files="[/\\]src[/\\].*[Tt]est[/\\](java|groovy)[/\\]" checks="AvoidStaticImport" />
+    <suppress files="api[/\\]src[/\\]main[/\\]java[/\\]org[/\\]apache[/\\]iceberg[/\\]DataFile.java|
+                    |api[/\\]src[/\\]main[/\\]java[/\\]org[/\\]apache[/\\]iceberg[/\\]ManifestFile.java|
+                    |api[/\\]src[/\\]main[/\\]java[/\\]org[/\\]apache[/\\]iceberg[/\\]transforms[/\\]Bucket.java|
+                    |api[/\\]src[/\\]main[/\\]java[/\\]org[/\\]apache[/\\]iceberg[/\\]transforms[/\\]ProjectionUtil.java|
+                    |parquet[/\\]src[/\\]main[/\\]java[/\\]org[/\\]apache[/\\]iceberg[/\\]parquet[/\\]TypeToMessageType.java|
+                    |[/\\]src[/\\].*[Tt]est[/\\](java|groovy)[/\\]"
+              checks="AvoidStaticImport" />
     <suppress files="[/\\]src[/\\].*[Tt]est[/\\](java|groovy)[/\\]" id="BanSystemOut" />
     <suppress files="[/\\]src[/\\].*[Tt]est[/\\](java|groovy)[/\\]" id="BanSystemErr" />
 

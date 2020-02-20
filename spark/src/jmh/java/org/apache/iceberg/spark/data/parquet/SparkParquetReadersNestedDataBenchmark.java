@@ -35,6 +35,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.NestedField;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
 import org.apache.spark.sql.execution.datasources.parquet.ParquetReadSupport;
@@ -51,9 +52,6 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
-
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
 
 /**
  * A benchmark that evaluates the performance of reading nested Parquet data using
@@ -77,16 +75,16 @@ public class SparkParquetReadersNestedDataBenchmark {
       .impl(UnsafeProjection.class, InternalRow.class)
       .build();
   private static final Schema SCHEMA = new Schema(
-      required(0, "id", Types.LongType.get()),
-      optional(4, "nested", Types.StructType.of(
-          required(1, "col1", Types.StringType.get()),
-          required(2, "col2", Types.DoubleType.get()),
-          required(3, "col3", Types.LongType.get())
+      NestedField.required(0, "id", Types.LongType.get()),
+      NestedField.optional(4, "nested", Types.StructType.of(
+          NestedField.required(1, "col1", Types.StringType.get()),
+          NestedField.required(2, "col2", Types.DoubleType.get()),
+          NestedField.required(3, "col3", Types.LongType.get())
       ))
   );
   private static final Schema PROJECTED_SCHEMA = new Schema(
-      optional(4, "nested", Types.StructType.of(
-          required(1, "col1", Types.StringType.get())
+      NestedField.optional(4, "nested", Types.StructType.of(
+          NestedField.required(1, "col1", Types.StringType.get())
       ))
   );
   private static final int NUM_RECORDS = 10000000;

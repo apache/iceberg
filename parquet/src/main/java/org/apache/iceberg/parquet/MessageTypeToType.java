@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.NestedField;
 import org.apache.parquet.Preconditions;
 import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.GroupType;
@@ -33,9 +34,6 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.OriginalType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type.Repetition;
-
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
 
 class MessageTypeToType extends ParquetTypeVisitor<Type> {
   private static final Joiner DOT = Joiner.on(".");
@@ -78,9 +76,9 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
       addAlias(field.getName(), fieldId);
 
       if (parquetFields.get(i).isRepetition(Repetition.OPTIONAL)) {
-        fields.add(optional(fieldId, field.getName(), fieldTypes.get(i)));
+        fields.add(NestedField.optional(fieldId, field.getName(), fieldTypes.get(i)));
       } else {
-        fields.add(required(fieldId, field.getName(), fieldTypes.get(i)));
+        fields.add(NestedField.required(fieldId, field.getName(), fieldTypes.get(i)));
       }
     }
 

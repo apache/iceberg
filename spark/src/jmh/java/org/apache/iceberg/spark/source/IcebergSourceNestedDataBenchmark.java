@@ -28,9 +28,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.types.Types;
-
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
+import org.apache.iceberg.types.Types.NestedField;
 
 public abstract class IcebergSourceNestedDataBenchmark extends IcebergSourceBenchmark {
 
@@ -42,11 +40,11 @@ public abstract class IcebergSourceNestedDataBenchmark extends IcebergSourceBenc
   @Override
   protected final Table initTable() {
     Schema schema = new Schema(
-        required(0, "id", Types.LongType.get()),
-        optional(4, "nested", Types.StructType.of(
-            required(1, "col1", Types.StringType.get()),
-            required(2, "col2", Types.DoubleType.get()),
-            required(3, "col3", Types.LongType.get())
+        NestedField.required(0, "id", Types.LongType.get()),
+        NestedField.optional(4, "nested", Types.StructType.of(
+            NestedField.required(1, "col1", Types.StringType.get()),
+            NestedField.required(2, "col2", Types.DoubleType.get()),
+            NestedField.required(3, "col3", Types.LongType.get())
         ))
     );
     PartitionSpec partitionSpec = PartitionSpec.unpartitioned();

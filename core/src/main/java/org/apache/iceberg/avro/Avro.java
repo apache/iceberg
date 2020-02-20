@@ -36,13 +36,11 @@ import org.apache.avro.io.DatumWriter;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.NameMapping;
-
-import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
-import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_DEFAULT;
 
 public class Avro {
   private Avro() {
@@ -144,7 +142,7 @@ public class Avro {
     }
 
     private CodecFactory codec() {
-      String codec = config.getOrDefault(AVRO_COMPRESSION, AVRO_COMPRESSION_DEFAULT);
+      String codec = TableProperties.getAvroCompression(config);
       try {
         return CodecName.valueOf(codec.toUpperCase(Locale.ENGLISH)).get();
       } catch (IllegalArgumentException e) {

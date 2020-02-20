@@ -53,13 +53,6 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
-import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT_DEFAULT;
-import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
-import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
-import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT;
-
 abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private static final Logger LOG = LoggerFactory.getLogger(MergingSnapshotProducer.class);
 
@@ -121,14 +114,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     super(ops);
     this.ops = ops;
     this.spec = ops.current().spec();
-    this.manifestTargetSizeBytes = ops.current()
-        .propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
-    this.minManifestsCountToMerge = ops.current()
-        .propertyAsInt(MANIFEST_MIN_MERGE_COUNT, MANIFEST_MIN_MERGE_COUNT_DEFAULT);
-    this.mergeEnabled = ops.current()
-        .propertyAsBoolean(TableProperties.MANIFEST_MERGE_ENABLED, TableProperties.MANIFEST_MERGE_ENABLED_DEFAULT);
-    this.snapshotIdInheritanceEnabled = ops.current()
-        .propertyAsBoolean(SNAPSHOT_ID_INHERITANCE_ENABLED, SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
+    Map<String, String> properties = ops.current().properties();
+    this.manifestTargetSizeBytes = TableProperties.getManifestTargetSizeBytes(properties);
+    this.minManifestsCountToMerge = TableProperties.getManifestMinMergeCount(properties);
+    this.mergeEnabled = TableProperties.isManifestMergeEnabled(properties);
+    this.snapshotIdInheritanceEnabled = TableProperties.isSnapshotIdInheritanceEnabled(properties);
   }
 
   @Override

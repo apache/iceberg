@@ -26,10 +26,8 @@ import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.LongType;
+import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
-
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
 
 class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
   enum Status {
@@ -174,9 +172,9 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
   static Schema wrapFileSchema(StructType fileStruct) {
     // ids for top-level columns are assigned from 1000
     return new Schema(
-        required(0, "status", IntegerType.get()),
-        optional(1, "snapshot_id", LongType.get()),
-        required(2, "data_file", fileStruct));
+        NestedField.required(0, "status", IntegerType.get()),
+        NestedField.optional(1, "snapshot_id", LongType.get()),
+        NestedField.required(2, "data_file", fileStruct));
   }
 
   @Override

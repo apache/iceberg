@@ -26,9 +26,6 @@ import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableProperties.DEFAULT_WRITE_METRICS_MODE;
-import static org.apache.iceberg.TableProperties.DEFAULT_WRITE_METRICS_MODE_DEFAULT;
-
 public class MetricsConfig implements Serializable {
 
   private static final Logger LOG = LoggerFactory.getLogger(MetricsConfig.class);
@@ -40,19 +37,19 @@ public class MetricsConfig implements Serializable {
 
   public static MetricsConfig getDefault() {
     MetricsConfig spec = new MetricsConfig();
-    spec.defaultMode = MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT);
+    spec.defaultMode = MetricsModes.fromString(TableProperties.DEFAULT_WRITE_METRICS_MODE_DEFAULT);
     return spec;
   }
 
   public static MetricsConfig fromProperties(Map<String, String> props) {
     MetricsConfig spec = new MetricsConfig();
-    String defaultModeAsString = props.getOrDefault(DEFAULT_WRITE_METRICS_MODE, DEFAULT_WRITE_METRICS_MODE_DEFAULT);
+    String defaultModeAsString = TableProperties.getDefaultWriteMetricsMode(props);
     try {
       spec.defaultMode = MetricsModes.fromString(defaultModeAsString);
     } catch (IllegalArgumentException err) {
       // Mode was invalid, log the error and use the default
       LOG.warn("Ignoring invalid default metrics mode: {}", defaultModeAsString, err);
-      spec.defaultMode = MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT);
+      spec.defaultMode = MetricsModes.fromString(TableProperties.DEFAULT_WRITE_METRICS_MODE_DEFAULT);
     }
 
     props.keySet().stream()

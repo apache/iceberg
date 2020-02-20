@@ -28,9 +28,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.NestedField;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
 
 public abstract class IcebergSourceFlatDataBenchmark extends IcebergSourceBenchmark {
 
@@ -42,14 +41,14 @@ public abstract class IcebergSourceFlatDataBenchmark extends IcebergSourceBenchm
   @Override
   protected final Table initTable() {
     Schema schema = new Schema(
-        required(1, "longCol", Types.LongType.get()),
-        required(2, "intCol", Types.IntegerType.get()),
-        required(3, "floatCol", Types.FloatType.get()),
-        optional(4, "doubleCol", Types.DoubleType.get()),
-        optional(5, "decimalCol", Types.DecimalType.of(20, 5)),
-        optional(6, "dateCol", Types.DateType.get()),
-        optional(7, "timestampCol", Types.TimestampType.withZone()),
-        optional(8, "stringCol", Types.StringType.get()));
+        NestedField.required(1, "longCol", Types.LongType.get()),
+        NestedField.required(2, "intCol", Types.IntegerType.get()),
+        NestedField.required(3, "floatCol", Types.FloatType.get()),
+        NestedField.optional(4, "doubleCol", Types.DoubleType.get()),
+        NestedField.optional(5, "decimalCol", Types.DecimalType.of(20, 5)),
+        NestedField.optional(6, "dateCol", Types.DateType.get()),
+        NestedField.optional(7, "timestampCol", Types.TimestampType.withZone()),
+        NestedField.optional(8, "stringCol", Types.StringType.get()));
     PartitionSpec partitionSpec = PartitionSpec.unpartitioned();
     HadoopTables tables = new HadoopTables(hadoopConf());
     Map<String, String> properties = Maps.newHashMap();

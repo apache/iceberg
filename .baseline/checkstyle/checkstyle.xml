@@ -72,15 +72,6 @@
         </module>
         <module name="AvoidStarImport"/> <!-- Java Style Guide: No wildcard imports -->
         <module name="AvoidStaticImport"> <!-- Java Style Guide: No static imports -->
-            <property name="excludes" value="
-                org.apache.iceberg.expressions.Expressions.*,
-                org.apache.parquet.schema.OriginalType.*,
-                org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.*,
-                org.apache.iceberg.types.Types.NestedField.required,
-                org.apache.iceberg.types.Types.NestedField.optional,
-                org.apache.iceberg.TableProperties.*,
-                org.apache.iceberg.types.Type.TypeID,
-                org.apache.spark.sql.functions.*"/>
         </module>
         <module name="ClassTypeParameterName"> <!-- Java Style Guide: Type variable names -->
             <property name="format" value="(^[A-Z][0-9]?)$|([A-Z][a-zA-Z0-9]*[T]$)"/>

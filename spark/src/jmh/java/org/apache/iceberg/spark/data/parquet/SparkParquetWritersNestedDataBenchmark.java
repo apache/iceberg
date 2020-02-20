@@ -29,6 +29,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.SparkParquetWriters;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.NestedField;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.execution.datasources.parquet.ParquetWriteSupport;
 import org.apache.spark.sql.types.StructType;
@@ -43,9 +44,6 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
-
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
 
 /**
  * A benchmark that evaluates the performance of writing nested Parquet data using
@@ -66,11 +64,11 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 public class SparkParquetWritersNestedDataBenchmark {
 
   private static final Schema SCHEMA = new Schema(
-      required(0, "id", Types.LongType.get()),
-      optional(4, "nested", Types.StructType.of(
-          required(1, "col1", Types.StringType.get()),
-          required(2, "col2", Types.DoubleType.get()),
-          required(3, "col3", Types.LongType.get())
+      NestedField.required(0, "id", Types.LongType.get()),
+      NestedField.optional(4, "nested", Types.StructType.of(
+          NestedField.required(1, "col1", Types.StringType.get()),
+          NestedField.required(2, "col2", Types.DoubleType.get()),
+          NestedField.required(3, "col3", Types.LongType.get())
       ))
   );
   private static final int NUM_RECORDS = 1000000;

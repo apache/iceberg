@@ -35,6 +35,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.NestedField;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
 import org.apache.spark.sql.execution.datasources.parquet.ParquetReadSupport;
@@ -51,9 +52,6 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
-
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
 
 /**
  * A benchmark that evaluates the performance of reading Parquet data with a flat schema using
@@ -77,18 +75,18 @@ public class SparkParquetReadersFlatDataBenchmark {
       .impl(UnsafeProjection.class, InternalRow.class)
       .build();
   private static final Schema SCHEMA = new Schema(
-      required(1, "longCol", Types.LongType.get()),
-      required(2, "intCol", Types.IntegerType.get()),
-      required(3, "floatCol", Types.FloatType.get()),
-      optional(4, "doubleCol", Types.DoubleType.get()),
-      optional(5, "decimalCol", Types.DecimalType.of(20, 5)),
-      optional(6, "dateCol", Types.DateType.get()),
-      optional(7, "timestampCol", Types.TimestampType.withZone()),
-      optional(8, "stringCol", Types.StringType.get()));
+      NestedField.required(1, "longCol", Types.LongType.get()),
+      NestedField.required(2, "intCol", Types.IntegerType.get()),
+      NestedField.required(3, "floatCol", Types.FloatType.get()),
+      NestedField.optional(4, "doubleCol", Types.DoubleType.get()),
+      NestedField.optional(5, "decimalCol", Types.DecimalType.of(20, 5)),
+      NestedField.optional(6, "dateCol", Types.DateType.get()),
+      NestedField.optional(7, "timestampCol", Types.TimestampType.withZone()),
+      NestedField.optional(8, "stringCol", Types.StringType.get()));
   private static final Schema PROJECTED_SCHEMA = new Schema(
-      required(1, "longCol", Types.LongType.get()),
-      optional(5, "decimalCol", Types.DecimalType.of(20, 5)),
-      optional(8, "stringCol", Types.StringType.get()));
+      NestedField.required(1, "longCol", Types.LongType.get()),
+      NestedField.optional(5, "decimalCol", Types.DecimalType.of(20, 5)),
+      NestedField.optional(8, "stringCol", Types.StringType.get()));
   private static final int NUM_RECORDS = 10000000;
   private File dataFile;
 
