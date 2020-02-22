@@ -20,11 +20,9 @@
 package org.apache.iceberg.parquet;
 
 import org.apache.parquet.column.ColumnDescriptor;
-import org.apache.parquet.column.page.DataPage;
-import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.io.api.Binary;
 
-public abstract class ColumnIterator<T> implements TripleIterator<T> {
+public abstract class ColumnIterator<T> extends BaseColumnIterator implements TripleIterator<T> {
   @SuppressWarnings("unchecked")
   static <T> ColumnIterator<T> newIterator(ColumnDescriptor desc, String writerVersion) {
     switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
@@ -77,47 +75,11 @@ public abstract class ColumnIterator<T> implements TripleIterator<T> {
     }
   }
 
-  private final ColumnDescriptor desc;
   private final PageIterator<T> pageIterator;
 
-  // state reset for each row group
-  private PageReader pageSource = null;
-  private long triplesCount = 0L;
-  private long triplesRead = 0L;
-  private long advanceNextPageCount = 0L;
-
   private ColumnIterator(ColumnDescriptor desc, String writerVersion) {
-    this.desc = desc;
+    super(desc);
     this.pageIterator = PageIterator.newIterator(desc, writerVersion);
-  }
-
-  public void setPageSource(PageReader source) {
-    this.pageSource = source;
-    this.triplesCount = source.getTotalValueCount();
-    this.triplesRead = 0L;
-    this.advanceNextPageCount = 0L;
-    this.pageIterator.reset();
-    this.pageIterator.setDictionary(ParquetUtil.readDictionary(desc, pageSource));
-    advance();
-  }
-
-  private void advance() {
-    if (triplesRead >= advanceNextPageCount) {
-      while (!pageIterator.hasNext()) {
-        DataPage page = pageSource.readPage();
-        if (page != null) {
-          pageIterator.setPage(page);
-          this.advanceNextPageCount += pageIterator.currentPageCount();
-        } else {
-          return;
-        }
-      }
-    }
-  }
-
-  @Override
-  public boolean hasNext() {
-    return triplesRead < triplesCount;
   }
 
   @Override
@@ -179,6 +141,11 @@ public abstract class ColumnIterator<T> implements TripleIterator<T> {
     this.triplesRead += 1;
     advance();
     return pageIterator.nextNull();
+  }
+
+  @Override
+  protected BasePageIterator pageIterator() {
+    return pageIterator;
   }
 
 }

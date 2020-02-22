@@ -304,7 +304,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   public void setRowGroupInfo(PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
     ColumnChunkMetaData chunkMetaData = metadata.get(ColumnPath.get(columnDescriptor.getPath()));
     allPagesDictEncoded = !ParquetUtil.hasNonDictionaryPages(chunkMetaData);
-    dictionary = vectorizedColumnIterator.setRowGroupInfo(source, allPagesDictEncoded);
+    dictionary = vectorizedColumnIterator.setRowGroupInfo(source.getPageReader(columnDescriptor), allPagesDictEncoded);
   }
 
   @Override

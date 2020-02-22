@@ -23,67 +23,34 @@ import org.apache.arrow.util.Preconditions;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
-import org.apache.iceberg.parquet.ParquetUtil;
+import org.apache.iceberg.parquet.BaseColumnIterator;
+import org.apache.iceberg.parquet.BasePageIterator;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
-import org.apache.parquet.column.page.DataPage;
-import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.column.page.PageReader;
 
 /**
  * Vectorized version of the ColumnIterator that reads column values in data pages of a column in a row group in a
  * batched fashion.
  */
-public class VectorizedColumnIterator {
+public class VectorizedColumnIterator extends BaseColumnIterator {
 
-  private final ColumnDescriptor desc;
   private final VectorizedPageIterator vectorizedPageIterator;
-
-  // state reset for each row group
-  private PageReader columnPageReader = null;
-  private long totalValuesCount = 0L;
-  private long valuesRead = 0L;
-  private long advanceNextPageCount = 0L;
   private final int batchSize;
 
   public VectorizedColumnIterator(ColumnDescriptor desc, String writerVersion, int batchSize,
                                   boolean setArrowValidityVector) {
+    super(desc);
     Preconditions.checkArgument(desc.getMaxRepetitionLevel() == 0,
         "Only non-nested columns are supported for vectorized reads");
-    this.desc = desc;
     this.batchSize = batchSize;
     this.vectorizedPageIterator = new VectorizedPageIterator(desc, writerVersion, setArrowValidityVector);
   }
 
-  public Dictionary setRowGroupInfo(PageReadStore store, boolean allPagesDictEncoded) {
-    this.columnPageReader = store.getPageReader(desc);
-    this.totalValuesCount = columnPageReader.getTotalValueCount();
-    this.valuesRead = 0L;
-    this.advanceNextPageCount = 0L;
-    this.vectorizedPageIterator.reset();
-    Dictionary dict = ParquetUtil.readDictionary(desc, this.columnPageReader);
-    this.vectorizedPageIterator.setDictionaryForColumn(dict, allPagesDictEncoded);
-    advance();
-    return dict;
-  }
-
-  private void advance() {
-    if (valuesRead >= advanceNextPageCount) {
-      // A parquet page may be empty i.e. contains no values
-      while (!vectorizedPageIterator.hasNext()) {
-        DataPage page = columnPageReader.readPage();
-        if (page != null) {
-          vectorizedPageIterator.setPage(page);
-          this.advanceNextPageCount += vectorizedPageIterator.currentPageCount();
-        } else {
-          return;
-        }
-      }
-    }
-  }
-
-  public boolean hasNext() {
-    return valuesRead < totalValuesCount;
+  public Dictionary setRowGroupInfo(PageReader store, boolean allPagesDictEncoded) {
+    super.setPageSource(store);
+    this.vectorizedPageIterator.setAllPagesDictEncoded(allPagesDictEncoded);
+    return dictionary;
   }
 
   public void nextBatchIntegers(FieldVector fieldVector, int typeWidth, NullabilityHolder holder) {
@@ -93,7 +60,7 @@ public class VectorizedColumnIterator {
       int rowsInThisBatch = vectorizedPageIterator.nextBatchIntegers(fieldVector, batchSize - rowsReadSoFar,
           rowsReadSoFar, typeWidth, holder);
       rowsReadSoFar += rowsInThisBatch;
-      this.valuesRead += rowsInThisBatch;
+      this.triplesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);
     }
   }
@@ -105,7 +72,7 @@ public class VectorizedColumnIterator {
       int rowsInThisBatch = vectorizedPageIterator.nextBatchDictionaryIds(vector, batchSize - rowsReadSoFar,
           rowsReadSoFar, holder);
       rowsReadSoFar += rowsInThisBatch;
-      this.valuesRead += rowsInThisBatch;
+      this.triplesRead += rowsInThisBatch;
       vector.setValueCount(rowsReadSoFar);
     }
   }
@@ -117,7 +84,7 @@ public class VectorizedColumnIterator {
       int rowsInThisBatch = vectorizedPageIterator.nextBatchLongs(fieldVector, batchSize - rowsReadSoFar,
           rowsReadSoFar, typeWidth, holder);
       rowsReadSoFar += rowsInThisBatch;
-      this.valuesRead += rowsInThisBatch;
+      this.triplesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);
     }
   }
@@ -129,7 +96,7 @@ public class VectorizedColumnIterator {
       int rowsInThisBatch = vectorizedPageIterator.nextBatchTimestampMillis(fieldVector, batchSize - rowsReadSoFar,
           rowsReadSoFar, typeWidth, holder);
       rowsReadSoFar += rowsInThisBatch;
-      this.valuesRead += rowsInThisBatch;
+      this.triplesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);
     }
   }
@@ -141,7 +108,7 @@ public class VectorizedColumnIterator {
       int rowsInThisBatch = vectorizedPageIterator.nextBatchFloats(fieldVector, batchSize - rowsReadSoFar,
           rowsReadSoFar, typeWidth, holder);
       rowsReadSoFar += rowsInThisBatch;
-      this.valuesRead += rowsInThisBatch;
+      this.triplesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);
     }
   }
@@ -153,7 +120,7 @@ public class VectorizedColumnIterator {
       int rowsInThisBatch = vectorizedPageIterator.nextBatchDoubles(fieldVector, batchSize - rowsReadSoFar,
           rowsReadSoFar, typeWidth, holder);
       rowsReadSoFar += rowsInThisBatch;
-      this.valuesRead += rowsInThisBatch;
+      this.triplesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);
     }
   }
@@ -169,7 +136,7 @@ public class VectorizedColumnIterator {
           vectorizedPageIterator.nextBatchIntLongBackedDecimal(fieldVector, batchSize - rowsReadSoFar,
               rowsReadSoFar, typeWidth, nullabilityHolder);
       rowsReadSoFar += rowsInThisBatch;
-      this.valuesRead += rowsInThisBatch;
+      this.triplesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);
     }
   }
@@ -185,7 +152,7 @@ public class VectorizedColumnIterator {
           vectorizedPageIterator.nextBatchFixedLengthDecimal(fieldVector, batchSize - rowsReadSoFar,
               rowsReadSoFar, typeWidth, nullabilityHolder);
       rowsReadSoFar += rowsInThisBatch;
-      this.valuesRead += rowsInThisBatch;
+      this.triplesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);
     }
   }
@@ -197,7 +164,7 @@ public class VectorizedColumnIterator {
       int rowsInThisBatch = vectorizedPageIterator.nextBatchVarWidthType(fieldVector, batchSize - rowsReadSoFar,
           rowsReadSoFar, nullabilityHolder);
       rowsReadSoFar += rowsInThisBatch;
-      this.valuesRead += rowsInThisBatch;
+      this.triplesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);
     }
   }
@@ -210,7 +177,7 @@ public class VectorizedColumnIterator {
           vectorizedPageIterator.nextBatchFixedWidthBinary(fieldVector, batchSize - rowsReadSoFar,
               rowsReadSoFar, typeWidth, nullabilityHolder);
       rowsReadSoFar += rowsInThisBatch;
-      this.valuesRead += rowsInThisBatch;
+      this.triplesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);
     }
   }
@@ -222,9 +189,14 @@ public class VectorizedColumnIterator {
       int rowsInThisBatch = vectorizedPageIterator.nextBatchBoolean(fieldVector, batchSize - rowsReadSoFar,
           rowsReadSoFar, nullabilityHolder);
       rowsReadSoFar += rowsInThisBatch;
-      this.valuesRead += rowsInThisBatch;
+      this.triplesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);
     }
+  }
+
+  @Override
+  protected BasePageIterator pageIterator() {
+    return vectorizedPageIterator;
   }
 
 }

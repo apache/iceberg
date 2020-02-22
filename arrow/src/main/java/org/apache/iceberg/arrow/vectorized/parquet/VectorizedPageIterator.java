@@ -31,7 +31,6 @@ import org.apache.parquet.CorruptDeltaByteArrays;
 import org.apache.parquet.bytes.ByteBufferInputStream;
 import org.apache.parquet.bytes.BytesUtils;
 import org.apache.parquet.column.ColumnDescriptor;
-import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.page.DataPageV1;
 import org.apache.parquet.column.page.DataPageV2;
@@ -53,29 +52,15 @@ public class VectorizedPageIterator extends BasePageIterator {
   private boolean allPagesDictEncoded;
   private VectorizedParquetValuesReader vectorizedDefinitionLevelReader;
 
-  // Dictionary is set per row group
-  public void setDictionaryForColumn(Dictionary dict, boolean allDictEncoded) {
-    this.dictionary = dict;
+  public void setAllPagesDictEncoded(boolean allDictEncoded) {
     this.allPagesDictEncoded = allDictEncoded;
   }
 
   @Override
   protected void reset() {
-    this.page = null;
-    this.triplesCount = 0;
-    this.triplesRead = 0;
-    this.repetitionLevels = null;
+    super.reset();
     this.plainValuesReader = null;
     this.vectorizedDefinitionLevelReader = null;
-    this.hasNext = false;
-  }
-
-  public int currentPageCount() {
-    return triplesCount;
-  }
-
-  public boolean hasNext() {
-    return hasNext;
   }
 
   /**

@@ -40,12 +40,12 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
 
   public void readBatchOfDictionaryIds(
       final IntVector vector,
-      final int numValsInVector,
-      final int batchSize,
+      final int startOffset,
+      final int numValsToRead,
       NullabilityHolder nullabilityHolder,
       VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader) {
-    int idx = numValsInVector;
-    int left = batchSize;
+    int idx = startOffset;
+    int left = numValsToRead;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -82,10 +82,10 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
   }
 
   public void readBatchOfLongs(
-      final FieldVector vector, final int numValsInVector,
-      final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder, ValuesAsBytesReader valuesReader) {
-    int bufferIdx = numValsInVector;
-    int left = batchSize;
+      final FieldVector vector, final int startOffset, final int typeWidth,
+      final int numValsToRead, NullabilityHolder nullabilityHolder, ValuesAsBytesReader valuesReader) {
+    int bufferIdx = startOffset;
+    int left = numValsToRead;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -123,11 +123,11 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
     }
   }
 
-  public void readBatchOfTimestampMillis(
-      final FieldVector vector, final int numValsInVector,
-      final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder, ValuesAsBytesReader valuesReader) {
-    int bufferIdx = numValsInVector;
-    int left = batchSize;
+  public void readBatchOfTimestampMillis(final FieldVector vector, final int startOffset, final int typeWidth,
+                                         final int numValsToRead, NullabilityHolder nullabilityHolder,
+                                         ValuesAsBytesReader valuesReader) {
+    int bufferIdx = startOffset;
+    int left = numValsToRead;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -175,14 +175,14 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
 
   public void readBatchOfDictionaryEncodedLongs(
       final FieldVector vector,
-      final int numValsInVector,
+      final int startOffset,
       final int typeWidth,
-      final int batchSize,
+      final int numValsToRead,
       NullabilityHolder nullabilityHolder,
       VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader,
       Dictionary dict) {
-    int idx = numValsInVector;
-    int left = batchSize;
+    int idx = startOffset;
+    int left = numValsToRead;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -222,14 +222,14 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
 
   public void readBatchOfDictionaryEncodedTimestampMillis(
       final FieldVector vector,
-      final int numValsInVector,
+      final int startOffset,
       final int typeWidth,
-      final int batchSize,
+      final int numValsToRead,
       NullabilityHolder nullabilityHolder,
       VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader,
       Dictionary dict) {
-    int idx = numValsInVector;
-    int left = batchSize;
+    int idx = startOffset;
+    int left = numValsToRead;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -268,11 +268,11 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
     }
   }
 
-  public void readBatchOfIntegers(
-      final FieldVector vector, final int numValsInVector,
-      final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder, ValuesAsBytesReader valuesReader) {
-    int bufferIdx = numValsInVector;
-    int left = batchSize;
+  public void readBatchOfIntegers(final FieldVector vector, final int startOffset, final int typeWidth,
+                                  final int numValsToRead, NullabilityHolder nullabilityHolder,
+                                  ValuesAsBytesReader valuesReader) {
+    int bufferIdx = startOffset;
+    int left = numValsToRead;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -312,14 +312,14 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
 
   public void readBatchOfDictionaryEncodedIntegers(
       final FieldVector vector,
-      final int numValsInVector,
+      final int startOffset,
       final int typeWidth,
-      final int batchSize,
+      final int numValsToRead,
       NullabilityHolder nullabilityHolder,
       VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader,
       Dictionary dict) {
-    int idx = numValsInVector;
-    int left = batchSize;
+    int idx = startOffset;
+    int left = numValsToRead;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -356,11 +356,11 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
     }
   }
 
-  public void readBatchOfFloats(
-      final FieldVector vector, final int numValsInVector,
-      final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder, ValuesAsBytesReader valuesReader) {
-    int bufferIdx = numValsInVector;
-    int left = batchSize;
+  public void readBatchOfFloats(final FieldVector vector, final int startOffset, final int typeWidth,
+                                final int numValsToRead, NullabilityHolder nullabilityHolder,
+                                ValuesAsBytesReader valuesReader) {
+    int bufferIdx = startOffset;
+    int left = numValsToRead;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -400,14 +400,14 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
 
   public void readBatchOfDictionaryEncodedFloats(
       final FieldVector vector,
-      final int numValsInVector,
+      final int startOffset,
       final int typeWidth,
-      final int batchSize,
+      final int numValsToRead,
       NullabilityHolder nullabilityHolder,
       VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader,
       Dictionary dict) {
-    int idx = numValsInVector;
-    int left = batchSize;
+    int idx = startOffset;
+    int left = numValsToRead;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -446,11 +446,11 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
   }
 
   public void readBatchOfDoubles(
-      final FieldVector vector, final int numValsInVector,
-      final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder,
+      final FieldVector vector, final int startOffset,
+      final int typeWidth, final int numValsToRead, NullabilityHolder nullabilityHolder,
       ValuesAsBytesReader valuesReader) {
-    int bufferIdx = numValsInVector;
-    int left = batchSize;
+    int bufferIdx = startOffset;
+    int left = numValsToRead;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -490,14 +490,14 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
 
   public void readBatchOfDictionaryEncodedDoubles(
       final FieldVector vector,
-      final int numValsInVector,
+      final int startOffset,
       final int typeWidth,
-      final int batchSize,
+      final int numValsToRead,
       NullabilityHolder nullabilityHolder,
       VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader,
       Dictionary dict) {
-    int idx = numValsInVector;
-    int left = batchSize;
+    int idx = startOffset;
+    int left = numValsToRead;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -535,11 +535,11 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
   }
 
   public void readBatchOfFixedWidthBinary(
-      final FieldVector vector, final int numValsInVector,
-      final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder,
+      final FieldVector vector, final int startOffset,
+      final int typeWidth, final int numValsToRead, NullabilityHolder nullabilityHolder,
       ValuesAsBytesReader valuesReader) {
-    int bufferIdx = numValsInVector;
-    int left = batchSize;
+    int bufferIdx = startOffset;
+    int left = numValsToRead;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -575,14 +575,14 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
 
   public void readBatchOfDictionaryEncodedFixedWidthBinary(
       final FieldVector vector,
-      final int numValsInVector,
+      final int startOffset,
       final int typeWidth,
-      final int batchSize,
+      final int numValsToRead,
       NullabilityHolder nullabilityHolder,
       VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader,
       Dictionary dict) {
-    int idx = numValsInVector;
-    int left = batchSize;
+    int idx = startOffset;
+    int left = numValsToRead;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -622,11 +622,11 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
   }
 
   public void readBatchOfFixedLengthDecimals(
-      final FieldVector vector, final int numValsInVector,
-      final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder,
+      final FieldVector vector, final int startOffset,
+      final int typeWidth, final int numValsToRead, NullabilityHolder nullabilityHolder,
       ValuesAsBytesReader valuesReader) {
-    int bufferIdx = numValsInVector;
-    int left = batchSize;
+    int bufferIdx = startOffset;
+    int left = numValsToRead;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -667,14 +667,14 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
 
   public void readBatchOfDictionaryEncodedFixedLengthDecimals(
       final FieldVector vector,
-      final int numValsInVector,
+      final int startOffset,
       final int typeWidth,
-      final int batchSize,
+      final int numValsToRead,
       NullabilityHolder nullabilityHolder,
       VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader,
       Dictionary dict) {
-    int idx = numValsInVector;
-    int left = batchSize;
+    int idx = startOffset;
+    int left = numValsToRead;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -712,12 +712,12 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
 
   public void readBatchVarWidth(
       final FieldVector vector,
-      final int numValsInVector,
-      final int batchSize,
+      final int startOffset,
+      final int numValsToRead,
       NullabilityHolder nullabilityHolder,
       ValuesAsBytesReader valuesReader) {
-    int bufferIdx = numValsInVector;
-    int left = batchSize;
+    int bufferIdx = startOffset;
+    int left = numValsToRead;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -773,13 +773,13 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
 
   public void readBatchOfDictionaryEncodedVarWidth(
       final FieldVector vector,
-      final int numValsInVector,
-      final int batchSize,
+      final int startOffset,
+      final int numValsToRead,
       NullabilityHolder nullabilityHolder,
       VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader,
       Dictionary dict) {
-    int idx = numValsInVector;
-    int left = batchSize;
+    int idx = startOffset;
+    int left = numValsToRead;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -815,11 +815,11 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
   }
 
   public void readBatchOfIntLongBackedDecimals(
-      final FieldVector vector, final int numValsInVector,
-      final int typeWidth, final int batchSize, NullabilityHolder nullabilityHolder,
+      final FieldVector vector, final int startOffset,
+      final int typeWidth, final int numValsToRead, NullabilityHolder nullabilityHolder,
       ValuesAsBytesReader valuesReader) {
-    int bufferIdx = numValsInVector;
-    int left = batchSize;
+    int bufferIdx = startOffset;
+    int left = numValsToRead;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -867,14 +867,14 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
 
   public void readBatchOfDictionaryEncodedIntLongBackedDecimals(
       final FieldVector vector,
-      final int numValsInVector,
+      final int startOffset,
       final int typeWidth,
-      final int batchSize,
+      final int numValsToRead,
       NullabilityHolder nullabilityHolder,
       VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader,
       Dictionary dict) {
-    int idx = numValsInVector;
-    int left = batchSize;
+    int idx = startOffset;
+    int left = numValsToRead;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -913,12 +913,12 @@ public final class VectorizedParquetValuesReader extends BaseVectorizedParquetVa
 
   public void readBatchOfBooleans(
       final FieldVector vector,
-      final int numValsInVector,
-      final int batchSize,
+      final int startOffset,
+      final int numValsToRead,
       NullabilityHolder nullabilityHolder,
       ValuesAsBytesReader valuesReader) {
-    int bufferIdx = numValsInVector;
-    int left = batchSize;
+    int bufferIdx = startOffset;
+    int left = numValsToRead;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();

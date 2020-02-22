@@ -97,26 +97,6 @@ abstract class PageIterator<T> extends BasePageIterator implements TripleIterato
   }
 
   @Override
-  public void reset() {
-    this.page = null;
-    this.triplesCount = 0;
-    this.triplesRead = 0;
-    this.definitionLevels = null;
-    this.repetitionLevels = null;
-    this.values = null;
-    this.hasNext = false;
-  }
-
-  public int currentPageCount() {
-    return triplesCount;
-  }
-
-  @Override
-  public boolean hasNext() {
-    return hasNext;
-  }
-
-  @Override
   public int currentDefinitionLevel() {
     Preconditions.checkArgument(currentDL >= 0, "Should not read definition, past page end");
     return currentDL;

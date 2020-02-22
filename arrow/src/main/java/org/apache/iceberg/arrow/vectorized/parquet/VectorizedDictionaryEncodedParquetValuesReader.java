@@ -71,10 +71,10 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedLongs(FieldVector vector, int index, int numValuesToRead, Dictionary dict,
+  void readBatchOfDictionaryEncodedLongs(FieldVector vector, int startOffset, int numValuesToRead, Dictionary dict,
                                          NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
-    int idx = index;
+    int idx = startOffset;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -110,10 +110,10 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedTimestampMillis(FieldVector vector, int index, int numValuesToRead, Dictionary dict,
-                                         NullabilityHolder nullabilityHolder) {
+  void readBatchOfDictionaryEncodedTimestampMillis(FieldVector vector, int startOffset, int numValuesToRead,
+                                                   Dictionary dict, NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
-    int idx = index;
+    int idx = startOffset;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -149,10 +149,10 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedIntegers(FieldVector vector, int index, int numValuesToRead, Dictionary dict,
+  void readBatchOfDictionaryEncodedIntegers(FieldVector vector, int startOffset, int numValuesToRead, Dictionary dict,
                                             NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
-    int idx = index;
+    int idx = startOffset;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -188,10 +188,10 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedFloats(FieldVector vector, int index, int numValuesToRead, Dictionary dict,
+  void readBatchOfDictionaryEncodedFloats(FieldVector vector, int startOffset, int numValuesToRead, Dictionary dict,
                                           NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
-    int idx = index;
+    int idx = startOffset;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -226,10 +226,10 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedDoubles(FieldVector vector, int index, int numValuesToRead, Dictionary dict,
+  void readBatchOfDictionaryEncodedDoubles(FieldVector vector, int startOffset, int numValuesToRead, Dictionary dict,
                                            NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
-    int idx = index;
+    int idx = startOffset;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -265,10 +265,11 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedFixedWidthBinary(FieldVector vector, int typeWidth, int index, int numValuesToRead,
-                                                    Dictionary dict, NullabilityHolder nullabilityHolder) {
+  void readBatchOfDictionaryEncodedFixedWidthBinary(FieldVector vector, int typeWidth, int startOffset,
+                                                    int numValuesToRead, Dictionary dict,
+                                                    NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
-    int idx = index;
+    int idx = startOffset;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -308,11 +309,11 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedFixedLengthDecimals(FieldVector vector, int typeWidth, int index,
+  void readBatchOfDictionaryEncodedFixedLengthDecimals(FieldVector vector, int typeWidth, int startOffset,
                                                        int numValuesToRead, Dictionary dict,
                                                        NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
-    int idx = index;
+    int idx = startOffset;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -345,10 +346,10 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedVarWidthBinary(FieldVector vector, int index, int numValuesToRead, Dictionary dict,
-                                                  NullabilityHolder nullabilityHolder) {
+  void readBatchOfDictionaryEncodedVarWidthBinary(FieldVector vector, int startOffset, int numValuesToRead,
+                                                  Dictionary dict, NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
-    int idx = index;
+    int idx = startOffset;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();
@@ -379,11 +380,11 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedIntLongBackedDecimals(FieldVector vector, int typeWidth, int index,
+  void readBatchOfDictionaryEncodedIntLongBackedDecimals(FieldVector vector, int typeWidth, int startOffset,
                                                          int numValuesToRead, Dictionary dict,
                                                          NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
-    int idx = index;
+    int idx = startOffset;
     while (left > 0) {
       if (this.currentCount == 0) {
         this.readNextGroup();

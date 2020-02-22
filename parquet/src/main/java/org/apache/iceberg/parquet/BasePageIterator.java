@@ -64,7 +64,13 @@ public abstract class BasePageIterator {
     this.writerVersion = writerVersion;
   }
 
-  protected abstract void reset();
+  protected void reset() {
+    this.page = null;
+    this.triplesCount = 0;
+    this.triplesRead = 0;
+    this.repetitionLevels = null;
+    this.hasNext = false;
+  }
 
   protected abstract void initDataReader(Encoding dataEncoding, ByteBufferInputStream in, int valueCount);
 
@@ -72,6 +78,14 @@ public abstract class BasePageIterator {
                                                      ByteBufferInputStream in, int count) throws IOException;
 
   protected abstract void initDefinitionLevelsReader(DataPageV2 dataPageV2, ColumnDescriptor descriptor);
+
+  public int currentPageCount() {
+    return triplesCount;
+  }
+
+  public boolean hasNext() {
+    return hasNext;
+  }
 
   public void setPage(DataPage page) {
     Preconditions.checkNotNull(page, "Cannot read from null page");
