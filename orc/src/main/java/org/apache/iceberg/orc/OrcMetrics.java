@@ -22,18 +22,17 @@ package org.apache.iceberg.orc;
 import java.io.IOException;
 import java.util.Collections;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
-import org.apache.orc.OrcFile;
 import org.apache.orc.Reader;
 import org.apache.orc.Writer;
 
 public class OrcMetrics {
 
-  private OrcMetrics() {}
+  private OrcMetrics() {
+  }
 
   public static Metrics fromInputFile(InputFile file) {
     final Configuration config = (file instanceof HadoopInputFile) ?
@@ -41,10 +40,8 @@ public class OrcMetrics {
     return fromInputFile(file, config);
   }
 
-  static Metrics fromInputFile(InputFile file, Configuration config) {
-    try {
-      final Reader orcReader = OrcFile.createReader(new Path(file.location()),
-          OrcFile.readerOptions(config));
+  public static Metrics fromInputFile(InputFile file, Configuration config) {
+    try (Reader orcReader = ORC.newFileReader(file, config)) {
 
       // TODO: implement rest of the methods for ORC metrics
       // https://github.com/apache/incubator-iceberg/pull/199

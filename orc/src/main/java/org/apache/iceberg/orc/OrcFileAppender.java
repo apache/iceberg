@@ -32,6 +32,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.orc.OrcFile;
@@ -67,6 +68,9 @@ class OrcFileAppender<D> implements FileAppender<D> {
     this.batch = orcSchema.createRowBatch(this.batchSize);
 
     OrcFile.WriterOptions options = OrcFile.writerOptions(conf);
+    if (file instanceof HadoopOutputFile) {
+      options.fileSystem(((HadoopOutputFile) file).getFileSystem());
+    }
     options.setSchema(orcSchema);
     this.writer = newOrcWriter(file, options, metadata);
     this.valueWriter = newOrcValueWriter(orcSchema, createWriterFunc);
@@ -100,16 +104,12 @@ class OrcFileAppender<D> implements FileAppender<D> {
   @Override
   public List<Long> splitOffsets() {
     Preconditions.checkState(isClosed, "File is not yet closed");
-    String fileLoc = file.location();
-    Reader reader;
-    try {
-      reader = OrcFile.createReader(new Path(fileLoc), new OrcFile.ReaderOptions(conf));
-    } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Cannot read file " + fileLoc);
+    try (Reader reader = ORC.newFileReader(file.toInputFile(), conf)) {
+      List<StripeInformation> stripes = reader.getStripes();
+      return Collections.unmodifiableList(Lists.transform(stripes, StripeInformation::getOffset));
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Can't close ORC reader %s", file.location());
     }
-
-    List<StripeInformation> stripes = reader.getStripes();
-    return Collections.unmodifiableList(Lists.transform(stripes, StripeInformation::getOffset));
   }
 
   @Override
