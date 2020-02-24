@@ -145,11 +145,11 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
           .throwFailureWhenFinished()
           .shouldRetryTest(shouldRetry)
           .run(metadataLocation -> newMetadata.set(
-              TableMetadataParser.read(io(), io().newInputFile(metadataLocation))));
+              TableMetadataParser.read(io(), metadataLocation)));
 
       String newUUID = newMetadata.get().uuid();
-      if (currentMetadata != null) {
-        Preconditions.checkState(newUUID == null || newUUID.equals(currentMetadata.uuid()),
+      if (currentMetadata != null && currentMetadata.uuid() != null && newUUID != null) {
+        Preconditions.checkState(newUUID.equals(currentMetadata.uuid()),
             "Table UUID does not match: current=%s != refreshed=%s", currentMetadata.uuid(), newUUID);
       }
 

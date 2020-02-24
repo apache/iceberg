@@ -21,10 +21,11 @@ package org.apache.iceberg;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData.SchemaConstructable;
@@ -99,7 +100,7 @@ public class GenericManifestFile
     this.fromProjectionPos = null;
   }
 
-  public GenericManifestFile(String path, long length, int specId, long snapshotId,
+  public GenericManifestFile(String path, long length, int specId, Long snapshotId,
                              int addedFilesCount, int existingFilesCount, int deletedFilesCount,
                              List<PartitionFieldSummary> partitions) {
     this.avroSchema = AVRO_SCHEMA;
@@ -117,7 +118,7 @@ public class GenericManifestFile
     this.fromProjectionPos = null;
   }
 
-  public GenericManifestFile(String path, long length, int specId, long snapshotId,
+  public GenericManifestFile(String path, long length, int specId, Long snapshotId,
                              int addedFilesCount, long addedRowsCount, int existingFilesCount,
                              long existingRowsCount, int deletedFilesCount, long deletedRowsCount,
                              List<PartitionFieldSummary> partitions) {
@@ -153,7 +154,7 @@ public class GenericManifestFile
     this.existingRowsCount = toCopy.existingRowsCount;
     this.deletedFilesCount = toCopy.deletedFilesCount;
     this.deletedRowsCount = toCopy.deletedRowsCount;
-    this.partitions = ImmutableList.copyOf(Iterables.transform(toCopy.partitions, PartitionFieldSummary::copy));
+    this.partitions = copyList(toCopy.partitions, PartitionFieldSummary::copy);
     this.fromProjectionPos = toCopy.fromProjectionPos;
   }
 
@@ -370,5 +371,45 @@ public class GenericManifestFile
         .add("deleted_rows_count", deletedRowsCount)
         .add("partitions", partitions)
         .toString();
+  }
+
+  public static CopyBuilder copyOf(ManifestFile manifestFile) {
+    return new CopyBuilder(manifestFile);
+  }
+
+  public static class CopyBuilder {
+    private final GenericManifestFile manifestFile;
+
+    private CopyBuilder(ManifestFile toCopy) {
+      if (toCopy instanceof GenericManifestFile) {
+        this.manifestFile = new GenericManifestFile((GenericManifestFile) toCopy);
+      } else {
+        this.manifestFile = new GenericManifestFile(
+            toCopy.path(), toCopy.length(), toCopy.partitionSpecId(), toCopy.snapshotId(),
+            toCopy.addedFilesCount(), toCopy.addedRowsCount(), toCopy.existingFilesCount(),
+            toCopy.existingRowsCount(), toCopy.deletedFilesCount(), toCopy.deletedRowsCount(),
+            copyList(toCopy.partitions(), PartitionFieldSummary::copy));
+      }
+    }
+
+    public CopyBuilder withSnapshotId(Long newSnapshotId) {
+      manifestFile.snapshotId = newSnapshotId;
+      return this;
+    }
+
+    public ManifestFile build() {
+      return manifestFile;
+    }
+  }
+
+  private static <E, R> List<R> copyList(List<E> list, Function<E, R> transform) {
+    if (list != null) {
+      List<R> copy = Lists.newArrayListWithExpectedSize(list.size());
+      for (E element : list) {
+        copy.add(transform.apply(element));
+      }
+      return Collections.unmodifiableList(copy);
+    }
+    return null;
   }
 }

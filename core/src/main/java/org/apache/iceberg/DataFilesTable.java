@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import java.util.Collection;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
@@ -107,71 +106,38 @@ public class DataFilesTable extends BaseMetadataTable {
     @Override
     protected CloseableIterable<FileScanTask> planFiles(
         TableOperations ops, Snapshot snapshot, Expression rowFilter, boolean caseSensitive, boolean colStats) {
-      CloseableIterable<ManifestFile> manifests = Avro
-          .read(ops.io().newInputFile(snapshot.manifestListLocation()))
-          .rename("manifest_file", GenericManifestFile.class.getName())
-          .rename("partitions", GenericPartitionFieldSummary.class.getName())
-          // 508 is the id used for the partition field, and r508 is the record name created for it in Avro schemas
-          .rename("r508", GenericPartitionFieldSummary.class.getName())
-          .project(ManifestFile.schema())
-          .reuseContainers(false)
-          .build();
-
+      CloseableIterable<ManifestFile> manifests = CloseableIterable.withNoopClose(snapshot.manifests());
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
+      ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(rowFilter);
 
       // Data tasks produce the table schema, not the projection schema and projection is done by processing engines.
       // This data task needs to use the table schema, which may not include a partition schema to avoid having an
       // empty struct in the schema for unpartitioned tables. Some engines, like Spark, can't handle empty structs in
       // all cases.
       return CloseableIterable.transform(manifests, manifest ->
-          new ManifestReadTask(ops.io(), new BaseFileScanTask(
-              DataFiles.fromManifest(manifest), schemaString, specString, ResidualEvaluator.unpartitioned(rowFilter)),
-              fileSchema));
+          new ManifestReadTask(ops.io(), manifest, fileSchema, schemaString, specString, residuals));
     }
   }
 
-  private static class ManifestReadTask implements DataTask {
+  static class ManifestReadTask extends BaseFileScanTask implements DataTask {
     private final FileIO io;
-    private final FileScanTask manifestTask;
+    private final ManifestFile manifest;
     private final Schema schema;
 
-    private ManifestReadTask(FileIO io, FileScanTask manifestTask, Schema schema) {
+    ManifestReadTask(FileIO io, ManifestFile manifest, Schema schema, String schemaString,
+                     String specString, ResidualEvaluator residuals) {
+      super(DataFiles.fromManifest(manifest), schemaString, specString, residuals);
       this.io = io;
-      this.manifestTask = manifestTask;
+      this.manifest = manifest;
       this.schema = schema;
     }
 
     @Override
     public CloseableIterable<StructLike> rows() {
       return CloseableIterable.transform(
-          ManifestReader.read(io.newInputFile(manifestTask.file().path().toString())).project(schema),
+          ManifestReader.read(manifest, io).project(schema),
           file -> (GenericDataFile) file);
-    }
-
-    @Override
-    public DataFile file() {
-      return manifestTask.file();
-    }
-
-    @Override
-    public PartitionSpec spec() {
-      return manifestTask.spec();
-    }
-
-    @Override
-    public long start() {
-      return 0;
-    }
-
-    @Override
-    public long length() {
-      return manifestTask.length();
-    }
-
-    @Override
-    public Expression residual() {
-      return manifestTask.residual();
     }
 
     @Override

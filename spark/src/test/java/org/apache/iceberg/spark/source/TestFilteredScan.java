@@ -56,6 +56,7 @@ import org.apache.spark.sql.sources.And;
 import org.apache.spark.sql.sources.EqualTo;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.GreaterThan;
+import org.apache.spark.sql.sources.In;
 import org.apache.spark.sql.sources.LessThan;
 import org.apache.spark.sql.sources.StringStartsWith;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
@@ -423,6 +424,42 @@ public class TestFilteredScan {
               "ts < cast('2017-12-22 08:00:00+00:00' as timestamp)",
           "id"));
     }
+  }
+
+  @Test
+  public void testInFilter() {
+    File location = buildPartitionedTable("partitioned_by_data", PARTITION_BY_DATA, "data_ident", "data");
+
+    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
+        "path", location.toString())
+    );
+
+    IcebergSource source = new IcebergSource();
+    DataSourceReader reader = source.createReader(options);
+    pushFilters(reader, new In("data", new String[]{"foo", "junction", "brush", null}));
+
+    Assert.assertEquals(2, reader.planInputPartitions().size());
+  }
+
+  @Test
+  public void testInFilterForTimestamp() {
+    File location = buildPartitionedTable("partitioned_by_hour", PARTITION_BY_HOUR, "ts_hour", "ts");
+
+    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
+        "path", location.toString())
+    );
+
+    IcebergSource source = new IcebergSource();
+    DataSourceReader reader = source.createReader(options);
+    pushFilters(reader, new In("ts", new Timestamp[]{
+        new Timestamp(timestamp("2017-12-22T00:00:00.123+00:00") / 1000),
+        new Timestamp(timestamp("2017-12-22T09:20:44.294+00:00") / 1000),
+        new Timestamp(timestamp("2017-12-22T00:34:00.184+00:00") / 1000),
+        new Timestamp(timestamp("2017-12-21T15:15:16.230+00:00") / 1000),
+        null
+    }));
+
+    Assert.assertEquals("Should create 1 task for 2017-12-21: 15", 1, reader.planInputPartitions().size());
   }
 
   @Test

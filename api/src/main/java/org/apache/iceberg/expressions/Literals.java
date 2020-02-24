@@ -299,6 +299,13 @@ class Literals {
           return (Literal<T>) new TimeLiteral(value());
         case TIMESTAMP:
           return (Literal<T>) new TimestampLiteral(value());
+        case DATE:
+          if ((long) Integer.MAX_VALUE < value()) {
+            return aboveMax();
+          } else if ((long) Integer.MIN_VALUE > value()) {
+            return belowMin();
+          }
+          return (Literal<T>) new DateLiteral(value().intValue());
         case DECIMAL:
           int scale = ((Types.DecimalType) type).scale();
           // rounding mode isn't necessary, but pass one to avoid warnings

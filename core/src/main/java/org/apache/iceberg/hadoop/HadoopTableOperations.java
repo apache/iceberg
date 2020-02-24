@@ -36,6 +36,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -92,16 +93,13 @@ public class HadoopTableOperations implements TableOperations {
         nextMetadataFile = getMetadataFile(ver + 1);
       }
 
-      this.version = ver;
+      // only load if the current version is out of date
+      if (version == null || version != ver) {
+        this.version = ver;
 
-      TableMetadata newMetadata = TableMetadataParser.read(io(), io().newInputFile(metadataFile.toString()));
-      String newUUID = newMetadata.uuid();
-      if (currentMetadata != null) {
-        Preconditions.checkState(newUUID == null || newUUID.equals(currentMetadata.uuid()),
-            "Table UUID does not match: current=%s != refreshed=%s", currentMetadata.uuid(), newUUID);
+        this.currentMetadata = checkUUID(currentMetadata, TableMetadataParser.read(io(), metadataFile.toString()));
       }
 
-      this.currentMetadata = newMetadata;
       this.shouldRefresh = false;
       return currentMetadata;
     } catch (IOException e) {
@@ -174,6 +172,51 @@ public class HadoopTableOperations implements TableOperations {
   @Override
   public String metadataFileLocation(String fileName) {
     return metadataPath(fileName).toString();
+  }
+
+  @Override
+  public TableOperations temp(TableMetadata uncommittedMetadata) {
+    return new TableOperations() {
+      @Override
+      public TableMetadata current() {
+        return uncommittedMetadata;
+      }
+
+      @Override
+      public TableMetadata refresh() {
+        throw new UnsupportedOperationException("Cannot call refresh on temporary table operations");
+      }
+
+      @Override
+      public void commit(TableMetadata base, TableMetadata metadata) {
+        throw new UnsupportedOperationException("Cannot call commit on temporary table operations");
+      }
+
+      @Override
+      public String metadataFileLocation(String fileName) {
+        return HadoopTableOperations.this.metadataFileLocation(fileName);
+      }
+
+      @Override
+      public LocationProvider locationProvider() {
+        return LocationProviders.locationsFor(uncommittedMetadata.location(), uncommittedMetadata.properties());
+      }
+
+      @Override
+      public FileIO io() {
+        return HadoopTableOperations.this.io();
+      }
+
+      @Override
+      public EncryptionManager encryption() {
+        return HadoopTableOperations.this.encryption();
+      }
+
+      @Override
+      public long newSnapshotId() {
+        return HadoopTableOperations.this.newSnapshotId();
+      }
+    };
   }
 
   private Path getMetadataFile(int metadataVersion) throws IOException {
@@ -316,5 +359,14 @@ public class HadoopTableOperations implements TableOperations {
               LOG.warn("Delete failed for previous metadata file: {}", previousMetadataFile, exc))
           .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
     }
+  }
+
+  private static TableMetadata checkUUID(TableMetadata currentMetadata, TableMetadata newMetadata) {
+    String newUUID = newMetadata.uuid();
+    if (currentMetadata != null && currentMetadata.uuid() != null && newUUID != null) {
+      Preconditions.checkState(newUUID.equals(currentMetadata.uuid()),
+          "Table UUID does not match: current=%s != refreshed=%s", currentMetadata.uuid(), newUUID);
+    }
+    return newMetadata;
   }
 }

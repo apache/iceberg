@@ -308,8 +308,11 @@ Manifest list files store `manifest_file`, a struct with the following fields:
 | **`503 added_snapshot_id`**    | `long`                                 | ID of the snapshot where the  manifest file was added                                                                                                |
 | **`504 added_files_count`**    | `int`                                  | Number of entries in the manifest that have status `ADDED` (1)                                                                                       |
 | **`505 existing_files_count`** | `int`                                  | Number of entries in the manifest that have status `EXISTING` (0)                                                                                    |
-| **`506 deleted_files_count`**  | `int`                                  | Number of entries in the manifest that have status `DELETED` (2)                                                                                       |
+| **`506 deleted_files_count`**  | `int`                                  | Number of entries in the manifest that have status `DELETED` (2)                                                                                     |
 | **`507 partitions`**           | `list<508: field_summary>` (see below) | A list of field summaries for each partition field in the spec. Each field in the list corresponds to a field in the manifest file’s partition spec. |
+| **`512 added_rows_count`**     | `long`                                 | Number of rows in all of files in the manifest that have status `ADDED`                                                                              |
+| **`513 existing_rows_count`**  | `long`                                 | Number of rows in all of files in the manifest that have status `EXISTING`                                                                           |
+| **`514 deleted_rows_count`**   | `long`                                 | Number of rows in all of files in the manifest that have status `DELETED`                                                                            |
 
 `field_summary` is a struct with the following fields
 

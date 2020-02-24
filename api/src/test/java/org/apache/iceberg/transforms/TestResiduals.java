@@ -25,6 +25,8 @@ import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.expressions.Predicate;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Types;
@@ -39,7 +41,9 @@ import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
+import static org.apache.iceberg.expressions.Expressions.in;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.or;
 
 public class TestResiduals {
@@ -147,7 +151,9 @@ public class TestResiduals {
         Expressions.lessThan("a", 5),
         Expressions.greaterThanOrEqual("b", 16),
         Expressions.notNull("c"),
-        Expressions.isNull("d")
+        Expressions.isNull("d"),
+        Expressions.in("e", 1, 2, 3),
+        Expressions.notIn("f", 1, 2, 3)
     };
 
     for (Expression expr : expressions) {
@@ -155,5 +161,107 @@ public class TestResiduals {
       Assert.assertEquals("Should return expression",
           expr, residualEvaluator.residualFor(Row.of()));
     }
+  }
+
+  @Test
+  public void testIn() {
+    Schema schema = new Schema(
+        Types.NestedField.optional(50, "dateint", Types.IntegerType.get()),
+        Types.NestedField.optional(51, "hour", Types.IntegerType.get())
+    );
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .identity("dateint")
+        .build();
+
+    ResidualEvaluator resEval = ResidualEvaluator.of(spec,
+        in("dateint", 20170815, 20170816, 20170817), true);
+
+    Expression residual = resEval.residualFor(Row.of(20170815));
+    Assert.assertEquals("Residual should be alwaysTrue", alwaysTrue(), residual);
+
+    residual = resEval.residualFor(Row.of(20180815));
+    Assert.assertEquals("Residual should be alwaysFalse", alwaysFalse(), residual);
+  }
+
+  @Test
+  public void testInTimestamp() {
+    Schema schema = new Schema(
+        Types.NestedField.optional(50, "ts", Types.TimestampType.withoutZone()),
+        Types.NestedField.optional(51, "dateint", Types.IntegerType.get())
+    );
+
+    Long date20191201 = (Long) Literal.of("2019-12-01T00:00:00.00000")
+        .to(Types.TimestampType.withoutZone()).value();
+    Long date20191202 = (Long) Literal.of("2019-12-02T00:00:00.00000")
+        .to(Types.TimestampType.withoutZone()).value();
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .day("ts")
+        .build();
+
+    Transform day = spec.getFieldsBySourceId(50).get(0).transform();
+    Integer tsDay = (Integer) day.apply(date20191201);
+
+    Predicate pred = in("ts", date20191201, date20191202);
+    ResidualEvaluator resEval = ResidualEvaluator.of(spec,
+        pred, true);
+
+    Expression residual = resEval.residualFor(Row.of(tsDay));
+    Assert.assertEquals("Residual should be the original in predicate", pred, residual);
+
+    residual = resEval.residualFor(Row.of(tsDay + 3));
+    Assert.assertEquals("Residual should be alwaysFalse", alwaysFalse(), residual);
+  }
+
+  @Test
+  public void testNotIn() {
+    Schema schema = new Schema(
+        Types.NestedField.optional(50, "dateint", Types.IntegerType.get()),
+        Types.NestedField.optional(51, "hour", Types.IntegerType.get())
+    );
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .identity("dateint")
+        .build();
+
+    ResidualEvaluator resEval = ResidualEvaluator.of(spec,
+        notIn("dateint", 20170815, 20170816, 20170817), true);
+
+    Expression residual = resEval.residualFor(Row.of(20180815));
+    Assert.assertEquals("Residual should be alwaysTrue", alwaysTrue(), residual);
+
+    residual = resEval.residualFor(Row.of(20170815));
+    Assert.assertEquals("Residual should be alwaysFalse", alwaysFalse(), residual);
+  }
+
+  @Test
+  public void testNotInTimestamp() {
+    Schema schema = new Schema(
+        Types.NestedField.optional(50, "ts", Types.TimestampType.withoutZone()),
+        Types.NestedField.optional(51, "dateint", Types.IntegerType.get())
+    );
+
+    Long date20191201 = (Long) Literal.of("2019-12-01T00:00:00.00000")
+        .to(Types.TimestampType.withoutZone()).value();
+    Long date20191202 = (Long) Literal.of("2019-12-02T00:00:00.00000")
+        .to(Types.TimestampType.withoutZone()).value();
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .day("ts")
+        .build();
+
+    Transform day = spec.getFieldsBySourceId(50).get(0).transform();
+    Integer tsDay = (Integer) day.apply(date20191201);
+
+    Predicate pred = notIn("ts", date20191201, date20191202);
+    ResidualEvaluator resEval = ResidualEvaluator.of(spec,
+        pred, true);
+
+    Expression residual = resEval.residualFor(Row.of(tsDay));
+    Assert.assertEquals("Residual should be the original notIn predicate", pred, residual);
+
+    residual = resEval.residualFor(Row.of(tsDay + 3));
+    Assert.assertEquals("Residual should be alwaysTrue", alwaysTrue(), residual);
   }
 }

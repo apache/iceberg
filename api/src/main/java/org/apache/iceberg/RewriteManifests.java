@@ -71,6 +71,17 @@ public interface RewriteManifests extends SnapshotUpdate<RewriteManifests> {
   /**
    * Adds a {@link ManifestFile manifest file} to the table. The added manifest cannot contain new
    * or deleted files.
+   * <p>
+   * By default, the manifest will be rewritten to ensure all entries have explicit snapshot IDs.
+   * In that case, it is always the responsibility of the caller to manage the lifecycle of
+   * the original manifest.
+   * <p>
+   * If manifest entries are allowed to inherit the snapshot ID assigned on commit, the manifest
+   * should never be deleted manually if the commit succeeds as it will become part of the table
+   * metadata and will be cleaned up on expiry. If the manifest gets merged with others while
+   * preparing a new snapshot, it will be deleted automatically if this operation is successful.
+   * If the commit fails, the manifest will never be deleted and it is up to the caller whether
+   * to delete or reuse it.
    *
    * @param manifest a manifest to add
    * @return this for method chaining

@@ -91,7 +91,10 @@ public class JsonUtil {
       return null;
     }
     JsonNode pNode = node.get(property);
-    Preconditions.checkArgument(pNode != null && !pNode.isNull() && pNode.isTextual(),
+    if (pNode != null && pNode.isNull()) {
+      return null;
+    }
+    Preconditions.checkArgument(pNode != null && pNode.isTextual(),
         "Cannot parse %s from non-string value: %s", property, pNode);
     return pNode.asText();
   }

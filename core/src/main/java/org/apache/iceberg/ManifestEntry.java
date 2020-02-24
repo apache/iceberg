@@ -28,6 +28,7 @@ import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.StructType;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
@@ -49,7 +50,7 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
 
   private final org.apache.avro.Schema schema;
   private Status status = Status.EXISTING;
-  private long snapshotId = 0L;
+  private Long snapshotId = null;
   private DataFile file = null;
 
   ManifestEntry(org.apache.avro.Schema schema) {
@@ -71,21 +72,21 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
     }
   }
 
-  ManifestEntry wrapExisting(long newSnapshotId, DataFile newFile) {
+  ManifestEntry wrapExisting(Long newSnapshotId, DataFile newFile) {
     this.status = Status.EXISTING;
     this.snapshotId = newSnapshotId;
     this.file = newFile;
     return this;
   }
 
-  ManifestEntry wrapAppend(long newSnapshotId, DataFile newFile) {
+  ManifestEntry wrapAppend(Long newSnapshotId, DataFile newFile) {
     this.status = Status.ADDED;
     this.snapshotId = newSnapshotId;
     this.file = newFile;
     return this;
   }
 
-  ManifestEntry wrapDelete(long newSnapshotId, DataFile newFile) {
+  ManifestEntry wrapDelete(Long newSnapshotId, DataFile newFile) {
     this.status = Status.DELETED;
     this.snapshotId = newSnapshotId;
     this.file = newFile;
@@ -102,7 +103,7 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
   /**
    * @return id of the snapshot in which the file was added to the table
    */
-  public long snapshotId() {
+  public Long snapshotId() {
     return snapshotId;
   }
 
@@ -119,6 +120,10 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
 
   public ManifestEntry copyWithoutStats() {
     return new ManifestEntry(this, false /* drop stats */);
+  }
+
+  public void setSnapshotId(Long snapshotId) {
+    this.snapshotId = snapshotId;
   }
 
   @Override
@@ -170,7 +175,7 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
     // ids for top-level columns are assigned from 1000
     return new Schema(
         required(0, "status", IntegerType.get()),
-        required(1, "snapshot_id", LongType.get()),
+        optional(1, "snapshot_id", LongType.get()),
         required(2, "data_file", fileStruct));
   }
 

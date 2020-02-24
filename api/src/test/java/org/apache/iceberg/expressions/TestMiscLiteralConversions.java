@@ -121,7 +121,6 @@ public class TestMiscLiteralConversions {
   public void testInvalidLongConversions() {
     testInvalidConversions(Literal.of(34L),
         Types.BooleanType.get(),
-        Types.DateType.get(),
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),

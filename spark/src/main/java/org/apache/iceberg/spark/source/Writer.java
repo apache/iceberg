@@ -40,6 +40,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -152,7 +153,7 @@ class Writer implements DataSourceWriter {
     if (isWapTable() && wapId != null) {
       // write-audit-publish is enabled for this table and job
       // stage the changes without changing the current snapshot
-      operation.set("wap.id", wapId);
+      operation.set(SnapshotSummary.STAGED_WAP_ID_PROP, wapId);
       operation.stageOnly();
     }
 
@@ -281,7 +282,7 @@ class Writer implements DataSourceWriter {
       if (spec.fields().isEmpty()) {
         return new UnpartitionedWriter(spec, format, appenderFactory, fileFactory, io.value(), targetFileSize);
       } else {
-        return new PartitionedWriter(spec, format, appenderFactory, fileFactory, io.value(), targetFileSize);
+        return new PartitionedWriter(spec, format, appenderFactory, fileFactory, io.value(), targetFileSize, dsSchema);
       }
     }
 
@@ -489,10 +490,10 @@ class Writer implements DataSourceWriter {
         AppenderFactory<InternalRow> appenderFactory,
         WriterFactory.OutputFileFactory fileFactory,
         FileIO fileIo,
-        long targetFileSize) {
+        long targetFileSize,
+        Schema writeSchema) {
       super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize);
-
-      this.key = new PartitionKey(spec);
+      this.key = new PartitionKey(spec, writeSchema);
     }
 
     @Override

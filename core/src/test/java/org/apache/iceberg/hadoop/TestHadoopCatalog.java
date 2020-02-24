@@ -21,6 +21,7 @@ package org.apache.iceberg.hadoop;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
@@ -28,6 +29,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NotFoundException;
@@ -110,5 +112,20 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
         "Unknown namespace", () -> {
         catalog.listTables(Namespace.of("db", "ns1", "ns2"));
       });
+  }
+
+  @Test
+  public void testCallingLocationProviderWhenNoCurrentMetadata() throws IOException {
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+
+    TableIdentifier tableIdent = TableIdentifier.of("ns1", "ns2", "table1");
+    Transaction create = catalog.newCreateTableTransaction(tableIdent, SCHEMA);
+    create.table().locationProvider();  // NPE triggered if not handled appropriately
+    create.commitTransaction();
+
+    Assert.assertEquals("1 table expected", 1, catalog.listTables(Namespace.of("ns1", "ns2")).size());
+    catalog.dropTable(tableIdent, true);
   }
 }

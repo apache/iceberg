@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import com.google.common.base.Preconditions;
 import org.apache.iceberg.exceptions.CommitFailedException;
 
 /**
@@ -49,6 +50,11 @@ class MergeAppend extends MergingSnapshotProducer<AppendFiles> implements Append
 
   @Override
   public AppendFiles appendManifest(ManifestFile manifest) {
+    Preconditions.checkArgument(!manifest.hasExistingFiles(), "Cannot append manifest with existing files");
+    Preconditions.checkArgument(!manifest.hasDeletedFiles(), "Cannot append manifest with deleted files");
+    Preconditions.checkArgument(
+        manifest.snapshotId() == null || manifest.snapshotId() == -1,
+        "Snapshot id must be assigned during commit");
     add(manifest);
     return this;
   }

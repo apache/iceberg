@@ -134,13 +134,24 @@ class ManifestGroup {
    * @return a {@link CloseableIterable} of {@link FileScanTask}
    */
   public CloseableIterable<FileScanTask> planFiles() {
+    LoadingCache<Integer, ResidualEvaluator> residualCache = Caffeine.newBuilder().build(specId -> {
+      PartitionSpec spec = specsById.get(specId);
+      return ResidualEvaluator.of(spec, dataFilter, caseSensitive);
+    });
+    boolean dropStats = FilteredManifest.dropStats(dataFilter, columns);
     Iterable<CloseableIterable<FileScanTask>> tasks = entries((manifest, entries) -> {
-      PartitionSpec spec = specsById.get(manifest.partitionSpecId());
+      int partitionSpecId = manifest.partitionSpecId();
+      PartitionSpec spec = specsById.get(partitionSpecId);
       String schemaString = SchemaParser.toJson(spec.schema());
       String specString = PartitionSpecParser.toJson(spec);
-      ResidualEvaluator residuals = ResidualEvaluator.of(spec, dataFilter, caseSensitive);
-      return CloseableIterable.transform(entries, e -> new BaseFileScanTask(
-          e.copy().file(), schemaString, specString, residuals));
+      ResidualEvaluator residuals = residualCache.get(partitionSpecId);
+      if (dropStats) {
+        return CloseableIterable.transform(entries, e -> new BaseFileScanTask(
+            e.file().copyWithoutStats(), schemaString, specString, residuals));
+      } else {
+        return CloseableIterable.transform(entries, e -> new BaseFileScanTask(
+            e.file().copy(), schemaString, specString, residuals));
+      }
     });
 
     if (executorService != null) {
@@ -198,9 +209,7 @@ class ManifestGroup {
     Iterable<CloseableIterable<T>> readers = Iterables.transform(
         matchingManifests,
         manifest -> {
-          ManifestReader reader = ManifestReader.read(
-              io.newInputFile(manifest.path()),
-              specsById);
+          ManifestReader reader = ManifestReader.read(manifest, io, specsById);
 
           FilteredManifest filtered = reader
               .filterRows(dataFilter)
