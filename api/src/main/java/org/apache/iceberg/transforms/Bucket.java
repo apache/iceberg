@@ -241,25 +241,6 @@ abstract class Bucket<T> implements Transform<T, Integer> {
     }
   }
 
-  private static class BucketBytes extends Bucket<byte[]> {
-    private static final Set<TypeID> SUPPORTED_TYPES = Sets.newHashSet(
-        TypeID.BINARY, TypeID.FIXED);
-
-    private BucketBytes(int numBuckets) {
-      super(numBuckets);
-    }
-
-    @Override
-    public int hash(byte[] value) {
-      return MURMUR3.hashBytes(value).asInt();
-    }
-
-    @Override
-    public boolean canTransform(Type type) {
-      return SUPPORTED_TYPES.contains(type.typeId());
-    }
-  }
-
   private static class BucketByteBuffer extends Bucket<ByteBuffer> {
     private static final Set<TypeID> SUPPORTED_TYPES = Sets.newHashSet(
         TypeID.BINARY, TypeID.FIXED);

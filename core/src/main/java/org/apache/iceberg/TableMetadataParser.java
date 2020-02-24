@@ -30,6 +30,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
@@ -112,7 +113,8 @@ public class TableMetadataParser {
       TableMetadata metadata, OutputFile outputFile, boolean overwrite) {
     boolean isGzip = Codec.fromFileName(outputFile.location()) == Codec.GZIP;
     OutputStream stream = overwrite ? outputFile.createOrOverwrite() : outputFile.create();
-    try (OutputStreamWriter writer = new OutputStreamWriter(isGzip ? new GZIPOutputStream(stream) : stream)) {
+    try (OutputStreamWriter writer = new OutputStreamWriter(
+        isGzip ? new GZIPOutputStream(stream) : stream, StandardCharsets.UTF_8)) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
       generator.useDefaultPrettyPrinter();
       toJson(metadata, generator);
