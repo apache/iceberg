@@ -373,8 +373,8 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
         // make sure the child is big enough
         cv.child.ensureSize(cv.childCount, true);
         // Add each element
-        for (long e = 0; e < cv.lengths[rowId]; ++e) {
-          children.addValue((int) (e + cv.offsets[rowId]), value.get((int) e), cv.child);
+        for (int e = 0; e < cv.lengths[rowId]; ++e) {
+          children.addValue((int) (e + cv.offsets[rowId]), value.get(e), cv.child);
         }
       }
     }
@@ -418,10 +418,10 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
         cv.keys.ensureSize(cv.childCount, true);
         cv.values.ensureSize(cv.childCount, true);
         // Add each element
-        for (long e = 0; e < cv.lengths[rowId]; ++e) {
+        for (int e = 0; e < cv.lengths[rowId]; ++e) {
           int pos = (int) (e + cv.offsets[rowId]);
-          keyConverter.addValue(pos, keys.get((int) e), cv.keys);
-          valueConverter.addValue(pos, values.get((int) e), cv.values);
+          keyConverter.addValue(pos, keys.get(e), cv.keys);
+          valueConverter.addValue(pos, values.get(e), cv.values);
         }
       }
     }
