@@ -255,6 +255,7 @@ public class VectorizedReading {
           .project(readSchema)
           .split(task.start(), task.length())
           .enableBatchedRead()
+          .reuseContainers()
           .createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(tableSchema, readSchema,
               fileSchema, numRecordsPerBatch))
           .filter(task.residual())
