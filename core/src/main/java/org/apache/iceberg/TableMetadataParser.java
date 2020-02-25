@@ -138,15 +138,14 @@ public class TableMetadataParser {
   }
 
   public static String toJson(TableMetadata metadata) {
-    StringWriter writer = new StringWriter();
-    try {
+    try (StringWriter writer = new StringWriter()) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
       toJson(metadata, generator);
       generator.flush();
+      return writer.toString();
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to write json for: %s", metadata);
     }
-    return writer.toString();
   }
 
   private static void toJson(TableMetadata metadata, JsonGenerator generator) throws IOException {
