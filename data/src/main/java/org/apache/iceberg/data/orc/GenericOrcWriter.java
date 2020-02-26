@@ -393,7 +393,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       } else {
         output.isNull[rowId] = false;
         ((DecimalColumnVector) output).vector[rowId]
-            .setFromLongAndScale(data.longValueExact(), scale);
+            .setFromLongAndScale(data.unscaledValue().longValueExact(), scale);
       }
     }
   }
@@ -579,11 +579,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       case VARCHAR:
         return new StringConverter();
       case DECIMAL:
-        // TODO: Figure out the right cases in which to use the fastpath Decimal18Converter
-        // The condition of precision <= 18 is insufficient and leads to rounding errors
-        //    return schema.getPrecision() <= 18 ?
-        //        new Decimal18Converter(schema) :
-        return new Decimal38Converter(schema);
+        return schema.getPrecision() <= 18 ? new Decimal18Converter(schema) : new Decimal38Converter(schema);
       case TIMESTAMP:
         return new TimestampConverter();
       case TIMESTAMP_INSTANT:
