@@ -23,13 +23,11 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
-import org.apache.orc.OrcFile;
 import org.apache.orc.Reader;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
@@ -59,7 +57,8 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   @SuppressWarnings("unchecked")
   @Override
   public Iterator<T> iterator() {
-    Reader orcFileReader = newFileReader(file, config);
+    Reader orcFileReader = ORC.newFileReader(file, config);
+    addCloseable(orcFileReader);
     TypeDescription readOrcSchema = ORCSchemaUtil.buildOrcProjection(schema, orcFileReader.getSchema());
 
     return new OrcIterator(
@@ -81,15 +80,6 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
       return new VectorizedRowBatchIterator(file.location(), readerSchema, orcFileReader.rows(options));
     } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to get ORC rows for file: %s", file);
-    }
-  }
-
-  private static Reader newFileReader(InputFile file, Configuration config) {
-    try {
-      return OrcFile.createReader(new Path(file.location()),
-          OrcFile.readerOptions(config));
-    } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Failed to open file: %s", file);
     }
   }
 

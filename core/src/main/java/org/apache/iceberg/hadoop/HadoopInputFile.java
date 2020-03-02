@@ -161,6 +161,10 @@ public class HadoopInputFile implements InputFile {
     return conf;
   }
 
+  public FileSystem getFileSystem() {
+    return fs;
+  }
+
   public FileStatus getStat() {
     return lazyStat();
   }
