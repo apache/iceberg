@@ -32,9 +32,9 @@ import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.parquet.ValuesAsBytesReader;
 import org.apache.parquet.column.Dictionary;
 
-public final class VectorizedParquetValuesReader extends BaseVectorizedParquetValuesReader {
+public final class VectorizedParquetDefinitionLevelReader extends BaseVectorizedParquetValuesReader {
 
-  public VectorizedParquetValuesReader(int bitWidth, int maxDefLevel, boolean setArrowValidityVector) {
+  public VectorizedParquetDefinitionLevelReader(int bitWidth, int maxDefLevel, boolean setArrowValidityVector) {
     super(bitWidth, maxDefLevel, setArrowValidityVector);
   }
 

@@ -57,6 +57,7 @@ import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.io.ParquetDecodingException;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
 
 public class ParquetUtil {
   // not meant to be instantiated
@@ -272,4 +273,18 @@ public class ParquetUtil {
     }
     return null;
   }
+
+  public static boolean isIntType(PrimitiveType primitiveType) {
+    if (primitiveType.getOriginalType() != null) {
+      switch(primitiveType.getOriginalType()) {
+        case INT_8:
+        case INT_16:
+        case INT_32:
+          return true;
+        default:
+          return false;
+      }
+    }
+    return primitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32;
+   }
 }

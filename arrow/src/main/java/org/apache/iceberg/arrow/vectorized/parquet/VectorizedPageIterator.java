@@ -26,6 +26,7 @@ import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.parquet.BasePageIterator;
+import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.ValuesAsBytesReader;
 import org.apache.parquet.CorruptDeltaByteArrays;
 import org.apache.parquet.bytes.ByteBufferInputStream;
@@ -37,6 +38,7 @@ import org.apache.parquet.column.page.DataPageV2;
 import org.apache.parquet.column.values.RequiresPreviousReader;
 import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.io.ParquetDecodingException;
+import org.apache.parquet.schema.PrimitiveType;
 
 public class VectorizedPageIterator extends BasePageIterator {
   private final boolean setArrowValidityVector;
@@ -50,7 +52,7 @@ public class VectorizedPageIterator extends BasePageIterator {
   private ValuesAsBytesReader plainValuesReader = null;
   private VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader = null;
   private boolean allPagesDictEncoded;
-  private VectorizedParquetValuesReader vectorizedDefinitionLevelReader;
+  private VectorizedParquetDefinitionLevelReader vectorizedDefinitionLevelReader;
 
   public void setAllPagesDictEncoded(boolean allDictEncoded) {
     this.allPagesDictEncoded = allDictEncoded;
@@ -425,7 +427,8 @@ public class VectorizedPageIterator extends BasePageIterator {
   @Override
   protected void initDataReader(Encoding dataEncoding, ByteBufferInputStream in, int valueCount) {
     ValuesReader previousReader = plainValuesReader;
-    this.eagerDecodeDictionary = dataEncoding.usesDictionary() && dictionary != null && !allPagesDictEncoded;
+    this.eagerDecodeDictionary = dataEncoding.usesDictionary() && dictionary != null &&
+        (ParquetUtil.isIntType(desc.getPrimitiveType()) || !allPagesDictEncoded);
     if (dataEncoding.usesDictionary()) {
       if (dictionary == null) {
         throw new ParquetDecodingException(
@@ -461,9 +464,9 @@ public class VectorizedPageIterator extends BasePageIterator {
     this.vectorizedDefinitionLevelReader = newVectorizedDefinitionLevelReader(desc);
   }
 
-  private VectorizedParquetValuesReader newVectorizedDefinitionLevelReader(ColumnDescriptor desc) {
+  private VectorizedParquetDefinitionLevelReader newVectorizedDefinitionLevelReader(ColumnDescriptor desc) {
     int bitwidth = BytesUtils.getWidthFromMaxInt(desc.getMaxDefinitionLevel());
-    return new VectorizedParquetValuesReader(bitwidth, desc.getMaxDefinitionLevel(), setArrowValidityVector);
+    return new VectorizedParquetDefinitionLevelReader(bitwidth, desc.getMaxDefinitionLevel(), setArrowValidityVector);
   }
 
 }

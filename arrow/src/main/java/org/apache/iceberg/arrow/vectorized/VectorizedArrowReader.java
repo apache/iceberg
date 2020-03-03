@@ -173,7 +173,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       PrimitiveType primitive = columnDescriptor.getPrimitiveType();
       Field arrowField = ArrowSchemaUtil.convert(icebergField);
       if (primitive.getOriginalType() != null) {
-        switch (columnDescriptor.getPrimitiveType().getOriginalType()) {
+        switch (primitive.getOriginalType()) {
           case ENUM:
           case JSON:
           case UTF8:

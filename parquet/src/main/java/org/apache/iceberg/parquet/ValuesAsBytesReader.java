@@ -114,6 +114,5 @@ public class ValuesAsBytesReader extends ValuesReader {
       throw new ParquetDecodingException("Failed to read a byte", e);
     }
   }
-
 }
 
