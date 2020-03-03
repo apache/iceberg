@@ -38,7 +38,6 @@ import org.apache.parquet.column.page.DataPageV2;
 import org.apache.parquet.column.values.RequiresPreviousReader;
 import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.io.ParquetDecodingException;
-import org.apache.parquet.schema.PrimitiveType;
 
 public class VectorizedPageIterator extends BasePageIterator {
   private final boolean setArrowValidityVector;
