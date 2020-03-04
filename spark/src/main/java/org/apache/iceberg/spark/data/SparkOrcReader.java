@@ -56,10 +56,12 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
   private static final int INITIAL_SIZE = 128 * 1024;
   private final List<TypeDescription> columns;
   private final Converter[] converters;
+  private final UnsafeRowWriter rowWriter;
 
   public SparkOrcReader(TypeDescription readOrcSchema) {
     columns = readOrcSchema.getChildren();
     converters = buildConverters();
+    rowWriter = new UnsafeRowWriter(columns.size(), INITIAL_SIZE);
   }
 
   private Converter[] buildConverters() {
@@ -72,7 +74,6 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
 
   @Override
   public InternalRow read(VectorizedRowBatch batch, int row) {
-    final UnsafeRowWriter rowWriter = new UnsafeRowWriter(columns.size(), INITIAL_SIZE);
     rowWriter.reset();
     rowWriter.zeroOutNullBytes();
     for (int c = 0; c < batch.cols.length; ++c) {
