@@ -27,6 +27,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.Dataset;
@@ -92,13 +93,22 @@ public abstract class IcebergSourceBenchmark {
     }
   }
 
-  protected void setupSpark() {
-    spark = SparkSession.builder()
-        .config("spark.ui.enabled", false)
-        .master("local")
-        .getOrCreate();
+  protected void setupSpark(boolean enableDictionaryEncoding) {
+    SparkSession.Builder builder = SparkSession.builder()
+            .config("spark.ui.enabled", false);
+    if (!enableDictionaryEncoding) {
+      builder.config("parquet.dictionary.page.size", "1")
+              .config("parquet.enable.dictionary", false)
+              .config(TableProperties.PARQUET_DICT_SIZE_BYTES, "1");
+    }
+    builder.master("local");
+    spark = builder.getOrCreate();
     Configuration sparkHadoopConf = spark.sessionState().newHadoopConf();
     hadoopConf.forEach(entry -> sparkHadoopConf.set(entry.getKey(), entry.getValue()));
+  }
+
+  protected void setupSpark() {
+    setupSpark(false);
   }
 
   protected void tearDownSpark() {

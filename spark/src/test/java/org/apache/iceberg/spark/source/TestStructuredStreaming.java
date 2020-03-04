@@ -69,6 +69,9 @@ public class TestStructuredStreaming {
         .master("local[2]")
         .config("spark.sql.shuffle.partitions", 4)
         .getOrCreate();
+    // Set arrow flags
+    System.setProperty("arrow.enable_unsafe_memory_access", "true");
+    System.setProperty("arrow.enable_null_check_for_get", "false");
   }
 
   @AfterClass

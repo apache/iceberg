@@ -24,7 +24,7 @@ import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 
 /**
- * Container class for holding the Arrow vector holding a batch of values along with other state needed for reading
+ * Container class for holding the Arrow vector storing a batch of values along with other state needed for reading
  * values out of it.
  */
 public class VectorHolder {

@@ -36,6 +36,7 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.data.vectorized.IcebergArrowColumnVector;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.storage.serde2.io.DateWritable;
@@ -53,6 +54,8 @@ import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.vectorized.ColumnVector;
+import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.Assert;
 import scala.collection.Seq;
@@ -75,6 +78,48 @@ public class TestHelpers {
       Object actualValue = row.get(i);
 
       assertEqualsSafe(fieldType, expectedValue, actualValue);
+    }
+  }
+
+  public static void assertEqualsUnsafe(Types.StructType struct, List<Record> expected, ColumnarBatch batch) {
+    List<Types.NestedField> fields = struct.fields();
+    for (int r = 0; r < batch.numRows(); r++) {
+
+      Record expRec = expected.get(r);
+      InternalRow actualRow = batch.getRow(r);
+
+      for (int i = 0; i < fields.size(); i += 1) {
+
+        Type fieldType = fields.get(i).type();
+        Object expectedValue = expRec.get(i);
+        if (actualRow.isNullAt(i)) {
+          Assert.assertTrue("Expect null at " + r, expectedValue == null);
+        } else {
+          Object actualValue = actualRow.get(i, convert(fieldType));
+          assertEqualsUnsafe(fieldType, expectedValue, actualValue);
+        }
+      }
+    }
+  }
+
+  public static void assertArrowVectors(Types.StructType struct, List<Record> expected,
+                                        ColumnarBatch batch) {
+    List<Types.NestedField> fields = struct.fields();
+    for (int r = 0; r < batch.numRows(); r++) {
+      Record expRec = expected.get(r);
+      InternalRow actualRow = batch.getRow(r);
+      for (int i = 0; i < fields.size(); i += 1) {
+        ColumnVector vector = batch.column(i);
+        Assert.assertTrue(vector instanceof IcebergArrowColumnVector);
+        Type fieldType = fields.get(i).type();
+        Object expectedValue = expRec.get(i);
+        if (actualRow.isNullAt(i)) {
+          Assert.assertNull(expectedValue);
+        } else {
+          Object actualValue = actualRow.get(i, convert(fieldType));
+          assertEqualsUnsafe(fieldType, expectedValue, actualValue);
+        }
+      }
     }
   }
 
