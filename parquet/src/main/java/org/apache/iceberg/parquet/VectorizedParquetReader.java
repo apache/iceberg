@@ -144,6 +144,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
 
     @Override
     public void close() throws IOException {
+      model.close();
       reader.close();
     }
   }

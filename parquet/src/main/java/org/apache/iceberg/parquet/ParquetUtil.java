@@ -43,15 +43,21 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.BinaryUtil;
 import org.apache.iceberg.util.UnicodeUtil;
+import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.EncodingStats;
+import org.apache.parquet.column.page.DictionaryPage;
+import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
+import org.apache.parquet.io.ParquetDecodingException;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
 
 public class ParquetUtil {
   // not meant to be instantiated
@@ -254,5 +260,31 @@ public class ParquetUtil {
       // page encoding stats
       return true;
     }
+  }
+
+  public static Dictionary readDictionary(ColumnDescriptor desc, PageReader pageSource) {
+    DictionaryPage dictionaryPage = pageSource.readDictionaryPage();
+    if (dictionaryPage != null) {
+      try {
+        return dictionaryPage.getEncoding().initDictionary(desc, dictionaryPage);
+      } catch (IOException e) {
+        throw new ParquetDecodingException("could not decode the dictionary for " + desc, e);
+      }
+    }
+    return null;
+  }
+
+  public static boolean isIntType(PrimitiveType primitiveType) {
+    if (primitiveType.getOriginalType() != null) {
+      switch (primitiveType.getOriginalType()) {
+        case INT_8:
+        case INT_16:
+        case INT_32:
+          return true;
+        default:
+          return false;
+      }
+    }
+    return primitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32;
   }
 }
