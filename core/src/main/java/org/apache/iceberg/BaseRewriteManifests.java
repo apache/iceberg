@@ -348,7 +348,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
       return new ManifestWriter(spec, manifestPath(manifestSuffix.getAndIncrement()), snapshotId());
     }
 
-    void close() {
+    synchronized void close() {
       if (writer != null) {
         try {
           writer.close();
