@@ -114,7 +114,7 @@ public class ManifestsTable extends BaseMetadataTable {
 
     List<StaticDataTask.Row> rows = Lists.newArrayList();
 
-    for (int i = 0; i < spec.fields().size(); i += 1) {
+    for (int i = 0; i < summaries.size(); i += 1) {
       ManifestFile.PartitionFieldSummary summary = summaries.get(i);
       rows.add(StaticDataTask.Row.of(
           summary.containsNull(),
