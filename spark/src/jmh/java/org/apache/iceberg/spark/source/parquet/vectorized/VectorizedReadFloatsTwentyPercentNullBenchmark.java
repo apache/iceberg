@@ -33,7 +33,7 @@ public class VectorizedReadFloatsTwentyPercentNullBenchmark extends VectorizedRe
   protected void appendData() {
     for (int fileNum = 1; fileNum <= NUM_FILES; fileNum++) {
       Dataset<Row> df = spark().range(NUM_ROWS)
-          .withColumn("longCol", when(pmod(col("id"), lit(2)).equalTo(lit(0)), lit(null)).otherwise(col("id")))
+          .withColumn("longCol", when(pmod(col("id"), lit(5)).equalTo(lit(0)), lit(null)).otherwise(col("id")))
           .drop("id")
           .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"));
       appendAsFile(df);

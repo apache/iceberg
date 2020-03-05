@@ -30,6 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -56,12 +57,8 @@ public abstract class TestReadProjection {
   public TemporaryFolder temp = new TemporaryFolder();
 
   @BeforeClass
-  public static void setArrowFlags() {
-    // Allow unsafe memory access to avoid the costly check arrow does to check if index is within bounds
-    System.setProperty("arrow.enable_unsafe_memory_access", "true");
-    // Disable expensive null check for every get(index) call.
-    // Iceberg manages nullability checks itself instead of relying on arrow.
-    System.setProperty("arrow.enable_null_check_for_get", "false");
+  public static void setup() {
+    TestHelpers.setArrowFlagsForVectorizedReads();
   }
 
   @Test

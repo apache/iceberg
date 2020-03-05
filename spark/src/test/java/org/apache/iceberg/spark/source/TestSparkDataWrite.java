@@ -34,6 +34,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -75,9 +76,7 @@ public class TestSparkDataWrite {
   @BeforeClass
   public static void startSpark() {
     TestSparkDataWrite.spark = SparkSession.builder().master("local[2]").getOrCreate();
-    // Set arrow flags
-    System.setProperty("arrow.enable_unsafe_memory_access", "true");
-    System.setProperty("arrow.enable_null_check_for_get", "false");
+    TestHelpers.setArrowFlagsForVectorizedReads();
   }
 
   @AfterClass
