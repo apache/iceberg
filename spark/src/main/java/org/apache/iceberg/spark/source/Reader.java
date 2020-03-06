@@ -112,6 +112,8 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
 
   private final Table table;
   private final Long snapshotId;
+  private final Long startSnapshotId;
+  private final Long endSnapshotId;
   private final Long asOfTimestamp;
   private final Long splitSize;
   private final Integer splitLookback;
@@ -137,6 +139,20 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     if (snapshotId != null && asOfTimestamp != null) {
       throw new IllegalArgumentException(
           "Cannot scan using both snapshot-id and as-of-timestamp to select the table snapshot");
+    }
+
+    this.startSnapshotId = options.get("start-snapshot-id").map(Long::parseLong).orElse(null);
+    this.endSnapshotId = options.get("end-snapshot-id").map(Long::parseLong).orElse(null);
+    if (snapshotId != null || asOfTimestamp != null) {
+      if (startSnapshotId != null || endSnapshotId != null) {
+        throw new IllegalArgumentException(
+            "Cannot specify start-snapshot-id and end-snapshot-id to do incremental scan when either snapshot-id or " +
+                "as-of-timestamp is specified");
+      }
+    } else {
+      if (startSnapshotId == null && endSnapshotId != null) {
+        throw new IllegalArgumentException("Cannot only specify option end-snapshot-id to do incremental scan");
+      }
     }
 
     // look for split behavior overrides in options
@@ -272,6 +288,14 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
 
       if (asOfTimestamp != null) {
         scan = scan.asOfTime(asOfTimestamp);
+      }
+
+      if (startSnapshotId != null) {
+        if (endSnapshotId != null) {
+          scan = scan.appendsBetween(startSnapshotId, endSnapshotId);
+        } else {
+          scan = scan.appendsAfter(startSnapshotId);
+        }
       }
 
       if (splitSize != null) {
