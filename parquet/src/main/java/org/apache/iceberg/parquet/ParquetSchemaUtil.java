@@ -82,6 +82,35 @@ public class ParquetSchemaUtil {
     return builder.named(fileSchema.getName());
   }
 
+
+  /**
+   * Prunes columns from a Parquet file schema that was written without field ids.
+   * The order of columns in the resulting Parquet schema matches the Parquet file.
+   *
+   * @param fileSchema schema from a Parquet file that does not have field ids.
+   * @param expectedSchema expected schema
+   * @return a parquet schema pruned using the expected schema
+   */
+  public static MessageType pruneColumnsByName(MessageType fileSchema, Schema expectedSchema) {
+    Set<String> selectedNames = Sets.newHashSet();
+
+    for (Types.NestedField field : expectedSchema.columns()) {
+      selectedNames.add(field.name());
+    }
+
+    MessageTypeBuilder builder = org.apache.parquet.schema.Types.buildMessage();
+
+    int ordinal = 1;
+    for (Type type : fileSchema.getFields()) {
+      if (selectedNames.contains(type.getName())) {
+        builder.addField(type.withId(ordinal));
+      }
+      ordinal += 1;
+    }
+
+    return builder.named(fileSchema.getName());
+  }
+
   public static boolean hasIds(MessageType fileSchema) {
     try {
       // Try to convert the type to Iceberg. If an ID assignment is needed, return false.

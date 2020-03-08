@@ -36,6 +36,7 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
@@ -47,8 +48,11 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 
 public class ParquetDictionaryRowGroupFilter {
-  private final Expression expr;
+  private Expression expr;
+  private Schema schema;
   private transient ThreadLocal<EvalVisitor> visitors = null;
+  private NameMapping nameMapping = null;
+  private boolean caseSensitive;
 
   private EvalVisitor visitor() {
     if (visitors == null) {
@@ -61,9 +65,15 @@ public class ParquetDictionaryRowGroupFilter {
     this(schema, unbound, true);
   }
 
+  public ParquetDictionaryRowGroupFilter withNameMapping(NameMapping newNameMapping) {
+    this.nameMapping = newNameMapping;
+    return this;
+  }
+
   public ParquetDictionaryRowGroupFilter(Schema schema, Expression unbound, boolean caseSensitive) {
-    StructType struct = schema.asStruct();
-    this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), caseSensitive);
+    this.schema = schema;
+    this.expr = unbound;
+    this.caseSensitive = caseSensitive;
   }
 
   /**
@@ -75,6 +85,16 @@ public class ParquetDictionaryRowGroupFilter {
    */
   public boolean shouldRead(MessageType fileSchema, BlockMetaData rowGroup,
                             DictionaryPageReadStore dictionaries) {
+    StructType struct;
+
+    if (nameMapping != null) {
+      MessageType project = ParquetSchemaUtil.pruneColumnsByName(fileSchema, schema);
+      struct = ParquetSchemaUtil.convert(project).asStruct();
+    } else {
+      struct = schema.asStruct();
+    }
+
+    this.expr = Binder.bind(struct, Expressions.rewriteNot(expr), caseSensitive);
     return visitor().eval(fileSchema, rowGroup, dictionaries);
   }
 
@@ -104,6 +124,10 @@ public class ParquetDictionaryRowGroupFilter {
           int id = colType.getId().intValue();
           cols.put(id, desc);
           conversions.put(id, ParquetConversions.converterFromParquet(colType));
+        } else {
+          int id = nameMapping.find(colType.getName()).id();
+          cols.put(id, desc);
+          conversions.put(id, ParquetConversions.converterFromParquet(colType));
         }
       }
 
@@ -111,6 +135,10 @@ public class ParquetDictionaryRowGroupFilter {
         PrimitiveType colType = fileSchema.getType(meta.getPath().toArray()).asPrimitiveType();
         if (colType.getId() != null) {
           int id = colType.getId().intValue();
+          isFallback.put(id, ParquetUtil.hasNonDictionaryPages(meta));
+          mayContainNulls.put(id, mayContainNull(meta));
+        } else {
+          int id = nameMapping.find(colType.getName()).id();
           isFallback.put(id, ParquetUtil.hasNonDictionaryPages(meta));
           mayContainNulls.put(id, mayContainNull(meta));
         }

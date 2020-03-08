@@ -32,6 +32,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mapping.MappingUtil;
+import org.apache.iceberg.mapping.NameMapping;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
@@ -72,29 +74,31 @@ class ReadConf<T> {
     this.options = options;
     this.reader = newReader(file, options);
     MessageType fileSchema = reader.getFileMetaData().getSchema();
-
     boolean hasIds = ParquetSchemaUtil.hasIds(fileSchema);
-    MessageType typeWithIds = hasIds ? fileSchema : ParquetSchemaUtil.addFallbackIds(fileSchema);
 
     this.projection = hasIds ?
-        ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema) :
-        ParquetSchemaUtil.pruneColumnsFallback(fileSchema, expectedSchema);
+            ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema) :
+            ParquetSchemaUtil.pruneColumnsByName(fileSchema, expectedSchema);
+
     this.rowGroups = reader.getRowGroups();
     this.shouldSkip = new boolean[rowGroups.size()];
 
     ParquetMetricsRowGroupFilter statsFilter = null;
     ParquetDictionaryRowGroupFilter dictFilter = null;
     if (filter != null) {
-      statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, caseSensitive);
-      dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive);
+      NameMapping nameMapping = MappingUtil.create(ParquetSchemaUtil.convert(fileSchema));
+      statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, caseSensitive)
+              .withNameMapping(nameMapping);
+      dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive)
+              .withNameMapping(nameMapping);
     }
 
     long computedTotalValues = 0L;
     for (int i = 0; i < shouldSkip.length; i += 1) {
       BlockMetaData rowGroup = rowGroups.get(i);
       boolean shouldRead = filter == null || (
-          statsFilter.shouldRead(typeWithIds, rowGroup) &&
-              dictFilter.shouldRead(typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup)));
+          statsFilter.shouldRead(fileSchema, rowGroup) &&
+              dictFilter.shouldRead(fileSchema, rowGroup, reader.getDictionaryReader(rowGroup)));
       this.shouldSkip[i] = !shouldRead;
       if (shouldRead) {
         computedTotalValues += rowGroup.getRowCount();
@@ -103,12 +107,12 @@ class ReadConf<T> {
 
     this.totalValues = computedTotalValues;
     if (readerFunc != null) {
-      this.model = (ParquetValueReader<T>) readerFunc.apply(typeWithIds);
+      this.model = (ParquetValueReader<T>) readerFunc.apply(fileSchema);
       this.vectorizedModel = null;
       this.columnChunkMetaDataForRowGroups = null;
     } else {
       this.model = null;
-      this.vectorizedModel = (VectorizedReader<T>) batchedReaderFunc.apply(typeWithIds);
+      this.vectorizedModel = (VectorizedReader<T>) batchedReaderFunc.apply(fileSchema);
       this.columnChunkMetaDataForRowGroups = getColumnChunkMetadataForRowGroups();
     }
 

@@ -24,15 +24,18 @@ import com.google.common.collect.Lists;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveTableBaseTest;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SQLContext;
@@ -47,6 +50,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import scala.collection.Seq;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TestSparkTableUtil extends HiveTableBaseTest {
   private static final Configuration CONF = HiveTableBaseTest.hiveConf;
@@ -199,5 +204,42 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
     SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
     long count2 = spark.read().format("iceberg").load(DB_NAME + ".test_partitioned_table").count();
     Assert.assertEquals("three values ", 3, count2);
+  }
+
+  @Test
+  public void testImportWithIncompatibleSchema() throws Exception {
+    spark.table(qualifiedTableName).write().mode("overwrite").format("parquet")
+        .saveAsTable("original_table");
+
+    // The field is different so that it will project with name mapping
+    Schema filteredSchema = new Schema(
+            optional(1, "data", Types.StringType.get())
+    );
+
+    TableIdentifier source = new TableIdentifier("original_table");
+    Table table = catalog.createTable(
+        org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "target_table"),
+        filteredSchema,
+        SparkSchemaUtil.specForTable(spark, "original_table"));
+    File stagingDir = temp.newFolder("staging-dir");
+    SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
+
+    // The filter invoke the metric/dictionary row group filter in which it project schema
+    // with name mapping again to match the metric read from footer.
+    List<String> actual = spark.read().format("iceberg").load(DB_NAME + ".target_table")
+            .select("data")
+            .sort("data")
+            .filter("data<'c'")
+            .collectAsList()
+            .stream()
+            .map(r -> r.getString(0))
+            .collect(Collectors.toList());
+
+    List<SimpleRecord> expected = Lists.newArrayList(
+            new SimpleRecord(2, "a"),
+            new SimpleRecord(1, "b")
+    );
+
+    Assert.assertEquals(expected.stream().map(SimpleRecord::getData).collect(Collectors.toList()), actual);
   }
 }
