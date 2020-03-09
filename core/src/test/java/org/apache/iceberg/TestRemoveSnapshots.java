@@ -23,6 +23,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.ManifestEntry.Status;
@@ -386,5 +388,191 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     Assert.assertTrue("FILE_A should be deleted", deletedFiles.contains(FILE_A.path().toString()));
     Assert.assertTrue("FILE_B should be deleted", deletedFiles.contains(FILE_B.path().toString()));
+  }
+
+  /**
+   * Test on table below, and expiring the staged commit `B` using `expireOlderThan` API.
+   * Table: A - C
+   *          ` B (staged)
+   */
+  @Test
+  public void testWithExpiringDanglingStageCommit() {
+    // `A` commit
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    // `B` staged commit
+    table.newAppend()
+        .appendFile(FILE_B)
+        .stageOnly()
+        .commit();
+
+    TableMetadata base = readMetadata();
+    Snapshot snapshotA = base.snapshots().get(0);
+    Snapshot snapshotB = base.snapshots().get(1);
+
+    // `C` commit
+    table.newAppend()
+        .appendFile(FILE_C)
+        .commit();
+
+    Set<String> deletedFiles = new HashSet<>();
+
+    // Expire all commits including dangling staged snapshot.
+    table.expireSnapshots()
+        .deleteWith(deletedFiles::add)
+        .expireOlderThan(snapshotB.timestampMillis() + 1)
+        .commit();
+
+    Set<String> expectedDeletes = new HashSet<>();
+    expectedDeletes.add(snapshotA.manifestListLocation());
+
+    // Files should be deleted of dangling staged snapshot
+    snapshotB.addedFiles().forEach(i -> {
+      expectedDeletes.add(i.path().toString());
+    });
+
+    // ManifestList should be deleted too
+    expectedDeletes.add(snapshotB.manifestListLocation());
+    snapshotB.manifests().forEach(file -> {
+      //Only the manifest of B should be deleted.
+      if (file.snapshotId() == snapshotB.snapshotId()) {
+        expectedDeletes.add(file.path());
+      }
+    });
+    Assert.assertSame("Files deleted count should be expected", expectedDeletes.size(), deletedFiles.size());
+    //Take the diff
+    expectedDeletes.removeAll(deletedFiles);
+    Assert.assertTrue("Exactly same files should be deleted", expectedDeletes.isEmpty());
+  }
+
+  /**
+   * Expire cherry-pick the commit as shown below, when `B` is in table's current state
+   *  Table:
+   *  A - B - C <--current snapshot
+   *   `- D (source=B)
+   */
+  @Test
+  public void testWithCherryPickTableSnapshot() {
+    // `A` commit
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+    Snapshot snapshotA = table.currentSnapshot();
+
+    // `B` commit
+    Set<String> deletedAFiles = new HashSet<>();
+    table.newOverwrite()
+        .addFile(FILE_B)
+        .deleteFile(FILE_A)
+        .deleteWith(deletedAFiles::add)
+        .commit();
+    Assert.assertTrue("No files should be physically deleted", deletedAFiles.isEmpty());
+
+    // pick the snapshot 'B`
+    Snapshot snapshotB = readMetadata().currentSnapshot();
+
+    // `C` commit to let cherry-pick take effect, and avoid fast-forward of `B` with cherry-pick
+    table.newAppend()
+        .appendFile(FILE_C)
+        .commit();
+    Snapshot snapshotC = readMetadata().currentSnapshot();
+
+    // Move the table back to `A`
+    table.manageSnapshots()
+        .setCurrentSnapshot(snapshotA.snapshotId())
+        .commit();
+
+    // Generate A -> `D (B)`
+    table.manageSnapshots()
+        .cherrypick(snapshotB.snapshotId())
+        .commit();
+    Snapshot snapshotD = readMetadata().currentSnapshot();
+
+    // Move the table back to `C`
+    table.manageSnapshots()
+        .setCurrentSnapshot(snapshotC.snapshotId())
+        .commit();
+    List<String> deletedFiles = new ArrayList<>();
+
+    // Expire `C`
+    table.expireSnapshots()
+        .deleteWith(deletedFiles::add)
+        .expireOlderThan(snapshotC.timestampMillis() + 1)
+        .commit();
+
+    // Make sure no dataFiles are deleted for the B, C, D snapshot
+    Lists.newArrayList(snapshotB, snapshotC, snapshotD).forEach(i -> {
+      i.addedFiles().forEach(item -> {
+        Assert.assertFalse(deletedFiles.contains(item.path().toString()));
+      });
+    });
+  }
+
+  /**
+   * Test on table below, and expiring `B` which is not in current table state.
+   *  1) Expire `B`
+   *  2) All commit
+   * Table: A - C - D (B)
+   *          ` B (staged)
+   */
+  @Test
+  public void testWithExpiringStagedThenCherrypick() {
+    // `A` commit
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    // `B` commit
+    table.newAppend()
+        .appendFile(FILE_B)
+        .stageOnly()
+        .commit();
+
+    // pick the snapshot that's staged but not committed
+    TableMetadata base = readMetadata();
+    Snapshot snapshotB = base.snapshots().get(1);
+
+    // `C` commit to let cherry-pick take effect, and avoid fast-forward of `B` with cherry-pick
+    table.newAppend()
+        .appendFile(FILE_C)
+        .commit();
+
+    // `D (B)` cherry-pick commit
+    table.manageSnapshots()
+        .cherrypick(snapshotB.snapshotId())
+        .commit();
+
+    base = readMetadata();
+    Snapshot snapshotD = base.snapshots().get(3);
+
+    List<String> deletedFiles = new ArrayList<>();
+
+    // Expire `B` commit.
+    table.expireSnapshots()
+        .deleteWith(deletedFiles::add)
+        .expireSnapshotId(snapshotB.snapshotId())
+        .commit();
+
+    // Make sure no dataFiles are deleted for the staged snapshot
+    Lists.newArrayList(snapshotB).forEach(i -> {
+      i.addedFiles().forEach(item -> {
+        Assert.assertFalse(deletedFiles.contains(item.path().toString()));
+      });
+    });
+
+    // Expire all snapshots including cherry-pick
+    table.expireSnapshots()
+        .deleteWith(deletedFiles::add)
+        .expireOlderThan(table.currentSnapshot().timestampMillis() + 1)
+        .commit();
+
+    // Make sure no dataFiles are deleted for the staged and cherry-pick
+    Lists.newArrayList(snapshotB, snapshotD).forEach(i -> {
+      i.addedFiles().forEach(item -> {
+        Assert.assertFalse(deletedFiles.contains(item.path().toString()));
+      });
+    });
   }
 }
