@@ -13,6 +13,7 @@ com.google.guava:guava = 28.0-jre
 com.github.ben-manes.caffeine:caffeine = 2.7.0
 org.apache.arrow:arrow-vector = 0.14.1
 com.github.stephenc.findbugs:findbugs-annotations = 1.3.9-1
+org.apache.flink:* = 1.10.0
 
 # test deps
 junit:junit = 4.12

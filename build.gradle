@@ -32,6 +32,7 @@ buildscript {
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:3.14.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:2.1.0'
     classpath 'me.champeau.gradle:jmh-gradle-plugin:0.4.8'
+    classpath 'com.commercehub.gradle.plugin:gradle-avro-plugin:0.18.0'
   }
 }
 
@@ -542,6 +543,26 @@ project(':iceberg-spark-runtime') {
 
   jar {
     classifier = 'empty'
+  }
+}
+
+project(':iceberg-flink') {
+  apply plugin: 'com.commercehub.gradle.plugin.avro'
+
+  dependencies {
+    compile project(':iceberg-api')
+    compile project(':iceberg-core')
+    compile project(':iceberg-parquet')
+
+    compileOnly("com.amazonaws:aws-java-sdk-s3")
+    compileOnly("com.netflix.spectator:spectator-api")
+    compileOnly("org.apache.flink:flink-streaming-java_2.11")
+    compileOnly("org.apache.flink:flink-connector-filesystem_2.11")
+    compileOnly("org.apache.hadoop:hadoop-client") /*{
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+    }*/
+    compile 'org.apache.avro:avro'
   }
 }
 

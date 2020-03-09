@@ -1,0 +1,17 @@
+{
+    "type": "record",
+    "name": "ManifestFileState",
+    "namespace": "org.apache.iceberg.flink.connector.model",
+    "fields": [
+        {"name":"path", "type":"string"},
+        {"name":"length", "type":"long"},
+        {"name":"specId", "type":"int"},
+        { "name":"checkpointId", "type": "long"},
+        { "name":"checkpointTimestamp", "type": "long"},
+        { "name":"dataFileCount", "type": "long"},
+        { "name":"recordCount", "type": "long"},
+        { "name":"byteCount", "type": "long"},
+        { "name":"lowWatermark", "type": ["null", "long"], "default": null},
+        { "name":"highWatermark", "type": ["null", "long"], "default": null}
+    ]
+}
