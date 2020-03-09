@@ -237,7 +237,7 @@ class RemoveSnapshots implements ExpireSnapshots {
         if (pickedAncestorSnapshotIds.contains(snapshotId)) {
           // this snapshot was cherry-picked into the current table state, so skip cleaning it up. its changes will
           // expire when the picked snapshot expires.
-          // A -- C (source=B)
+          // A -- C -- D (source=B)
           //  `- B <-- this commit
           continue;
         }
@@ -247,8 +247,8 @@ class RemoveSnapshots implements ExpireSnapshots {
         if (ancestorIds.contains(sourceSnapshotId)) {
           // this commit was cherry-picked from a commit that is in the current table state. do not clean up its
           // changes because it would revert data file additions that are in the current table.
-          // A -- B
-          //  `- C (source=B) <-- this commit
+          // A -- B -- C
+          //  `- D (source=B) <-- this commit
           continue;
         }
 
