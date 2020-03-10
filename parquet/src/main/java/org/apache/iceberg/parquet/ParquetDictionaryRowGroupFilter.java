@@ -36,6 +36,7 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.ColumnDescriptor;
@@ -88,7 +89,7 @@ public class ParquetDictionaryRowGroupFilter {
     StructType struct;
 
     if (nameMapping != null) {
-      MessageType project = ParquetSchemaUtil.pruneColumnsByName(fileSchema, schema);
+      MessageType project = ParquetSchemaUtil.pruneColumnsByName(fileSchema, schema, nameMapping);
       struct = ParquetSchemaUtil.convert(project).asStruct();
     } else {
       struct = schema.asStruct();
@@ -125,7 +126,11 @@ public class ParquetDictionaryRowGroupFilter {
           cols.put(id, desc);
           conversions.put(id, ParquetConversions.converterFromParquet(colType));
         } else {
-          int id = nameMapping.find(colType.getName()).id();
+          MappedField field = nameMapping.find(colType.getName());
+          if (field == null) {
+            continue;
+          }
+          int id = field.id();
           cols.put(id, desc);
           conversions.put(id, ParquetConversions.converterFromParquet(colType));
         }
@@ -138,7 +143,11 @@ public class ParquetDictionaryRowGroupFilter {
           isFallback.put(id, ParquetUtil.hasNonDictionaryPages(meta));
           mayContainNulls.put(id, mayContainNull(meta));
         } else {
-          int id = nameMapping.find(colType.getName()).id();
+          MappedField field = nameMapping.find(colType.getName());
+          if (field == null) {
+            continue;
+          }
+          int id = field.id();
           isFallback.put(id, ParquetUtil.hasNonDictionaryPages(meta));
           mayContainNulls.put(id, mayContainNull(meta));
         }

@@ -61,6 +61,8 @@ class ReadConf<T> {
   private final boolean reuseContainers;
   @Nullable
   private final Integer batchSize;
+  @Nullable
+  private final NameMapping nameMapping;
 
   // List of column chunk metadata for each row group
   private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetaDataForRowGroups;
@@ -68,17 +70,18 @@ class ReadConf<T> {
   @SuppressWarnings("unchecked")
   ReadConf(InputFile file, ParquetReadOptions options, Schema expectedSchema, Expression filter,
            Function<MessageType, ParquetValueReader<?>> readerFunc, Function<MessageType,
-           VectorizedReader<?>> batchedReaderFunc, boolean reuseContainers,
+           VectorizedReader<?>> batchedReaderFunc, NameMapping nameMapping, boolean reuseContainers,
            boolean caseSensitive, Integer bSize) {
     this.file = file;
     this.options = options;
     this.reader = newReader(file, options);
     MessageType fileSchema = reader.getFileMetaData().getSchema();
     boolean hasIds = ParquetSchemaUtil.hasIds(fileSchema);
+    this.nameMapping = nameMapping == null ? MappingUtil.create(expectedSchema) : nameMapping;
 
     this.projection = hasIds ?
             ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema) :
-            ParquetSchemaUtil.pruneColumnsByName(fileSchema, expectedSchema);
+            ParquetSchemaUtil.pruneColumnsByName(fileSchema, expectedSchema, this.nameMapping);
 
     this.rowGroups = reader.getRowGroups();
     this.shouldSkip = new boolean[rowGroups.size()];
@@ -86,11 +89,10 @@ class ReadConf<T> {
     ParquetMetricsRowGroupFilter statsFilter = null;
     ParquetDictionaryRowGroupFilter dictFilter = null;
     if (filter != null) {
-      NameMapping nameMapping = MappingUtil.create(ParquetSchemaUtil.convert(fileSchema));
       statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, caseSensitive)
-              .withNameMapping(nameMapping);
+              .withNameMapping(this.nameMapping);
       dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive)
-              .withNameMapping(nameMapping);
+              .withNameMapping(this.nameMapping);
     }
 
     long computedTotalValues = 0L;
@@ -133,6 +135,7 @@ class ReadConf<T> {
     this.batchSize = toCopy.batchSize;
     this.vectorizedModel = toCopy.vectorizedModel;
     this.columnChunkMetaDataForRowGroups = toCopy.columnChunkMetaDataForRowGroups;
+    this.nameMapping = toCopy.nameMapping;
   }
 
   ParquetFileReader reader() {

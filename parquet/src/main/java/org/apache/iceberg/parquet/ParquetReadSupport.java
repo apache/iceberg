@@ -26,6 +26,7 @@ import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.parquet.avro.AvroReadSupport;
 import org.apache.parquet.hadoop.api.InitContext;
 import org.apache.parquet.hadoop.api.ReadSupport;
@@ -57,7 +58,7 @@ class ParquetReadSupport<T> extends ReadSupport<T> {
 
     MessageType projection = ParquetSchemaUtil.hasIds(fileSchema) ?
         ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema) :
-        ParquetSchemaUtil.pruneColumnsFallback(fileSchema, expectedSchema);
+        ParquetSchemaUtil.pruneColumnsByName(fileSchema, expectedSchema, MappingUtil.create(expectedSchema));
 
     // override some known backward-compatibility options
     configuration.set("parquet.strict.typing", "false");

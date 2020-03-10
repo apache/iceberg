@@ -35,6 +35,7 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
@@ -88,7 +89,7 @@ public class ParquetMetricsRowGroupFilter {
     StructType struct;
 
     if (nameMapping != null) {
-      MessageType project = ParquetSchemaUtil.pruneColumnsByName(fileSchema, schema);
+      MessageType project = ParquetSchemaUtil.pruneColumnsByName(fileSchema, schema, nameMapping);
       struct = ParquetSchemaUtil.convert(project).asStruct();
     } else {
       struct = schema.asStruct();
@@ -123,7 +124,11 @@ public class ParquetMetricsRowGroupFilter {
           valueCounts.put(id, col.getValueCount());
           conversions.put(id, ParquetConversions.converterFromParquet(colType));
         } else {
-          int id = nameMapping.find(colType.getName()).id();
+          MappedField field = nameMapping.find(colType.getName());
+          if (field == null) {
+            continue;
+          }
+          int id = field.id();
           stats.put(id, col.getStatistics());
           valueCounts.put(id, col.getValueCount());
           conversions.put(id, ParquetConversions.converterFromParquet(colType));

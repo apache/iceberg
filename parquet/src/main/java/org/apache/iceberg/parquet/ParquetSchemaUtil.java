@@ -22,6 +22,7 @@ package org.apache.iceberg.parquet;
 import com.google.common.collect.Sets;
 import java.util.Set;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.schema.MessageType;
@@ -52,46 +53,13 @@ public class ParquetSchemaUtil {
 
   /**
    * Prunes columns from a Parquet file schema that was written without field ids.
-   * <p>
-   * Files that were written without field ids are read assuming that schema evolution preserved
-   * column order. Deleting columns was not allowed.
-   * <p>
    * The order of columns in the resulting Parquet schema matches the Parquet file.
    *
    * @param fileSchema schema from a Parquet file that does not have field ids.
    * @param expectedSchema expected schema
    * @return a parquet schema pruned using the expected schema
    */
-  public static MessageType pruneColumnsFallback(MessageType fileSchema, Schema expectedSchema) {
-    Set<Integer> selectedIds = Sets.newHashSet();
-
-    for (Types.NestedField field : expectedSchema.columns()) {
-      selectedIds.add(field.fieldId());
-    }
-
-    MessageTypeBuilder builder = org.apache.parquet.schema.Types.buildMessage();
-
-    int ordinal = 1;
-    for (Type type : fileSchema.getFields()) {
-      if (selectedIds.contains(ordinal)) {
-        builder.addField(type.withId(ordinal));
-      }
-      ordinal += 1;
-    }
-
-    return builder.named(fileSchema.getName());
-  }
-
-
-  /**
-   * Prunes columns from a Parquet file schema that was written without field ids.
-   * The order of columns in the resulting Parquet schema matches the Parquet file.
-   *
-   * @param fileSchema schema from a Parquet file that does not have field ids.
-   * @param expectedSchema expected schema
-   * @return a parquet schema pruned using the expected schema
-   */
-  public static MessageType pruneColumnsByName(MessageType fileSchema, Schema expectedSchema) {
+  public static MessageType pruneColumnsByName(MessageType fileSchema, Schema expectedSchema, NameMapping nameMapping) {
     Set<String> selectedNames = Sets.newHashSet();
 
     for (Types.NestedField field : expectedSchema.columns()) {
@@ -100,12 +68,10 @@ public class ParquetSchemaUtil {
 
     MessageTypeBuilder builder = org.apache.parquet.schema.Types.buildMessage();
 
-    int ordinal = 1;
     for (Type type : fileSchema.getFields()) {
       if (selectedNames.contains(type.getName())) {
-        builder.addField(type.withId(ordinal));
+        builder.addField(type.withId(nameMapping.find(type.getName()).id()));
       }
-      ordinal += 1;
     }
 
     return builder.named(fileSchema.getName());
@@ -128,17 +94,5 @@ public class ParquetSchemaUtil {
       // at least one field was missing an id.
       return false;
     }
-  }
-
-  public static MessageType addFallbackIds(MessageType fileSchema) {
-    MessageTypeBuilder builder = org.apache.parquet.schema.Types.buildMessage();
-
-    int ordinal = 1; // ids are assigned starting at 1
-    for (Type type : fileSchema.getFields()) {
-      builder.addField(type.withId(ordinal));
-      ordinal += 1;
-    }
-
-    return builder.named(fileSchema.getName());
   }
 }
