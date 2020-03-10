@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -190,7 +191,7 @@ public class TypeUtil {
   }
 
   public static class SchemaVisitor<T> {
-    private final Deque<Integer> fieldIds = Lists.newLinkedList();
+    private final Deque<Integer> fieldIds = new ConcurrentLinkedDeque<>();
 
     public T schema(Schema schema, T structResult) {
       return null;
