@@ -25,7 +25,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -190,7 +189,11 @@ public class TypeUtil {
   }
 
   public static class SchemaVisitor<T> {
-    private final Deque<Integer> fieldIds = Lists.newLinkedList();
+    public void beforeField(Types.NestedField field) {
+    }
+
+    public void afterField(Types.NestedField field) {
+    }
 
     public T schema(Schema schema, T structResult) {
       return null;
@@ -215,10 +218,6 @@ public class TypeUtil {
     public T primitive(Type.PrimitiveType primitive) {
       return null;
     }
-
-    protected Deque<Integer> fieldIds() {
-      return fieldIds;
-    }
   }
 
   public static <T> T visit(Schema schema, SchemaVisitor<T> visitor) {
@@ -231,12 +230,12 @@ public class TypeUtil {
         Types.StructType struct = type.asNestedType().asStructType();
         List<T> results = Lists.newArrayListWithExpectedSize(struct.fields().size());
         for (Types.NestedField field : struct.fields()) {
-          visitor.fieldIds.push(field.fieldId());
+          visitor.beforeField(field);
           T result;
           try {
             result = visit(field.type(), visitor);
           } finally {
-            visitor.fieldIds.pop();
+            visitor.afterField(field);
           }
           results.add(visitor.field(field, result));
         }
@@ -246,11 +245,12 @@ public class TypeUtil {
         Types.ListType list = type.asNestedType().asListType();
         T elementResult;
 
-        visitor.fieldIds.push(list.elementId());
+        Types.NestedField elementField = list.field(list.elementId());
+        visitor.beforeField(elementField);
         try {
           elementResult = visit(list.elementType(), visitor);
         } finally {
-          visitor.fieldIds.pop();
+          visitor.afterField(elementField);
         }
 
         return visitor.list(list, elementResult);
@@ -260,18 +260,20 @@ public class TypeUtil {
         T keyResult;
         T valueResult;
 
-        visitor.fieldIds.push(map.keyId());
+        Types.NestedField keyField = map.field(map.keyId());
+        visitor.beforeField(keyField);
         try {
           keyResult = visit(map.keyType(), visitor);
         } finally {
-          visitor.fieldIds.pop();
+          visitor.afterField(keyField);
         }
 
-        visitor.fieldIds.push(map.valueId());
+        Types.NestedField valueField = map.field(map.valueId());
+        visitor.beforeField(valueField);
         try {
           valueResult = visit(map.valueType(), visitor);
         } finally {
-          visitor.fieldIds.pop();
+          visitor.afterField(valueField);
         }
 
         return visitor.map(map, keyResult, valueResult);
