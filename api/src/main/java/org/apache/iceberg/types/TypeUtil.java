@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -191,8 +190,6 @@ public class TypeUtil {
   }
 
   public static class SchemaVisitor<T> {
-    private final Deque<Integer> fieldIds = new ConcurrentLinkedDeque<>();
-
     public T schema(Schema schema, T structResult) {
       return null;
     }
@@ -216,10 +213,6 @@ public class TypeUtil {
     public T primitive(Type.PrimitiveType primitive) {
       return null;
     }
-
-    protected Deque<Integer> fieldIds() {
-      return fieldIds;
-    }
   }
 
   public static <T> T visit(Schema schema, SchemaVisitor<T> visitor) {
@@ -227,6 +220,41 @@ public class TypeUtil {
   }
 
   public static <T> T visit(Type type, SchemaVisitor<T> visitor) {
+    switch (type.typeId()) {
+      case STRUCT:
+        Types.StructType struct = type.asNestedType().asStructType();
+        List<T> results = Lists.newArrayListWithExpectedSize(struct.fields().size());
+        for (Types.NestedField field : struct.fields()) {
+          results.add(visitor.field(field, visit(field.type(), visitor)));
+        }
+        return visitor.struct(struct, results);
+
+      case LIST:
+        Types.ListType list = type.asNestedType().asListType();
+        return visitor.list(list, visit(list.elementType(), visitor));
+
+      case MAP:
+        Types.MapType map = type.asNestedType().asMapType();
+        return visitor.map(map, visit(map.keyType(), visitor), visit(map.valueType(), visitor));
+
+      default:
+        return visitor.primitive(type.asPrimitiveType());
+    }
+  }
+
+  public static class SchemaVisitorWithFieldId<T> extends SchemaVisitor<T> {
+    private final Deque<Integer> fieldIds = Lists.newLinkedList();
+
+    protected Deque<Integer> fieldIds() {
+      return fieldIds;
+    }
+  }
+
+  public static <T> T visit(Schema schema, SchemaVisitorWithFieldId<T> visitor) {
+    return visitor.schema(schema, visit(schema.asStruct(), visitor));
+  }
+
+  public static <T> T visit(Type type, SchemaVisitorWithFieldId<T> visitor) {
     switch (type.typeId()) {
       case STRUCT:
         Types.StructType struct = type.asNestedType().asStructType();
