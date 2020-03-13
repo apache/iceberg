@@ -28,11 +28,11 @@ import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -41,6 +41,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 
@@ -68,9 +69,9 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
   private final List<ManifestFile> addedManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAddedManifests = Lists.newArrayList();
 
-  private final List<ManifestFile> keptManifests = Collections.synchronizedList(new ArrayList<>());
-  private final List<ManifestFile> newManifests = Collections.synchronizedList(new ArrayList<>());
-  private final Set<ManifestFile> rewrittenManifests = Collections.synchronizedSet(new HashSet<>());
+  private final Collection<ManifestFile> keptManifests = new ConcurrentLinkedQueue<>();
+  private final Collection<ManifestFile> newManifests = new ConcurrentLinkedQueue<>();
+  private final Set<ManifestFile> rewrittenManifests = Sets.newConcurrentHashSet();
   private final Map<Object, WriterWrapper> writers = Maps.newConcurrentMap();
 
   private final AtomicInteger manifestSuffix = new AtomicInteger(0);
@@ -295,13 +296,14 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
     Preconditions.checkNotNull(entry, "Manifest entry cannot be null");
     Preconditions.checkNotNull(key, "Key cannot be null");
 
-    WriterWrapper writer = getWriter(key);
-    writer.addEntry(entry, partitionSpecId);
+    WriterWrapper writer = getWriter(key, partitionSpecId);
+    writer.addEntry(entry);
     entryCount.incrementAndGet();
   }
 
-  private WriterWrapper getWriter(Object key) {
-    return writers.computeIfAbsent(key, k -> new WriterWrapper());
+  private WriterWrapper getWriter(Object key, int partitionSpecId) {
+    return writers.computeIfAbsent(
+        Pair.of(key, partitionSpecId), k -> new WriterWrapper(specsById.get(partitionSpecId)));
   }
 
   @Override
@@ -325,56 +327,35 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
   }
 
   class WriterWrapper {
-    private final Map<Integer, ManifestWriter> manifestWritersBySpecId = Maps.newConcurrentMap();
+    private final PartitionSpec spec;
+    private ManifestWriter writer;
 
-    synchronized void addEntry(ManifestEntry entry, int partitionSpecId) {
-      getWriter(partitionSpecId).existing(entry);
+    WriterWrapper(PartitionSpec spec) {
+      this.spec = spec;
     }
 
-    synchronized ManifestWriter getWriter(int partitionSpecId) {
-      ManifestWriter writer = manifestWritersBySpecId.get(partitionSpecId);
-      if (writer != null) {
-        if (writer.length() < getManifestTargetSizeBytes()) {
-          return writer;
-        } else {
-          close(partitionSpecId);
-        }
+    synchronized void addEntry(ManifestEntry entry) {
+      if (writer == null) {
+        writer = newWriter();
+      } else if (writer.length() >= getManifestTargetSizeBytes()) {
+        close();
+        writer = newWriter();
       }
-
-      // create ManifestWriter with the correct partitionSpec
-      PartitionSpec partitionSpec = specsById.get(partitionSpecId);
-      OutputFile outputFile = manifestPath(manifestSuffix.getAndIncrement());
-      writer = new ManifestWriter(partitionSpec, outputFile, snapshotId());
-      manifestWritersBySpecId.put(partitionSpecId, writer);
-      return writer;
+      writer.existing(entry);
     }
 
-    synchronized void close(int partitionSpecId) {
-      if (manifestWritersBySpecId != null) {
-        try {
-          ManifestWriter writer = manifestWritersBySpecId.get(partitionSpecId);
-          writer.close();
-          newManifests.add(writer.toManifestFile());
-          // remove so that we will not get the closed one again.
-          manifestWritersBySpecId.remove(partitionSpecId);
-        } catch (IOException x) {
-          throw new RuntimeIOException(x);
-        }
-      }
+    private ManifestWriter newWriter() {
+      return new ManifestWriter(spec, manifestPath(manifestSuffix.getAndIncrement()), snapshotId());
     }
 
     synchronized void close() {
-      if (manifestWritersBySpecId != null && manifestWritersBySpecId.size() > 0) {
-        // close all the manifestWriters belongs to writterWrapper
-        for (ManifestWriter manifestWriter : manifestWritersBySpecId.values()) {
-          try {
-            manifestWriter.close();
-            newManifests.add(manifestWriter.toManifestFile());
-          } catch (IOException x) {
-            throw new RuntimeIOException(x);
-          }
+      if (writer != null) {
+        try {
+          writer.close();
+          newManifests.add(writer.toManifestFile());
+        } catch (IOException x) {
+          throw new RuntimeIOException(x);
         }
-        manifestWritersBySpecId.clear();
       }
     }
 
