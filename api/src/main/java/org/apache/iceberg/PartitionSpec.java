@@ -21,7 +21,6 @@ package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -57,7 +56,6 @@ public class PartitionSpec implements Serializable {
   private final int specId;
   private final PartitionField[] fields;
   private transient volatile ListMultimap<Integer, PartitionField> fieldsBySourceId = null;
-  private transient volatile Map<String, PartitionField> fieldsByName = null;
   private transient volatile Class<?>[] lazyJavaClasses = null;
   private transient volatile List<PartitionField> fieldList = null;
 
@@ -226,22 +224,6 @@ public class PartitionSpec implements Serializable {
       }
     }
     return fieldList;
-  }
-
-  private Map<String, PartitionField> lazyFieldsByName() {
-    if (fieldsByName == null) {
-      synchronized (this) {
-        if (fieldsByName == null) {
-          ImmutableMap.Builder<String, PartitionField> builder = ImmutableMap.builder();
-          for (PartitionField field : fields) {
-            builder.put(field.name(), field);
-          }
-          this.fieldsByName = builder.build();
-        }
-      }
-    }
-
-    return fieldsByName;
   }
 
   private ListMultimap<Integer, PartitionField> lazyFieldsBySourceId() {

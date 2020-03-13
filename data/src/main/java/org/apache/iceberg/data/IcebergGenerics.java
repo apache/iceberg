@@ -39,12 +39,10 @@ public class IcebergGenerics {
   }
 
   public static class ScanBuilder {
-    private final Table table;
     private TableScan tableScan;
     private boolean reuseContainers = false;
 
     public ScanBuilder(Table table) {
-      this.table = table;
       this.tableScan = table.newScan();
     }
 
