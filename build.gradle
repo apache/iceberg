@@ -289,6 +289,9 @@ project(':iceberg-spark') {
     testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
 
+    // Spark 2.4.4 can only use the below datanucleus version, the versions introduced
+    // by Hive 2.3.6 will meet lots of unexpected issues, so here force to use the versions
+    // introduced by Hive 1.2.1.
     configurations.all {
       resolutionStrategy {
         force 'org.datanucleus:datanucleus-api-jdo:3.2.6'
