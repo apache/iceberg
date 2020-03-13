@@ -166,6 +166,8 @@ project(':iceberg-hive') {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hbase'
+      exclude group: 'org.apache.logging.log4j'
     }
 
     // By default, hive-exec is a fat/uber jar and it exports a guava library
@@ -176,12 +178,19 @@ project(':iceberg-hive') {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hive', module: 'hive-llap-tez'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'com.google.protobuf', module: 'protobuf-java'
+      exclude group: 'org.apache.calcite'
+      exclude group: 'org.apache.calcite.avatica'
     }
 
     testCompile("org.apache.hive:hive-metastore") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hbase'
+      exclude group: 'org.apache.logging.log4j'
     }
 
     compileOnly("org.apache.hadoop:hadoop-client") {
@@ -279,6 +288,14 @@ project(':iceberg-spark') {
     }
     testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
+
+    configurations.all {
+      resolutionStrategy {
+        force 'org.datanucleus:datanucleus-api-jdo:3.2.6'
+        force 'org.datanucleus:datanucleus-core:3.2.10'
+        force 'org.datanucleus:datanucleus-rdbms:3.2.9'
+      }
+    }
 
     // spark-avro is required only for JMH tests, so ideally we would add this
     // dependency only to the jmh configuration, however gradle-consistent-versions

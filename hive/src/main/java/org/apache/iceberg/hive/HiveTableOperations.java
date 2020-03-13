@@ -21,6 +21,7 @@ package org.apache.iceberg.hive;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
@@ -33,6 +34,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.StatsSetupConst;
+import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.EnvironmentContext;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -75,6 +77,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final long lockAcquireTimeout;
 
   private FileIO fileIO;
+  private Method alterTableMethod;
 
   protected HiveTableOperations(Configuration conf, HiveClientPool metaClients, String database, String table) {
     this.conf = conf;
@@ -83,6 +86,18 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     this.tableName = table;
     this.lockAcquireTimeout =
         conf.getLong(HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS, HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT);
+    try {
+      this.alterTableMethod = HiveMetaStoreClient.class.getMethod("alter_table_with_environmentContext",
+          String.class, String.class, Table.class, EnvironmentContext.class);
+    } catch (NoSuchMethodException e) {
+      try {
+        this.alterTableMethod = HiveMetaStoreClient.class.getMethod("alter_table",
+          String.class, String.class, Table.class, EnvironmentContext.class);
+      } catch (NoSuchMethodException inner) {
+        throw new RuntimeMetaException(inner, "Fail to find method alter_table_with_environmentContext and " +
+            "alter_table with right signature");
+      }
+    }
   }
 
   @Override
@@ -175,7 +190,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
           EnvironmentContext envContext = new EnvironmentContext(
               ImmutableMap.of(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE)
           );
-          client.alter_table(database, tableName, tbl, envContext);
+
+          try {
+            alterTableMethod.invoke(client, database, tableName, tbl, envContext);
+          } catch (Exception e) {
+            throw new RuntimeMetaException(e, "Failed to alter table for %s.%s", database, tableName);
+          }
           return null;
         });
       } else {
