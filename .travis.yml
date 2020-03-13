@@ -23,7 +23,7 @@ dist: bionic
 matrix:
   include:
   - language: java
-    jdk: oraclejdk8
+    jdk: openjdk8
     name: java
     before_cache:
       - rm -f  $HOME/.gradle/caches/modules-2/modules-2.lock
