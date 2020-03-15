@@ -19,23 +19,41 @@ public interface ReadSupport {
     return row;
   }
 
-  default Function<org.apache.avro.Schema, DatumReader<?>> avroReadFunction() {
+  default AvroReadFuncs avroReadFuncs() {
     return null;
   }
 
-  default BiFunction<Schema, org.apache.avro.Schema, DatumReader<?>> avroReadBiFunction() {
+  default ParquetReadFuncs parquetReadFuncs() {
     return null;
   }
 
-  default Function<MessageType, ParquetValueReader<?>> parquetReadFunction() {
+  default OrcReadFuncs orcReadFuncs() {
     return null;
   }
 
-  default Function<MessageType, VectorizedReader<?>> parquetBatchReadFunction() {
-    return null;
+  interface ParquetReadFuncs {
+    default Function<MessageType, ParquetValueReader<?>> parquetReadFunction() {
+      return null;
+    }
+
+    default Function<MessageType, VectorizedReader<?>> parquetBatchReadFunction() {
+      return null;
+    }
   }
 
-  default Function<TypeDescription, OrcValueReader<?>> orcReadFunction() {
-    return null;
+  interface AvroReadFuncs {
+    default Function<org.apache.avro.Schema, DatumReader<?>> avroReadFunction() {
+      return null;
+    }
+
+    default BiFunction<Schema, org.apache.avro.Schema, DatumReader<?>> avroReadBiFunction() {
+      return null;
+    }
+  }
+
+  interface OrcReadFuncs {
+    default Function<TypeDescription, OrcValueReader<?>> orcReadFunction() {
+      return null;
+    }
   }
 }

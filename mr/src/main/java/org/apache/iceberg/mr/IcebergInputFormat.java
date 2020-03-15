@@ -83,6 +83,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
 
     Configuration conf = context.getConfiguration();
+    table = getTable(conf);
     TableScan scan = table.newScan();
     //TODO add caseSensitive, snapshot id etc..
 
@@ -145,7 +146,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   private static final class IcebergRecordReader<T> extends RecordReader<Void, T> {
     private TaskAttemptContext context;
     private Iterator<FileScanTask> tasks;
-    //private CloseableIterable<T> reader;
     private Iterator<T> currentIterator;
     private T currentRow;
     private Schema projectedSchema;
@@ -255,8 +255,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     private CloseableIterable<T> newAvroIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
       Avro.ReadBuilder avroReadBuilder = Avro.read(inputFile)
-                                             .createReaderFunc(readSupport.avroReadBiFunction())
-                                             .createReaderFunc(readSupport.avroReadFunction())
+                                             .createReaderFunc(readSupport.avroReadFuncs().avroReadBiFunction())
+                                             .createReaderFunc(readSupport.avroReadFuncs().avroReadFunction())
                                              .project(readSchema)
                                              .split(task.start(), task.length());
       //.reuseContainers(reuseContainers);
@@ -265,8 +265,9 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     private CloseableIterable<T> newParquetIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
       Parquet.ReadBuilder parquetReadBuilder = Parquet.read(inputFile)
-                                                      .createBatchedReaderFunc(readSupport.parquetBatchReadFunction())
-                                                      .createReaderFunc(readSupport.parquetReadFunction())
+                                                      .createBatchedReaderFunc(readSupport.parquetReadFuncs().parquetBatchReadFunction())
+                                                      .createReaderFunc(readSupport.parquetReadFuncs().parquetReadFunction())
+                                                      .createBatchedReaderFunc(readSupport.parquetReadFuncs().parquetBatchReadFunction())
                                                       .project(readSchema)
                                                       //.caseSensitive(caseSensitive)
                                                       .split(task.start(), task.length());
@@ -275,7 +276,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     private CloseableIterable<T> newOrcIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
       ORC.ReadBuilder orcReadBuilder = ORC.read(inputFile)
-                                          .createReaderFunc(readSupport.orcReadFunction())
+                                          .createReaderFunc(readSupport.orcReadFuncs().orcReadFunction())
                                           .schema(readSchema)
                                           //.caseSensitive(caseSensitive)
                                           .split(task.start(), task.length());
@@ -284,9 +285,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
   }
 
-  private Table getTable(JobContext context) {
+  private Table getTable(Configuration conf) {
     if (table == null) {
-      final Configuration conf = context.getConfiguration();
       String path = conf.get(ICEBERG_TABLE_IDENTIFIER);
       if (path.contains("/")) {
         HadoopTables tables = new HadoopTables(conf);
