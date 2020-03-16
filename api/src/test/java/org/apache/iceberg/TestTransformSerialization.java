@@ -72,7 +72,8 @@ public class TestTransformSerialization {
         PartitionSpec.builderFor(schema).truncate("l", 10).build(),
         PartitionSpec.builderFor(schema).truncate("dec", 10).build(),
         PartitionSpec.builderFor(schema).truncate("s", 10).build(),
-        PartitionSpec.builderFor(schema).add(6, "dec_unsupported", "unsupported").build(),
+        PartitionSpec.builderFor(schema).append(6, "dec_unsupported", "unsupported").build(),
+        PartitionSpec.builderFor(schema).add(6, 1111, "dec_unsupported", "unsupported").build(),
     };
 
     for (PartitionSpec spec : specs) {

@@ -562,8 +562,8 @@ public class TestRewriteManifests extends TableTestBase {
         .bucket("id", 4)
         .build();
 
-    // commit the new partition spec to the table manually
-    table.ops().commit(base, base.updatePartitionSpec(newSpec));
+    // commit the new partition spec to the table manually; newSpec's field IDs won't change during commit
+    table.updatePartitionSpec().update(newSpec).commit();
 
     DataFile newFileC = DataFiles.builder(newSpec)
         .copy(FILE_C)
@@ -631,8 +631,8 @@ public class TestRewriteManifests extends TableTestBase {
         .bucket("id", 4)
         .build();
 
-    // commit the new partition spec to the table manually
-    table.ops().commit(base, base.updatePartitionSpec(newSpec));
+    // commit the new partition spec to the table manually; newSpec's field IDs won't change during commit
+    table.updatePartitionSpec().update(newSpec).commit();
 
     DataFile newFileC = DataFiles.builder(newSpec)
         .copy(FILE_C)

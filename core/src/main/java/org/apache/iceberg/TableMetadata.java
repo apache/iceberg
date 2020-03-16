@@ -61,7 +61,8 @@ public class TableMetadata {
     for (PartitionField field : spec.fields()) {
       // look up the name of the source field in the old schema to get the new schema's id
       String sourceName = schema.findColumnName(field.sourceId());
-      specBuilder.add(
+      // reassign all partition fields with fresh partition field Ids to ensure consistency
+      specBuilder.append(
           freshSchema.findField(sourceName).fieldId(),
           field.name(),
           field.transform().toString());
@@ -208,8 +209,11 @@ public class TableMetadata {
     this.lastUpdatedMillis = lastUpdatedMillis;
     this.lastColumnId = lastColumnId;
     this.schema = schema;
-    this.specs = specs;
     this.defaultSpecId = defaultSpecId;
+
+    Preconditions.checkArgument(specs != null && !specs.isEmpty(), "specs cannot be null or empty");
+    this.specs = specs;
+
     this.properties = properties;
     this.currentSnapshotId = currentSnapshotId;
     this.snapshots = snapshots;
@@ -352,7 +356,8 @@ public class TableMetadata {
         currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
-  public TableMetadata updatePartitionSpec(PartitionSpec newPartitionSpec) {
+  // newPartitionSpec's partition field IDs should have already been refreshed
+  TableMetadata updatePartitionSpec(PartitionSpec newPartitionSpec) {
     PartitionSpec.checkCompatibility(newPartitionSpec, schema);
 
     // if the spec already exists, use the same ID. otherwise, use 1 more than the highest ID.
@@ -487,8 +492,9 @@ public class TableMetadata {
         currentSnapshotId, snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
-  public TableMetadata buildReplacement(Schema updatedSchema, PartitionSpec updatedPartitionSpec,
-                                        Map<String, String> updatedProperties) {
+  // updatedPartitionSpec's partition field IDs should have already been refreshed
+  TableMetadata buildReplacement(Schema updatedSchema, PartitionSpec updatedPartitionSpec,
+                                 Map<String, String> updatedProperties) {
     AtomicInteger nextLastColumnId = new AtomicInteger(0);
     Schema freshSchema = TypeUtil.assignFreshIds(updatedSchema, nextLastColumnId::incrementAndGet);
 
@@ -580,7 +586,7 @@ public class TableMetadata {
 
     // add all of the fields to the builder. IDs should not change.
     for (PartitionField field : partitionSpec.fields()) {
-      specBuilder.add(field.sourceId(), field.name(), field.transform().toString());
+      specBuilder.add(field.sourceId(), field.fieldId(), field.name(), field.transform().toString());
     }
 
     return specBuilder.build();
@@ -595,6 +601,7 @@ public class TableMetadata {
       String sourceName = partitionSpec.schema().findColumnName(field.sourceId());
       specBuilder.add(
           schema.findField(sourceName).fieldId(),
+          field.fieldId(),
           field.name(),
           field.transform().toString());
     }

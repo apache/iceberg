@@ -57,6 +57,7 @@ public class TestPartitionSpecInfo {
     TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec);
 
     Assert.assertEquals(spec, table.spec());
+    Assert.assertEquals(spec.lastAssignedFieldId(), table.spec().lastAssignedFieldId());
     Assert.assertEquals(ImmutableMap.of(spec.specId(), spec), table.specs());
     Assert.assertNull(table.specs().get(Integer.MAX_VALUE));
   }
@@ -67,6 +68,7 @@ public class TestPartitionSpecInfo {
     TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec);
 
     Assert.assertEquals(spec, table.spec());
+    Assert.assertEquals(spec.lastAssignedFieldId(), table.spec().lastAssignedFieldId());
     Assert.assertEquals(ImmutableMap.of(spec.specId(), spec), table.specs());
     Assert.assertNull(table.specs().get(Integer.MAX_VALUE));
   }
@@ -80,17 +82,23 @@ public class TestPartitionSpecInfo {
 
     Assert.assertEquals(spec, table.spec());
 
-    TableMetadata base = TestTables.readMetadata("test");
     PartitionSpec newSpec = PartitionSpec.builderFor(table.schema())
         .bucket("data", 10)
         .withSpecId(1)
         .build();
-    table.ops().commit(base, base.updatePartitionSpec(newSpec));
+    table.updatePartitionSpec().update(newSpec).commit();
 
-    Assert.assertEquals(newSpec, table.spec());
-    Assert.assertEquals(newSpec, table.specs().get(newSpec.specId()));
+    PartitionField field = newSpec.fields().get(0);
+    PartitionSpec expectedSpec = PartitionSpec.builderFor(table.schema())
+        .add(field.sourceId(), spec.lastAssignedFieldId() + 1, field.name(), field.transform().toString())
+        .withSpecId(newSpec.specId())
+        .build();
+    Assert.assertEquals(expectedSpec.lastAssignedFieldId(), newSpec.lastAssignedFieldId() + 1);
+
+    Assert.assertEquals(expectedSpec, table.spec());
+    Assert.assertEquals(expectedSpec, table.specs().get(newSpec.specId()));
     Assert.assertEquals(spec, table.specs().get(spec.specId()));
-    Assert.assertEquals(ImmutableMap.of(spec.specId(), spec, newSpec.specId(), newSpec), table.specs());
+    Assert.assertEquals(ImmutableMap.of(spec.specId(), spec, newSpec.specId(), expectedSpec), table.specs());
     Assert.assertNull(table.specs().get(Integer.MAX_VALUE));
   }
 }

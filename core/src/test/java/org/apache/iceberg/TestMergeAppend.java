@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -373,10 +374,10 @@ public class TestMergeAppend extends TableTestBase {
         .bucket("id", 4)
         .build();
 
-    // commit the new partition spec to the table manually
-    table.ops().commit(base, base.updatePartitionSpec(newSpec));
+    // commit the new partition spec to the table
+    table.updatePartitionSpec().update(newSpec).commit();
 
-    DataFile newFileC = DataFiles.builder(newSpec)
+    DataFile newFileC = DataFiles.builder(table.spec())
         .copy(FILE_C)
         .withPartitionPath("data_bucket=2/id_bucket=3")
         .build();
@@ -393,6 +394,47 @@ public class TestMergeAppend extends TableTestBase {
 
     Assert.assertEquals("Second manifest should be the initial manifest with the old spec",
         initialManifest, pending.manifests().get(1));
+  }
+
+  @Test
+  public void testUpdatePartitionSpecFieldIds() {
+    TableMetadata base = readMetadata();
+
+    // build the new spec using the table's schema, which uses fresh IDs
+    PartitionSpec newSpec = PartitionSpec.builderFor(base.schema())
+        .bucket("id", 16)
+        .identity("data")
+        .bucket("data", 4)
+        .bucket("data", 16, "data_partition") // reuse field id although different target name
+        .build();
+
+    // commit the new partition spec to the table
+    table.updatePartitionSpec().update(newSpec).commit();
+
+    List<PartitionSpec> partitionSpecs = table.ops().current().specs();
+    PartitionSpec partitionSpec = partitionSpecs.get(0);
+    Assert.assertEquals(1000, partitionSpec.lastAssignedFieldId());
+
+    Types.StructType structType = partitionSpec.partitionType();
+    List<Types.NestedField> fields = structType.fields();
+    Assert.assertEquals(1, fields.size());
+    Assert.assertEquals("data_bucket", fields.get(0).name());
+    Assert.assertEquals(1000, fields.get(0).fieldId());
+
+    partitionSpec = partitionSpecs.get(1);
+    Assert.assertEquals(1003, partitionSpec.lastAssignedFieldId());
+
+    structType = partitionSpec.partitionType();
+    fields = structType.fields();
+    Assert.assertEquals(4, fields.size());
+    Assert.assertEquals("id_bucket", fields.get(0).name());
+    Assert.assertEquals(1001, fields.get(0).fieldId());
+    Assert.assertEquals("data", fields.get(1).name());
+    Assert.assertEquals(1002, fields.get(1).fieldId());
+    Assert.assertEquals("data_bucket", fields.get(2).name());
+    Assert.assertEquals(1003, fields.get(2).fieldId());
+    Assert.assertEquals("data_partition", fields.get(3).name());
+    Assert.assertEquals(1000, fields.get(3).fieldId());
   }
 
   @Test
@@ -419,10 +461,10 @@ public class TestMergeAppend extends TableTestBase {
         .bucket("id", 4)
         .build();
 
-    // commit the new partition spec to the table manually
-    table.ops().commit(base, base.updatePartitionSpec(newSpec));
+    // commit the new partition spec to the table
+    table.updatePartitionSpec().update(newSpec).commit();
 
-    DataFile newFileC = DataFiles.builder(newSpec)
+    DataFile newFileC = DataFiles.builder(table.spec())
         .copy(FILE_C)
         .withPartitionPath("data_bucket=2/id_bucket=3")
         .build();
