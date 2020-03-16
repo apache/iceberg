@@ -64,10 +64,11 @@ import org.slf4j.LoggerFactory;
 public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergInputFormat.class);
 
-  static final String ICEBERG_FILTER_EXPRESSION = "iceberg.filter.expression";
-  static final String ICEBERG_TABLE_IDENTIFIER = "iceberg.table.identifier";
-  static final String ICEBERG_READ_SCHEMA = "iceberg.read.schema";
-  static final String READ_SUPPORT = "iceberg.read.schema";
+  static final String FILTER_EXPRESSION = "iceberg.filter.expression";
+  static final String TABLE_PATH = "iceberg.table.path";
+  static final String TABLE_SCHEMA = "iceberg.table.schema";
+  static final String READ_SCHEMA = "iceberg.read.schema";
+  static final String READ_SUPPORT = "iceberg.mr.read.support";
 
   private transient Table table;
   private transient List<InputSplit> splits;
@@ -87,12 +88,12 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     TableScan scan = table.newScan();
     //TODO add caseSensitive, snapshot id etc..
 
-    Expression filterExpression = SerializationUtil.deserializeFromBase64(conf.get(ICEBERG_FILTER_EXPRESSION));
+    Expression filterExpression = SerializationUtil.deserializeFromBase64(conf.get(FILTER_EXPRESSION));
     if (filterExpression != null) {
       scan = scan.filter(filterExpression);
     }
 
-    final String schemaStr = conf.get(ICEBERG_READ_SCHEMA);
+    final String schemaStr = conf.get(READ_SCHEMA);
     if (schemaStr != null) {
       // Not sure if this is having any effect?
       scan.project(SchemaParser.fromJson(schemaStr));
@@ -114,26 +115,28 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   }
 
   public static ConfBuilder updateConf(
-      Configuration conf, TableIdentifier identifier, Class<ReadSupport> readSupportClass) {
-    return new ConfBuilder(conf, identifier, readSupportClass);
+      Configuration conf, String path, Class<? extends ReadSupport<?>> readSupportClass) {
+    return new ConfBuilder(conf, path, readSupportClass);
   }
 
   public static class ConfBuilder {
     private final Configuration conf;
 
-    public ConfBuilder(Configuration conf, TableIdentifier identifier, Class<ReadSupport> readSupportClass) {
+    public ConfBuilder(Configuration conf, String path, Class<? extends ReadSupport<?>> readSupportClass) {
       this.conf = conf;
-      conf.set(ICEBERG_TABLE_IDENTIFIER, identifier.toString());
-      conf.set(READ_SUPPORT, readSupportClass.getCanonicalName());
+      conf.set(TABLE_PATH, path);
+      conf.set(READ_SUPPORT, readSupportClass.getName());
+      Table table = getTable(conf);
+      conf.set(TABLE_SCHEMA, SchemaParser.toJson(table.schema()));
     }
 
     public ConfBuilder filterExpression(Expression expression) throws IOException {
-      conf.set(ICEBERG_FILTER_EXPRESSION, SerializationUtil.serializeToBase64(expression));
+      conf.set(FILTER_EXPRESSION, SerializationUtil.serializeToBase64(expression));
       return this;
     }
 
     public ConfBuilder project(Schema schema) {
-      conf.set(ICEBERG_READ_SCHEMA, SchemaParser.toJson(schema));
+      conf.set(READ_SCHEMA, SchemaParser.toJson(schema));
       return this;
     }
 
@@ -148,9 +151,11 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private Iterator<FileScanTask> tasks;
     private Iterator<T> currentIterator;
     private T currentRow;
-    private Schema projectedSchema;
-    private ReadSupport readSupport;
+    private Schema expectedSchema;
+    private Schema tableSchema;
+    private ReadSupport<T> readSupport;
     private Closeable currentCloseable;
+
 
     @Override
     public void initialize(InputSplit split, TaskAttemptContext context) {
@@ -158,7 +163,11 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       CombinedScanTask task = ((IcebergSplit) split).task;
       this.context = context;
       this.tasks = task.files().iterator();
-      this.projectedSchema = SchemaParser.fromJson(conf.get(IcebergInputFormat.ICEBERG_READ_SCHEMA));
+      this.tableSchema = SchemaParser.fromJson(conf.get(TABLE_SCHEMA));
+      String readSchemaStr = conf.get(READ_SCHEMA);
+      if (readSchemaStr != null) {
+        this.expectedSchema = SchemaParser.fromJson(readSchemaStr);
+      }
       this.readSupport = readSupport(conf);
       this.currentIterator = open(tasks.next());
     }
@@ -198,13 +207,13 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       currentCloseable.close();
     }
 
-    private static ReadSupport readSupport(Configuration conf) {
+    private ReadSupport<T> readSupport(Configuration conf) {
       String readSupportClassName = conf.get(READ_SUPPORT);
       try {
         return DynClasses
             .builder()
             .impl(readSupportClassName)
-            .<ReadSupport>buildChecked()
+            .<ReadSupport<T>>buildChecked()
             .newInstance();
       } catch (InstantiationException | IllegalAccessException | ClassNotFoundException e) {
         throw new RuntimeException(String.format("Unable to instantiate read support %s", readSupportClassName), e);
@@ -218,13 +227,13 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       Set<Integer> idColumns = spec.identitySourceIds();
 
       boolean hasJoinedPartitionColumns = !idColumns.isEmpty();
-      Schema readSchema = projectedSchema;
+      Schema readSchema = expectedSchema != null ? expectedSchema : tableSchema;
       if (hasJoinedPartitionColumns) {
-        readSchema = TypeUtil.selectNot(projectedSchema, idColumns);
-        Schema partitionSchema = TypeUtil.select(projectedSchema, idColumns);
+        readSchema = TypeUtil.selectNot(tableSchema, idColumns);
+        Schema partitionSchema = TypeUtil.select(tableSchema, idColumns);
         return Iterators.transform(
             open(currentTask, readSchema),
-            row -> readSupport.addPartitionColumns(row, partitionSchema, spec, file.partition()));
+            row -> readSupport.withPartitionColumns(row, partitionSchema, spec, file.partition()));
       } else {
         return open(currentTask, readSchema);
       }
@@ -255,8 +264,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     private CloseableIterable<T> newAvroIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
       Avro.ReadBuilder avroReadBuilder = Avro.read(inputFile)
-                                             .createReaderFunc(readSupport.avroReadFuncs().avroReadBiFunction())
-                                             .createReaderFunc(readSupport.avroReadFuncs().avroReadFunction())
+                                             .createReaderFunc(readSupport.avroReadBiFunction())
+                                             .createReaderFunc(readSupport.avroReadFunction())
                                              .project(readSchema)
                                              .split(task.start(), task.length());
       //.reuseContainers(reuseContainers);
@@ -265,9 +274,9 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     private CloseableIterable<T> newParquetIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
       Parquet.ReadBuilder parquetReadBuilder = Parquet.read(inputFile)
-                                                      .createBatchedReaderFunc(readSupport.parquetReadFuncs().parquetBatchReadFunction())
-                                                      .createReaderFunc(readSupport.parquetReadFuncs().parquetReadFunction())
-                                                      .createBatchedReaderFunc(readSupport.parquetReadFuncs().parquetBatchReadFunction())
+                                                      .createBatchedReaderFunc(readSupport.parquetBatchReadFunction())
+                                                      .createReaderFunc(readSupport.parquetReadFunction())
+                                                      .createBatchedReaderFunc(readSupport.parquetBatchReadFunction())
                                                       .project(readSchema)
                                                       //.caseSensitive(caseSensitive)
                                                       .split(task.start(), task.length());
@@ -276,7 +285,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     private CloseableIterable<T> newOrcIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
       ORC.ReadBuilder orcReadBuilder = ORC.read(inputFile)
-                                          .createReaderFunc(readSupport.orcReadFuncs().orcReadFunction())
+                                          .createReaderFunc(readSupport.orcReadFunction())
                                           .schema(readSchema)
                                           //.caseSensitive(caseSensitive)
                                           .split(task.start(), task.length());
@@ -285,19 +294,16 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
   }
 
-  private Table getTable(Configuration conf) {
-    if (table == null) {
-      String path = conf.get(ICEBERG_TABLE_IDENTIFIER);
-      if (path.contains("/")) {
-        HadoopTables tables = new HadoopTables(conf);
-        return tables.load(path);
-      } else {
-        Catalog catalog = HiveCatalogs.loadCatalog(conf);
-        TableIdentifier tableIdentifier = TableIdentifier.parse(path);
-        return catalog.loadTable(tableIdentifier);
-      }
+  private static Table getTable(Configuration conf) {
+    String path = conf.get(TABLE_PATH);
+    if (path.contains("/")) {
+      HadoopTables tables = new HadoopTables(conf);
+      return tables.load(path);
+    } else {
+      Catalog catalog = HiveCatalogs.loadCatalog(conf);
+      TableIdentifier tableIdentifier = TableIdentifier.parse(path);
+      return catalog.loadTable(tableIdentifier);
     }
-    return table;
   }
 
   private static class IcebergSplit extends InputSplit implements Writable {

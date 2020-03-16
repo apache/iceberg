@@ -14,46 +14,28 @@ import org.apache.parquet.schema.MessageType;
 import java.util.function.Function;
 
 
-public interface ReadSupport {
-  default <T> T addPartitionColumns(T row, Schema partitionSchema, PartitionSpec spec, StructLike partitionData) {
+public interface ReadSupport<T> {
+  default T withPartitionColumns(T row, Schema partitionSchema, PartitionSpec spec, StructLike partitionData) {
     return row;
   }
 
-  default AvroReadFuncs avroReadFuncs() {
+  default Function<MessageType, ParquetValueReader<?>> parquetReadFunction() {
     return null;
   }
 
-  default ParquetReadFuncs parquetReadFuncs() {
+  default Function<MessageType, VectorizedReader<?>> parquetBatchReadFunction() {
     return null;
   }
 
-  default OrcReadFuncs orcReadFuncs() {
+  default Function<org.apache.avro.Schema, DatumReader<?>> avroReadFunction() {
     return null;
   }
 
-  interface ParquetReadFuncs {
-    default Function<MessageType, ParquetValueReader<?>> parquetReadFunction() {
-      return null;
-    }
-
-    default Function<MessageType, VectorizedReader<?>> parquetBatchReadFunction() {
-      return null;
-    }
+  default BiFunction<Schema, org.apache.avro.Schema, DatumReader<?>> avroReadBiFunction() {
+    return null;
   }
 
-  interface AvroReadFuncs {
-    default Function<org.apache.avro.Schema, DatumReader<?>> avroReadFunction() {
-      return null;
-    }
-
-    default BiFunction<Schema, org.apache.avro.Schema, DatumReader<?>> avroReadBiFunction() {
-      return null;
-    }
-  }
-
-  interface OrcReadFuncs {
-    default Function<TypeDescription, OrcValueReader<?>> orcReadFunction() {
-      return null;
-    }
+  default Function<TypeDescription, OrcValueReader<?>> orcReadFunction() {
+    return null;
   }
 }
