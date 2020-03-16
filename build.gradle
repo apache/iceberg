@@ -172,6 +172,7 @@ project(':iceberg-hive') {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
       exclude group: 'org.eclipse.jetty.aggregate', module: 'jetty-all'
       exclude group: 'org.eclipse.jetty.orbit', module: 'javax.servlet'
+      exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
     }
 
     // By default, hive-exec is a fat/uber jar and it exports a guava library
@@ -200,6 +201,7 @@ project(':iceberg-hive') {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
       exclude group: 'org.eclipse.jetty.aggregate', module: 'jetty-all'
       exclude group: 'org.eclipse.jetty.orbit', module: 'javax.servlet'
+      exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
     }
 
     compileOnly("org.apache.hadoop:hadoop-client") {
