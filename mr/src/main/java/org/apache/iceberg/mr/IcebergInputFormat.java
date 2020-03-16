@@ -64,10 +64,10 @@ import org.slf4j.LoggerFactory;
 public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergInputFormat.class);
 
-  static final String FILTER_EXPRESSION = "iceberg.filter.expression";
-  static final String TABLE_PATH = "iceberg.table.path";
-  static final String TABLE_SCHEMA = "iceberg.table.schema";
-  static final String READ_SCHEMA = "iceberg.read.schema";
+  static final String FILTER_EXPRESSION = "iceberg.mr.filter.expression";
+  static final String TABLE_SCHEMA = "iceberg.mr.table.schema";
+  static final String TABLE_PATH = "iceberg.mr.table.path";
+  static final String READ_SCHEMA = "iceberg.mr.read.schema";
   static final String READ_SUPPORT = "iceberg.mr.read.support";
 
   private transient Table table;
@@ -155,7 +155,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private Schema tableSchema;
     private ReadSupport<T> readSupport;
     private Closeable currentCloseable;
-
 
     @Override
     public void initialize(InputSplit split, TaskAttemptContext context) {

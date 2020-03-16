@@ -14,7 +14,19 @@ import org.apache.parquet.schema.MessageType;
 import java.util.function.Function;
 
 
+/**
+ * ReadSupport for MR InputFormat
+ * @param <T>
+ */
 public interface ReadSupport<T> {
+  /**
+   *
+   * @param row
+   * @param partitionSchema
+   * @param spec
+   * @param partitionData
+   * @return
+   */
   default T withPartitionColumns(T row, Schema partitionSchema, PartitionSpec spec, StructLike partitionData) {
     return row;
   }

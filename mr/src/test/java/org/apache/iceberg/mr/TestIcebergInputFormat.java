@@ -56,7 +56,7 @@ public class TestIcebergInputFormat {
   @Test
   public void test() throws IOException, InterruptedException {
     tableLocation = new File(temp.newFolder(), "table");
-    Table table = TABLES.create(SCHEMA, tableLocation.toString());
+    Table table = TABLES.create(SCHEMA, PARTITION_BY_DATE, tableLocation.toString());
     List<GenericData.Record> records = RandomAvroData.generate(SCHEMA, 5, 0L);
     File file = temp.newFile();
     Assert.assertTrue(file.delete());
@@ -68,6 +68,7 @@ public class TestIcebergInputFormat {
     }
 
     DataFile dataFile = DataFiles.builder(PARTITION_BY_DATE)
+                                 .withPartition(partitionData("2020-03-15"))
                                  .withRecordCount(records.size())
                                  .withFileSizeInBytes(file.length())
                                  .withPath(file.toString())
@@ -88,6 +89,25 @@ public class TestIcebergInputFormat {
     while (recordReader.nextKeyValue()) {
       System.out.println(recordReader.getCurrentValue());
     }
+  }
+
+  private StructLike partitionData(String date) {
+    return new StructLike() {
+
+      @Override
+      public int size() {
+        return 1;
+      }
+
+      @Override
+      public <T> T get(int pos, Class<T> javaClass) {
+        return (T) date;
+      }
+
+      @Override
+      public <T> void set(int pos, T value) {
+      }
+    };
   }
 
   public static class TestReadSupport implements ReadSupport<GenericData.Record> {
