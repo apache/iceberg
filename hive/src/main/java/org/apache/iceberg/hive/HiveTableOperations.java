@@ -21,7 +21,6 @@ package org.apache.iceberg.hive;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
@@ -51,6 +50,7 @@ import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -69,6 +69,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
   private static final String HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS = "iceberg.hive.lock-timeout-ms";
   private static final long HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
+  private static final DynMethods.UnboundMethod ALTER_TABLE = DynMethods.builder("alter_table")
+      .impl(HiveMetaStoreClient.class, "alter_table_with_environmentContext",
+          String.class, String.class, Table.class, EnvironmentContext.class)
+      .impl(HiveMetaStoreClient.class, "alter_table",
+          String.class, String.class, Table.class, EnvironmentContext.class)
+      .build();
 
   private final HiveClientPool metaClients;
   private final String database;
@@ -77,7 +83,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final long lockAcquireTimeout;
 
   private FileIO fileIO;
-  private Method alterTableMethod;
 
   protected HiveTableOperations(Configuration conf, HiveClientPool metaClients, String database, String table) {
     this.conf = conf;
@@ -86,18 +91,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     this.tableName = table;
     this.lockAcquireTimeout =
         conf.getLong(HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS, HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT);
-    try {
-      this.alterTableMethod = HiveMetaStoreClient.class.getMethod("alter_table_with_environmentContext",
-          String.class, String.class, Table.class, EnvironmentContext.class);
-    } catch (NoSuchMethodException e) {
-      try {
-        this.alterTableMethod = HiveMetaStoreClient.class.getMethod("alter_table",
-          String.class, String.class, Table.class, EnvironmentContext.class);
-      } catch (NoSuchMethodException inner) {
-        throw new RuntimeMetaException(inner, "Fail to find method alter_table_with_environmentContext and " +
-            "alter_table with right signature");
-      }
-    }
   }
 
   @Override
@@ -188,14 +181,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       if (base != null) {
         metaClients.run(client -> {
           EnvironmentContext envContext = new EnvironmentContext(
-              ImmutableMap.of(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE)
-          );
+              ImmutableMap.of(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE));
 
-          try {
-            alterTableMethod.invoke(client, database, tableName, tbl, envContext);
-          } catch (Exception e) {
-            throw new RuntimeMetaException(e, "Failed to alter table for %s.%s", database, tableName);
-          }
+          ALTER_TABLE.invoke(client, database, tableName, tbl, envContext);
           return null;
         });
       } else {

@@ -168,6 +168,10 @@ project(':iceberg-hive') {
       exclude group: 'org.pentaho' // missing dependency
       exclude group: 'org.apache.hbase'
       exclude group: 'org.apache.logging.log4j'
+      exclude group: 'co.cask.tephra'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'org.eclipse.jetty.aggregate', module: 'jetty-all'
+      exclude group: 'org.eclipse.jetty.orbit', module: 'javax.servlet'
     }
 
     // By default, hive-exec is a fat/uber jar and it exports a guava library
@@ -183,6 +187,7 @@ project(':iceberg-hive') {
       exclude group: 'com.google.protobuf', module: 'protobuf-java'
       exclude group: 'org.apache.calcite'
       exclude group: 'org.apache.calcite.avatica'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
 
     testCompile("org.apache.hive:hive-metastore") {
@@ -191,6 +196,10 @@ project(':iceberg-hive') {
       exclude group: 'org.pentaho' // missing dependency
       exclude group: 'org.apache.hbase'
       exclude group: 'org.apache.logging.log4j'
+      exclude group: 'co.cask.tephra'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'org.eclipse.jetty.aggregate', module: 'jetty-all'
+      exclude group: 'org.eclipse.jetty.orbit', module: 'javax.servlet'
     }
 
     compileOnly("org.apache.hadoop:hadoop-client") {
