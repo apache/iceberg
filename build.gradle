@@ -173,6 +173,9 @@ project(':iceberg-hive') {
       exclude group: 'org.eclipse.jetty.aggregate', module: 'jetty-all'
       exclude group: 'org.eclipse.jetty.orbit', module: 'javax.servlet'
       exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
+      exclude group: 'com.tdunning', module: 'json'
+      exclude group: 'javax.transaction', module: 'transaction-api'
+      exclude group: 'com.zaxxer', module: 'HikariCP'
     }
 
     // By default, hive-exec is a fat/uber jar and it exports a guava library
@@ -202,6 +205,9 @@ project(':iceberg-hive') {
       exclude group: 'org.eclipse.jetty.aggregate', module: 'jetty-all'
       exclude group: 'org.eclipse.jetty.orbit', module: 'javax.servlet'
       exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
+      exclude group: 'com.tdunning', module: 'json'
+      exclude group: 'javax.transaction', module: 'transaction-api'
+      exclude group: 'com.zaxxer', module: 'HikariCP'
     }
 
     compileOnly("org.apache.hadoop:hadoop-client") {
