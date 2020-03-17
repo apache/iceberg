@@ -166,6 +166,16 @@ project(':iceberg-hive') {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hbase'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'co.cask.tephra'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'org.eclipse.jetty.aggregate', module: 'jetty-all'
+      exclude group: 'org.eclipse.jetty.orbit', module: 'javax.servlet'
+      exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
+      exclude group: 'com.tdunning', module: 'json'
+      exclude group: 'javax.transaction', module: 'transaction-api'
+      exclude group: 'com.zaxxer', module: 'HikariCP'
     }
 
     // By default, hive-exec is a fat/uber jar and it exports a guava library
@@ -176,12 +186,28 @@ project(':iceberg-hive') {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hive', module: 'hive-llap-tez'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'com.google.protobuf', module: 'protobuf-java'
+      exclude group: 'org.apache.calcite'
+      exclude group: 'org.apache.calcite.avatica'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
 
     testCompile("org.apache.hive:hive-metastore") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hbase'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'co.cask.tephra'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'org.eclipse.jetty.aggregate', module: 'jetty-all'
+      exclude group: 'org.eclipse.jetty.orbit', module: 'javax.servlet'
+      exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
+      exclude group: 'com.tdunning', module: 'json'
+      exclude group: 'javax.transaction', module: 'transaction-api'
+      exclude group: 'com.zaxxer', module: 'HikariCP'
     }
 
     compileOnly("org.apache.hadoop:hadoop-client") {
@@ -279,6 +305,17 @@ project(':iceberg-spark') {
     }
     testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
+
+    // Spark 2.4.4 can only use the below datanucleus version, the versions introduced
+    // by Hive 2.3.6 will meet lots of unexpected issues, so here force to use the versions
+    // introduced by Hive 1.2.1.
+    configurations.all {
+      resolutionStrategy {
+        force 'org.datanucleus:datanucleus-api-jdo:3.2.6'
+        force 'org.datanucleus:datanucleus-core:3.2.10'
+        force 'org.datanucleus:datanucleus-rdbms:3.2.9'
+      }
+    }
 
     // spark-avro is required only for JMH tests, so ideally we would add this
     // dependency only to the jmh configuration, however gradle-consistent-versions

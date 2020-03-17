@@ -33,6 +33,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.StatsSetupConst;
+import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.EnvironmentContext;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -49,6 +50,7 @@ import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -67,6 +69,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
   private static final String HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS = "iceberg.hive.lock-timeout-ms";
   private static final long HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
+  private static final DynMethods.UnboundMethod ALTER_TABLE = DynMethods.builder("alter_table")
+      .impl(HiveMetaStoreClient.class, "alter_table_with_environmentContext",
+          String.class, String.class, Table.class, EnvironmentContext.class)
+      .impl(HiveMetaStoreClient.class, "alter_table",
+          String.class, String.class, Table.class, EnvironmentContext.class)
+      .build();
 
   private final HiveClientPool metaClients;
   private final String database;
@@ -175,7 +183,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
           EnvironmentContext envContext = new EnvironmentContext(
               ImmutableMap.of(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE)
           );
-          client.alter_table(database, tableName, tbl, envContext);
+          ALTER_TABLE.invoke(client, database, tableName, tbl, envContext);
           return null;
         });
       } else {
