@@ -21,14 +21,19 @@ package org.apache.iceberg.mr;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import java.io.Closeable;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.BlockLocation;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.InputSplit;
@@ -82,13 +87,14 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   static final String SPLIT_SIZE = "iceberg.mr.split.size";
   static final String TABLE_PATH = "iceberg.mr.table.path";
   static final String TABLE_SCHEMA = "iceberg.mr.table.schema";
+  private static final String LOCALITY = "iceberg.mr.locality";
 
   private transient List<InputSplit> splits;
 
   public enum InMemoryDataModel {
     PIG,
     HIVE,
-    DEFAULT
+    DEFAULT // Default data model is of Iceberg Generics
   }
 
   /**
@@ -151,6 +157,11 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       return this;
     }
 
+    public ConfigBuilder locality(boolean localityPreferred) {
+      conf.setBoolean(LOCALITY, localityPreferred);
+      return this;
+    }
+
     public ConfigBuilder inMemoryDataModel(InMemoryDataModel inMemoryDataModel) {
       conf.set(IN_MEMORY_DATA_MODEL, inMemoryDataModel.name());
       return this;
@@ -168,7 +179,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     Table table = getTable(conf);
     TableScan scan = table.newScan()
                           .caseSensitive(conf.getBoolean(CASE_SENSITIVE, true));
-
     long snapshotId = conf.getLong(SNAPSHOT_ID, -1);
     if (snapshotId != -1) {
       scan = scan.useSnapshot(snapshotId);
@@ -194,7 +204,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     splits = Lists.newArrayList();
     try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
-      tasksIterable.forEach(task -> splits.add(new IcebergSplit(task)));
+      tasksIterable.forEach(task -> splits.add(new IcebergSplit(conf, task)));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close table scan: %s", scan);
     }
@@ -276,9 +286,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       // schema of rows returned by readers
       PartitionSpec spec = currentTask.spec();
       Set<Integer> idColumns = spec.identitySourceIds();
-
-      boolean hasJoinedPartitionColumns = !idColumns.isEmpty();
       Schema readSchema = expectedSchema != null ? expectedSchema : tableSchema;
+      boolean hasJoinedPartitionColumns = !idColumns.isEmpty();
       if (hasJoinedPartitionColumns) {
         readSchema = TypeUtil.selectNot(tableSchema, idColumns);
         Schema identityPartitionSchema = TypeUtil.select(tableSchema, idColumns);
@@ -345,8 +354,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           if (identityColumn.fieldId() == partitionField.sourceId() &&
               "identity".equals(partitionField.transform().toString())) {
             row.set(size + i, partition.get(j, spec.javaClasses()[i]));
-          } else {
-            row.set(size + i, null);
           }
         }
       }
@@ -430,9 +437,12 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   private static class IcebergSplit extends InputSplit implements Writable {
     private static final String[] ANYWHERE = new String[]{"*"};
     private CombinedScanTask task;
+    private transient String[] locations;
+    private transient Configuration conf;
 
-    IcebergSplit(CombinedScanTask task) {
+    IcebergSplit(Configuration conf, CombinedScanTask task) {
       this.task = task;
+      this.conf = conf;
     }
 
     @Override
@@ -442,8 +452,29 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     @Override
     public String[] getLocations() {
-      //TODO: add locations for hdfs
-      return ANYWHERE;
+      boolean localityPreferred = conf.getBoolean(LOCALITY, false);
+      if (!localityPreferred) {
+        return ANYWHERE;
+      }
+      if (locations != null) {
+        return locations;
+      }
+
+      Set<String> locationSets = Sets.newHashSet();
+      for (FileScanTask f : task.files()) {
+        Path path = new Path(f.file().path().toString());
+        try {
+          FileSystem fs = path.getFileSystem(conf);
+          for (BlockLocation b : fs.getFileBlockLocations(path, f.start(), f.length())) {
+            locationSets.addAll(Arrays.asList(b.getHosts()));
+          }
+        } catch (IOException ioe) {
+          LOG.warn("Failed to get block locations for path {}", path, ioe);
+        }
+      }
+
+      locations = locationSets.toArray(new String[0]);
+      return locations;
     }
 
     @Override
