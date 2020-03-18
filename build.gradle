@@ -227,6 +227,7 @@ project(':iceberg-mr') {
     compile project(':iceberg-hive')
     compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
+    compile project(':iceberg-data')
 
     compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
