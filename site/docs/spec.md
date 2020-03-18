@@ -497,12 +497,12 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | **`date`**         | `date`              |                                                                                         |
 | **`time`**         | `long`              | Stores microseconds from midnight.                                                      |
 | **`timestamp`**    | `timestamp`         |                                                                                         |
-| **`timestamptz`**  | `timestamp_instant` |                                       |
+| **`timestamptz`**  | `timestamp_instant` |                                                                                         |
 | **`string`**       | `string`            | ORC `varchar` and `char` would also map to **`string`**.                                |
 | **`uuid`**         | `binary`            |                                                                                         |
 | **`fixed(L)`**     | `binary`            | The length would not be checked by the ORC reader and should be checked by the adapter. |
 | **`binary`**       | `binary`            |                                                                                         |
-| **`struct`**       | `struct`            | ORC `uniontype` would also map to **`struct`**.                                         |
+| **`struct`**       | `struct`            |                                                                                         |
 | **`list`**         | `array`             |                                                                                         |
 | **`map`**          | `map`               |                                                                                         |
 

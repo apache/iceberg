@@ -30,7 +30,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
@@ -225,14 +227,16 @@ public class GenericOrcReader implements OrcValueReader<Record> {
   }
 
   private static class TimestampConverter implements Converter<LocalDateTime> {
-    private final ZoneOffset localZoneOffset;
+    private final ZoneId localZoneId;
 
     TimestampConverter() {
-      this.localZoneOffset = OffsetDateTime.now().getOffset();
+      this.localZoneId = ZoneId.systemDefault();
     }
 
     private LocalDateTime convert(TimestampColumnVector vector, int row) {
-      return LocalDateTime.ofEpochSecond(vector.time[row] / 1_000, vector.nanos[row], localZoneOffset);
+      return ZonedDateTime
+          .ofInstant(Instant.ofEpochSecond(vector.time[row] / 1_000, vector.nanos[row]), localZoneId)
+          .toLocalDateTime();
     }
 
     @Override
@@ -297,12 +301,14 @@ public class GenericOrcReader implements OrcValueReader<Record> {
   private static class StringConverter implements Converter<String> {
     @Override
     public String convert(ColumnVector vector, int row) {
-      BinaryConverter converter = new BinaryConverter();
-      ByteBuffer byteBuffer = converter.convert(vector, row);
-      if (byteBuffer == null) {
+      int rowIndex = vector.isRepeating ? 0 : row;
+      if (!vector.noNulls && vector.isNull[rowIndex]) {
         return null;
+      } else {
+        BytesColumnVector bytesVector = (BytesColumnVector) vector;
+        return new String(bytesVector.vector[rowIndex], bytesVector.start[rowIndex], bytesVector.length[rowIndex],
+            StandardCharsets.UTF_8);
       }
-      return new String(byteBuffer.array(), StandardCharsets.UTF_8);
     }
   }
 

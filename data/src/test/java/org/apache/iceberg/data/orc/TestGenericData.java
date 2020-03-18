@@ -82,9 +82,12 @@ public class TestGenericData extends DataTest {
 
     // Write using America/New_York timezone
     TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"));
-    GenericRecord record = GenericRecord.create(timestampSchema);
-    record.setField("tsTzCol", OffsetDateTime.parse("2017-11-16T17:10:34-08:00"));
-    record.setField("tsCol", LocalDateTime.parse("1970-01-01T00:01:00"));
+    GenericRecord record1 = GenericRecord.create(timestampSchema);
+    record1.setField("tsTzCol", OffsetDateTime.parse("2017-01-16T17:10:34-08:00"));
+    record1.setField("tsCol", LocalDateTime.parse("1970-01-01T00:01:00"));
+    GenericRecord record2 = GenericRecord.create(timestampSchema);
+    record2.setField("tsTzCol", OffsetDateTime.parse("2017-05-16T17:10:34-08:00"));
+    record2.setField("tsCol", LocalDateTime.parse("1970-05-01T00:01:00"));
 
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
@@ -93,7 +96,8 @@ public class TestGenericData extends DataTest {
         .schema(timestampSchema)
         .createWriterFunc(GenericOrcWriter::buildWriter)
         .build()) {
-      writer.add(record);
+      writer.add(record1);
+      writer.add(record2);
     }
 
     // Read using Asia/Kolkata timezone
@@ -106,7 +110,9 @@ public class TestGenericData extends DataTest {
       rows = Lists.newArrayList(reader);
     }
 
-    Assert.assertEquals(OffsetDateTime.parse("2017-11-17T01:10:34Z"), rows.get(0).getField("tsTzCol"));
+    Assert.assertEquals(OffsetDateTime.parse("2017-01-17T01:10:34Z"), rows.get(0).getField("tsTzCol"));
     Assert.assertEquals(LocalDateTime.parse("1970-01-01T00:01:00"), rows.get(0).getField("tsCol"));
+    Assert.assertEquals(OffsetDateTime.parse("2017-05-17T01:10:34Z"), rows.get(1).getField("tsTzCol"));
+    Assert.assertEquals(LocalDateTime.parse("1970-05-01T00:01:00"), rows.get(1).getField("tsCol"));
   }
 }

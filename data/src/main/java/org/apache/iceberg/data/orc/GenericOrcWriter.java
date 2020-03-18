@@ -29,6 +29,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -346,10 +347,10 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
   }
 
   static class TimestampConverter implements Converter<LocalDateTime> {
-    private final ZoneOffset localZoneOffset;
+    private final ZoneId localZoneId;
 
     TimestampConverter() {
-      this.localZoneOffset = OffsetDateTime.now().getOffset();
+      this.localZoneId = ZoneId.systemDefault();
     }
 
     @Override
@@ -365,7 +366,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       } else {
         output.isNull[rowId] = false;
         TimestampColumnVector cv = (TimestampColumnVector) output;
-        long micros = ChronoUnit.MICROS.between(EPOCH, data.atOffset(localZoneOffset));
+        long micros = ChronoUnit.MICROS.between(EPOCH, data.atZone(localZoneId));
         cv.time[rowId] = micros / 1_000; // millis
         cv.nanos[rowId] = (int) (micros % 1_000_000) * 1_000; // nanos
       }
