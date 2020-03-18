@@ -113,6 +113,37 @@ public class TestSplitPlanning {
   }
 
   @Test
+  public void testSplitPlanningWithOverridenMetadataSplitSize() {
+    List<DataFile> files8Mb = newFiles(32, 8 * 1024 * 1024, FileFormat.METADATA);
+    appendFiles(files8Mb);
+    // we expect 16 bins since we are overriding split size in scan with 32MB
+    TableScan scan = table.newScan()
+        .option(TableProperties.METADATA_SPLIT_SIZE, String.valueOf(16L * 1024 * 1024));
+    Assert.assertEquals(16, Iterables.size(scan.planTasks()));
+  }
+
+  @Test
+  public void testSplitPlanningWithOverridenLargeMetadataSplitSize() {
+    List<DataFile> files128Mb = newFiles(4, 128 * 1024 * 1024, FileFormat.METADATA);
+    appendFiles(files128Mb);
+    // although overriding split size in scan with 8MB, we expect 4 bins since metadata file is not splittable
+    TableScan scan = table.newScan()
+        .option(TableProperties.METADATA_SPLIT_SIZE, String.valueOf(8L * 1024 * 1024));
+    Assert.assertEquals(4, Iterables.size(scan.planTasks()));
+  }
+
+  @Test
+  public void testSplitPlanningWithOverridenSplitSize() {
+    List<DataFile> files128Mb = newFiles(4, 128 * 1024 * 1024);
+    appendFiles(files128Mb);
+    // we expect 2 bins since table's split size option has higher precedence over metadata split size option
+    TableScan scan = table.newScan()
+        .option(TableProperties.SPLIT_SIZE, String.valueOf(256L * 1024 * 1024))
+        .option(TableProperties.METADATA_SPLIT_SIZE, String.valueOf(8L * 1024 * 1024));
+    Assert.assertEquals(2, Iterables.size(scan.planTasks()));
+  }
+
+  @Test
   public void testSplitPlanningWithOverridenLookback() {
     List<DataFile> files120Mb = newFiles(1, 120 * 1024 * 1024);
     List<DataFile> file128Mb = newFiles(1, 128 * 1024 * 1024);
@@ -147,18 +178,23 @@ public class TestSplitPlanning {
     appendFiles.commit();
   }
 
+
   private List<DataFile> newFiles(int numFiles, long sizeInBytes) {
+    return newFiles(numFiles, sizeInBytes, FileFormat.PARQUET);
+  }
+
+  private List<DataFile> newFiles(int numFiles, long sizeInBytes, FileFormat fileFormat) {
     List<DataFile> files = Lists.newArrayList();
     for (int fileNum = 0; fileNum < numFiles; fileNum++) {
-      files.add(newFile(sizeInBytes));
+      files.add(newFile(sizeInBytes, fileFormat));
     }
     return files;
   }
 
-  private DataFile newFile(long sizeInBytes) {
+  private DataFile newFile(long sizeInBytes, FileFormat fileFormat) {
     String fileName = UUID.randomUUID().toString();
     return DataFiles.builder(PartitionSpec.unpartitioned())
-        .withPath(FileFormat.PARQUET.addExtension(fileName))
+        .withPath(fileFormat.addExtension(fileName))
         .withFileSizeInBytes(sizeInBytes)
         .withRecordCount(2)
         .build();
