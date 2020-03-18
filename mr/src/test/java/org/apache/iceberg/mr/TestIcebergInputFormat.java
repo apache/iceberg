@@ -19,12 +19,18 @@
 
 package org.apache.iceberg.mr;
 
+import com.google.common.collect.FluentIterable;
+import com.google.common.collect.ImmutableMap;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import org.apache.avro.generic.GenericData;
+import java.util.Locale;
+import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.RecordReader;
@@ -33,101 +39,222 @@ import org.apache.hadoop.mapreduce.TaskAttemptID;
 import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.avro.RandomAvroData;
+import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.data.RandomGenericData;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.avro.DataWriter;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.hive.HiveCatalog;
+import org.apache.iceberg.hive.HiveCatalogs;
+import org.apache.iceberg.hive.HiveClientPool;
+import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 
+@RunWith(Parameterized.class)
 public class TestIcebergInputFormat {
-  private static final Configuration CONF = new Configuration();
-  private static final HadoopTables TABLES = new HadoopTables(CONF);
-
-  private File tableLocation;
-
   private static final Schema SCHEMA = new Schema(
-      required(1, "id", Types.LongType.get()),
-      optional(2, "data", Types.StringType.get()),
-      required(3, "date", Types.StringType.get()));
+      required(1, "data", Types.StringType.get()),
+      required(3, "id", Types.LongType.get()),
+      required(2, "date", Types.StringType.get()));
 
-  private static final PartitionSpec PARTITION_BY_DATE = PartitionSpec
-      .builderFor(SCHEMA)
-      .identity("date")
-      .build();
+  private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
+                                                         .identity("date")
+                                                         .bucket("id", 1)
+                                                         .build();
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
-  IcebergInputFormat<GenericData.Record> icebergInputFormat;
+  private HadoopTables tables;
+  private Configuration conf;
 
-  @Test
-  public void test() throws IOException, InterruptedException {
-    tableLocation = new File(temp.newFolder(), "table");
-    Table table = TABLES.create(SCHEMA, PARTITION_BY_DATE, tableLocation.toString());
-    List<GenericData.Record> records = RandomAvroData.generate(SCHEMA, 5, 0L);
-    File file = temp.newFile();
-    Assert.assertTrue(file.delete());
-    try (FileAppender<GenericData.Record> appender = Avro.write(Files.localOutput(file))
-                                                         .schema(SCHEMA)
-                                                         .named("avro")
-                                                         .build()) {
-      appender.addAll(records);
-    }
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][]{
+        new Object[]{"parquet"},
+        new Object[]{"avro"}
+    };
+  }
 
-    DataFile dataFile = DataFiles.builder(PARTITION_BY_DATE)
-                                 .withPartition(partitionData("2020-03-15"))
-                                 .withRecordCount(records.size())
-                                 .withFileSizeInBytes(file.length())
-                                 .withPath(file.toString())
-                                 .withFormat("avro")
-                                 .build();
+  private final FileFormat format;
 
-    table.newAppend().appendFile(dataFile).commit();
+  public TestIcebergInputFormat(String format) {
+    this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
+  }
 
-    Job job = Job.getInstance(new Configuration());
-    IcebergInputFormat
-        .configure(job)
-        .readFrom(tableLocation.getAbsolutePath());
+  @Before
+  public void before() {
+    conf = new Configuration();
+    tables = new HadoopTables(conf);
+  }
 
-    TaskAttemptContext context = new TaskAttemptContextImpl(new JobConf(job.getConfiguration()), new TaskAttemptID());
-    icebergInputFormat = new IcebergInputFormat<>();
-    List<InputSplit> splits = icebergInputFormat.getSplits(context);
-    final RecordReader<Void, GenericData.Record> recordReader =
-        icebergInputFormat.createRecordReader(splits.get(0), context);
-    recordReader.initialize(splits.get(0), context);
-    while (recordReader.nextKeyValue()) {
-      System.out.println(recordReader.getCurrentValue());
+  public static class HiveCatalogFunc implements Function<Configuration, Catalog> {
+    @Override
+    public Catalog apply(Configuration conf) {
+      return HiveCatalogs.loadCatalog(conf);
     }
   }
 
-  private StructLike partitionData(String date) {
-    return new StructLike() {
+  @Test
+  public void testUnpartitionedTable() throws Exception {
+    File location = temp.newFolder(format.name());
+    Assert.assertTrue(location.delete());
+    Table table = tables.create(SCHEMA, PartitionSpec.unpartitioned(),
+                                ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()),
+                                location.toString());
+    List<Record> expectedRecords = RandomGenericData.generate(table.schema(), 1, 0L);
+    DataFile dataFile = writeFile(table, null, format, expectedRecords);
+    table.newAppend()
+         .appendFile(dataFile)
+         .commit();
+    validate(conf, location.toString(), null, expectedRecords);
+  }
 
-      @Override
-      public int size() {
-        return 1;
-      }
+  @Test
+  public void testPartitionedTable() throws Exception {
+    File location = temp.newFolder(format.name());
+    Assert.assertTrue(location.delete());
+    Table table = tables.create(SCHEMA, SPEC,
+                                ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()),
+                                location.toString());
+    List<Record> expectedRecords = RandomGenericData.generate(table.schema(), 1, 0L);
+    expectedRecords.get(0).set(2, "2020-03-20");
+    DataFile dataFile = writeFile(table, Row.of("2020-03-20", 0), format, expectedRecords);
+    table.newAppend()
+         .appendFile(dataFile)
+         .commit();
+    validate(conf, location.toString(), null, expectedRecords);
+  }
 
-      @Override
-      public <T> T get(int pos, Class<T> javaClass) {
-        return (T) date;
-      }
+  @Test
+  public void testCustomCatalog() throws Exception {
+    conf = setupHiveMetastore();
+    HiveCatalog catalog = HiveCatalogs.loadCatalog(conf);
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "t");
+    Table table = catalog.createTable(tableIdentifier, SCHEMA, SPEC,
+                                      ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()));
+    List<Record> expectedRecords = RandomGenericData.generate(table.schema(), 1, 0L);
+    expectedRecords.get(0).set(2, "2020-03-20");
+    DataFile dataFile = writeFile(table, Row.of("2020-03-20", 0), format, expectedRecords);
+    table.newAppend()
+         .appendFile(dataFile)
+         .commit();
+    validate(conf, tableIdentifier.toString(), HiveCatalogFunc.class, expectedRecords);
+  }
 
-      @Override
-      public <T> void set(int pos, T value) {
+  private static void validate(
+      Configuration conf, String path, Class<? extends Function<Configuration, Catalog>> catalogFuncClass,
+      List<Record> expectedRecords) throws IOException {
+    Job job = Job.getInstance(conf);
+    IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
+    if (catalogFuncClass != null) {
+      configBuilder.catalogFunc(catalogFuncClass);
+    }
+    configBuilder.readFrom(path);
+    List<Record> actualRecords = readRecords(job.getConfiguration());
+    Assert.assertEquals(expectedRecords, actualRecords);
+  }
+
+  private static <T> List<T> readRecords(Configuration conf) {
+    TaskAttemptContext context = new TaskAttemptContextImpl(conf, new TaskAttemptID());
+    IcebergInputFormat<T> icebergInputFormat = new IcebergInputFormat<>();
+    List<InputSplit> splits = icebergInputFormat.getSplits(context);
+    return
+        FluentIterable
+            .from(splits)
+            .transformAndConcat(split -> readRecords(icebergInputFormat, split, context))
+            .toList();
+  }
+
+  private static <T> Iterable<T> readRecords(
+      IcebergInputFormat<T> inputFormat, InputSplit split, TaskAttemptContext context) {
+    RecordReader<Void, T> recordReader = inputFormat.createRecordReader(split, context);
+    List<T> records = new ArrayList<>();
+    try {
+      recordReader.initialize(split, context);
+      while (recordReader.nextKeyValue()) {
+        records.add(recordReader.getCurrentValue());
       }
-    };
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+    return records;
+  }
+
+  private static Configuration setupHiveMetastore() throws Exception {
+    TestHiveMetastore metastore = new TestHiveMetastore();
+    metastore.start();
+    final HiveConf hiveConf = metastore.hiveConf();
+    String dbPath = metastore.getDatabasePath("db");
+    Database db = new Database("db", "desc", dbPath, new HashMap<>());
+    HiveClientPool clients = new HiveClientPool(1, hiveConf);
+    clients.run(client -> {
+      client.createDatabase(db);
+      return null;
+    });
+    return hiveConf;
+  }
+
+  private DataFile writeFile(
+      Table table, StructLike partitionData, FileFormat fileFormat, List<Record> records) throws IOException {
+    File file = temp.newFile();
+    Assert.assertTrue(file.delete());
+    FileAppender<Record> appender;
+    switch (fileFormat) {
+      case AVRO:
+        appender = Avro.write(Files.localOutput(file))
+                       .schema(table.schema())
+                       .createWriterFunc(DataWriter::create)
+                       .named(fileFormat.name())
+                       .build();
+        break;
+      case PARQUET:
+        appender = Parquet.write(Files.localOutput(file))
+                          .schema(table.schema())
+                          .createWriterFunc(GenericParquetWriter::buildWriter)
+                          .named(fileFormat.name())
+                          .build();
+        break;
+      default:
+        throw new UnsupportedOperationException("Cannot write format: " + fileFormat);
+    }
+
+    try {
+      appender.addAll(records);
+    } finally {
+      appender.close();
+    }
+
+    final DataFiles.Builder builder = DataFiles.builder(table.spec())
+                                               .withPath(file.toString())
+                                               .withFormat(format)
+                                               .withFileSizeInBytes(file.length())
+                                               .withMetrics(appender.metrics());
+    if (partitionData != null) {
+      builder.withPartition(partitionData);
+    }
+    return builder.build();
   }
 }

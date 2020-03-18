@@ -19,21 +19,18 @@
 
 package org.apache.iceberg.mr;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import java.io.Closeable;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.BlockLocation;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.InputSplit;
@@ -55,15 +52,17 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.hive.HiveCatalogs;
+import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
@@ -74,6 +73,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
+/**
+ * Generic Mrv2 InputFormat API for Iceberg.
+ * @param <T> T is the in memory data model which can either be Pig tuples, Hive rows. Default is Iceberg records
+ */
 public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergInputFormat.class);
 
@@ -87,11 +90,12 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   static final String SPLIT_SIZE = "iceberg.mr.split.size";
   static final String TABLE_PATH = "iceberg.mr.table.path";
   static final String TABLE_SCHEMA = "iceberg.mr.table.schema";
-  private static final String LOCALITY = "iceberg.mr.locality";
+  static final String LOCALITY = "iceberg.mr.locality";
+  static final String CATALOG = "iceberg.mr.catalog";
 
   private transient List<InputSplit> splits;
 
-  public enum InMemoryDataModel {
+  private enum InMemoryDataModel {
     PIG,
     HIVE,
     DEFAULT // Default data model is of Iceberg Generics
@@ -117,7 +121,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     public ConfigBuilder readFrom(String path) {
       conf.set(TABLE_PATH, path);
-      Table table = getTable(conf);
+      Table table = findTable(conf);
       conf.set(TABLE_SCHEMA, SchemaParser.toJson(table.schema()));
       return this;
     }
@@ -162,8 +166,21 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       return this;
     }
 
-    public ConfigBuilder inMemoryDataModel(InMemoryDataModel inMemoryDataModel) {
-      conf.set(IN_MEMORY_DATA_MODEL, inMemoryDataModel.name());
+    public ConfigBuilder catalogFunc(Class<? extends Function<Configuration, Catalog>> catalogFuncClass) {
+      Preconditions.checkState(
+          conf.get(TABLE_PATH) == null,
+          "Please provide custom catalog before specifying the table to read from");
+      conf.setClass(CATALOG, catalogFuncClass, Function.class);
+      return this;
+    }
+
+    public ConfigBuilder useHiveRows() {
+      conf.set(IN_MEMORY_DATA_MODEL, InMemoryDataModel.HIVE.name());
+      return this;
+    }
+
+    public ConfigBuilder usePigTuples() {
+      conf.set(IN_MEMORY_DATA_MODEL, InMemoryDataModel.PIG.name());
       return this;
     }
   }
@@ -176,7 +193,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
 
     Configuration conf = context.getConfiguration();
-    Table table = getTable(conf);
+    Table table = findTable(conf);
     TableScan scan = table.newScan()
                           .caseSensitive(conf.getBoolean(CASE_SENSITIVE, true));
     long snapshotId = conf.getLong(SNAPSHOT_ID, -1);
@@ -232,6 +249,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     @Override
     public void initialize(InputSplit split, TaskAttemptContext newContext) {
       Configuration conf = newContext.getConfiguration();
+      // For now IcebergInputFormat does its own split planning and does not
+      // accept FileSplit instances
       CombinedScanTask task = ((IcebergSplit) split).task;
       this.context = newContext;
       this.tasks = task.files().iterator();
@@ -319,7 +338,22 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
               String.format("Cannot read %s file: %s", file.format().name(), file.path()));
       }
       currentCloseable = iterable;
-      return iterable.iterator();
+      if (inMemoryDataModel == InMemoryDataModel.DEFAULT) {
+        Expression filter = currentTask.residual();
+        return applyResidualsOnGenericRecords(iterable, filter).iterator();
+      } else {
+        return iterable.iterator();
+      }
+    }
+
+    private Iterable<T> applyResidualsOnGenericRecords(CloseableIterable<T> iterable, Expression filter) {
+      if (filter == null || filter.equals(Expressions.alwaysTrue())) {
+        return iterable;
+      } else {
+        throw new UnsupportedOperationException(
+            String.format("Filter expression %s is not completely satisfied. Additional rows can be returned" +
+                              " not satisfied by the filter expression", filter));
+      }
     }
 
     @SuppressWarnings("unchecked")
@@ -330,12 +364,12 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           // TODO implement adding partition columns to records for Pig and Hive
           throw new UnsupportedOperationException();
         case DEFAULT:
-          return (T) icebergRecordWithPartitionsColumns((Record) row, identityPartitionSchema, spec, partition);
+          return (T) genericRecordWithPartitionsColumns((Record) row, identityPartitionSchema, spec, partition);
       }
       return row;
     }
 
-    private static Record icebergRecordWithPartitionsColumns(
+    private static Record genericRecordWithPartitionsColumns(
         Record record, Schema identityPartitionSchema, PartitionSpec spec, StructLike partition) {
       List<Types.NestedField> fields = Lists.newArrayList(record.struct().fields());
       fields.addAll(identityPartitionSchema.asStruct().fields());
@@ -353,6 +387,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           PartitionField partitionField = partitionFields.get(j);
           if (identityColumn.fieldId() == partitionField.sourceId() &&
               "identity".equals(partitionField.transform().toString())) {
+            //TODO: identity partitions are being added to the end, this changes
+            // the position of the column. This seems like a potential bug
             row.set(size + i, partition.get(j, spec.javaClasses()[i]));
           }
         }
@@ -422,15 +458,24 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
   }
 
-  private static Table getTable(Configuration conf) {
+  private static Table findTable(Configuration conf) {
     String path = conf.get(TABLE_PATH);
-    if (path.contains("/")) {
+    String catalogFuncClass = conf.get(CATALOG);
+    if (catalogFuncClass != null) {
+      Function<Configuration, Catalog> catalogFunc
+          = (Function<Configuration, Catalog>)
+          DynConstructors.builder(Function.class)
+                         .impl(catalogFuncClass)
+                         .build()
+                         .newInstance();
+      Catalog catalog = catalogFunc.apply(conf);
+      TableIdentifier tableIdentifier = TableIdentifier.parse(path);
+      return catalog.loadTable(tableIdentifier);
+    } else if (path.contains("/")) {
       HadoopTables tables = new HadoopTables(conf);
       return tables.load(path);
     } else {
-      Catalog catalog = HiveCatalogs.loadCatalog(conf);
-      TableIdentifier tableIdentifier = TableIdentifier.parse(path);
-      return catalog.loadTable(tableIdentifier);
+      throw new IllegalArgumentException("No custom catalog specified to load table " + path);
     }
   }
 
@@ -459,21 +504,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       if (locations != null) {
         return locations;
       }
-
-      Set<String> locationSets = Sets.newHashSet();
-      for (FileScanTask f : task.files()) {
-        Path path = new Path(f.file().path().toString());
-        try {
-          FileSystem fs = path.getFileSystem(conf);
-          for (BlockLocation b : fs.getFileBlockLocations(path, f.start(), f.length())) {
-            locationSets.addAll(Arrays.asList(b.getHosts()));
-          }
-        } catch (IOException ioe) {
-          LOG.warn("Failed to get block locations for path {}", path, ioe);
-        }
-      }
-
-      locations = locationSets.toArray(new String[0]);
+      locations = Util.blockLocations(task, conf);
       return locations;
     }
 
