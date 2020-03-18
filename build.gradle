@@ -28,7 +28,7 @@ buildscript {
   }
   dependencies {
     classpath 'com.github.jengelman.gradle.plugins:shadow:5.0.0'
-    classpath 'com.palantir.baseline:gradle-baseline-java:0.55.0'
+    classpath 'com.palantir.baseline:gradle-baseline-java:0.58.0'
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:3.14.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:2.1.0'
     classpath 'me.champeau.gradle:jmh-gradle-plugin:0.4.8'
@@ -209,6 +209,12 @@ project(':iceberg-mr') {
     testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
+    
+    testCompile("com.klarna:hiverunner:3.2.1") {
+      exclude group: 'javax.jms', module: 'jms'
+      exclude group: 'org.codehaus.jettison', module: 'jettison'
+      exclude group: 'org.datanucleus', module: '*'
+    }
   }
 }
 
