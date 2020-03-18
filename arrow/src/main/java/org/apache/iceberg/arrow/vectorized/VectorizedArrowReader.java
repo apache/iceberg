@@ -72,7 +72,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   // before storing the values in the Arrow vector. This means even if the dictionary is present, data
   // present in the vector may not necessarily be dictionary encoded.
   private Dictionary dictionary;
-  private boolean allPagesDictEncoded;
 
   public VectorizedArrowReader(
       ColumnDescriptor desc,
@@ -102,15 +101,16 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
   @Override
   public VectorHolder read(int numValsToRead) {
+    boolean dictEncoded = vectorizedColumnIterator.producesDictionaryEncodedVector();
     if (vec == null || !reuseContainers) {
-      allocateFieldVector();
+      allocateFieldVector(dictEncoded);
       nullabilityHolder = new NullabilityHolder(batchSize);
     } else {
       vec.setValueCount(0);
       nullabilityHolder.reset();
     }
     if (vectorizedColumnIterator.hasNext()) {
-      if (allPagesDictEncoded) {
+      if (dictEncoded) {
         vectorizedColumnIterator.nextBatchDictionaryIds((IntVector) vec, nullabilityHolder);
       } else {
         switch (readType) {
@@ -157,11 +157,12 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     }
     Preconditions.checkState(vec.getValueCount() == numValsToRead,
         "Number of values read, %s, does not equal expected, %s", vec.getValueCount(), numValsToRead);
-    return new VectorHolder(columnDescriptor, vec, allPagesDictEncoded, dictionary, nullabilityHolder);
+    return new VectorHolder(columnDescriptor, vec, dictEncoded, dictionary,
+        nullabilityHolder, icebergField.type());
   }
 
-  private void allocateFieldVector() {
-    if (allPagesDictEncoded) {
+  private void allocateFieldVector(boolean dictionaryEncodedVector) {
+    if (dictionaryEncodedVector) {
       Field field = new Field(
           icebergField.name(),
           new FieldType(icebergField.isOptional(), new ArrowType.Int(Integer.SIZE, true), null, null),
@@ -303,8 +304,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   @Override
   public void setRowGroupInfo(PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
     ColumnChunkMetaData chunkMetaData = metadata.get(ColumnPath.get(columnDescriptor.getPath()));
-    allPagesDictEncoded = !ParquetUtil.hasNonDictionaryPages(chunkMetaData);
-    dictionary = vectorizedColumnIterator.setRowGroupInfo(source.getPageReader(columnDescriptor), allPagesDictEncoded);
+    this.dictionary = vectorizedColumnIterator.setRowGroupInfo(
+        source.getPageReader(columnDescriptor),
+        !ParquetUtil.hasNonDictionaryPages(chunkMetaData));
   }
 
   @Override
@@ -324,16 +326,27 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     return columnDescriptor.toString();
   }
 
-  public static final VectorizedArrowReader NULL_VALUES_READER =
-      new VectorizedArrowReader() {
-        @Override
-        public VectorHolder read(int numValsToRead) {
-          return VectorHolder.NULL_VECTOR_HOLDER;
-        }
+  public static VectorizedArrowReader nulls() {
+    return NullVectorReader.INSTANCE;
+  }
 
-        @Override
-        public void setRowGroupInfo(PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
-        }
-      };
+  private static final class NullVectorReader extends VectorizedArrowReader {
+    private static final NullVectorReader INSTANCE = new NullVectorReader();
+
+    @Override
+    public VectorHolder read(int numValsToRead) {
+      return VectorHolder.dummyHolder(numValsToRead);
+    }
+
+    @Override
+    public void setRowGroupInfo(PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
+    }
+
+    @Override
+    public String toString() {
+      return "NullReader";
+    }
+  }
+
 }
 

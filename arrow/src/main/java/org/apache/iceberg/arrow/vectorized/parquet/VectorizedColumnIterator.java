@@ -48,8 +48,10 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
   }
 
   public Dictionary setRowGroupInfo(PageReader store, boolean allPagesDictEncoded) {
-    super.setPageSource(store);
+    // setPageSource can result in a data page read. If that happens, we need
+    // to know in advance whether all the pages in the row group are dictionary encoded or not
     this.vectorizedPageIterator.setAllPagesDictEncoded(allPagesDictEncoded);
+    super.setPageSource(store);
     return dictionary;
   }
 
@@ -197,6 +199,10 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
   @Override
   protected BasePageIterator pageIterator() {
     return vectorizedPageIterator;
+  }
+
+  public boolean producesDictionaryEncodedVector() {
+    return vectorizedPageIterator.producesDictionaryEncodedVector();
   }
 
 }

@@ -19,10 +19,9 @@
 
 package org.apache.iceberg.spark.data.vectorized;
 
-import org.apache.arrow.vector.types.pojo.ArrowType;
-import org.apache.arrow.vector.types.pojo.Field;
-import org.apache.arrow.vector.types.pojo.FieldType;
-import org.apache.iceberg.spark.arrow.ArrowUtils;
+import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
@@ -32,14 +31,10 @@ import org.apache.spark.unsafe.types.UTF8String;
 public class NullValuesColumnVector extends ColumnVector {
 
   private final int numNulls;
-  private static final String NULL_FIELD_NAME = "NULL_FIELD";
-  private static final Field NULL_ARROW_FIELD = new Field(
-      NULL_FIELD_NAME,
-      new FieldType(true, new ArrowType.Int(Integer.SIZE, true), null, null),
-      null);
+  private static final Type NULL_TYPE = Types.IntegerType.get();
 
   public NullValuesColumnVector(int nValues) {
-    super(ArrowUtils.instance().fromArrowField(NULL_ARROW_FIELD));
+    super(SparkSchemaUtil.convert(NULL_TYPE));
     this.numNulls = nValues;
   }
 

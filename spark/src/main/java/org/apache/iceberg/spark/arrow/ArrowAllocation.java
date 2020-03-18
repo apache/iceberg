@@ -17,15 +17,21 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.data;
+package org.apache.iceberg.spark.arrow;
 
-import java.util.List;
-import org.apache.avro.generic.GenericData;
-import org.apache.iceberg.Schema;
+import org.apache.arrow.memory.RootAllocator;
 
-public class TestSparkParquetFallbackToDictionaryEncodingForVectorizedReader extends TestSparkParquetVectorizedReader {
-  @Override
-  public List<GenericData.Record> generateData(Schema schema) {
-    return RandomData.generateListWithFallBackDictionaryEncodingForStrings(schema, 100000, 0L, 0.5f);
+public class ArrowAllocation {
+  static {
+    ROOT_ALLOCATOR = new RootAllocator(Long.MAX_VALUE);
+  }
+
+  private static final RootAllocator ROOT_ALLOCATOR;
+
+  private ArrowAllocation() {
+  }
+
+  public static RootAllocator rootAllocator() {
+    return ROOT_ALLOCATOR;
   }
 }

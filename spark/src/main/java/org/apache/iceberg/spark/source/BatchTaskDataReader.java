@@ -36,10 +36,10 @@ import org.apache.spark.sql.sources.v2.reader.InputPartitionReader;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
-class ColumnarBatchTaskDataReader extends BaseTaskDataReader<ColumnarBatch>
+class BatchTaskDataReader extends BaseTaskDataReader<ColumnarBatch>
     implements InputPartitionReader<ColumnarBatch> {
 
-  ColumnarBatchTaskDataReader(
+  BatchTaskDataReader(
       CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
       EncryptionManager encryptionManager, boolean caseSensitive, int bSize) {
     super(task, tableSchema, expectedSchema, fileIo, encryptionManager, caseSensitive, bSize);

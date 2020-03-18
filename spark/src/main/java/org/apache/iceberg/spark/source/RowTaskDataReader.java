@@ -67,9 +67,9 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
 import scala.collection.JavaConverters;
 
-class InternalRowTaskDataReader extends BaseTaskDataReader<InternalRow> implements InputPartitionReader<InternalRow> {
+class RowTaskDataReader extends BaseTaskDataReader<InternalRow> implements InputPartitionReader<InternalRow> {
 
-  InternalRowTaskDataReader(
+  RowTaskDataReader(
       CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
       EncryptionManager encryptionManager, boolean caseSensitive) {
     super(task, tableSchema, expectedSchema, fileIo, encryptionManager, caseSensitive);

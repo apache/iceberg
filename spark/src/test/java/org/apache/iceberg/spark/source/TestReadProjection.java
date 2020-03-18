@@ -57,7 +57,7 @@ public abstract class TestReadProjection {
   public TemporaryFolder temp = new TemporaryFolder();
 
   @BeforeClass
-  public static void setup() {
+  public static void beforeClass() {
     TestHelpers.setArrowFlagsForVectorizedReads();
   }
 

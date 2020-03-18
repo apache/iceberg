@@ -19,7 +19,9 @@
 
 package org.apache.iceberg.arrow.vectorized;
 
+import org.apache.arrow.util.Preconditions;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.iceberg.types.Type;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 
@@ -31,23 +33,34 @@ public class VectorHolder {
   private final ColumnDescriptor columnDescriptor;
   private final FieldVector vector;
   private final boolean isDictionaryEncoded;
-
   private final Dictionary dictionary;
   private final NullabilityHolder nullabilityHolder;
-
-  public static final VectorHolder NULL_VECTOR_HOLDER = new VectorHolder(null, null, false, null, null);
+  private final Type icebergType;
 
   public VectorHolder(
-      ColumnDescriptor columnDescriptor,
-      FieldVector vector,
-      boolean isDictionaryEncoded,
-      Dictionary dictionary,
-      NullabilityHolder holder) {
+      ColumnDescriptor columnDescriptor, FieldVector vector, boolean isDictionaryEncoded,
+      Dictionary dictionary, NullabilityHolder holder, Type type) {
+    // All the fields except dictionary are not nullable unless it is a dummy holder
+    Preconditions.checkNotNull(columnDescriptor, "ColumnDescriptor cannot be null");
+    Preconditions.checkNotNull(vector, "Vector cannot be null");
+    Preconditions.checkNotNull(holder, "NullabilityHolder cannot be null");
+    Preconditions.checkNotNull(type, "IcebergType cannot be null");
     this.columnDescriptor = columnDescriptor;
     this.vector = vector;
     this.isDictionaryEncoded = isDictionaryEncoded;
     this.dictionary = dictionary;
     this.nullabilityHolder = holder;
+    this.icebergType = type;
+  }
+
+  // Only used for returning dummyHolder
+  private VectorHolder() {
+    columnDescriptor = null;
+    vector = null;
+    isDictionaryEncoded = false;
+    dictionary = null;
+    nullabilityHolder = null;
+    icebergType = null;
   }
 
   public ColumnDescriptor descriptor() {
@@ -69,4 +82,26 @@ public class VectorHolder {
   public NullabilityHolder nullabilityHolder() {
     return nullabilityHolder;
   }
+
+  public Type icebergType() {
+    return icebergType;
+  }
+
+  public int numValues() {
+    return vector.getValueCount();
+  }
+
+  public static VectorHolder dummyHolder(int numRows) {
+    return new VectorHolder() {
+      @Override
+      public int numValues() {
+        return numRows;
+      }
+    };
+  }
+
+  public boolean isDummy() {
+    return vector == null;
+  }
+
 }

@@ -280,6 +280,7 @@ public class ParquetUtil {
         case INT_8:
         case INT_16:
         case INT_32:
+        case DATE:
           return true;
         default:
           return false;

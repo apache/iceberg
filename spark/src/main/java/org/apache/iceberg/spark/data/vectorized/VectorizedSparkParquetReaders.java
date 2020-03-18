@@ -30,7 +30,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
-import org.apache.iceberg.spark.arrow.ArrowUtils;
+import org.apache.iceberg.spark.arrow.ArrowAllocation;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.GroupType;
@@ -68,7 +68,7 @@ public class VectorizedSparkParquetReaders {
       this.parquetSchema = parquetSchema;
       this.tableIcebergSchema = tableSchema;
       this.batchSize = bSize;
-      this.rootAllocator = ArrowUtils.instance().rootAllocator()
+      this.rootAllocator = ArrowAllocation.rootAllocator()
           .newChildAllocator("VectorizedReadBuilder", 0, Long.MAX_VALUE);
     }
 
@@ -105,10 +105,10 @@ public class VectorizedSparkParquetReaders {
         if (reader != null) {
           reorderedFields.add(reader);
         } else {
-          reorderedFields.add(VectorizedArrowReader.NULL_VALUES_READER);
+          reorderedFields.add(VectorizedArrowReader.nulls());
         }
       }
-      return new ColumnarBatchReaders(reorderedFields, batchSize);
+      return new ColumnarBatchReaders(reorderedFields);
     }
 
     @Override

@@ -36,15 +36,15 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.Assert;
 import org.junit.Assume;
-import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestSparkParquetVectorizedReader extends AvroDataTest {
 
-  @Before
-  public void setupArrowFlags() {
-    System.setProperty("arrow.enable_unsafe_memory_access", "true");
-    System.setProperty("arrow.enable_null_check_for_get", "false");
+  @BeforeClass
+  public static void beforeClass() {
+    TestHelpers.setArrowFlagsForVectorizedReads();
   }
 
   @Override
@@ -54,7 +54,7 @@ public class TestSparkParquetVectorizedReader extends AvroDataTest {
         schema,
         type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()));
 
-    List<GenericData.Record> expected = RandomData.generateList(schema, 100000, 0L);
+    List<GenericData.Record> expected = generateData(schema);
 
     // write a test parquet file using iceberg writer
     File testFile = temp.newFile();
@@ -69,6 +69,10 @@ public class TestSparkParquetVectorizedReader extends AvroDataTest {
     assertRecordsMatch(schema, expected, testFile);
   }
 
+  List<GenericData.Record> generateData(Schema schema) {
+    return RandomData.generateList(schema, 100000, 0L);
+  }
+
   void assertRecordsMatch(Schema schema, List<GenericData.Record> expected, File testFile) throws IOException {
     try (CloseableIterable<ColumnarBatch> batchReader = Parquet.read(Files.localInput(testFile))
         .project(schema)
@@ -79,56 +83,53 @@ public class TestSparkParquetVectorizedReader extends AvroDataTest {
       Iterator<ColumnarBatch> batches = batchReader.iterator();
       int numRowsRead = 0;
       int numExpectedRead = 0;
-      int batchNum = 0;
       while (batches.hasNext()) {
-
         ColumnarBatch batch = batches.next();
         numRowsRead += batch.numRows();
-
         List<GenericData.Record> expectedBatch = new ArrayList<>(batch.numRows());
         for (int i = numExpectedRead; i < numExpectedRead + batch.numRows(); i++) {
           expectedBatch.add(expected.get(i));
         }
         TestHelpers.assertArrowVectors(schema.asStruct(), expectedBatch, batch);
         numExpectedRead += batch.numRows();
-        batchNum++;
       }
       Assert.assertEquals(expected.size(), numRowsRead);
     }
   }
 
   @Test
-  public void testArray() throws IOException {
+  @Ignore
+  public void testArray() {
+  }
+
+  @Test
+  @Ignore
+  public void testArrayOfStructs() {
     System.out.println("Not Supported");
   }
 
   @Test
-  public void testArrayOfStructs() throws IOException {
-    System.out.println("Not Supported");
+  @Ignore
+  public void testMap() {
   }
 
   @Test
-  public void testMap() throws IOException {
-    System.out.println("Not Supported");
+  @Ignore
+  public void testNumericMapKey() {
   }
 
   @Test
-  public void testNumericMapKey() throws IOException {
-    System.out.println("Not Supported");
+  @Ignore
+  public void testComplexMapKey() {
   }
 
   @Test
-  public void testComplexMapKey() throws IOException {
-    System.out.println("Not Supported");
+  @Ignore
+  public void testMapOfStructs() {
   }
 
   @Test
-  public void testMapOfStructs() throws IOException {
-    System.out.println("Not Supported");
-  }
-
-  @Test
-  public void testMixedTypes() throws IOException {
-    System.out.println("Not Supported");
+  @Ignore
+  public void testMixedTypes() {
   }
 }

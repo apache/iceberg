@@ -193,7 +193,7 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
         case RLE:
           if (currentValue == maxDefLevel) {
             dictionaryEncodedValuesReader.readBatchOfDictionaryEncodedLongs(vector,
-                idx, numValues, dict, nullabilityHolder);
+                idx, numValues, dict, nullabilityHolder, typeWidth);
           } else {
             setNulls(nullabilityHolder, idx, numValues, validityBuffer);
           }
@@ -240,7 +240,7 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
         case RLE:
           if (currentValue == maxDefLevel) {
             dictionaryEncodedValuesReader.readBatchOfDictionaryEncodedTimestampMillis(vector,
-                idx, numValues, dict, nullabilityHolder);
+                idx, numValues, dict, nullabilityHolder, typeWidth);
           } else {
             setNulls(nullabilityHolder, idx, numValues, validityBuffer);
           }
@@ -329,7 +329,7 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
         case RLE:
           if (currentValue == maxDefLevel) {
             dictionaryEncodedValuesReader.readBatchOfDictionaryEncodedIntegers(vector, idx,
-                num, dict, nullabilityHolder);
+                num, dict, nullabilityHolder, typeWidth);
           } else {
             setNulls(nullabilityHolder, idx, num, vector.getValidityBuffer());
           }
@@ -338,7 +338,8 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
         case PACKED:
           for (int i = 0; i < num; i++) {
             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
-              vector.getDataBuffer().setInt(idx, dict.decodeToInt(dictionaryEncodedValuesReader.readInteger()));
+              vector.getDataBuffer()
+                  .setInt(idx * typeWidth, dict.decodeToInt(dictionaryEncodedValuesReader.readInteger()));
               if (setArrowValidityVector) {
                 BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
               } else {
@@ -418,7 +419,7 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
         case RLE:
           if (currentValue == maxDefLevel) {
             dictionaryEncodedValuesReader.readBatchOfDictionaryEncodedFloats(vector, idx,
-                num, dict, nullabilityHolder);
+                num, dict, nullabilityHolder, typeWidth);
           } else {
             setNulls(nullabilityHolder, idx, num, validityBuffer);
           }
@@ -507,7 +508,7 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
         case RLE:
           if (currentValue == maxDefLevel) {
             dictionaryEncodedValuesReader.readBatchOfDictionaryEncodedDoubles(vector, idx,
-                num, dict, nullabilityHolder);
+                num, dict, nullabilityHolder, typeWidth);
           } else {
             setNulls(nullabilityHolder, idx, num, vector.getValidityBuffer());
           }

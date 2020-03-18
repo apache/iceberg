@@ -119,9 +119,21 @@ public class RandomData {
     return records;
   }
 
+  public static List<GenericData.Record> generateDictionaryEncodableData(Schema schema, int numRecords, long seed) {
+    List<GenericData.Record> records = Lists.newArrayListWithExpectedSize(numRecords);
+    DictionaryEncodedDataGenerator
+        dictionaryDataGenerator = new DictionaryEncodedDataGenerator(schema, seed);
+    for (int i = 0; i < numRecords; i += 1) {
+      GenericData.Record rec = (GenericData.Record) TypeUtil.visit(schema, dictionaryDataGenerator);
+      records.add(rec);
+    }
+    return records;
+  }
+
+  @SuppressWarnings("checkstyle:VisibilityModifier")
   private static class RandomDataGenerator extends TypeUtil.CustomOrderSchemaVisitor<Object> {
     private final Map<Type, org.apache.avro.Schema> typeToSchema;
-    private final Random random;
+    final Random random;
 
     private RandomDataGenerator(Schema schema, long seed) {
       this.typeToSchema = AvroSchemaUtil.convertTypes(schema.asStruct(), "test");
@@ -202,6 +214,10 @@ public class RandomData {
       Object result = RandomUtil.generatePrimitive(primitive, random);
       // For the primitives that Avro needs a different type than Spark, fix
       // them here.
+      return getPrimitive(primitive, result);
+    }
+
+    Object getPrimitive(Type.PrimitiveType primitive, Object result) {
       switch (primitive.typeId()) {
         case FIXED:
           return new GenericData.Fixed(typeToSchema.get(primitive),
@@ -309,34 +325,6 @@ public class RandomData {
         default:
           return obj;
       }
-    }
-  }
-
-  private static class FallbackDictionaryEncodedDataGenerator extends RandomDataGenerator {
-
-    private final int numRecords;
-    private final float fraction;
-    private int current;
-
-    private FallbackDictionaryEncodedDataGenerator(Schema schema, long seed, int numRecords, float fraction) {
-      super(schema, seed);
-      this.numRecords = numRecords;
-      this.fraction = fraction;
-    }
-
-    @Override
-    public Object primitive(Type.PrimitiveType primitive) {
-      switch (primitive.typeId()) {
-        case STRING:
-          if (current < fraction * numRecords) {
-            current++;
-            return "ABC";
-          } else {
-            current++;
-            return super.primitive(primitive);
-          }
-      }
-      return super.primitive(primitive);
     }
   }
 
@@ -486,6 +474,183 @@ public class RandomData {
     StringBuilder sb = new StringBuilder();
     for (int i = 0; i < length; i += 1) {
       sb.append(DIGITS.charAt(random.nextInt(DIGITS.length())));
+    }
+  }
+
+  private static class DictionaryEncodedDataGenerator extends RandomDataGenerator {
+
+    private DictionaryEncodedDataGenerator(Schema schema, long seed) {
+      super(schema, seed);
+    }
+
+    @Override
+    public Object primitive(Type.PrimitiveType primitive) {
+      Object result = generateDictionaryEncodablePrimitive(primitive, random);
+      return super.getPrimitive(primitive, result);
+    }
+
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
+    private static Object generateDictionaryEncodablePrimitive(Type.PrimitiveType primitive, Random random) {
+      // 3 choices
+      int choice = random.nextInt(3);
+      switch (primitive.typeId()) {
+        case BOOLEAN:
+          return true; // doesn't really matter for booleans since they are not dictionary encoded
+
+        case INTEGER:
+          switch (choice) {
+            case 0:
+              return 0;
+            case 1:
+              return 1;
+            case 2:
+              return 2;
+          }
+
+        case LONG:
+          switch (choice) {
+            case 0:
+              return 0L;
+            case 1:
+              return 1L;
+            case 2:
+              return 2L;
+          }
+
+        case FLOAT:
+          switch (choice) {
+            case 0:
+              return 0.0f;
+            case 1:
+              return 1.0f;
+            case 2:
+              return 2.0f;
+          }
+
+        case DOUBLE:
+          switch (choice) {
+            case 0:
+              return 0.0d;
+            case 1:
+              return 1.0d;
+            case 2:
+              return 2.0d;
+          }
+
+        case DATE:
+          switch (choice) {
+            case 0:
+              return 0;
+            case 1:
+              return 1;
+            case 2:
+              return 2;
+          }
+
+        case TIME:
+          switch (choice) {
+            case 0:
+              return 0L;
+            case 1:
+              return 1L;
+            case 2:
+              return 2L;
+          }
+
+        case TIMESTAMP:
+          switch (choice) {
+            case 0:
+              return 0L;
+            case 1:
+              return 1L;
+            case 2:
+              return 2L;
+          }
+
+        case STRING:
+          switch (choice) {
+            case 0:
+              return UTF8String.fromString("0");
+            case 1:
+              return UTF8String.fromString("1");
+            case 2:
+              return UTF8String.fromString("2");
+          }
+
+        case FIXED:
+          byte[] fixed = new byte[((Types.FixedType) primitive).length()];
+          switch (choice) {
+            case 0:
+              fixed[0] = 0;
+              return fixed;
+            case 1:
+              fixed[0] = 1;
+              return fixed;
+            case 2:
+              fixed[0] = 2;
+              return fixed;
+          }
+
+        case BINARY:
+          byte[] binary = new byte[4];
+          switch (choice) {
+            case 0:
+              binary[0] = 0;
+              return binary;
+            case 1:
+              binary[0] = 1;
+              return binary;
+            case 2:
+              binary[0] = 2;
+              return binary;
+          }
+
+        case DECIMAL:
+          Types.DecimalType type = (Types.DecimalType) primitive;
+          switch (choice) {
+            case 0:
+              BigInteger unscaled = new BigInteger("1");
+              return Decimal.apply(new BigDecimal(unscaled, type.scale()));
+            case 1:
+              unscaled = new BigInteger("2");
+              return Decimal.apply(new BigDecimal(unscaled, type.scale()));
+            case 2:
+              unscaled = new BigInteger("3");
+              return Decimal.apply(new BigDecimal(unscaled, type.scale()));
+          }
+
+        default:
+          throw new IllegalArgumentException(
+              "Cannot generate random value for unknown type: " + primitive);
+      }
+    }
+  }
+
+  private static class FallbackDictionaryEncodedDataGenerator extends RandomDataGenerator {
+
+    private final int numRecords;
+    private final float fraction;
+    private int current;
+
+    private FallbackDictionaryEncodedDataGenerator(Schema schema, long seed, int numRecords, float fraction) {
+      super(schema, seed);
+      this.numRecords = numRecords;
+      this.fraction = fraction;
+    }
+
+    @Override
+    public Object primitive(Type.PrimitiveType primitive) {
+      switch (primitive.typeId()) {
+        case STRING:
+          if (current < fraction * numRecords) {
+            current++;
+            return "ABC";
+          } else {
+            current++;
+            return super.primitive(primitive);
+          }
+      }
+      return super.primitive(primitive);
     }
   }
 }
