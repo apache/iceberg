@@ -29,7 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
-class BaseFileScanTask implements FileScanTask {
+public class BaseFileScanTask implements FileScanTask {
   private final DataFile file;
   private final DeleteFile[] deletes;
   private final String schemaString;
@@ -38,8 +38,8 @@ class BaseFileScanTask implements FileScanTask {
 
   private transient PartitionSpec spec = null;
 
-  BaseFileScanTask(DataFile file, DeleteFile[] deletes, String schemaString, String specString,
-                   ResidualEvaluator residuals) {
+  public BaseFileScanTask(DataFile file, DeleteFile[] deletes, String schemaString, String specString,
+                          ResidualEvaluator residuals) {
     this.file = file;
     this.deletes = deletes != null ? deletes : new DeleteFile[0];
     this.schemaString = schemaString;

@@ -39,6 +39,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.Util;
+import org.apache.iceberg.hive.legacy.LegacyHiveTable;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.mapping.NameMapping;
@@ -184,20 +185,22 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
   @Override
   public Statistics estimateStatistics() {
-    // its a fresh table, no data
-    if (table.currentSnapshot() == null) {
-      return new Stats(0L, 0L);
-    }
+    if (!(table instanceof LegacyHiveTable)) {
+      // its a fresh table, no data
+      if (table.currentSnapshot() == null) {
+        return new Stats(0L, 0L);
+      }
 
-    // estimate stats using snapshot summary only for partitioned tables (metadata tables are unpartitioned)
-    if (!table.spec().isUnpartitioned() && (filterExpressions == null || filterExpressions.isEmpty())) {
-      LOG.debug("using table metadata to estimate table statistics");
-      long totalRecords = PropertyUtil.propertyAsLong(table.currentSnapshot().summary(),
-          SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
-      Schema projectedSchema = expectedSchema != null ? expectedSchema : table.schema();
-      return new Stats(
-          SparkSchemaUtil.estimateSize(SparkSchemaUtil.convert(projectedSchema), totalRecords),
-          totalRecords);
+      // estimate stats using snapshot summary only for partitioned tables (metadata tables are unpartitioned)
+      if (!table.spec().isUnpartitioned() && (filterExpressions == null || filterExpressions.isEmpty())) {
+        LOG.debug("using table metadata to estimate table statistics");
+        long totalRecords = PropertyUtil.propertyAsLong(table.currentSnapshot().summary(),
+            SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
+        Schema projectedSchema = expectedSchema != null ? expectedSchema : table.schema();
+        return new Stats(
+            SparkSchemaUtil.estimateSize(SparkSchemaUtil.convert(projectedSchema), totalRecords),
+            totalRecords);
+      }
     }
 
     long sizeInBytes = 0L;

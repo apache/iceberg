@@ -43,6 +43,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.Util;
+import org.apache.iceberg.hive.legacy.LegacyHiveTable;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -284,16 +285,18 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
   @Override
   public Statistics estimateStatistics() {
-    // its a fresh table, no data
-    if (table.currentSnapshot() == null) {
-      return new Stats(0L, 0L);
-    }
+    if (!(table instanceof LegacyHiveTable)) {
+      // its a fresh table, no data
+      if (table.currentSnapshot() == null) {
+        return new Stats(0L, 0L);
+      }
 
-    // estimate stats using snapshot summary only for partitioned tables (metadata tables are unpartitioned)
-    if (!table.spec().isUnpartitioned() && filterExpression() == Expressions.alwaysTrue()) {
-      long totalRecords = PropertyUtil.propertyAsLong(table.currentSnapshot().summary(),
-          SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
-      return new Stats(SparkSchemaUtil.estimateSize(lazyType(), totalRecords), totalRecords);
+      // estimate stats using snapshot summary only for partitioned tables (metadata tables are unpartitioned)
+      if (!table.spec().isUnpartitioned() && filterExpression() == Expressions.alwaysTrue()) {
+        long totalRecords = PropertyUtil.propertyAsLong(table.currentSnapshot().summary(),
+            SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
+        return new Stats(SparkSchemaUtil.estimateSize(lazyType(), totalRecords), totalRecords);
+      }
     }
 
     long sizeInBytes = 0L;

@@ -91,6 +91,7 @@ public class HiveMetadataPreservingTableOperations extends HiveTableOperations {
           String errMsg = String.format("%s.%s is missing %s property", database, tableName, METADATA_LOCATION_PROP);
           throw new IllegalArgumentException(errMsg);
         }
+
         if (!io().newInputFile(metadataLocation).exists()) {
           String errMsg = String.format("%s property for %s.%s points to a non-existent file %s",
               METADATA_LOCATION_PROP, database, tableName, metadataLocation);

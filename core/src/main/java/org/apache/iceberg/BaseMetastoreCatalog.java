@@ -144,7 +144,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     }
   }
 
-  private boolean isValidMetadataIdentifier(TableIdentifier identifier) {
+  protected boolean isValidMetadataIdentifier(TableIdentifier identifier) {
     return MetadataTableType.from(identifier.name()) != null &&
         isValidIdentifier(TableIdentifier.of(identifier.namespace().levels()));
   }

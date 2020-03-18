@@ -29,7 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 /**
  * Context object with optional arguments for a TableScan.
  */
-final class TableScanContext {
+public final class TableScanContext {
   private final Long snapshotId;
   private final Expression rowFilter;
   private final boolean ignoreResiduals;

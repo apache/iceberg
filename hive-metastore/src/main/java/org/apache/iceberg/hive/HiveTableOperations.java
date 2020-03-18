@@ -123,6 +123,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
       metadataLocation = table.getParameters().get(METADATA_LOCATION_PROP);
 
+      if (metadataLocation != null && !io().newInputFile(metadataLocation).exists()) {
+        String errMsg = String.format("%s property for %s.%s points to a non-existent file %s",
+            METADATA_LOCATION_PROP, database, tableName, metadataLocation);
+        throw new IllegalArgumentException(errMsg);
+      }
     } catch (NoSuchObjectException e) {
       if (currentMetadataLocation() != null) {
         throw new NoSuchTableException("No such table: %s.%s", database, tableName);
