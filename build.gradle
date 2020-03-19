@@ -236,10 +236,10 @@ project(':iceberg-mr') {
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
     
-    testCompile("com.klarna:hiverunner:3.2.1") {
-      exclude group: 'javax.jms', module: 'jms'
+    testCompile("com.klarna:hiverunner:5.1.1") {
+      exclude group: 'com.google.protobuf', module: 'protobuf-java'
+      exclude group: 'org.apache.calcite', module: '*'
       exclude group: 'org.codehaus.jettison', module: 'jettison'
-      exclude group: 'org.datanucleus', module: '*'
     }
   }
 }
