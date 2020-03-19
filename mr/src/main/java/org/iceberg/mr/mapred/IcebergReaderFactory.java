@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.iceberg.mr.mapred;
 
 import org.apache.iceberg.DataFile;
@@ -35,7 +36,8 @@ class IcebergReaderFactory {
   IcebergReaderFactory() {
   }
 
-  public CloseableIterable<Record> createReader(DataFile file, FileScanTask currentTask, InputFile inputFile, Schema tableSchema, boolean reuseContainers) {
+  public CloseableIterable<Record> createReader(DataFile file, FileScanTask currentTask, InputFile inputFile,
+      Schema tableSchema, boolean reuseContainers) {
     switch (file.format()) {
       case AVRO:
         return buildAvroReader(currentTask, inputFile, tableSchema, reuseContainers);
@@ -45,7 +47,8 @@ class IcebergReaderFactory {
         return buildParquetReader(currentTask, inputFile, tableSchema, reuseContainers);
 
       default:
-        throw new UnsupportedOperationException(String.format("Cannot read %s file: %s", file.format().name(), file.path()));
+        throw new UnsupportedOperationException(String.format("Cannot read %s file: %s", file.format().name(),
+            file.path()));
     }
   }
 
@@ -74,7 +77,8 @@ class IcebergReaderFactory {
   }
 
   // FIXME: use generic reader function
-  private CloseableIterable buildParquetReader(FileScanTask task, InputFile file, Schema schema, boolean reuseContainers) {
+  private CloseableIterable buildParquetReader(FileScanTask task, InputFile file, Schema schema,
+      boolean reuseContainers) {
     Parquet.ReadBuilder builder = Parquet.read(file)
         .createReaderFunc(messageType -> GenericParquetReaders.buildReader(schema, messageType))
         .project(schema)

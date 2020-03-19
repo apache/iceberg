@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.iceberg.mr.mapred;
 
+import com.google.common.collect.Lists;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
@@ -25,7 +27,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Iterator;
 import java.util.List;
-
 import org.apache.hadoop.mapred.InputFormat;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
@@ -43,8 +44,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.collect.Lists;
 
 public class IcebergInputFormat implements InputFormat {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergInputFormat.class);
@@ -102,7 +101,7 @@ public class IcebergInputFormat implements InputFormat {
       nextTask();
     }
 
-    private void nextTask(){
+    private void nextTask() {
       FileScanTask currentTask = tasks.next();
       DataFile file = currentTask.file();
       InputFile inputFile = HadoopInputFile.fromLocation(file.path(), context);
@@ -122,7 +121,7 @@ public class IcebergInputFormat implements InputFormat {
         return true;
       }
 
-      if(tasks.hasNext()){
+      if (tasks.hasNext()) {
         nextTask();
         currentRecord = recordIterator.next();
         value.setRecord(currentRecord);
