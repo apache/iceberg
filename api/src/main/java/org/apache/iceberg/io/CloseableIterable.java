@@ -130,6 +130,20 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
       private ConcatCloseableIterator(Iterable<CloseableIterable<E>> inputs) {
         this.iterables = inputs.iterator();
         this.currentIterable = iterables.next();
+        // Exhaust the starting empty iterables.
+        while (Iterables.isEmpty(currentIterable)) {
+          try {
+            currentIterable.close();
+          } catch (IOException e) {
+            throw new RuntimeIOException(e, "Failed to close iterable");
+          }
+
+          if (iterables.hasNext()) {
+            this.currentIterable = iterables.next();
+          } else {
+            break;
+          }
+        }
         this.currentIterator = currentIterable.iterator();
       }
 
