@@ -106,6 +106,10 @@ public class TableIdentifier {
 
   @Override
   public String toString() {
-    return namespace.toString() + "." + name;
+    if (hasNamespace()) {
+      return namespace.toString() + "." + name;
+    } else {
+      return name;
+    }
   }
 }

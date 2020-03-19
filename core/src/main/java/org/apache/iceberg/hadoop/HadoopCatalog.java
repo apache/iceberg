@@ -143,7 +143,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
 
   @Override
   protected boolean isValidIdentifier(TableIdentifier identifier) {
-    return identifier.namespace().levels().length >= 1;
+    return true;
   }
 
   @Override
