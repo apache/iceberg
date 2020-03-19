@@ -1,0 +1,47 @@
+{
+  "format-version" : 1,
+  "table-uuid" : "5ec03633-03bc-4c4b-8ef9-f799c143e3e7",
+  "location" : "/Users/cmathiesen/projects/opensource/forks/eg-iceberg-fork/incubator-iceberg/mr/src/test/resources/test-table",
+  "last-updated-ms" : 1582645443979,
+  "last-column-id" : 2,
+  "schema" : {
+    "type" : "struct",
+    "fields" : [ {
+      "id" : 1,
+      "name" : "name",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 2,
+      "name" : "salary",
+      "required" : false,
+      "type" : "long"
+    } ]
+  },
+  "partition-spec" : [ ],
+  "default-spec-id" : 0,
+  "partition-specs" : [ {
+    "spec-id" : 0,
+    "fields" : [ ]
+  } ],
+  "properties" : { },
+  "current-snapshot-id" : 7829799286772121706,
+  "snapshots" : [ {
+    "snapshot-id" : 7829799286772121706,
+    "timestamp-ms" : 1582645443979,
+    "summary" : {
+      "operation" : "append",
+      "spark.app.id" : "local-1582645439954",
+      "added-data-files" : "1",
+      "added-records" : "3",
+      "changed-partition-count" : "1",
+      "total-records" : "3",
+      "total-data-files" : "1"
+    },
+    "manifest-list" : "/Users/cmathiesen/projects/opensource/forks/eg-iceberg-fork/incubator-iceberg/mr/src/test/resources/test-table/metadata/snap-7829799286772121706-1-1a3ffe32-d8da-47cf-9a8c-0e4c889a3a4c.avro"
+  } ],
+  "snapshot-log" : [ {
+    "timestamp-ms" : 1582645443979,
+    "snapshot-id" : 7829799286772121706
+  } ]
+}
