@@ -57,12 +57,10 @@ public class AllManifestsTable extends BaseMetadataTable {
 
   private final TableOperations ops;
   private final Table table;
-  private final PartitionSpec spec;
 
   public AllManifestsTable(TableOperations ops, Table table) {
     this.ops = ops;
     this.table = table;
-    this.spec = table.spec();
   }
 
   @Override

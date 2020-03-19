@@ -262,7 +262,6 @@ public class HadoopTableOperations implements TableOperations {
 
     try (FSDataOutputStream out = fs.create(versionHintFile, true /* overwrite */)) {
       out.write(String.valueOf(versionToWrite).getBytes(StandardCharsets.UTF_8));
-
     } catch (IOException e) {
       LOG.warn("Failed to update version hint", e);
     }
@@ -276,7 +275,8 @@ public class HadoopTableOperations implements TableOperations {
         return 0;
       }
 
-      try (BufferedReader in = new BufferedReader(new InputStreamReader(fs.open(versionHintFile)))) {
+      try (InputStreamReader fsr = new InputStreamReader(fs.open(versionHintFile), StandardCharsets.UTF_8);
+           BufferedReader in = new BufferedReader(fsr)) {
         return Integer.parseInt(in.readLine().replace("\n", ""));
       }
 
