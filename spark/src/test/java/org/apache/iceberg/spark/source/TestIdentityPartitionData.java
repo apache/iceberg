@@ -32,7 +32,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
@@ -66,19 +65,16 @@ public class TestIdentityPartitionData  {
   }
 
   private static SparkSession spark = null;
-  private static JavaSparkContext sc = null;
 
   @BeforeClass
   public static void startSpark() {
     TestIdentityPartitionData.spark = SparkSession.builder().master("local[2]").getOrCreate();
-    TestIdentityPartitionData.sc = new JavaSparkContext(spark.sparkContext());
   }
 
   @AfterClass
   public static void stopSpark() {
     SparkSession currentSpark = TestIdentityPartitionData.spark;
     TestIdentityPartitionData.spark = null;
-    TestIdentityPartitionData.sc = null;
     currentSpark.stop();
   }
 
@@ -118,7 +114,7 @@ public class TestIdentityPartitionData  {
     this.table = TABLES.create(LOG_SCHEMA, spec, properties, location.toString());
     this.logs = spark.createDataFrame(LOGS, LogMessage.class).select("id", "date", "level", "message");
 
-    logs.write().format("iceberg").mode("append").save(location.toString());
+    logs.orderBy("date", "level", "id").write().format("iceberg").mode("append").save(location.toString());
   }
 
   @Test
