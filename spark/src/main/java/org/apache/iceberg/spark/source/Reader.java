@@ -324,7 +324,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
 
     @Override
     public InputPartitionReader<InternalRow> createPartitionReader() {
-      return new RowTaskDataReader(task, lazyTableSchema(), lazyExpectedSchema(), io.value(),
+      return new RowDataReader(task, lazyTableSchema(), lazyExpectedSchema(), io.value(),
         encryptionManager.value(), caseSensitive);
     }
 

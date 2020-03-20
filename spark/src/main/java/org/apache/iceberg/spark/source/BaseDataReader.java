@@ -28,22 +28,18 @@ import java.util.Map;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.spark.rdd.InputFileBlockHolder;
-import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
+import org.apache.spark.sql.sources.v2.reader.InputPartitionReader;
 
+/**
+ * @param <T> Base class of readers to read data as objects of type @param &lt;T&gt;
+ */
 @SuppressWarnings("checkstyle:VisibilityModifier")
-abstract class BaseTaskDataReader<T> implements Closeable {
-  // for some reason, the apply method can't be called from Java without reflection
-  static final DynMethods.UnboundMethod APPLY_PROJECTION = DynMethods.builder("apply")
-      .impl(UnsafeProjection.class, InternalRow.class)
-      .build();
-
+abstract class BaseDataReader<T> implements InputPartitionReader<T> {
   final Iterator<FileScanTask> tasks;
   final Schema tableSchema;
   final Schema expectedSchema;
@@ -56,13 +52,13 @@ abstract class BaseTaskDataReader<T> implements Closeable {
   T current = null;
   final int batchSize;
 
-  BaseTaskDataReader(
+  BaseDataReader(
       CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
       EncryptionManager encryptionManager, boolean caseSensitive) {
     this(task, tableSchema, expectedSchema, fileIo, encryptionManager, caseSensitive, -1);
   }
 
-  BaseTaskDataReader(
+  BaseDataReader(
       CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
       EncryptionManager encryptionManager, boolean caseSensitive, int bSize) {
     this.fileIo = fileIo;
@@ -84,6 +80,7 @@ abstract class BaseTaskDataReader<T> implements Closeable {
     this.currentIterator = open(tasks.next());
   }
 
+  @Override
   public boolean next() throws IOException {
     while (true) {
       if (currentIterator.hasNext()) {
@@ -96,6 +93,11 @@ abstract class BaseTaskDataReader<T> implements Closeable {
         return false;
       }
     }
+  }
+
+  @Override
+  public T get() {
+    return current;
   }
 
   abstract Iterator<T> open(FileScanTask task);

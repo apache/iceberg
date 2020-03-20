@@ -22,20 +22,17 @@ package org.apache.iceberg.spark.source;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
-import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Function;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataTask;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
@@ -48,36 +45,25 @@ import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.ByteBuffers;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Attribute;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
-import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.expressions.JoinedRow;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
-import org.apache.spark.sql.sources.v2.reader.InputPartitionReader;
-import org.apache.spark.sql.types.BinaryType;
-import org.apache.spark.sql.types.DataType;
-import org.apache.spark.sql.types.Decimal;
-import org.apache.spark.sql.types.DecimalType;
-import org.apache.spark.sql.types.StringType;
-import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.unsafe.types.UTF8String;
 import scala.collection.JavaConverters;
 
-class RowTaskDataReader extends BaseTaskDataReader<InternalRow> implements InputPartitionReader<InternalRow> {
+class RowDataReader extends BaseDataReader<InternalRow> {
+  // for some reason, the apply method can't be called from Java without reflection
+  private static final DynMethods.UnboundMethod APPLY_PROJECTION = DynMethods.builder("apply")
+      .impl(UnsafeProjection.class, InternalRow.class)
+      .build();
 
-  RowTaskDataReader(
+  RowDataReader(
       CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
       EncryptionManager encryptionManager, boolean caseSensitive) {
     super(task, tableSchema, expectedSchema, fileIo, encryptionManager, caseSensitive);
-  }
-
-  @Override
-  public InternalRow get() {
-    return current;
   }
 
   @Override
@@ -227,69 +213,5 @@ class RowTaskDataReader extends BaseTaskDataReader<InternalRow> implements Input
     return UnsafeProjection.create(
         JavaConverters.asScalaBufferConverter(exprs).asScala().toSeq(),
         JavaConverters.asScalaBufferConverter(attrs).asScala().toSeq());
-  }
-
-  private static class PartitionRowConverter implements Function<StructLike, InternalRow> {
-    private final DataType[] types;
-    private final int[] positions;
-    private final Class<?>[] javaTypes;
-    private final GenericInternalRow reusedRow;
-
-    PartitionRowConverter(Schema partitionSchema, PartitionSpec spec) {
-      StructType partitionType = SparkSchemaUtil.convert(partitionSchema);
-      StructField[] fields = partitionType.fields();
-
-      this.types = new DataType[fields.length];
-      this.positions = new int[types.length];
-      this.javaTypes = new Class<?>[types.length];
-      this.reusedRow = new GenericInternalRow(types.length);
-
-      List<PartitionField> partitionFields = spec.fields();
-      for (int rowIndex = 0; rowIndex < fields.length; rowIndex += 1) {
-        this.types[rowIndex] = fields[rowIndex].dataType();
-
-        int sourceId = partitionSchema.columns().get(rowIndex).fieldId();
-        for (int specIndex = 0; specIndex < partitionFields.size(); specIndex += 1) {
-          PartitionField field = spec.fields().get(specIndex);
-          if (field.sourceId() == sourceId && "identity".equals(field.transform().toString())) {
-            positions[rowIndex] = specIndex;
-            javaTypes[rowIndex] = spec.javaClasses()[specIndex];
-            break;
-          }
-        }
-      }
-    }
-
-    @Override
-    public InternalRow apply(StructLike tuple) {
-      for (int i = 0; i < types.length; i += 1) {
-        Object value = tuple.get(positions[i], javaTypes[i]);
-        if (value != null) {
-          reusedRow.update(i, convert(value, types[i]));
-        } else {
-          reusedRow.setNullAt(i);
-        }
-      }
-
-      return reusedRow;
-    }
-
-    /**
-     * Converts the objects into instances used by Spark's InternalRow.
-     *
-     * @param value a data value
-     * @param type  the Spark data type
-     * @return the value converted to the representation expected by Spark's InternalRow.
-     */
-    private static Object convert(Object value, DataType type) {
-      if (type instanceof StringType) {
-        return UTF8String.fromString(value.toString());
-      } else if (type instanceof BinaryType) {
-        return ByteBuffers.toByteArray((ByteBuffer) value);
-      } else if (type instanceof DecimalType) {
-        return Decimal.fromDecimal(value);
-      }
-      return value;
-    }
   }
 }
