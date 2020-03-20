@@ -83,7 +83,7 @@ public class IcebergSinkAppender<IN> {
 
     final String writerId = config.getString("sinkName", "") + "-writer";
     SingleOutputStreamOperator<FlinkDataFile> writerStream = dataStream
-        .transform(writerId, TypeInformation.of(FlinkDataFile.class), writer)
+        .transform(writerId, TypeInformation.of(FlinkDataFile.class), writer)  // IcebergWriter as stream operator
         .uid(writerId);
     if (null != writerParallelism && writerParallelism > 0) {
       LOG.info("Set Iceberg writer parallelism to {}", writerParallelism);
@@ -92,7 +92,7 @@ public class IcebergSinkAppender<IN> {
 
     final String committerId = config.getString("sinkName", "") + "-committer";
     return writerStream
-        .addSink(committer)
+        .addSink(committer)  // IcebergCommitter as sink
         .name(committerId)
         .uid(committerId)
         .setParallelism(1);

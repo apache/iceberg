@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink.connector;
 
 import java.util.concurrent.TimeUnit;
+import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 
 public class IcebergConnectorConstant {
   private IcebergConnectorConstant() {}
@@ -27,15 +28,16 @@ public class IcebergConnectorConstant {
   public static final String TYPE = "iceberg";
 
   public static final String ICEBERG_APP_TYPE = "flink";
-  public static final String METACAT_HOST = "metacat_host";
-  public static final String CATALOG = "catalog";
+
+  //public static final String CATALOG = "catalog";
   public static final String DATABASE = "database";
   public static final String TABLE = "table";
 
   public static final String FORMAT = "format";
   public static final String CODEC = "codec";
 
-  public static final String METACAT_HOST_HADOOP_CONF_KEY = "???";
+  public static final String METACAT_HOST_HADOOP_CONF_KEY = ConfVars.METASTOREURIS.varname;  // For HiveCatalog
+  public static final String METACAT_HOST = "metacat_host";
   public static final String DEFAULT_METACAT_HOST = "???";
 
   public static final String SKIP_INCOMPATIBLE_RECORD = "skip_incompatible_record";

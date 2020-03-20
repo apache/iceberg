@@ -40,28 +40,29 @@ import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
-import org.apache.flink.streaming.connectors.fs.bucketing.BucketingSink;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.BaseMetastoreCatalog;
+import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.connector.IcebergConnectorConstant;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
+import org.apache.iceberg.hive.HiveCatalogs;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
+import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT;
 
 public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
     implements OneInputStreamOperator<T, FlinkDataFile> {
@@ -72,8 +73,8 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
   private final AvroSerializer serializer;
   private final Configuration config;
   private final String metacatHost;
-  private final String jobName;
-  private final String catalog;
+  //private final String jobName;
+  //private final String catalog;
   private final String database;
   private final String tableName;
   private final FileFormat format;
@@ -104,14 +105,15 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
     this.config = config;
     metacatHost = config.getString(IcebergConnectorConstant.METACAT_HOST,
         IcebergConnectorConstant.DEFAULT_METACAT_HOST);
-    jobName = config.getString(System.getenv("JOB_CLUSTER_NAME"), "");
-    catalog = config.getString(IcebergConnectorConstant.CATALOG, "");
+    //jobName = config.getString(System.getenv("JOB_CLUSTER_NAME"), "");
+    //catalog = config.getString(IcebergConnectorConstant.CATALOG, "");
     database = config.getString(IcebergConnectorConstant.DATABASE, "");
     tableName = config.getString(IcebergConnectorConstant.TABLE, "");
     format = FileFormat.valueOf(config.getString(IcebergConnectorConstant.FORMAT,
         FileFormat.PARQUET.name()));
     skipIncompatibleRecord = config.getBoolean(IcebergConnectorConstant.SKIP_INCOMPATIBLE_RECORD,
         IcebergConnectorConstant.DEFAULT_SKIP_INCOMPATIBLE_RECORD);
+    // TODO: different from IcebergCommitter, line 147, in which, "" is taken as default
     timestampFeild = config.getString(IcebergConnectorConstant.VTTS_WATERMARK_TIMESTAMP_FIELD,
         IcebergConnectorConstant.DEFAULT_VTTS_WATERMARK_TIMESTAMP_UNIT);
     timestampUnit = TimeUnit.valueOf(config.getString(IcebergConnectorConstant.VTTS_WATERMARK_TIMESTAMP_UNIT,
@@ -124,20 +126,30 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
     // Avoid Netflix code just to make it compile
     //final MetacatIcebergCatalog icebergCatalog
     // = new MetacatIcebergCatalog(hadoopConfig, jobName, IcebergConnectorConstant.ICEBERG_APP_TYPE);
-    final BaseMetastoreCatalog icebergCatalog = null;
-    final TableIdentifier tableIdentifier = TableIdentifier.of(catalog, database, tableName);
-    final Table table = icebergCatalog.loadTable(tableIdentifier);
+    //final BaseMetastoreCatalog icebergCatalog = null;
+    //final TableIdentifier tableIdentifier = TableIdentifier.of(catalog, database, tableName);
+    // final Table table = icebergCatalog.loadTable(tableIdentifier);
+    org.apache.hadoop.conf.Configuration hadoopConf = new org.apache.hadoop.conf.Configuration();
+    //hadoopConf.set(ConfVars.METASTOREURIS.varname, config.getString(ConfVars.METASTOREURIS.varname, ""));
+    hadoopConf.set(IcebergConnectorConstant.METACAT_HOST_HADOOP_CONF_KEY, metacatHost);
+    hadoopConf.set(ConfVars.METASTOREWAREHOUSE.varname, config.getString(ConfVars.METASTOREWAREHOUSE.varname, ""));
+
+    Catalog icebergCatalog = HiveCatalogs.loadCatalog(hadoopConf);
+    final Table table = icebergCatalog.loadTable(TableIdentifier.of(database, tableName));
     ImmutableMap.Builder<String, String> tablePropsBuilder = ImmutableMap.<String, String>builder()
         .putAll(table.properties());
     if (!table.properties().containsKey(PARQUET_COMPRESSION)) {
       // if compression is not set in table properties,
       // Flink writer defaults it to BROTLI
-      tablePropsBuilder.put(PARQUET_COMPRESSION, CompressionCodecName.BROTLI.name());
+      //TODO: org.apache.hadoop.io.compress.BrotliCodec, class not found
+      //tablePropsBuilder.put(PARQUET_COMPRESSION, CompressionCodecName.BROTLI.name());
+      tablePropsBuilder.put(PARQUET_COMPRESSION, PARQUET_COMPRESSION_DEFAULT);
     }
     tableProperties = tablePropsBuilder.build();
     icebergSchema = table.schema();
     spec = table.spec();
-    s3BasePath = getS3BasePath(table.location());
+    //s3BasePath = getS3BasePath(table.location());
+    s3BasePath = table.locationProvider().newDataLocation("");  // data location of the Iceberg table
     LOG.info("Iceberg writer {}.{} has S3 base path: {}", database, tableName, s3BasePath);
     LOG.info("Iceberg writer {}.{} created with sink config", database, tableName);
     LOG.info("Iceberg writer {}.{} loaded table: schema = {}\npartition spec = {}",
@@ -190,10 +202,11 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
 
     // Create a file system with the user-defined {@code HDFS} configuration.
     // supply a dummy config for nowm until we find a need to customize
-    final Configuration fsConfig = new Configuration();
+    //final Configuration fsConfig = new Configuration();
     if (fs == null) {
       Path path = new Path(s3BasePath);
-      fs = BucketingSink.createHadoopFileSystem(path, fsConfig);
+      // TODO: change to use StreamingFileSink and uncomment fs.delete() in abort()
+      //fs = BucketingSink.createHadoopFileSystem(path, fsConfig);
       LOG.info("Iceberg writer {}.{} subtask {} created file system with base path: {}",
           database, tableName, subtaskId1, path.toString());
     }
@@ -321,7 +334,7 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
       try {
         LOG.debug("Iceberg writer {}.{} subtask {} deleting aborted file: {}",
             database, tableName, subtaskId, path);
-        fs.delete(path, false);
+        //fs.delete(path, false);  // TODO
         LOG.info("Iceberg writer {}.{} subtask {} deleted aborted file: {}",
             database, tableName, subtaskId, path);
       } catch (Throwable t) {

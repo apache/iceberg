@@ -19,12 +19,10 @@
 
 package org.apache.iceberg.flink.connector.sink;
 
-import com.amazonaws.services.s3.AmazonS3URI;
 import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
 import com.netflix.spectator.api.DefaultRegistry;
 import com.netflix.spectator.api.Registry;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -51,8 +49,8 @@ import org.apache.flink.streaming.api.environment.CheckpointConfig;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
 import org.apache.flink.util.Preconditions;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.AppendFiles;
-import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestWriter;
@@ -61,6 +59,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdateProperties;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.connector.IcebergConnectorConstant;
 import org.apache.iceberg.flink.connector.model.CommitMetadata;
@@ -70,6 +69,7 @@ import org.apache.iceberg.flink.connector.model.FlinkManifestFileUtil;
 import org.apache.iceberg.flink.connector.model.GenericFlinkManifestFile;
 import org.apache.iceberg.flink.connector.model.ManifestFileState;
 import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.hive.HiveCatalogs;
 import org.apache.iceberg.io.OutputFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -97,8 +97,8 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
   private static final String VTTS_WATERMARK_PROP_KEY_PREFIX = "flink.watermark.";
 
   private final String metacatHost;
-  private final String jobName;
-  private final String catalog;
+  //private final String jobName;
+  //private final String catalog;
   private final String database;
   private final String tableName;
   private final String region;
@@ -131,8 +131,8 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
 
     metacatHost = config.getString(IcebergConnectorConstant.METACAT_HOST,
                                    IcebergConnectorConstant.DEFAULT_METACAT_HOST);
-    jobName = config.getString(System.getenv("JOB_CLUSTER_NAME"), "");
-    catalog = config.getString(IcebergConnectorConstant.CATALOG, "");
+    //jobName = config.getString(System.getenv("JOB_CLUSTER_NAME"), "");
+    //catalog = config.getString(IcebergConnectorConstant.CATALOG, "");
     database = config.getString(IcebergConnectorConstant.DATABASE, "");
     tableName = config.getString(IcebergConnectorConstant.TABLE, "");
 
@@ -156,9 +156,18 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
     // Avoid Netflix code just to make it compile
     //final MetacatIcebergCatalog icebergCatalog
     // = new MetacatIcebergCatalog(hadoopConfig, jobName, IcebergConnectorConstant.ICEBERG_APP_TYPE);
-    final BaseMetastoreCatalog icebergCatalog = null;
-    final TableIdentifier tableIdentifier = TableIdentifier.of(catalog, database, tableName);
-    final Table table = icebergCatalog.loadTable(tableIdentifier);
+//    final BaseMetastoreCatalog icebergCatalog = null;
+//    final TableIdentifier tableIdentifier = TableIdentifier.of(catalog, database, tableName);
+//    final Table table = icebergCatalog.loadTable(tableIdentifier);
+
+    org.apache.hadoop.conf.Configuration hadoopConf = new org.apache.hadoop.conf.Configuration();
+    hadoopConf.set(IcebergConnectorConstant.METACAT_HOST_HADOOP_CONF_KEY, metacatHost);
+    hadoopConf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname,
+                   config.getString(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, ""));
+
+    Catalog icebergCatalog = HiveCatalogs.loadCatalog(hadoopConf);
+    table = icebergCatalog.loadTable(TableIdentifier.of(database, tableName));
+
     spec = table.spec();
     hadoopFileIO = new HadoopFileIO(hadoopConfig);
     final JobExecutionResult jobExecutionResult
@@ -201,10 +210,11 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
     if (null == checkpointDir) {
       throw new IllegalArgumentException("checkpoint dir is null");
     }
-    final URI uri = URI.create(checkpointDir);
-    final String scheme = uri.getScheme().toLowerCase();
-    AmazonS3URI s3URI = new AmazonS3URI(checkpointDir);
-    return String.format("s3://%s/iceberg/manifest/", s3URI.getBucket());
+//    final URI uri = URI.create(checkpointDir);
+//    final String scheme = uri.getScheme().toLowerCase();
+//    AmazonS3URI s3URI = new AmazonS3URI(checkpointDir);
+//    return String.format("s3://%s/iceberg/manifest/", s3URI.getBucket());
+    return String.format("%s/iceberg/manifest/", checkpointDir);
   }
 
   @Override
@@ -224,9 +234,17 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
     // Avoid Netflix code just to make it compile
     //final MetacatIcebergCatalog icebergCatalog
     // = new MetacatIcebergCatalog(hadoopConfig, jobName, IcebergConnectorConstant.ICEBERG_APP_TYPE);
-    final BaseMetastoreCatalog icebergCatalog = null;
-    final TableIdentifier tableIdentifier = TableIdentifier.of(catalog, database, tableName);
-    table = icebergCatalog.loadTable(tableIdentifier);
+//    final BaseMetastoreCatalog icebergCatalog = null;
+//    final TableIdentifier tableIdentifier = TableIdentifier.of(catalog, database, tableName);
+//    table = icebergCatalog.loadTable(tableIdentifier);
+
+    Catalog icebergCatalog = HiveCatalogs.loadCatalog(hadoopConfig);
+    table = icebergCatalog.loadTable(TableIdentifier.of(database, tableName));
+//    if (table == null) {
+//      LOG.error("table loaded by {}.{} is null in init()", database, tableName);
+//    } else {
+//      LOG.info("table = [{}] in init()", table.location());
+//    }
 
     pendingDataFiles = new ArrayList<>();
     flinkManifestFiles = new ArrayList<>();
@@ -592,6 +610,9 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
         database, tableName, CommitMetadataUtil.getInstance().encodeAsJson(metadata));
     final long start = registry.clock().monotonicTime();
     try {
+//      if (table == null) {
+//        LOG.error("Iceberg committer {}.{} table = null in prepareTransaction()", database, tableName);
+//      }
       Transaction transaction = table.newTransaction();
       if (!flinkManifestFiles.isEmpty()) {
         List<String> hashes = new ArrayList<>(flinkManifestFiles.size());

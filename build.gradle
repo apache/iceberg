@@ -138,7 +138,7 @@ project(':iceberg-bundled-guava') {
 
   tasks.jar.dependsOn tasks.shadowJar
 
-  dependencies {    
+  dependencies {
     compileOnly('com.google.guava:guava') {
       exclude group: 'com.google.code.findbugs'
       // may be LGPL - use ALv2 findbugs-annotations instead
@@ -187,7 +187,7 @@ project(':iceberg-common') {
     compile project(path: ':iceberg-bundled-guava', configuration: 'shadow')
   }
 }
-     
+
 project(':iceberg-core') {
   dependencies {
     compile project(':iceberg-api')
@@ -552,17 +552,81 @@ project(':iceberg-flink') {
   dependencies {
     compile project(':iceberg-api')
     compile project(':iceberg-core')
+    compile project(':iceberg-hive')
     compile project(':iceberg-parquet')
 
     compileOnly("com.amazonaws:aws-java-sdk-s3")
-    compileOnly("com.netflix.spectator:spectator-api")
+    compile("com.netflix.spectator:spectator-api")  // TODO: compileOnly?
     compileOnly("org.apache.flink:flink-streaming-java_2.11")
     compileOnly("org.apache.flink:flink-connector-filesystem_2.11")
-    compileOnly("org.apache.hadoop:hadoop-client") /*{
+    compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-    }*/
+    }
+    compileOnly("org.apache.hive:hive-metastore") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'org.pentaho' // missing dependency
+    }
     compile 'org.apache.avro:avro'
+  }
+}
+
+// the runtime uber jar for Flink
+project(':iceberg-flink-runtime') {
+  apply plugin: 'com.github.johnrengelman.shadow'
+
+  tasks.assemble.dependsOn tasks.shadowJar
+  tasks.install.dependsOn tasks.shadowJar
+  tasks.javadocJar.dependsOn tasks.shadowJar
+
+//  configurations {
+//    compileOnly {
+//      // included in Spark
+//      exclude group: 'org.slf4j'
+//      exclude group: 'org.apache.commons'
+//      exclude group: 'commons-pool'
+//      exclude group: 'commons-codec'
+//      exclude group: 'org.xerial.snappy'
+//      exclude group: 'javax.xml.bind'
+//    }
+//  }
+
+  dependencies {
+    compileOnly project(':iceberg-flink')
+  }
+
+  shadowJar {
+    // shade compileOnly dependencies to avoid including in transitive dependencies
+    configurations = [project.configurations.compileOnly]
+
+    zip64 true
+
+    // include the LICENSE and NOTICE files for the shaded Jar
+    from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+
+    // Relocate dependencies to avoid conflicts
+    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
+    relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
+    relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
+    relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'
+    relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
+    relocate 'avro.shaded', 'org.apache.iceberg.shaded.org.apache.avro.shaded'
+    relocate 'com.thoughtworks.paranamer', 'org.apache.iceberg.shaded.com.thoughtworks.paranamer'
+    relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
+    relocate 'shaded.parquet', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
+    // relocate Avro's jackson dependency to share parquet-jackson locations
+    relocate 'org.codehaus.jackson', 'org.apache.iceberg.shaded.org.apache.parquet.shaded.org.codehaus.jackson'
+    relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
+    relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
+    // relocate Arrow and related deps to shade Iceberg specific version
+    relocate 'io.netty.buffer', 'org.apache.iceberg.shaded.io.netty.buffer'
+    relocate 'org.apache.arrow', 'org.apache.iceberg.shaded.org.apache.arrow'
+
+    archiveName = "iceberg-flink-runtime.${extension}"
   }
 }
 
