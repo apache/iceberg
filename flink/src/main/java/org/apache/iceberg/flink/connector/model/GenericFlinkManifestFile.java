@@ -242,27 +242,27 @@ public class GenericFlinkManifestFile implements FlinkManifestFile {
   // TODO: return null?
   @Override
   public Long addedRowsCount() {
-    return null;
+    return recordCount;
   }
 
   @Override
   public Integer existingFilesCount() {
-    return null;
+    return Integer.valueOf(0);
   }
 
   @Override
   public Long existingRowsCount() {
-    return null;
+    return Long.valueOf(0);
   }
 
   @Override
   public Integer deletedFilesCount() {
-    return null;
+    return Integer.valueOf(0);
   }
 
   @Override
   public Long deletedRowsCount() {
-    return null;
+    return Long.valueOf(0);
   }
 
   @Override
