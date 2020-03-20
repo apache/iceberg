@@ -19,32 +19,6 @@
 
 package org.apache.iceberg.actions;
 
-import org.apache.iceberg.Table;
-import org.apache.spark.sql.SparkSession;
-
-public class Actions {
-
-  private SparkSession spark;
-  private Table table;
-
-  private Actions(SparkSession spark, Table table) {
-    this.spark = spark;
-    this.table = table;
-  }
-
-  public static Actions forTable(SparkSession spark, Table table) {
-    return new Actions(spark, table);
-  }
-
-  public static Actions forTable(Table table) {
-    return new Actions(SparkSession.active(), table);
-  }
-
-  public RemoveOrphanFilesAction removeOrphanFiles() {
-    return new RemoveOrphanFilesAction(spark, table);
-  }
-
-  public RewriteManifestsAction rewriteManifests() {
-    return new RewriteManifestsAction(spark, table);
-  }
+public interface SnapshotUpdateAction<ThisT, R> extends Action<R> {
+  ThisT set(String property, String value);
 }

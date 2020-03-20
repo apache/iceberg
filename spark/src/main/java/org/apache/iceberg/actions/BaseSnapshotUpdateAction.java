@@ -19,32 +19,24 @@
 
 package org.apache.iceberg.actions;
 
-import org.apache.iceberg.Table;
-import org.apache.spark.sql.SparkSession;
+import com.google.common.collect.Maps;
+import java.util.Map;
+import org.apache.iceberg.SnapshotUpdate;
 
-public class Actions {
+abstract class BaseSnapshotUpdateAction<ThisT, R> extends BaseAction<R> implements SnapshotUpdateAction<ThisT, R> {
 
-  private SparkSession spark;
-  private Table table;
+  private final Map<String, String> summary = Maps.newHashMap();
 
-  private Actions(SparkSession spark, Table table) {
-    this.spark = spark;
-    this.table = table;
+  protected abstract ThisT self();
+
+  @Override
+  public ThisT set(String property, String value) {
+    summary.put(property, value);
+    return self();
   }
 
-  public static Actions forTable(SparkSession spark, Table table) {
-    return new Actions(spark, table);
-  }
-
-  public static Actions forTable(Table table) {
-    return new Actions(SparkSession.active(), table);
-  }
-
-  public RemoveOrphanFilesAction removeOrphanFiles() {
-    return new RemoveOrphanFilesAction(spark, table);
-  }
-
-  public RewriteManifestsAction rewriteManifests() {
-    return new RewriteManifestsAction(spark, table);
+  protected void commit(SnapshotUpdate<?> update) {
+    summary.forEach(update::set);
+    update.commit();
   }
 }

@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark;
 
+import com.google.common.collect.Maps;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Locale;
@@ -33,11 +34,23 @@ import org.apache.spark.sql.types.StructType;
 
 public class SparkDataFile implements DataFile {
 
+  private final int filePathPosition;
+  private final int fileFormatPosition;
+  private final int partitionPosition;
+  private final int recordCountPosition;
+  private final int fileSizeInBytesPosition;
+  private final int columnSizesPosition;
+  private final int valueCountsPosition;
+  private final int nullValueCountsPosition;
+  private final int lowerBoundsPosition;
+  private final int upperBoundsPosition;
+  private final int keyMetadataPosition;
+  private final int splitOffsetsPosition;
   private final Type lowerBoundsType;
   private final Type upperBoundsType;
   private final Type keyMetadataType;
+
   private final SparkStructLike wrappedPartition;
-  private final int[] fieldPositions;
   private Row wrapped;
 
   public SparkDataFile(Types.StructType type, StructType sparkType) {
@@ -45,25 +58,43 @@ public class SparkDataFile implements DataFile {
     this.upperBoundsType = type.fieldType("upper_bounds");
     this.keyMetadataType = type.fieldType("key_metadata");
     this.wrappedPartition = new SparkStructLike(type.fieldType("partition").asStructType());
-    this.fieldPositions = indexFields(type, sparkType);
+
+    Map<String, Integer> positions = Maps.newHashMap();
+    type.fields().forEach(field -> {
+      String fieldName = field.name();
+      positions.put(fieldName, fieldPosition(fieldName, sparkType));
+    });
+
+    filePathPosition = positions.get("file_path");
+    fileFormatPosition = positions.get("file_format");
+    partitionPosition = positions.get("partition");
+    recordCountPosition = positions.get("record_count");
+    fileSizeInBytesPosition = positions.get("file_size_in_bytes");
+    columnSizesPosition = positions.get("column_sizes");
+    valueCountsPosition = positions.get("value_counts");
+    nullValueCountsPosition = positions.get("null_value_counts");
+    lowerBoundsPosition = positions.get("lower_bounds");
+    upperBoundsPosition = positions.get("upper_bounds");
+    keyMetadataPosition = positions.get("key_metadata");
+    splitOffsetsPosition = positions.get("split_offsets");
   }
 
   public SparkDataFile wrap(Row row) {
     this.wrapped = row;
     if (wrappedPartition.size() > 0) {
-      this.wrappedPartition.wrap(row.getAs(fieldPositions[2]));
+      this.wrappedPartition.wrap(row.getAs(partitionPosition));
     }
     return this;
   }
 
   @Override
   public CharSequence path() {
-    return wrapped.getAs(fieldPositions[0]);
+    return wrapped.getAs(filePathPosition);
   }
 
   @Override
   public FileFormat format() {
-    String formatAsString = wrapped.getString(fieldPositions[1]).toUpperCase(Locale.ROOT);
+    String formatAsString = wrapped.getString(fileFormatPosition).toUpperCase(Locale.ROOT);
     return FileFormat.valueOf(formatAsString);
   }
 
@@ -74,42 +105,44 @@ public class SparkDataFile implements DataFile {
 
   @Override
   public long recordCount() {
-    return wrapped.getAs(fieldPositions[3]);
+    return wrapped.getAs(recordCountPosition);
   }
 
   @Override
   public long fileSizeInBytes() {
-    return wrapped.getAs(fieldPositions[4]);
+    return wrapped.getAs(fileSizeInBytesPosition);
   }
 
   @Override
   public Map<Integer, Long> columnSizes() {
-    return wrapped.getJavaMap(fieldPositions[6]);
+    return !wrapped.isNullAt(columnSizesPosition) ? wrapped.getJavaMap(columnSizesPosition) : null;
   }
 
   @Override
   public Map<Integer, Long> valueCounts() {
-    return wrapped.getJavaMap(fieldPositions[7]);
+    return !wrapped.isNullAt(valueCountsPosition) ? wrapped.getJavaMap(valueCountsPosition) : null;
   }
 
   @Override
   public Map<Integer, Long> nullValueCounts() {
-    return wrapped.getJavaMap(fieldPositions[8]);
+    return !wrapped.isNullAt(nullValueCountsPosition) ? wrapped.getJavaMap(nullValueCountsPosition) : null;
   }
 
   @Override
   public Map<Integer, ByteBuffer> lowerBounds() {
-    return convert(lowerBoundsType, wrapped.getJavaMap(fieldPositions[9]));
+    Map<?, ?> lowerBounds = !wrapped.isNullAt(lowerBoundsPosition) ? wrapped.getJavaMap(lowerBoundsPosition) : null;
+    return convert(lowerBoundsType, lowerBounds);
   }
 
   @Override
   public Map<Integer, ByteBuffer> upperBounds() {
-    return convert(upperBoundsType, wrapped.getJavaMap(fieldPositions[10]));
+    Map<?, ?> upperBounds = !wrapped.isNullAt(upperBoundsPosition) ? wrapped.getJavaMap(upperBoundsPosition) : null;
+    return convert(upperBoundsType, upperBounds);
   }
 
   @Override
   public ByteBuffer keyMetadata() {
-    return convert(keyMetadataType, wrapped.get(fieldPositions[11]));
+    return convert(keyMetadataType, wrapped.get(keyMetadataPosition));
   }
 
   @Override
@@ -124,17 +157,7 @@ public class SparkDataFile implements DataFile {
 
   @Override
   public List<Long> splitOffsets() {
-    return wrapped.getList(fieldPositions[12]);
-  }
-
-  private int[] indexFields(Types.StructType type, StructType sparkType) {
-    List<Types.NestedField> fields = type.fields();
-    int[] positions = new int[fields.size()];
-    for (int index = 0; index < fields.size(); index++) {
-      Types.NestedField field = fields.get(index);
-      positions[index] = fieldPosition(field.name(), sparkType);
-    }
-    return positions;
+    return !wrapped.isNullAt(splitOffsetsPosition) ? wrapped.getList(splitOffsetsPosition) : null;
   }
 
   private int fieldPosition(String name, StructType sparkType) {
