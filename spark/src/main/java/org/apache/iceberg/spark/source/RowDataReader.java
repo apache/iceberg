@@ -60,10 +60,17 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       .impl(UnsafeProjection.class, InternalRow.class)
       .build();
 
+  private final Schema tableSchema;
+  private final Schema expectedSchema;
+  private final boolean caseSensitive;
+
   RowDataReader(
       CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
       EncryptionManager encryptionManager, boolean caseSensitive) {
-    super(task, tableSchema, expectedSchema, fileIo, encryptionManager, caseSensitive);
+    super(task, fileIo, encryptionManager);
+    this.tableSchema = tableSchema;
+    this.expectedSchema = expectedSchema;
+    this.caseSensitive = caseSensitive;
   }
 
   @Override
@@ -121,7 +128,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
     if (task.isDataTask()) {
       iter = newDataIterable(task.asDataTask(), readSchema);
     } else {
-      InputFile location = inputFiles.get(task.file().path().toString());
+      InputFile location = getInputFile(task);
       Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
 
       switch (task.file().format()) {

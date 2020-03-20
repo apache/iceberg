@@ -23,48 +23,38 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
+import org.apache.arrow.util.Preconditions;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.sources.v2.reader.InputPartitionReader;
 
 /**
- * @param <T> Base class of readers to read data as objects of type @param &lt;T&gt;
+ * Base class of readers of type {@link InputPartitionReader} to read data as objects of type @param &lt;T&gt;
+ *
+ * @param <T> is the Java class returned by this reader whose objects contain one or more rows.
  */
 @SuppressWarnings("checkstyle:VisibilityModifier")
 abstract class BaseDataReader<T> implements InputPartitionReader<T> {
-  final Iterator<FileScanTask> tasks;
-  final Schema tableSchema;
-  final Schema expectedSchema;
-  final FileIO fileIo;
-  final Map<String, InputFile> inputFiles;
-  final boolean caseSensitive;
+  private final Iterator<FileScanTask> tasks;
+  private final FileIO fileIo;
+  private final Map<String, InputFile> inputFiles;
 
-  Iterator<T> currentIterator;
-  Closeable currentCloseable = null;
-  T current = null;
-  final int batchSize;
+  private Iterator<T> currentIterator;
+  Closeable currentCloseable;
+  private T current = null;
 
-  BaseDataReader(
-      CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
-      EncryptionManager encryptionManager, boolean caseSensitive) {
-    this(task, tableSchema, expectedSchema, fileIo, encryptionManager, caseSensitive, -1);
-  }
-
-  BaseDataReader(
-      CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
-      EncryptionManager encryptionManager, boolean caseSensitive, int bSize) {
+  BaseDataReader(CombinedScanTask task, FileIO fileIo, EncryptionManager encryptionManager) {
     this.fileIo = fileIo;
     this.tasks = task.files().iterator();
-    this.tableSchema = tableSchema;
-    this.expectedSchema = expectedSchema;
     Iterable<InputFile> decryptedFiles = encryptionManager.decrypt(Iterables.transform(
         task.files(),
         fileScanTask ->
@@ -74,10 +64,8 @@ abstract class BaseDataReader<T> implements InputPartitionReader<T> {
     ImmutableMap.Builder<String, InputFile> inputFileBuilder = ImmutableMap.builder();
     decryptedFiles.forEach(decrypted -> inputFileBuilder.put(decrypted.location(), decrypted));
     this.inputFiles = inputFileBuilder.build();
-    this.caseSensitive = caseSensitive;
-    this.batchSize = bSize;
-    // open last because the schemas, fileIo and batchSize must be set
-    this.currentIterator = open(tasks.next());
+    this.currentCloseable = CloseableIterable.empty();
+    this.currentIterator = Collections.emptyIterator();
   }
 
   @Override
@@ -113,5 +101,10 @@ abstract class BaseDataReader<T> implements InputPartitionReader<T> {
     while (tasks.hasNext()) {
       tasks.next();
     }
+  }
+
+  InputFile getInputFile(FileScanTask task) {
+    Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
+    return inputFiles.get(task.file().path().toString());
   }
 }
