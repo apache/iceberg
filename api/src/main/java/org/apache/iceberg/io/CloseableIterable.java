@@ -26,6 +26,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -130,20 +131,6 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
       private ConcatCloseableIterator(Iterable<CloseableIterable<E>> inputs) {
         this.iterables = inputs.iterator();
         this.currentIterable = iterables.next();
-        // Exhaust the starting empty iterables.
-        while (Iterables.isEmpty(currentIterable)) {
-          try {
-            currentIterable.close();
-          } catch (IOException e) {
-            throw new RuntimeIOException(e, "Failed to close iterable");
-          }
-
-          if (iterables.hasNext()) {
-            this.currentIterable = iterables.next();
-          } else {
-            break;
-          }
-        }
         this.currentIterator = currentIterable.iterator();
       }
 
@@ -197,7 +184,11 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
 
       @Override
       public E next() {
-        return currentIterator.next();
+        if (hasNext()) {
+          return currentIterator.next();
+        } else {
+          throw new NoSuchElementException();
+        }
       }
     }
   }
