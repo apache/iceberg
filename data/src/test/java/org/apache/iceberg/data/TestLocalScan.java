@@ -46,11 +46,13 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Tables;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataWriter;
+import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -87,6 +89,7 @@ public class TestLocalScan {
   public static Object[][] parameters() {
     return new Object[][] {
         new Object[] { "parquet" },
+        new Object[] { "orc" },
         new Object[] { "avro" }
     };
   }
@@ -393,7 +396,7 @@ public class TestLocalScan {
     Preconditions.checkNotNull(fileFormat, "Cannot determine format for file: %s", filename);
     switch (fileFormat) {
       case AVRO:
-        FileAppender avroAppender = Avro.write(fromPath(path, CONF))
+        FileAppender<Record> avroAppender = Avro.write(fromPath(path, CONF))
             .schema(SCHEMA)
             .createWriterFunc(DataWriter::create)
             .named(fileFormat.name())
@@ -410,9 +413,25 @@ public class TestLocalScan {
             .build();
 
       case PARQUET:
-        FileAppender<Record> orcAppender = Parquet.write(fromPath(path, CONF))
+        FileAppender<Record> parquetAppender = Parquet.write(fromPath(path, CONF))
             .schema(SCHEMA)
             .createWriterFunc(GenericParquetWriter::buildWriter)
+            .build();
+        try {
+          parquetAppender.addAll(records);
+        } finally {
+          parquetAppender.close();
+        }
+
+        return DataFiles.builder(PartitionSpec.unpartitioned())
+            .withInputFile(HadoopInputFile.fromPath(path, CONF))
+            .withMetrics(parquetAppender.metrics())
+            .build();
+
+      case ORC:
+        FileAppender<Record> orcAppender = ORC.write(fromPath(path, CONF))
+            .schema(SCHEMA)
+            .createWriterFunc(GenericOrcWriter::buildWriter)
             .build();
         try {
           orcAppender.addAll(records);
@@ -421,9 +440,9 @@ public class TestLocalScan {
         }
 
         return DataFiles.builder(PartitionSpec.unpartitioned())
-            .withInputFile(HadoopInputFile.fromPath(path, CONF))
-            .withMetrics(orcAppender.metrics())
-            .build();
+                .withInputFile(HadoopInputFile.fromPath(path, CONF))
+                .withMetrics(orcAppender.metrics())
+                .build();
 
       default:
         throw new UnsupportedOperationException("Cannot write format: " + fileFormat);
