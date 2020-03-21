@@ -37,7 +37,7 @@ import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public class TestSplitPlanning {
+public class TestSplitPlanning extends TableTestBase {
 
   private static final Configuration CONF = new Configuration();
   private static final HadoopTables TABLES = new HadoopTables(CONF);
@@ -113,34 +113,23 @@ public class TestSplitPlanning {
   }
 
   @Test
-  public void testSplitPlanningWithOverridenMetadataSplitSize() {
+  public void testSplitPlanningWithOverriddenSizeForMetadataJsonFile() {
     List<DataFile> files8Mb = newFiles(32, 8 * 1024 * 1024, FileFormat.METADATA);
     appendFiles(files8Mb);
-    // we expect 16 bins since we are overriding split size in scan with 32MB
+    // we expect 16 bins since we are overriding split size in scan with 16MB
     TableScan scan = table.newScan()
-        .option(TableProperties.METADATA_SPLIT_SIZE, String.valueOf(16L * 1024 * 1024));
+        .option(TableProperties.SPLIT_SIZE, String.valueOf(16L * 1024 * 1024));
     Assert.assertEquals(16, Iterables.size(scan.planTasks()));
   }
 
   @Test
-  public void testSplitPlanningWithOverridenLargeMetadataSplitSize() {
+  public void testSplitPlanningWithOverriddenSizeForLargeMetadataJsonFile() {
     List<DataFile> files128Mb = newFiles(4, 128 * 1024 * 1024, FileFormat.METADATA);
     appendFiles(files128Mb);
     // although overriding split size in scan with 8MB, we expect 4 bins since metadata file is not splittable
     TableScan scan = table.newScan()
-        .option(TableProperties.METADATA_SPLIT_SIZE, String.valueOf(8L * 1024 * 1024));
+        .option(TableProperties.SPLIT_SIZE, String.valueOf(8L * 1024 * 1024));
     Assert.assertEquals(4, Iterables.size(scan.planTasks()));
-  }
-
-  @Test
-  public void testSplitPlanningWithOverridenSplitSize() {
-    List<DataFile> files128Mb = newFiles(4, 128 * 1024 * 1024);
-    appendFiles(files128Mb);
-    // we expect 2 bins since table's split size option has higher precedence over metadata split size option
-    TableScan scan = table.newScan()
-        .option(TableProperties.SPLIT_SIZE, String.valueOf(256L * 1024 * 1024))
-        .option(TableProperties.METADATA_SPLIT_SIZE, String.valueOf(8L * 1024 * 1024));
-    Assert.assertEquals(2, Iterables.size(scan.planTasks()));
   }
 
   @Test
@@ -177,7 +166,6 @@ public class TestSplitPlanning {
     files.forEach(appendFiles::appendFile);
     appendFiles.commit();
   }
-
 
   private List<DataFile> newFiles(int numFiles, long sizeInBytes) {
     return newFiles(numFiles, sizeInBytes, FileFormat.PARQUET);

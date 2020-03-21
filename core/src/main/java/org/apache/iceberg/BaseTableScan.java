@@ -225,8 +225,6 @@ abstract class BaseTableScan implements TableScan {
     long splitSize;
     if (options.containsKey(TableProperties.SPLIT_SIZE)) {
       splitSize = Long.parseLong(options.get(TableProperties.SPLIT_SIZE));
-    } else if (options.containsKey(TableProperties.METADATA_SPLIT_SIZE)) {
-      splitSize = Long.parseLong(options.get(TableProperties.METADATA_SPLIT_SIZE));
     } else {
       splitSize = targetSplitSize(ops);
     }
