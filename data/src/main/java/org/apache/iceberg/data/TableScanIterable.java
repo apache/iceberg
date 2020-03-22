@@ -35,6 +35,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Evaluator;
@@ -42,6 +43,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 
 class TableScanIterable extends CloseableGroup implements CloseableIterable<Record> {
@@ -98,6 +100,14 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
         }
 
         return parquet.build();
+
+      case ORC:
+        ORC.ReadBuilder orc = ORC.read(input)
+                .schema(projection)
+                .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(projection, fileSchema))
+                .split(task.start(), task.length());
+
+        return orc.build();
 
       default:
         throw new UnsupportedOperationException(String.format("Cannot read %s file: %s",
