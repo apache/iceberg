@@ -235,7 +235,7 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     return current;
   }
 
-  private int getId(org.apache.parquet.schema.Type type) {
+  protected int getId(org.apache.parquet.schema.Type type) {
     org.apache.parquet.schema.Type.ID id = type.getId();
     if (id != null) {
       return id.intValue();

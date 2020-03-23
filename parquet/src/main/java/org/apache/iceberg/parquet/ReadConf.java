@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
@@ -51,17 +50,13 @@ class ReadConf<T> {
   private final InputFile file;
   private final ParquetReadOptions options;
   private final MessageType projection;
-  @Nullable
   private final ParquetValueReader<T> model;
-  @Nullable
   private final VectorizedReader<T> vectorizedModel;
   private final List<BlockMetaData> rowGroups;
   private final boolean[] shouldSkip;
   private final long totalValues;
   private final boolean reuseContainers;
-  @Nullable
   private final Integer batchSize;
-  @Nullable
   private final NameMapping nameMapping;
 
   // List of column chunk metadata for each row group

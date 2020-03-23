@@ -82,17 +82,21 @@ public class ParquetSchemaUtil {
       // Try to convert the type to Iceberg. If an ID assignment is needed, return false.
       ParquetTypeVisitor.visit(fileSchema, new MessageTypeToType(fileSchema) {
         @Override
-        protected int nextId() {
-          throw new IllegalStateException("Needed to assign ID");
+        protected int getId(org.apache.parquet.schema.Type type) {
+          org.apache.parquet.schema.Type.ID id = type.getId();
+          if (id != null) {
+            throw new IllegalStateException("at least one ID exists");
+          } else {
+            return nextId();
+          }
         }
       });
 
-      // no assignment was needed
-      return true;
-
-    } catch (IllegalStateException e) {
-      // at least one field was missing an id.
+      // all IDs are assigned from nextId()
       return false;
+    } catch (IllegalStateException e) {
+      // at least one field exists.
+      return true;
     }
   }
 }
