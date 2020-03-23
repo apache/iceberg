@@ -22,12 +22,13 @@ package org.apache.iceberg.io;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import java.util.NoSuchElementException;
+import org.apache.iceberg.AssertHelpers;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class TestCloseableIterable {
 
-  @Test(expected = NoSuchElementException.class)
+  @Test
   public void testConcateWithEmptyIterables() {
     CloseableIterable<Integer> iter = CloseableIterable.combine(Lists.newArrayList(1, 2, 3), () -> { });
     CloseableIterable<Integer> empty = CloseableIterable.empty();
@@ -46,6 +47,8 @@ public class TestCloseableIterable {
 
     // This will throw a NoSuchElementException
     CloseableIterable<Integer> concat5 = CloseableIterable.concat(Lists.newArrayList(empty, empty, empty));
-    Iterables.getLast(concat5);
+    AssertHelpers.assertThrows("should throw NoSuchElementException",
+        NoSuchElementException.class,
+        () -> Iterables.getLast(concat5));
   }
 }
