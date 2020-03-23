@@ -21,7 +21,9 @@ package org.apache.iceberg;
 
 import com.google.common.collect.Iterables;
 import java.io.IOException;
+import java.util.List;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -48,4 +50,45 @@ public class TestManifestReader extends TableTestBase {
           () -> Iterables.getOnlyElement(reader.entries()));
     }
   }
+
+  @Test
+  public void testManifestReaderWithPartitionMetadata() throws IOException {
+    ManifestFile manifest = writeManifest("manifest.avro", manifestEntry(Status.EXISTING, 123L, FILE_A));
+    try (ManifestReader reader = ManifestReader.read(FILE_IO.newInputFile(manifest.path()))) {
+      ManifestEntry entry = Iterables.getOnlyElement(reader.entries());
+      Assert.assertEquals(123L, (long) entry.snapshotId());
+
+      List<Types.NestedField> fields = ((PartitionData) entry.file().partition()).getPartitionType().fields();
+      Assert.assertEquals(1, fields.size());
+      Assert.assertEquals(1000, fields.get(0).fieldId());
+      Assert.assertEquals("data_bucket", fields.get(0).name());
+      Assert.assertEquals(Types.IntegerType.get(), fields.get(0).type());
+    }
+  }
+
+  @Test
+  public void testManifestReaderWithUpdatedPartitionMetadata() throws IOException {
+    PartitionSpec spec = PartitionSpec.builderFor(table.schema())
+        .bucket("id", 8)
+        .bucket("data", 16)
+        .build();
+    table.updatePartitionSpec().update(spec).commit();
+
+    ManifestFile manifest = writeManifest("manifest.avro", manifestEntry(Status.EXISTING, 123L, FILE_A));
+    try (ManifestReader reader = ManifestReader.read(FILE_IO.newInputFile(manifest.path()))) {
+      ManifestEntry entry = Iterables.getOnlyElement(reader.entries());
+      Assert.assertEquals(123L, (long) entry.snapshotId());
+
+      List<Types.NestedField> fields = ((PartitionData) entry.file().partition()).getPartitionType().fields();
+      Assert.assertEquals(2, fields.size());
+      Assert.assertEquals(1001, fields.get(0).fieldId());
+      Assert.assertEquals("id_bucket", fields.get(0).name());
+      Assert.assertEquals(Types.IntegerType.get(), fields.get(0).type());
+      // reuse the partition field id from the previous partition spec for the same partition field.
+      Assert.assertEquals(1000, fields.get(1).fieldId());
+      Assert.assertEquals("data_bucket", fields.get(1).name());
+      Assert.assertEquals(Types.IntegerType.get(), fields.get(1).type());
+    }
+  }
+
 }

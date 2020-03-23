@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import java.util.Map;
 
@@ -39,7 +40,7 @@ class PartitionSpecUpdate implements UpdatePartitionSpec {
 
   @Override
   public PartitionSpec apply() {
-    return newSpec;
+    return Preconditions.checkNotNull(newSpec, "new spec is not set");
   }
 
   @Override
