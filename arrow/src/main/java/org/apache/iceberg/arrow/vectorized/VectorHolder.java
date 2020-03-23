@@ -53,7 +53,7 @@ public class VectorHolder {
     this.icebergType = type;
   }
 
-  // Only used for returning dummyHolder
+  // Only used for returning dummy holder
   private VectorHolder() {
     columnDescriptor = null;
     vector = null;

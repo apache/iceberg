@@ -32,22 +32,23 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
-import org.apache.spark.sql.sources.v2.reader.InputPartitionReader;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
-class BatchTaskDataReader extends BaseTaskDataReader<ColumnarBatch>
-    implements InputPartitionReader<ColumnarBatch> {
+class BatchDataReader extends BaseDataReader<ColumnarBatch> {
+  private final Schema tableSchema;
+  private final Schema expectedSchema;
+  private final boolean caseSensitive;
+  private final int batchSize;
 
-  BatchTaskDataReader(
+  BatchDataReader(
       CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
-      EncryptionManager encryptionManager, boolean caseSensitive, int bSize) {
-    super(task, tableSchema, expectedSchema, fileIo, encryptionManager, caseSensitive, bSize);
-  }
-
-  @Override
-  public ColumnarBatch get() {
-    return current;
+      EncryptionManager encryptionManager, boolean caseSensitive, int size) {
+    super(task, fileIo, encryptionManager);
+    this.tableSchema = tableSchema;
+    this.expectedSchema = expectedSchema;
+    this.caseSensitive = caseSensitive;
+    this.batchSize = size;
   }
 
   @Override
@@ -69,7 +70,7 @@ class BatchTaskDataReader extends BaseTaskDataReader<ColumnarBatch>
 
   private Iterator<ColumnarBatch> open(FileScanTask task, Schema readSchema) {
     CloseableIterable<ColumnarBatch> iter;
-    InputFile location = inputFiles.get(task.file().path().toString());
+    InputFile location = getInputFile(task);
     Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
     if (task.file().format() == FileFormat.PARQUET) {
       iter = Parquet.read(location)
@@ -80,7 +81,7 @@ class BatchTaskDataReader extends BaseTaskDataReader<ColumnarBatch>
           .filter(task.residual())
           .caseSensitive(caseSensitive)
           .recordsPerBatch(batchSize)
-          // Spark eagerly consumes the batches so the underlying memory allocated could be reused
+          // Spark eagerly consumes the batches. So the underlying memory allocated could be reused
           // without worrying about subsequent reads clobbering over each other. This improves
           // read performance as every batch read doesn't have to pay the cost of allocating memory.
           .reuseContainers()
@@ -92,5 +93,4 @@ class BatchTaskDataReader extends BaseTaskDataReader<ColumnarBatch>
     this.currentCloseable = iter;
     return iter.iterator();
   }
-
 }
