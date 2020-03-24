@@ -92,6 +92,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   static final String TABLE_SCHEMA = "iceberg.mr.table.schema";
   static final String LOCALITY = "iceberg.mr.locality";
   static final String CATALOG = "iceberg.mr.catalog";
+  static final String PLATFORM_APPLIES_FILTER = "iceberg.mr.platform.applies.residuals";
 
   private transient List<InputSplit> splits;
 
@@ -161,8 +162,12 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       return this;
     }
 
-    public ConfigBuilder locality(boolean localityPreferred) {
-      conf.setBoolean(LOCALITY, localityPreferred);
+    /**
+     * If this API is called. The input splits
+     * constructed will have host location information
+     */
+    public ConfigBuilder preferLocality() {
+      conf.setBoolean(LOCALITY, true);
       return this;
     }
 
@@ -181,6 +186,22 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     public ConfigBuilder usePigTuples() {
       conf.set(IN_MEMORY_DATA_MODEL, InMemoryDataModel.PIG.name());
+      return this;
+    }
+
+    /**
+     * Compute platforms pass down filters to data sources.
+     * If the data source cannot apply some filters, or only
+     * partially applies the filter, it will return the
+     * residual filter back. If the platform
+     * can correctly apply the residual filters, then it
+     * should call this api. Otherwise the current
+     * api will throw an exception if the passed in
+     * filter is not completely satisfied. Note. This
+     * does not apply to standalone MR application
+     */
+    public ConfigBuilder platformAppliesFilter() {
+      conf.setBoolean(PLATFORM_APPLIES_FILTER, true);
       return this;
     }
   }
@@ -204,8 +225,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     if (asOfTime != -1) {
       scan = scan.asOfTime(asOfTime);
     }
-    long splitSize = conf.getLong(SPLIT_SIZE, -1);
-    if (splitSize != -1) {
+    long splitSize = conf.getLong(SPLIT_SIZE, 0);
+    if (splitSize > 0) {
       scan = scan.option(TableProperties.SPLIT_SIZE, String.valueOf(splitSize));
     }
     String schemaStr = conf.get(READ_SCHEMA);
@@ -214,19 +235,40 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
 
     // TODO add a filter parser to get rid of Serialization
-    Expression filterExpression = SerializationUtil.deserializeFromBase64(conf.get(FILTER_EXPRESSION));
-    if (filterExpression != null) {
-      scan = scan.filter(filterExpression);
+    Expression filter = SerializationUtil.deserializeFromBase64(conf.get(FILTER_EXPRESSION));
+    if (filter != null) {
+      scan = scan.filter(filter);
     }
 
     splits = Lists.newArrayList();
     try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
-      tasksIterable.forEach(task -> splits.add(new IcebergSplit(conf, task)));
+      tasksIterable.forEach(task -> {
+        checkResiduals(conf, task);
+        splits.add(new IcebergSplit(conf, task));
+      });
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close table scan: %s", scan);
     }
 
     return splits;
+  }
+
+  private static void checkResiduals(Configuration conf, CombinedScanTask task) {
+    boolean platformAppliesFilter = conf.getBoolean(PLATFORM_APPLIES_FILTER, false);
+    //TODO remove the check on dataModel once we start supporting
+    // residual evaluation for Iceberg Generics in InputFormat
+    InMemoryDataModel dataModel = conf.getEnum(IN_MEMORY_DATA_MODEL, InMemoryDataModel.DEFAULT);
+    if (dataModel == InMemoryDataModel.DEFAULT || !platformAppliesFilter) {
+      task.files().forEach(fileScanTask -> {
+        Expression residual = fileScanTask.residual();
+        if (residual == null || residual.equals(Expressions.alwaysTrue())) {
+          throw new RuntimeException(
+              String.format(
+                  "Filter expression %s is not completely satisfied . Additional rows " +
+                      "can be returned not satisfied by the filter expression", residual));
+        }
+      });
+    }
   }
 
   @Override
