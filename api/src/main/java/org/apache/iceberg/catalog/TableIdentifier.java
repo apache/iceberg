@@ -57,7 +57,7 @@ public class TableIdentifier {
 
   /**
    * Whether the namespace is empty.
-   * @return true if the namespace is empty, false otherwise
+   * @return true if the namespace is not empty, false otherwise
    */
   public boolean hasNamespace() {
     return !namespace.isEmpty();
