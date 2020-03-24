@@ -92,7 +92,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   static final String TABLE_SCHEMA = "iceberg.mr.table.schema";
   static final String LOCALITY = "iceberg.mr.locality";
   static final String CATALOG = "iceberg.mr.catalog";
-  static final String PLATFORM_APPLIES_FILTER = "iceberg.mr.platform.applies.residuals";
+  static final String PLATFORM_APPLIES_FILTER_RESIDUALS = "iceberg.mr.platform.applies.filter.residuals";
 
   private transient List<InputSplit> splits;
 
@@ -200,8 +200,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
      * filter is not completely satisfied. Note. This
      * does not apply to standalone MR application
      */
-    public ConfigBuilder platformAppliesFilter() {
-      conf.setBoolean(PLATFORM_APPLIES_FILTER, true);
+    public ConfigBuilder platformAppliesFilterResiduals() {
+      conf.setBoolean(PLATFORM_APPLIES_FILTER_RESIDUALS, true);
       return this;
     }
   }
@@ -254,7 +254,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   }
 
   private static void checkResiduals(Configuration conf, CombinedScanTask task) {
-    boolean platformAppliesFilter = conf.getBoolean(PLATFORM_APPLIES_FILTER, false);
+    boolean platformAppliesFilter = conf.getBoolean(PLATFORM_APPLIES_FILTER_RESIDUALS, false);
     //TODO remove the check on dataModel once we start supporting
     // residual evaluation for Iceberg Generics in InputFormat
     InMemoryDataModel dataModel = conf.getEnum(IN_MEMORY_DATA_MODEL, InMemoryDataModel.DEFAULT);
