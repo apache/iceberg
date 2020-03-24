@@ -24,13 +24,10 @@ import com.google.common.collect.ImmutableMap;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.RecordReader;
@@ -54,11 +51,8 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.hive.HiveCatalog;
-import org.apache.iceberg.hive.HiveCatalogs;
-import org.apache.iceberg.hive.HiveClientPool;
-import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.types.Types;
@@ -110,13 +104,6 @@ public class TestIcebergInputFormat {
     tables = new HadoopTables(conf);
   }
 
-  public static class HiveCatalogFunc implements Function<Configuration, Catalog> {
-    @Override
-    public Catalog apply(Configuration conf) {
-      return HiveCatalogs.loadCatalog(conf);
-    }
-  }
-
   @Test
   public void testUnpartitionedTable() throws Exception {
     File location = temp.newFolder(format.name());
@@ -148,10 +135,19 @@ public class TestIcebergInputFormat {
     validate(conf, location.toString(), null, expectedRecords);
   }
 
+  public static class HadoopCatalogFunc implements Function<Configuration, Catalog> {
+    @Override
+    public Catalog apply(Configuration conf) {
+      return new HadoopCatalog(conf, conf.get("warehouse.location"));
+    }
+  }
+
   @Test
   public void testCustomCatalog() throws Exception {
-    conf = setupHiveMetastore();
-    HiveCatalog catalog = HiveCatalogs.loadCatalog(conf);
+    conf = new Configuration();
+    conf.set("warehouse.location", temp.newFolder("hadoop_catalog").getAbsolutePath());
+
+    Catalog catalog = new HadoopCatalogFunc().apply(conf);
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "t");
     Table table = catalog.createTable(tableIdentifier, SCHEMA, SPEC,
                                       ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()));
@@ -161,7 +157,7 @@ public class TestIcebergInputFormat {
     table.newAppend()
          .appendFile(dataFile)
          .commit();
-    validate(conf, tableIdentifier.toString(), HiveCatalogFunc.class, expectedRecords);
+    validate(conf, tableIdentifier.toString(), HadoopCatalogFunc.class, expectedRecords);
   }
 
   private static void validate(
@@ -201,20 +197,6 @@ public class TestIcebergInputFormat {
       throw new RuntimeException(e);
     }
     return records;
-  }
-
-  private static Configuration setupHiveMetastore() throws Exception {
-    TestHiveMetastore metastore = new TestHiveMetastore();
-    metastore.start();
-    final HiveConf hiveConf = metastore.hiveConf();
-    String dbPath = metastore.getDatabasePath("db");
-    Database db = new Database("db", "desc", dbPath, new HashMap<>());
-    HiveClientPool clients = new HiveClientPool(1, hiveConf);
-    clients.run(client -> {
-      client.createDatabase(db);
-      return null;
-    });
-    return hiveConf;
   }
 
   private DataFile writeFile(

@@ -261,7 +261,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     if (dataModel == InMemoryDataModel.DEFAULT || !platformAppliesFilter) {
       task.files().forEach(fileScanTask -> {
         Expression residual = fileScanTask.residual();
-        if (residual == null || residual.equals(Expressions.alwaysTrue())) {
+        if (residual != null && !residual.equals(Expressions.alwaysTrue())) {
           throw new RuntimeException(
               String.format(
                   "Filter expression %s is not completely satisfied . Additional rows " +
