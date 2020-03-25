@@ -16,9 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.iceberg.mr.mapred;
 
 import com.google.common.collect.ImmutableMap;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.typeinfo.HiveDecimalUtils;
@@ -28,17 +31,12 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * Class to convert Iceberg types to Hive TypeInfo
  */
 final class IcebergSchemaToTypeInfo {
 
-  private IcebergSchemaToTypeInfo() {
-
-  }
+  private IcebergSchemaToTypeInfo() {}
 
   private static final ImmutableMap<Object, Object> primitiveTypeToTypeInfo = ImmutableMap.builder()
       .put(Types.BooleanType.get(), TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.BOOLEAN_TYPE_NAME))
@@ -49,12 +47,13 @@ final class IcebergSchemaToTypeInfo {
       .put(Types.BinaryType.get(), TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.BINARY_TYPE_NAME))
       .put(Types.StringType.get(), TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.STRING_TYPE_NAME))
       .put(Types.DateType.get(), TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.DATE_TYPE_NAME))
-      .put(Types.TimestampType.withoutZone(), TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.TIMESTAMP_TYPE_NAME)).build();
+      .put(Types.TimestampType.withoutZone(), TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.TIMESTAMP_TYPE_NAME))
+      .build();
 
   public static List<TypeInfo> getColumnTypes(Schema schema) throws Exception {
     List<Types.NestedField> fields = schema.columns();
     List<TypeInfo> types = new ArrayList<>(fields.size());
-    for (Types.NestedField field: fields) {
+    for (Types.NestedField field : fields) {
       types.add(generateTypeInfo(field.type()));
     }
     return types;
@@ -64,7 +63,7 @@ final class IcebergSchemaToTypeInfo {
     if (primitiveTypeToTypeInfo.containsKey(type)) {
       return (TypeInfo) primitiveTypeToTypeInfo.get(type);
     }
-    switch(type.typeId()) {
+    switch (type.typeId()) {
       case UUID:
         return TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.STRING_TYPE_NAME);
       case FIXED:
@@ -72,7 +71,7 @@ final class IcebergSchemaToTypeInfo {
       case TIME:
         return TypeInfoFactory.getPrimitiveTypeInfo("long");
       case DECIMAL:
-        Types.DecimalType dec = (Types.DecimalType)type;
+        Types.DecimalType dec = (Types.DecimalType) type;
         int scale = dec.scale();
         int precision = dec.precision();
         try {
@@ -83,11 +82,11 @@ final class IcebergSchemaToTypeInfo {
         }
         return TypeInfoFactory.getDecimalTypeInfo(precision, scale);
       case STRUCT:
-        return generateStructTypeInfo((Types.StructType)type);
+        return generateStructTypeInfo((Types.StructType) type);
       case LIST:
-        return generateListTypeInfo((Types.ListType)type);
+        return generateListTypeInfo((Types.ListType) type);
       case MAP:
-        return generateMapTypeInfo((Types.MapType)type);
+        return generateMapTypeInfo((Types.MapType) type);
       default:
         throw new SerDeException("Can't map Iceberg type to Hive TypeInfo: '" + type.typeId() + "'");
     }

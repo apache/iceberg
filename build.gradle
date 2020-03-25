@@ -698,6 +698,7 @@ project(':iceberg-pig') {
     testCompile("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
+    testCompile 'junit:junit'
   }
 }
 
