@@ -80,19 +80,6 @@ subprojects {
 
   sourceCompatibility = '1.8'
   targetCompatibility = '1.8'
-
-  dependencies {
-    compile 'org.slf4j:slf4j-api'
-    compile('com.google.guava:guava') {
-      // may be LGPL - use ALv2 findbugs-annotations instead
-      exclude group: 'com.google.code.findbugs'
-    }
-    compile 'com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1'
-
-    testCompile 'junit:junit'
-    testCompile 'org.slf4j:slf4j-simple'
-    testCompile 'org.mockito:mockito-core'
-  }
 }
 
 apply from: 'baseline.gradle'
@@ -102,17 +89,59 @@ apply from: 'jmh.gradle'
 
 project(':iceberg-api') {
   dependencies {
+    compile('com.google.guava:guava') {
+      // may be LGPL - use ALv2 findbugs-annotations instead
+      exclude group: 'com.google.code.findbugs'
+    }
+    compileOnly 'org.slf4j:slf4j-api'
+    compileOnly 'com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1'
+
+    testCompile 'junit:junit'
+    testCompile 'org.slf4j:slf4j-simple'
+    testCompile 'org.mockito:mockito-core'
+
     testCompile "org.apache.avro:avro"
     testCompile 'joda-time:joda-time'
   }
 }
 
-project(':iceberg-common') {}
+project(':iceberg-common') {
+
+  dependencies {
+    compile('com.google.guava:guava') {
+      // may be LGPL - use ALv2 findbugs-annotations instead
+      exclude group: 'com.google.code.findbugs'
+    }
+    compileOnly 'org.slf4j:slf4j-api'
+    compileOnly 'com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1'
+
+    testCompile 'junit:junit'
+    testCompile 'org.slf4j:slf4j-simple'
+    testCompile 'org.mockito:mockito-core'
+  }
+}
 
 project(':iceberg-core') {
+  apply plugin: 'com.github.johnrengelman.shadow'
+
+  tasks.assemble.dependsOn tasks.shadowJar
+  tasks.install.dependsOn tasks.shadowJar
+  tasks.javadocJar.dependsOn tasks.shadowJar
+
   dependencies {
     compile project(':iceberg-api')
     compile project(':iceberg-common')
+
+    compile('com.google.guava:guava') {
+      // may be LGPL - use ALv2 findbugs-annotations instead
+      exclude group: 'com.google.code.findbugs'
+    }
+    compileOnly 'org.slf4j:slf4j-api'
+    compileOnly 'com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1'
+
+    testCompile 'junit:junit'
+    testCompile 'org.slf4j:slf4j-simple'
+    testCompile 'org.mockito:mockito-core'
 
     compile("org.apache.avro:avro") {
       exclude group: 'org.tukaani' // xz compression is not supported
@@ -128,14 +157,61 @@ project(':iceberg-core') {
 
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
+
+  shadowJar {
+    // shade compileOnly dependencies to avoid including in transitive dependencies
+    configurations = [project.configurations.compile]
+
+    dependencies {
+      exclude (dependency('org.apache.avro:avro'))
+      exclude (dependency('com.fasterxml.jackson.core:jackson-databind'))
+      exclude (dependency('com.fasterxml.jackson.core:jackson-core'))
+      exclude (dependency('com.fasterxml.jackson.core:jackson-annotations'))
+      exclude (dependency('org.checkerframework:checker-qual'))
+      exclude (dependency('com.github.ben-manes.caffeine:caffeine'))
+      exclude (dependency('org.slf4j:slf4j-api'))
+      exclude (dependency('org.codehaus.mojo:animal-sniffer-annotations'))
+      exclude (dependency('org.apache.commons:commons-compress'))
+    }
+
+    zip64 true
+
+    // include the LICENSE and NOTICE files for the shaded Jar
+    from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+
+    // Relocate dependencies to avoid conflicts
+    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
+    relocate 'org.apache.calcite', 'org.apache.iceberg.shaded.org.apache.calcite'
+  }
 }
 
 project(':iceberg-data') {
+  apply plugin: 'com.github.johnrengelman.shadow'
+
+  tasks.assemble.dependsOn tasks.shadowJar
+  tasks.install.dependsOn tasks.shadowJar
+  tasks.javadocJar.dependsOn tasks.shadowJar
+
   dependencies {
     compile project(':iceberg-api')
     compile project(':iceberg-core')
     compileOnly project(':iceberg-parquet')
     compileOnly project(':iceberg-orc')
+
+    compile('com.google.guava:guava') {
+      // may be LGPL - use ALv2 findbugs-annotations instead
+      exclude group: 'com.google.code.findbugs'
+    }
+    compileOnly 'org.slf4j:slf4j-api'
+    compileOnly 'com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1'
+
+    testCompile 'junit:junit'
+    testCompile 'org.slf4j:slf4j-simple'
+    testCompile 'org.mockito:mockito-core'
+
     compileOnly("org.apache.hadoop:hadoop-common") {
       exclude group: 'commons-beanutils'
       exclude group: 'org.apache.avro', module: 'avro'
@@ -154,11 +230,51 @@ project(':iceberg-data') {
     // Only for TestSplitScan as of Gradle 5.0+
     maxHeapSize '1500m'
   }
+
+  shadowJar {
+    // shade compileOnly dependencies to avoid including in transitive dependencies
+    configurations = [project.configurations.compile]
+
+    dependencies {
+      exclude (dependency('org.apache.avro:avro'))
+      exclude (dependency('com.fasterxml.jackson.core:jackson-databind'))
+      exclude (dependency('com.fasterxml.jackson.core:jackson-core'))
+      exclude (dependency('com.fasterxml.jackson.core:jackson-annotations'))
+      exclude (dependency('org.checkerframework:checker-qual'))
+      exclude (dependency('com.github.ben-manes.caffeine:caffeine'))
+      exclude (dependency('org.slf4j:slf4j-api'))
+      exclude (dependency('org.codehaus.mojo:animal-sniffer-annotations'))
+      exclude (dependency('org.apache.commons:commons-compress'))
+      exclude (dependency('org.apache.iceberg:iceberg-common'))
+      exclude (dependency('org.apache.iceberg:iceberg-api'))
+      exclude (dependency('org.apache.iceberg:iceberg-core'))
+
+    }
+
+    zip64 true
+
+    // include the LICENSE and NOTICE files for the shaded Jar
+    from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+
+    // Relocate dependencies to avoid conflicts
+    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
+    relocate 'org.apache.calcite', 'org.apache.iceberg.shaded.org.apache.calcite'
+  }
 }
 
 project(':iceberg-hive') {
   dependencies {
     compile project(':iceberg-core')
+
+    compileOnly 'org.slf4j:slf4j-api'
+    compileOnly 'com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1'
+
+    testCompile 'junit:junit'
+    testCompile 'org.slf4j:slf4j-simple'
+    testCompile 'org.mockito:mockito-core'
 
     compileOnly "org.apache.avro:avro"
 
@@ -221,15 +337,31 @@ project(':iceberg-hive') {
 
 project(':iceberg-mr') {
   dependencies {
-    compile project(':iceberg-api')
-    compile project(':iceberg-core')
-    compile project(':iceberg-hive')
-    compile project(':iceberg-orc')
-    compile project(':iceberg-parquet')
-    compile project(':iceberg-data')
+    compile project(path: ':iceberg-core', configuration: 'shadow')
+    compile project(path: ':iceberg-orc', configuration: 'shadow')
+    compile project(path: ':iceberg-parquet', configuration: 'shadow')
+    compile project(path: ':iceberg-data', configuration: 'shadow')
 
     compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
+    }
+
+    compileOnly('com.github.ben-manes.caffeine:caffeine')
+    compileOnly ('org.apache.calcite:calcite-core')
+
+    compile("org.apache.hive:hive-serde:2.3.6") {
+      exclude group: 'org.apache.parquet', module:'parquet-hadoop-bundle'
+      exclude group: 'org.apache.ant', module: '*'
+      exclude group: 'javax.servlet', module: 'jsp-api'
+      exclude group: 'commons-beanutils', module: 'commons-beanutils-core'
+      exclude group: 'javax.annotation', module: '*'
+      exclude group: 'org.eclipse.jetty.orbit', module: 'javax.servlet'
+      exclude group: 'org.apache.logging.log4j', module: 'log4j-1.2-api'
+      exclude group: 'commons-beanutils', module: 'commons-beanutils'
+      exclude group: 'org.apache.geronimo.specs', module: 'geronimo-annotation_1.0_spec'
+      exclude group: 'org.checkerframework', module: 'checker-qual'
+      exclude group: 'org.codehaus.mojo', module: 'animal-sniffer-annotations'
+      exclude group: 'commons-collections', module: 'commons-collections'
     }
 
     testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
@@ -245,9 +377,26 @@ project(':iceberg-mr') {
 }
 
 project(':iceberg-orc') {
+  apply plugin: 'com.github.johnrengelman.shadow'
+
+  tasks.assemble.dependsOn tasks.shadowJar
+  tasks.install.dependsOn tasks.shadowJar
+  tasks.javadocJar.dependsOn tasks.shadowJar
+
   dependencies {
     compile project(':iceberg-api')
     compile project(':iceberg-core')
+
+    compile('com.google.guava:guava') {
+      // may be LGPL - use ALv2 findbugs-annotations instead
+      exclude group: 'com.google.code.findbugs'
+    }
+    compileOnly 'org.slf4j:slf4j-api'
+    compileOnly 'com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1'
+
+    testCompile 'junit:junit'
+    testCompile 'org.slf4j:slf4j-simple'
+    testCompile 'org.mockito:mockito-core'
 
     compile("org.apache.orc:orc-core::nohive") {
       exclude group: 'org.apache.hadoop'
@@ -268,12 +417,72 @@ project(':iceberg-orc') {
 
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
+
+  configurations {
+    compile {
+      exclude group: 'javax.xml.bind'
+    }
+  }
+
+  shadowJar {
+    // shade compileOnly dependencies to avoid including in transitive dependencies
+    configurations = [project.configurations.compile]
+
+    zip64 true
+
+    dependencies {
+      exclude (dependency('com.fasterxml.jackson.core:jackson-core'))
+      exclude (dependency('org.codehaus.mojo:animal-sniffer-annotations'))
+      exclude (dependency('org.apache.iceberg:iceberg-common'))
+      exclude (dependency('org.apache.avro:avro'))
+      exclude (dependency('org.jetbrains:annotations'))
+      exclude (dependency('org.checkerframework:checker-qual'))
+      exclude (dependency('io.airlift:aircompressor'))
+      exclude (dependency('com.github.ben-manes.caffeine:caffeine'))
+      exclude (dependency('com.fasterxml.jackson.core:jackson-annotations'))
+      exclude (dependency('org.apache.commons:commons-compress'))
+      exclude (dependency('org.apache.orc:orc-shims'))
+      exclude (dependency('org.apache.iceberg:iceberg-core'))
+      exclude (dependency('org.slf4j:slf4j-api'))
+      exclude (dependency('com.fasterxml.jackson.core:jackson-databind'))
+      exclude (dependency('org.apache.orc:orc-core'))
+      exclude (dependency('org.apache.iceberg:iceberg-api'))
+
+    }
+
+    // include the LICENSE and NOTICE files for the shaded Jar
+    from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+
+    // Relocate dependencies to avoid conflicts
+    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
+    relocate 'org.apache.calcite', 'org.apache.iceberg.shaded.org.apache.calcite'
+  }
 }
 
 project(':iceberg-parquet') {
+  apply plugin: 'com.github.johnrengelman.shadow'
+
+  tasks.assemble.dependsOn tasks.shadowJar
+  tasks.install.dependsOn tasks.shadowJar
+  tasks.javadocJar.dependsOn tasks.shadowJar
+
   dependencies {
     compile project(':iceberg-api')
     compile project(':iceberg-core')
+
+    compile('com.google.guava:guava') {
+      // may be LGPL - use ALv2 findbugs-annotations instead
+      exclude group: 'com.google.code.findbugs'
+    }
+    compileOnly 'org.slf4j:slf4j-api'
+    compileOnly 'com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1'
+
+    testCompile 'junit:junit'
+    testCompile 'org.slf4j:slf4j-simple'
+    testCompile 'org.mockito:mockito-core'
 
     compile("org.apache.parquet:parquet-avro") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -289,12 +498,116 @@ project(':iceberg-parquet') {
 
     testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
+
+  configurations {
+    compile {
+      exclude group: 'javax.xml.bind'
+    }
+  }
+
+  shadowJar {
+    // shade compileOnly dependencies to avoid including in transitive dependencies
+    configurations = [project.configurations.compileOnly]
+
+    dependencies {
+      exclude (dependency('commons-collections:commons-collections:3.2.2'))
+      exclude (dependency('org.apache.hadoop:hadoop-yarn-api'))
+      exclude (dependency('org.apache.htrace:htrace-core'))
+      exclude (dependency('com.sun.xml.bind:jaxb-impl'))
+      exclude (dependency('org.apache.directory.server:apacheds-i18n'))
+      exclude (dependency('com.fasterxml.jackson.core:jackson-core'))
+      exclude (dependency('xmlenc:xmlenc'))
+      exclude (dependency('org.codehaus.jackson:jackson-mapper-asl'))
+      exclude (dependency('org.sonatype.sisu.inject:cglib'))
+      exclude (dependency('commons-codec:commons-codec'))
+      exclude (dependency('org.slf4j:slf4j-api'))
+      exclude (dependency('com.sun.jersey:jersey-json'))
+      exclude (dependency('org.apache.directory.api:api-util'))
+      exclude (dependency('com.fasterxml.jackson.core:jackson-databind'))
+      exclude (dependency('org.apache.commons:commons-math3'))
+      exclude (dependency('org.codehaus.jackson:jackson-xc'))
+      exclude (dependency('org.apache.directory.api:api-asn1-api'))
+      exclude (dependency('org.apache.hadoop:hadoop-yarn-common'))
+      exclude (dependency('commons-configuration:commons-configuration'))
+      exclude (dependency('org.apache.commons:commons-compress'))
+      exclude (dependency('javax.xml.bind:jaxb-api'))
+      exclude (dependency('org.apache.hadoop:hadoop-auth'))
+      exclude (dependency('commons-lang:commons-lang'))
+      exclude (dependency('org.apache.curator:curator-client'))
+      exclude (dependency('org.apache.hadoop:hadoop-common'))
+      exclude (dependency('com.sun.jersey:jersey-client'))
+      exclude (dependency('com.sun.jersey:jersey-core'))
+      exclude (dependency('javax.servlet:servlet-api'))
+      exclude (dependency('org.checkerframework:checker-qual'))
+      exclude (dependency('io.netty:netty'))
+      exclude (dependency(' org.apache.httpcomponents:httpcore'))
+      exclude (dependency('org.apache.avro:avro'))
+      exclude (dependency('javax.inject:javax.inject'))
+      exclude (dependency('log4j:log4j'))
+      exclude (dependency('org.codehaus.jackson:jackson-jaxrs'))
+      exclude (dependency('jline:jline'))
+      exclude (dependency('org.apache.directory.server:apacheds-kerberos-codec'))
+      exclude (dependency('aopalliance:aopalliance'))
+      exclude (dependency('asm:asm'))
+      exclude (dependency('commons-httpclient:commons-httpclient'))
+      exclude (dependency('commons-collections:commons-collections'))
+      exclude (dependency('commons-io:commons-io'))
+      exclude (dependency('com.fasterxml.jackson.core:jackson-annotations'))
+      exclude (dependency('org.apache.hadoop:hadoop-annotations'))
+      exclude (dependency('org.apache.zookeeper:zookeeper'))
+      exclude (dependency('org.codehaus.jackson:jackson-core-asl'))
+      exclude (dependency('org.apache.httpcomponents:httpcore'))
+      exclude (dependency('org.codehaus.mojo:animal-sniffer-annotations'))
+      exclude (dependency('org.fusesource.leveldbjni:leveldbjni-all'))
+      exclude (dependency('com.sun.jersey:jersey-server'))
+      exclude (dependency('commons-logging:commons-logging'))
+      exclude (dependency('javax.activation:activation'))
+      exclude (dependency('org.apache.httpcomponents:httpclient'))
+      exclude (dependency('org.mortbay.jetty:jetty-util'))
+      exclude (dependency('org.apache.curator:curator-recipes'))
+      exclude (dependency('commons-cli:commons-cli'))
+      exclude (dependency('com.sun.jersey.contribs:jersey-guice'))
+      exclude (dependency('commons-collections:commons-collections'))
+      exclude (dependency('com.google.code.findbugs:jsr305'))
+      exclude (dependency('commons-digester:commons-digester'))
+      exclude (dependency('jline:jline'))
+      exclude (dependency('org.codehaus.jettison:jettison'))
+      exclude (dependency('org.apache.hadoop:hadoop-yarn-server-common'))
+      exclude (dependency('commons-net:commons-net'))
+      exclude (dependency('javax.servlet.jsp:jsp-api'))
+      exclude (dependency('org.apache.curator:curator-framework'))
+    }
+
+    zip64 true
+
+    // include the LICENSE and NOTICE files for the shaded Jar
+    from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+
+    // Relocate dependencies to avoid conflicts
+    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
+    relocate 'org.apache.calcite', 'org.apache.iceberg.shaded.org.apache.calcite'
+    relocate 'commons-collections', 'org.apache.iceberg.shaded.commons-collections'
+  }
 }
 
 project(':iceberg-arrow') {
   dependencies {
     compile project(':iceberg-api')
     compile project(':iceberg-parquet')
+
+    compile('com.google.guava:guava') {
+      // may be LGPL - use ALv2 findbugs-annotations instead
+      exclude group: 'com.google.code.findbugs'
+    }
+    compile 'org.slf4j:slf4j-api'
+    compile 'com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1'
+
+    testCompile 'junit:junit'
+    testCompile 'org.slf4j:slf4j-simple'
+    testCompile 'org.mockito:mockito-core'
 
     compile("org.apache.arrow:arrow-vector") {
       exclude group: 'io.netty', module: 'netty-buffer'
@@ -317,6 +630,17 @@ project(':iceberg-spark') {
     compile project(':iceberg-parquet')
     compile project(':iceberg-arrow')
     compile project(':iceberg-hive')
+
+    compile('com.google.guava:guava') {
+      // may be LGPL - use ALv2 findbugs-annotations instead
+      exclude group: 'com.google.code.findbugs'
+    }
+    compile 'org.slf4j:slf4j-api'
+    compile 'com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1'
+
+    testCompile 'junit:junit'
+    testCompile 'org.slf4j:slf4j-simple'
+    testCompile 'org.mockito:mockito-core'
 
     compileOnly "org.apache.avro:avro"
     compileOnly("org.apache.spark:spark-hive_2.11") {

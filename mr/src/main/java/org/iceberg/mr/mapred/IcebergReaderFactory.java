@@ -25,7 +25,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataReader;
-import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
@@ -80,7 +79,7 @@ class IcebergReaderFactory {
   private CloseableIterable buildParquetReader(FileScanTask task, InputFile file, Schema schema,
       boolean reuseContainers) {
     Parquet.ReadBuilder builder = Parquet.read(file)
-        .createReaderFunc(messageType -> GenericParquetReaders.buildReader(schema, messageType))
+        //.createReaderFunc(messageType -> GenericParquetReaders.buildReader(schema, messageType))
         .project(schema)
         .split(task.start(), task.length());
 

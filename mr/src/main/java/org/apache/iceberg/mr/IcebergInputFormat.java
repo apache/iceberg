@@ -58,12 +58,11 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataReader;
-import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.hive.HiveCatalogs;
+//import org.apache.iceberg.hive.HiveCatalogs;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
@@ -396,8 +395,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           //TODO implement value readers for Pig and Hive
           throw new UnsupportedOperationException();
         case DEFAULT:
-          parquetReadBuilder.createReaderFunc(
-              fileSchema -> GenericParquetReaders.buildReader(readSchema, fileSchema));
+          //parquetReadBuilder.createReaderFunc(
+              //fileSchema -> GenericParquetReaders.buildReader(readSchema, fileSchema));
       }
       return parquetReadBuilder.build();
     }
@@ -428,9 +427,10 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       HadoopTables tables = new HadoopTables(conf);
       return tables.load(path);
     } else {
-      Catalog catalog = HiveCatalogs.loadCatalog(conf);
-      TableIdentifier tableIdentifier = TableIdentifier.parse(path);
-      return catalog.loadTable(tableIdentifier);
+      //Catalog catalog = HiveCatalogs.loadCatalog(conf);
+      //TableIdentifier tableIdentifier = TableIdentifier.parse(path);
+      //return catalog.loadTable(tableIdentifier);
+      return null;
     }
   }
 
