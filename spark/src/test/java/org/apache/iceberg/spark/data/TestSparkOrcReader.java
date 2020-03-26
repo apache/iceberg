@@ -49,7 +49,7 @@ public class TestSparkOrcReader extends AvroDataTest {
     }
 
     try (CloseableIterable<InternalRow> reader = ORC.read(Files.localInput(testFile))
-        .schema(schema)
+        .project(schema)
         .createReaderFunc(SparkOrcReader::new)
         .build()) {
       final Iterator<InternalRow> actualRows = reader.iterator();
