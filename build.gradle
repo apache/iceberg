@@ -89,7 +89,7 @@ apply from: 'jmh.gradle'
 
 project(':iceberg-api') {
   dependencies {
-    compile('com.google.guava:guava') {
+    compile('com.google.guava:guava:28.0-jre') {
       // may be LGPL - use ALv2 findbugs-annotations instead
       exclude group: 'com.google.code.findbugs'
     }
@@ -108,7 +108,7 @@ project(':iceberg-api') {
 project(':iceberg-common') {
 
   dependencies {
-    compile('com.google.guava:guava') {
+    compile('com.google.guava:guava:28.0-jre') {
       // may be LGPL - use ALv2 findbugs-annotations instead
       exclude group: 'com.google.code.findbugs'
     }
@@ -132,7 +132,7 @@ project(':iceberg-core') {
     compile project(':iceberg-api')
     compile project(':iceberg-common')
 
-    compile('com.google.guava:guava') {
+    compile('com.google.guava:guava:28.0-jre') {
       // may be LGPL - use ALv2 findbugs-annotations instead
       exclude group: 'com.google.code.findbugs'
     }
@@ -201,7 +201,7 @@ project(':iceberg-data') {
     compileOnly project(':iceberg-parquet')
     compileOnly project(':iceberg-orc')
 
-    compile('com.google.guava:guava') {
+    compile('com.google.guava:guava:28.0-jre') {
       // may be LGPL - use ALv2 findbugs-annotations instead
       exclude group: 'com.google.code.findbugs'
     }
@@ -338,6 +338,7 @@ project(':iceberg-hive') {
 
 project(':iceberg-mr') {
   dependencies {
+    compile('com.google.guava:guava:11.0.2') 
     compile project(path: ':iceberg-core', configuration: 'shadow')
     compile project(path: ':iceberg-orc', configuration: 'shadow')
     compile project(path: ':iceberg-parquet', configuration: 'shadow')
@@ -431,7 +432,7 @@ project(':iceberg-orc') {
     compile project(':iceberg-api')
     compile project(':iceberg-core')
 
-    compile('com.google.guava:guava') {
+    compile('com.google.guava:guava:28.0-jre') {
       // may be LGPL - use ALv2 findbugs-annotations instead
       exclude group: 'com.google.code.findbugs'
     }
@@ -517,7 +518,7 @@ project(':iceberg-parquet') {
     compile project(':iceberg-api')
     compile project(':iceberg-core')
 
-    compile('com.google.guava:guava') {
+    compile('com.google.guava:guava:28.0-jre') {
       // may be LGPL - use ALv2 findbugs-annotations instead
       exclude group: 'com.google.code.findbugs'
     }
@@ -642,7 +643,7 @@ project(':iceberg-arrow') {
     compile project(':iceberg-api')
     compile project(':iceberg-parquet')
 
-    compile('com.google.guava:guava') {
+    compile('com.google.guava:guava:28.0-jre') {
       // may be LGPL - use ALv2 findbugs-annotations instead
       exclude group: 'com.google.code.findbugs'
     }
@@ -675,7 +676,7 @@ project(':iceberg-spark') {
     compile project(':iceberg-arrow')
     compile project(':iceberg-hive')
 
-    compile('com.google.guava:guava') {
+    compile('com.google.guava:guava:28.0-jre') {
       // may be LGPL - use ALv2 findbugs-annotations instead
       exclude group: 'com.google.code.findbugs'
     }
