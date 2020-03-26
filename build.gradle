@@ -60,7 +60,6 @@ subprojects {
   configurations {
     testCompile.extendsFrom compileOnly
     all {
-      exclude group: 'org.apache.hive', module: 'hive-exec'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
@@ -278,7 +277,7 @@ project(':iceberg-hive') {
 
     compileOnly "org.apache.avro:avro"
 
-    compileOnly("org.apache.hive:hive-metastore") {
+    compileOnly("org.apache.hive:hive-metastore:2.3.6") {
       exclude group: 'org.apache.hive', module: 'hive-exec'
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
@@ -311,7 +310,7 @@ project(':iceberg-hive') {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
 
-    testCompile("org.apache.hive:hive-metastore") {
+    testCompile("org.apache.hive:hive-metastore:2.3.6") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.hive', module: 'hive-exec'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
@@ -374,6 +373,7 @@ project(':iceberg-mr') {
     testCompile("org.apache.hive:hive-service:2.3.6") {
       exclude group: 'org.apache.parquet', module:'parquet-hadoop-bundle'
       exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.apache.hive', module: 'hive-exec'
     }
     
     compile("org.apache.hive:hive-exec:2.3.6:core") {
@@ -390,7 +390,6 @@ project(':iceberg-mr') {
       exclude group: 'org.apache.calcite.avatica'
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
-
     
     testCompile 'junit:junit'
     testCompile("com.klarna:hiverunner:4.1.0") {
