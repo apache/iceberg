@@ -31,7 +31,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
-class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
+public class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   private static final Schema BOOLEAN_SCHEMA = Schema.create(Schema.Type.BOOLEAN);
   private static final Schema INTEGER_SCHEMA = Schema.create(Schema.Type.INT);
   private static final Schema LONG_SCHEMA = Schema.create(Schema.Type.LONG);

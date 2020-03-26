@@ -19,39 +19,33 @@
 
 package org.apache.iceberg.mr.mapred;
 
-import com.google.common.collect.Lists;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+
 import com.klarna.hiverunner.HiveShell;
 import com.klarna.hiverunner.StandaloneHiveRunner;
 import com.klarna.hiverunner.annotations.HiveSQL;
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 import org.apache.commons.io.FileUtils;
-import org.apache.hadoop.mapred.InputSplit;
-import org.apache.hadoop.mapred.JobConf;
-import org.apache.hadoop.mapred.RecordReader;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.types.Types;
-import org.iceberg.mr.mapred.IcebergInputFormat;
-import org.iceberg.mr.mapred.IcebergWritable;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 @RunWith(StandaloneHiveRunner.class)
 public class TestIcebergInputFormat {
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestIcebergInputFormat.class);
 
   @HiveSQL(files = {}, autoStart = true)
   private HiveShell shell;
@@ -78,6 +72,17 @@ public class TestIcebergInputFormat {
     table.newAppend().appendFile(fileA).commit();
   }
 
+  @Test
+  public void bla() {
+      try {
+          LOG.error("YYY: " + org.apache.avro.Schema.class.getProtectionDomain().getCodeSource());
+      } catch (Throwable t) {
+          t.printStackTrace();
+          LOG.error("XXX", t);
+          LOG.error("ZZZ", t.getCause());
+      }
+  }
+/*
   @Test
   public void testInputFormat() {
     shell.execute("CREATE DATABASE source_db");
@@ -128,7 +133,7 @@ public class TestIcebergInputFormat {
       }
     }
     assertEquals(3, records.size());
-  }
+  }*/
 
   @After
   public void after() throws IOException {

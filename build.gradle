@@ -60,6 +60,7 @@ subprojects {
   configurations {
     testCompile.extendsFrom compileOnly
     all {
+      exclude group: 'org.apache.hive', module: 'hive-exec'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
@@ -248,7 +249,6 @@ project(':iceberg-data') {
       exclude (dependency('org.apache.iceberg:iceberg-common'))
       exclude (dependency('org.apache.iceberg:iceberg-api'))
       exclude (dependency('org.apache.iceberg:iceberg-core'))
-
     }
 
     zip64 true
@@ -279,6 +279,7 @@ project(':iceberg-hive') {
     compileOnly "org.apache.avro:avro"
 
     compileOnly("org.apache.hive:hive-metastore") {
+      exclude group: 'org.apache.hive', module: 'hive-exec'
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency
@@ -298,7 +299,7 @@ project(':iceberg-hive') {
     // that's really old. We use the core classifier to be able to override our guava
     // version. Luckily, hive-exec seems to work okay so far with this version of guava
     // See: https://github.com/apache/hive/blob/master/ql/pom.xml#L911 for more context.
-    testCompile("org.apache.hive:hive-exec::core") {
+    testCompile("org.apache.hive:hive-exec:2.3.6:core") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency
@@ -312,6 +313,7 @@ project(':iceberg-hive') {
 
     testCompile("org.apache.hive:hive-metastore") {
       exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.apache.hive', module: 'hive-exec'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency
       exclude group: 'org.apache.hbase'
@@ -341,13 +343,13 @@ project(':iceberg-mr') {
     compile project(path: ':iceberg-orc', configuration: 'shadow')
     compile project(path: ':iceberg-parquet', configuration: 'shadow')
     compile project(path: ':iceberg-data', configuration: 'shadow')
-
+	compileOnly "org.apache.avro:avro"
     compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
     compileOnly('com.github.ben-manes.caffeine:caffeine')
-    compileOnly ('org.apache.calcite:calcite-core')
+    compileOnly('org.apache.calcite:calcite-core:1.10.0')
 
     compile("org.apache.hive:hive-serde:2.3.6") {
       exclude group: 'org.apache.parquet', module:'parquet-hadoop-bundle'
@@ -362,17 +364,60 @@ project(':iceberg-mr') {
       exclude group: 'org.checkerframework', module: 'checker-qual'
       exclude group: 'org.codehaus.mojo', module: 'animal-sniffer-annotations'
       exclude group: 'commons-collections', module: 'commons-collections'
+      exclude group: 'org.apache.hive', module: 'hive-exec'
     }
-
+    
     testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
     
-    testCompile("com.klarna:hiverunner:5.1.1") {
+    testCompile("org.apache.hive:hive-service:2.3.6") {
+      exclude group: 'org.apache.parquet', module:'parquet-hadoop-bundle'
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
+    
+    compile("org.apache.hive:hive-exec:2.3.6:core") {
+      exclude group: 'stax', module: 'stax-api'
+      exclude group: 'commons-collections', module: 'commons-collections'
+      exclude group: 'org.apache.ant', module: '*'
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hive', module: 'hive-llap-tez'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'com.google.protobuf', module: 'protobuf-java'
+      exclude group: 'org.apache.calcite'
+      exclude group: 'org.apache.calcite.avatica'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
+
+    
+    testCompile 'junit:junit'
+    testCompile("com.klarna:hiverunner:4.1.0") {
       exclude group: 'com.google.protobuf', module: 'protobuf-java'
       exclude group: 'org.apache.calcite', module: '*'
       exclude group: 'org.codehaus.jettison', module: 'jettison'
+      exclude group: 'javax.jms', module: 'jms'
+      exclude group: 'org.apache.hive', module: '*'
     }
+    testCompile("org.apache.hive:hive-exec:2.3.6:core") {
+      exclude group: 'stax', module: 'stax-api'
+      exclude group: 'commons-collections', module: 'commons-collections'
+      exclude group: 'org.apache.ant', module: '*'
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hive', module: 'hive-llap-tez'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'com.google.protobuf', module: 'protobuf-java'
+      exclude group: 'org.apache.calcite'
+      exclude group: 'org.apache.calcite.avatica'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
+  }
+  task copyToLib(type: Copy) {
+    into "$buildDir/output/lib"
+    from configurations.testCompile
   }
 }
 
