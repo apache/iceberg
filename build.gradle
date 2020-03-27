@@ -88,6 +88,12 @@ apply from: 'tasks.gradle'
 apply from: 'jmh.gradle'
 
 project(':iceberg-api') {
+  apply plugin: 'com.github.johnrengelman.shadow'
+
+  tasks.assemble.dependsOn tasks.shadowJar
+  tasks.install.dependsOn tasks.shadowJar
+  tasks.javadocJar.dependsOn tasks.shadowJar
+
   dependencies {
     compile('com.google.guava:guava:28.0-jre') {
       // may be LGPL - use ALv2 findbugs-annotations instead
@@ -103,9 +109,29 @@ project(':iceberg-api') {
     testCompile "org.apache.avro:avro"
     testCompile 'joda-time:joda-time'
   }
+
+  shadowJar {
+    // shade compileOnly dependencies to avoid including in transitive dependencies
+    configurations = [project.configurations.compile]
+    zip64 true
+
+    // include the LICENSE and NOTICE files for the shaded Jar
+    from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+
+    // Relocate dependencies to avoid conflicts
+    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
+  }
 }
 
 project(':iceberg-common') {
+  apply plugin: 'com.github.johnrengelman.shadow'
+
+  tasks.assemble.dependsOn tasks.shadowJar
+  tasks.install.dependsOn tasks.shadowJar
+  tasks.javadocJar.dependsOn tasks.shadowJar
 
   dependencies {
     compile('com.google.guava:guava:28.0-jre') {
@@ -119,6 +145,21 @@ project(':iceberg-common') {
     testCompile 'org.slf4j:slf4j-simple'
     testCompile 'org.mockito:mockito-core'
   }
+
+  shadowJar {
+    // shade compileOnly dependencies to avoid including in transitive dependencies
+    configurations = [project.configurations.compile]
+    zip64 true
+
+    // include the LICENSE and NOTICE files for the shaded Jar
+    from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+
+    // Relocate dependencies to avoid conflicts
+    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
+  }
 }
 
 project(':iceberg-core') {
@@ -129,8 +170,8 @@ project(':iceberg-core') {
   tasks.javadocJar.dependsOn tasks.shadowJar
 
   dependencies {
-    compile project(':iceberg-api')
-    compile project(':iceberg-common')
+    compile project(path: ':iceberg-api', configuration: 'shadow')
+    compile project(path: ':iceberg-common', configuration: 'shadow')
 
     compile('com.google.guava:guava:28.0-jre') {
       // may be LGPL - use ALv2 findbugs-annotations instead
@@ -196,10 +237,10 @@ project(':iceberg-data') {
   tasks.javadocJar.dependsOn tasks.shadowJar
 
   dependencies {
-    compile project(':iceberg-api')
-    compile project(':iceberg-core')
-    compileOnly project(':iceberg-parquet')
-    compileOnly project(':iceberg-orc')
+    compile project(path: ':iceberg-api', configuration: 'shadow')
+    compile project(path: ':iceberg-core', configuration: 'shadow')
+    compileOnly project(path: ':iceberg-parquet', configuration: 'shadow')
+    compileOnly project(path: ':iceberg-orc', configuration: 'shadow')
 
     compile('com.google.guava:guava:28.0-jre') {
       // may be LGPL - use ALv2 findbugs-annotations instead
@@ -217,6 +258,23 @@ project(':iceberg-data') {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
+    compile("org.apache.orc:orc-core::nohive") {
+      exclude group: 'org.apache.hadoop'
+      exclude group: 'commons-lang'
+      // These artifacts are shaded and included in the orc-core fat jar
+      exclude group: 'com.google.protobuf', module: 'protobuf-java'
+      exclude group: 'org.apache.hive', module: 'hive-storage-api'
+    }
+
+    compile("org.apache.parquet:parquet-avro") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      // already shaded by Parquet
+      exclude group: 'it.unimi.dsi'
+      exclude group: 'org.codehaus.jackson'
+    }
+
+    compileOnly "org.apache.avro:avro"
+    compileOnly('com.github.ben-manes.caffeine:caffeine')
 
     testCompile("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -265,8 +323,14 @@ project(':iceberg-data') {
 }
 
 project(':iceberg-hive') {
+  apply plugin: 'com.github.johnrengelman.shadow'
+
+  tasks.assemble.dependsOn tasks.shadowJar
+  tasks.install.dependsOn tasks.shadowJar
+  tasks.javadocJar.dependsOn tasks.shadowJar
+
   dependencies {
-    compile project(':iceberg-core')
+    compile project(path: ':iceberg-core', configuration: 'shadow')
 
     compileOnly 'org.slf4j:slf4j-api'
     compileOnly 'com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1'
@@ -276,6 +340,8 @@ project(':iceberg-hive') {
     testCompile 'org.mockito:mockito-core'
 
     compileOnly "org.apache.avro:avro"
+
+    compileOnly('com.github.ben-manes.caffeine:caffeine')
 
     compileOnly("org.apache.hive:hive-metastore:2.3.6") {
       exclude group: 'org.apache.hive', module: 'hive-exec'
@@ -334,6 +400,21 @@ project(':iceberg-hive') {
 
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
+
+  shadowJar {
+    // shade compileOnly dependencies to avoid including in transitive dependencies
+    configurations = [project.configurations.compile]
+    zip64 true
+
+    // include the LICENSE and NOTICE files for the shaded Jar
+    from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+
+    // Relocate dependencies to avoid conflicts
+    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
+  }
 }
 
 project(':iceberg-mr') {
@@ -346,10 +427,13 @@ project(':iceberg-mr') {
 	compileOnly "org.apache.avro:avro"
     compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'com.google.guava', module: 'guava'
     }
 
     compileOnly('com.github.ben-manes.caffeine:caffeine')
-    compileOnly('org.apache.calcite:calcite-core:1.10.0')
+    compileOnly('org.apache.calcite:calcite-core:1.10.0') {
+      exclude group: 'com.google.guava', module: 'guava'
+    }
 
     compile("org.apache.hive:hive-serde:2.3.6") {
       exclude group: 'org.apache.parquet', module:'parquet-hadoop-bundle'
@@ -365,6 +449,7 @@ project(':iceberg-mr') {
       exclude group: 'org.codehaus.mojo', module: 'animal-sniffer-annotations'
       exclude group: 'commons-collections', module: 'commons-collections'
       exclude group: 'org.apache.hive', module: 'hive-exec'
+      exclude group: 'com.google.guava', module: 'guava'
     }
     
     testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
@@ -375,6 +460,7 @@ project(':iceberg-mr') {
       exclude group: 'org.apache.parquet', module:'parquet-hadoop-bundle'
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.hive', module: 'hive-exec'
+      exclude group: 'com.google.guava', module: 'guava'
     }
     
     compile("org.apache.hive:hive-exec:2.3.6:core") {
@@ -390,6 +476,7 @@ project(':iceberg-mr') {
       exclude group: 'org.apache.calcite'
       exclude group: 'org.apache.calcite.avatica'
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'com.google.guava', module: 'guava'
     }
     
     testCompile 'junit:junit'
@@ -399,6 +486,7 @@ project(':iceberg-mr') {
       exclude group: 'org.codehaus.jettison', module: 'jettison'
       exclude group: 'javax.jms', module: 'jms'
       exclude group: 'org.apache.hive', module: '*'
+      exclude group: 'com.google.guava', module: 'guava'
     }
     testCompile("org.apache.hive:hive-exec:2.3.6:core") {
       exclude group: 'stax', module: 'stax-api'
@@ -413,6 +501,7 @@ project(':iceberg-mr') {
       exclude group: 'org.apache.calcite'
       exclude group: 'org.apache.calcite.avatica'
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'com.google.guava', module: 'guava'
     }
   }
   task copyToLib(type: Copy) {
@@ -429,8 +518,8 @@ project(':iceberg-orc') {
   tasks.javadocJar.dependsOn tasks.shadowJar
 
   dependencies {
-    compile project(':iceberg-api')
-    compile project(':iceberg-core')
+    compile project(path: ':iceberg-api', configuration: 'shadow')
+    compile project(path: ':iceberg-core', configuration: 'shadow')
 
     compile('com.google.guava:guava:28.0-jre') {
       // may be LGPL - use ALv2 findbugs-annotations instead
@@ -515,8 +604,8 @@ project(':iceberg-parquet') {
   tasks.javadocJar.dependsOn tasks.shadowJar
 
   dependencies {
-    compile project(':iceberg-api')
-    compile project(':iceberg-core')
+    compile project(path: ':iceberg-api', configuration: 'shadow')
+    compile project(path: ':iceberg-core', configuration: 'shadow')
 
     compile('com.google.guava:guava:28.0-jre') {
       // may be LGPL - use ALv2 findbugs-annotations instead
@@ -524,6 +613,7 @@ project(':iceberg-parquet') {
     }
     compileOnly 'org.slf4j:slf4j-api'
     compileOnly 'com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1'
+    compileOnly('com.github.ben-manes.caffeine:caffeine')
 
     testCompile 'junit:junit'
     testCompile 'org.slf4j:slf4j-simple'
@@ -639,9 +729,15 @@ project(':iceberg-parquet') {
 }
 
 project(':iceberg-arrow') {
+  apply plugin: 'com.github.johnrengelman.shadow'
+
+  tasks.assemble.dependsOn tasks.shadowJar
+  tasks.install.dependsOn tasks.shadowJar
+  tasks.javadocJar.dependsOn tasks.shadowJar
+
   dependencies {
-    compile project(':iceberg-api')
-    compile project(':iceberg-parquet')
+    compile project(path: ':iceberg-api', configuration: 'shadow')
+    compile project(path: ':iceberg-parquet', configuration: 'shadow')
 
     compile('com.google.guava:guava:28.0-jre') {
       // may be LGPL - use ALv2 findbugs-annotations instead
@@ -661,20 +757,47 @@ project(':iceberg-arrow') {
     compile("org.apache.arrow:arrow-memory") {
       exclude group: 'io.netty', module: 'netty-common'
     }
+    compile("org.apache.parquet:parquet-avro") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      // already shaded by Parquet
+      exclude group: 'it.unimi.dsi'
+      exclude group: 'org.codehaus.jackson'
+    }
+  }
+
+  shadowJar {
+    // shade compileOnly dependencies to avoid including in transitive dependencies
+    configurations = [project.configurations.compile]
+    zip64 true
+
+    // include the LICENSE and NOTICE files for the shaded Jar
+    from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+
+    // Relocate dependencies to avoid conflicts
+    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
   }
 }
 
 project(':iceberg-spark') {
+  apply plugin: 'com.github.johnrengelman.shadow'
+
+  tasks.assemble.dependsOn tasks.shadowJar
+  tasks.install.dependsOn tasks.shadowJar
+  tasks.javadocJar.dependsOn tasks.shadowJar
+
   apply plugin: 'scala'
 
   dependencies {
-    compile project(':iceberg-api')
-    compile project(':iceberg-common')
-    compile project(':iceberg-core')
-    compile project(':iceberg-orc')
-    compile project(':iceberg-parquet')
-    compile project(':iceberg-arrow')
-    compile project(':iceberg-hive')
+    compile project(path: ':iceberg-api', configuration: 'shadow')
+    compile project(path: ':iceberg-common', configuration: 'shadow')
+    compile project(path: ':iceberg-core', configuration: 'shadow')
+    compile project(path: ':iceberg-orc', configuration: 'shadow')
+    compile project(path: ':iceberg-parquet', configuration: 'shadow')
+    compile project(path: ':iceberg-arrow', configuration: 'shadow')
+    compile project(path: ':iceberg-hive', configuration: 'shadow')
 
     compile('com.google.guava:guava:28.0-jre') {
       // may be LGPL - use ALv2 findbugs-annotations instead
@@ -719,14 +842,35 @@ project(':iceberg-spark') {
       exclude group: 'org.apache.avro', module: 'avro'
     }
   }
+
+  shadowJar {
+    // shade compileOnly dependencies to avoid including in transitive dependencies
+    configurations = [project.configurations.compile]
+    zip64 true
+
+    // include the LICENSE and NOTICE files for the shaded Jar
+    from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+
+    // Relocate dependencies to avoid conflicts
+    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
+  }
 }
 
 project(':iceberg-pig') {
+  apply plugin: 'com.github.johnrengelman.shadow'
+
+  tasks.assemble.dependsOn tasks.shadowJar
+  tasks.install.dependsOn tasks.shadowJar
+  tasks.javadocJar.dependsOn tasks.shadowJar
+
   dependencies {
-    compile project(':iceberg-api')
-    compile project(':iceberg-common')
-    compile project(':iceberg-core')
-    compile project(':iceberg-parquet')
+    compile project(path: ':iceberg-api', configuration: 'shadow')
+    compile project(path: ':iceberg-common', configuration: 'shadow')
+    compile project(path: ':iceberg-core', configuration: 'shadow')
+    compile project(path: ':iceberg-parquet', configuration: 'shadow')
 
     compile "org.apache.commons:commons-lang3"
 
@@ -737,6 +881,12 @@ project(':iceberg-pig') {
     compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
+    compile("org.apache.parquet:parquet-avro") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      // already shaded by Parquet
+      exclude group: 'it.unimi.dsi'
+      exclude group: 'org.codehaus.jackson'
+    }
 
     testCompile "org.apache.hadoop:hadoop-hdfs::tests"
     testCompile "org.apache.hadoop:hadoop-common::tests"
@@ -744,6 +894,21 @@ project(':iceberg-pig') {
       exclude group: 'org.apache.avro', module: 'avro'
     }
     testCompile 'junit:junit'
+  }
+
+  shadowJar {
+    // shade compileOnly dependencies to avoid including in transitive dependencies
+    configurations = [project.configurations.compile]
+    zip64 true
+
+    // include the LICENSE and NOTICE files for the shaded Jar
+    from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+
+    // Relocate dependencies to avoid conflicts
+    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
   }
 }
 
