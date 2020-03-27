@@ -100,7 +100,7 @@ public class SnapshotFunctionalityTest {
   }
 
   @Test
-  public void retireOldSnapshotWithSnapshotID() {
+  public void expireOldSnapshotWithSnapshotID() {
     long oldId = table.history().get(0).snapshotId();
 
     table.expireSnapshots().expireSnapshotId(oldId).commit();

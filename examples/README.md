@@ -40,10 +40,10 @@ The following section will break down the different areas of Iceberg explored in
 
 ### Writing data to tables
 There are multiple ways of creating tables with Iceberg, including using the Hive Metastore to keep track of tables ([HiveCatalog](https://iceberg.apache.org/api-quickstart/#using-a-hive-catalog)), or using HDFS / your local file system ([HadoopTables](https://iceberg.incubator.apache.org/api-quickstart/#using-hadoop-tables)) to store the tables. However, it should be noted that directory tables (such as those using `HadoopTables`)  don’t support all catalog operations, like rename and therefore use the `Tables` interface instead of the `Catalog` interface.
-It should be noted that Hadoop tables _shouldn’t_ be used with file systems that do not support atomic rename as Iceberg depends on this to synchronize concurrent commits. 
-To limit complexity, these examples create tables on your local file system using the HadoopTables class.
+It should be noted that `HadoopTables` _shouldn’t_ be used with file systems that do not support atomic rename as Iceberg depends on this to synchronize concurrent commits. 
+To limit complexity, these examples create tables on your local file system using the `HadoopTables` class.
 
-To write Iceberg tables you will need to use the Iceberg API to create a `Schema` and `PartitionSpec` which you use with a Spark `DataFrameWriter` to create Iceberg an `Table`.
+To create an Iceberg `Table` you will need to use the Iceberg API to create a `Schema` and `PartitionSpec` which you use with a Spark `DataFrameWriter`.
 
 Code examples:
 - [Unpartitioned tables](src/test/java/WriteToUnpartitionedTableTest.java)
@@ -90,7 +90,7 @@ This section looks a little bit closer at the metadata produced by Iceberg table
     └── version-hint.text
 ```
 
-The metadata for your table is kept in json files and each commit to a table will produce a new metadata file. For tables using a metastore for the metadata, the file used is whichever file the metastore points at. For HadoopTables, the file used will be the latest version available. Look [here](https://iceberg.incubator.apache.org/spec/#table-metadata) for more information on metadata.
+The metadata for your table is kept in json files and each commit to a table will produce a new metadata file. For tables using a metastore for the metadata, the file used is whichever file the metastore points at. For `HadoopTables`, the file used will be the latest version available. Look [here](https://iceberg.incubator.apache.org/spec/#table-metadata) for more information on metadata.
 
 The metadata file will contain things like the table location, the schema and the partition spec:
 
@@ -154,11 +154,11 @@ Iceberg uses [snapshots](https://iceberg.apache.org/terms/#snapshot) as part of 
 
 - Iceberg creates a new snapshot for all table operations that modify the table, such as appends and overwrites.
 - You are able to access the whole list of snapshots generated for a table.
-- Iceberg will store all snapshots generated until you delete the snapshots.
+- Iceberg will store all snapshots generated until you delete the snapshots using the `ExpireSnapshots` API. Currently, this must be called by the user.
     - **NOTE**: A VACUUM operation with Spark is in the works for a future release to make this process easier. 
-- You can delete all snapshots earlier than a certain timestamp.
-- You can delete snaphots based on `SnapshotID` values.
-- You can read data from an old snapshot using the `SnapshotID`.
+    - You can delete all snapshots earlier than a certain timestamp.
+    - You can delete snaphots based on `SnapshotID` values.
+- You can read data from an old snapshot using the `SnapshotID` or a timestamp value ([time travel](https://iceberg.apache.org/spark/#time-travel)).
 - You can roll back your data to an earlier snapshot.
 
 Code examples can be found [here](src/test/java/SnapshotFunctionalityTest.java).
