@@ -72,7 +72,7 @@ public class TestEntriesMetadataTable extends TableTestBase {
         .appendFile(FILE_B)
         .commit();
 
-    int splitSize = 2 * 1024; // 2K split size
+    int splitSize = 2 * 1024; // 2 KB split size
 
     table.updateProperties()
         .set(TableProperties.METADATA_SPLIT_SIZE, String.valueOf(2 * splitSize))
@@ -97,7 +97,7 @@ public class TestEntriesMetadataTable extends TableTestBase {
         .appendFile(FILE_B)
         .commit();
 
-    int splitSize = 2000; // 2K split size
+    int splitSize = 2 * 1024; // 2 KB split size
 
     table.updateProperties()
         .set(TableProperties.METADATA_SPLIT_SIZE, String.valueOf(splitSize))
@@ -121,7 +121,7 @@ public class TestEntriesMetadataTable extends TableTestBase {
         .appendFile(FILE_B)
         .commit();
 
-    int splitSize = 32 * 1024 * 1024; // default split size is 32 MB
+    int splitSize = (int) TableProperties.METADATA_SPLIT_SIZE_DEFAULT; // default split size is 32 MB
 
     Table entriesTable = new ManifestEntriesTable(table.ops(), table);
     Assert.assertEquals(1, entriesTable.currentSnapshot().manifests().size());

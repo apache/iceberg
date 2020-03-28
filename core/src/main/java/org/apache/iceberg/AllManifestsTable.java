@@ -89,7 +89,6 @@ public class AllManifestsTable extends BaseMetadataTable {
   }
 
   public static class AllManifestsTableScan extends BaseTableScan {
-    private static final long TARGET_SPLIT_SIZE = 32 * 1024 * 1024; // 32 MB
 
     AllManifestsTableScan(TableOperations ops, Table table, Schema fileSchema) {
       super(ops, table, fileSchema);
@@ -124,7 +123,7 @@ public class AllManifestsTable extends BaseMetadataTable {
     @Override
     protected long targetSplitSize(TableOperations ops) {
       return ops.current().propertyAsLong(
-          TableProperties.METADATA_SPLIT_SIZE, TARGET_SPLIT_SIZE);
+          TableProperties.METADATA_SPLIT_SIZE, TableProperties.METADATA_SPLIT_SIZE_DEFAULT);
     }
 
     @Override
