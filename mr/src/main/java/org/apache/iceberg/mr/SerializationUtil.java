@@ -26,8 +26,6 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 
 
@@ -38,8 +36,7 @@ public class SerializationUtil {
 
   public static byte[] serializeToBytes(Object obj) {
     try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        GZIPOutputStream gos = new GZIPOutputStream(baos);
-        ObjectOutputStream oos = new ObjectOutputStream(gos)) {
+        ObjectOutputStream oos = new ObjectOutputStream(baos)) {
       oos.writeObject(obj);
       return baos.toByteArray();
     } catch (IOException e) {
@@ -54,8 +51,7 @@ public class SerializationUtil {
     }
 
     try (ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
-        GZIPInputStream gis = new GZIPInputStream(bais);
-        ObjectInputStream ois = new ObjectInputStream(gis)) {
+        ObjectInputStream ois = new ObjectInputStream(bais)) {
       return (T) ois.readObject();
     } catch (IOException e) {
       throw new RuntimeIOException("Failed to deserialize object", e);

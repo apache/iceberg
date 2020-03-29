@@ -17,11 +17,12 @@
  * under the License.
  */
 
-package org.apache.iceberg.mr;
+package org.apache.iceberg.mr.mapreduce;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import java.io.Closeable;
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -65,6 +66,7 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mr.SerializationUtil;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.types.TypeUtil;
@@ -85,7 +87,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   static final String FILTER_EXPRESSION = "iceberg.mr.filter.expression";
   static final String IN_MEMORY_DATA_MODEL = "iceberg.mr.in.memory.data.model";
   static final String READ_SCHEMA = "iceberg.mr.read.schema";
-  static final String REUSE_CONTAINERS = "iceberg.mr.case.sensitive";
+  static final String REUSE_CONTAINERS = "iceberg.mr.reuse.containers";
   static final String SNAPSHOT_ID = "iceberg.mr.snapshot.id";
   static final String SPLIT_SIZE = "iceberg.mr.split.size";
   static final String TABLE_PATH = "iceberg.mr.table.path";
@@ -197,7 +199,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
      * can correctly apply the residual filters, then it
      * should call this api. Otherwise the current
      * api will throw an exception if the passed in
-     * filter is not completely satisfied. Note. This
+     * filter is not completely satisfied. Note: This
      * does not apply to standalone MR application
      */
     public ConfigBuilder platformAppliesFilterResiduals() {
@@ -264,7 +266,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
         if (residual != null && !residual.equals(Expressions.alwaysTrue())) {
           throw new RuntimeException(
               String.format(
-                  "Filter expression %s is not completely satisfied . Additional rows " +
+                  "Filter expression %s is not completely satisfied. Additional rows " +
                       "can be returned not satisfied by the filter expression", residual));
         }
       });
@@ -346,14 +348,15 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       DataFile file = currentTask.file();
       // schema of rows returned by readers
       PartitionSpec spec = currentTask.spec();
-      Set<Integer> idColumns = spec.identitySourceIds();
       Schema readSchema = expectedSchema != null ? expectedSchema : tableSchema;
+      Set<Integer> idColumns =  Sets.intersection(spec.identitySourceIds(), TypeUtil.getProjectedIds(readSchema));
       boolean hasJoinedPartitionColumns = !idColumns.isEmpty();
+
       if (hasJoinedPartitionColumns) {
-        readSchema = TypeUtil.selectNot(tableSchema, idColumns);
-        Schema identityPartitionSchema = TypeUtil.select(tableSchema, idColumns);
+        Schema readDataSchema = TypeUtil.selectNot(readSchema, idColumns);
+        Schema identityPartitionSchema = TypeUtil.select(readSchema, idColumns);
         return Iterators.transform(
-            open(currentTask, readSchema),
+            open(currentTask, readDataSchema),
             row -> withPartitionColumns(row, identityPartitionSchema, spec, file.partition()));
       } else {
         return open(currentTask, readSchema);
@@ -482,15 +485,15 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     private CloseableIterable<T> newOrcIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
       ORC.ReadBuilder orcReadBuilder = ORC.read(inputFile)
-                                          .schema(readSchema)
+                                          .project(readSchema)
                                           .caseSensitive(caseSensitive)
                                           .split(task.start(), task.length());
       // ORC does not support reuse containers yet
       switch (inMemoryDataModel) {
         case PIG:
         case HIVE:
-          //TODO implement value readers for Pig and Hive
-          throw new UnsupportedOperationException();
+          //TODO: implement value readers for Pig and Hive
+          throw new UnsupportedOperationException("In memory representation not yet supported for Pig and Hive");
         case DEFAULT:
           //TODO: We do not have support for Iceberg generics for ORC
           throw new UnsupportedOperationException();
@@ -502,6 +505,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
   private static Table findTable(Configuration conf) {
     String path = conf.get(TABLE_PATH);
+    Preconditions.checkArgument(path != null, "Table path should not be null");
     String catalogFuncClass = conf.get(CATALOG);
     if (catalogFuncClass != null) {
       Function<Configuration, Catalog> catalogFunc
@@ -521,8 +525,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
   }
 
-  private static class IcebergSplit extends InputSplit implements Writable {
-    private static final String[] ANYWHERE = new String[]{"*"};
+  static class IcebergSplit extends InputSplit implements Writable {
+    static final String[] ANYWHERE = new String[]{"*"};
     private CombinedScanTask task;
     private transient String[] locations;
     private transient Configuration conf;
