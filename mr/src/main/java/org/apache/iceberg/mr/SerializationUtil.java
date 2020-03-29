@@ -28,7 +28,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 
-
 public class SerializationUtil {
 
   private SerializationUtil() {

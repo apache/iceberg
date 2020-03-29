@@ -20,13 +20,17 @@
 package org.apache.iceberg.mr.mapreduce;
 
 import com.google.common.collect.FluentIterable;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputSplit;
@@ -35,6 +39,7 @@ import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.TaskAttemptID;
 import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl;
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -52,11 +57,13 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataWriter;
+import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -70,7 +77,6 @@ import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-
 @RunWith(Parameterized.class)
 public class TestIcebergInputFormat {
   static final Schema SCHEMA = new Schema(
@@ -79,9 +85,9 @@ public class TestIcebergInputFormat {
       required(3, "date", Types.StringType.get()));
 
   static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
-                                                 .identity("date")
-                                                 .bucket("id", 1)
-                                                 .build();
+      .identity("date")
+      .bucket("id", 1)
+      .build();
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -92,7 +98,8 @@ public class TestIcebergInputFormat {
   public static Object[][] parameters() {
     return new Object[][]{
         new Object[]{"parquet"},
-        new Object[]{"avro"}
+        new Object[]{"avro"},
+        new Object[]{"orc"}
     };
   }
 
@@ -193,7 +200,7 @@ public class TestIcebergInputFormat {
 
     AssertHelpers.assertThrows(
         "Residuals are not evaluated today for Iceberg Generics In memory model",
-        RuntimeException.class, "Filter expression ref(name=\"id\") == 0 is not completely satisfied.",
+        UnsupportedOperationException.class, "Filter expression ref(name=\"id\") == 0 is not completely satisfied.",
         () -> validate(job, expectedRecords));
   }
 
@@ -219,6 +226,89 @@ public class TestIcebergInputFormat {
     List<Record> outputRecords = readRecords(job.getConfiguration());
     Assert.assertEquals(inputRecords.size(), outputRecords.size());
     Assert.assertEquals(projectedSchema.asStruct(), outputRecords.get(0).struct());
+  }
+
+  private static final Schema LOG_SCHEMA = new Schema(
+      Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+      Types.NestedField.optional(2, "date", Types.StringType.get()),
+      Types.NestedField.optional(3, "level", Types.StringType.get()),
+      Types.NestedField.optional(4, "message", Types.StringType.get())
+  );
+
+  private static final PartitionSpec IDENTITY_PARTITION_SPEC =
+      PartitionSpec.builderFor(LOG_SCHEMA).identity("date").identity("level").build();
+
+  @Test
+  public void testIdentityPartitionProjections() throws Exception {
+    File location = temp.newFolder(format.name());
+    Assert.assertTrue(location.delete());
+    Table table = tables.create(LOG_SCHEMA, IDENTITY_PARTITION_SPEC,
+                                ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()),
+                                location.toString());
+
+    List<Record> inputRecords = RandomGenericData.generate(LOG_SCHEMA, 10, 0);
+    Integer idx = 0;
+    AppendFiles append = table.newAppend();
+    for (Record record : inputRecords) {
+      record.set(1, "2020-03-2" + idx);
+      record.set(2, idx.toString());
+      append.appendFile(writeFile(table, Row.of("2020-03-2" + idx, idx.toString()), format, ImmutableList.of(record)));
+      idx += 1;
+    }
+    append.commit();
+
+    // individual fields
+    validateIdentityPartitionProjections(location.toString(), withColumns("date"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), withColumns("level"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), withColumns("message"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), withColumns("id"), inputRecords);
+    // field pairs
+    validateIdentityPartitionProjections(location.toString(), withColumns("date", "message"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), withColumns("level", "message"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), withColumns("date", "level"), inputRecords);
+    // out-of-order pairs
+    validateIdentityPartitionProjections(location.toString(), withColumns("message", "date"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), withColumns("message", "level"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), withColumns("level", "date"), inputRecords);
+    // full projection
+    validateIdentityPartitionProjections(location.toString(), LOG_SCHEMA, inputRecords);
+    // out-of-order triplets
+    validateIdentityPartitionProjections(location.toString(), withColumns("date", "level", "message"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), withColumns("level", "date", "message"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), withColumns("date", "message", "level"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), withColumns("level", "message", "date"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), withColumns("message", "date", "level"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), withColumns("message", "level", "date"), inputRecords);
+  }
+
+  private static Schema withColumns(String... names) {
+    Map<String, Integer> indexByName = TypeUtil.indexByName(LOG_SCHEMA.asStruct());
+    Set<Integer> projectedIds = Sets.newHashSet();
+    for (String name : names) {
+      projectedIds.add(indexByName.get(name));
+    }
+    return TypeUtil.select(LOG_SCHEMA, projectedIds);
+  }
+
+  private void validateIdentityPartitionProjections(
+      String tablePath, Schema projectedSchema, List<Record> inputRecords) throws Exception {
+    Job job = Job.getInstance(conf);
+    IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
+    configBuilder
+        .readFrom(tablePath)
+        .project(projectedSchema);
+    List<Record> actualRecords = readRecords(job.getConfiguration());
+
+    Set<String> fieldNames = TypeUtil.indexByName(projectedSchema.asStruct()).keySet();
+    for (int pos = 0; pos < inputRecords.size(); pos++) {
+      Record inputRecord = inputRecords.get(pos);
+      Record actualRecord = actualRecords.get(pos);
+      Assert.assertEquals("Projected schema should match", projectedSchema.asStruct(), actualRecord.struct());
+      for (String name : fieldNames) {
+        Assert.assertEquals(
+            "Projected field " + name + " should match", inputRecord.getField(name), actualRecord.getField(name));
+      }
+    }
   }
 
   @Test
@@ -347,17 +437,23 @@ public class TestIcebergInputFormat {
     switch (fileFormat) {
       case AVRO:
         appender = Avro.write(Files.localOutput(file))
-                       .schema(table.schema())
-                       .createWriterFunc(DataWriter::create)
-                       .named(fileFormat.name())
-                       .build();
+            .schema(table.schema())
+            .createWriterFunc(DataWriter::create)
+            .named(fileFormat.name())
+            .build();
         break;
       case PARQUET:
         appender = Parquet.write(Files.localOutput(file))
-                          .schema(table.schema())
-                          .createWriterFunc(GenericParquetWriter::buildWriter)
-                          .named(fileFormat.name())
-                          .build();
+            .schema(table.schema())
+            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .named(fileFormat.name())
+            .build();
+        break;
+      case ORC:
+        appender = ORC.write(Files.localOutput(file))
+            .schema(table.schema())
+            .createWriterFunc(GenericOrcWriter::buildWriter)
+            .build();
         break;
       default:
         throw new UnsupportedOperationException("Cannot write format: " + fileFormat);
@@ -369,11 +465,11 @@ public class TestIcebergInputFormat {
       appender.close();
     }
 
-    final DataFiles.Builder builder = DataFiles.builder(table.spec())
-                                               .withPath(file.toString())
-                                               .withFormat(format)
-                                               .withFileSizeInBytes(file.length())
-                                               .withMetrics(appender.metrics());
+    DataFiles.Builder builder = DataFiles.builder(table.spec())
+        .withPath(file.toString())
+        .withFormat(format)
+        .withFileSizeInBytes(file.length())
+        .withMetrics(appender.metrics());
     if (partitionData != null) {
       builder.withPartition(partitionData);
     }
