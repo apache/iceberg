@@ -412,7 +412,7 @@ class GenericDataFile
 
   @Override
   public int size() {
-    return 15;
+    return 16;
   }
 
   @Override

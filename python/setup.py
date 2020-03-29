@@ -25,7 +25,7 @@ setup(
     description='Iceberg is a new table format for storing large, slow-moving tabular data',
     keywords='iceberg',
     url='https://github.com/apache/incubator-iceberg/blob/master/README.md',
-    python_requires='>=3.4',
+    python_requires='>=3.6',
     install_requires=['botocore',
                       'boto3',
                       'fastavro',
@@ -42,5 +42,12 @@ setup(
                       'pandas',
                       'pyarrow'
                       ],
-    setup_requires=['setupmeta']
+    setup_requires=['setupmeta'],
+    license="Apache License 2.0",
+    classifiers=[
+        "License :: OSI Approved :: Apache Software License",
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+    ],
 )

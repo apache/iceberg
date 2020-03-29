@@ -18,11 +18,12 @@
 #
 
 sudo: false
-dist: trusty
+dist: bionic
 
 matrix:
   include:
   - language: java
+    jdk: openjdk8
     name: java
     before_cache:
       - rm -f  $HOME/.gradle/caches/modules-2/modules-2.lock
@@ -34,7 +35,7 @@ matrix:
 
   - language: python
     python: 3.6
-    install: pip install tox-travis
+    install: pip install tox-travis "virtualenv<20.0.0"
     before_script:
       - cd python
     script: tox

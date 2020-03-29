@@ -131,7 +131,6 @@ public class TestPartitionValues {
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
     try {
-      // TODO: incoming columns must be ordered according to the table's schema
       df.select("id", "data").write()
           .format("iceberg")
           .mode("append")
@@ -145,6 +144,95 @@ public class TestPartitionValues {
           .orderBy("id")
           .as(Encoders.bean(SimpleRecord.class))
           .collectAsList();
+
+      Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
+      Assert.assertEquals("Result rows should match", expected, actual);
+
+    } finally {
+      TestTables.clearTables();
+    }
+  }
+
+  @Test
+  public void testReorderedColumns() throws Exception {
+    String desc = "reorder_columns";
+    File parent = temp.newFolder(desc);
+    File location = new File(parent, "test");
+    File dataFolder = new File(location, "data");
+    Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
+
+    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
+    Table table = tables.create(SIMPLE_SCHEMA, SPEC, location.toString());
+    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
+
+    List<SimpleRecord> expected = Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "c")
+    );
+
+    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
+
+    try {
+      df.select("data", "id").write()
+              .format("iceberg")
+              .mode("append")
+              .option("check-ordering", "false")
+              .save(location.toString());
+
+      Dataset<Row> result = spark.read()
+              .format("iceberg")
+              .load(location.toString());
+
+      List<SimpleRecord> actual = result
+              .orderBy("id")
+              .as(Encoders.bean(SimpleRecord.class))
+              .collectAsList();
+
+      Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
+      Assert.assertEquals("Result rows should match", expected, actual);
+
+    } finally {
+      TestTables.clearTables();
+    }
+  }
+
+  @Test
+  public void testReorderedColumnsNoNullability() throws Exception {
+    String desc = "reorder_columns_no_nullability";
+    File parent = temp.newFolder(desc);
+    File location = new File(parent, "test");
+    File dataFolder = new File(location, "data");
+    Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
+
+    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
+    Table table = tables.create(SIMPLE_SCHEMA, SPEC, location.toString());
+    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
+
+    List<SimpleRecord> expected = Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "c")
+    );
+
+    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
+
+    try {
+      df.select("data", "id").write()
+              .format("iceberg")
+              .mode("append")
+              .option("check-ordering", "false")
+              .option("check-nullability", "false")
+              .save(location.toString());
+
+      Dataset<Row> result = spark.read()
+              .format("iceberg")
+              .load(location.toString());
+
+      List<SimpleRecord> actual = result
+              .orderBy("id")
+              .as(Encoders.bean(SimpleRecord.class))
+              .collectAsList();
 
       Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
       Assert.assertEquals("Result rows should match", expected, actual);

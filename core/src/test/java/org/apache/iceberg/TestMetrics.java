@@ -115,6 +115,56 @@ public abstract class TestMetrics {
   public abstract int splitCount(File parquetFile) throws IOException;
 
   @Test
+  public void testMetricsForRepeatedValues() throws IOException {
+    Record firstRecord = new Record(AvroSchemaUtil.convert(SIMPLE_SCHEMA.asStruct()));
+    firstRecord.put("booleanCol", true);
+    firstRecord.put("intCol", 3);
+    firstRecord.put("longCol", null);
+    firstRecord.put("floatCol", 2.0F);
+    firstRecord.put("doubleCol", 2.0D);
+    firstRecord.put("decimalCol", new BigDecimal("3.50"));
+    firstRecord.put("stringCol", "AAA");
+    firstRecord.put("dateCol", 1500);
+    firstRecord.put("timeCol", 2000L);
+    firstRecord.put("timestampCol", 0L);
+    firstRecord.put("uuidCol", uuid);
+    firstRecord.put("fixedCol", fixed);
+    firstRecord.put("binaryCol", "S".getBytes());
+    Record secondRecord = new Record(AvroSchemaUtil.convert(SIMPLE_SCHEMA.asStruct()));
+    secondRecord.put("booleanCol", true);
+    secondRecord.put("intCol", 3);
+    secondRecord.put("longCol", null);
+    secondRecord.put("floatCol", 2.0F);
+    secondRecord.put("doubleCol", 2.0D);
+    secondRecord.put("decimalCol", new BigDecimal("3.50"));
+    secondRecord.put("stringCol", "AAA");
+    secondRecord.put("dateCol", 1500);
+    secondRecord.put("timeCol", 2000L);
+    secondRecord.put("timestampCol", 0L);
+    secondRecord.put("uuidCol", uuid);
+    secondRecord.put("fixedCol", fixed);
+    secondRecord.put("binaryCol", "S".getBytes());
+
+    File recordsFile = writeRecords(SIMPLE_SCHEMA, firstRecord, secondRecord);
+
+    Metrics metrics = getMetrics(Files.localInput(recordsFile));
+    Assert.assertEquals(2L, (long) metrics.recordCount());
+    assertCounts(1, 2L, 0L, metrics);
+    assertCounts(2, 2L, 0L, metrics);
+    assertCounts(3, 2L, 2L, metrics);
+    assertCounts(4, 2L, 0L, metrics);
+    assertCounts(5, 2L, 0L, metrics);
+    assertCounts(6, 2L, 0L, metrics);
+    assertCounts(7, 2L, 0L, metrics);
+    assertCounts(8, 2L, 0L, metrics);
+    assertCounts(9, 2L, 0L, metrics);
+    assertCounts(10, 2L, 0L, metrics);
+    assertCounts(11, 2L, 0L, metrics);
+    assertCounts(12, 2L, 0L, metrics);
+    assertCounts(13, 2L, 0L, metrics);
+  }
+
+  @Test
   public void testMetricsForTopLevelFields() throws IOException {
     Record firstRecord = new Record(AvroSchemaUtil.convert(SIMPLE_SCHEMA.asStruct()));
     firstRecord.put("booleanCol", true);

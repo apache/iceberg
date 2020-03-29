@@ -165,4 +165,21 @@ public class TestNumericLiteralConversions {
     Assert.assertNull("Changing decimal scale is not allowed",
         lit.to(Types.DecimalType.of(9, 3)));
   }
+
+  @Test
+  public void testIntegerToDateConversion() {
+    Literal<Integer> lit = Literal.of(0);
+    Assert.assertEquals("Dates should be equal", lit.to(Types.DateType.get()), new Literals.DateLiteral(0));
+    lit = Literal.of(365 * 50);
+    Assert.assertEquals("Dates should be equal", lit.to(Types.DateType.get()), new Literals.DateLiteral(365 * 50));
+  }
+
+  @Test
+  public void testLongToDateConversion() {
+    Literal<Long> lit = Literal.of(0L);
+    Assert.assertEquals("Dates should be equal", lit.to(Types.DateType.get()), new Literals.DateLiteral(0));
+    lit = Literal.of(365L * 50);
+    Assert.assertEquals("Dates should be equal", lit.to(Types.DateType.get()), new Literals.DateLiteral(365 * 50));
+  }
+
 }

@@ -47,5 +47,10 @@ public interface VectorizedReader<T> {
    * Set up the reader to reuse the underlying containers used for storing batches
    */
   void reuseContainers(boolean reuse);
+
+  /**
+   * Release any resources allocated
+   */
+  void close();
 }
 

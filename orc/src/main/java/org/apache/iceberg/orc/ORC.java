@@ -20,12 +20,15 @@
 package org.apache.iceberg.orc;
 
 import com.google.common.base.Preconditions;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
@@ -33,6 +36,9 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.orc.OrcConf;
+import org.apache.orc.OrcFile;
+import org.apache.orc.OrcFile.ReaderOptions;
+import org.apache.orc.Reader;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
@@ -166,5 +172,21 @@ public class ORC {
       Preconditions.checkNotNull(schema, "Schema is required");
       return new OrcIterable<>(file, conf, schema, start, length, readerFunc);
     }
+  }
+
+  static Reader newFileReader(String location, ReaderOptions readerOptions) {
+    try {
+      return OrcFile.createReader(new Path(location), readerOptions);
+    } catch (IOException ioe) {
+      throw new RuntimeIOException(ioe, "Failed to open file: %s", location);
+    }
+  }
+
+  static Reader newFileReader(InputFile file, Configuration config) {
+    ReaderOptions readerOptions = OrcFile.readerOptions(config);
+    if (file instanceof HadoopInputFile) {
+      readerOptions.filesystem(((HadoopInputFile) file).getFileSystem());
+    }
+    return newFileReader(file.location(), readerOptions);
   }
 }

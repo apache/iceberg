@@ -21,6 +21,7 @@ package org.apache.iceberg.avro;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.JsonProperties;
@@ -54,6 +55,7 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
     TIMESTAMPTZ_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
   }
 
+  private final Deque<Integer> fieldIds = Lists.newLinkedList();
   private final Map<Type, Schema> results = Maps.newHashMap();
   private final Map<Types.StructType, String> names;
 
@@ -71,6 +73,16 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   }
 
   @Override
+  public void beforeField(Types.NestedField field) {
+    fieldIds.push(field.fieldId());
+  }
+
+  @Override
+  public void afterField(Types.NestedField field) {
+    fieldIds.pop();
+  }
+
+  @Override
   public Schema struct(Types.StructType struct, List<Schema> fieldSchemas) {
     Schema recordSchema = results.get(struct);
     if (recordSchema != null) {
@@ -79,7 +91,7 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
 
     String recordName = names.get(struct);
     if (recordName == null) {
-      recordName = "r" + fieldIds().peek();
+      recordName = "r" + fieldIds.peek();
     }
 
     List<Types.NestedField> structFields = struct.fields();

@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import java.util.Collection;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
@@ -107,16 +106,7 @@ public class DataFilesTable extends BaseMetadataTable {
     @Override
     protected CloseableIterable<FileScanTask> planFiles(
         TableOperations ops, Snapshot snapshot, Expression rowFilter, boolean caseSensitive, boolean colStats) {
-      CloseableIterable<ManifestFile> manifests = Avro
-          .read(ops.io().newInputFile(snapshot.manifestListLocation()))
-          .rename("manifest_file", GenericManifestFile.class.getName())
-          .rename("partitions", GenericPartitionFieldSummary.class.getName())
-          // 508 is the id used for the partition field, and r508 is the record name created for it in Avro schemas
-          .rename("r508", GenericPartitionFieldSummary.class.getName())
-          .project(ManifestFile.schema())
-          .reuseContainers(false)
-          .build();
-
+      CloseableIterable<ManifestFile> manifests = CloseableIterable.withNoopClose(snapshot.manifests());
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
       ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(rowFilter);
@@ -130,13 +120,13 @@ public class DataFilesTable extends BaseMetadataTable {
     }
   }
 
-  private static class ManifestReadTask extends BaseFileScanTask implements DataTask {
+  static class ManifestReadTask extends BaseFileScanTask implements DataTask {
     private final FileIO io;
     private final ManifestFile manifest;
     private final Schema schema;
 
-    private ManifestReadTask(FileIO io, ManifestFile manifest, Schema schema, String schemaString,
-                             String specString, ResidualEvaluator residuals) {
+    ManifestReadTask(FileIO io, ManifestFile manifest, Schema schema, String schemaString,
+                     String specString, ResidualEvaluator residuals) {
       super(DataFiles.fromManifest(manifest), schemaString, specString, residuals);
       this.io = io;
       this.manifest = manifest;

@@ -65,7 +65,7 @@ public class ManifestsTable extends BaseMetadataTable {
 
   @Override
   public TableScan newScan() {
-    return new SnapshotsTableScan();
+    return new ManifestsTableScan();
   }
 
   @Override
@@ -79,19 +79,20 @@ public class ManifestsTable extends BaseMetadataTable {
   }
 
   protected DataTask task(TableScan scan) {
+    String manifestListLocation = scan.snapshot().manifestListLocation();
     return StaticDataTask.of(
-        ops.io().newInputFile(scan.snapshot().manifestListLocation()),
+        ops.io().newInputFile(manifestListLocation != null ? manifestListLocation : ops.current().file().location()),
         scan.snapshot().manifests(),
-        this::manifestFileToRow);
+        manifest -> ManifestsTable.manifestFileToRow(spec, manifest));
   }
 
-  private class SnapshotsTableScan extends StaticTableScan {
-    SnapshotsTableScan() {
+  private class ManifestsTableScan extends StaticTableScan {
+    ManifestsTableScan() {
       super(ops, table, SNAPSHOT_SCHEMA, ManifestsTable.this::task);
     }
   }
 
-  private StaticDataTask.Row manifestFileToRow(ManifestFile manifest) {
+  static StaticDataTask.Row manifestFileToRow(PartitionSpec spec, ManifestFile manifest) {
     return StaticDataTask.Row.of(
         manifest.path(),
         manifest.length(),
@@ -100,11 +101,16 @@ public class ManifestsTable extends BaseMetadataTable {
         manifest.addedFilesCount(),
         manifest.existingFilesCount(),
         manifest.deletedFilesCount(),
-        partitionSummariesToRows(manifest.partitions())
+        partitionSummariesToRows(spec, manifest.partitions())
     );
   }
 
-  private List<StaticDataTask.Row> partitionSummariesToRows(List<ManifestFile.PartitionFieldSummary> summaries) {
+  static List<StaticDataTask.Row> partitionSummariesToRows(PartitionSpec spec,
+                                                           List<ManifestFile.PartitionFieldSummary> summaries) {
+    if (summaries == null) {
+      return null;
+    }
+
     List<StaticDataTask.Row> rows = Lists.newArrayList();
 
     for (int i = 0; i < spec.fields().size(); i += 1) {

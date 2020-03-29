@@ -332,6 +332,22 @@ public class TestReadabilityChecks {
   }
 
   @Test
+  public void testDifferentFieldOrdering() {
+    // writes should not reorder fields
+    Schema read = new Schema(required(0, "nested", Types.StructType.of(
+            required(1, "field_a", Types.IntegerType.get()),
+            required(2, "field_b", Types.IntegerType.get())
+    )));
+    Schema write = new Schema(required(0, "nested", Types.StructType.of(
+            required(2, "field_b", Types.IntegerType.get()),
+            required(1, "field_a", Types.IntegerType.get())
+    )));
+
+    List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write, false);
+    Assert.assertEquals("Should produce 0 error message", 0, errors.size());
+  }
+
+  @Test
   public void testStructWriteReordering() {
     // writes should not reorder fields
     Schema read = new Schema(required(0, "nested", Types.StructType.of(

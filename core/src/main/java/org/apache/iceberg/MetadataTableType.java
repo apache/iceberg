@@ -27,7 +27,10 @@ public enum MetadataTableType {
   HISTORY,
   SNAPSHOTS,
   MANIFESTS,
-  PARTITIONS;
+  PARTITIONS,
+  ALL_DATA_FILES,
+  ALL_MANIFESTS,
+  ALL_ENTRIES;
 
   public static MetadataTableType from(String name) {
     try {

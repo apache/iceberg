@@ -103,6 +103,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       return Byte.class;
     }
 
+    @Override
     public void addValue(int rowId, Byte data, ColumnVector output) {
       if (data == null) {
         output.noNulls = false;
@@ -120,6 +121,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       return Short.class;
     }
 
+    @Override
     public void addValue(int rowId, Short data, ColumnVector output) {
       if (data == null) {
         output.noNulls = false;
@@ -137,6 +139,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       return Integer.class;
     }
 
+    @Override
     public void addValue(int rowId, Integer data, ColumnVector output) {
       if (data == null) {
         output.noNulls = false;
@@ -154,6 +157,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       return Long.class;
     }
 
+    @Override
     public void addValue(int rowId, Long data, ColumnVector output) {
       if (data == null) {
         output.noNulls = false;
@@ -171,6 +175,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       return Float.class;
     }
 
+    @Override
     public void addValue(int rowId, Float data, ColumnVector output) {
       if (data == null) {
         output.noNulls = false;
@@ -188,6 +193,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       return Double.class;
     }
 
+    @Override
     public void addValue(int rowId, Double data, ColumnVector output) {
       if (data == null) {
         output.noNulls = false;
@@ -205,6 +211,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       return String.class;
     }
 
+    @Override
     public void addValue(int rowId, String data, ColumnVector output) {
       if (data == null) {
         output.noNulls = false;
@@ -223,6 +230,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       return byte[].class;
     }
 
+    @Override
     public void addValue(int rowId, byte[] data, ColumnVector output) {
       if (data == null) {
         output.noNulls = false;
@@ -242,6 +250,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       return Long.class;
     }
 
+    @Override
     public void addValue(int rowId, Long data, ColumnVector output) {
       if (data == null) {
         output.noNulls = false;
@@ -257,11 +266,9 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
   }
 
   static class Decimal18Converter implements Converter<BigDecimal> {
-    private final int precision;
     private final int scale;
 
     Decimal18Converter(TypeDescription schema) {
-      this.precision = schema.getPrecision();
       this.scale = schema.getScale();
     }
 
@@ -270,6 +277,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       return BigDecimal.class;
     }
 
+    @Override
     public void addValue(int rowId, BigDecimal data, ColumnVector output) {
       // TODO: validate precision and scale from schema
       if (data == null) {
@@ -284,12 +292,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
   }
 
   static class Decimal38Converter implements Converter<BigDecimal> {
-    private final int precision;
-    private final int scale;
-
     Decimal38Converter(TypeDescription schema) {
-      this.precision = schema.getPrecision();
-      this.scale = schema.getScale();
     }
 
     @Override
@@ -297,6 +300,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       return BigDecimal.class;
     }
 
+    @Override
     public void addValue(int rowId, BigDecimal data, ColumnVector output) {
       // TODO: validate precision and scale from schema
       if (data == null) {
@@ -324,6 +328,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       return Record.class;
     }
 
+    @Override
     @SuppressWarnings("unchecked")
     public void addValue(int rowId, Record data, ColumnVector output) {
       if (data == null) {
@@ -351,6 +356,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       return List.class;
     }
 
+    @Override
     @SuppressWarnings("unchecked")
     public void addValue(int rowId, List data, ColumnVector output) {
       if (data == null) {
@@ -388,6 +394,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       return Map.class;
     }
 
+    @Override
     @SuppressWarnings("unchecked")
     public void addValue(int rowId, Map data, ColumnVector output) {
       if (data == null) {

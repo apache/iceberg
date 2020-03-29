@@ -63,12 +63,43 @@ public class ValuesAsBytesReader extends ValuesReader {
   }
 
   @Override
+  public final long readLong() {
+    return getBuffer(8).getLong();
+  }
+
+  @Override
+  public final float readFloat() {
+    return getBuffer(4).getFloat();
+  }
+
+  @Override
+  public final double readDouble() {
+    return getBuffer(8).getDouble();
+  }
+
+  @Override
   public final boolean readBoolean() {
     if (bitOffset == 0) {
       currentByte = getByte();
     }
 
     boolean value = (currentByte & (1 << bitOffset)) != 0;
+    bitOffset += 1;
+    if (bitOffset == 8) {
+      bitOffset = 0;
+    }
+    return value;
+  }
+
+  /**
+   *
+   * @return 1 if true, 0 otherwise
+   */
+  public final int readBooleanAsInt() {
+    if (bitOffset == 0) {
+      currentByte = getByte();
+    }
+    int value = (currentByte & (1 << bitOffset)) >> bitOffset;
     bitOffset += 1;
     if (bitOffset == 8) {
       bitOffset = 0;
