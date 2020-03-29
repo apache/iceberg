@@ -38,4 +38,186 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
    */
   UpdatePartitionSpec update(PartitionSpec partitionSpec);
 
+  /**
+   * Create a new partition spec builder for a given schema
+   * <p>
+   * Partition field IDs is automatically assigned and will be updated during the commit.
+   *
+   * @param schema the schema for the new partition spec
+   * @return this for method chaining
+   */
+  UpdatePartitionSpec newSpec(Schema schema);
+
+  /**
+   * Add a new partition field with identity transform to the partition spec.
+   * <p>
+   * The partition field id is automatically assigned and will be updated during the commit.
+   *
+   * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
+   * @param targetName the name of this partition field
+   * @return this for method chaining
+   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
+   */
+  UpdatePartitionSpec identity(String sourceName, String targetName);
+
+  /**
+   * Add a new partition field with identity transform to the partition spec.
+   * <p>
+   * The partition field name is automatically assigned set.
+   * The partition field id is automatically assigned and will be updated during the commit.
+   *
+   * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
+   * @return this for method chaining
+   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
+   */
+  UpdatePartitionSpec identity(String sourceName);
+
+  /**
+   * Add a new partition field with year transform to the partition spec.
+   * <p>
+   * The partition field id is automatically assigned and will be updated during the commit.
+   *
+   * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
+   * @param targetName the name of this partition field
+   * @return this for method chaining
+   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
+   */
+  UpdatePartitionSpec year(String sourceName, String targetName);
+
+  /**
+   * Add a new partition field with year transform to the partition spec.
+   * <p>
+   * The partition field name is automatically assigned set.
+   * The partition field id is automatically assigned and will be updated during the commit.
+   *
+   * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
+   * @return this for method chaining
+   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
+   */
+  UpdatePartitionSpec year(String sourceName);
+
+  /**
+   * Add a new partition field with month transform to the partition spec.
+   * <p>
+   * The partition field id is automatically assigned and will be updated during the commit.
+   *
+   * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
+   * @param targetName the name of this partition field
+   * @return this for method chaining
+   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
+   */
+  UpdatePartitionSpec month(String sourceName, String targetName);
+
+  /**
+   * Add a new partition field with month transform to the partition spec.
+   * <p>
+   * The partition field name is automatically assigned set.
+   * The partition field id is automatically assigned and will be updated during the commit.
+   *
+   * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
+   * @return this for method chaining
+   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
+   */
+  UpdatePartitionSpec month(String sourceName);
+
+  /**
+   * Add a new partition field with day transform to the partition spec.
+   * <p>
+   * The partition field id is automatically assigned and will be updated during the commit.
+   *
+   * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
+   * @param targetName the name of this partition field
+   * @return this for method chaining
+   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
+   */
+  UpdatePartitionSpec day(String sourceName, String targetName);
+
+  /**
+   * Add a new partition field with day transform to the partition spec.
+   * <p>
+   * The partition field name is automatically assigned set.
+   * The partition field id is automatically assigned and will be updated during the commit.
+   *
+   * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
+   * @return this for method chaining
+   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
+   */
+  UpdatePartitionSpec day(String sourceName);
+
+  /**
+   * Add a new partition field with hour transform to the partition spec.
+   * <p>
+   * The partition field id is automatically assigned and will be updated during the commit.
+   *
+   * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
+   * @param targetName the name of this partition field
+   * @return this for method chaining
+   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
+   */
+  UpdatePartitionSpec hour(String sourceName, String targetName);
+
+  /**
+   * Add a new partition field with hour transform to the partition spec.
+   * <p>
+   * The partition field name is automatically assigned set.
+   * The partition field id is automatically assigned and will be updated during the commit.
+   *
+   * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
+   * @return this for method chaining
+   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
+   */
+  UpdatePartitionSpec hour(String sourceName);
+
+  /**
+   * Add a new partition field with bucket transform to the partition spec.
+   * <p>
+   * The partition field id is automatically assigned and will be updated during the commit.
+   *
+   * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
+   * @param numBuckets the number of buckets
+   * @param targetName the name of this partition field
+   * @return this for method chaining
+   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
+   */
+  UpdatePartitionSpec bucket(String sourceName, int numBuckets, String targetName);
+
+  /**
+   * Add a new partition field with bucket transform to the partition spec.
+   * <p>
+   * The partition field name is automatically assigned set.
+   * The partition field id is automatically assigned and will be updated during the commit.
+   *
+   * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
+   * @param numBuckets the number of buckets
+   * @return this for method chaining
+   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
+   */
+  UpdatePartitionSpec bucket(String sourceName, int numBuckets);
+
+  /**
+   * Add a new partition field with truncate transform to the partition spec.
+   * <p>
+   * The partition field id is automatically assigned and will be updated during the commit.
+   *
+   * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
+   * @param width the width of truncation
+   * @param targetName the name of this partition field
+   * @return this for method chaining
+   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
+   */
+  UpdatePartitionSpec truncate(String sourceName, int width, String targetName);
+
+  /**
+   * Add a new partition field with truncate transform to the partition spec.
+   * <p>
+   * The partition field name is automatically assigned set.
+   * The partition field id is automatically assigned and will be updated during the commit.
+   *
+   * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
+   * @param width the width of truncation
+   * @return this for method chaining
+   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
+   */
+  UpdatePartitionSpec truncate(String sourceName, int width);
+
 }

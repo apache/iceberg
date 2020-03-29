@@ -57,8 +57,8 @@ public class TestPartitionSpecUpdate extends TableTestBase {
 
   @Test
   public void testCommitException() {
-    AssertHelpers.assertThrows("Should throw NullPointerException if no spec to commit",
-        NullPointerException.class, "new spec is not set",
+    AssertHelpers.assertThrows("Should throw IllegalArgumentException if no spec to commit",
+        IllegalArgumentException.class, "new partition spec is not set",
         () -> table.updatePartitionSpec().commit());
   }
 

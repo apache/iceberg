@@ -31,6 +31,7 @@ class PartitionSpecUpdate implements UpdatePartitionSpec {
   private final TableMetadata base;
   private final TableOperations ops;
   private PartitionSpec newSpec = null;
+  private PartitionSpec.Builder newSpecBuilder = null;
 
   PartitionSpecUpdate(TableOperations ops) {
     this.ops = ops;
@@ -39,13 +40,124 @@ class PartitionSpecUpdate implements UpdatePartitionSpec {
 
   @Override
   public PartitionSpec apply() {
-    return Preconditions.checkNotNull(newSpec, "new spec is not set");
+    Preconditions.checkArgument(newSpec != null || newSpecBuilder != null,
+        "new partition spec is not set");
+    Preconditions.checkArgument(newSpec == null || newSpecBuilder == null,
+        "use either update() or newSpec() to add a new partition spec");
+    if (newSpecBuilder != null) {
+      return newSpecBuilder.build();
+    }
+    return newSpec;
   }
 
   @Override
   public UpdatePartitionSpec update(PartitionSpec partitionSpec) {
     PartitionSpec.checkCompatibility(partitionSpec, base.schema());
     newSpec = partitionSpec;
+    return this;
+  }
+
+  @Override
+  public UpdatePartitionSpec newSpec(Schema schema) {
+    newSpecBuilder = PartitionSpec.builderFor(Preconditions.checkNotNull(schema, "The schema cannot be null."));
+    return this;
+  }
+
+  @Override
+  public UpdatePartitionSpec identity(String sourceName, String targetName) {
+    Preconditions.checkNotNull(newSpecBuilder, "Please call newSpec method first")
+        .identity(sourceName, targetName);
+    return this;
+  }
+
+  @Override
+  public UpdatePartitionSpec identity(String sourceName) {
+    Preconditions.checkNotNull(newSpecBuilder, "Please call newSpec method first")
+        .identity(sourceName);
+    return this;
+  }
+
+  @Override
+  public UpdatePartitionSpec year(String sourceName, String targetName) {
+    Preconditions.checkNotNull(newSpecBuilder, "Please call newSpec method first")
+        .year(sourceName, targetName);
+    return this;
+  }
+
+  @Override
+  public UpdatePartitionSpec year(String sourceName) {
+    Preconditions.checkNotNull(newSpecBuilder, "Please call newSpec method first")
+        .year(sourceName);
+    return this;
+  }
+
+  @Override
+  public UpdatePartitionSpec month(String sourceName, String targetName) {
+    Preconditions.checkNotNull(newSpecBuilder, "Please call newSpec method first")
+        .month(sourceName, targetName);
+    return this;
+  }
+
+  @Override
+  public UpdatePartitionSpec month(String sourceName) {
+    Preconditions.checkNotNull(newSpecBuilder, "Please call newSpec method first")
+        .month(sourceName);
+    return this;
+  }
+
+  @Override
+  public UpdatePartitionSpec day(String sourceName, String targetName) {
+    Preconditions.checkNotNull(newSpecBuilder, "Please call newSpec method first")
+        .day(sourceName, targetName);
+    return this;
+  }
+
+  @Override
+  public UpdatePartitionSpec day(String sourceName) {
+    Preconditions.checkNotNull(newSpecBuilder, "Please call newSpec method first")
+        .day(sourceName);
+    return this;
+  }
+
+  @Override
+  public UpdatePartitionSpec hour(String sourceName, String targetName) {
+    Preconditions.checkNotNull(newSpecBuilder, "Please call newSpec method first")
+        .hour(sourceName, targetName);
+    return this;
+  }
+
+  @Override
+  public UpdatePartitionSpec hour(String sourceName) {
+    Preconditions.checkNotNull(newSpecBuilder, "Please call newSpec method first")
+        .hour(sourceName);
+    return this;
+  }
+
+  @Override
+  public UpdatePartitionSpec bucket(String sourceName, int numBuckets, String targetName) {
+    Preconditions.checkNotNull(newSpecBuilder, "Please call newSpec method first")
+        .bucket(sourceName, numBuckets, targetName);
+    return this;
+  }
+
+  @Override
+  public UpdatePartitionSpec bucket(String sourceName, int numBuckets) {
+    Preconditions.checkNotNull(newSpecBuilder, "Please call newSpec method first")
+        .bucket(sourceName, numBuckets);
+    return this;
+  }
+
+  @Override
+  public UpdatePartitionSpec truncate(String sourceName, int width, String targetName) {
+    Preconditions.checkNotNull(newSpecBuilder, "Please call newSpec method first")
+        .truncate(sourceName, width, targetName);
+    return this;
+  }
+
+  @Override
+  public UpdatePartitionSpec truncate(String sourceName, int width) {
+    Preconditions.checkNotNull(newSpecBuilder, "Please call newSpec method first")
+        .truncate(sourceName, width);
     return this;
   }
 
