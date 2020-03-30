@@ -139,7 +139,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   @Override
   public long length() {
     try {
-      return writer.getPos() + writeStore.getBufferedSize();
+      return writer.getPos() + (writeStore.isColumnFlushNeeded() ? writeStore.getBufferedSize() : 0);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to get file length");
     }
