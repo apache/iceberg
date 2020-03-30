@@ -299,7 +299,7 @@ public class SparkParquetWriters {
       super(desc);
       this.precision = precision;
       this.scale = scale;
-      this.length = TypeUtil.decimalRequriedBytes(precision);
+      this.length = TypeUtil.decimalRequiredBytes(precision);
       this.bytes = ThreadLocal.withInitial(() -> new byte[length]);
     }
 
