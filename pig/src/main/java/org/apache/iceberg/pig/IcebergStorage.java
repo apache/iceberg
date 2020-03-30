@@ -61,7 +61,6 @@ import org.apache.pig.data.Tuple;
 import org.apache.pig.impl.logicalLayer.FrontendException;
 import org.apache.pig.impl.util.ObjectSerializer;
 import org.apache.pig.impl.util.UDFContext;
-import org.mortbay.log.Log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -292,7 +291,7 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
   private Table load(String location, Job job) throws IOException {
     if (iceberg == null) {
       Class<?> tablesImpl = job.getConfiguration().getClass(PIG_ICEBERG_TABLES_IMPL, HadoopTables.class);
-      Log.info("Initializing iceberg tables implementation: " + tablesImpl);
+      LOG.info("Initializing iceberg tables implementation: {}", tablesImpl);
       iceberg = (Tables) ReflectionUtils.newInstance(tablesImpl, job.getConfiguration());
     }
 

@@ -68,17 +68,43 @@ public class AssertHelpers {
     }
   }
 
+  /**
+   * A convenience method to avoid a large number of @Test(expected=...) tests
+   * @param message A String message to describe this assertion
+   * @param expected An Exception class that the Runnable should throw
+   * @param callable A Callable that is expected to throw the exception
+   */
+  public static void assertThrows(String message,
+                                  Class<? extends Exception> expected,
+                                  Callable callable) {
+    assertThrows(message, expected, null, callable);
+  }
+
+  /**
+   * A convenience method to avoid a large number of @Test(expected=...) tests
+   * @param message A String message to describe this assertion
+   * @param expected An Exception class that the Runnable should throw
+   * @param runnable A Runnable that is expected to throw the runtime exception
+   */
+  public static void assertThrows(String message,
+                                  Class<? extends Exception> expected,
+                                  Runnable runnable) {
+    assertThrows(message, expected, null, runnable);
+  }
+
   private static void handleException(String message,
                                       Class<? extends Exception> expected,
                                       String containedInMessage,
                                       Exception actual) {
     try {
       Assert.assertEquals(message, expected, actual.getClass());
-      Assert.assertTrue(
-          "Expected exception message (" + containedInMessage + ") missing: " +
-              actual.getMessage(),
-          actual.getMessage().contains(containedInMessage)
-      );
+      if (containedInMessage != null) {
+        Assert.assertTrue(
+            "Expected exception message (" + containedInMessage + ") missing: " +
+                actual.getMessage(),
+            actual.getMessage().contains(containedInMessage)
+        );
+      }
     } catch (AssertionError e) {
       e.addSuppressed(actual);
       throw e;

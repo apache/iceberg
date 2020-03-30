@@ -212,8 +212,8 @@ public class Schema implements Serializable {
   }
 
   /**
-   * Returns the column id for the given column alias. Column aliases are set
-   * by conversions from Parquet or Avro to this Schema type.
+   * Returns the full column name in the unconverted data schema for the given column id.
+   * Column aliases are set by conversions from Parquet or Avro to this Schema type.
    *
    * @param fieldId a column id in this schema
    * @return the full column name in the unconverted data schema, or null if one wasn't found
@@ -226,7 +226,7 @@ public class Schema implements Serializable {
   }
 
   /**
-   * Return an accessor for retrieving the data from {@link StructLike}.
+   * Returns an accessor for retrieving the data from {@link StructLike}.
    * <p>
    * Accessors do not retrieve data contained in lists or maps.
    *
@@ -262,24 +262,24 @@ public class Schema implements Serializable {
   }
 
   /**
-   * Creates a projection schema for a subset of columns, selected by case insensitive name
+   * Creates a projection schema for a subset of columns, selected by case insensitive names
    * <p>
    * Names that identify nested fields will select part or all of the field's top-level column.
    *
    * @param names a List of String names for selected columns
-   * @return a projection schema from this schema, by name
+   * @return a projection schema from this schema, by names
    */
   public Schema caseInsensitiveSelect(String... names) {
     return caseInsensitiveSelect(Arrays.asList(names));
   }
 
   /**
-   * Creates a projection schema for a subset of columns, selected by case insensitive name
+   * Creates a projection schema for a subset of columns, selected by case insensitive names
    * <p>
    * Names that identify nested fields will select part or all of the field's top-level column.
    *
    * @param names a List of String names for selected columns
-   * @return a projection schema from this schema, by name
+   * @return a projection schema from this schema, by names
    */
   public Schema caseInsensitiveSelect(Collection<String> names) {
     return internalSelect(names, false);
