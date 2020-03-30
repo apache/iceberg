@@ -23,11 +23,11 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import io.netty.util.internal.ConcurrentSet;
 import java.io.IOException;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -330,7 +330,7 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   private Set<String> findFilesToDelete(Set<ManifestFile> manifestsToScan, Set<ManifestFile> manifestsToRevert,
                                         Set<Long> validIds) {
-    Set<String> filesToDelete = new ConcurrentSet<>();
+    Set<String> filesToDelete = ConcurrentHashMap.newKeySet();
     Tasks.foreach(manifestsToScan)
         .noRetry().suppressFailureWhenFinished()
         .executeWith(ThreadPools.getWorkerPool())
