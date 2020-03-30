@@ -19,9 +19,6 @@
 
 package org.apache.iceberg.mr;
 
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import java.io.Closeable;
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -30,6 +27,9 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+
+import org.apache.commons.compress.utils.Lists;
+import org.apache.commons.compress.utils.Sets;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileSystem;
@@ -287,9 +287,10 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       if (hasJoinedPartitionColumns) {
         readSchema = TypeUtil.selectNot(tableSchema, idColumns);
         Schema identityPartitionSchema = TypeUtil.select(tableSchema, idColumns);
-        return Iterators.transform(
-            open(currentTask, readSchema),
-            row -> withPartitionColumns(row, identityPartitionSchema, spec, file.partition()));
+        //return Iterators.transform(
+            //open(currentTask, readSchema),
+            //row -> withPartitionColumns(row, identityPartitionSchema, spec, file.partition()));
+        return (open( currentTask, readSchema));
       } else {
         return open(currentTask, readSchema);
       }
@@ -333,7 +334,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     private static Record icebergRecordWithPartitionsColumns(
         Record record, Schema identityPartitionSchema, PartitionSpec spec, StructLike partition) {
-      List<Types.NestedField> fields = Lists.newArrayList(record.struct().fields());
+      List<Types.NestedField> fields = Lists.newArrayList();
       fields.addAll(identityPartitionSchema.asStruct().fields());
       GenericRecord row = GenericRecord.create(Types.StructType.of(fields));
       int size = record.struct().fields().size();

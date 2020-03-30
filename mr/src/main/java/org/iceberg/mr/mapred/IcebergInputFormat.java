@@ -19,7 +19,6 @@
 
 package org.iceberg.mr.mapred;
 
-import com.google.common.collect.Lists;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
@@ -27,6 +26,9 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+
 import org.apache.hadoop.mapred.InputFormat;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
@@ -64,7 +66,10 @@ public class IcebergInputFormat implements InputFormat {
     }
     table = tables.load(location.getPath());
 
-    List<CombinedScanTask> tasks = Lists.newArrayList(table.newScan().planTasks());
+    CloseableIterable taskIterable = table.newScan().planTasks();
+    List<CombinedScanTask> tasks = (List<CombinedScanTask>) StreamSupport
+        .stream(taskIterable.spliterator(), false)
+        .collect(Collectors.toList());
     return createSplits(tasks);
   }
 

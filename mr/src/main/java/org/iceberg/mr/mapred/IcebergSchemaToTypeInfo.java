@@ -19,9 +19,13 @@
 
 package org.iceberg.mr.mapred;
 
-import com.google.common.collect.ImmutableMap;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Hashtable;
 import java.util.List;
+import java.util.Map;
+
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.typeinfo.HiveDecimalUtils;
@@ -38,17 +42,20 @@ final class IcebergSchemaToTypeInfo {
 
   private IcebergSchemaToTypeInfo() {}
 
-  private static final ImmutableMap<Object, Object> primitiveTypeToTypeInfo = ImmutableMap.builder()
-      .put(Types.BooleanType.get(), TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.BOOLEAN_TYPE_NAME))
-      .put(Types.IntegerType.get(), TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.INT_TYPE_NAME))
-      .put(Types.LongType.get(), TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.BIGINT_TYPE_NAME))
-      .put(Types.FloatType.get(), TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.FLOAT_TYPE_NAME))
-      .put(Types.DoubleType.get(), TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.DOUBLE_TYPE_NAME))
-      .put(Types.BinaryType.get(), TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.BINARY_TYPE_NAME))
-      .put(Types.StringType.get(), TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.STRING_TYPE_NAME))
-      .put(Types.DateType.get(), TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.DATE_TYPE_NAME))
-      .put(Types.TimestampType.withoutZone(), TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.TIMESTAMP_TYPE_NAME))
-      .build();
+  private static final Map<Type, TypeInfo> primitiveTypeToTypeInfo = initTypeMap();
+  private static Map<Type, TypeInfo> initTypeMap() {
+    Map<Type, TypeInfo> theMap = new Hashtable<Type, TypeInfo>();
+    theMap.put(Types.BooleanType.get(), TypeInfoFactory.getPrimitiveTypeInfo("boolean"));
+    theMap.put(Types.IntegerType.get(), TypeInfoFactory.getPrimitiveTypeInfo("int"));
+    theMap.put(Types.LongType.get(), TypeInfoFactory.getPrimitiveTypeInfo("bigint"));
+    theMap.put(Types.FloatType.get(), TypeInfoFactory.getPrimitiveTypeInfo("float"));
+    theMap.put(Types.DoubleType.get(), TypeInfoFactory.getPrimitiveTypeInfo("double"));
+    theMap.put(Types.BinaryType.get(), TypeInfoFactory.getPrimitiveTypeInfo("binary"));
+    theMap.put(Types.StringType.get(), TypeInfoFactory.getPrimitiveTypeInfo("string"));
+    theMap.put(Types.DateType.get(), TypeInfoFactory.getPrimitiveTypeInfo("date"));
+    theMap.put(Types.TimestampType.withoutZone(), TypeInfoFactory.getPrimitiveTypeInfo("timestamp"));
+    return Collections.unmodifiableMap(theMap);
+  }
 
   public static List<TypeInfo> getColumnTypes(Schema schema) throws Exception {
     List<Types.NestedField> fields = schema.columns();
