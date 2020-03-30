@@ -29,7 +29,6 @@ import com.klarna.hiverunner.annotations.HiveSQL;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-
 import org.apache.commons.compress.utils.Lists;
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.mapred.InputSplit;
@@ -81,17 +80,6 @@ public class TestIcebergInputFormat {
         .build();
 
     table.newAppend().appendFile(fileA).commit();
-  }
-
-  @Test
-  public void bla() {
-      try {
-          LOG.error("YYY: " + org.apache.avro.Schema.class.getProtectionDomain().getCodeSource());
-      } catch (Throwable t) {
-          t.printStackTrace();
-          LOG.error("XXX", t);
-          LOG.error("ZZZ", t.getCause());
-      }
   }
 
   @Test
