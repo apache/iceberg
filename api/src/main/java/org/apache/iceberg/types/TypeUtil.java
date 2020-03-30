@@ -391,7 +391,7 @@ public class TypeUtil {
     return MAX_PRECISION[numBytes];
   }
 
-  public static int decimalRequriedBytes(int precision) {
+  public static int decimalRequiredBytes(int precision) {
     Preconditions.checkArgument(precision >= 0 && precision < 40,
         "Unsupported decimal precision: %s", precision);
     return REQUIRED_LENGTH[precision];

@@ -304,7 +304,7 @@ class ParquetAvro {
         } else {
           return new ParquetDecimal(decimal.getPrecision(), decimal.getScale())
               .addToSchema(Schema.createFixed(primitive.getName(),
-                  null, null, TypeUtil.decimalRequriedBytes(decimal.getPrecision())));
+                  null, null, TypeUtil.decimalRequiredBytes(decimal.getPrecision())));
         }
       }
 
