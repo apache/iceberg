@@ -284,4 +284,103 @@ public class TestDataSourceOptions {
         .collectAsList();
     Assert.assertEquals("Records should match", expectedRecords.subList(2, 3), result1);
   }
+
+  @Test
+  public void testMetadataSplitSizeOptionOverrideTableProperties() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+    int splitSize = 2 * 1024;
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.SPLIT_SIZE, String.valueOf(128L * 1024 * 1024)); // 128Mb
+    options.put(TableProperties.METADATA_SPLIT_SIZE, String.valueOf(32L * 1024 * 1024)); // 32MB
+    tables.create(SCHEMA, spec, options, tableLocation);
+
+    List<SimpleRecord> expectedRecords = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b")
+    );
+    Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
+    originalDf.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    int expectedSplits = ((int) tables.load(tableLocation + "#entries")
+        .currentSnapshot().manifests().get(0).length() + splitSize - 1) / splitSize;
+
+    Dataset<Row> metadataDf = spark.read()
+        .format("iceberg")
+        .option("split-size", String.valueOf(splitSize))
+        .load(tableLocation + "#entries");
+
+    int partitionNum = metadataDf.javaRDD().getNumPartitions();
+    Assert.assertEquals("Spark partitions should match", expectedSplits, partitionNum);
+  }
+
+  @Test
+  public void testMetadataSplitSizeTableProperties() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+    int splitSize = 2 * 1024;
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.SPLIT_SIZE, String.valueOf(128L * 1024 * 1024)); // 128Mb
+    options.put(TableProperties.METADATA_SPLIT_SIZE, String.valueOf(splitSize)); // 2KB
+    tables.create(SCHEMA, spec, options, tableLocation);
+
+    List<SimpleRecord> expectedRecords = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b")
+    );
+    Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
+    originalDf.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    int expectedSplits = ((int) tables.load(tableLocation + "#entries")
+        .currentSnapshot().manifests().get(0).length() + splitSize - 1) / splitSize;
+
+    Dataset<Row> metadataDf = spark.read()
+        .format("iceberg")
+        .load(tableLocation + "#entries");
+
+    int partitionNum = metadataDf.javaRDD().getNumPartitions();
+    Assert.assertEquals("Spark partitions should match", expectedSplits, partitionNum);
+  }
+
+  @Test
+  public void testDefaultMetadataSplitSize() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Map<String, String> options = Maps.newHashMap();
+    tables.create(SCHEMA, spec, options, tableLocation);
+
+    List<SimpleRecord> expectedRecords = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b")
+    );
+    Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
+    originalDf.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    int splitSize = (int) TableProperties.METADATA_SPLIT_SIZE_DEFAULT; // 32MB split size
+
+    int expectedSplits = ((int) tables.load(tableLocation + "#entries")
+        .currentSnapshot().manifests().get(0).length() + splitSize - 1) / splitSize;
+
+    Dataset<Row> metadataDf = spark.read()
+        .format("iceberg")
+        .load(tableLocation + "#entries");
+
+    int partitionNum = metadataDf.javaRDD().getNumPartitions();
+    Assert.assertEquals("Spark partitions should match", expectedSplits, partitionNum);
+  }
 }

@@ -26,8 +26,6 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 
 class StaticTableScan extends BaseTableScan {
-  private static final long TARGET_SPLIT_SIZE = 32 * 1024 * 1024; // 32 MB
-
   private final Function<StaticTableScan, DataTask> buildTask;
 
   StaticTableScan(TableOperations ops, Table table, Schema schema, Function<StaticTableScan, DataTask> buildTask) {
@@ -45,7 +43,8 @@ class StaticTableScan extends BaseTableScan {
 
   @Override
   protected long targetSplitSize(TableOperations ops) {
-    return TARGET_SPLIT_SIZE;
+    return ops.current().propertyAsLong(
+        TableProperties.METADATA_SPLIT_SIZE, TableProperties.METADATA_SPLIT_SIZE_DEFAULT);
   }
 
   @Override

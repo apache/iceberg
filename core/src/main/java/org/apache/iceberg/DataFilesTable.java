@@ -73,7 +73,6 @@ public class DataFilesTable extends BaseMetadataTable {
   }
 
   public static class FilesTableScan extends BaseTableScan {
-    private static final long TARGET_SPLIT_SIZE = 32 * 1024 * 1024; // 32 MB
     private final Schema fileSchema;
 
     FilesTableScan(TableOperations ops, Table table, Schema fileSchema) {
@@ -100,7 +99,8 @@ public class DataFilesTable extends BaseMetadataTable {
 
     @Override
     protected long targetSplitSize(TableOperations ops) {
-      return TARGET_SPLIT_SIZE;
+      return ops.current().propertyAsLong(
+          TableProperties.METADATA_SPLIT_SIZE, TableProperties.METADATA_SPLIT_SIZE_DEFAULT);
     }
 
     @Override
