@@ -21,11 +21,9 @@ package org.iceberg.mr.mapred;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
-
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.typeinfo.HiveDecimalUtils;
@@ -43,6 +41,7 @@ final class IcebergSchemaToTypeInfo {
   private IcebergSchemaToTypeInfo() {}
 
   private static final Map<Type, TypeInfo> primitiveTypeToTypeInfo = initTypeMap();
+
   private static Map<Type, TypeInfo> initTypeMap() {
     Map<Type, TypeInfo> theMap = new Hashtable<Type, TypeInfo>();
     theMap.put(Types.BooleanType.get(), TypeInfoFactory.getPrimitiveTypeInfo("boolean"));
@@ -68,7 +67,7 @@ final class IcebergSchemaToTypeInfo {
 
   private static TypeInfo generateTypeInfo(Type type) throws Exception {
     if (primitiveTypeToTypeInfo.containsKey(type)) {
-      return (TypeInfo) primitiveTypeToTypeInfo.get(type);
+      return primitiveTypeToTypeInfo.get(type);
     }
     switch (type.typeId()) {
       case UUID:

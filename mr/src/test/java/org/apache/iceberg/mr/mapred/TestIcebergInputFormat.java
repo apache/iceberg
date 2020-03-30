@@ -19,10 +19,6 @@
 
 package org.apache.iceberg.mr.mapred;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-
 import com.klarna.hiverunner.HiveShell;
 import com.klarna.hiverunner.StandaloneHiveRunner;
 import com.klarna.hiverunner.annotations.HiveSQL;
@@ -51,6 +47,9 @@ import org.junit.runner.RunWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 
 @RunWith(StandaloneHiveRunner.class)
 public class TestIcebergInputFormat {
