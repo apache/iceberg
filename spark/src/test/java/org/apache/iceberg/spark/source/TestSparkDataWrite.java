@@ -327,7 +327,7 @@ public class TestSparkDataWrite {
       }
     }
     // TODO: ORC file now not support target file size
-    if (format.equals(FileFormat.PARQUET)) {
+    if (!format.equals(FileFormat.ORC)) {
       Assert.assertEquals("Should have 4 DataFiles", 4, files.size());
       Assert.assertTrue("All DataFiles contain 1000 rows", files.stream().allMatch(d -> d.recordCount() == 1000));
     }
@@ -376,7 +376,7 @@ public class TestSparkDataWrite {
       }
     }
     // TODO: ORC file now not support target file size
-    if (format.equals(FileFormat.PARQUET)) {
+    if (!format.equals(FileFormat.ORC)) {
       Assert.assertEquals("Should have 8 DataFiles", 8, files.size());
       Assert.assertTrue("All DataFiles contain 1000 rows", files.stream().allMatch(d -> d.recordCount() == 1000));
     }

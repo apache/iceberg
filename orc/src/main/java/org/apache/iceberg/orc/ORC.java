@@ -148,8 +148,8 @@ public class ORC {
       return this;
     }
 
-    public ReadBuilder project(Schema newSchema) {
-      this.schema = newSchema;
+    public ReadBuilder schema(org.apache.iceberg.Schema projectSchema) {
+      this.schema = projectSchema;
       return this;
     }
 

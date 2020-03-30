@@ -399,8 +399,8 @@ class Writer implements DataSourceWriter {
     public abstract void write(InternalRow row) throws IOException;
 
     public void writeInternal(InternalRow row)  throws IOException {
-      //TODO: ORC file now not support target file size
-      if (format.equals(FileFormat.PARQUET) &&
+      //TODO: ORC file now not support target file size before closed
+      if  (!format.equals(FileFormat.ORC) &&
           currentRows % ROWS_DIVISOR == 0 && currentAppender.length() >= targetFileSize) {
         closeCurrent();
         openCurrent();

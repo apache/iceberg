@@ -185,7 +185,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       FileScanTask task,
       Schema readSchema) {
     return ORC.read(location)
-        .project(readSchema)
+        .schema(readSchema)
         .split(task.start(), task.length())
         .createReaderFunc(SparkOrcReader::new)
         .caseSensitive(caseSensitive)
