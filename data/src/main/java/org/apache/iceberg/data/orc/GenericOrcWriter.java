@@ -548,8 +548,9 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       case INT:
         return new IntConverter();
       case LONG:
-        ORCSchemaUtil.LongType longType = ORCSchemaUtil.LongType.valueOf(
-            schema.getAttributeValue(ORCSchemaUtil.ICEBERG_LONG_TYPE_ATTRIBUTE));
+        String longAttributeValue = schema.getAttributeValue(ORCSchemaUtil.ICEBERG_LONG_TYPE_ATTRIBUTE);
+        ORCSchemaUtil.LongType longType = longAttributeValue == null ? ORCSchemaUtil.LongType.LONG :
+            ORCSchemaUtil.LongType.valueOf(longAttributeValue);
         switch (longType) {
           case TIME:
             return new TimeConverter();
@@ -563,8 +564,9 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       case DOUBLE:
         return new DoubleConverter();
       case BINARY:
-        ORCSchemaUtil.BinaryType binaryType = ORCSchemaUtil.BinaryType.valueOf(
-            schema.getAttributeValue(ORCSchemaUtil.ICEBERG_BINARY_TYPE_ATTRIBUTE));
+        String binaryAttributeValue = schema.getAttributeValue(ORCSchemaUtil.ICEBERG_BINARY_TYPE_ATTRIBUTE);
+        ORCSchemaUtil.BinaryType binaryType = binaryAttributeValue == null ? ORCSchemaUtil.BinaryType.BINARY :
+            ORCSchemaUtil.BinaryType.valueOf(binaryAttributeValue);
         switch (binaryType) {
           case UUID:
             return new UUIDConverter();

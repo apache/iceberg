@@ -272,10 +272,7 @@ public class GenericOrcReader implements OrcValueReader<Record> {
         return null;
       } else {
         BytesColumnVector bytesVector = (BytesColumnVector) vector;
-        ByteBuffer buf = ByteBuffer.allocate(bytesVector.length[rowIndex]);
-        buf.put(bytesVector.vector[rowIndex], bytesVector.start[rowIndex], bytesVector.length[rowIndex]);
-        buf.rewind();
-        return buf;
+        return ByteBuffer.wrap(bytesVector.vector[rowIndex], bytesVector.start[rowIndex], bytesVector.length[rowIndex]);
       }
     }
   }
@@ -288,9 +285,8 @@ public class GenericOrcReader implements OrcValueReader<Record> {
         return null;
       } else {
         BytesColumnVector bytesVector = (BytesColumnVector) vector;
-        ByteBuffer buf = ByteBuffer.allocate(16);
-        buf.put(bytesVector.vector[rowIndex], bytesVector.start[rowIndex], 16);
-        buf.rewind();
+        ByteBuffer buf = ByteBuffer.wrap(bytesVector.vector[rowIndex], bytesVector.start[rowIndex],
+            bytesVector.length[rowIndex]);
         long mostSigBits = buf.getLong();
         long leastSigBits = buf.getLong();
         return new UUID(mostSigBits, leastSigBits);
@@ -332,7 +328,11 @@ public class GenericOrcReader implements OrcValueReader<Record> {
       Preconditions.checkArgument(icebergField.type().isListType());
       TypeDescription child = schema.getChildren().get(0);
 
-      childConverter = buildConverter(icebergField.type().asListType().fields().get(0), child);
+      childConverter = buildConverter(icebergField
+          .type()
+          .asListType()
+          .fields()
+          .get(0), child);
     }
 
     List<?> readList(ListColumnVector vector, int row) {
@@ -445,8 +445,9 @@ public class GenericOrcReader implements OrcValueReader<Record> {
       case INT:
         return new IntConverter();
       case LONG:
-        ORCSchemaUtil.LongType longType =
-            ORCSchemaUtil.LongType.valueOf(schema.getAttributeValue(ORCSchemaUtil.ICEBERG_LONG_TYPE_ATTRIBUTE));
+        String longAttributeValue = schema.getAttributeValue(ORCSchemaUtil.ICEBERG_LONG_TYPE_ATTRIBUTE);
+        ORCSchemaUtil.LongType longType = longAttributeValue == null ? ORCSchemaUtil.LongType.LONG :
+            ORCSchemaUtil.LongType.valueOf(longAttributeValue);
         switch (longType) {
           case TIME:
             return new TimeConverter();
@@ -466,8 +467,9 @@ public class GenericOrcReader implements OrcValueReader<Record> {
       case DECIMAL:
         return new DecimalConverter();
       case BINARY:
-        ORCSchemaUtil.BinaryType binaryType =
-            ORCSchemaUtil.BinaryType.valueOf(schema.getAttributeValue(ORCSchemaUtil.ICEBERG_BINARY_TYPE_ATTRIBUTE));
+        String binaryAttributeValue = schema.getAttributeValue(ORCSchemaUtil.ICEBERG_BINARY_TYPE_ATTRIBUTE);
+        ORCSchemaUtil.BinaryType binaryType = binaryAttributeValue == null ? ORCSchemaUtil.BinaryType.BINARY :
+            ORCSchemaUtil.BinaryType.valueOf(binaryAttributeValue);
         switch (binaryType) {
           case UUID:
             return new UUIDConverter();

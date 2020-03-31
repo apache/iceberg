@@ -411,8 +411,8 @@ public final class ORCSchemaUtil {
       case INT:
         return getIcebergType(icebergID, name, Types.IntegerType.get(), isRequired);
       case LONG:
-        LongType longType = LongType.valueOf(
-            orcType.getAttributeValue(ICEBERG_LONG_TYPE_ATTRIBUTE));
+        String longAttributeValue = orcType.getAttributeValue(ICEBERG_LONG_TYPE_ATTRIBUTE);
+        LongType longType = longAttributeValue == null ? LongType.LONG : LongType.valueOf(longAttributeValue);
         switch (longType) {
           case TIME:
             return getIcebergType(icebergID, name, Types.TimeType.get(), isRequired);
@@ -430,8 +430,9 @@ public final class ORCSchemaUtil {
       case VARCHAR:
         return getIcebergType(icebergID, name, Types.StringType.get(), isRequired);
       case BINARY:
-        BinaryType binaryType = BinaryType.valueOf(
-            orcType.getAttributeValue(ICEBERG_BINARY_TYPE_ATTRIBUTE));
+        String binaryAttributeValue = orcType.getAttributeValue(ICEBERG_BINARY_TYPE_ATTRIBUTE);
+        BinaryType binaryType = binaryAttributeValue == null ? BinaryType.BINARY :
+            BinaryType.valueOf(binaryAttributeValue);
         switch (binaryType) {
           case UUID:
             return getIcebergType(icebergID, name, Types.UUIDType.get(), isRequired);
