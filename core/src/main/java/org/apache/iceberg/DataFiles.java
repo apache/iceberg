@@ -190,6 +190,7 @@ public class DataFiles {
     private Map<Integer, ByteBuffer> upperBounds = null;
     private ByteBuffer keyMetadata = null;
     private List<Long> splitOffsets = null;
+    private Integer fileType = null;
 
     public Builder() {
       this.spec = null;
@@ -235,6 +236,7 @@ public class DataFiles {
       this.keyMetadata = toCopy.keyMetadata() == null ? null
           : ByteBuffers.copy(toCopy.keyMetadata());
       this.splitOffsets = toCopy.splitOffsets() == null ? null : copyList(toCopy.splitOffsets());
+      this.fileType = toCopy.fileType();
       return this;
     }
 
@@ -328,6 +330,11 @@ public class DataFiles {
       return withEncryptionKeyMetadata(newKeyMetadata.buffer());
     }
 
+    public Builder withFileType(Integer newFileType) {
+      this.fileType = newFileType;
+      return this;
+    }
+
     public DataFile build() {
       Preconditions.checkArgument(filePath != null, "File path is required");
       if (format == null) {
@@ -341,7 +348,7 @@ public class DataFiles {
           filePath, format, isPartitioned ? partitionData.copy() : null,
           fileSizeInBytes, new Metrics(
               recordCount, columnSizes, valueCounts, nullValueCounts, lowerBounds, upperBounds),
-          keyMetadata, splitOffsets);
+          keyMetadata, splitOffsets, fileType);
     }
   }
 

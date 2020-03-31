@@ -59,10 +59,15 @@ public interface DataFile {
         optional(128, "upper_bounds", MapType.ofRequired(129, 130,
             IntegerType.get(), BinaryType.get())),
         optional(131, "key_metadata", BinaryType.get()),
-        optional(132, "split_offsets", ListType.ofRequired(133, LongType.get()))
-        // NEXT ID TO ASSIGN: 134
+        optional(132, "split_offsets", ListType.ofRequired(133, LongType.get())),
+        optional(134, "file_type", IntegerType.get())
+        // NEXT ID TO ASSIGN: 135
     );
   }
+
+  int NORMAL_DATA_FILE = 0;
+  int FILE_AND_POSITION_DELETION_FILE = 1;
+  int COLUMN_EQUALITY_DELETION_FILE = 2;
 
   /**
    * @return fully qualified path to the file, suitable for constructing a Hadoop Path
@@ -152,4 +157,10 @@ public interface DataFile {
    * are determined by these offsets. The returned list must be sorted in ascending order.
    */
   List<Long> splitOffsets();
+
+  /**
+   * @return Type of data file. 0: normal data file that has the same schema with the table's schema, 1: file and
+   * position based deletion file. 2: column equality based deletion file.
+   */
+  int fileType();
 }

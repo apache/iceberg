@@ -232,6 +232,7 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 | **`128  upper_bounds`**           | `optional map<129: int, 130: binary>` | Map from column id to upper bound in the column serialized as binary [1]. Each value must be greater than or equal to all values in the column for the file.                                         |
 | **`131  key_metadata`**           | `optional binary`                     | Implementation-specific key metadata for encryption                                                                                                                                                  |
 | **`132  split_offsets`**          | `optional list`                       | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending.                                                                                     |
+| **`134  file_type`**              | `optional int`                        | Type of the data file. `0`: normal data file that has the same schema with the table's schema. `1`: file and positioned based deletion file.                                                         |
 
 Notes:
 
@@ -253,6 +254,31 @@ When a data file is replaced or deleted from the dataset, it’s manifest entry 
 Notes:
 
 1. Technically, data files can be deleted when the last snapshot that contains the file as “live” data is garbage collected. But this is harder to detect and requires finding the diff of multiple snapshots. It is easier to track what files are deleted in a snapshot and delete them when that snapshot expires.
+
+#### Deletion Files
+
+Deletion files are files that indicate deletions of pre-existing rows to be applied to the dataset at read time. Deletion files may either specify rows by column value or by file name and row position.
+
+1. The file and position based deletion file has the schema:
+```
+{
+  filename string,
+  position int
+}
+``` 
+The rows in the deletion file must be sorted by `position` and `filename`. The records layout in the deletion file looks like:
+```
+file1, 1
+file1, 2
+file1, 3
+file2, 3
+file2, 4
+file2, 5
+file3, 7
+file3, 8
+file3, 9
+``` 
+It is also worth to note that in order to keep module independence, deletion files are written with the file format same as the table file format.
 
 ### Snapshots
 

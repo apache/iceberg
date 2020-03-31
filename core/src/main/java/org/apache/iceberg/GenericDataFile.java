@@ -65,6 +65,7 @@ class GenericDataFile
   private Map<Integer, ByteBuffer> upperBounds = null;
   private List<Long> splitOffsets = null;
   private byte[] keyMetadata = null;
+  private Integer fileType = null;
 
   // cached schema
   private transient org.apache.avro.Schema avroSchema = null;
@@ -160,6 +161,14 @@ class GenericDataFile
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
   }
 
+  GenericDataFile(String filePath, FileFormat format, PartitionData partition,
+                  long fileSizeInBytes, Metrics metrics,
+                  ByteBuffer keyMetadata, List<Long> splitOffsets, Integer fileType) {
+    this(filePath, format, partition, fileSizeInBytes, metrics, splitOffsets);
+    this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
+    this.fileType = fileType;
+  }
+
   /**
    * Copy constructor.
    *
@@ -175,6 +184,7 @@ class GenericDataFile
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
     this.fileOrdinal = toCopy.fileOrdinal;
     this.sortColumns = copy(toCopy.sortColumns);
+    this.fileType = toCopy.fileType;
     if (fullCopy) {
       // TODO: support lazy conversion to/from map
       this.columnSizes = copy(toCopy.columnSizes);
@@ -271,6 +281,15 @@ class GenericDataFile
   }
 
   @Override
+  public int fileType() {
+    if (fileType == null) {
+      return NORMAL_DATA_FILE;
+    } else {
+      return fileType;
+    }
+  }
+
+  @Override
   public org.apache.avro.Schema getSchema() {
     if (avroSchema == null) {
       this.avroSchema = getAvroSchema(partitionType);
@@ -332,6 +351,9 @@ class GenericDataFile
       case 14:
         this.splitOffsets = (List<Long>) v;
         return;
+      case 15:
+        this.fileType = (Integer) v;
+        return;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -382,6 +404,8 @@ class GenericDataFile
         return keyMetadata();
       case 14:
         return splitOffsets;
+      case 15:
+        return fileType;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -401,7 +425,7 @@ class GenericDataFile
 
   @Override
   public int size() {
-    return 15;
+    return 16;
   }
 
   @Override
@@ -409,6 +433,7 @@ class GenericDataFile
     return MoreObjects.toStringHelper(this)
         .add("file_path", filePath)
         .add("file_format", format)
+        .add("file_type", fileType == null ? "data file" : "deletion file")
         .add("partition", partitionData)
         .add("record_count", recordCount)
         .add("file_size_in_bytes", fileSizeInBytes)
