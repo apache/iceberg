@@ -62,7 +62,7 @@ public class TestGenericData extends DataTest {
 
     List<Record> rows;
     try (CloseableIterable<Record> reader = ORC.read(Files.localInput(testFile))
-        .schema(schema)
+        .project(schema)
         .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
         .build()) {
       rows = Lists.newArrayList(reader);
@@ -112,7 +112,7 @@ public class TestGenericData extends DataTest {
     TimeZone.setDefault(TimeZone.getTimeZone("Asia/Kolkata"));
     List<Record> rows;
     try (CloseableIterable<Record> reader = ORC.read(Files.localInput(testFile))
-        .schema(timestampSchema)
+        .project(timestampSchema)
         .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(timestampSchema, fileSchema))
         .build()) {
       rows = Lists.newArrayList(reader);
