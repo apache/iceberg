@@ -29,6 +29,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -44,6 +45,26 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
     TableIdentifier testTable = TableIdentifier.of("db", "ns1", "ns2", "tbl");
     catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
+    String metaLocation = catalog.defaultWarehouseLocation(testTable);
+
+    FileSystem fs = Util.getFs(new Path(metaLocation), conf);
+    Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
+
+    catalog.dropTable(testTable);
+    Assert.assertFalse(fs.isDirectory(new Path(metaLocation)));
+  }
+
+  @Test
+  public void testCreateAndDropTableWithoutNamespace() throws Exception {
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+
+    TableIdentifier testTable = TableIdentifier.of("tbl");
+    Table table = catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
+
+    Assert.assertEquals(table.schema().toString(), TABLE_SCHEMA.toString());
+    Assert.assertEquals("hadoop.tbl", table.toString());
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
     FileSystem fs = Util.getFs(new Path(metaLocation), conf);
