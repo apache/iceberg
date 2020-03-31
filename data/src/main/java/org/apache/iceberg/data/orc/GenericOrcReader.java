@@ -30,10 +30,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -212,7 +209,7 @@ public class GenericOrcReader implements OrcValueReader<Record> {
 
   private static class TimestampTzConverter implements Converter<OffsetDateTime> {
     private OffsetDateTime convert(TimestampColumnVector vector, int row) {
-      return EPOCH.plus(vector.time[row] / 1_000, ChronoUnit.SECONDS).plus(vector.nanos[row], ChronoUnit.NANOS);
+      return Instant.ofEpochSecond(Math.floorDiv(vector.time[row], 1_000), vector.nanos[row]).atOffset(ZoneOffset.UTC);
     }
 
     @Override
@@ -227,15 +224,9 @@ public class GenericOrcReader implements OrcValueReader<Record> {
   }
 
   private static class TimestampConverter implements Converter<LocalDateTime> {
-    private final ZoneId localZoneId;
-
-    TimestampConverter() {
-      this.localZoneId = ZoneId.systemDefault();
-    }
 
     private LocalDateTime convert(TimestampColumnVector vector, int row) {
-      return ZonedDateTime
-          .ofInstant(Instant.ofEpochSecond(vector.time[row] / 1_000, vector.nanos[row]), localZoneId)
+      return Instant.ofEpochSecond(Math.floorDiv(vector.time[row], 1_000), vector.nanos[row]).atOffset(ZoneOffset.UTC)
           .toLocalDateTime();
     }
 
