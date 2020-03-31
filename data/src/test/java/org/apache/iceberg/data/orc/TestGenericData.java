@@ -88,6 +88,12 @@ public class TestGenericData extends DataTest {
     GenericRecord record2 = GenericRecord.create(timestampSchema);
     record2.setField("tsTzCol", OffsetDateTime.parse("2017-05-16T17:10:34-08:00"));
     record2.setField("tsCol", LocalDateTime.parse("1970-05-01T00:01:00"));
+    GenericRecord record3 = GenericRecord.create(timestampSchema);
+    record3.setField("tsTzCol", OffsetDateTime.parse("1935-01-16T17:10:34-08:00"));
+    record3.setField("tsCol", LocalDateTime.parse("1935-01-01T00:01:00"));
+    GenericRecord record4 = GenericRecord.create(timestampSchema);
+    record4.setField("tsTzCol", OffsetDateTime.parse("1935-05-16T17:10:34-08:00"));
+    record4.setField("tsCol", LocalDateTime.parse("1935-05-01T00:01:00"));
 
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
@@ -98,6 +104,8 @@ public class TestGenericData extends DataTest {
         .build()) {
       writer.add(record1);
       writer.add(record2);
+      writer.add(record3);
+      writer.add(record4);
     }
 
     // Read using Asia/Kolkata timezone
@@ -114,5 +122,9 @@ public class TestGenericData extends DataTest {
     Assert.assertEquals(LocalDateTime.parse("1970-01-01T00:01:00"), rows.get(0).getField("tsCol"));
     Assert.assertEquals(OffsetDateTime.parse("2017-05-17T01:10:34Z"), rows.get(1).getField("tsTzCol"));
     Assert.assertEquals(LocalDateTime.parse("1970-05-01T00:01:00"), rows.get(1).getField("tsCol"));
+    Assert.assertEquals(OffsetDateTime.parse("1935-01-17T01:10:34Z"), rows.get(2).getField("tsTzCol"));
+    Assert.assertEquals(LocalDateTime.parse("1935-01-01T00:01:00"), rows.get(2).getField("tsCol"));
+    Assert.assertEquals(OffsetDateTime.parse("1935-05-17T01:10:34Z"), rows.get(3).getField("tsTzCol"));
+    Assert.assertEquals(LocalDateTime.parse("1935-05-01T00:01:00"), rows.get(3).getField("tsCol"));
   }
 }
