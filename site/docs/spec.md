@@ -495,7 +495,7 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | **`double`**       | `double`            |                                                      |                                                                                         |
 | **`decimal(P,S)`** | `decimal`           |                                                      |                                                                                         |
 | **`date`**         | `date`              |                                                      |                                                                                         |
-| **`time`**         | `long`              | `iceberg.long-type`=`DATE`                           | Stores microseconds from midnight.                                                      |
+| **`time`**         | `long`              | `iceberg.long-type`=`TIME`                           | Stores microseconds from midnight.                                                      |
 | **`timestamp`**    | `timestamp`         |                                                      | [1]                                                                                     |
 | **`timestamptz`**  | `timestamp_instant` |                                                      | [1]                                                                                     |
 | **`string`**       | `string`            |                                                      | ORC `varchar` and `char` would also map to **`string`**.                                |
