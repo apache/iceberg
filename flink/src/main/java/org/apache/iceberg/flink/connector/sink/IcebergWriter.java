@@ -21,8 +21,6 @@ package org.apache.iceberg.flink.connector.sink;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
-import com.netflix.spectator.api.DefaultRegistry;
-import com.netflix.spectator.api.Registry;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -93,8 +91,6 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
   private transient org.apache.hadoop.conf.Configuration hadoopConfig;
   private transient Map<String, FileWriter> openPartitionFiles;
   private transient int subtaskId;
-  private transient IcebergWriterSubtaskMetrics subtaskMetrics;
-  private transient IcebergWriterTaskMetrics taskMetrics;
   private transient ProcessingTimeService timerService;
   private transient Partitioner partitioner;
   private transient FileSystem fs;
@@ -182,12 +178,11 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
   @Override
   public void open() throws Exception {
     super.open();
-    init(new DefaultRegistry(),
-        getRuntimeContext().getIndexOfThisSubtask(),
+    init(getRuntimeContext().getIndexOfThisSubtask(),
         getProcessingTimeService());
   }
 
-  void init(Registry registry, int subtaskId1, ProcessingTimeService timerService1) throws IOException {
+  void init(int subtaskId1, ProcessingTimeService timerService1) throws IOException {
     instanceId = System.getenv("EC2_INSTANCE_ID");
     titusTaskId = System.getenv("TITUS_TASK_ID");
     avroSchema = AvroSchemaUtil.convert(icebergSchema, tableName);
@@ -195,8 +190,6 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
     hadoopConfig.set(IcebergConnectorConstant.METACAT_HOST_HADOOP_CONF_KEY, metacatHost);
 
     this.subtaskId = subtaskId1;
-    subtaskMetrics = new IcebergWriterSubtaskMetrics(registry, database, tableName, subtaskId1);
-    taskMetrics = IcebergWriterTaskMetrics.getInstance(registry, database, tableName);
     this.timerService = timerService1;
     openPartitionFiles = new HashMap<>();
 
@@ -241,15 +234,11 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
     LOG.info("Iceberg writer {}.{} subtask {} flushed {} open files",
         database, tableName, subtaskId, openPartitionFiles.size());
     openPartitionFiles.clear();
-    subtaskMetrics.resetOpenFileCount();
     return dataFiles;
   }
 
   FlinkDataFile closeWriter(FileWriter writer) throws IOException {
     FlinkDataFile flinkDataFile = writer.close();
-    subtaskMetrics.incrementUploadedFiles();
-    subtaskMetrics.incrementUploadedRecords(flinkDataFile.getIcebergDataFile().recordCount());
-    subtaskMetrics.incrementUploadedBytes(flinkDataFile.getIcebergDataFile().fileSizeInBytes());
     LOG.info(
         "Iceberg writer {}.{} subtask {} uploaded to Iceberg table {}.{} with {} records and {} bytes on this path: {}",
         database, tableName, subtaskId, database, tableName, flinkDataFile.getIcebergDataFile().recordCount(),
@@ -259,9 +248,6 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
 
   void emit(FlinkDataFile flinkDataFile) {
     output.collect(new StreamRecord<>(flinkDataFile));
-    subtaskMetrics.incrementWriterEmittedFiles();
-    subtaskMetrics.incrementWriterEmittedRecords(flinkDataFile.getIcebergDataFile().recordCount());
-    subtaskMetrics.incrementWriterEmittedBytes(flinkDataFile.getIcebergDataFile().fileSizeInBytes());
     LOG.debug("Iceberg writer {}.{} subtask {} emitted uploaded file to committer for Iceberg table {}.{}" +
         " with {} records and {} bytes on this path: {}",
         database, tableName, subtaskId, database, tableName, flinkDataFile.getIcebergDataFile().recordCount(),
@@ -348,18 +334,14 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
     LOG.info("Iceberg writer {}.{} subtask {} aborted {} open files",
         database, tableName, subtaskId, openPartitionFiles.size());
     openPartitionFiles.clear();
-    subtaskMetrics.resetOpenFileCount();
   }
 
   @Override
   public void processElement(StreamRecord<T> element) throws Exception {
     T value = element.getValue();
     try {
-      subtaskMetrics.incrementReceivedRecords();
       processInternal(value);
-      subtaskMetrics.incrementWrittenRecords();
     } catch (Exception t) {
-      subtaskMetrics.incrementFailedRecords(t);
       if (!skipIncompatibleRecord) {
         throw t;
       }
@@ -373,7 +355,6 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
       IndexedRecord avroRecord = ser.serialize(value, avroSchema);
       processIndexedRecord(avroRecord);
     } catch (AvroTypeException e) {
-      subtaskMetrics.incrementAvroSerializerFailures();
       throw e;
     }
   }
@@ -410,7 +391,6 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
       final Path path = new Path(partitionPath, generateFileName());
       FileWriter writer = newWriter(path, partitioner);
       openPartitionFiles.put(partitionPath, writer);
-      subtaskMetrics.incrementOpenFileCount();
       LOG.info("Iceberg writer {}.{} subtask {} opened a new file: {}",
           database, tableName, subtaskId, path.toString());
     }
@@ -454,8 +434,6 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
         .withAppender(appender)
         .withHadooopConfig(hadoopConfig)
         .withSpec(spec)
-        .withMetrics(taskMetrics)
-        .withSubtaskMetrics(subtaskMetrics)
         .withSchema(avroSchema)
         .withVttsTimestampField(timestampFeild)
         .withVttsTimestampUnit(timestampUnit)

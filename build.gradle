@@ -556,7 +556,6 @@ project(':iceberg-flink') {
     compile project(':iceberg-parquet')
 
     compileOnly("com.amazonaws:aws-java-sdk-s3")
-    compile("com.netflix.spectator:spectator-api")  // TODO: compileOnly?
     compileOnly("org.apache.flink:flink-streaming-java_2.11")
     compileOnly("org.apache.flink:flink-connector-filesystem_2.11")
     compileOnly("org.apache.hadoop:hadoop-client") {

@@ -21,8 +21,6 @@ package org.apache.iceberg.flink.connector.sink;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
-import com.netflix.spectator.api.DefaultRegistry;
-import com.netflix.spectator.api.Registry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -111,14 +109,12 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
   private final HadoopFileIO hadoopFileIO;
   private final String flinkJobId;
 
-  private transient Registry registry;
   private transient Table table;
   private transient List<FlinkDataFile> pendingDataFiles;
   private transient List<FlinkManifestFile> flinkManifestFiles;
   private transient ListState<ManifestFileState> manifestFilesState;
   private transient CommitMetadata metadata;
   private transient ListState<CommitMetadata> metadataState;
-  private transient IcebergCommitterMetrics metrics;
 
   public IcebergCommitter(Configuration config) {
     // current Iceberg sink implementation can't work with concurrent checkpoints.
@@ -184,12 +180,6 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
   }
 
   @VisibleForTesting
-  IcebergCommitter(Configuration icebergSinkConfig, Registry registry) {
-    this(icebergSinkConfig);
-    this.registry = registry;
-  }
-
-  @VisibleForTesting
   List<FlinkDataFile> getPendingDataFiles() {
     return pendingDataFiles;
   }
@@ -219,16 +209,10 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
 
   @Override
   public void close() throws Exception {
-    if (null != metrics) {
-      metrics.stop();
-      LOG.info("Stopped committer metrics");
-    }
-
     super.close();
   }
 
-  void init(Registry registry) {
-    this.registry = registry;
+  void init() {
     org.apache.hadoop.conf.Configuration hadoopConfig = new org.apache.hadoop.conf.Configuration();
     hadoopConfig.set(IcebergConnectorConstant.METACAT_HOST_HADOOP_CONF_KEY, metacatHost);
     // Avoid Netflix code just to make it compile
@@ -253,13 +237,11 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
         .setLastCheckpointTimestamp(0)
         .setLastCommitTimestamp(System.currentTimeMillis())
         .build();
-
-    metrics = new IcebergCommitterMetrics(registry, database, tableName);
   }
 
   @Override
   public void initializeState(FunctionInitializationContext context) throws Exception {
-    init(new DefaultRegistry());
+    init();
 
     Preconditions.checkState(manifestFilesState == null,
         "checkpointedFilesState has already been initialized.");
@@ -338,7 +320,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
   private List<FlinkManifestFile> removeCommittedManifests(List<FlinkManifestFile> flinkManifestFiles) {
     int snapshotCount = 0;
     String result = "succeeded";
-    final long start = registry.clock().monotonicTime();
+    final long start = System.currentTimeMillis();
     try {
       final Set<String> manifestHashes = flinkManifestFiles.stream()
           .map(f -> f.hash())
@@ -358,22 +340,19 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
       final List<FlinkManifestFile> uncommittedManifestFiles = flinkManifestFiles.stream()
           .filter(f -> !committedHashes.contains(f.hash()))
           .collect(Collectors.toList());
-      metrics.incrementCheckTransactionCompletedSuccess();
       return uncommittedManifestFiles;
     } catch (Throwable t) {
       result = "failed";
-      metrics.incrementCheckTransactionCompletedFailure(t);
       //LOG.error(String.format("Iceberg committer %s.%s failed to check transaction completed", database, tableName),
       //          t);
       LOG.error("Iceberg committer {}.{} failed to check transaction completed. Throwable = {}",
                 database, tableName, t);
       throw t;
     } finally {
-      final long duration = registry.clock().monotonicTime() - start;
-      metrics.recordCheckTransactionCommittedLatency(duration, TimeUnit.NANOSECONDS);
+      final long duration = System.currentTimeMillis() - start;
       LOG.info("Iceberg committer {}.{} {} to check transaction completed" +
                " after iterating {} snapshots and {} milli-seconds",
-               database, tableName, result, snapshotCount, TimeUnit.NANOSECONDS.toMillis(duration));
+               database, tableName, result, snapshotCount, duration);
     }
   }
 
@@ -409,7 +388,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
     LOG.info("Iceberg committer {}.{} checkpointing {} pending data files}",
         database, tableName, pendingDataFiles.size());
     String result = "succeeded";
-    final long start = registry.clock().monotonicTime();
+    final long start = System.currentTimeMillis();
     try {
       final String manifestFileName = Joiner.on("_")
           .join(flinkJobId, context.getCheckpointId(), context.getCheckpointTimestamp());
@@ -435,7 +414,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
         if (flinkDataFile.getHighWatermark() > highWatermark) {
           highWatermark = flinkDataFile.getHighWatermark();
         }
-        metrics.recordFileSize(dataFile.fileSizeInBytes());
+        LOG.debug("Data file with size of {} bytes added to manifest", dataFile.fileSizeInBytes());
       }
       manifestWriter.close();
       ManifestFile manifestFile = manifestWriter.toManifestFile();
@@ -466,21 +445,18 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
         LOG.info("Iceberg committer {}.{} created manifest file {} for {}/{} data files: {}",
             database, tableName, manifestFile.path(), fileList.size(), pendingDataFiles.size(), fileList);
       }
-      metrics.incrementCreateManifestFileSuccess();
       return flinkManifestFile;
     } catch (Throwable t) {
       result = "failed";
-      metrics.incrementCreateManifestFileFailure(t);
       //LOG.error(String.format("Iceberg committer %s.%s failed to create manifest file for %d pending data files",
       //          database, tableName, pendingDataFiles.size()), t);
       LOG.error("Iceberg committer {}.{} failed to create manifest file for {} pending data files. Throwable={}",
           database, tableName, pendingDataFiles.size(), t);
       throw t;
     } finally {
-      final long duration = registry.clock().monotonicTime() - start;
-      metrics.recordCreateManifestFileLatency(duration, TimeUnit.NANOSECONDS);
+      final long duration = System.currentTimeMillis() - start;
       LOG.info("Iceberg committer {}.{} {} to create manifest file with {} data files after {} milli-seconds",
-          database, tableName, result, pendingDataFiles.size(), TimeUnit.NANOSECONDS.toMillis(duration));
+          database, tableName, result, pendingDataFiles.size(), duration);
     }
   }
 
@@ -541,13 +517,12 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
 
   private void postSnapshotSuccess() {
     pendingDataFiles.clear();
-    metrics.setUncommittedManifestFiles(flinkManifestFiles.size());
-    metrics.setUncommittedFiles(flinkManifestFiles.stream().map(FlinkManifestFile::dataFileCount)
-        .collect(Collectors.summingLong(l -> l)));
-    metrics.setUncommittedRecords(flinkManifestFiles.stream().map(FlinkManifestFile::recordCount)
-        .collect(Collectors.summingLong(l -> l)));
-    metrics.setUncommittedBytes(flinkManifestFiles.stream().map(FlinkManifestFile::byteCount)
-        .collect(Collectors.summingLong(l -> l)));
+    LOG.debug("Un-committed manifest file count {}, containing data file count {}, record count {} and byte count {}",
+        flinkManifestFiles.size(),
+        FlinkManifestFileUtil.getDataFileCount(flinkManifestFiles),
+        FlinkManifestFileUtil.getRecordCount(flinkManifestFiles),
+        FlinkManifestFileUtil.getByteCount(flinkManifestFiles)
+    );
   }
 
   @Override
@@ -570,7 +545,6 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
         LOG.info("Iceberg committer {}.{} skip committing transaction: " +
                 "notify complete checkpoint id = {}, last manifest checkpoint id = {}",
             database, tableName, checkpointId, metadata.getLastCheckpointId());
-        metrics.incrementSkipCommitCheckpointIdMismatch();
       }
     }
   }
@@ -578,24 +552,22 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
   @VisibleForTesting
   void commit() {
     if (!flinkManifestFiles.isEmpty() || vttsWatermarkEnabled) {
-      final long start = registry.clock().monotonicTime();
+      final long start = System.currentTimeMillis();
       try {
         // prepare and commit transactions in two separate methods
         // so that we can measure latency separately.
         Transaction transaction = prepareTransaction(flinkManifestFiles, metadata);
         commitTransaction(transaction);
-        metrics.incrementCommitSuccess();
-        final long duration = registry.clock().monotonicTime() - start;
+        final long duration = System.currentTimeMillis() - start;
         LOG.info("Iceberg committer {}.{} succeeded to commit {} manifest files after {} milli-seconds",
             database, tableName, flinkManifestFiles.size(), TimeUnit.NANOSECONDS.toMillis(duration));
       } catch (Throwable t) {
-        metrics.incrementCommitFailure(t);
-        final long duration = registry.clock().monotonicTime() - start;
+        final long duration = System.currentTimeMillis() - start;
         //LOG.error(String.format("Iceberg committer %s.%s failed to commit %d manifest files after %d milli-seconds",
         //database, tableName, flinkManifestFiles.size(), TimeUnit.NANOSECONDS.toMillis(duration)), t);
         LOG.error("Iceberg committer {}.{} failed to commit {} manifest files after {} milli-seconds." +
                   " Throwable = ",
-                  database, tableName, flinkManifestFiles.size(), TimeUnit.NANOSECONDS.toMillis(duration), t);
+                  database, tableName, flinkManifestFiles.size(), duration, t);
         throw t;
       }
     } else {
@@ -608,7 +580,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
   private Transaction prepareTransaction(List<FlinkManifestFile> flinkManifestFiles, CommitMetadata metadata) {
     LOG.info("Iceberg committer {}.{} start to prepare transaction: {}",
         database, tableName, CommitMetadataUtil.getInstance().encodeAsJson(metadata));
-    final long start = registry.clock().monotonicTime();
+    final long start = System.currentTimeMillis();
     try {
 //      if (table == null) {
 //        LOG.error("Iceberg committer {}.{} table = null in prepareTransaction()", database, tableName);
@@ -636,56 +608,52 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
       }
       return transaction;
     } finally {
-      final long duration = registry.clock().monotonicTime() - start;
-      metrics.recordPrepareTransactionLatency(duration, TimeUnit.NANOSECONDS);
+      final long duration = System.currentTimeMillis() - start;
+      LOG.debug("Transaction prepared in {} milli-seconds", duration);
     }
   }
 
   private void commitTransaction(Transaction transaction) {
     LOG.info("Iceberg committer {}.{} start to commit transaction: {}",
         database, tableName, CommitMetadataUtil.getInstance().encodeAsJson(metadata));
-    final long start = registry.clock().monotonicTime();
+    final long start = System.currentTimeMillis();
     try {
       transaction.commitTransaction();
     } finally {
-      final long duration = registry.clock().monotonicTime() - start;
-      metrics.recordCommitLatency(duration, TimeUnit.NANOSECONDS);
+      final long duration = System.currentTimeMillis() - start;
+      LOG.debug("Transaction committed in {} milli-seconds", duration);
     }
   }
 
   private void postCommitSuccess() {
     LOG.info("Iceberg committer {}.{} update metrics and metadata post commit success", database, tableName);
-    metrics.incrementCommittedManifestFiles(flinkManifestFiles.size());
-    metrics.incrementCommittedFiles(FlinkManifestFileUtil.getDataFileCount(flinkManifestFiles));
-    metrics.incrementCommittedRecords(FlinkManifestFileUtil.getRecordCount(flinkManifestFiles));
-    metrics.incrementCommittededBytes(FlinkManifestFileUtil.getByteCount(flinkManifestFiles));
+    LOG.debug("Committed manifest file count {}, containing data file count {}, record count {} and byte count {}",
+        flinkManifestFiles.size(),
+        FlinkManifestFileUtil.getDataFileCount(flinkManifestFiles),
+        FlinkManifestFileUtil.getRecordCount(flinkManifestFiles),
+        FlinkManifestFileUtil.getByteCount(flinkManifestFiles));
     final Long lowWatermark = FlinkManifestFileUtil.getLowWatermark(flinkManifestFiles);
     if (null != lowWatermark) {
-      metrics.setLowWatermark(lowWatermark);
+      LOG.debug("Low watermark as {}", lowWatermark);
     }
     final Long highWatermark = FlinkManifestFileUtil.getHighWatermark(flinkManifestFiles);
     if (null != highWatermark) {
-      metrics.setHighWatermark(highWatermark);
+      LOG.debug("High watermark as {}", highWatermark);
     }
     if (null != metadata.getVttsWatermark()) {
-      metrics.setVttsWatermark(metadata.getVttsWatermark());
+      LOG.debug("VTTS watermark as {}", metadata.getVttsWatermark());
     }
     final long lastCommitTimestamp = System.currentTimeMillis();
     metadata.setLastCommitTimestamp(lastCommitTimestamp);
-    metrics.setLastCommitTimestamp(lastCommitTimestamp);
-    metrics.setUncommittedManifestFiles(0L);
-    metrics.setUncommittedFiles(0L);
-    metrics.setUncommittedRecords(0L);
-    metrics.setUncommittedBytes(0L);
     flinkManifestFiles.clear();
   }
 
   @Override
   public void invoke(FlinkDataFile value, Context context) throws Exception {
     pendingDataFiles.add(value);
-    metrics.incrementReceivedFiles();
-    metrics.incrementReceivedRecords(value.getIcebergDataFile().recordCount());
-    metrics.incrementReceivedBytes(value.getIcebergDataFile().fileSizeInBytes());
+    LOG.debug("Receive file count {}, containing record count {} and file size in byte {}",
+        value.getIcebergDataFile().recordCount(),
+        value.getIcebergDataFile().fileSizeInBytes());
     LOG.debug("Iceberg committer {}.{} has total pending files {} after receiving new data file: {}",
         database, tableName, pendingDataFiles.size(), value.toCompactDump());
   }

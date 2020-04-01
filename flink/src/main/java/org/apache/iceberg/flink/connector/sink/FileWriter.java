@@ -36,8 +36,12 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class FileWriter implements Serializable {
+  private static final Logger LOG = LoggerFactory.getLogger(FileWriter.class);
+
   private static final long serialVersionUID = 1L;
 
   private final FileFormat format;
@@ -48,8 +52,6 @@ public final class FileWriter implements Serializable {
   private final FileAppender<IndexedRecord> appender;
   private final org.apache.hadoop.conf.Configuration hadoopConfig;
   private final PartitionSpec spec;
-  private final IcebergWriterTaskMetrics icebergWriterTaskMetrics;
-  private final IcebergWriterSubtaskMetrics icebergWriterSubtaskMetrics;
   private final WatermarkTimeExtractor watermarkTimeExtractor;
 
   private long lastWrittenToTime;
@@ -65,8 +67,6 @@ public final class FileWriter implements Serializable {
     private FileAppender<T> appender;
     private org.apache.hadoop.conf.Configuration hadoopConfig;
     private PartitionSpec spec;
-    private IcebergWriterTaskMetrics icebergWriterTaskMetrics;
-    private IcebergWriterSubtaskMetrics icebergWriterSubtaskMetrics;
     private Schema avroSchema;
     private String vttsTimestampField;
     private TimeUnit vttsTimestampUnit;
@@ -109,16 +109,6 @@ public final class FileWriter implements Serializable {
       return this;
     }
 
-    public Builder withMetrics(final IcebergWriterTaskMetrics icebergWriterTaskMetrics) {
-      this.icebergWriterTaskMetrics = icebergWriterTaskMetrics;
-      return this;
-    }
-
-    public Builder withSubtaskMetrics(final IcebergWriterSubtaskMetrics icebergWriterSubtaskMetrics) {
-      this.icebergWriterSubtaskMetrics = icebergWriterSubtaskMetrics;
-      return this;
-    }
-
     public Builder withSchema(final Schema avroSchema) {
       this.avroSchema = avroSchema;
       return this;
@@ -142,7 +132,6 @@ public final class FileWriter implements Serializable {
       Preconditions.checkArgument(this.appender != null, "File appender is required");
       Preconditions.checkArgument(this.hadoopConfig != null, "Hadoop config is required");
       Preconditions.checkArgument(this.spec != null, "Partition spec is required");
-      Preconditions.checkArgument(this.icebergWriterTaskMetrics != null, "icebergWriterTaskMetrics is required");
       Preconditions.checkArgument(this.avroSchema != null, "avroSchema is required");
       Preconditions.checkArgument(this.vttsTimestampField != null, "vttsTimestampField is required");
       Preconditions.checkArgument(this.vttsTimestampUnit != null, "vttsTimestampUnit is required");
@@ -159,8 +148,6 @@ public final class FileWriter implements Serializable {
     appender = builder.appender;
     hadoopConfig = builder.hadoopConfig;
     spec = builder.spec;
-    icebergWriterTaskMetrics = builder.icebergWriterTaskMetrics;
-    icebergWriterSubtaskMetrics = builder.icebergWriterSubtaskMetrics;
     watermarkTimeExtractor = new WatermarkTimeExtractor(
         builder.avroSchema, builder.vttsTimestampField, builder.vttsTimestampUnit);
   }
@@ -176,7 +163,6 @@ public final class FileWriter implements Serializable {
       appender.add(record);
     } catch (RuntimeIOException e) {
       // 1. IOException (file or S3 write failure)
-      icebergWriterSubtaskMetrics.incrementIcebergAppendRecordIOFailures();
       throw e;
     } catch (Exception e) {
       // 2. schema/type mismatch
@@ -185,7 +171,6 @@ public final class FileWriter implements Serializable {
       // Unfortunately, that is not the case and not an simple change.
       // For now, we just assume all non-schema errors are
       // RuntimeIOException based on discussion with Ryan.
-      icebergWriterSubtaskMetrics.incrementIcebergAppendRecordTypeFailures();
       throw e;
     }
     lastWrittenToTime = timeService.getCurrentProcessingTime();
@@ -202,12 +187,12 @@ public final class FileWriter implements Serializable {
   }
 
   public FlinkDataFile close() throws IOException {
-    final long start = icebergWriterTaskMetrics.getRegistry().clock().monotonicTime();
+    final long start = System.currentTimeMillis();
     try {
       appender.close();
     } finally {
-      final long end = icebergWriterTaskMetrics.getRegistry().clock().monotonicTime();
-      icebergWriterTaskMetrics.recordS3UploadLatency(end - start, TimeUnit.NANOSECONDS);
+      final long duration = System.currentTimeMillis() - start;
+      LOG.debug("File appender closed in {} milli-seconds", duration);
     }
 
     // metrics are only valid after the appender is closed
