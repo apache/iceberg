@@ -19,13 +19,11 @@
 
 package org.apache.iceberg.spark.source;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
@@ -50,7 +48,6 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 @RunWith(Parameterized.class)
@@ -58,12 +55,9 @@ public class TestSparkDataWrite {
   private static final Configuration CONF = new Configuration();
   private final FileFormat format;
   private static SparkSession spark = null;
-  private static final Map<String, String> info = ImmutableMap.of("a", "A", "b", "B");
   private static final Schema SCHEMA = new Schema(
       optional(1, "id", Types.IntegerType.get()),
-      optional(2, "data", Types.StringType.get()),
-      optional(3, "info", Types.MapType.ofOptional(
-          4, 5, Types.StringType.get(), Types.StringType.get()))
+      optional(2, "data", Types.StringType.get())
   );
 
   @Rule
@@ -103,15 +97,15 @@ public class TestSparkDataWrite {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
     Table table = tables.create(SCHEMA, spec, location.toString());
 
-    List<NestedRecord> expected = Lists.newArrayList(
-        new NestedRecord(1, "a", info),
-        new NestedRecord(2, "b", info),
-        new NestedRecord(3, "c", info)
+    List<SimpleRecord> expected = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b"),
+        new SimpleRecord(3, "c")
     );
 
-    Dataset<Row> df = spark.createDataFrame(expected, NestedRecord.class);
+    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
     // TODO: incoming columns must be ordered according to the table's schema
-    df.select("id", "data", "info").write()
+    df.select("id", "data").write()
         .format("iceberg")
         .option("write-format", format.toString())
         .mode("append")
@@ -123,7 +117,7 @@ public class TestSparkDataWrite {
         .format("iceberg")
         .load(location.toString());
 
-    List<NestedRecord> actual = result.orderBy("id").as(Encoders.bean(NestedRecord.class)).collectAsList();
+    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
     for (ManifestFile manifest : table.currentSnapshot().manifests()) {
@@ -154,30 +148,30 @@ public class TestSparkDataWrite {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
     Table table = tables.create(SCHEMA, spec, location.toString());
 
-    List<NestedRecord> records = Lists.newArrayList(
-        new NestedRecord(1, "a", info),
-        new NestedRecord(2, "b", info),
-        new NestedRecord(3, "c", info)
+    List<SimpleRecord> records = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b"),
+        new SimpleRecord(3, "c")
     );
 
-    List<NestedRecord> expected = Lists.newArrayList(
-        new NestedRecord(1, "a", info),
-        new NestedRecord(2, "b", info),
-        new NestedRecord(3, "c", info),
-        new NestedRecord(4, "a", info),
-        new NestedRecord(5, "b", info),
-        new NestedRecord(6, "c", info)
+    List<SimpleRecord> expected = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b"),
+        new SimpleRecord(3, "c"),
+        new SimpleRecord(4, "a"),
+        new SimpleRecord(5, "b"),
+        new SimpleRecord(6, "c")
     );
 
-    Dataset<Row> df = spark.createDataFrame(records, NestedRecord.class);
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
 
-    df.select("id", "data", "info").write()
+    df.select("id", "data").write()
         .format("iceberg")
         .option("write-format", format.toString())
         .mode("append")
         .save(location.toString());
 
-    df.withColumn("id", df.col("id").plus(3)).select("id", "data", "info").write()
+    df.withColumn("id", df.col("id").plus(3)).select("id", "data").write()
         .format("iceberg")
         .option("write-format", format.toString())
         .mode("append")
@@ -189,7 +183,7 @@ public class TestSparkDataWrite {
         .format("iceberg")
         .load(location.toString());
 
-    List<NestedRecord> actual = result.orderBy("id").as(Encoders.bean(NestedRecord.class)).collectAsList();
+    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
   }
@@ -203,30 +197,30 @@ public class TestSparkDataWrite {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
     Table table = tables.create(SCHEMA, spec, location.toString());
 
-    List<NestedRecord> records = Lists.newArrayList(
-        new NestedRecord(1, "a", info),
-        new NestedRecord(2, "b", info),
-        new NestedRecord(3, "c", info)
+    List<SimpleRecord> records = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b"),
+        new SimpleRecord(3, "c")
     );
 
-    List<NestedRecord> expected = Lists.newArrayList(
-        new NestedRecord(1, "a", info),
-        new NestedRecord(2, "a", info),
-        new NestedRecord(3, "c", info),
-        new NestedRecord(4, "b", info),
-        new NestedRecord(6, "c", info)
+    List<SimpleRecord> expected = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "a"),
+        new SimpleRecord(3, "c"),
+        new SimpleRecord(4, "b"),
+        new SimpleRecord(6, "c")
     );
 
-    Dataset<Row> df = spark.createDataFrame(records, NestedRecord.class);
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
 
-    df.select("id", "data", "info").write()
+    df.select("id", "data").write()
         .format("iceberg")
         .option("write-format", format.toString())
         .mode("append")
         .save(location.toString());
 
     // overwrite with 2*id to replace record 2, append 4 and 6
-    df.withColumn("id", df.col("id").multiply(2)).select("id", "data", "info").write()
+    df.withColumn("id", df.col("id").multiply(2)).select("id", "data").write()
         .format("iceberg")
         .option("write-format", format.toString())
         .mode("overwrite")
@@ -238,7 +232,7 @@ public class TestSparkDataWrite {
         .format("iceberg")
         .load(location.toString());
 
-    List<NestedRecord> actual = result.orderBy("id").as(Encoders.bean(NestedRecord.class)).collectAsList();
+    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
   }
@@ -252,13 +246,13 @@ public class TestSparkDataWrite {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Table table = tables.create(SCHEMA, spec, location.toString());
 
-    List<NestedRecord> expected = Lists.newArrayList(
-        new NestedRecord(1, "a", info),
-        new NestedRecord(2, "b", info),
-        new NestedRecord(3, "c", info)
+    List<SimpleRecord> expected = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b"),
+        new SimpleRecord(3, "c")
     );
 
-    Dataset<Row> df = spark.createDataFrame(expected, NestedRecord.class);
+    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
     df.select("id", "data").write()
         .format("iceberg")
@@ -267,7 +261,7 @@ public class TestSparkDataWrite {
         .save(location.toString());
 
     // overwrite with the same data; should not produce two copies
-    df.select("id", "data", "info").write()
+    df.select("id", "data").write()
         .format("iceberg")
         .option("write-format", format.toString())
         .mode("overwrite")
@@ -279,7 +273,7 @@ public class TestSparkDataWrite {
         .format("iceberg")
         .load(location.toString());
 
-    List<NestedRecord> actual = result.orderBy("id").as(Encoders.bean(NestedRecord.class)).collectAsList();
+    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
   }
@@ -297,14 +291,14 @@ public class TestSparkDataWrite {
         .set(TableProperties.WRITE_TARGET_FILE_SIZE_BYTES, "4") // ~4 bytes; low enough to trigger
         .commit();
 
-    List<NestedRecord> expected = Lists.newArrayListWithCapacity(4000);
+    List<SimpleRecord> expected = Lists.newArrayListWithCapacity(4000);
     for (int i = 0; i < 4000; i++) {
-      expected.add(new NestedRecord(i, "a", info));
+      expected.add(new SimpleRecord(i, "a"));
     }
 
-    Dataset<Row> df = spark.createDataFrame(expected, NestedRecord.class);
+    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
-    df.select("id", "data", "info").write()
+    df.select("id", "data").write()
         .format("iceberg")
         .option("write-format", format.toString())
         .mode("append")
@@ -316,7 +310,7 @@ public class TestSparkDataWrite {
         .format("iceberg")
         .load(location.toString());
 
-    List<NestedRecord> actual = result.orderBy("id").as(Encoders.bean(NestedRecord.class)).collectAsList();
+    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
 
@@ -342,17 +336,17 @@ public class TestSparkDataWrite {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
     Table table = tables.create(SCHEMA, spec, location.toString());
 
-    List<NestedRecord> expected = Lists.newArrayListWithCapacity(8000);
+    List<SimpleRecord> expected = Lists.newArrayListWithCapacity(8000);
     for (int i = 0; i < 2000; i++) {
-      expected.add(new NestedRecord(i, "a", info));
-      expected.add(new NestedRecord(i, "b", info));
-      expected.add(new NestedRecord(i, "c", info));
-      expected.add(new NestedRecord(i, "d", info));
+      expected.add(new SimpleRecord(i, "a"));
+      expected.add(new SimpleRecord(i, "b"));
+      expected.add(new SimpleRecord(i, "c"));
+      expected.add(new SimpleRecord(i, "d"));
     }
 
-    Dataset<Row> df = spark.createDataFrame(expected, NestedRecord.class);
+    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
-    df.select("id", "data", "info").sort("data").write()
+    df.select("id", "data").sort("data").write()
         .format("iceberg")
         .option("write-format", format.toString())
         .mode("append")
@@ -365,7 +359,7 @@ public class TestSparkDataWrite {
         .format("iceberg")
         .load(location.toString());
 
-    List<NestedRecord> actual = result.orderBy("id").as(Encoders.bean(NestedRecord.class)).collectAsList();
+    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
 
@@ -391,13 +385,13 @@ public class TestSparkDataWrite {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Table table = tables.create(SCHEMA, spec, location.toString());
 
-    List<NestedRecord> expected = Lists.newArrayList(
-        new NestedRecord(1, null, null),
-        new NestedRecord(2, null, null),
-        new NestedRecord(3, null, null)
+    List<SimpleRecord> expected = Lists.newArrayList(
+        new SimpleRecord(1, null),
+        new SimpleRecord(2, null),
+        new SimpleRecord(3, null)
     );
 
-    Dataset<Row> df = spark.createDataFrame(expected, NestedRecord.class);
+    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
     df.select("id").write() // select only id column
         .format("iceberg")
@@ -411,7 +405,7 @@ public class TestSparkDataWrite {
         .format("iceberg")
         .load(location.toString());
 
-    List<NestedRecord> actual = result.orderBy("id").as(Encoders.bean(NestedRecord.class)).collectAsList();
+    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
   }

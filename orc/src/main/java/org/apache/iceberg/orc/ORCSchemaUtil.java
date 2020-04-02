@@ -269,7 +269,7 @@ public final class ORCSchemaUtil {
         break;
       case MAP:
         Types.MapType map = (Types.MapType) type;
-        TypeDescription keyType = buildOrcProjection(map.keyId(), map.keyType(), isRequired, mapping);
+        TypeDescription keyType = buildOrcProjection(map.keyId(), map.keyType(), true, mapping);
         TypeDescription valueType = buildOrcProjection(map.valueId(), map.valueType(), map.isValueRequired(),
             mapping);
         orcType = TypeDescription.createMap(keyType, valueType);
