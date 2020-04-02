@@ -184,25 +184,25 @@ public class TestPartitionSpecValidation {
   @Test
   public void testMissingSourceColumn() {
     AssertHelpers.assertThrows("Should detect missing source column",
-        IllegalArgumentException.class, "Cannot find source column",
+        NullPointerException.class, "Cannot find source column",
         () -> PartitionSpec.builderFor(SCHEMA).year("missing").build());
     AssertHelpers.assertThrows("Should detect missing source column",
-        IllegalArgumentException.class, "Cannot find source column",
+        NullPointerException.class, "Cannot find source column",
         () -> PartitionSpec.builderFor(SCHEMA).month("missing").build());
     AssertHelpers.assertThrows("Should detect missing source column",
-        IllegalArgumentException.class, "Cannot find source column",
+        NullPointerException.class, "Cannot find source column",
         () -> PartitionSpec.builderFor(SCHEMA).day("missing").build());
     AssertHelpers.assertThrows("Should detect missing source column",
-        IllegalArgumentException.class, "Cannot find source column",
+        NullPointerException.class, "Cannot find source column",
         () -> PartitionSpec.builderFor(SCHEMA).hour("missing").build());
     AssertHelpers.assertThrows("Should detect missing source column",
-        IllegalArgumentException.class, "Cannot find source column",
+        NullPointerException.class, "Cannot find source column",
         () -> PartitionSpec.builderFor(SCHEMA).bucket("missing", 4).build());
     AssertHelpers.assertThrows("Should detect missing source column",
-        IllegalArgumentException.class, "Cannot find source column",
+        NullPointerException.class, "Cannot find source column",
         () -> PartitionSpec.builderFor(SCHEMA).truncate("missing", 5).build());
     AssertHelpers.assertThrows("Should detect missing source column",
-        IllegalArgumentException.class, "Cannot find source column",
+        NullPointerException.class, "Cannot find source column",
         () -> PartitionSpec.builderFor(SCHEMA).identity("missing").build());
   }
 }

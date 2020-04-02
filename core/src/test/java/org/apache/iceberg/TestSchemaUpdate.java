@@ -504,7 +504,7 @@ public class TestSchemaUpdate {
   @Test
   public void testDeleteMissingColumn() {
     AssertHelpers.assertThrows("Should reject delete missing column",
-        IllegalArgumentException.class, "missing column: col", () -> {
+        NullPointerException.class, "missing column: col", () -> {
           UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
           update.deleteColumn("col");
         }
@@ -514,7 +514,7 @@ public class TestSchemaUpdate {
   @Test
   public void testAddDeleteConflict() {
     AssertHelpers.assertThrows("Should reject add then delete",
-        IllegalArgumentException.class, "missing column: col", () -> {
+        NullPointerException.class, "missing column: col", () -> {
           UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
           update.addColumn("col", Types.IntegerType.get()).deleteColumn("col");
         }
@@ -531,7 +531,7 @@ public class TestSchemaUpdate {
   @Test
   public void testRenameMissingColumn() {
     AssertHelpers.assertThrows("Should reject rename missing column",
-        IllegalArgumentException.class, "missing column: col", () -> {
+        NullPointerException.class, "missing column: col", () -> {
           UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
           update.renameColumn("col", "fail");
         }
@@ -547,7 +547,7 @@ public class TestSchemaUpdate {
         }
     );
     AssertHelpers.assertThrows("Should reject rename then delete",
-        IllegalArgumentException.class, "missing column: col", () -> {
+        NullPointerException.class, "missing column: col", () -> {
           UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
           update.renameColumn("id", "col").deleteColumn("col");
         }
@@ -567,7 +567,7 @@ public class TestSchemaUpdate {
   @Test
   public void testUpdateMissingColumn() {
     AssertHelpers.assertThrows("Should reject rename missing column",
-        IllegalArgumentException.class, "missing column: col", () -> {
+        NullPointerException.class, "missing column: col", () -> {
           UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
           update.updateColumn("col", Types.DateType.get());
         }
@@ -638,7 +638,7 @@ public class TestSchemaUpdate {
   public void testUpdateAddedColumnDoc() {
     Schema schema = new Schema(required(1, "i", Types.IntegerType.get()));
     AssertHelpers.assertThrows("Should reject add and update doc",
-        IllegalArgumentException.class, "Cannot update missing column", () -> {
+        NullPointerException.class, "Cannot update missing column", () -> {
           new SchemaUpdate(schema, 3)
               .addColumn("value", Types.LongType.get())
               .updateColumnDoc("value", "a value")
