@@ -41,6 +41,8 @@ import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static java.util.Objects.requireNonNull;
+
 public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(HiveCatalog.class);
 
@@ -178,7 +180,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
   @Override
   protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
     String warehouseLocation = conf.get("hive.metastore.warehouse.dir");
-    Preconditions.checkNotNull(
+    requireNonNull(
         warehouseLocation,
         "Warehouse location is not set: hive.metastore.warehouse.dir=null");
     return String.format(

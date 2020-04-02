@@ -34,6 +34,8 @@ import java.util.regex.Pattern;
 import org.apache.iceberg.types.Type.NestedType;
 import org.apache.iceberg.types.Type.PrimitiveType;
 
+import static java.util.Objects.requireNonNull;
+
 public class Types {
 
   private Types() {}
@@ -444,8 +446,8 @@ public class Types {
     private final String doc;
 
     private NestedField(boolean isOptional, int id, String name, Type type, String doc) {
-      Preconditions.checkNotNull(name, "Name cannot be null");
-      Preconditions.checkNotNull(type, "Type cannot be null");
+      requireNonNull(name, "Name cannot be null");
+      requireNonNull(type, "Type cannot be null");
       this.isOptional = isOptional;
       this.id = id;
       this.name = name;
@@ -531,7 +533,7 @@ public class Types {
     private transient Map<Integer, NestedField> fieldsById = null;
 
     private StructType(List<NestedField> fields) {
-      Preconditions.checkNotNull(fields, "Field list cannot be null");
+      requireNonNull(fields, "Field list cannot be null");
       this.fields = new NestedField[fields.size()];
       for (int i = 0; i < this.fields.length; i += 1) {
         this.fields[i] = fields.get(i);
@@ -645,12 +647,12 @@ public class Types {
 
   public static class ListType extends NestedType {
     public static ListType ofOptional(int elementId, Type elementType) {
-      Preconditions.checkNotNull(elementType, "Element type cannot be null");
+      requireNonNull(elementType, "Element type cannot be null");
       return new ListType(NestedField.optional(elementId, "element", elementType));
     }
 
     public static ListType ofRequired(int elementId, Type elementType) {
-      Preconditions.checkNotNull(elementType, "Element type cannot be null");
+      requireNonNull(elementType, "Element type cannot be null");
       return new ListType(NestedField.required(elementId, "element", elementType));
     }
 
@@ -745,14 +747,14 @@ public class Types {
 
   public static class MapType extends NestedType {
     public static MapType ofOptional(int keyId, int valueId, Type keyType, Type valueType) {
-      Preconditions.checkNotNull(valueType, "Value type cannot be null");
+      requireNonNull(valueType, "Value type cannot be null");
       return new MapType(
           NestedField.required(keyId, "key", keyType),
           NestedField.optional(valueId, "value", valueType));
     }
 
     public static MapType ofRequired(int keyId, int valueId, Type keyType, Type valueType) {
-      Preconditions.checkNotNull(valueType, "Value type cannot be null");
+      requireNonNull(valueType, "Value type cannot be null");
       return new MapType(
           NestedField.required(keyId, "key", keyType),
           NestedField.required(valueId, "value", valueType));

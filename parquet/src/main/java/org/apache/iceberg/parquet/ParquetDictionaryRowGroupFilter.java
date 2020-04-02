@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.parquet;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import java.io.IOException;
@@ -45,6 +44,8 @@ import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
+
+import static java.util.Objects.requireNonNull;
 
 public class ParquetDictionaryRowGroupFilter {
   private final Expression expr;
@@ -329,7 +330,7 @@ public class ParquetDictionaryRowGroupFilter {
 
     @SuppressWarnings("unchecked")
     private <T> Set<T> dict(int id, Comparator<T> comparator) {
-      Preconditions.checkNotNull(dictionaries, "Dictionary is required");
+      requireNonNull(dictionaries, "Dictionary is required");
 
       Set<?> cached = dictCache.get(id);
       if (cached != null) {

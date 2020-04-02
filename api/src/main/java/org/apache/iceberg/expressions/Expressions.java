@@ -27,6 +27,8 @@ import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 
+import static java.util.Objects.requireNonNull;
+
 /**
  * Factory methods for creating {@link Expression expressions}.
  */
@@ -35,8 +37,8 @@ public class Expressions {
   }
 
   public static Expression and(Expression left, Expression right) {
-    Preconditions.checkNotNull(left, "Left expression cannot be null.");
-    Preconditions.checkNotNull(right, "Right expression cannot be null.");
+    requireNonNull(left, "Left expression cannot be null.");
+    requireNonNull(right, "Right expression cannot be null.");
     if (left == alwaysFalse() || right == alwaysFalse()) {
       return alwaysFalse();
     } else if (left == alwaysTrue()) {
@@ -53,8 +55,8 @@ public class Expressions {
   }
 
   public static Expression or(Expression left, Expression right) {
-    Preconditions.checkNotNull(left, "Left expression cannot be null.");
-    Preconditions.checkNotNull(right, "Right expression cannot be null.");
+    requireNonNull(left, "Left expression cannot be null.");
+    requireNonNull(right, "Right expression cannot be null.");
     if (left == alwaysTrue() || right == alwaysTrue()) {
       return alwaysTrue();
     } else if (left == alwaysFalse()) {
@@ -66,7 +68,7 @@ public class Expressions {
   }
 
   public static Expression not(Expression child) {
-    Preconditions.checkNotNull(child, "Child expression cannot be null.");
+    requireNonNull(child, "Child expression cannot be null.");
     if (child == alwaysTrue()) {
       return alwaysFalse();
     } else if (child == alwaysFalse()) {
@@ -188,12 +190,12 @@ public class Expressions {
   }
 
   public static <T> UnboundPredicate<T> in(String name, Iterable<T> values) {
-    Preconditions.checkNotNull(values, "Values cannot be null for IN predicate.");
+    requireNonNull(values, "Values cannot be null for IN predicate.");
     return predicate(Operation.IN, ref(name), values);
   }
 
   public static <T> UnboundPredicate<T> in(UnboundTerm<T> expr, Iterable<T> values) {
-    Preconditions.checkNotNull(values, "Values cannot be null for IN predicate.");
+    requireNonNull(values, "Values cannot be null for IN predicate.");
     return predicate(Operation.IN, expr, values);
   }
 
@@ -206,12 +208,12 @@ public class Expressions {
   }
 
   public static <T> UnboundPredicate<T> notIn(String name, Iterable<T> values) {
-    Preconditions.checkNotNull(values, "Values cannot be null for NOT_IN predicate.");
+    requireNonNull(values, "Values cannot be null for NOT_IN predicate.");
     return predicate(Operation.NOT_IN, name, values);
   }
 
   public static <T> UnboundPredicate<T> notIn(UnboundTerm<T> expr, Iterable<T> values) {
-    Preconditions.checkNotNull(values, "Values cannot be null for NOT_IN predicate.");
+    requireNonNull(values, "Values cannot be null for NOT_IN predicate.");
     return predicate(Operation.NOT_IN, expr, values);
   }
 

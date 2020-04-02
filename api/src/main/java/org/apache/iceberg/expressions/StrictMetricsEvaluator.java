@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.expressions;
 
-import com.google.common.base.Preconditions;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Map;
@@ -32,6 +31,7 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 
+import static java.util.Objects.requireNonNull;
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
 /**
@@ -126,8 +126,7 @@ public class StrictMetricsEvaluator {
       // no need to check whether the field is required because binding evaluates that case
       // if the column has any non-null values, the expression does not match
       Integer id = ref.fieldId();
-      Preconditions.checkNotNull(struct.field(id),
-          "Cannot filter by nested column: %s", schema.findField(id));
+      requireNonNull(struct.field(id), "Cannot filter by nested column: " + schema.findField(id));
 
       if (containsNullsOnly(id)) {
         return ROWS_MUST_MATCH;
@@ -141,8 +140,7 @@ public class StrictMetricsEvaluator {
       // no need to check whether the field is required because binding evaluates that case
       // if the column has any null values, the expression does not match
       Integer id = ref.fieldId();
-      Preconditions.checkNotNull(struct.field(id),
-          "Cannot filter by nested column: %s", schema.findField(id));
+      requireNonNull(struct.field(id), "Cannot filter by nested column: " + schema.findField(id));
 
       if (nullCounts != null && nullCounts.containsKey(id) && nullCounts.get(id) == 0) {
         return ROWS_MUST_MATCH;
@@ -156,7 +154,7 @@ public class StrictMetricsEvaluator {
       // Rows must match when: <----------Min----Max---X------->
       Integer id = ref.fieldId();
       Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
+      requireNonNull(field, "Cannot filter by nested column: " + schema.findField(id));
 
       if (canContainNulls(id)) {
         return ROWS_MIGHT_NOT_MATCH;
@@ -179,7 +177,7 @@ public class StrictMetricsEvaluator {
       // Rows must match when: <----------Min----Max---X------->
       Integer id = ref.fieldId();
       Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
+      requireNonNull(field, "Cannot filter by nested column: " + schema.findField(id));
 
       if (canContainNulls(id)) {
         return ROWS_MIGHT_NOT_MATCH;
@@ -202,7 +200,7 @@ public class StrictMetricsEvaluator {
       // Rows must match when: <-------X---Min----Max---------->
       Integer id = ref.fieldId();
       Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
+      requireNonNull(field, "Cannot filter by nested column: " + schema.findField(id));
 
       if (canContainNulls(id)) {
         return ROWS_MIGHT_NOT_MATCH;
@@ -225,7 +223,7 @@ public class StrictMetricsEvaluator {
       // Rows must match when: <-------X---Min----Max---------->
       Integer id = ref.fieldId();
       Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
+      requireNonNull(field, "Cannot filter by nested column: " + schema.findField(id));
 
       if (canContainNulls(id)) {
         return ROWS_MIGHT_NOT_MATCH;
@@ -248,7 +246,7 @@ public class StrictMetricsEvaluator {
       // Rows must match when Min == X == Max
       Integer id = ref.fieldId();
       Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
+      requireNonNull(field, "Cannot filter by nested column: " + schema.findField(id));
 
       if (canContainNulls(id)) {
         return ROWS_MIGHT_NOT_MATCH;
@@ -281,7 +279,7 @@ public class StrictMetricsEvaluator {
       // Rows must match when X < Min or Max < X because it is not in the range
       Integer id = ref.fieldId();
       Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
+      requireNonNull(field, "Cannot filter by nested column: " + schema.findField(id));
 
       if (containsNullsOnly(id)) {
         return ROWS_MUST_MATCH;
@@ -312,7 +310,7 @@ public class StrictMetricsEvaluator {
     public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
       Integer id = ref.fieldId();
       Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
+      requireNonNull(field, "Cannot filter by nested column: " + schema.findField(id));
 
       if (canContainNulls(id)) {
         return ROWS_MIGHT_NOT_MATCH;
@@ -348,7 +346,7 @@ public class StrictMetricsEvaluator {
     public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
       Integer id = ref.fieldId();
       Types.NestedField field = struct.field(id);
-      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
+      requireNonNull(field, "Cannot filter by nested column: " + schema.findField(id));
 
       if (containsNullsOnly(id)) {
         return ROWS_MUST_MATCH;

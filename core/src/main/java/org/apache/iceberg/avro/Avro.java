@@ -154,8 +154,8 @@ public class Avro {
     }
 
     public <D> FileAppender<D> build() throws IOException {
-      Preconditions.checkNotNull(schema, "Schema is required");
-      Preconditions.checkNotNull(name, "Table name is required and cannot be null");
+      requireNonNull(schema, "Schema is required");
+      requireNonNull(name, "Table name is required and cannot be null");
 
       // add the Iceberg schema to keyValueMetadata
       meta("iceberg.schema", SchemaParser.toJson(schema));
@@ -187,7 +187,7 @@ public class Avro {
     private Long length = null;
 
     private ReadBuilder(InputFile file) {
-      Preconditions.checkNotNull(file, "Input file cannot be null");
+      requireNonNull(file, "Input file cannot be null");
       this.file = file;
     }
 
@@ -242,7 +242,7 @@ public class Avro {
     }
 
     public <D> AvroIterable<D> build() {
-      Preconditions.checkNotNull(schema, "Schema is required");
+      requireNonNull(schema, "Schema is required");
       Function<Schema, DatumReader<?>> readerFunc;
       if (createReaderBiFunc != null) {
         readerFunc = avroSchema -> createReaderBiFunc.apply(schema, avroSchema);

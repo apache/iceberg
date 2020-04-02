@@ -19,14 +19,14 @@
 
 package org.apache.iceberg.expressions;
 
-import com.google.common.base.Preconditions;
+import static java.util.Objects.requireNonNull;
 
 public abstract class Predicate<T, C extends Term> implements Expression {
   private final Operation op;
   private final C term;
 
   Predicate(Operation op, C term) {
-    Preconditions.checkNotNull(term, "Term cannot be null");
+    requireNonNull(term, "Term cannot be null");
     this.op = op;
     this.term = term;
   }

@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.expressions;
 
-import com.google.common.base.Preconditions;
 import java.io.ObjectStreamException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -40,6 +39,8 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
+import static java.util.Objects.requireNonNull;
+
 class Literals {
   private Literals() {
   }
@@ -56,7 +57,7 @@ class Literals {
    */
   @SuppressWarnings("unchecked")
   static <T> Literal<T> from(T value) {
-    Preconditions.checkNotNull(value, "Cannot create expression literal from null");
+    requireNonNull(value, "Cannot create expression literal from null");
 
     if (value instanceof Boolean) {
       return (Literal<T>) new Literals.BooleanLiteral((Boolean) value);
@@ -99,7 +100,7 @@ class Literals {
     private transient volatile ByteBuffer byteBuffer = null;
 
     BaseLiteral(T value) {
-      Preconditions.checkNotNull(value, "Literal values cannot be null");
+      requireNonNull(value, "Literal values cannot be null");
       this.value = value;
     }
 

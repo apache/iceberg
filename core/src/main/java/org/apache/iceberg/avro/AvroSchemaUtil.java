@@ -36,6 +36,8 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
+import static java.util.Objects.requireNonNull;
+
 public class AvroSchemaUtil {
 
   private AvroSchemaUtil() {}
@@ -210,7 +212,7 @@ public class AvroSchemaUtil {
 
   private static Integer getId(Schema schema, String propertyName) {
     Integer id = getId(schema, propertyName, null, null);
-    Preconditions.checkNotNull(id, "Missing expected '%s' property", propertyName);
+    requireNonNull(id, "Missing expected '" + propertyName + "' property");
     return id;
   }
 
@@ -283,7 +285,7 @@ public class AvroSchemaUtil {
 
   public static int getFieldId(Schema.Field field) {
     Integer id = getFieldId(field, null, null);
-    Preconditions.checkNotNull(id, "Missing expected '%s' property", FIELD_ID_PROP);
+    requireNonNull(id, "Missing expected '" + FIELD_ID_PROP + "' property");
     return id;
   }
 

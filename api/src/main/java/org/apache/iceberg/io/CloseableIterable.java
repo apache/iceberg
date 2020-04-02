@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.io;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import java.io.Closeable;
@@ -30,6 +29,8 @@ import java.util.NoSuchElementException;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+
+import static java.util.Objects.requireNonNull;
 
 public interface CloseableIterable<T> extends Iterable<T>, Closeable {
   static <E> CloseableIterable<E> withNoopClose(E entry) {
@@ -72,7 +73,7 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
   }
 
   static <I, O> CloseableIterable<O> transform(CloseableIterable<I> iterable, Function<I, O> transform) {
-    Preconditions.checkNotNull(transform, "Cannot apply a null transform");
+    requireNonNull(transform, "Cannot apply a null transform");
 
     return new CloseableIterable<O>() {
       @Override

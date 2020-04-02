@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.data;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -66,6 +65,7 @@ import org.junit.runners.Parameterized;
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.filter;
 import static com.google.common.collect.Iterables.transform;
+import static java.util.Objects.requireNonNull;
 import static org.apache.iceberg.DataFiles.fromInputFile;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
@@ -393,7 +393,7 @@ public class TestLocalScan {
   private DataFile writeFile(String location, String filename, List<Record> records) throws IOException {
     Path path = new Path(location, filename);
     FileFormat fileFormat = FileFormat.fromFileName(filename);
-    Preconditions.checkNotNull(fileFormat, "Cannot determine format for file: %s", filename);
+    requireNonNull(fileFormat, "Cannot determine format for file: " + filename);
     switch (fileFormat) {
       case AVRO:
         FileAppender<Record> avroAppender = Avro.write(fromPath(path, CONF))

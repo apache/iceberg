@@ -19,16 +19,17 @@
 
 package org.apache.iceberg.expressions;
 
-import com.google.common.base.Preconditions;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
+
+import static java.util.Objects.requireNonNull;
 
 public class NamedReference<T> implements UnboundTerm<T>, Reference<T> {
   private final String name;
 
   NamedReference(String name) {
-    Preconditions.checkNotNull(name, "Name cannot be null");
+    requireNonNull(name, "Name cannot be null");
     this.name = name;
   }
 

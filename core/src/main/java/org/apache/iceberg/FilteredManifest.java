@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import java.io.IOException;
@@ -34,6 +33,8 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
+
+import static java.util.Objects.requireNonNull;
 
 public class FilteredManifest implements Filterable<FilteredManifest> {
   private static final Set<String> STATS_COLUMNS = Sets.newHashSet(
@@ -52,7 +53,7 @@ public class FilteredManifest implements Filterable<FilteredManifest> {
 
   FilteredManifest(ManifestReader reader, Expression partFilter, Expression rowFilter,
                    Schema fileSchema, Collection<String> columns, boolean caseSensitive) {
-    Preconditions.checkNotNull(reader, "ManifestReader cannot be null");
+    requireNonNull(reader, "ManifestReader cannot be null");
     this.reader = reader;
     this.partFilter = partFilter;
     this.rowFilter = rowFilter;

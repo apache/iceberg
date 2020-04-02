@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.function.Supplier;
 import org.apache.iceberg.Schema;
 
+import static java.util.Objects.requireNonNull;
+
 class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   private final Schema sourceSchema;
   private Type sourceType;
@@ -45,7 +47,7 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
   @Override
   public Type struct(Types.StructType struct, Iterable<Type> fieldTypes) {
-    Preconditions.checkNotNull(sourceType, "Evaluation must start with a schema.");
+    requireNonNull(sourceType, "Evaluation must start with a schema.");
     Preconditions.checkArgument(sourceType.isStructType(), "Not a struct: %s", sourceType);
 
     Types.StructType sourceStruct = sourceType.asStructType();

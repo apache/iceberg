@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -53,6 +52,7 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static java.util.Objects.requireNonNull;
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT_DEFAULT;
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
@@ -165,7 +165,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    * @param expr an expression to match rows.
    */
   protected void deleteByRowFilter(Expression expr) {
-    Preconditions.checkNotNull(expr, "Cannot delete files using filter: null");
+    requireNonNull(expr, "Cannot delete files using filter: null");
     this.filterUpdated = true;
     this.deleteExpression = Expressions.or(deleteExpression, expr);
   }
@@ -181,7 +181,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    * Add a specific path to be deleted in the new snapshot.
    */
   protected void delete(DataFile file) {
-    Preconditions.checkNotNull(file, "Cannot delete file: null");
+    requireNonNull(file, "Cannot delete file: null");
     this.filterUpdated = true;
     deletePaths.add(CharSequenceWrapper.wrap(file.path()));
     deleteFilePartitions.add(StructLikeWrapper.wrap(file.partition()));
@@ -191,7 +191,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    * Add a specific path to be deleted in the new snapshot.
    */
   protected void delete(CharSequence path) {
-    Preconditions.checkNotNull(path, "Cannot delete file path: null");
+    requireNonNull(path, "Cannot delete file path: null");
     this.filterUpdated = true;
     this.hasPathOnlyDeletes = true;
     deletePaths.add(CharSequenceWrapper.wrap(path));

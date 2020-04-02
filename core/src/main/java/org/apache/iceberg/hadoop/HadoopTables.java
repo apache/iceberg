@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.hadoop;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import java.util.Map;
 import org.apache.hadoop.conf.Configurable;
@@ -44,6 +43,8 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Tables;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+
+import static java.util.Objects.requireNonNull;
 
 /**
  * Implementation of Iceberg tables that uses the Hadoop FileSystem
@@ -136,7 +137,7 @@ public class HadoopTables implements Tables, Configurable {
   @Override
   public Table create(Schema schema, PartitionSpec spec, Map<String, String> properties,
                       String location) {
-    Preconditions.checkNotNull(schema, "A table schema is required");
+    requireNonNull(schema, "A table schema is required");
 
     TableOperations ops = newTableOps(location);
     if (ops.current() != null) {

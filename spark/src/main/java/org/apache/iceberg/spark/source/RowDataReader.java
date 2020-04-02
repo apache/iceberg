@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.source;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import java.util.Iterator;
@@ -53,6 +52,8 @@ import org.apache.spark.sql.catalyst.expressions.JoinedRow;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
 import org.apache.spark.sql.types.StructType;
 import scala.collection.JavaConverters;
+
+import static java.util.Objects.requireNonNull;
 
 class RowDataReader extends BaseDataReader<InternalRow> {
   // for some reason, the apply method can't be called from Java without reflection
@@ -129,7 +130,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       iter = newDataIterable(task.asDataTask(), readSchema);
     } else {
       InputFile location = getInputFile(task);
-      Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
+      requireNonNull(location, "Could not find InputFile associated with FileScanTask");
 
       switch (task.file().format()) {
         case PARQUET:

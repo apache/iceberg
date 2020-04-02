@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.types;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -28,6 +27,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.iceberg.Schema;
+
+import static java.util.Objects.requireNonNull;
 
 public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<String>> {
   /**
@@ -123,7 +124,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
 
   @Override
   public List<String> struct(Types.StructType readStruct, Iterable<List<String>> fieldErrorLists) {
-    Preconditions.checkNotNull(readStruct, "Evaluation must start with a schema.");
+    requireNonNull(readStruct, "Evaluation must start with a schema.");
 
     if (!currentType.isStructType()) {
       return ImmutableList.of(String.format(": %s cannot be read as a struct", currentType));

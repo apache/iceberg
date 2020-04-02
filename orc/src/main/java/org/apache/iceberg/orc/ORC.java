@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.orc;
 
-import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -41,6 +40,8 @@ import org.apache.orc.OrcFile.ReaderOptions;
 import org.apache.orc.Reader;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
+
+import static java.util.Objects.requireNonNull;
 
 @SuppressWarnings("checkstyle:AbbreviationAsWordInName")
 public class ORC {
@@ -105,7 +106,7 @@ public class ORC {
     }
 
     public <D> FileAppender<D> build() {
-      Preconditions.checkNotNull(schema, "Schema is required");
+      requireNonNull(schema, "Schema is required");
       return new OrcFileAppender<>(schema,
           this.file, createWriterFunc, conf, metadata,
           conf.getInt(VECTOR_ROW_BATCH_SIZE, VectorizedRowBatch.DEFAULT_SIZE));
@@ -126,7 +127,7 @@ public class ORC {
     private Function<TypeDescription, OrcValueReader<?>> readerFunc;
 
     private ReadBuilder(InputFile file) {
-      Preconditions.checkNotNull(file, "Input file cannot be null");
+      requireNonNull(file, "Input file cannot be null");
       this.file = file;
       if (file instanceof HadoopInputFile) {
         this.conf = new Configuration(((HadoopInputFile) file).getConf());
@@ -169,7 +170,7 @@ public class ORC {
     }
 
     public <D> CloseableIterable<D> build() {
-      Preconditions.checkNotNull(schema, "Schema is required");
+      requireNonNull(schema, "Schema is required");
       return new OrcIterable<>(file, conf, schema, start, length, readerFunc);
     }
   }

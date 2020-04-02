@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.parquet;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import java.util.List;
 import java.util.Set;
@@ -28,6 +27,8 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
+
+import static java.util.Objects.requireNonNull;
 
 class PruneColumns extends ParquetTypeVisitor<Type> {
   private final Set<Integer> selectedIds;
@@ -143,7 +144,7 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
   }
 
   private int getId(Type type) {
-    Preconditions.checkNotNull(type.getId(), "Missing id for type: %s", type);
+    requireNonNull(type.getId(), "Missing id for type: " + type);
     return type.getId().intValue();
   }
 }

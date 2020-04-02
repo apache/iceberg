@@ -27,6 +27,7 @@ import java.util.Set;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.util.Tasks;
 
+import static java.util.Objects.requireNonNull;
 import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
@@ -49,8 +50,8 @@ class PropertiesUpdate implements UpdateProperties {
 
   @Override
   public UpdateProperties set(String key, String value) {
-    Preconditions.checkNotNull(key, "Key cannot be null");
-    Preconditions.checkNotNull(key, "Value cannot be null");
+    requireNonNull(key, "Key cannot be null");
+    requireNonNull(key, "Value cannot be null");
     Preconditions.checkArgument(!removals.contains(key),
         "Cannot remove and update the same key: %s", key);
 
@@ -61,7 +62,7 @@ class PropertiesUpdate implements UpdateProperties {
 
   @Override
   public UpdateProperties remove(String key) {
-    Preconditions.checkNotNull(key, "Key cannot be null");
+    requireNonNull(key, "Key cannot be null");
     Preconditions.checkArgument(!updates.keySet().contains(key),
         "Cannot remove and update the same key: %s", key);
 

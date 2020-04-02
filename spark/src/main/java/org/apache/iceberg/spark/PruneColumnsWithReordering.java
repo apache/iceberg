@@ -48,6 +48,8 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.TimestampType;
 
+import static java.util.Objects.requireNonNull;
+
 public class PruneColumnsWithReordering extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   private final StructType requestedType;
   private final Set<Integer> filterRefs;
@@ -70,7 +72,7 @@ public class PruneColumnsWithReordering extends TypeUtil.CustomOrderSchemaVisito
 
   @Override
   public Type struct(Types.StructType struct, Iterable<Type> fieldResults) {
-    Preconditions.checkNotNull(struct, "Cannot prune null struct. Pruning must start with a schema.");
+    requireNonNull(struct, "Cannot prune null struct. Pruning must start with a schema.");
     Preconditions.checkArgument(current instanceof StructType, "Not a struct: %s", current);
     StructType requestedStruct = (StructType) current;
 

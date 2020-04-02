@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import java.sql.Date;
 import java.sql.Timestamp;
@@ -44,6 +43,7 @@ import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.sources.Or;
 import org.apache.spark.sql.sources.StringStartsWith;
 
+import static java.util.Objects.requireNonNull;
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
@@ -111,8 +111,7 @@ public class SparkFilters {
           if (filter instanceof EqualTo) {
             EqualTo eq = (EqualTo) filter;
             // comparison with null in normal equality is always null. this is probably a mistake.
-            Preconditions.checkNotNull(eq.value(),
-                "Expression is always false (eq is not null-safe): %s", filter);
+            requireNonNull(eq.value(), "Expression is always false (eq is not null-safe): " + filter);
             return equal(eq.attribute(), convertLiteral(eq.value()));
           } else {
             EqualNullSafe eq = (EqualNullSafe) filter;

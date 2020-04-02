@@ -19,12 +19,13 @@
 
 package org.apache.iceberg.events;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Objects.requireNonNull;
 
 /**
  * Static registration and notification for listeners.
@@ -53,7 +54,7 @@ public class Listeners {
 
   @SuppressWarnings("unchecked")
   public static <E> void notifyAll(E event) {
-    Preconditions.checkNotNull(event, "Cannot notify listeners for a null event.");
+    requireNonNull(event, "Cannot notify listeners for a null event.");
 
     List<Listener<?>> list = listeners.get(event.getClass());
     if (list != null) {

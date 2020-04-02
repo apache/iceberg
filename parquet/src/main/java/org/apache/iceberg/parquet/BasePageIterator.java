@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.parquet;
 
-import com.google.common.base.Preconditions;
 import java.io.IOException;
 import org.apache.parquet.bytes.ByteBufferInputStream;
 import org.apache.parquet.bytes.BytesInput;
@@ -36,6 +35,8 @@ import org.apache.parquet.column.values.rle.RunLengthBitPackingHybridDecoder;
 import org.apache.parquet.io.ParquetDecodingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static java.util.Objects.requireNonNull;
 
 @SuppressWarnings("checkstyle:VisibilityModifier")
 public abstract class BasePageIterator {
@@ -88,7 +89,7 @@ public abstract class BasePageIterator {
   }
 
   public void setPage(DataPage page) {
-    Preconditions.checkNotNull(page, "Cannot read from null page");
+    requireNonNull(page, "Cannot read from null page");
     this.page = page;
     this.page.accept(new DataPage.Visitor<ValuesReader>() {
       @Override

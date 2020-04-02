@@ -34,13 +34,15 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.apache.iceberg.Schema;
 
+import static java.util.Objects.requireNonNull;
+
 public class TypeUtil {
 
   private TypeUtil() {}
 
   public static Schema select(Schema schema, Set<Integer> fieldIds) {
-    Preconditions.checkNotNull(schema, "Schema cannot be null");
-    Preconditions.checkNotNull(fieldIds, "Field ids cannot be null");
+    requireNonNull(schema, "Schema cannot be null");
+    requireNonNull(fieldIds, "Field ids cannot be null");
 
     Type result = visit(schema, new PruneColumns(fieldIds));
     if (schema.asStruct() == result) {

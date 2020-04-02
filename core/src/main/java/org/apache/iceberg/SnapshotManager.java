@@ -27,6 +27,8 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.WapUtil;
 
+import static java.util.Objects.requireNonNull;
+
 public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> implements ManageSnapshots {
 
   private enum SnapshotManagerOperation {
@@ -51,7 +53,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
   @Override
   protected String operation() {
     // snapshotOperation is used by SnapshotProducer when building and writing a new snapshot for cherrypick
-    Preconditions.checkNotNull(snapshotOperation, "[BUG] Detected uninitialized operation");
+    requireNonNull(snapshotOperation, "[BUG] Detected uninitialized operation");
     return snapshotOperation;
   }
 

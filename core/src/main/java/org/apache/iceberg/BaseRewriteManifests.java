@@ -45,6 +45,7 @@ import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 
+import static java.util.Objects.requireNonNull;
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
 import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
@@ -283,8 +284,8 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
     int activeFilesCount = 0;
 
     for (ManifestFile manifest : manifests) {
-      Preconditions.checkNotNull(manifest.addedFilesCount(), "Missing file counts in %s", manifest.path());
-      Preconditions.checkNotNull(manifest.existingFilesCount(), "Missing file counts in %s", manifest.path());
+      requireNonNull(manifest.addedFilesCount(), "Missing file counts in " + manifest.path());
+      requireNonNull(manifest.existingFilesCount(), "Missing file counts in " + manifest.path());
       activeFilesCount += manifest.addedFilesCount();
       activeFilesCount += manifest.existingFilesCount();
     }
@@ -293,8 +294,8 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
   }
 
   private void appendEntry(ManifestEntry entry, Object key, int partitionSpecId) {
-    Preconditions.checkNotNull(entry, "Manifest entry cannot be null");
-    Preconditions.checkNotNull(key, "Key cannot be null");
+    requireNonNull(entry, "Manifest entry cannot be null");
+    requireNonNull(key, "Key cannot be null");
 
     WriterWrapper writer = getWriter(key, partitionSpecId);
     writer.addEntry(entry);

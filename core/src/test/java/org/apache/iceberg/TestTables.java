@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import java.io.File;
@@ -32,6 +31,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
 
+import static java.util.Objects.requireNonNull;
 import static org.apache.iceberg.TableMetadata.newTableMetadata;
 
 public class TestTables {
@@ -186,7 +186,7 @@ public class TestTables {
 
     @Override
     public LocationProvider locationProvider() {
-      Preconditions.checkNotNull(current,
+      requireNonNull(current,
           "Current metadata should not be null when locatinProvider is called");
       return LocationProviders.locationsFor(current.location(), current.properties());
     }

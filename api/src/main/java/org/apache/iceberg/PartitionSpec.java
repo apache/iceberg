@@ -450,7 +450,7 @@ public class PartitionSpec implements Serializable {
     Builder add(int sourceId, String name, String transform) {
       Types.NestedField column = schema.findField(sourceId);
       checkAndAddPartitionName(name, column.fieldId());
-      Preconditions.checkNotNull(column, "Cannot find source column: %s", sourceId);
+      requireNonNull(column, "Cannot find source column: " + sourceId);
       fields.add(new PartitionField(sourceId, name, Transforms.fromString(column.type(), transform)));
       return this;
     }

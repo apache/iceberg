@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.source;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import java.io.File;
 import java.util.Map;
@@ -38,6 +37,8 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
+
+import static java.util.Objects.requireNonNull;
 
 // TODO: Use the copy of this from core.
 class TestTables {
@@ -165,8 +166,7 @@ class TestTables {
 
     @Override
     public LocationProvider locationProvider() {
-      Preconditions.checkNotNull(current,
-          "Current metadata should not be null when locatinProvider is called");
+      requireNonNull(current, "Current metadata should not be null when locatinProvider is called");
       return LocationProviders.locationsFor(current.location(), current.properties());
     }
 
