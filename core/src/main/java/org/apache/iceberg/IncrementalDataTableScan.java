@@ -33,6 +33,8 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.ThreadPools;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 class IncrementalDataTableScan extends DataTableScan {
   private long fromSnapshotId;
   private long toSnapshotId;
@@ -139,23 +141,23 @@ class IncrementalDataTableScan extends DataTableScan {
         SnapshotUtil.snapshotIdsBetween(table(), fromSnapshotId, toSnapshotId));
     // since snapshotIdsBetween return ids in range (fromSnapshotId, toSnapshotId]
     snapshotIdsRange.add(fromSnapshotId);
-    Preconditions.checkArgument(
+    checkArgument(
         snapshotIdsRange.contains(newFromSnapshotId),
         "from snapshot id %s not in existing snapshot ids range (%s, %s]",
         newFromSnapshotId, fromSnapshotId, newToSnapshotId);
-    Preconditions.checkArgument(
+    checkArgument(
         snapshotIdsRange.contains(newToSnapshotId),
         "to snapshot id %s not in existing snapshot ids range (%s, %s]",
         newToSnapshotId, fromSnapshotId, toSnapshotId);
   }
 
   private static void validateSnapshotIds(Table table, long fromSnapshotId, long toSnapshotId) {
-    Preconditions.checkArgument(fromSnapshotId != toSnapshotId, "from and to snapshot ids cannot be the same");
-    Preconditions.checkArgument(
+    checkArgument(fromSnapshotId != toSnapshotId, "from and to snapshot ids cannot be the same");
+    checkArgument(
         table.snapshot(fromSnapshotId) != null, "from snapshot %s does not exist", fromSnapshotId);
-    Preconditions.checkArgument(
+    checkArgument(
         table.snapshot(toSnapshotId) != null, "to snapshot %s does not exist", toSnapshotId);
-    Preconditions.checkArgument(SnapshotUtil.ancestorOf(table, toSnapshotId, fromSnapshotId),
+    checkArgument(SnapshotUtil.ancestorOf(table, toSnapshotId, fromSnapshotId),
         "from snapshot %s is not an ancestor of to snapshot  %s", fromSnapshotId, toSnapshotId);
   }
 }

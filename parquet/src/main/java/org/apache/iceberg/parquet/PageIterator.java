@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.parquet;
 
-import com.google.common.base.Preconditions;
 import java.io.IOException;
 import org.apache.parquet.CorruptDeltaByteArrays;
 import org.apache.parquet.bytes.ByteBufferInputStream;
@@ -33,6 +32,8 @@ import org.apache.parquet.column.values.RequiresPreviousReader;
 import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.io.ParquetDecodingException;
 import org.apache.parquet.io.api.Binary;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 abstract class PageIterator<T> extends BasePageIterator implements TripleIterator<T> {
   @SuppressWarnings("unchecked")
@@ -98,7 +99,7 @@ abstract class PageIterator<T> extends BasePageIterator implements TripleIterato
 
   @Override
   public int currentDefinitionLevel() {
-    Preconditions.checkArgument(currentDL >= 0, "Should not read definition, past page end");
+    checkArgument(currentDL >= 0, "Should not read definition, past page end");
     return currentDL;
   }
 

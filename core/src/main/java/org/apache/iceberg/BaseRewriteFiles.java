@@ -19,8 +19,9 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
 import java.util.Set;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements RewriteFiles {
   BaseRewriteFiles(TableOperations ops) {
@@ -42,9 +43,9 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
 
   @Override
   public RewriteFiles rewriteFiles(Set<DataFile> filesToDelete, Set<DataFile> filesToAdd) {
-    Preconditions.checkArgument(filesToDelete != null && !filesToDelete.isEmpty(),
+    checkArgument(filesToDelete != null && !filesToDelete.isEmpty(),
         "Files to delete cannot be null or empty");
-    Preconditions.checkArgument(filesToAdd != null && !filesToAdd.isEmpty(),
+    checkArgument(filesToAdd != null && !filesToAdd.isEmpty(),
         "Files to add can not be null or empty");
 
     for (DataFile toDelete : filesToDelete) {

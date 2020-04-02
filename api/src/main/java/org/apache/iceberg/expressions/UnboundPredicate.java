@@ -20,7 +20,6 @@
 package org.apache.iceberg.expressions;
 
 import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -29,6 +28,8 @@ import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.CharSequenceSet;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements Unbound<T, Expression> {
   private static final Joiner COMMA = Joiner.on(", ");
@@ -70,7 +71,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
   }
 
   public Literal<T> literal() {
-    Preconditions.checkArgument(op() != Operation.IN && op() != Operation.NOT_IN,
+    checkArgument(op() != Operation.IN && op() != Operation.NOT_IN,
         "%s predicate cannot return a literal", op());
     return literals == null ? null : Iterables.getOnlyElement(literals);
   }

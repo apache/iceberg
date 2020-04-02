@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.source;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
@@ -37,6 +36,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.avro.Schema.Type.UNION;
 
 public abstract class TestReadProjection {
@@ -567,9 +567,9 @@ public abstract class TestReadProjection {
   }
 
   private static org.apache.avro.Schema fromOption(org.apache.avro.Schema schema) {
-    Preconditions.checkArgument(schema.getType() == UNION,
+    checkArgument(schema.getType() == UNION,
         "Expected union schema but was passed: %s", schema);
-    Preconditions.checkArgument(schema.getTypes().size() == 2,
+    checkArgument(schema.getTypes().size() == 2,
         "Expected optional schema, but was passed: %s", schema);
     if (schema.getTypes().get(0).getType() == org.apache.avro.Schema.Type.NULL) {
       return schema.getTypes().get(1);

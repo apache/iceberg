@@ -21,7 +21,6 @@ package org.apache.iceberg.mapping;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import java.io.IOException;
@@ -30,6 +29,8 @@ import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.util.JsonUtil;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * Parses external name mappings from a JSON representation.
@@ -111,7 +112,7 @@ public class NameMappingParser {
   }
 
   private static MappedFields fieldsFromJson(JsonNode node) {
-    Preconditions.checkArgument(node.isArray(), "Cannot parse non-array mapping fields: %s", node);
+    checkArgument(node.isArray(), "Cannot parse non-array mapping fields: %s", node);
 
     List<MappedField> fields = Lists.newArrayList();
     node.elements().forEachRemaining(fieldNode -> fields.add(fieldFromJson(fieldNode)));
@@ -120,7 +121,7 @@ public class NameMappingParser {
   }
 
   private static MappedField fieldFromJson(JsonNode node) {
-    Preconditions.checkArgument(node != null && !node.isNull() && node.isObject(),
+    checkArgument(node != null && !node.isNull() && node.isObject(),
         "Cannot parse non-object mapping field: %s", node);
 
     Integer id = JsonUtil.getIntOrNull(FIELD_ID, node);

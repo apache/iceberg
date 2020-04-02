@@ -23,7 +23,6 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.Iterator;
@@ -31,6 +30,8 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.util.Pair;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 public class PartitionSpecParser {
   private PartitionSpecParser() {
@@ -71,7 +72,7 @@ public class PartitionSpecParser {
   }
 
   public static PartitionSpec fromJson(Schema schema, JsonNode json) {
-    Preconditions.checkArgument(json.isObject(), "Cannot parse spec from non-object: %s", json);
+    checkArgument(json.isObject(), "Cannot parse spec from non-object: %s", json);
     int specId = JsonUtil.getInt(SPEC_ID, json);
     PartitionSpec.Builder builder = PartitionSpec.builderFor(schema).withSpecId(specId);
     buildFromJsonFields(builder, json.get(FIELDS));
@@ -134,13 +135,13 @@ public class PartitionSpecParser {
   }
 
   private static void buildFromJsonFields(PartitionSpec.Builder builder, JsonNode json) {
-    Preconditions.checkArgument(json.isArray(),
+    checkArgument(json.isArray(),
         "Cannot parse partition spec fields, not an array: %s", json);
 
     Iterator<JsonNode> elements = json.elements();
     while (elements.hasNext()) {
       JsonNode element = elements.next();
-      Preconditions.checkArgument(element.isObject(),
+      checkArgument(element.isObject(),
           "Cannot parse partition field, not an object: %s", element);
 
       String name = JsonUtil.getString(NAME, element);

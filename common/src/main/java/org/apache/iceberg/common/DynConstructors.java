@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.common;
 
-import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -29,6 +28,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * Copied from parquet-common
@@ -79,7 +79,7 @@ public class DynConstructors {
     @Override
     @SuppressWarnings("unchecked")
     public <R> R invoke(Object target, Object... args) {
-      Preconditions.checkArgument(target == null,
+      checkArgument(target == null,
           "Invalid call to constructor: target must be null");
       return (R) newInstance(args);
     }
@@ -87,7 +87,7 @@ public class DynConstructors {
     @Override
     @SuppressWarnings("unchecked")
     public <R> R invokeChecked(Object target, Object... args) throws Exception {
-      Preconditions.checkArgument(target == null,
+      checkArgument(target == null,
           "Invalid call to constructor: target must be null");
       return (R) newInstanceChecked(args);
     }

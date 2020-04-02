@@ -30,6 +30,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Set;
 
+import static com.google.common.base.Preconditions.checkArgument;
 
 public class DynFields {
 
@@ -87,7 +88,7 @@ public class DynFields {
     public BoundField<T> bind(Object target) {
       Preconditions.checkState(!isStatic() || this == AlwaysNull.INSTANCE,
           "Cannot bind static field %s", name);
-      Preconditions.checkArgument(
+      checkArgument(
           field.getDeclaringClass().isAssignableFrom(target.getClass()),
           "Cannot bind field %s to instance of %s",
               name,

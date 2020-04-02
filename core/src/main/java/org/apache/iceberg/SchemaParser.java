@@ -23,7 +23,6 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.io.StringWriter;
@@ -33,6 +32,8 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 public class SchemaParser {
 
@@ -177,14 +178,14 @@ public class SchemaParser {
 
   private static Types.StructType structFromJson(JsonNode json) {
     JsonNode fieldArray = json.get(FIELDS);
-    Preconditions.checkArgument(fieldArray.isArray(),
+    checkArgument(fieldArray.isArray(),
         "Cannot parse struct fields from non-array: %s", fieldArray);
 
     List<Types.NestedField> fields = Lists.newArrayListWithExpectedSize(fieldArray.size());
     Iterator<JsonNode> iterator = fieldArray.elements();
     while (iterator.hasNext()) {
       JsonNode field = iterator.next();
-      Preconditions.checkArgument(field.isObject(),
+      checkArgument(field.isObject(),
           "Cannot parse struct field from non-object: %s", field);
 
       int id = JsonUtil.getInt(ID, field);
@@ -234,7 +235,7 @@ public class SchemaParser {
 
   public static Schema fromJson(JsonNode json) {
     Type type  = typeFromJson(json);
-    Preconditions.checkArgument(type.isNestedType() && type.asNestedType().isStructType(),
+    checkArgument(type.isNestedType() && type.asNestedType().isStructType(),
         "Cannot create schema, not a struct type: %s", type);
     return new Schema(type.asNestedType().asStructType().fields());
   }

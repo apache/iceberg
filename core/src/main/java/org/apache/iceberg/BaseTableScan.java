@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import com.google.common.base.MoreObjects;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
@@ -42,6 +41,8 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.BinPacking;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * Base class for {@link TableScan} implementations.
@@ -130,9 +131,9 @@ abstract class BaseTableScan implements TableScan {
 
   @Override
   public TableScan useSnapshot(long scanSnapshotId) {
-    Preconditions.checkArgument(this.snapshotId == null,
+    checkArgument(this.snapshotId == null,
         "Cannot override snapshot, already set to id=%s", snapshotId);
-    Preconditions.checkArgument(ops.current().snapshot(scanSnapshotId) != null,
+    checkArgument(ops.current().snapshot(scanSnapshotId) != null,
         "Cannot find snapshot with ID %s", scanSnapshotId);
     return newRefinedScan(
         ops, table, scanSnapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, options);
@@ -140,7 +141,7 @@ abstract class BaseTableScan implements TableScan {
 
   @Override
   public TableScan asOfTime(long timestampMillis) {
-    Preconditions.checkArgument(this.snapshotId == null,
+    checkArgument(this.snapshotId == null,
         "Cannot override snapshot, already set to id=%s", snapshotId);
 
     Long lastSnapshotId = null;
@@ -152,7 +153,7 @@ abstract class BaseTableScan implements TableScan {
 
     // the snapshot ID could be null if no entries were older than the requested time. in that case,
     // there is no valid snapshot to read.
-    Preconditions.checkArgument(lastSnapshotId != null,
+    checkArgument(lastSnapshotId != null,
         "Cannot find a snapshot older than %s", formatTimestampMillis(timestampMillis));
 
     return useSnapshot(lastSnapshotId);

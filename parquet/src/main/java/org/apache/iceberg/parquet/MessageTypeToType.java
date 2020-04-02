@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.parquet.Preconditions;
 import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
@@ -34,6 +33,7 @@ import org.apache.parquet.schema.OriginalType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type.Repetition;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -69,9 +69,9 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     for (int i = 0; i < parquetFields.size(); i += 1) {
       org.apache.parquet.schema.Type field = parquetFields.get(i);
 
-      Preconditions.checkArgument(
+      checkArgument(
           !field.isRepetition(Repetition.REPEATED),
-          "Fields cannot have repetition REPEATED: {}", field);
+          "Fields cannot have repetition REPEATED: %s", field);
 
       int fieldId = getId(field);
 
@@ -92,9 +92,9 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     GroupType repeated = array.getType(0).asGroupType();
     org.apache.parquet.schema.Type element = repeated.getType(0);
 
-    Preconditions.checkArgument(
+    checkArgument(
         !element.isRepetition(Repetition.REPEATED),
-        "Elements cannot have repetition REPEATED: {}", element);
+        "Elements cannot have repetition REPEATED: %s", element);
 
     int elementFieldId = getId(element);
 
@@ -113,9 +113,9 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     org.apache.parquet.schema.Type key = keyValue.getType(0);
     org.apache.parquet.schema.Type value = keyValue.getType(1);
 
-    Preconditions.checkArgument(
+    checkArgument(
         !value.isRepetition(Repetition.REPEATED),
-        "Values cannot have repetition REPEATED: {}", value);
+        "Values cannot have repetition REPEATED: %s", value);
 
     int keyFieldId = getId(key);
     int valueFieldId = getId(value);

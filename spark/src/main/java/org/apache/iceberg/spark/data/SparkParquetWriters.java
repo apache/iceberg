@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.data;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import java.math.BigDecimal;
 import java.util.Iterator;
@@ -49,6 +48,8 @@ import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 public class SparkParquetWriters {
   private SparkParquetWriters() {
@@ -259,9 +260,9 @@ public class SparkParquetWriters {
 
     @Override
     public void write(int repetitionLevel, Decimal decimal) {
-      Preconditions.checkArgument(decimal.scale() == scale,
+      checkArgument(decimal.scale() == scale,
           "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, decimal);
-      Preconditions.checkArgument(decimal.precision() <= precision,
+      checkArgument(decimal.precision() <= precision,
           "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, decimal);
 
       column.writeInteger(repetitionLevel, (int) decimal.toUnscaledLong());
@@ -280,9 +281,9 @@ public class SparkParquetWriters {
 
     @Override
     public void write(int repetitionLevel, Decimal decimal) {
-      Preconditions.checkArgument(decimal.scale() == scale,
+      checkArgument(decimal.scale() == scale,
           "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, decimal);
-      Preconditions.checkArgument(decimal.precision() <= precision,
+      checkArgument(decimal.precision() <= precision,
           "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, decimal);
 
       column.writeLong(repetitionLevel, decimal.toUnscaledLong());
@@ -305,9 +306,9 @@ public class SparkParquetWriters {
 
     @Override
     public void write(int repetitionLevel, Decimal decimal) {
-      Preconditions.checkArgument(decimal.scale() == scale,
+      checkArgument(decimal.scale() == scale,
           "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, decimal);
-      Preconditions.checkArgument(decimal.precision() <= precision,
+      checkArgument(decimal.precision() <= precision,
           "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, decimal);
 
       BigDecimal bigDecimal = decimal.toJavaBigDecimal();

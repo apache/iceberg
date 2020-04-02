@@ -21,7 +21,6 @@ package org.apache.iceberg;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
@@ -38,6 +37,8 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * Metadata for a table.
@@ -218,7 +219,7 @@ public class TableMetadata {
     HistoryEntry last = null;
     for (HistoryEntry logEntry : snapshotLog) {
       if (last != null) {
-        Preconditions.checkArgument(
+        checkArgument(
             (logEntry.timestampMillis() - last.timestampMillis()) >= 0,
             "[BUG] Expected sorted snapshot log entries.");
       }
@@ -228,14 +229,14 @@ public class TableMetadata {
     MetadataLogEntry previous = null;
     for (MetadataLogEntry metadataEntry : previousFiles) {
       if (previous != null) {
-        Preconditions.checkArgument(
+        checkArgument(
             (metadataEntry.timestampMillis() - previous.timestampMillis()) >= 0,
             "[BUG] Expected sorted previous metadata log entries.");
       }
       previous = metadataEntry;
     }
 
-    Preconditions.checkArgument(
+    checkArgument(
         currentSnapshotId < 0 || snapshotsById.containsKey(currentSnapshotId),
         "Invalid table metadata: Cannot find current version");
   }
@@ -364,7 +365,7 @@ public class TableMetadata {
       }
     }
 
-    Preconditions.checkArgument(defaultSpecId != newDefaultSpecId,
+    checkArgument(defaultSpecId != newDefaultSpecId,
         "Cannot set default partition spec to the current default");
 
     ImmutableList.Builder<PartitionSpec> builder = ImmutableList.<PartitionSpec>builder()

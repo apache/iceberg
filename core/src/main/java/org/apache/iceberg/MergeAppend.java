@@ -19,8 +19,9 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
 import org.apache.iceberg.exceptions.CommitFailedException;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * Append implementation that produces a minimal number of manifest files.
@@ -50,9 +51,9 @@ class MergeAppend extends MergingSnapshotProducer<AppendFiles> implements Append
 
   @Override
   public AppendFiles appendManifest(ManifestFile manifest) {
-    Preconditions.checkArgument(!manifest.hasExistingFiles(), "Cannot append manifest with existing files");
-    Preconditions.checkArgument(!manifest.hasDeletedFiles(), "Cannot append manifest with deleted files");
-    Preconditions.checkArgument(
+    checkArgument(!manifest.hasExistingFiles(), "Cannot append manifest with existing files");
+    checkArgument(!manifest.hasDeletedFiles(), "Cannot append manifest with deleted files");
+    checkArgument(
         manifest.snapshotId() == null || manifest.snapshotId() == -1,
         "Snapshot id must be assigned during commit");
     add(manifest);

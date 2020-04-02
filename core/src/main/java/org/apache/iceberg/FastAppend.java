@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import java.io.IOException;
@@ -31,6 +30,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.OutputFile;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
 import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT;
 
@@ -90,9 +90,9 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
 
   @Override
   public FastAppend appendManifest(ManifestFile manifest) {
-    Preconditions.checkArgument(!manifest.hasExistingFiles(), "Cannot append manifest with existing files");
-    Preconditions.checkArgument(!manifest.hasDeletedFiles(), "Cannot append manifest with deleted files");
-    Preconditions.checkArgument(
+    checkArgument(!manifest.hasExistingFiles(), "Cannot append manifest with existing files");
+    checkArgument(!manifest.hasDeletedFiles(), "Cannot append manifest with deleted files");
+    checkArgument(
         manifest.snapshotId() == null || manifest.snapshotId() == -1,
         "Snapshot id must be assigned during commit");
 

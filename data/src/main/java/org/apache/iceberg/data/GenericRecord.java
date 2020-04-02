@@ -22,7 +22,6 @@ package org.apache.iceberg.data;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.base.Objects;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import java.util.Arrays;
 import java.util.List;
@@ -31,6 +30,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 public class GenericRecord implements Record, StructLike {
   private static final LoadingCache<StructType, Map<String, Integer>> NAME_MAP_CACHE =
@@ -100,7 +101,7 @@ public class GenericRecord implements Record, StructLike {
   @Override
   public void setField(String name, Object value) {
     Integer pos = nameToPos.get(name);
-    Preconditions.checkArgument(pos != null, "Cannot set unknown field named: %s", name);
+    checkArgument(pos != null, "Cannot set unknown field named: %s", name);
     values[pos] = value;
   }
 

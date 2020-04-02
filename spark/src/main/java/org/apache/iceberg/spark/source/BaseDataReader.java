@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
-import org.apache.arrow.util.Preconditions;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.encryption.EncryptedFiles;
@@ -36,6 +35,8 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.sources.v2.reader.InputPartitionReader;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * Base class of readers of type {@link InputPartitionReader} to read data as objects of type @param &lt;T&gt;
@@ -104,7 +105,7 @@ abstract class BaseDataReader<T> implements InputPartitionReader<T> {
   }
 
   InputFile getInputFile(FileScanTask task) {
-    Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
+    checkArgument(!task.isDataTask(), "Invalid task type");
     return inputFiles.get(task.file().path().toString());
   }
 }

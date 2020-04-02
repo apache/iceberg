@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -40,6 +39,7 @@ import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 
 /**
@@ -241,7 +241,7 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
 
   CloseableIterable<ManifestEntry> entries(Schema fileProjection) {
     FileFormat format = FileFormat.fromFileName(file.location());
-    Preconditions.checkArgument(format != null, "Unable to determine format of manifest: %s", file);
+    checkArgument(format != null, "Unable to determine format of manifest: %s", file);
 
     switch (format) {
       case AVRO:

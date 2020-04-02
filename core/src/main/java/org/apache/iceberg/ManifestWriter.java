@@ -30,6 +30,8 @@ import org.apache.iceberg.io.OutputFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 /**
  * Writer for manifest files.
  */
@@ -48,7 +50,7 @@ public class ManifestWriter implements FileAppender<DataFile> {
     boolean threw = true;
     try {
       for (ManifestEntry entry : reader.entries()) {
-        Preconditions.checkArgument(
+        checkArgument(
             allowedEntryStatuses.contains(entry.status()),
             "Invalid manifest entry status: %s (allowed statuses: %s)",
             entry.status(), allowedEntryStatuses);

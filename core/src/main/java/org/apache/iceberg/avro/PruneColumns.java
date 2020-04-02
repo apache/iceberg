@@ -31,6 +31,8 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 class PruneColumns extends AvroSchemaVisitor<Schema> {
   private static final Logger LOG = LoggerFactory.getLogger(PruneColumns.class);
 
@@ -256,7 +258,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
 
     if (AvroSchemaUtil.hasFieldId(field)) {
       int existingFieldId = AvroSchemaUtil.getFieldId(field);
-      Preconditions.checkArgument(existingFieldId == fieldId,
+      checkArgument(existingFieldId == fieldId,
           "Existing field does match with that fetched from name mapping");
     } else {
       // field may not have a fieldId if the fieldId was fetched from nameMapping

@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
@@ -35,6 +34,8 @@ import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.Encoder;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.types.TypeUtil;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 public class ValueWriters {
   private ValueWriters() {
@@ -258,7 +259,7 @@ public class ValueWriters {
 
     @Override
     public void write(byte[] bytes, Encoder encoder) throws IOException {
-      Preconditions.checkArgument(bytes.length == length,
+      checkArgument(bytes.length == length,
           "Cannot write byte array of length %s as fixed[%s]", bytes.length, length);
       encoder.writeFixed(bytes);
     }
@@ -273,7 +274,7 @@ public class ValueWriters {
 
     @Override
     public void write(GenericData.Fixed datum, Encoder encoder) throws IOException {
-      Preconditions.checkArgument(datum.bytes().length == length,
+      checkArgument(datum.bytes().length == length,
           "Cannot write byte array of length %s as fixed[%s]", datum.bytes().length, length);
       encoder.writeFixed(datum.bytes());
     }
@@ -318,9 +319,9 @@ public class ValueWriters {
 
     @Override
     public void write(BigDecimal decimal, Encoder encoder) throws IOException {
-      Preconditions.checkArgument(decimal.scale() == scale,
+      checkArgument(decimal.scale() == scale,
           "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, decimal);
-      Preconditions.checkArgument(decimal.precision() <= precision,
+      checkArgument(decimal.precision() <= precision,
           "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, decimal);
 
       byte fillByte = (byte) (decimal.signum() < 0 ? 0xFF : 0x00);

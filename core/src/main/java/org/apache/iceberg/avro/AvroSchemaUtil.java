@@ -36,6 +36,8 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 public class AvroSchemaUtil {
 
   private AvroSchemaUtil() {}
@@ -132,7 +134,7 @@ public class AvroSchemaUtil {
 
   static Schema toOption(Schema schema) {
     if (schema.getType() == UNION) {
-      Preconditions.checkArgument(isOptionSchema(schema),
+      checkArgument(isOptionSchema(schema),
           "Union schemas are not supported: %s", schema);
       return schema;
     } else {
@@ -141,9 +143,9 @@ public class AvroSchemaUtil {
   }
 
   static Schema fromOption(Schema schema) {
-    Preconditions.checkArgument(schema.getType() == UNION,
+    checkArgument(schema.getType() == UNION,
         "Expected union schema but was passed: %s", schema);
-    Preconditions.checkArgument(schema.getTypes().size() == 2,
+    checkArgument(schema.getTypes().size() == 2,
         "Expected optional schema, but was passed: %s", schema);
     if (schema.getTypes().get(0).getType() == Schema.Type.NULL) {
       return schema.getTypes().get(1);
@@ -153,7 +155,7 @@ public class AvroSchemaUtil {
   }
 
   static Schema fromOptions(List<Schema> options) {
-    Preconditions.checkArgument(options.size() == 2,
+    checkArgument(options.size() == 2,
         "Expected two schemas, but was passed: %s options", options.size());
     if (options.get(0).getType() == Schema.Type.NULL) {
       return options.get(1);
@@ -240,13 +242,13 @@ public class AvroSchemaUtil {
   }
 
   public static int getKeyId(Schema schema) {
-    Preconditions.checkArgument(schema.getType() == MAP,
+    checkArgument(schema.getType() == MAP,
         "Cannot get map key id for non-map schema: %s", schema);
     return getId(schema, KEY_ID_PROP);
   }
 
   static Integer getKeyId(Schema schema, NameMapping nameMapping, Iterable<String> parentFieldNames) {
-    Preconditions.checkArgument(schema.getType() == MAP,
+    checkArgument(schema.getType() == MAP,
         "Cannot get map key id for non-map schema: %s", schema);
     List<String> names = Lists.newArrayList(parentFieldNames);
     names.add("key");
@@ -254,13 +256,13 @@ public class AvroSchemaUtil {
   }
 
   public static int getValueId(Schema schema) {
-    Preconditions.checkArgument(schema.getType() == MAP,
+    checkArgument(schema.getType() == MAP,
         "Cannot get map value id for non-map schema: %s", schema);
     return getId(schema, VALUE_ID_PROP);
   }
 
   static Integer getValueId(Schema schema, NameMapping nameMapping, Iterable<String> parentFieldNames) {
-    Preconditions.checkArgument(schema.getType() == MAP,
+    checkArgument(schema.getType() == MAP,
         "Cannot get map value id for non-map schema: %s", schema);
     List<String> names = Lists.newArrayList(parentFieldNames);
     names.add("value");
@@ -268,13 +270,13 @@ public class AvroSchemaUtil {
   }
 
   public static int getElementId(Schema schema) {
-    Preconditions.checkArgument(schema.getType() == ARRAY,
+    checkArgument(schema.getType() == ARRAY,
         "Cannot get array element id for non-array schema: %s", schema);
     return getId(schema, ELEMENT_ID_PROP);
   }
 
   static Integer getElementId(Schema schema, NameMapping nameMapping, Iterable<String> parentFieldNames) {
-    Preconditions.checkArgument(schema.getType() == ARRAY,
+    checkArgument(schema.getType() == ARRAY,
         "Cannot get array element id for non-array schema: %s", schema);
     List<String> names = Lists.newArrayList(parentFieldNames);
     names.add("element");
@@ -361,7 +363,7 @@ public class AvroSchemaUtil {
 
   static boolean validAvroName(String name) {
     int length = name.length();
-    Preconditions.checkArgument(length > 0, "Empty name");
+    checkArgument(length > 0, "Empty name");
     char first = name.charAt(0);
     if (!(Character.isLetter(first) || first == '_')) {
       return false;

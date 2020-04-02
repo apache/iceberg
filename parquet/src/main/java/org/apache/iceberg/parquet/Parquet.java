@@ -56,6 +56,7 @@ import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
@@ -209,7 +210,7 @@ public class Parquet {
       MessageType type = ParquetSchemaUtil.convert(schema, name);
 
       if (createWriterFunc != null) {
-        Preconditions.checkArgument(writeSupport == null,
+        checkArgument(writeSupport == null,
             "Cannot write with both write support and Parquet value writer");
         Configuration conf;
         if (file instanceof HadoopOutputFile) {
@@ -360,14 +361,14 @@ public class Parquet {
     }
 
     public ReadBuilder createReaderFunc(Function<MessageType, ParquetValueReader<?>> newReaderFunction) {
-      Preconditions.checkArgument(this.batchedReaderFunc == null,
+      checkArgument(this.batchedReaderFunc == null,
           "Reader function cannot be set since the batched version is already set");
       this.readerFunc = newReaderFunction;
       return this;
     }
 
     public ReadBuilder createBatchedReaderFunc(Function<MessageType, VectorizedReader<?>> func) {
-      Preconditions.checkArgument(this.readerFunc == null,
+      checkArgument(this.readerFunc == null,
           "Batched reader function cannot be set since the non-batched version is already set");
       this.batchedReaderFunc = func;
       return this;

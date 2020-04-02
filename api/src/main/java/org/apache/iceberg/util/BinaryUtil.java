@@ -19,9 +19,10 @@
 
 package org.apache.iceberg.util;
 
-import com.google.common.base.Preconditions;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.expressions.Literal;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 public class BinaryUtil {
   // not meant to be instantiated
@@ -32,7 +33,7 @@ public class BinaryUtil {
    * Truncates the input byte buffer to the given length
    */
   public static ByteBuffer truncateBinary(ByteBuffer input, int length) {
-    Preconditions.checkArgument(length > 0, "Truncate length should be positive");
+    checkArgument(length > 0, "Truncate length should be positive");
     if (length >= input.remaining()) {
       return input;
     }

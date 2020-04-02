@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -32,6 +31,8 @@ import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.util.ByteBuffers;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 public class DataFiles {
 
@@ -63,17 +64,17 @@ public class DataFiles {
     }
 
     String[] partitions = partitionPath.split("/", -1);
-    Preconditions.checkArgument(partitions.length <= spec.fields().size(),
+    checkArgument(partitions.length <= spec.fields().size(),
         "Invalid partition data, too many fields (expecting %s): %s",
         spec.fields().size(), partitionPath);
-    Preconditions.checkArgument(partitions.length >= spec.fields().size(),
+    checkArgument(partitions.length >= spec.fields().size(),
         "Invalid partition data, not enough fields (expecting %s): %s",
         spec.fields().size(), partitionPath);
 
     for (int i = 0; i < partitions.length; i += 1) {
       PartitionField field = spec.fields().get(i);
       String[] parts = partitions[i].split("=", 2);
-      Preconditions.checkArgument(
+      checkArgument(
           parts.length == 2 &&
               parts[0] != null &&
               field.name().equals(parts[0]),
@@ -151,7 +152,7 @@ public class DataFiles {
   }
 
   public static DataFile fromManifest(ManifestFile manifest) {
-    Preconditions.checkArgument(
+    checkArgument(
         manifest.addedFilesCount() != null && manifest.existingFilesCount() != null,
         "Cannot create data file from manifest: data file counts are missing.");
 
@@ -291,7 +292,7 @@ public class DataFiles {
     }
 
     public Builder withPartitionPath(String newPartitionPath) {
-      Preconditions.checkArgument(isPartitioned || newPartitionPath.isEmpty(),
+      checkArgument(isPartitioned || newPartitionPath.isEmpty(),
           "Cannot add partition data for an unpartitioned table");
       if (!newPartitionPath.isEmpty()) {
         this.partitionData = fillFromPath(spec, newPartitionPath, partitionData);
@@ -329,13 +330,13 @@ public class DataFiles {
     }
 
     public DataFile build() {
-      Preconditions.checkArgument(filePath != null, "File path is required");
+      checkArgument(filePath != null, "File path is required");
       if (format == null) {
         this.format = FileFormat.fromFileName(filePath);
       }
-      Preconditions.checkArgument(format != null, "File format is required");
-      Preconditions.checkArgument(fileSizeInBytes >= 0, "File size is required");
-      Preconditions.checkArgument(recordCount >= 0, "Record count is required");
+      checkArgument(format != null, "File format is required");
+      checkArgument(fileSizeInBytes >= 0, "File size is required");
+      checkArgument(recordCount >= 0, "Record count is required");
 
       return new GenericDataFile(
           filePath, format, isPartitioned ? partitionData.copy() : null,

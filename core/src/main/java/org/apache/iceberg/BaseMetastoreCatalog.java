@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.MapMaker;
 import com.google.common.collect.Maps;
@@ -40,6 +39,8 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 public abstract class BaseMetastoreCatalog implements Catalog {
   private static final Logger LOG = LoggerFactory.getLogger(BaseMetastoreCatalog.class);
 
@@ -50,7 +51,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       PartitionSpec spec,
       String location,
       Map<String, String> properties) {
-    Preconditions.checkArgument(isValidIdentifier(identifier), "Invalid table identifier: %s", identifier);
+    checkArgument(isValidIdentifier(identifier), "Invalid table identifier: %s", identifier);
 
     TableOperations ops = newTableOps(identifier);
     if (ops.current() != null) {
@@ -83,7 +84,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       PartitionSpec spec,
       String location,
       Map<String, String> properties) {
-    Preconditions.checkArgument(isValidIdentifier(identifier), "Invalid table identifier: %s", identifier);
+    checkArgument(isValidIdentifier(identifier), "Invalid table identifier: %s", identifier);
 
     TableOperations ops = newTableOps(identifier);
     if (ops.current() != null) {

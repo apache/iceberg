@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.parquet;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
@@ -34,6 +33,8 @@ import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.Type;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 public class ParquetValueWriters {
   private ParquetValueWriters() {
@@ -150,9 +151,9 @@ public class ParquetValueWriters {
 
     @Override
     public void write(int repetitionLevel, BigDecimal decimal) {
-      Preconditions.checkArgument(decimal.scale() == scale,
+      checkArgument(decimal.scale() == scale,
           "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, decimal);
-      Preconditions.checkArgument(decimal.precision() <= precision,
+      checkArgument(decimal.precision() <= precision,
           "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, decimal);
 
       column.writeInteger(repetitionLevel, decimal.unscaledValue().intValue());
@@ -171,9 +172,9 @@ public class ParquetValueWriters {
 
     @Override
     public void write(int repetitionLevel, BigDecimal decimal) {
-      Preconditions.checkArgument(decimal.scale() == scale,
+      checkArgument(decimal.scale() == scale,
           "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, decimal);
-      Preconditions.checkArgument(decimal.precision() <= precision,
+      checkArgument(decimal.precision() <= precision,
           "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, decimal);
 
       column.writeLong(repetitionLevel, decimal.unscaledValue().longValue());
@@ -196,9 +197,9 @@ public class ParquetValueWriters {
 
     @Override
     public void write(int repetitionLevel, BigDecimal decimal) {
-      Preconditions.checkArgument(decimal.scale() == scale,
+      checkArgument(decimal.scale() == scale,
           "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, decimal);
-      Preconditions.checkArgument(decimal.precision() <= precision,
+      checkArgument(decimal.precision() <= precision,
           "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, decimal);
 
       byte fillByte = (byte) (decimal.signum() < 0 ? 0xFF : 0x00);

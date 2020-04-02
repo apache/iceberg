@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.data;
 
-import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
@@ -37,6 +36,8 @@ import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 public class SparkValueWriters {
 
@@ -126,9 +127,9 @@ public class SparkValueWriters {
 
     @Override
     public void write(Decimal d, Encoder encoder) throws IOException {
-      Preconditions.checkArgument(d.scale() == scale,
+      checkArgument(d.scale() == scale,
           "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, d);
-      Preconditions.checkArgument(d.precision() <= precision,
+      checkArgument(d.precision() <= precision,
           "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, d);
 
       BigDecimal decimal = d.toJavaBigDecimal();

@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.arrow.vectorized.parquet;
 
-import org.apache.arrow.util.Preconditions;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
@@ -28,6 +27,8 @@ import org.apache.iceberg.parquet.BasePageIterator;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.page.PageReader;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * Vectorized version of the ColumnIterator that reads column values in data pages of a column in a row group in a
@@ -41,7 +42,7 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
   public VectorizedColumnIterator(ColumnDescriptor desc, String writerVersion, int batchSize,
                                   boolean setArrowValidityVector) {
     super(desc);
-    Preconditions.checkArgument(desc.getMaxRepetitionLevel() == 0,
+    checkArgument(desc.getMaxRepetitionLevel() == 0,
         "Only non-nested columns are supported for vectorized reads");
     this.batchSize = batchSize;
     this.vectorizedPageIterator = new VectorizedPageIterator(desc, writerVersion, setArrowValidityVector);

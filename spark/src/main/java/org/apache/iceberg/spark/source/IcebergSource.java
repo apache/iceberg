@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.source;
 
-import com.google.common.base.Preconditions;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -57,6 +56,8 @@ import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter;
 import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.util.SerializableConfiguration;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, DataSourceRegister, StreamWriteSupport {
 
@@ -96,7 +97,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
   @Override
   public Optional<DataSourceWriter> createWriter(String jobId, StructType dsStruct, SaveMode mode,
                                                  DataSourceOptions options) {
-    Preconditions.checkArgument(mode == SaveMode.Append || mode == SaveMode.Overwrite,
+    checkArgument(mode == SaveMode.Append || mode == SaveMode.Overwrite,
         "Save mode %s is not supported", mode);
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
@@ -116,7 +117,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
   @Override
   public StreamWriter createStreamWriter(String runId, StructType dsStruct,
                                          OutputMode mode, DataSourceOptions options) {
-    Preconditions.checkArgument(
+    checkArgument(
         mode == OutputMode.Append() || mode == OutputMode.Complete(),
         "Output mode %s is not supported", mode);
     Configuration conf = new Configuration(lazyBaseConf());
@@ -137,7 +138,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
 
   protected Table findTable(DataSourceOptions options, Configuration conf) {
     Optional<String> path = options.get("path");
-    Preconditions.checkArgument(path.isPresent(), "Cannot open table: path is not set");
+    checkArgument(path.isPresent(), "Cannot open table: path is not set");
 
     if (path.get().contains("/")) {
       HadoopTables tables = new HadoopTables(conf);

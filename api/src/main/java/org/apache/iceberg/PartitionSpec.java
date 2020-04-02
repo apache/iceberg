@@ -40,6 +40,8 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 /**
  * Represents how to produce partition data for a table.
  * <p>
@@ -321,23 +323,23 @@ public class PartitionSpec implements Serializable {
       if (identitySourceColumnId != null) {
         // for identity transform case we allow  conflicts between partition and schema field name as
         //   long as they are sourced from the same schema field
-        Preconditions.checkArgument(schemaField == null || schemaField.fieldId() == identitySourceColumnId,
+        checkArgument(schemaField == null || schemaField.fieldId() == identitySourceColumnId,
             "Cannot create identity partition sourced from different field in schema: %s", name);
       } else {
         // for all other transforms we don't allow conflicts between partition name and schema field name
-        Preconditions.checkArgument(schemaField == null,
+        checkArgument(schemaField == null,
             "Cannot create partition from name that exists in schema: %s", name);
       }
-      Preconditions.checkArgument(name != null && !name.isEmpty(),
+      checkArgument(name != null && !name.isEmpty(),
           "Cannot use empty or null partition name: %s", name);
-      Preconditions.checkArgument(!partitionNames.contains(name),
+      checkArgument(!partitionNames.contains(name),
           "Cannot use partition name more than once: %s", name);
       partitionNames.add(name);
     }
 
     private void checkForRedundantPartitions(PartitionField field) {
       PartitionField timeField = timeFields.get(field.sourceId());
-      Preconditions.checkArgument(timeField == null,
+      checkArgument(timeField == null,
           "Cannot add redundant partition: %s conflicts with %s", timeField, field);
       timeFields.put(field.sourceId(), field);
     }
@@ -349,7 +351,7 @@ public class PartitionSpec implements Serializable {
 
     private Types.NestedField findSourceColumn(String sourceName) {
       Types.NestedField sourceColumn = schema.findField(sourceName);
-      Preconditions.checkArgument(sourceColumn != null, "Cannot find source column: %s", sourceName);
+      checkArgument(sourceColumn != null, "Cannot find source column: %s", sourceName);
       return sourceColumn;
     }
 

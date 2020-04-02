@@ -27,6 +27,8 @@ import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 /**
  * Factory methods for creating {@link Expression expressions}.
  */
@@ -220,7 +222,7 @@ public class Expressions {
   }
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name, Literal<T> lit) {
-    Preconditions.checkArgument(op != Operation.IS_NULL && op != Operation.NOT_NULL,
+    checkArgument(op != Operation.IS_NULL && op != Operation.NOT_NULL,
         "Cannot create %s predicate inclusive a value", op);
     return new UnboundPredicate<T>(op, ref(name), lit);
   }
@@ -230,7 +232,7 @@ public class Expressions {
   }
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name) {
-    Preconditions.checkArgument(op == Operation.IS_NULL || op == Operation.NOT_NULL,
+    checkArgument(op == Operation.IS_NULL || op == Operation.NOT_NULL,
         "Cannot create %s predicate without a value", op);
     return new UnboundPredicate<>(op, ref(name));
   }

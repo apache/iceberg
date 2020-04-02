@@ -46,6 +46,8 @@ import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 /**
  * TableOperations implementation for file systems that support atomic rename.
  * <p>
@@ -118,9 +120,9 @@ public class HadoopTableOperations implements TableOperations {
       return;
     }
 
-    Preconditions.checkArgument(base == null || base.location().equals(metadata.location()),
+    checkArgument(base == null || base.location().equals(metadata.location()),
         "Hadoop path-based tables cannot be relocated");
-    Preconditions.checkArgument(
+    checkArgument(
         !metadata.properties().containsKey(TableProperties.WRITE_METADATA_LOCATION),
         "Hadoop path-based tables cannot relocate metadata");
 

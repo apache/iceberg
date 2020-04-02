@@ -19,9 +19,10 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.base.Preconditions;
 import org.apache.avro.LogicalType;
 import org.apache.avro.Schema;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 public class LogicalMap extends LogicalType {
   static final String NAME = "map";
@@ -38,9 +39,9 @@ public class LogicalMap extends LogicalType {
   @Override
   public void validate(Schema schema) {
     super.validate(schema);
-    Preconditions.checkArgument(schema.getType() == Schema.Type.ARRAY,
+    checkArgument(schema.getType() == Schema.Type.ARRAY,
         "Invalid type for map, must be an array: %s", schema);
-    Preconditions.checkArgument(AvroSchemaUtil.isKeyValueSchema(schema.getElementType()),
+    checkArgument(AvroSchemaUtil.isKeyValueSchema(schema.getElementType()),
         "Invalid key-value record: %s", schema.getElementType());
   }
 }

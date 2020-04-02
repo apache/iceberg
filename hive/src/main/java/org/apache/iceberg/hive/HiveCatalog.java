@@ -41,6 +41,8 @@ import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(HiveCatalog.class);
 
@@ -58,7 +60,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
 
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
-    Preconditions.checkArgument(namespace.levels().length == 1,
+    checkArgument(namespace.levels().length == 1,
         "Missing database in namespace: %s", namespace);
     String database = namespace.level(0);
 
@@ -132,7 +134,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable {
     if (!isValidIdentifier(from)) {
       throw new NoSuchTableException("Invalid identifier: %s", from);
     }
-    Preconditions.checkArgument(isValidIdentifier(to), "Invalid identifier: %s", to);
+    checkArgument(isValidIdentifier(to), "Invalid identifier: %s", to);
 
     String toDatabase = to.namespace().level(0);
     String fromDatabase = from.namespace().level(0);

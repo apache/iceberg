@@ -34,6 +34,8 @@ import java.util.regex.Pattern;
 import org.apache.iceberg.types.Type.NestedType;
 import org.apache.iceberg.types.Type.PrimitiveType;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 public class Types {
 
   private Types() {}
@@ -367,7 +369,7 @@ public class Types {
     private final int precision;
 
     private DecimalType(int precision, int scale) {
-      Preconditions.checkArgument(precision <= 38,
+      checkArgument(precision <= 38,
           "Decimals with precision larger than 38 are not supported: %s", precision);
       this.scale = scale;
       this.precision = precision;

@@ -19,11 +19,12 @@
 
 package org.apache.iceberg.catalog;
 
-import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
 import com.google.common.collect.Iterables;
 import java.util.Arrays;
 import java.util.Objects;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * Identifies a table in iceberg catalog.
@@ -36,7 +37,7 @@ public class TableIdentifier {
   private final String name;
 
   public static TableIdentifier of(String... names) {
-    Preconditions.checkArgument(names.length > 0, "Cannot create table identifier without a table name");
+    checkArgument(names.length > 0, "Cannot create table identifier without a table name");
     return new TableIdentifier(Namespace.of(Arrays.copyOf(names, names.length - 1)), names[names.length - 1]);
   }
 
@@ -50,7 +51,7 @@ public class TableIdentifier {
   }
 
   private TableIdentifier(Namespace namespace, String name) {
-    Preconditions.checkArgument(name != null && !name.isEmpty(), "Invalid table name %s", name);
+    checkArgument(name != null && !name.isEmpty(), "Invalid table name %s", name);
     this.namespace = namespace;
     this.name = name;
   }

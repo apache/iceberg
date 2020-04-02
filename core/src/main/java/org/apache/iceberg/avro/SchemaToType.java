@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import java.util.List;
 import org.apache.avro.LogicalType;
@@ -27,6 +26,8 @@ import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 class SchemaToType extends AvroSchemaVisitor<Type> {
   private final Schema root;
@@ -104,7 +105,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
 
   @Override
   public Type union(Schema union, List<Type> options) {
-    Preconditions.checkArgument(AvroSchemaUtil.isOptionSchema(union),
+    checkArgument(AvroSchemaUtil.isOptionSchema(union),
         "Unsupported type: non-option union: %s", union);
     // records, arrays, and maps will check nullability later
     if (options.get(0) == null) {
@@ -119,7 +120,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
     if (array.getLogicalType() instanceof LogicalMap) {
       // map stored as an array
       Schema keyValueSchema = array.getElementType();
-      Preconditions.checkArgument(AvroSchemaUtil.isKeyValueSchema(keyValueSchema),
+      checkArgument(AvroSchemaUtil.isKeyValueSchema(keyValueSchema),
           "Invalid key-value pair schema: %s", keyValueSchema);
 
       Types.StructType keyValueType = elementType.asStructType();
@@ -182,7 +183,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
           logical instanceof LogicalTypes.TimestampMillis ||
           logical instanceof LogicalTypes.TimestampMicros) {
         Object adjustToUTC = primitive.getObjectProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP);
-        Preconditions.checkArgument(adjustToUTC instanceof Boolean,
+        checkArgument(adjustToUTC instanceof Boolean,
             "Invalid value for adjust-to-utc: %s", adjustToUTC);
         if ((Boolean) adjustToUTC) {
           return Types.TimestampType.withZone();

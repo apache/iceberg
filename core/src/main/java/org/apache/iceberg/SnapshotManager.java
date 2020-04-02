@@ -27,6 +27,8 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.WapUtil;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> implements ManageSnapshots {
 
   private enum SnapshotManagerOperation {
@@ -107,7 +109,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
   public ManageSnapshots rollbackToTime(long timestampMillis) {
     // find the latest snapshot by timestamp older than timestampMillis
     Snapshot snapshot = findLatestAncestorOlderThan(current(), timestampMillis);
-    Preconditions.checkArgument(snapshot != null,
+    checkArgument(snapshot != null,
         "Cannot roll back, no valid snapshot older than: %s", timestampMillis);
 
     this.managerOperation = SnapshotManagerOperation.ROLLBACK;

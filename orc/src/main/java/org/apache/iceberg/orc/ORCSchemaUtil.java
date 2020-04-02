@@ -36,6 +36,8 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 /**
  * Utilities for mapping Iceberg to ORC schemas.
  */
@@ -294,7 +296,7 @@ public final class ORCSchemaUtil {
           if (promotedType.isPresent()) {
             orcType = promotedType.get();
           } else {
-            Preconditions.checkArgument(isSameType(originalType, type),
+            checkArgument(isSameType(originalType, type),
                 "Can not promote %s type to %s",
                 originalType.getCategory(), type.typeId().name());
             orcType = originalType.clone();

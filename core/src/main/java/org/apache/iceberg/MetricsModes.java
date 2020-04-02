@@ -19,13 +19,14 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * This class defines different metrics modes, which allow users to control the collection of
@@ -100,7 +101,7 @@ public class MetricsModes {
     }
 
     public static Truncate withLength(int length) {
-      Preconditions.checkArgument(length > 0, "Truncate length should be positive");
+      checkArgument(length > 0, "Truncate length should be positive");
       return new Truncate(length);
     }
 

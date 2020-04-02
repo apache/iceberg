@@ -21,7 +21,6 @@ package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -47,6 +46,8 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.JsonUtil;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 public class TableMetadataParser {
 
   public enum Codec {
@@ -60,12 +61,12 @@ public class TableMetadataParser {
     }
 
     public static Codec fromName(String codecName) {
-      Preconditions.checkArgument(codecName != null, "Codec name is null");
+      checkArgument(codecName != null, "Codec name is null");
       return Codec.valueOf(codecName.toUpperCase(Locale.ENGLISH));
     }
 
     public static Codec fromFileName(String fileName) {
-      Preconditions.checkArgument(fileName.contains(".metadata.json"),
+      checkArgument(fileName.contains(".metadata.json"),
           "%s is not a valid metadata file", fileName);
       // we have to be backward-compatible with .metadata.json.gz files
       if (fileName.endsWith(".metadata.json.gz")) {
@@ -222,11 +223,11 @@ public class TableMetadataParser {
   }
 
   static TableMetadata fromJson(FileIO io, InputFile file, JsonNode node) {
-    Preconditions.checkArgument(node.isObject(),
+    checkArgument(node.isObject(),
         "Cannot parse metadata from a non-object: %s", node);
 
     int formatVersion = JsonUtil.getInt(FORMAT_VERSION, node);
-    Preconditions.checkArgument(formatVersion == TableMetadata.TABLE_FORMAT_VERSION,
+    checkArgument(formatVersion == TableMetadata.TABLE_FORMAT_VERSION,
         "Cannot read unsupported version %s", formatVersion);
 
     String uuid = JsonUtil.getStringOrNull(TABLE_UUID, node);
@@ -238,7 +239,7 @@ public class TableMetadataParser {
     List<PartitionSpec> specs;
     int defaultSpecId;
     if (specArray != null) {
-      Preconditions.checkArgument(specArray.isArray(),
+      checkArgument(specArray.isArray(),
           "Cannot parse partition specs from non-array: %s", specArray);
       // default spec ID is required when the spec array is present
       defaultSpecId = JsonUtil.getInt(DEFAULT_SPEC_ID, node);
@@ -264,7 +265,7 @@ public class TableMetadataParser {
     long lastUpdatedMillis = JsonUtil.getLong(LAST_UPDATED_MILLIS, node);
 
     JsonNode snapshotArray = node.get(SNAPSHOTS);
-    Preconditions.checkArgument(snapshotArray.isArray(),
+    checkArgument(snapshotArray.isArray(),
         "Cannot parse snapshots from non-array: %s", snapshotArray);
 
     List<Snapshot> snapshots = Lists.newArrayListWithExpectedSize(snapshotArray.size());

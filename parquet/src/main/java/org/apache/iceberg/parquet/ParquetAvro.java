@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.parquet;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import java.math.BigDecimal;
 import java.util.List;
@@ -35,6 +34,8 @@ import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.avro.AvroSchemaVisitor;
 import org.apache.iceberg.avro.UUIDConversion;
 import org.apache.iceberg.types.TypeUtil;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 class ParquetAvro {
 
@@ -83,11 +84,11 @@ class ParquetAvro {
       super.validate(schema);
       switch (schema.getType()) {
         case INT:
-          Preconditions.checkArgument(precision <= 9,
+          checkArgument(precision <= 9,
               "Int cannot hold decimal precision: %s", precision);
           break;
         case LONG:
-          Preconditions.checkArgument(precision <= 18,
+          checkArgument(precision <= 18,
               "Long cannot hold decimal precision: %s", precision);
           break;
         case FIXED:
@@ -95,8 +96,8 @@ class ParquetAvro {
         default:
           throw new IllegalArgumentException("Invalid base type for decimal: " + schema);
       }
-      Preconditions.checkArgument(scale >= 0, "Scale %s cannot be negative", scale);
-      Preconditions.checkArgument(scale <= precision,
+      checkArgument(scale >= 0, "Scale %s cannot be negative", scale);
+      checkArgument(scale <= precision,
           "Scale %s cannot be less than precision %s", scale, precision);
     }
   }

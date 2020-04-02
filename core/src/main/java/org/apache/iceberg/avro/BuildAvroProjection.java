@@ -30,6 +30,8 @@ import org.apache.avro.Schema;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 /**
  * Renames and aliases fields in an Avro schema based on the current table schema.
  * <p>
@@ -49,7 +51,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
 
   @Override
   public Schema record(Schema record, List<String> names, Iterable<Schema.Field> schemaIterable) {
-    Preconditions.checkArgument(
+    checkArgument(
         current.isNestedType() && current.asNestedType().isStructType(),
         "Cannot project non-struct: %s", current);
 
@@ -93,7 +95,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
         updatedFields.add(avroField);
 
       } else {
-        Preconditions.checkArgument(field.isOptional(), "Missing required field: %s", field.name());
+        checkArgument(field.isOptional(), "Missing required field: %s", field.name());
         // Create a field that will be defaulted to null. We assign a unique suffix to the field
         // to make sure that even if records in the file have the field it is not projected.
         Schema.Field newField = new Schema.Field(
@@ -160,7 +162,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
   public Schema array(Schema array, Supplier<Schema> element) {
     if (array.getLogicalType() instanceof LogicalMap ||
         (current.isMapType() && AvroSchemaUtil.isKeyValueSchema(array.getElementType()))) {
-      Preconditions.checkArgument(current.isMapType(), "Incompatible projected type: %s", current);
+      checkArgument(current.isMapType(), "Incompatible projected type: %s", current);
       Types.MapType asMapType = current.asNestedType().asMapType();
       this.current = Types.StructType.of(asMapType.fields()); // create a struct to correspond to element
       try {
@@ -187,7 +189,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
       }
 
     } else {
-      Preconditions.checkArgument(current.isListType(),
+      checkArgument(current.isListType(),
           "Incompatible projected type: %s", current);
       Types.ListType list = current.asNestedType().asListType();
       this.current = list.elementType();
@@ -209,10 +211,10 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
 
   @Override
   public Schema map(Schema map, Supplier<Schema> value) {
-    Preconditions.checkArgument(current.isNestedType() && current.asNestedType().isMapType(),
+    checkArgument(current.isNestedType() && current.asNestedType().isMapType(),
         "Incompatible projected type: %s", current);
     Types.MapType asMapType = current.asNestedType().asMapType();
-    Preconditions.checkArgument(asMapType.keyType() == Types.StringType.get(),
+    checkArgument(asMapType.keyType() == Types.StringType.get(),
         "Incompatible projected type: key type %s is not string", asMapType.keyType());
     this.current = asMapType.valueType();
     try {

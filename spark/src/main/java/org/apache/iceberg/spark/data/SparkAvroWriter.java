@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.data;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.util.List;
@@ -37,6 +36,8 @@ import org.apache.iceberg.types.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.unsafe.types.UTF8String;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 public class SparkAvroWriter implements DatumWriter<InternalRow> {
   private final org.apache.iceberg.Schema schema;
@@ -77,9 +78,9 @@ public class SparkAvroWriter implements DatumWriter<InternalRow> {
 
     @Override
     public ValueWriter<?> union(Schema union, List<ValueWriter<?>> options) {
-      Preconditions.checkArgument(options.contains(ValueWriters.nulls()),
+      checkArgument(options.contains(ValueWriters.nulls()),
           "Cannot create writer for non-option union: %s", union);
-      Preconditions.checkArgument(options.size() == 2,
+      checkArgument(options.size() == 2,
           "Cannot create writer for non-option union: %s", union);
       if (union.getTypes().get(0).getType() == Schema.Type.NULL) {
         return ValueWriters.option(0, options.get(1));

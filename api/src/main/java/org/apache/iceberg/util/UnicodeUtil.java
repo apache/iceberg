@@ -19,8 +19,9 @@
 
 package org.apache.iceberg.util;
 
-import com.google.common.base.Preconditions;
 import org.apache.iceberg.expressions.Literal;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 public class UnicodeUtil {
   // not meant to be instantiated
@@ -40,7 +41,7 @@ public class UnicodeUtil {
    * and the number of unicode characters in the truncated charSequence is lesser than or equal to length
    */
   public static CharSequence truncateString(CharSequence input, int length) {
-    Preconditions.checkArgument(length > 0, "Truncate length should be positive");
+    checkArgument(length > 0, "Truncate length should be positive");
     StringBuilder sb = new StringBuilder(input);
     // Get the number of unicode characters in the input
     int numUniCodeCharacters = sb.codePointCount(0, sb.length());

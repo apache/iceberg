@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.util.List;
 import org.apache.avro.LogicalType;
@@ -27,6 +26,8 @@ import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.Encoder;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 class GenericAvroWriter<T> implements DatumWriter<T> {
   private ValueWriter<T> writer = null;
@@ -57,9 +58,9 @@ class GenericAvroWriter<T> implements DatumWriter<T> {
 
     @Override
     public ValueWriter<?> union(Schema union, List<ValueWriter<?>> options) {
-      Preconditions.checkArgument(options.contains(ValueWriters.nulls()),
+      checkArgument(options.contains(ValueWriters.nulls()),
           "Cannot create writer for non-option union: %s", union);
-      Preconditions.checkArgument(options.size() == 2,
+      checkArgument(options.size() == 2,
           "Cannot create writer for non-option union: %s", union);
       if (union.getTypes().get(0).getType() == Schema.Type.NULL) {
         return ValueWriters.option(0, options.get(1));

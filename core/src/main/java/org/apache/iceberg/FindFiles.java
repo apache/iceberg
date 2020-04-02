@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -29,6 +28,8 @@ import java.util.List;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 public class FindFiles {
   private FindFiles() {
@@ -71,9 +72,9 @@ public class FindFiles {
      * @return this for method chaining
      */
     public Builder inSnapshot(long findSnapshotId) {
-      Preconditions.checkArgument(this.snapshotId == null,
+      checkArgument(this.snapshotId == null,
           "Cannot set snapshot multiple times, already set to id=%s", findSnapshotId);
-      Preconditions.checkArgument(table.snapshot(findSnapshotId) != null,
+      checkArgument(table.snapshot(findSnapshotId) != null,
           "Cannot find snapshot for id=%s", findSnapshotId);
       this.snapshotId = findSnapshotId;
       return this;
@@ -86,7 +87,7 @@ public class FindFiles {
      * @return this for method chaining
      */
     public Builder asOfTime(long timestampMillis) {
-      Preconditions.checkArgument(this.snapshotId == null,
+      checkArgument(this.snapshotId == null,
           "Cannot set snapshot multiple times, already set to id=%s", snapshotId);
 
       Long lastSnapshotId = null;
@@ -101,7 +102,7 @@ public class FindFiles {
 
       // the snapshot ID could be null if no entries were older than the requested time. in that
       // case, there is no valid snapshot to read.
-      Preconditions.checkArgument(lastSnapshotId != null,
+      checkArgument(lastSnapshotId != null,
           "Cannot find a snapshot older than %s",
           DATE_FORMAT.format(LocalDateTime.ofInstant(Instant.ofEpochMilli(timestampMillis), ZoneId.systemDefault())));
       return inSnapshot(lastSnapshotId);
@@ -160,7 +161,7 @@ public class FindFiles {
      * @return this for method chaining
      */
     public Builder inPartitions(PartitionSpec spec, List<StructLike> partitions) {
-      Preconditions.checkArgument(spec.equals(ops.current().spec(spec.specId())),
+      checkArgument(spec.equals(ops.current().spec(spec.specId())),
           "Partition spec does not belong to table: %s", table);
 
       Expression partitionSetFilter = Expressions.alwaysFalse();

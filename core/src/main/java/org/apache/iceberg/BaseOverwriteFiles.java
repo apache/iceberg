@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +28,8 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> implements OverwriteFiles {
   private boolean validateAddedFilesMatchOverwriteFilter = false;
@@ -75,7 +76,7 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
 
   @Override
   public OverwriteFiles validateNoConflictingAppends(Long newReadSnapshotId, Expression newConflictDetectionFilter) {
-    Preconditions.checkArgument(newConflictDetectionFilter != null, "Conflict detection filter cannot be null");
+    checkArgument(newConflictDetectionFilter != null, "Conflict detection filter cannot be null");
     this.readSnapshotId = newReadSnapshotId;
     this.conflictDetectionFilter = newConflictDetectionFilter;
     failMissingDeletePaths();

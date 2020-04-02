@@ -21,7 +21,6 @@ package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import java.io.IOException;
@@ -32,6 +31,8 @@ import java.util.Map;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.util.JsonUtil;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 public class SnapshotParser {
 
@@ -100,7 +101,7 @@ public class SnapshotParser {
   }
 
   static Snapshot fromJson(FileIO io, JsonNode node) {
-    Preconditions.checkArgument(node.isObject(),
+    checkArgument(node.isObject(),
         "Cannot parse table version from a non-object: %s", node);
 
     long versionId = JsonUtil.getLong(SNAPSHOT_ID, node);
@@ -114,7 +115,7 @@ public class SnapshotParser {
     String operation = null;
     if (node.has(SUMMARY)) {
       JsonNode sNode = node.get(SUMMARY);
-      Preconditions.checkArgument(sNode != null && !sNode.isNull() && sNode.isObject(),
+      checkArgument(sNode != null && !sNode.isNull() && sNode.isObject(),
           "Cannot parse summary from non-object value: %s", sNode);
 
       ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();

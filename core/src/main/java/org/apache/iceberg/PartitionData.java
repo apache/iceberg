@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 import java.io.Serializable;
@@ -35,6 +34,8 @@ import org.apache.avro.util.Utf8;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 class PartitionData
     implements IndexedRecord, StructLike, SpecificData.SchemaConstructable, Serializable {
@@ -62,7 +63,7 @@ class PartitionData
 
   PartitionData(Types.StructType partitionType) {
     for (Types.NestedField field : partitionType.fields()) {
-      Preconditions.checkArgument(field.type().isPrimitiveType(),
+      checkArgument(field.type().isPrimitiveType(),
           "Partitions cannot contain nested types: %s", field.type());
     }
 

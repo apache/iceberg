@@ -45,6 +45,7 @@ import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
 import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
@@ -138,9 +139,9 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
 
   @Override
   public RewriteManifests addManifest(ManifestFile manifest) {
-    Preconditions.checkArgument(!manifest.hasAddedFiles(), "Cannot add manifest with added files");
-    Preconditions.checkArgument(!manifest.hasDeletedFiles(), "Cannot add manifest with deleted files");
-    Preconditions.checkArgument(
+    checkArgument(!manifest.hasAddedFiles(), "Cannot add manifest with added files");
+    checkArgument(!manifest.hasDeletedFiles(), "Cannot add manifest with deleted files");
+    checkArgument(
         manifest.snapshotId() == null || manifest.snapshotId() == -1,
         "Snapshot id must be assigned during commit");
 

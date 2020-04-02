@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.data;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import java.io.Closeable;
@@ -46,6 +45,8 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 class TableScanIterable extends CloseableGroup implements CloseableIterable<Record> {
   private final TableOperations ops;
   private final Schema projection;
@@ -54,7 +55,7 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
   private final CloseableIterable<CombinedScanTask> tasks;
 
   TableScanIterable(TableScan scan, boolean reuseContainers) {
-    Preconditions.checkArgument(scan.table() instanceof HasTableOperations,
+    checkArgument(scan.table() instanceof HasTableOperations,
         "Cannot scan table that doesn't expose its TableOperations");
     this.ops = ((HasTableOperations) scan.table()).operations();
     this.projection = scan.schema();

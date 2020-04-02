@@ -48,6 +48,8 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.TimestampType;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 public class PruneColumnsWithReordering extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   private final StructType requestedType;
   private final Set<Integer> filterRefs;
@@ -71,7 +73,7 @@ public class PruneColumnsWithReordering extends TypeUtil.CustomOrderSchemaVisito
   @Override
   public Type struct(Types.StructType struct, Iterable<Type> fieldResults) {
     Preconditions.checkNotNull(struct, "Cannot prune null struct. Pruning must start with a schema.");
-    Preconditions.checkArgument(current instanceof StructType, "Not a struct: %s", current);
+    checkArgument(current instanceof StructType, "Not a struct: %s", current);
     StructType requestedStruct = (StructType) current;
 
     List<Types.NestedField> fields = struct.fields();
@@ -130,7 +132,7 @@ public class PruneColumnsWithReordering extends TypeUtil.CustomOrderSchemaVisito
 
   @Override
   public Type field(Types.NestedField field, Supplier<Type> fieldResult) {
-    Preconditions.checkArgument(current instanceof StructType, "Not a struct: %s", current);
+    checkArgument(current instanceof StructType, "Not a struct: %s", current);
     StructType requestedStruct = (StructType) current;
 
     // fields are resolved by name because Spark only sees the current table schema.
@@ -145,7 +147,7 @@ public class PruneColumnsWithReordering extends TypeUtil.CustomOrderSchemaVisito
     int fieldIndex = requestedStruct.fieldIndex(field.name());
     StructField requestedField = requestedStruct.fields()[fieldIndex];
 
-    Preconditions.checkArgument(requestedField.nullable() || field.isRequired(),
+    checkArgument(requestedField.nullable() || field.isRequired(),
         "Cannot project an optional field as non-null: %s", field.name());
 
     this.current = requestedField.dataType();
@@ -161,10 +163,10 @@ public class PruneColumnsWithReordering extends TypeUtil.CustomOrderSchemaVisito
 
   @Override
   public Type list(Types.ListType list, Supplier<Type> elementResult) {
-    Preconditions.checkArgument(current instanceof ArrayType, "Not an array: %s", current);
+    checkArgument(current instanceof ArrayType, "Not an array: %s", current);
     ArrayType requestedArray = (ArrayType) current;
 
-    Preconditions.checkArgument(requestedArray.containsNull() || !list.isElementOptional(),
+    checkArgument(requestedArray.containsNull() || !list.isElementOptional(),
         "Cannot project an array of optional elements as required elements: %s", requestedArray);
 
     this.current = requestedArray.elementType();
@@ -187,12 +189,12 @@ public class PruneColumnsWithReordering extends TypeUtil.CustomOrderSchemaVisito
 
   @Override
   public Type map(Types.MapType map, Supplier<Type> keyResult, Supplier<Type> valueResult) {
-    Preconditions.checkArgument(current instanceof MapType, "Not a map: %s", current);
+    checkArgument(current instanceof MapType, "Not a map: %s", current);
     MapType requestedMap = (MapType) current;
 
-    Preconditions.checkArgument(requestedMap.valueContainsNull() || !map.isValueOptional(),
+    checkArgument(requestedMap.valueContainsNull() || !map.isValueOptional(),
         "Cannot project a map of optional values as required values: %s", map);
-    Preconditions.checkArgument(StringType.class.isInstance(requestedMap.keyType()),
+    checkArgument(StringType.class.isInstance(requestedMap.keyType()),
         "Invalid map key type (not string): %s", requestedMap.keyType());
 
     this.current = requestedMap.valueType();
@@ -215,7 +217,7 @@ public class PruneColumnsWithReordering extends TypeUtil.CustomOrderSchemaVisito
   @Override
   public Type primitive(Type.PrimitiveType primitive) {
     Class<? extends DataType> expectedType = TYPES.get(primitive.typeId());
-    Preconditions.checkArgument(expectedType != null && expectedType.isInstance(current),
+    checkArgument(expectedType != null && expectedType.isInstance(current),
         "Cannot project %s to incompatible type: %s", primitive, current);
 
     // additional checks based on type
@@ -223,15 +225,15 @@ public class PruneColumnsWithReordering extends TypeUtil.CustomOrderSchemaVisito
       case DECIMAL:
         Types.DecimalType decimal = (Types.DecimalType) primitive;
         DecimalType requestedDecimal = (DecimalType) current;
-        Preconditions.checkArgument(requestedDecimal.scale() == decimal.scale(),
+        checkArgument(requestedDecimal.scale() == decimal.scale(),
             "Cannot project decimal with incompatible scale: %s != %s", requestedDecimal.scale(), decimal.scale());
-        Preconditions.checkArgument(requestedDecimal.precision() >= decimal.precision(),
+        checkArgument(requestedDecimal.precision() >= decimal.precision(),
             "Cannot project decimal with incompatible precision: %s < %s",
             requestedDecimal.precision(), decimal.precision());
         break;
       case TIMESTAMP:
         Types.TimestampType timestamp = (Types.TimestampType) primitive;
-        Preconditions.checkArgument(timestamp.shouldAdjustToUTC(),
+        checkArgument(timestamp.shouldAdjustToUTC(),
             "Cannot project timestamp (without time zone) as timestamptz (with time zone)");
         break;
       default:

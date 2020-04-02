@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.util;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -31,6 +30,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 public class BinPacking {
   public static class ListPacker<T> {
@@ -69,7 +70,7 @@ public class BinPacking {
 
     public PackingIterable(Iterable<T> iterable, long targetWeight, int lookback,
                            Function<T, Long> weightFunc, boolean largestBinFirst) {
-      Preconditions.checkArgument(lookback > 0,
+      checkArgument(lookback > 0,
           "Bin look-back size must be greater than 0: %s", lookback);
       this.iterable = iterable;
       this.targetWeight = targetWeight;

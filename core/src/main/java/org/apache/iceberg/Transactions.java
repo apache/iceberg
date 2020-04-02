@@ -19,8 +19,9 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
 import org.apache.iceberg.BaseTransaction.TransactionType;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 public final class Transactions {
   private Transactions() {}
@@ -34,7 +35,7 @@ public final class Transactions {
   }
 
   public static Transaction createTableTransaction(TableOperations ops, TableMetadata start) {
-    Preconditions.checkArgument(ops.current() == null,
+    checkArgument(ops.current() == null,
             "Cannot start create table transaction: table already exists");
     return new BaseTransaction(ops, TransactionType.CREATE_TABLE, start);
   }

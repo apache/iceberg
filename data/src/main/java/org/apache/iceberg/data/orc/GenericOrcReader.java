@@ -53,6 +53,8 @@ import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 /**
  * ORC reader for Generic Record.
  */
@@ -316,7 +318,7 @@ public class GenericOrcReader implements OrcValueReader<Record> {
     private final Converter childConverter;
 
     ListConverter(Types.NestedField icebergField, TypeDescription schema) {
-      Preconditions.checkArgument(icebergField.type().isListType());
+      checkArgument(icebergField.type().isListType());
       TypeDescription child = schema.getChildren().get(0);
 
       childConverter = buildConverter(icebergField
@@ -353,7 +355,7 @@ public class GenericOrcReader implements OrcValueReader<Record> {
     private final Converter valueConvert;
 
     MapConverter(Types.NestedField icebergField, TypeDescription schema) {
-      Preconditions.checkArgument(icebergField.type().isMapType());
+      checkArgument(icebergField.type().isMapType());
       TypeDescription keyType = schema.getChildren().get(0);
       TypeDescription valueType = schema.getChildren().get(1);
       List<Types.NestedField> mapFields = icebergField.type().asMapType().fields();
@@ -392,7 +394,7 @@ public class GenericOrcReader implements OrcValueReader<Record> {
     private final Schema icebergStructSchema;
 
     StructConverter(final Types.NestedField icebergField, final TypeDescription schema) {
-      Preconditions.checkArgument(icebergField.type().isStructType());
+      checkArgument(icebergField.type().isStructType());
       icebergStructSchema = new Schema(icebergField.type().asStructType().fields());
       List<Types.NestedField> icebergChildren = icebergField.type().asStructType().fields();
       children = new Converter[schema.getChildren().size()];

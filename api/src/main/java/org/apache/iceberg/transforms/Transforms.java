@@ -19,13 +19,14 @@
 
 package org.apache.iceberg.transforms;
 
-import com.google.common.base.Preconditions;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Type;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * Factory methods for transforms.
@@ -150,7 +151,7 @@ public class Transforms {
    */
   @SuppressWarnings("unchecked")
   public static <T> Transform<T, Integer> hour(Type type) {
-    Preconditions.checkArgument(type.typeId() == Type.TypeID.TIMESTAMP,
+    checkArgument(type.typeId() == Type.TypeID.TIMESTAMP,
         "Cannot partition type %s by hour", type);
     return (Transform<T, Integer>) Timestamps.HOUR;
   }

@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.hadoop;
 
-import com.google.common.base.Preconditions;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import org.apache.hadoop.conf.Configuration;
@@ -30,6 +29,8 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * {@link InputFile} implementation using the Hadoop {@link FileSystem} API.
@@ -112,7 +113,7 @@ public class HadoopInputFile implements InputFile {
   }
 
   private HadoopInputFile(FileSystem fs, Path path, long length, Configuration conf) {
-    Preconditions.checkArgument(length >= 0, "Invalid file length: %s", length);
+    checkArgument(length >= 0, "Invalid file length: %s", length);
     this.fs = fs;
     this.path = path;
     this.conf = conf;

@@ -28,6 +28,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Arrays;
 
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * Copied from parquet-common
@@ -91,7 +92,7 @@ public class DynMethods {
     public BoundMethod bind(Object receiver) {
       Preconditions.checkState(!isStatic(),
           "Cannot bind static method %s",  method.toGenericString());
-      Preconditions.checkArgument(
+      checkArgument(
           method.getDeclaringClass().isAssignableFrom(receiver.getClass()),
           "Cannot bind %s to instance of %s",
               method.toGenericString(),

@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import java.util.List;
 import java.util.function.Supplier;
@@ -27,6 +26,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * This is used to fix primitive types to match a table schema. Some types, like binary and fixed,
@@ -55,7 +56,7 @@ class FixupTypes extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
   @Override
   public Type struct(Types.StructType struct, Iterable<Type> fieldTypes) {
-    Preconditions.checkArgument(sourceType.isStructType(), "Not a struct: %s", sourceType);
+    checkArgument(sourceType.isStructType(), "Not a struct: %s", sourceType);
 
     List<Types.NestedField> fields = struct.fields();
     int length = fields.size();
@@ -89,7 +90,7 @@ class FixupTypes extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
   @Override
   public Type field(Types.NestedField field, Supplier<Type> future) {
-    Preconditions.checkArgument(sourceType.isStructType(), "Not a struct: %s", sourceType);
+    checkArgument(sourceType.isStructType(), "Not a struct: %s", sourceType);
 
     Types.StructType sourceStruct = sourceType.asStructType();
     this.sourceType = sourceStruct.field(field.fieldId()).type();
@@ -102,7 +103,7 @@ class FixupTypes extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
   @Override
   public Type list(Types.ListType list, Supplier<Type> elementTypeFuture) {
-    Preconditions.checkArgument(sourceType.isListType(), "Not a list: %s", sourceType);
+    checkArgument(sourceType.isListType(), "Not a list: %s", sourceType);
 
     Types.ListType sourceList = sourceType.asListType();
     this.sourceType = sourceList.elementType();
@@ -125,7 +126,7 @@ class FixupTypes extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
   @Override
   public Type map(Types.MapType map, Supplier<Type> keyTypeFuture, Supplier<Type> valueTypeFuture) {
-    Preconditions.checkArgument(sourceType.isMapType(), "Not a map: %s", sourceType);
+    checkArgument(sourceType.isMapType(), "Not a map: %s", sourceType);
 
     Types.MapType sourceMap = sourceType.asMapType();
     try {

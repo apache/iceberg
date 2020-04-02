@@ -21,13 +21,14 @@ package org.apache.iceberg.arrow.vectorized.parquet;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import org.apache.parquet.Preconditions;
 import org.apache.parquet.bytes.ByteBufferInputStream;
 import org.apache.parquet.bytes.BytesUtils;
 import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.column.values.bitpacking.BytePacker;
 import org.apache.parquet.column.values.bitpacking.Packer;
 import org.apache.parquet.io.ParquetDecodingException;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * A values reader for Parquet's run-length encoded data that reads column data in batches instead of one value at a
@@ -120,7 +121,7 @@ public class BaseVectorizedParquetValuesReader extends ValuesReader {
    * Initializes the internal state for decoding ints of `bitWidth`.
    */
   private void init(int bw) {
-    Preconditions.checkArgument(bw >= 0 && bw <= 32, "bitWidth must be >= 0 and <= 32");
+    checkArgument(bw >= 0 && bw <= 32, "bitWidth must be >= 0 and <= 32");
     this.bitWidth = bw;
     this.bytesWidth = BytesUtils.paddedByteCountFromBits(bw);
     this.packer = Packer.LITTLE_ENDIAN.newBytePacker(bw);

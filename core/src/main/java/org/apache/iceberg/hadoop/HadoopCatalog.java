@@ -20,7 +20,6 @@
 package org.apache.iceberg.hadoop;
 
 import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import java.io.Closeable;
@@ -44,6 +43,8 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * HadoopCatalog provides a way to use table names like db.table to work with path-based tables under a common
@@ -72,7 +73,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
    * @param warehouseLocation The location used as warehouse directory
    */
   public HadoopCatalog(Configuration conf, String warehouseLocation) {
-    Preconditions.checkArgument(warehouseLocation != null && !warehouseLocation.equals(""),
+    checkArgument(warehouseLocation != null && !warehouseLocation.equals(""),
         "no location provided for warehouse");
 
     this.conf = conf;
@@ -98,7 +99,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
 
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
-    Preconditions.checkArgument(namespace.levels().length >= 1,
+    checkArgument(namespace.levels().length >= 1,
         "Missing database in table identifier: %s", namespace);
 
     Joiner slash = Joiner.on("/");
@@ -137,7 +138,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable {
   @Override
   public Table createTable(
       TableIdentifier identifier, Schema schema, PartitionSpec spec, String location, Map<String, String> properties) {
-    Preconditions.checkArgument(location == null, "Cannot set a custom location for a path-based table");
+    checkArgument(location == null, "Cannot set a custom location for a path-based table");
     return super.createTable(identifier, schema, spec, null, properties);
   }
 

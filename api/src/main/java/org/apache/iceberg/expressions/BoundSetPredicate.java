@@ -20,8 +20,9 @@
 package org.apache.iceberg.expressions;
 
 import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
 import java.util.Set;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 public class BoundSetPredicate<T> extends BoundPredicate<T> {
   private static final Joiner COMMA = Joiner.on(", ");
@@ -29,7 +30,7 @@ public class BoundSetPredicate<T> extends BoundPredicate<T> {
 
   BoundSetPredicate(Operation op, BoundTerm<T> term, Set<T> lits) {
     super(op, term);
-    Preconditions.checkArgument(op == Operation.IN || op == Operation.NOT_IN,
+    checkArgument(op == Operation.IN || op == Operation.NOT_IN,
         "%s predicate does not support a literal set", op);
     this.literalSet = lits;
   }

@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.Sets;
@@ -36,6 +35,8 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * The schema of a data table.
@@ -125,7 +126,7 @@ public class Schema implements Serializable {
   }
 
   public Type findType(String name) {
-    Preconditions.checkArgument(!name.isEmpty(), "Invalid column name: (empty)");
+    checkArgument(!name.isEmpty(), "Invalid column name: (empty)");
     return findType(lazyNameToId().get(name));
   }
 
@@ -162,7 +163,7 @@ public class Schema implements Serializable {
    * @return a Type for the sub-field or null if it is not found
    */
   public NestedField findField(String name) {
-    Preconditions.checkArgument(!name.isEmpty(), "Invalid column name: (empty)");
+    checkArgument(!name.isEmpty(), "Invalid column name: (empty)");
     Integer id = lazyNameToId().get(name);
     if (id != null) {
       return lazyIdToField().get(id);
@@ -179,7 +180,7 @@ public class Schema implements Serializable {
    * @return the sub-field or null if it is not found
    */
   public NestedField caseInsensitiveFindField(String name) {
-    Preconditions.checkArgument(!name.isEmpty(), "Invalid column name: (empty)");
+    checkArgument(!name.isEmpty(), "Invalid column name: (empty)");
     Integer id = lazyLowerCaseNameToId().get(name.toLowerCase(Locale.ROOT));
     if (id != null) {
       return lazyIdToField().get(id);

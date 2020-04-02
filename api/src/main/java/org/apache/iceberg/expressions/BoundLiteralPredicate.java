@@ -19,15 +19,16 @@
 
 package org.apache.iceberg.expressions;
 
-import com.google.common.base.Preconditions;
 import java.util.Comparator;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
   private final Literal<T> literal;
 
   BoundLiteralPredicate(Operation op, BoundTerm<T> term, Literal<T> lit) {
     super(op, term);
-    Preconditions.checkArgument(op != Operation.IN && op != Operation.NOT_IN,
+    checkArgument(op != Operation.IN && op != Operation.NOT_IN,
         "Bound literal predicate does not support operation: %s", op);
     this.literal = lit;
   }
