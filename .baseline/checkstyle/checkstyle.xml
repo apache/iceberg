@@ -74,6 +74,7 @@
         <module name="AvoidStaticImport"> <!-- Java Style Guide: No static imports -->
             <property name="excludes" value="
                 java.util.Collections.*,
+                java.util.Objects.*,
                 java.util.stream.Collectors.*,
                 com.palantir.logsafe.Preconditions.*,
                 com.google.common.base.Preconditions.*,

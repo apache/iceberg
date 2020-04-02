@@ -19,8 +19,6 @@
 
 package org.apache.iceberg;
 
-import static java.util.Objects.requireNonNull;
-
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ListMultimap;
@@ -41,6 +39,8 @@ import org.apache.iceberg.transforms.UnknownTransform;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
+
+import static java.util.Objects.requireNonNull;
 
 /**
  * Represents how to produce partition data for a table.

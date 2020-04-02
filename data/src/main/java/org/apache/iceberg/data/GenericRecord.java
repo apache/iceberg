@@ -19,12 +19,9 @@
 
 package org.apache.iceberg.data;
 
-import static java.util.Objects.requireNonNull;
-
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.base.Objects;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import java.util.Arrays;
 import java.util.List;
@@ -33,6 +30,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
+
+import static java.util.Objects.requireNonNull;
 
 public class GenericRecord implements Record, StructLike {
   private static final LoadingCache<StructType, Map<String, Integer>> NAME_MAP_CACHE =
