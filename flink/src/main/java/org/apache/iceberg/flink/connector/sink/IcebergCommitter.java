@@ -47,7 +47,7 @@ import org.apache.flink.streaming.api.environment.CheckpointConfig;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
 import org.apache.flink.util.Preconditions;
-import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ManifestFile;
@@ -66,6 +66,7 @@ import org.apache.iceberg.flink.connector.model.FlinkManifestFile;
 import org.apache.iceberg.flink.connector.model.FlinkManifestFileUtil;
 import org.apache.iceberg.flink.connector.model.GenericFlinkManifestFile;
 import org.apache.iceberg.flink.connector.model.ManifestFileState;
+import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hive.HiveCatalogs;
 import org.apache.iceberg.io.OutputFile;
@@ -94,11 +95,10 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
   private static final String COMMIT_MANIFEST_HASHES_KEY = "flink.commit.manifest.hashes";
   private static final String VTTS_WATERMARK_PROP_KEY_PREFIX = "flink.watermark.";
 
-  private final String metacatHost;
-  //private final String jobName;
-  //private final String catalog;
-  private final String database;
+  private Configuration config;
+  private final String namespace;
   private final String tableName;
+
   private final String region;
   private final boolean vttsWatermarkEnabled;
   private final String vttsWatermarkPropKey;
@@ -117,6 +117,8 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
   private transient ListState<CommitMetadata> metadataState;
 
   public IcebergCommitter(Configuration config) {
+    this.config = config;
+
     // current Iceberg sink implementation can't work with concurrent checkpoints.
     // We disable concurrent checkpoints by default as min pause is set to 60s by default.
     // Add an assertion to fail explicit in case job enables concurrent checkpoints.
@@ -125,17 +127,13 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
       throw new IllegalArgumentException("Iceberg sink doesn't support concurrent checkpoints");
     }
 
-    metacatHost = config.getString(IcebergConnectorConstant.METACAT_HOST,
-                                   IcebergConnectorConstant.DEFAULT_METACAT_HOST);
-    //jobName = config.getString(System.getenv("JOB_CLUSTER_NAME"), "");
-    //catalog = config.getString(IcebergConnectorConstant.CATALOG, "");
-    database = config.getString(IcebergConnectorConstant.DATABASE, "");
+    namespace = config.getString(IcebergConnectorConstant.NAMESPACE, "");
     tableName = config.getString(IcebergConnectorConstant.TABLE, "");
 
     String region = System.getenv("EC2_REGION");
     if (Strings.isNullOrEmpty(region)) {
       region = "us-east-1";
-      LOG.info("Iceberg committer {}.{} default region to us-east-1", database, tableName);
+      LOG.info("Iceberg committer {}.{} default region to us-east-1", namespace, tableName);
     }
     this.region = region;
 
@@ -147,25 +145,31 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
     commitRestoredManifestFiles = config.getBoolean(IcebergConnectorConstant.COMMIT_RESTORED_MANIFEST_FILES,
         IcebergConnectorConstant.DEFAULT_COMMIT_RESTORED_MANIFEST_FILES);
     icebergManifestFileDir = getIcebergManifestFileDir(config);
-    org.apache.hadoop.conf.Configuration hadoopConfig = new org.apache.hadoop.conf.Configuration();
-    hadoopConfig.set(IcebergConnectorConstant.METACAT_HOST_HADOOP_CONF_KEY, metacatHost);
-    // Avoid Netflix code just to make it compile
-    //final MetacatIcebergCatalog icebergCatalog
-    // = new MetacatIcebergCatalog(hadoopConfig, jobName, IcebergConnectorConstant.ICEBERG_APP_TYPE);
-//    final BaseMetastoreCatalog icebergCatalog = null;
-//    final TableIdentifier tableIdentifier = TableIdentifier.of(catalog, database, tableName);
-//    final Table table = icebergCatalog.loadTable(tableIdentifier);
 
+    // TODO: duplicate logic, to extract
     org.apache.hadoop.conf.Configuration hadoopConf = new org.apache.hadoop.conf.Configuration();
-    hadoopConf.set(IcebergConnectorConstant.METACAT_HOST_HADOOP_CONF_KEY, metacatHost);
-    hadoopConf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname,
-                   config.getString(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, ""));
+    String catalogType = config.getString(IcebergConnectorConstant.CATALOG_TYPE,
+                                          IcebergConnectorConstant.CATALOG_TYPE_DEFAULT);
+    Catalog catalog = null;
+    switch (catalogType.toUpperCase()) {
+      case IcebergConnectorConstant.HIVE_CATALOG:
+        hadoopConf.set(ConfVars.METASTOREURIS.varname, config.getString(ConfVars.METASTOREURIS.varname, ""));
+        catalog = HiveCatalogs.loadCatalog(hadoopConf);
+        break;
 
-    Catalog icebergCatalog = HiveCatalogs.loadCatalog(hadoopConf);
-    table = icebergCatalog.loadTable(TableIdentifier.of(database, tableName));
+      case IcebergConnectorConstant.HADOOP_CATALOG:
+        catalog = new HadoopCatalog(hadoopConf,
+                                    config.getString(IcebergConnectorConstant.HADOOP_CATALOG_WAREHOUSE_LOCATION, ""));
+        break;
+
+      default:
+        throw new UnsupportedOperationException("Unknown catalog type or not set: " + catalogType);
+    }
+
+    table = catalog.loadTable(TableIdentifier.parse(namespace + "." + tableName));
 
     spec = table.spec();
-    hadoopFileIO = new HadoopFileIO(hadoopConfig);
+    hadoopFileIO = new HadoopFileIO(hadoopConf);
     final JobExecutionResult jobExecutionResult
         = ExecutionEnvironment.getExecutionEnvironment().getLastJobExecutionResult();
     if (jobExecutionResult != null) {
@@ -175,8 +179,8 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
       flinkJobId = new JobID().toString();
       LOG.info("Execution environment doesn't have executed job. Generate a random job ID : {}", flinkJobId);
     }
-    LOG.info("Iceberg committer {}.{} created with sink config", database, tableName);
-    LOG.info("Iceberg committer {}.{} loaded table partition spec: {}", database, tableName, spec);
+    LOG.info("Iceberg committer {}.{} created with sink config", namespace, tableName);
+    LOG.info("Iceberg committer {}.{} loaded table partition spec: {}", namespace, tableName, spec);
   }
 
   @VisibleForTesting
@@ -213,22 +217,27 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
   }
 
   void init() {
-    org.apache.hadoop.conf.Configuration hadoopConfig = new org.apache.hadoop.conf.Configuration();
-    hadoopConfig.set(IcebergConnectorConstant.METACAT_HOST_HADOOP_CONF_KEY, metacatHost);
-    // Avoid Netflix code just to make it compile
-    //final MetacatIcebergCatalog icebergCatalog
-    // = new MetacatIcebergCatalog(hadoopConfig, jobName, IcebergConnectorConstant.ICEBERG_APP_TYPE);
-//    final BaseMetastoreCatalog icebergCatalog = null;
-//    final TableIdentifier tableIdentifier = TableIdentifier.of(catalog, database, tableName);
-//    table = icebergCatalog.loadTable(tableIdentifier);
+    // TODO: duplicate logic, to extract
+    org.apache.hadoop.conf.Configuration hadoopConf = new org.apache.hadoop.conf.Configuration();
+    String catalogType = config.getString(IcebergConnectorConstant.CATALOG_TYPE,
+                                          IcebergConnectorConstant.CATALOG_TYPE_DEFAULT);
+    Catalog catalog = null;
+    switch (catalogType.toUpperCase()) {
+      case IcebergConnectorConstant.HIVE_CATALOG:
+        hadoopConf.set(ConfVars.METASTOREURIS.varname, config.getString(ConfVars.METASTOREURIS.varname, ""));
+        catalog = HiveCatalogs.loadCatalog(hadoopConf);
+        break;
 
-    Catalog icebergCatalog = HiveCatalogs.loadCatalog(hadoopConfig);
-    table = icebergCatalog.loadTable(TableIdentifier.of(database, tableName));
-//    if (table == null) {
-//      LOG.error("table loaded by {}.{} is null in init()", database, tableName);
-//    } else {
-//      LOG.info("table = [{}] in init()", table.location());
-//    }
+      case IcebergConnectorConstant.HADOOP_CATALOG:
+        catalog = new HadoopCatalog(hadoopConf,
+                                    config.getString(IcebergConnectorConstant.HADOOP_CATALOG_WAREHOUSE_LOCATION, ""));
+        break;
+
+      default:
+        throw new UnsupportedOperationException("Unknown catalog type or not set: " + catalogType);
+    }
+
+    table = catalog.loadTable(TableIdentifier.parse(namespace + "." + tableName));
 
     pendingDataFiles = new ArrayList<>();
     flinkManifestFiles = new ArrayList<>();
@@ -255,7 +264,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
     if (context.isRestored()) {
       final Iterable<CommitMetadata> restoredMetadata = metadataState.get();
       if (null != restoredMetadata) {
-        LOG.info("Iceberg committer {}.{} restoring metadata", database, tableName);
+        LOG.info("Iceberg committer {}.{} restoring metadata", namespace, tableName);
         List<CommitMetadata> metadataList = new ArrayList<>();
         for (CommitMetadata entry : restoredMetadata) {
           metadataList.add(entry);
@@ -264,31 +273,31 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
             "metadata list size should be 1. got " + metadataList.size());
         metadata = metadataList.get(0);
         LOG.info("Iceberg committer {}.{} restored metadata: {}",
-            database, tableName, CommitMetadataUtil.getInstance().encodeAsJson(metadata));
+            namespace, tableName, CommitMetadataUtil.getInstance().encodeAsJson(metadata));
       } else {
-        LOG.info("Iceberg committer {}.{} has nothing to restore for metadata", database, tableName);
+        LOG.info("Iceberg committer {}.{} has nothing to restore for metadata", namespace, tableName);
       }
 
       Iterable<ManifestFileState> restoredManifestFileStates = manifestFilesState.get();
       if (null != restoredManifestFileStates) {
         LOG.info("Iceberg committer {}.{} restoring manifest files",
-            database, tableName);
+            namespace, tableName);
         for (ManifestFileState manifestFileState : restoredManifestFileStates) {
           flinkManifestFiles.add(GenericFlinkManifestFile.fromState(manifestFileState));
         }
         LOG.info("Iceberg committer {}.{} restored {} manifest files: {}",
-            database, tableName, flinkManifestFiles.size(), flinkManifestFiles);
+            namespace, tableName, flinkManifestFiles.size(), flinkManifestFiles);
         final long now = System.currentTimeMillis();
         if (now - metadata.getLastCheckpointTimestamp() > TimeUnit.HOURS.toMillis(snapshotRetentionHours)) {
           flinkManifestFiles.clear();
           LOG.info("Iceberg committer {}.{} cleared restored manifest files as checkpoint timestamp is too old: " +
                   "checkpointTimestamp = {}, now = {}, snapshotRetentionHours = {}",
-              database, tableName, metadata.getLastCheckpointTimestamp(), now, snapshotRetentionHours);
+              namespace, tableName, metadata.getLastCheckpointTimestamp(), now, snapshotRetentionHours);
         } else {
           flinkManifestFiles = removeCommittedManifests(flinkManifestFiles);
           if (flinkManifestFiles.isEmpty()) {
             LOG.info("Iceberg committer {}.{} has zero uncommitted manifest files from restored state",
-                database, tableName);
+                namespace, tableName);
           } else {
             if (commitRestoredManifestFiles) {
               commitRestoredManifestFiles();
@@ -298,7 +307,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
           }
         }
       } else {
-        LOG.info("Iceberg committer {}.{} has nothing to restore for manifest files", database, tableName);
+        LOG.info("Iceberg committer {}.{} has nothing to restore for manifest files", namespace, tableName);
       }
     }
   }
@@ -306,12 +315,12 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
   @VisibleForTesting
   void commitRestoredManifestFiles() throws Exception {
     LOG.info("Iceberg committer {}.{} committing last uncompleted transaction upon recovery: " +
-            "metadata = {}, flink manifest files ({}) = {}", database, tableName,
+            "metadata = {}, flink manifest files ({}) = {}", namespace, tableName,
         CommitMetadataUtil.getInstance().encodeAsJson(metadata),
         flinkManifestFiles.size(), flinkManifestFiles);
     commit();
     LOG.info("Iceberg committer {}.{} committed last uncompleted transaction upon recovery: " +
-            "metadata = {}, flink manifest files ({}) = {}", database, tableName,
+            "metadata = {}, flink manifest files ({}) = {}", namespace, tableName,
         CommitMetadataUtil.getInstance().encodeAsJson(metadata),
         flinkManifestFiles.size(), flinkManifestFiles);
     postCommitSuccess();
@@ -346,20 +355,20 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
       //LOG.error(String.format("Iceberg committer %s.%s failed to check transaction completed", database, tableName),
       //          t);
       LOG.error("Iceberg committer {}.{} failed to check transaction completed. Throwable = {}",
-                database, tableName, t);
+                namespace, tableName, t);
       throw t;
     } finally {
       final long duration = System.currentTimeMillis() - start;
       LOG.info("Iceberg committer {}.{} {} to check transaction completed" +
                " after iterating {} snapshots and {} milli-seconds",
-               database, tableName, result, snapshotCount, duration);
+               namespace, tableName, result, snapshotCount, duration);
     }
   }
 
   @Override
   public void snapshotState(FunctionSnapshotContext context) throws Exception {
     LOG.info("Iceberg committer {}.{} snapshot state: checkpointId = {}, triggerTime = {}",
-        database, tableName, context.getCheckpointId(), context.getCheckpointTimestamp());
+        namespace, tableName, context.getCheckpointId(), context.getCheckpointTimestamp());
     Preconditions.checkState(null != manifestFilesState,
         "manifest files state has not been properly initialized.");
     Preconditions.checkState(null != metadataState,
@@ -386,7 +395,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
   private FlinkManifestFile createManifestFile(
       FunctionSnapshotContext context, List<FlinkDataFile> pendingDataFiles) throws Exception {
     LOG.info("Iceberg committer {}.{} checkpointing {} pending data files}",
-        database, tableName, pendingDataFiles.size());
+        namespace, tableName, pendingDataFiles.size());
     String result = "succeeded";
     final long start = System.currentTimeMillis();
     try {
@@ -443,7 +452,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
           .values();
       for (List<String> fileList : listOfFileList) {
         LOG.info("Iceberg committer {}.{} created manifest file {} for {}/{} data files: {}",
-            database, tableName, manifestFile.path(), fileList.size(), pendingDataFiles.size(), fileList);
+            namespace, tableName, manifestFile.path(), fileList.size(), pendingDataFiles.size(), fileList);
       }
       return flinkManifestFile;
     } catch (Throwable t) {
@@ -451,12 +460,12 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
       //LOG.error(String.format("Iceberg committer %s.%s failed to create manifest file for %d pending data files",
       //          database, tableName, pendingDataFiles.size()), t);
       LOG.error("Iceberg committer {}.{} failed to create manifest file for {} pending data files. Throwable={}",
-          database, tableName, pendingDataFiles.size(), t);
+          namespace, tableName, pendingDataFiles.size(), t);
       throw t;
     } finally {
       final long duration = System.currentTimeMillis() - start;
       LOG.info("Iceberg committer {}.{} {} to create manifest file with {} data files after {} milli-seconds",
-          database, tableName, result, pendingDataFiles.size(), duration);
+          namespace, tableName, result, pendingDataFiles.size(), duration);
     }
   }
 
@@ -464,8 +473,8 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
       CommitMetadata oldMetadata,
       FunctionSnapshotContext context,
       @Nullable FlinkManifestFile flinkManifestFile) {
-    LOG.info("Iceberg committer {}.{} updating metadata {} with manifest file {}",
-        database, tableName, CommitMetadataUtil.getInstance().encodeAsJson(oldMetadata), flinkManifestFile);
+    LOG.info("Iceberg committer {} updating metadata {} with manifest file {}",
+        table, CommitMetadataUtil.getInstance().encodeAsJson(oldMetadata), flinkManifestFile);
     CommitMetadata.Builder metadataBuilder = CommitMetadata.newBuilder(oldMetadata)
         .setLastCheckpointId(context.getCheckpointId())
         .setLastCheckpointTimestamp(context.getCheckpointTimestamp());
@@ -497,12 +506,12 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
     }
     CommitMetadata metadata = metadataBuilder.build();
     LOG.info("Iceberg committer {}.{} updated metadata {} with manifest file {}",
-        database, tableName, CommitMetadataUtil.getInstance().encodeAsJson(metadata), flinkManifestFile);
+        namespace, tableName, CommitMetadataUtil.getInstance().encodeAsJson(metadata), flinkManifestFile);
     return metadata;
   }
 
   private void checkpointState(List<FlinkManifestFile> flinkManifestFiles, CommitMetadata metadata) throws Exception {
-    LOG.info("Iceberg committer {}.{} checkpointing state", database, tableName);
+    LOG.info("Iceberg committer {}.{} checkpointing state", namespace, tableName);
     List<ManifestFileState> manifestFileStates = flinkManifestFiles.stream()
         .map(f -> f.toState())
         .collect(Collectors.toList());
@@ -511,7 +520,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
     metadataState.clear();
     metadataState.add(metadata);
     LOG.info("Iceberg committer {}.{} checkpointed state: metadata = {}, flinkManifestFiles({}) = {}",
-        database, tableName, CommitMetadataUtil.getInstance().encodeAsJson(metadata),
+        namespace, tableName, CommitMetadataUtil.getInstance().encodeAsJson(metadata),
         flinkManifestFiles.size(), flinkManifestFiles);
   }
 
@@ -527,7 +536,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
 
   @Override
   public void notifyCheckpointComplete(long checkpointId) {
-    LOG.info("Iceberg committer {}.{} checkpoint {} completed", database, tableName, checkpointId);
+    LOG.info("Iceberg committer {}.{} checkpoint {} completed", namespace, tableName, checkpointId);
     synchronized (this) {
       if (checkpointId == metadata.getLastCheckpointId()) {
         try {
@@ -538,13 +547,13 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
           //LOG.error(String.format("Iceberg committer %s.%s failed to do post checkpoint commit", database, tableName),
           //          t);
           LOG.error("Iceberg committer {}.{} failed to do post checkpoint commit. Throwable = ",
-              database, tableName, t);
+              namespace, tableName, t);
         }
       } else {
         // TODO: it would be nice to fix this and allow concurrent checkpoint
         LOG.info("Iceberg committer {}.{} skip committing transaction: " +
                 "notify complete checkpoint id = {}, last manifest checkpoint id = {}",
-            database, tableName, checkpointId, metadata.getLastCheckpointId());
+            namespace, tableName, checkpointId, metadata.getLastCheckpointId());
       }
     }
   }
@@ -560,31 +569,28 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
         commitTransaction(transaction);
         final long duration = System.currentTimeMillis() - start;
         LOG.info("Iceberg committer {}.{} succeeded to commit {} manifest files after {} milli-seconds",
-            database, tableName, flinkManifestFiles.size(), TimeUnit.NANOSECONDS.toMillis(duration));
+            namespace, tableName, flinkManifestFiles.size(), TimeUnit.NANOSECONDS.toMillis(duration));
       } catch (Throwable t) {
         final long duration = System.currentTimeMillis() - start;
         //LOG.error(String.format("Iceberg committer %s.%s failed to commit %d manifest files after %d milli-seconds",
         //database, tableName, flinkManifestFiles.size(), TimeUnit.NANOSECONDS.toMillis(duration)), t);
         LOG.error("Iceberg committer {}.{} failed to commit {} manifest files after {} milli-seconds." +
                   " Throwable = ",
-                  database, tableName, flinkManifestFiles.size(), duration, t);
+            namespace, tableName, flinkManifestFiles.size(), duration, t);
         throw t;
       }
     } else {
       LOG.info("Iceberg committer {}.{} skip commit, " +
                "as there are no uncommitted data files and VTTS watermark is disabled",
-               database, tableName);
+               namespace, tableName);
     }
   }
 
   private Transaction prepareTransaction(List<FlinkManifestFile> flinkManifestFiles, CommitMetadata metadata) {
     LOG.info("Iceberg committer {}.{} start to prepare transaction: {}",
-        database, tableName, CommitMetadataUtil.getInstance().encodeAsJson(metadata));
+        namespace, tableName, CommitMetadataUtil.getInstance().encodeAsJson(metadata));
     final long start = System.currentTimeMillis();
     try {
-//      if (table == null) {
-//        LOG.error("Iceberg committer {}.{} table = null in prepareTransaction()", database, tableName);
-//      }
       Transaction transaction = table.newTransaction();
       if (!flinkManifestFiles.isEmpty()) {
         List<String> hashes = new ArrayList<>(flinkManifestFiles.size());
@@ -597,14 +603,14 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
         appendFiles.set(COMMIT_MANIFEST_HASHES_KEY, FlinkManifestFileUtil.hashesListToString(hashes));
         appendFiles.commit();
         LOG.info("Iceberg committer {}.{} appended {} manifest files to transaction",
-            database, tableName, flinkManifestFiles.size());
+            namespace, tableName, flinkManifestFiles.size());
       }
       if (vttsWatermarkEnabled) {
         UpdateProperties updateProperties = transaction.updateProperties();
         updateProperties.set(vttsWatermarkPropKey, Long.toString(metadata.getVttsWatermark()));
         updateProperties.commit();
         LOG.info("Iceberg committer {}.{} set VTTS watermark to {}",
-            database, tableName, metadata.getVttsWatermark());
+            namespace, tableName, metadata.getVttsWatermark());
       }
       return transaction;
     } finally {
@@ -615,7 +621,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
 
   private void commitTransaction(Transaction transaction) {
     LOG.info("Iceberg committer {}.{} start to commit transaction: {}",
-        database, tableName, CommitMetadataUtil.getInstance().encodeAsJson(metadata));
+        namespace, tableName, CommitMetadataUtil.getInstance().encodeAsJson(metadata));
     final long start = System.currentTimeMillis();
     try {
       transaction.commitTransaction();
@@ -626,7 +632,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
   }
 
   private void postCommitSuccess() {
-    LOG.info("Iceberg committer {}.{} update metrics and metadata post commit success", database, tableName);
+    LOG.info("Iceberg committer {}.{} update metrics and metadata post commit success", namespace, tableName);
     LOG.debug("Committed manifest file count {}, containing data file count {}, record count {} and byte count {}",
         flinkManifestFiles.size(),
         FlinkManifestFileUtil.getDataFileCount(flinkManifestFiles),
@@ -655,7 +661,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
         value.getIcebergDataFile().recordCount(),
         value.getIcebergDataFile().fileSizeInBytes());
     LOG.debug("Iceberg committer {}.{} has total pending files {} after receiving new data file: {}",
-        database, tableName, pendingDataFiles.size(), value.toCompactDump());
+        namespace, tableName, pendingDataFiles.size(), value.toCompactDump());
   }
 
 }

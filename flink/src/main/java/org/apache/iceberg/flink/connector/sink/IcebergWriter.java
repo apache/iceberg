@@ -51,6 +51,7 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.connector.IcebergConnectorConstant;
+import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.hive.HiveCatalogs;
 import org.apache.iceberg.io.FileAppender;
@@ -70,10 +71,7 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
 
   private final AvroSerializer serializer;
   private final Configuration config;
-  private final String metacatHost;
-  //private final String jobName;
-  //private final String catalog;
-  private final String database;
+  private final String namespace;
   private final String tableName;
   private final FileFormat format;
   private final boolean skipIncompatibleRecord;
@@ -99,12 +97,6 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
                        Configuration config) {
     this.serializer = serializer;
     this.config = config;
-    metacatHost = config.getString(IcebergConnectorConstant.METACAT_HOST,
-        IcebergConnectorConstant.DEFAULT_METACAT_HOST);
-    //jobName = config.getString(System.getenv("JOB_CLUSTER_NAME"), "");
-    //catalog = config.getString(IcebergConnectorConstant.CATALOG, "");
-    database = config.getString(IcebergConnectorConstant.DATABASE, "");
-    tableName = config.getString(IcebergConnectorConstant.TABLE, "");
     format = FileFormat.valueOf(config.getString(IcebergConnectorConstant.FORMAT,
         FileFormat.PARQUET.name()));
     skipIncompatibleRecord = config.getBoolean(IcebergConnectorConstant.SKIP_INCOMPATIBLE_RECORD,
@@ -117,21 +109,30 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
     maxFileSize = config.getLong(IcebergConnectorConstant.MAX_FILE_SIZE,
         IcebergConnectorConstant.DEFAULT_MAX_FILE_SIZE);
 
-//    org.apache.hadoop.conf.Configuration hadoopConfig = new org.apache.hadoop.conf.Configuration();
-//    hadoopConfig.set(IcebergConnectorConstant.METACAT_HOST_HADOOP_CONF_KEY, metacatHost);
-    // Avoid Netflix code just to make it compile
-    //final MetacatIcebergCatalog icebergCatalog
-    // = new MetacatIcebergCatalog(hadoopConfig, jobName, IcebergConnectorConstant.ICEBERG_APP_TYPE);
-    //final BaseMetastoreCatalog icebergCatalog = null;
-    //final TableIdentifier tableIdentifier = TableIdentifier.of(catalog, database, tableName);
-    // final Table table = icebergCatalog.loadTable(tableIdentifier);
+    // TODO: duplicate logic, to extract
     org.apache.hadoop.conf.Configuration hadoopConf = new org.apache.hadoop.conf.Configuration();
-    //hadoopConf.set(ConfVars.METASTOREURIS.varname, config.getString(ConfVars.METASTOREURIS.varname, ""));
-    hadoopConf.set(IcebergConnectorConstant.METACAT_HOST_HADOOP_CONF_KEY, metacatHost);
-    hadoopConf.set(ConfVars.METASTOREWAREHOUSE.varname, config.getString(ConfVars.METASTOREWAREHOUSE.varname, ""));
+    Catalog catalog = null;
+    String catalogType = config.getString(IcebergConnectorConstant.CATALOG_TYPE,
+                                          IcebergConnectorConstant.CATALOG_TYPE_DEFAULT);
+    switch (catalogType.toUpperCase()) {
+      case IcebergConnectorConstant.HIVE_CATALOG:
+        hadoopConf.set(ConfVars.METASTOREURIS.varname, config.getString(ConfVars.METASTOREURIS.varname, ""));
+        catalog = HiveCatalogs.loadCatalog(hadoopConf);
+        break;
 
-    Catalog icebergCatalog = HiveCatalogs.loadCatalog(hadoopConf);
-    final Table table = icebergCatalog.loadTable(TableIdentifier.of(database, tableName));
+      case IcebergConnectorConstant.HADOOP_CATALOG:
+        catalog = new HadoopCatalog(hadoopConf,
+                                    config.getString(IcebergConnectorConstant.HADOOP_CATALOG_WAREHOUSE_LOCATION, ""));
+        break;
+
+      default:
+        throw new UnsupportedOperationException("Unknown catalog type or not set: " + catalogType);
+    }
+
+    namespace = config.getString(IcebergConnectorConstant.NAMESPACE, "");
+    tableName = config.getString(IcebergConnectorConstant.TABLE, "");
+    Table table = catalog.loadTable(TableIdentifier.parse(namespace + "." + tableName));
+
     ImmutableMap.Builder<String, String> tablePropsBuilder = ImmutableMap.<String, String>builder()
         .putAll(table.properties());
     if (!table.properties().containsKey(PARQUET_COMPRESSION)) {
@@ -146,10 +147,10 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
     spec = table.spec();
     //s3BasePath = getS3BasePath(table.location());
     s3BasePath = table.locationProvider().newDataLocation("");  // data location of the Iceberg table
-    LOG.info("Iceberg writer {}.{} has S3 base path: {}", database, tableName, s3BasePath);
-    LOG.info("Iceberg writer {}.{} created with sink config", database, tableName);
+    LOG.info("Iceberg writer {}.{} has S3 base path: {}", namespace, tableName, s3BasePath);
+    LOG.info("Iceberg writer {}.{} created with sink config", namespace, tableName);
     LOG.info("Iceberg writer {}.{} loaded table: schema = {}\npartition spec = {}",
-        database, tableName, icebergSchema, spec);
+        namespace, tableName, icebergSchema, spec);
 
     // default ChainingStrategy is set to HEAD
     // we prefer chaining to avoid the huge serialization and deserializatoin overhead.
@@ -186,8 +187,8 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
     instanceId = System.getenv("EC2_INSTANCE_ID");
     titusTaskId = System.getenv("TITUS_TASK_ID");
     avroSchema = AvroSchemaUtil.convert(icebergSchema, tableName);
+
     hadoopConfig = new org.apache.hadoop.conf.Configuration();
-    hadoopConfig.set(IcebergConnectorConstant.METACAT_HOST_HADOOP_CONF_KEY, metacatHost);
 
     this.subtaskId = subtaskId1;
     this.timerService = timerService1;
@@ -201,18 +202,18 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
       // TODO: change to use StreamingFileSink and uncomment fs.delete() in abort()
       //fs = BucketingSink.createHadoopFileSystem(path, fsConfig);
       LOG.info("Iceberg writer {}.{} subtask {} created file system with base path: {}",
-          database, tableName, subtaskId1, path.toString());
+          namespace, tableName, subtaskId1, path.toString());
     }
   }
 
   @Override
   public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
     LOG.info("Iceberg writer {}.{} subtask {} begin preparing for checkpoint {}",
-        database, tableName, subtaskId, checkpointId);
+        namespace, tableName, subtaskId, checkpointId);
     // close all open files and emit files to downstream committer operator
     flush(true);
     LOG.info("Iceberg writer {}.{} subtask {} completed preparing for checkpoint {}",
-        database, tableName, subtaskId, checkpointId);
+        namespace, tableName, subtaskId, checkpointId);
   }
 
   @Override
@@ -232,7 +233,7 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
       }
     }
     LOG.info("Iceberg writer {}.{} subtask {} flushed {} open files",
-        database, tableName, subtaskId, openPartitionFiles.size());
+        namespace, tableName, subtaskId, openPartitionFiles.size());
     openPartitionFiles.clear();
     return dataFiles;
   }
@@ -241,7 +242,7 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
     FlinkDataFile flinkDataFile = writer.close();
     LOG.info(
         "Iceberg writer {}.{} subtask {} uploaded to Iceberg table {}.{} with {} records and {} bytes on this path: {}",
-        database, tableName, subtaskId, database, tableName, flinkDataFile.getIcebergDataFile().recordCount(),
+        namespace, tableName, subtaskId, namespace, tableName, flinkDataFile.getIcebergDataFile().recordCount(),
         flinkDataFile.getIcebergDataFile().fileSizeInBytes(), flinkDataFile.getIcebergDataFile().path());
     return flinkDataFile;
   }
@@ -250,7 +251,7 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
     output.collect(new StreamRecord<>(flinkDataFile));
     LOG.debug("Iceberg writer {}.{} subtask {} emitted uploaded file to committer for Iceberg table {}.{}" +
         " with {} records and {} bytes on this path: {}",
-        database, tableName, subtaskId, database, tableName, flinkDataFile.getIcebergDataFile().recordCount(),
+        namespace, tableName, subtaskId, namespace, tableName, flinkDataFile.getIcebergDataFile().recordCount(),
         flinkDataFile.getIcebergDataFile().fileSizeInBytes(), flinkDataFile.getIcebergDataFile().path());
   }
 
@@ -270,10 +271,10 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
   public void close() throws Exception {
     super.close();
 
-    LOG.info("Iceberg writer {}.{} subtask {} begin close", database, tableName, subtaskId);
+    LOG.info("Iceberg writer {}.{} subtask {} begin close", namespace, tableName, subtaskId);
     // close all open files without emitting to downstream committer
     flush(false);
-    LOG.info("Iceberg writer {}.{} subtask {} completed close", database, tableName, subtaskId);
+    LOG.info("Iceberg writer {}.{} subtask {} completed close", namespace, tableName, subtaskId);
   }
 
   /**
@@ -287,14 +288,14 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
   public void dispose() throws Exception {
     super.dispose();
 
-    LOG.info("Iceberg writer {}.{} subtask {} begin dispose", database, tableName, subtaskId);
+    LOG.info("Iceberg writer {}.{} subtask {} begin dispose", namespace, tableName, subtaskId);
     abort();
-    LOG.info("Iceberg writer {}.{} subtask {} completed dispose", database, tableName, subtaskId);
+    LOG.info("Iceberg writer {}.{} subtask {} completed dispose", namespace, tableName, subtaskId);
   }
 
   private void abort() {
     LOG.info("Iceberg writer {}.{} subtask {} has {} open files to abort",
-        database, tableName, subtaskId, openPartitionFiles.size());
+        namespace, tableName, subtaskId, openPartitionFiles.size());
     // close all open files without sending DataFile list to downstream committer operator.
     // because there are not checkpointed,
     // we don't want to commit these files.
@@ -303,15 +304,15 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
       final Path path = writer.getPath();
       try {
         LOG.debug("Iceberg writer {}.{} subtask {} start to abort file: {}",
-            database, tableName, subtaskId, path);
+            namespace, tableName, subtaskId, path);
         writer.abort();
         LOG.info("Iceberg writer {}.{} subtask {} completed aborting file: {}",
-            database, tableName, subtaskId, path);
+            namespace, tableName, subtaskId, path);
       } catch (Throwable t) {
 //                LOG.error(String.format("Iceberg writer %s.%s subtask %d failed to abort open file: %s",
-//                        database, tableName, subtaskId, path.toString()), t);
+//                        namespace, tableName, subtaskId, path.toString()), t);
         LOG.error("Iceberg writer {}.{} subtask {} failed to abort open file: {}. Throwable = {}",
-            database, tableName, subtaskId, path.toString(), t);
+            namespace, tableName, subtaskId, path.toString(), t);
         continue;
       }
 
@@ -319,20 +320,20 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
       // as S3 retention should eventually kick in.
       try {
         LOG.debug("Iceberg writer {}.{} subtask {} deleting aborted file: {}",
-            database, tableName, subtaskId, path);
+            namespace, tableName, subtaskId, path);
         //fs.delete(path, false);  // TODO
         LOG.info("Iceberg writer {}.{} subtask {} deleted aborted file: {}",
-            database, tableName, subtaskId, path);
+            namespace, tableName, subtaskId, path);
       } catch (Throwable t) {
 //                LOG.error(String.format(
 //                        "Iceberg writer %s.%s subtask %d failed to delete aborted file: %s",
-//                        database, tableName, subtaskId, path.toString()), t);
+//                        namespace, tableName, subtaskId, path.toString()), t);
         LOG.error("Iceberg writer {}.{} subtask {} failed to delete aborted file: {}. Throwable = {}",
-            database, tableName, subtaskId, path.toString(), t);
+            namespace, tableName, subtaskId, path.toString(), t);
       }
     }
     LOG.info("Iceberg writer {}.{} subtask {} aborted {} open files",
-        database, tableName, subtaskId, openPartitionFiles.size());
+        namespace, tableName, subtaskId, openPartitionFiles.size());
     openPartitionFiles.clear();
   }
 
@@ -392,7 +393,7 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
       FileWriter writer = newWriter(path, partitioner);
       openPartitionFiles.put(partitionPath, writer);
       LOG.info("Iceberg writer {}.{} subtask {} opened a new file: {}",
-          database, tableName, subtaskId, path.toString());
+          namespace, tableName, subtaskId, path.toString());
     }
     final FileWriter writer = openPartitionFiles.get(partitionPath);
     final long fileSize = writer.write(record);
