@@ -232,7 +232,6 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 | **`128  upper_bounds`**           | `optional map<129: int, 130: binary>` | Map from column id to upper bound in the column serialized as binary [1]. Each value must be greater than or equal to all values in the column for the file.                                         |
 | **`131  key_metadata`**           | `optional binary`                     | Implementation-specific key metadata for encryption                                                                                                                                                  |
 | **`132  split_offsets`**          | `optional list`                       | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending.                                                                                     |
-| **`134  file_type`**              | `optional int`                        | Type of the data file. `0`: normal data file that has the same schema as the table's schema. `1`: file and position based deletion file.                                                         |
 
 Notes:
 
@@ -254,33 +253,6 @@ When a data file is replaced or deleted from the dataset, it’s manifest entry 
 Notes:
 
 1. Technically, data files can be deleted when the last snapshot that contains the file as “live” data is garbage collected. But this is harder to detect and requires finding the diff of multiple snapshots. It is easier to track what files are deleted in a snapshot and delete them when that snapshot expires.
-
-#### Deletion Files
-
-Deletion files are files that indicate deletions of pre-existing rows to be applied to the dataset at read time. Deletion files may either specify rows by column value or by file name and row position.
-
-1. The file and position based deletion file has the schema as following:
-```
-{
-  filename string,
-  position long
-}
-```
-
-The rows in the deletion file must be sorted by `filename` and `position` so as to leverage the merge sort. The layout of sorted records in the deletion file looks like:
-```
-file1, 1
-file1, 2
-file1, 5
-file2, 3
-file2, 4
-file2, 7
-file3, 6
-file3, 8
-file3, 9
-```
- 
-It is also worth to note that in order to keep module independence, deletion files are written with the same file format as the table's file format.
 
 ### Snapshots
 
@@ -361,6 +333,38 @@ Table metadata is stored as JSON. Each table metadata change creates a new table
 
 The atomic operation used to commit metadata depends on how tables are tracked and is not standardized by this spec. See the sections below for examples.
 
+### Delete Format
+
+This section details how to encode row-level deletes in Iceberg metadata. Row-level deletes are not supported in the current format version, 1. This part of the spec is not yet complete and will be completed as format version 2.
+
+#### Position-based Delete Files
+
+Position-based delete files identify rows in one or more data files that have been deleted. It has the schema as following:
+```json
+{
+  "type": "struct",
+  "fields": [ {
+    "id": 1,
+    "name": "file_path",
+    "required": true,
+    "type": "string",
+    "doc": "The full URI of a data file, with FS scheme. This must match the file_path of the target data file in a manifest entry."
+  }, {
+    "id": 2,
+    "name": "position",
+    "required": true,
+    "type": "long",
+    "doc": "The ordinal position of a deleted row in the target data file identified by file_path, starting at 0."
+  } ]
+}
+```
+
+The rows in the delete file must be sorted by `file_path` then `position` to optimize filtering rows while scanning. 
+
+*  Sorting by `file_path` allows filter pushdown by file in columnar storage formats.
+*  Sorting by `position` allows filtering rows while scanning, to avoid keeping deletes in memory.
+ 
+Though the delete files can be written using any supported data file format in Iceberg, it is recommended to write delete files with same file format as the table's file format to keep module independence.
 
 #### Commit Conflict Resolution and Retry
 
