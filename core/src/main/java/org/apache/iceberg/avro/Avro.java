@@ -41,6 +41,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.NameMapping;
 
+import static java.util.Objects.requireNonNull;
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_DEFAULT;
 
@@ -63,7 +64,7 @@ public class Avro {
     }
 
     public CodecFactory get() {
-      Preconditions.checkArgument(avroCodec != null, "Missing implementation for codec %s", this);
+      requireNonNull(avroCodec, "Missing implementation for codec " + this);
       return avroCodec;
     }
   }

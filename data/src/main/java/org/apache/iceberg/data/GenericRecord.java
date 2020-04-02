@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.data;
 
+import static java.util.Objects.requireNonNull;
+
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.base.Objects;
@@ -100,7 +102,7 @@ public class GenericRecord implements Record, StructLike {
   @Override
   public void setField(String name, Object value) {
     Integer pos = nameToPos.get(name);
-    Preconditions.checkArgument(pos != null, "Cannot set unknown field named: %s", name);
+    requireNonNull(pos, "Cannot set unknown field named: %s" + name);
     values[pos] = value;
   }
 

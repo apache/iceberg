@@ -19,6 +19,8 @@
 
 package org.apache.iceberg;
 
+import static java.util.Objects.requireNonNull;
+
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -110,7 +112,7 @@ class SchemaUpdate implements UpdateSchema {
     int parentId = TABLE_ROOT_ID;
     if (parent != null) {
       Types.NestedField parentField = schema.findField(parent);
-      Preconditions.checkArgument(parentField != null, "Cannot find parent struct: %s", parent);
+      requireNonNull(parentField, "Cannot find parent struct: " + parent);
       Type parentType = parentField.type();
       if (parentType.isNestedType()) {
         Type.NestedType nested = parentType.asNestedType();
@@ -144,7 +146,7 @@ class SchemaUpdate implements UpdateSchema {
   @Override
   public UpdateSchema deleteColumn(String name) {
     Types.NestedField field = schema.findField(name);
-    Preconditions.checkArgument(field != null, "Cannot delete missing column: %s", name);
+    requireNonNull(field, "Cannot delete missing column: " + name);
     Preconditions.checkArgument(!adds.containsKey(field.fieldId()),
         "Cannot delete a column that has additions: %s", name);
     Preconditions.checkArgument(!updates.containsKey(field.fieldId()),
@@ -158,7 +160,7 @@ class SchemaUpdate implements UpdateSchema {
   @Override
   public UpdateSchema renameColumn(String name, String newName) {
     Types.NestedField field = schema.findField(name);
-    Preconditions.checkArgument(field != null, "Cannot rename missing column: %s", name);
+    requireNonNull(field, "Cannot rename missing column: " + name);
     Preconditions.checkArgument(newName != null, "Cannot rename a column to null");
     Preconditions.checkArgument(!deletes.contains(field.fieldId()),
         "Cannot rename a column that will be deleted: %s", field.name());
@@ -189,7 +191,7 @@ class SchemaUpdate implements UpdateSchema {
 
   private void internalUpdateColumnRequirement(String name, boolean isOptional) {
     Types.NestedField field = schema.findField(name);
-    Preconditions.checkArgument(field != null, "Cannot update missing column: %s", name);
+    requireNonNull(field, "Cannot update missing column: " + name);
 
     if ((!isOptional && field.isRequired()) || (isOptional && field.isOptional())) {
       // if the change is a noop, allow it even if allowIncompatibleChanges is false
@@ -214,7 +216,7 @@ class SchemaUpdate implements UpdateSchema {
   @Override
   public UpdateSchema updateColumn(String name, Type.PrimitiveType newType) {
     Types.NestedField field = schema.findField(name);
-    Preconditions.checkArgument(field != null, "Cannot update missing column: %s", name);
+    requireNonNull(field, "Cannot update missing column: " + name);
     Preconditions.checkArgument(!deletes.contains(field.fieldId()),
         "Cannot update a column that will be deleted: %s", field.name());
 
@@ -240,7 +242,7 @@ class SchemaUpdate implements UpdateSchema {
   @Override
   public UpdateSchema updateColumnDoc(String name, String doc) {
     Types.NestedField field = schema.findField(name);
-    Preconditions.checkArgument(field != null, "Cannot update missing column: %s", name);
+    requireNonNull(field, "Cannot update missing column: " + name);
     Preconditions.checkArgument(!deletes.contains(field.fieldId()),
         "Cannot update a column that will be deleted: %s", field.name());
 

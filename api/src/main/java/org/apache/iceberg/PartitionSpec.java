@@ -19,6 +19,8 @@
 
 package org.apache.iceberg;
 
+import static java.util.Objects.requireNonNull;
+
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ListMultimap;
@@ -349,7 +351,7 @@ public class PartitionSpec implements Serializable {
 
     private Types.NestedField findSourceColumn(String sourceName) {
       Types.NestedField sourceColumn = schema.findField(sourceName);
-      Preconditions.checkArgument(sourceColumn != null, "Cannot find source column: %s", sourceName);
+      requireNonNull(sourceColumn, "Cannot find source column: " + sourceName);
       return sourceColumn;
     }
 

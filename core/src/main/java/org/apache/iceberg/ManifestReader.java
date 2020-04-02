@@ -40,6 +40,7 @@ import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static java.util.Objects.requireNonNull;
 import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 
 /**
@@ -241,7 +242,7 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
 
   CloseableIterable<ManifestEntry> entries(Schema fileProjection) {
     FileFormat format = FileFormat.fromFileName(file.location());
-    Preconditions.checkArgument(format != null, "Unable to determine format of manifest: %s", file);
+    requireNonNull(format, "Unable to determine format of manifest: " + file);
 
     switch (format) {
       case AVRO:
