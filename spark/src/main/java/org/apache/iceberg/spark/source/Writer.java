@@ -433,6 +433,7 @@ class Writer implements DataSourceWriter {
         currentAppender.close();
         // metrics are only valid after the appender is closed
         Metrics metrics = currentAppender.metrics();
+        long fileSizeInBytes = currentAppender.length();
         List<Long> splitOffsets = currentAppender.splitOffsets();
         this.currentAppender = null;
 
@@ -440,7 +441,9 @@ class Writer implements DataSourceWriter {
           fileIo.deleteFile(currentFile.encryptingOutputFile());
         } else {
           DataFile dataFile = DataFiles.builder(spec)
-              .withEncryptedOutputFile(currentFile)
+              .withEncryptionKeyMetadata(currentFile.keyMetadata())
+              .withPath(currentFile.encryptingOutputFile().location())
+              .withFileSizeInBytes(fileSizeInBytes)
               .withPartition(spec.fields().size() == 0 ? null : currentKey) // set null if unpartitioned
               .withMetrics(metrics)
               .withSplitOffsets(splitOffsets)
