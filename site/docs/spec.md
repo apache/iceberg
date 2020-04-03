@@ -339,12 +339,14 @@ This section details how to encode row-level deletes in Iceberg metadata. Row-le
 
 #### Position-based Delete Files
 
-Position-based delete files identify rows in one or more data files that have been deleted. It has the schema named "position_based_delete_file" with a struct of the following fields:
+Position-based delete files identify rows in one or more data files that have been deleted.
+
+Position-based delete files store `file_position_delete`, a struct with the following fields:
 
 | Field id, name          | Type                            | Description                                                                                                              |
 |-------------------------|---------------------------------|--------------------------------------------------------------------------------------------------------------------------|
-| **`600 file_path`**     | `required string`               | The full URI of a data file with FS scheme. This must match the file_path of the target data file in a manifest entry.   |
-| **`601 position`**      | `required long`                 | The ordinal position of a deleted row in the target data file identified by file_path, starting at 0.                    |
+| **`1  file_path`**     | `required string`               | The full URI of a data file with FS scheme. This must match the `file_path` of the target data file in a manifest entry.   |
+| **`2  position`**      | `required long`                 | The ordinal position of a deleted row in the target data file identified by `file_path`, starting at `0`.                    |
 
 The rows in the delete file must be sorted by `file_path` then `position` to optimize filtering rows while scanning. 
 
