@@ -333,6 +333,27 @@ Table metadata is stored as JSON. Each table metadata change creates a new table
 
 The atomic operation used to commit metadata depends on how tables are tracked and is not standardized by this spec. See the sections below for examples.
 
+### Delete Format
+
+This section details how to encode row-level deletes in Iceberg metadata. Row-level deletes are not supported in the current format version 1. This part of the spec is not yet complete and will be completed as format version 2.
+
+#### Position-based Delete Files
+
+Position-based delete files identify rows in one or more data files that have been deleted.
+
+Position-based delete files store `file_position_delete`, a struct with the following fields:
+
+| Field id, name          | Type                            | Description                                                                                                              |
+|-------------------------|---------------------------------|--------------------------------------------------------------------------------------------------------------------------|
+| **`1  file_path`**     | `required string`               | The full URI of a data file with FS scheme. This must match the `file_path` of the target data file in a manifest entry.   |
+| **`2  position`**      | `required long`                 | The ordinal position of a deleted row in the target data file identified by `file_path`, starting at `0`.                    |
+
+The rows in the delete file must be sorted by `file_path` then `position` to optimize filtering rows while scanning. 
+
+*  Sorting by `file_path` allows filter pushdown by file in columnar storage formats.
+*  Sorting by `position` allows filtering rows while scanning, to avoid keeping deletes in memory.
+ 
+Though the delete files can be written using any supported data file format in Iceberg, it is recommended to write delete files with same file format as the table's file format.
 
 #### Commit Conflict Resolution and Retry
 
