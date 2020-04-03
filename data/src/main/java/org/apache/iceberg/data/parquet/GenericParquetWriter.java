@@ -28,6 +28,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.parquet.ParquetTypeVisitor;
 import org.apache.iceberg.parquet.ParquetValueWriter;
@@ -38,6 +39,8 @@ import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.LogicalTypeAnnotationVisitor;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
@@ -116,6 +119,13 @@ public class GenericParquetWriter {
     @Override
     public ParquetValueWriter<?> primitive(PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
+      LogicalTypeAnnotation logicalType = primitive.getLogicalTypeAnnotation();
+      if (logicalType != null) {
+        Optional<PrimitiveWriter<?>> writer = logicalType.accept(new LogicalTypeWriterVisitor(desc));
+        if (writer.isPresent()) {
+          return writer.get();
+        }
+      }
 
       if (primitive.getOriginalType() != null) {
         switch (primitive.getOriginalType()) {
@@ -175,6 +185,70 @@ public class GenericParquetWriter {
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
+    }
+  }
+
+  private static class LogicalTypeWriterVisitor implements LogicalTypeAnnotationVisitor<PrimitiveWriter<?>> {
+    private final ColumnDescriptor desc;
+
+    private LogicalTypeWriterVisitor(ColumnDescriptor desc) {
+      this.desc = desc;
+    }
+
+    @Override
+    public Optional<PrimitiveWriter<?>> visit(LogicalTypeAnnotation.StringLogicalTypeAnnotation stringType) {
+      return Optional.of(ParquetValueWriters.strings(desc));
+    }
+
+    @Override
+    public Optional<PrimitiveWriter<?>> visit(LogicalTypeAnnotation.EnumLogicalTypeAnnotation enumType) {
+      return Optional.of(ParquetValueWriters.strings(desc));
+    }
+
+    @Override
+    public Optional<PrimitiveWriter<?>> visit(LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimalType) {
+      switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
+        case INT32:
+          return Optional.of(ParquetValueWriters.decimalAsInteger(
+              desc, decimalType.getPrecision(), decimalType.getScale()));
+        case INT64:
+          return Optional.of(ParquetValueWriters.decimalAsLong(
+              desc, decimalType.getPrecision(), decimalType.getScale()));
+        case BINARY:
+        case FIXED_LEN_BYTE_ARRAY:
+          return Optional.of(ParquetValueWriters.decimalAsFixed(
+              desc, decimalType.getPrecision(), decimalType.getScale()));
+      }
+      return Optional.empty();
+    }
+
+    @Override
+    public Optional<PrimitiveWriter<?>> visit(LogicalTypeAnnotation.DateLogicalTypeAnnotation dateType) {
+      return Optional.of(new DateWriter(desc));
+    }
+
+    @Override
+    public Optional<PrimitiveWriter<?>> visit(LogicalTypeAnnotation.TimeLogicalTypeAnnotation timeType) {
+      return Optional.of(new TimeWriter(desc));
+    }
+
+    @Override
+    public Optional<PrimitiveWriter<?>> visit(LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampType) {
+      if (timestampType.isAdjustedToUTC()) {
+        return Optional.of(new TimestamptzWriter(desc));
+      } else {
+        return Optional.of(new TimestampWriter(desc));
+      }
+    }
+
+    @Override
+    public Optional<PrimitiveWriter<?>> visit(LogicalTypeAnnotation.JsonLogicalTypeAnnotation jsonLogicalType) {
+      return Optional.of(ParquetValueWriters.strings(desc));
+    }
+
+    @Override
+    public Optional<PrimitiveWriter<?>> visit(LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonType) {
+      return Optional.of(ParquetValueWriters.byteBuffers(desc));
     }
   }
 

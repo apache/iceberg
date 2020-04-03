@@ -25,10 +25,13 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.OriginalType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -132,6 +135,16 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
 
   @Override
   public Type primitive(PrimitiveType primitive) {
+    // first, use the logical type annotation, if present
+    LogicalTypeAnnotation logicalType = primitive.getLogicalTypeAnnotation();
+    if (logicalType != null) {
+      Optional<Type> converted = logicalType.accept(ParquetLogicalTypeVisitor.get());
+      if (converted.isPresent()) {
+        return converted.get();
+      }
+    }
+
+    // fall back to original type annotation
     OriginalType annotation = primitive.getOriginalType();
     if (annotation != null) {
       switch (annotation) {
@@ -150,9 +163,8 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
           return Types.TimeType.get();
         case TIMESTAMP_MILLIS:
         case TIMESTAMP_MICROS:
-          return Types.TimestampType.withZone();
+          return TimestampType.withZone();
         case JSON:
-        case BSON:
         case ENUM:
         case UTF8:
           return Types.StringType.get();
@@ -160,11 +172,14 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
           DecimalMetadata decimal = primitive.getDecimalMetadata();
           return Types.DecimalType.of(
               decimal.getPrecision(), decimal.getScale());
+        case BSON:
+          return Types.BinaryType.get();
         default:
           throw new UnsupportedOperationException("Unsupported logical type: " + annotation);
       }
     }
 
+    // last, use the primitive type
     switch (primitive.getPrimitiveTypeName()) {
       case BOOLEAN:
         return Types.BooleanType.get();
@@ -184,6 +199,54 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
 
     throw new UnsupportedOperationException(
         "Cannot convert unknown primitive type: " + primitive);
+  }
+
+  private static class ParquetLogicalTypeVisitor implements LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<Type> {
+    private static final ParquetLogicalTypeVisitor INSTANCE = new ParquetLogicalTypeVisitor();
+
+    private static ParquetLogicalTypeVisitor get() {
+      return INSTANCE;
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.StringLogicalTypeAnnotation stringType) {
+      return Optional.of(Types.StringType.get());
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.EnumLogicalTypeAnnotation enumType) {
+      return Optional.of(Types.StringType.get());
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimalType) {
+      return Optional.of(Types.DecimalType.of(decimalType.getPrecision(), decimalType.getScale()));
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.DateLogicalTypeAnnotation dateType) {
+      return Optional.of(Types.DateType.get());
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.TimeLogicalTypeAnnotation timeType) {
+      return Optional.of(Types.TimeType.get());
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampType) {
+      return Optional.of(timestampType.isAdjustedToUTC() ? TimestampType.withZone() : TimestampType.withoutZone());
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.JsonLogicalTypeAnnotation jsonType) {
+      return Optional.of(Types.StringType.get());
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonType) {
+      return Optional.of(Types.BinaryType.get());
+    }
   }
 
   private void addAlias(String name, int fieldId) {
