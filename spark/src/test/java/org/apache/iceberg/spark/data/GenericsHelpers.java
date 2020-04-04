@@ -50,6 +50,9 @@ import static scala.collection.JavaConverters.mapAsJavaMapConverter;
 import static scala.collection.JavaConverters.seqAsJavaListConverter;
 
 public class GenericsHelpers {
+  private GenericsHelpers() {
+  }
+
   private static final OffsetDateTime EPOCH = Instant.ofEpochMilli(0L).atOffset(ZoneOffset.UTC);
   private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
@@ -229,10 +232,12 @@ public class GenericsHelpers {
       case FLOAT:
       case DOUBLE:
         Assert.assertEquals("Primitive value should be equal to expected", expected, actual);
+        break;
       case DATE:
         Assert.assertTrue("Should expect a LocalDate", expected instanceof LocalDate);
         long expectedDays = ChronoUnit.DAYS.between(EPOCH_DAY, (LocalDate) expected);
         Assert.assertEquals("Primitive value should be equal to expected", expectedDays, actual);
+        break;
       case TIMESTAMP:
         Assert.assertTrue("Should expect an OffsetDateTime", expected instanceof OffsetDateTime);
         long expectedMicros = ChronoUnit.MICROS.between(EPOCH, (OffsetDateTime) expected);
