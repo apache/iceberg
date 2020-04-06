@@ -220,6 +220,24 @@ project(':iceberg-hive') {
   }
 }
 
+project(':iceberg-mr') {
+  dependencies {
+    compile project(':iceberg-api')
+    compile project(':iceberg-core')
+    compile project(':iceberg-orc')
+    compile project(':iceberg-parquet')
+    compile project(':iceberg-data')
+
+    compileOnly("org.apache.hadoop:hadoop-client") {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
+
+    testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
+  }
+}
+
 project(':iceberg-orc') {
   dependencies {
     compile project(':iceberg-api')

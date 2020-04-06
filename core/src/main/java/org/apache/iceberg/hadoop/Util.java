@@ -19,13 +19,23 @@
 
 package org.apache.iceberg.hadoop;
 
+import com.google.common.collect.Sets;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-class Util {
+public class Util {
+  private static final Logger LOG = LoggerFactory.getLogger(Util.class);
+
   private Util() {
   }
 
@@ -35,5 +45,22 @@ class Util {
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to get file system for path: %s", path);
     }
+  }
+
+  public static String[] blockLocations(CombinedScanTask task, Configuration conf) {
+    Set<String> locationSets = Sets.newHashSet();
+    for (FileScanTask f : task.files()) {
+      Path path = new Path(f.file().path().toString());
+      try {
+        FileSystem fs = path.getFileSystem(conf);
+        for (BlockLocation b : fs.getFileBlockLocations(path, f.start(), f.length())) {
+          locationSets.addAll(Arrays.asList(b.getHosts()));
+        }
+      } catch (IOException ioe) {
+        LOG.warn("Failed to get block locations for path {}", path, ioe);
+      }
+    }
+
+    return locationSets.toArray(new String[0]);
   }
 }

@@ -35,3 +35,6 @@ spark/tmp/
 .project
 .settings
 bin/
+
+# Hive/metastore files
+metastore_db/
