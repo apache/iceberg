@@ -29,6 +29,12 @@ import org.apache.iceberg.StructLike;
  * Implementations must be {@link Serializable} because instances will be serialized to tasks.
  */
 public interface LocationProvider extends Serializable {
+
+  /**
+   * Return a fully-qualified data location.
+   */
+  String dataLocation();
+
   /**
    * Return a fully-qualified data file location for the given filename.
    *

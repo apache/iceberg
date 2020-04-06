@@ -54,6 +54,11 @@ public class LocationProviders {
     }
 
     @Override
+    public String dataLocation() {
+      return dataLocation;
+    }
+
+    @Override
     public String newDataLocation(PartitionSpec spec, StructLike partitionData, String filename) {
       return String.format("%s/%s/%s", dataLocation, spec.partitionToPath(partitionData), filename);
     }
@@ -74,6 +79,11 @@ public class LocationProviders {
     ObjectStoreLocationProvider(String tableLocation, Map<String, String> properties) {
       this.storageLocation = stripTrailingSlash(properties.get(OBJECT_STORE_PATH));
       this.context = pathContext(tableLocation);
+    }
+
+    @Override
+    public String dataLocation() {
+      return storageLocation;
     }
 
     @Override
