@@ -169,9 +169,9 @@ public class Avro {
   }
 
   public static class ReadBuilder {
-    private final ClassLoader defaultLoader = Thread.currentThread().getContextClassLoader();
     private final InputFile file;
     private final Map<String, String> renames = Maps.newLinkedHashMap();
+    private ClassLoader loader = Thread.currentThread().getContextClassLoader();
     private NameMapping nameMapping;
     private boolean reuseContainers = false;
     private org.apache.iceberg.Schema schema = null;
@@ -179,7 +179,7 @@ public class Avro {
     private BiFunction<org.apache.iceberg.Schema, Schema, DatumReader<?>> createReaderBiFunc = null;
     private final Function<Schema, DatumReader<?>> defaultCreateReaderFunc = readSchema -> {
       GenericAvroReader<?> reader = new GenericAvroReader<>(readSchema);
-      reader.setClassLoader(defaultLoader);
+      reader.setClassLoader(loader);
       return reader;
     };
     private Long start = null;
@@ -237,6 +237,11 @@ public class Avro {
 
     public ReadBuilder nameMapping(NameMapping newNameMapping) {
       this.nameMapping = newNameMapping;
+      return this;
+    }
+
+    public ReadBuilder classLoader(ClassLoader classLoader) {
+      this.loader = classLoader;
       return this;
     }
 

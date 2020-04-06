@@ -167,6 +167,7 @@ public class AllManifestsTable extends BaseMetadataTable {
           .rename("partitions", GenericPartitionFieldSummary.class.getName())
           .rename("r508", GenericPartitionFieldSummary.class.getName())
           .project(ManifestFile.schema())
+          .classLoader(GenericManifestFile.class.getClassLoader())
           .reuseContainers(false)
           .build()) {
 
