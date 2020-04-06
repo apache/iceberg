@@ -56,13 +56,13 @@ public class GenericsHelpers {
   private static final OffsetDateTime EPOCH = Instant.ofEpochMilli(0L).atOffset(ZoneOffset.UTC);
   private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
-  public static void assertEqualsSafe(Types.StructType struct, Record rec, Row row) {
+  public static void assertEqualsSafe(Types.StructType struct, Record expected, Row actual) {
     List<Types.NestedField> fields = struct.fields();
     for (int i = 0; i < fields.size(); i += 1) {
       Type fieldType = fields.get(i).type();
 
-      Object expectedValue = rec.get(i);
-      Object actualValue = row.get(i);
+      Object expectedValue = expected.get(i);
+      Object actualValue = actual.get(i);
 
       assertEqualsSafe(fieldType, expectedValue, actualValue);
     }
@@ -83,6 +83,7 @@ public class GenericsHelpers {
                                        Map<?, ?> expected, Map<?, ?> actual) {
     Type keyType = map.keyType();
     Type valueType = map.valueType();
+    Assert.assertEquals("Should have the same number of keys", expected.keySet().size(), actual.keySet().size());
 
     for (Object expectedKey : expected.keySet()) {
       Object matchingKey = null;
@@ -90,6 +91,7 @@ public class GenericsHelpers {
         try {
           assertEqualsSafe(keyType, expectedKey, actualKey);
           matchingKey = actualKey;
+          break;
         } catch (AssertionError e) {
           // failed
         }
@@ -179,13 +181,13 @@ public class GenericsHelpers {
     }
   }
 
-  public static void assertEqualsUnsafe(Types.StructType struct, Record rec, InternalRow row) {
+  public static void assertEqualsUnsafe(Types.StructType struct, Record expected, InternalRow actual) {
     List<Types.NestedField> fields = struct.fields();
     for (int i = 0; i < fields.size(); i += 1) {
       Type fieldType = fields.get(i).type();
 
-      Object expectedValue = rec.get(i);
-      Object actualValue = row.get(i, convert(fieldType));
+      Object expectedValue = expected.get(i);
+      Object actualValue = actual.get(i, convert(fieldType));
 
       assertEqualsUnsafe(fieldType, expectedValue, actualValue);
     }
