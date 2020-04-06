@@ -41,7 +41,7 @@ public class ByteBuffers {
       }
     } else {
       byte[] bytes = new byte[buffer.remaining()];
-      buffer.get(bytes);
+      buffer.asReadOnlyBuffer().get(bytes);
       return bytes;
     }
   }

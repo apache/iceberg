@@ -26,6 +26,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
@@ -45,6 +46,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.util.PartitionUtil;
 
 class TableScanIterable extends CloseableGroup implements CloseableIterable<Record> {
   private final TableOperations ops;
@@ -74,13 +76,15 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
 
   private CloseableIterable<Record> open(FileScanTask task) {
     InputFile input = ops.io().newInputFile(task.file().path().toString());
+    Map<Integer, ?> partition = PartitionUtil.constantsMap(task);
 
     // TODO: join to partition data from the manifest file
     switch (task.file().format()) {
       case AVRO:
         Avro.ReadBuilder avro = Avro.read(input)
             .project(projection)
-            .createReaderFunc(DataReader::create)
+            .createReaderFunc(
+                avroSchema -> DataReader.create(projection, avroSchema, partition))
             .split(task.start(), task.length());
 
         if (reuseContainers) {
