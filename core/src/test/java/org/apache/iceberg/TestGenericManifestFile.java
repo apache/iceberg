@@ -68,6 +68,7 @@ public class TestGenericManifestFile {
         .rename("manifest_file", GenericManifestFile.class.getName())
         .rename("partitions", GenericPartitionFieldSummary.class.getName())
         .rename("r508", GenericPartitionFieldSummary.class.getName())
+        .classLoader(GenericManifestFile.class.getClassLoader())
         .project(ManifestFile.schema())
         .reuseContainers(false)
         .build()) {

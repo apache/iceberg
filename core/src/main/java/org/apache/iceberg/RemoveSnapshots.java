@@ -380,6 +380,7 @@ class RemoveSnapshots implements ExpireSnapshots {
     if (snapshot.manifestListLocation() != null) {
       return Avro.read(ops.io().newInputFile(snapshot.manifestListLocation()))
           .rename("manifest_file", GenericManifestFile.class.getName())
+          .classLoader(GenericManifestFile.class.getClassLoader())
           .project(MANIFEST_PROJECTION)
           .reuseContainers(true)
           .build();
