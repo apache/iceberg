@@ -219,6 +219,11 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
     }
 
     @Override
+    public Object get(int pos) {
+      return get(pos, Object.class);
+    }
+
+    @Override
     public <T> void set(int pos, T value) {
       wrapped.set(pos, value);
     }
@@ -226,11 +231,6 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
     @Override
     public void put(int pos, Object value) {
       set(pos, value);
-    }
-
-    @Override
-    public Object get(int pos) {
-      return get(pos, Object.class);
     }
 
     @Override
