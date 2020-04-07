@@ -132,20 +132,22 @@ public interface TableScan {
   Expression filter();
 
   /**
-   * Create a table scan which can read append data from {@param fromSnapshotId}
-   * exclusive and up to {@param toSnapshotId} inclusive
-   * @param fromSnapshotId - the last snapshot id read by the user, exclusive
-   * @param toSnapshotId - read append data up to this snapshot id
-   * @return a table scan which can read append data from {@param fromSnapshotId}
-   * exclusive and up to {@param toSnapshotId} inclusive
+   * Create a new {@link TableScan} to read appended data from {@code fromSnapshotId} exclusive to {@code toSnapshotId}
+   * inclusive.
+   *
+   * @param fromSnapshotId the last snapshot id read by the user, exclusive
+   * @param toSnapshotId read append data up to this snapshot id
+   * @return a table scan which can read append data from {@code fromSnapshotId}
+   * exclusive and up to {@code toSnapshotId} inclusive
    */
   TableScan appendsBetween(long fromSnapshotId, long toSnapshotId);
 
   /**
-   * Create a table scan which can read append data from {@param fromSnapshotId}
-   * exclusive and up to the current snapshot id exclusive
+   * Create a new {@link TableScan} to read appended data from {@code fromSnapshotId} exclusive to the current snapshot
+   * inclusive.
+   *
    * @param fromSnapshotId - the last snapshot id read by the user, exclusive
-   * @return a table scan which can read append data from {@param fromSnapshotId}
+   * @return a table scan which can read append data from {@code fromSnapshotId}
    * exclusive and up to current snapshot inclusive
    */
   TableScan appendsAfter(long fromSnapshotId);
