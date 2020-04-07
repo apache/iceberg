@@ -148,8 +148,6 @@ public class ManifestWriter implements FileAppender<DataFile> {
    */
   @Override
   public void add(DataFile addedFile) {
-    // TODO: this assumes that file is a GenericDataFile that can be written directly to Avro
-    // Eventually, this should check in case there are other DataFile implementations.
     addEntry(reused.wrapAppend(snapshotId, addedFile));
   }
 
