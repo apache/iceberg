@@ -212,230 +212,90 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
    * methods.
    */
   interface Converter {
-    void convert(UnsafeRowWriter writer, int column, ColumnVector vector, int row);
-    void convert(UnsafeArrayWriter writer, int element, ColumnVector vector, int row);
-  }
-
-  private static class BooleanConverter implements Converter {
-    @Override
-    public void convert(UnsafeRowWriter writer, int column, ColumnVector vector, int row) {
+    default void convert(UnsafeRowWriter writer, int column, ColumnVector vector, int row) {
       int rowIndex = vector.isRepeating ? 0 : row;
       if (!vector.noNulls && vector.isNull[rowIndex]) {
         writer.setNullAt(column);
       } else {
-        writer.write(column, ((LongColumnVector) vector).vector[rowIndex] != 0);
+        convertNonNullValue(writer, column, vector, rowIndex);
       }
     }
 
-    @Override
-    public void convert(UnsafeArrayWriter writer, int element,
-                        ColumnVector vector, int row) {
+    default void convert(UnsafeArrayWriter writer, int element, ColumnVector vector, int row) {
       int rowIndex = vector.isRepeating ? 0 : row;
       if (!vector.noNulls && vector.isNull[rowIndex]) {
         writer.setNull(element);
       } else {
-        writer.write(element, ((LongColumnVector) vector).vector[rowIndex] != 0);
+        convertNonNullValue(writer, element, vector, rowIndex);
       }
+    }
+
+    void convertNonNullValue(UnsafeWriter writer, int ordinal, ColumnVector vector, int row);
+  }
+
+  private static class BooleanConverter implements Converter {
+    @Override
+    public void convertNonNullValue(UnsafeWriter writer, int ordinal, ColumnVector vector, int row) {
+      writer.write(ordinal, ((LongColumnVector) vector).vector[row] != 0);
     }
   }
 
   private static class ByteConverter implements Converter {
     @Override
-    public void convert(UnsafeRowWriter writer, int column, ColumnVector vector,
-                        int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNullAt(column);
-      } else {
-        writer.write(column, (byte) ((LongColumnVector) vector).vector[rowIndex]);
-      }
-    }
-
-    @Override
-    public void convert(UnsafeArrayWriter writer, int element,
-                        ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNull(element);
-      } else {
-        writer.write(element, (byte) ((LongColumnVector) vector).vector[rowIndex]);
-      }
+    public void convertNonNullValue(UnsafeWriter writer, int ordinal, ColumnVector vector, int row) {
+      writer.write(ordinal, (byte) ((LongColumnVector) vector).vector[row]);
     }
   }
 
   private static class ShortConverter implements Converter {
     @Override
-    public void convert(UnsafeRowWriter writer, int column, ColumnVector vector,
-                        int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNullAt(column);
-      } else {
-        writer.write(column, (short) ((LongColumnVector) vector).vector[rowIndex]);
-      }
-    }
-
-    @Override
-    public void convert(UnsafeArrayWriter writer, int element,
-                        ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNull(element);
-      } else {
-        writer.write(element, (short) ((LongColumnVector) vector).vector[rowIndex]);
-      }
+    public void convertNonNullValue(UnsafeWriter writer, int ordinal, ColumnVector vector, int row) {
+      writer.write(ordinal, (short) ((LongColumnVector) vector).vector[row]);
     }
   }
 
   private static class IntConverter implements Converter {
     @Override
-    public void convert(UnsafeRowWriter writer, int column, ColumnVector vector,
-                        int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNullAt(column);
-      } else {
-        writer.write(column, (int) ((LongColumnVector) vector).vector[rowIndex]);
-      }
-    }
-
-    @Override
-    public void convert(UnsafeArrayWriter writer, int element,
-                        ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNull(element);
-      } else {
-        writer.write(element, (int) ((LongColumnVector) vector).vector[rowIndex]);
-      }
+    public void convertNonNullValue(UnsafeWriter writer, int ordinal, ColumnVector vector, int row) {
+      writer.write(ordinal, (int) ((LongColumnVector) vector).vector[row]);
     }
   }
 
   private static class LongConverter implements Converter {
     @Override
-    public void convert(UnsafeRowWriter writer, int column, ColumnVector vector,
-                        int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNullAt(column);
-      } else {
-        writer.write(column, ((LongColumnVector) vector).vector[rowIndex]);
-      }
-    }
-
-    @Override
-    public void convert(UnsafeArrayWriter writer, int element,
-                        ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNull(element);
-      } else {
-        writer.write(element, ((LongColumnVector) vector).vector[rowIndex]);
-      }
+    public void convertNonNullValue(UnsafeWriter writer, int ordinal, ColumnVector vector, int row) {
+      writer.write(ordinal, ((LongColumnVector) vector).vector[row]);
     }
   }
 
   private static class FloatConverter implements Converter {
     @Override
-    public void convert(UnsafeRowWriter writer, int column, ColumnVector vector,
-                        int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNullAt(column);
-      } else {
-        writer.write(column, (float) ((DoubleColumnVector) vector).vector[rowIndex]);
-      }
-    }
-
-    @Override
-    public void convert(UnsafeArrayWriter writer, int element,
-                        ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNull(element);
-      } else {
-        writer.write(element, (float) ((DoubleColumnVector) vector).vector[rowIndex]);
-      }
+    public void convertNonNullValue(UnsafeWriter writer, int ordinal, ColumnVector vector, int row) {
+      writer.write(ordinal, (float) ((DoubleColumnVector) vector).vector[row]);
     }
   }
 
   private static class DoubleConverter implements Converter {
     @Override
-    public void convert(UnsafeRowWriter writer, int column, ColumnVector vector,
-                        int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNullAt(column);
-      } else {
-        writer.write(column, ((DoubleColumnVector) vector).vector[rowIndex]);
-      }
-    }
-
-    @Override
-    public void convert(UnsafeArrayWriter writer, int element,
-                        ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNull(element);
-      } else {
-        writer.write(element, ((DoubleColumnVector) vector).vector[rowIndex]);
-      }
+    public void convertNonNullValue(UnsafeWriter writer, int ordinal, ColumnVector vector, int row) {
+      writer.write(ordinal, ((DoubleColumnVector) vector).vector[row]);
     }
   }
 
   private static class TimestampTzConverter implements Converter {
-
-    private long convert(TimestampColumnVector vector, int row) {
+    @Override
+    public void convertNonNullValue(UnsafeWriter writer, int ordinal, ColumnVector vector, int row) {
+      TimestampColumnVector timestampVector = (TimestampColumnVector) vector;
       // compute microseconds past 1970.
-      return (vector.time[row] / 1000) * 1_000_000 + vector.nanos[row] / 1000;
-    }
-
-    @Override
-    public void convert(UnsafeRowWriter writer, int column, ColumnVector vector,
-                        int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNullAt(column);
-      } else {
-        writer.write(column, convert((TimestampColumnVector) vector, rowIndex));
-      }
-    }
-
-    @Override
-    public void convert(UnsafeArrayWriter writer, int element,
-                        ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNull(element);
-      } else {
-        writer.write(element, convert((TimestampColumnVector) vector, rowIndex));
-      }
+      writer.write(ordinal, (timestampVector.time[row] / 1000) * 1_000_000 + timestampVector.nanos[row] / 1000);
     }
   }
 
   private static class BinaryConverter implements Converter {
-
     @Override
-    public void convert(UnsafeRowWriter writer, int column, ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNullAt(column);
-      } else {
-        BytesColumnVector bytesVector = (BytesColumnVector) vector;
-        writer.write(column, bytesVector.vector[rowIndex],
-            bytesVector.start[rowIndex], bytesVector.length[rowIndex]);
-      }
-    }
-
-    @Override
-    public void convert(UnsafeArrayWriter writer, int element, ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNull(element);
-      } else {
-        final BytesColumnVector v = (BytesColumnVector) vector;
-        writer.write(element, v.vector[rowIndex], v.start[rowIndex], v.length[rowIndex]);
-      }
+    public void convertNonNullValue(UnsafeWriter writer, int ordinal, ColumnVector vector, int row) {
+      BytesColumnVector bytesVector = (BytesColumnVector) vector;
+      writer.write(ordinal, bytesVector.vector[row], bytesVector.start[row], bytesVector.length[row]);
     }
   }
 
@@ -449,31 +309,11 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
     }
 
     @Override
-    public void convert(UnsafeRowWriter writer, int column, ColumnVector vector,
-                        int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNullAt(column);
-      } else {
-        HiveDecimalWritable value = ((DecimalColumnVector) vector).vector[rowIndex];
-        writer.write(column,
-            new Decimal().set(value.serialize64(value.scale()), value.precision(), value.scale()),
-            precision, scale);
-      }
-    }
-
-    @Override
-    public void convert(UnsafeArrayWriter writer, int element,
-                        ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNull(element);
-      } else {
-        HiveDecimalWritable value = ((DecimalColumnVector) vector).vector[rowIndex];
-        writer.write(element,
-            new Decimal().set(value.serialize64(value.scale()), value.precision(), value.scale()),
-            precision, scale);
-      }
+    public void convertNonNullValue(UnsafeWriter writer, int ordinal, ColumnVector vector, int row) {
+      HiveDecimalWritable value = ((DecimalColumnVector) vector).vector[row];
+      writer.write(ordinal,
+          new Decimal().set(value.serialize64(value.scale()), value.precision(), value.scale()),
+          precision, scale);
     }
   }
 
@@ -487,33 +327,12 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
     }
 
     @Override
-    public void convert(UnsafeRowWriter writer, int column, ColumnVector vector,
-                        int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNullAt(column);
-      } else {
-        BigDecimal value = ((DecimalColumnVector) vector).vector[rowIndex]
-            .getHiveDecimal().bigDecimalValue();
-        writer.write(column,
-            new Decimal().set(new scala.math.BigDecimal(value), precision, scale),
-            precision, scale);
-      }
-    }
-
-    @Override
-    public void convert(UnsafeArrayWriter writer, int element,
-                        ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNull(element);
-      } else {
-        BigDecimal value = ((DecimalColumnVector) vector).vector[rowIndex]
-            .getHiveDecimal().bigDecimalValue();
-        writer.write(element,
-            new Decimal().set(new scala.math.BigDecimal(value), precision, scale),
-            precision, scale);
-      }
+    public void convertNonNullValue(UnsafeWriter writer, int ordinal, ColumnVector vector, int row) {
+      BigDecimal value = ((DecimalColumnVector) vector).vector[row]
+          .getHiveDecimal().bigDecimalValue();
+      writer.write(ordinal,
+          new Decimal().set(new scala.math.BigDecimal(value), precision, scale),
+          precision, scale);
     }
   }
 
@@ -527,37 +346,16 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
       }
     }
 
-    int writeStruct(UnsafeWriter parentWriter, StructColumnVector vector, int row) {
-      UnsafeRowWriter childWriter = new UnsafeRowWriter(parentWriter, children.length);
+    @Override
+    public void convertNonNullValue(UnsafeWriter writer, int ordinal, ColumnVector vector, int row) {
+      StructColumnVector structVector = (StructColumnVector) vector;
+      UnsafeRowWriter childWriter = new UnsafeRowWriter(writer, children.length);
       int start = childWriter.cursor();
       childWriter.resetRowWriter();
       for (int c = 0; c < children.length; ++c) {
-        children[c].convert(childWriter, c, vector.fields[c], row);
+        children[c].convert(childWriter, c, structVector.fields[c], row);
       }
-      return start;
-    }
-
-    @Override
-    public void convert(UnsafeRowWriter writer, int column, ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNullAt(column);
-      } else {
-        int start = writeStruct(writer, (StructColumnVector) vector, rowIndex);
-        writer.setOffsetAndSizeFromPreviousCursor(column, start);
-      }
-    }
-
-    @Override
-    public void convert(UnsafeArrayWriter writer, int element,
-                        ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNull(element);
-      } else {
-        int start = writeStruct(writer, (StructColumnVector) vector, rowIndex);
-        writer.setOffsetAndSizeFromPreviousCursor(element, start);
-      }
+      writer.setOffsetAndSizeFromPreviousCursor(ordinal, start);
     }
   }
 
@@ -570,41 +368,19 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
       childConverter = buildConverter(child);
     }
 
-    int writeList(UnsafeWriter parentWriter, ListColumnVector vector, int row) {
-      int offset = (int) vector.offsets[row];
-      int length = (int) vector.lengths[row];
+    @Override
+    public void convertNonNullValue(UnsafeWriter writer, int ordinal, ColumnVector vector, int row) {
+      ListColumnVector listVector = (ListColumnVector) vector;
+      int offset = (int) listVector.offsets[row];
+      int length = (int) listVector.lengths[row];
 
-      UnsafeArrayWriter childWriter = new UnsafeArrayWriter(parentWriter, getArrayElementSize(child));
+      UnsafeArrayWriter childWriter = new UnsafeArrayWriter(writer, getArrayElementSize(child));
       int start = childWriter.cursor();
       childWriter.initialize(length);
       for (int c = 0; c < length; ++c) {
-        childConverter.convert(childWriter, c, vector.child, offset + c);
+        childConverter.convert(childWriter, c, listVector.child, offset + c);
       }
-      return start;
-    }
-
-    @Override
-    public void convert(UnsafeRowWriter writer, int column, ColumnVector vector,
-                        int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNullAt(column);
-      } else {
-        int start = writeList(writer, (ListColumnVector) vector, rowIndex);
-        writer.setOffsetAndSizeFromPreviousCursor(column, start);
-      }
-    }
-
-    @Override
-    public void convert(UnsafeArrayWriter writer, int element,
-                        ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNull(element);
-      } else {
-        int start = writeList(writer, (ListColumnVector) vector, rowIndex);
-        writer.setOffsetAndSizeFromPreviousCursor(element, start);
-      }
+      writer.setOffsetAndSizeFromPreviousCursor(ordinal, start);
     }
   }
 
@@ -627,11 +403,13 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
       valueSize = getArrayElementSize(valueType);
     }
 
-    int writeMap(UnsafeWriter parentWriter, MapColumnVector vector, int row) {
-      final int offset = (int) vector.offsets[row];
-      final int length = (int) vector.lengths[row];
+    @Override
+    public void convertNonNullValue(UnsafeWriter writer, int ordinal, ColumnVector vector, int row) {
+      MapColumnVector mapVector = (MapColumnVector) vector;
+      final int offset = (int) mapVector.offsets[row];
+      final int length = (int) mapVector.lengths[row];
 
-      UnsafeArrayWriter keyWriter = new UnsafeArrayWriter(parentWriter, keySize);
+      UnsafeArrayWriter keyWriter = new UnsafeArrayWriter(writer, keySize);
       final int start = keyWriter.cursor();
       // save room for the key size
       keyWriter.grow(KEY_SIZE_BYTES);
@@ -640,41 +418,19 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
       // serialize the keys
       keyWriter.initialize(length);
       for (int c = 0; c < length; ++c) {
-        keyConvert.convert(keyWriter, c, vector.keys, offset + c);
+        keyConvert.convert(keyWriter, c, mapVector.keys, offset + c);
       }
       // store the serialized size of the keys
       Platform.putLong(keyWriter.getBuffer(), start,
-                keyWriter.cursor() - start - KEY_SIZE_BYTES);
+          keyWriter.cursor() - start - KEY_SIZE_BYTES);
 
       // serialize the values
-      UnsafeArrayWriter valueWriter = new UnsafeArrayWriter(parentWriter, valueSize);
+      UnsafeArrayWriter valueWriter = new UnsafeArrayWriter(writer, valueSize);
       valueWriter.initialize(length);
       for (int c = 0; c < length; ++c) {
-        valueConvert.convert(valueWriter, c, vector.values, offset + c);
+        valueConvert.convert(valueWriter, c, mapVector.values, offset + c);
       }
-      return start;
-    }
-
-    @Override
-    public void convert(UnsafeRowWriter writer, int column, ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNullAt(column);
-      } else {
-        int start = writeMap(writer, (MapColumnVector) vector, rowIndex);
-        writer.setOffsetAndSizeFromPreviousCursor(column, start);
-      }
-    }
-
-    @Override
-    public void convert(UnsafeArrayWriter writer, int element, ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        writer.setNull(element);
-      } else {
-        int start = writeMap(writer, (MapColumnVector) vector, rowIndex);
-        writer.setOffsetAndSizeFromPreviousCursor(element, start);
-      }
+      writer.setOffsetAndSizeFromPreviousCursor(ordinal, start);
     }
   }
 
