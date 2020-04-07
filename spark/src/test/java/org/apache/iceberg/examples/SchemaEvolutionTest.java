@@ -50,7 +50,7 @@ public class SchemaEvolutionTest {
   private SparkSession spark;
   private Table table;
   private File tableLocation;
-  private String dataLocation = "src/test/java/org/apache/iceberg/examples/data/";
+  private String dataLocation = "src/test/resources/data/";
 
   @Before
   public void before() throws IOException {

@@ -67,7 +67,7 @@ You'll also need `spark-sql` to read tables:
 ```xml
   <dependency> 
     <groupId>org.apache.spark</groupId>
-    <artifactId>spark-sql_2.12</artifactId>
+    <artifactId>spark-sql_2.11</artifactId>
     <version>2.4.4</version>
   </dependency>
 ```

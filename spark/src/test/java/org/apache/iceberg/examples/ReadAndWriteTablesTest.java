@@ -120,7 +120,7 @@ public class ReadAndWriteTablesTest {
 
     table = tables.create(bookSchema, pathToTable.toString());
 
-    Dataset<Row> df = spark.read().json("src/test/java/org/apache/iceberg/examples/data/books.json");
+    Dataset<Row> df = spark.read().json("src/test/resources/data/books.json");
 
     df.select(df.col("title"), df.col("price"), df.col("author"),
         df.col("published").cast(DataTypes.TimestampType), df.col("genre")).write()
