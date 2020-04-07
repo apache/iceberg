@@ -150,16 +150,6 @@ project(':iceberg-data') {
   }
 }
 
-project(':examples') {
-  dependencies {
-    compile project(':iceberg-spark')
-
-    compileOnly("org.apache.spark:spark-hive_2.11") {
-      exclude group: 'org.apache.avro', module: 'avro'
-    }
-  }
-}
-
 project(':iceberg-hive') {
   dependencies {
     compile project(':iceberg-core')

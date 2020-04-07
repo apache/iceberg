@@ -17,12 +17,15 @@
  * under the License.
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.examples;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import org.apache.commons.io.FileUtils;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -47,7 +50,7 @@ public class SchemaEvolutionTest {
   private SparkSession spark;
   private Table table;
   private File tableLocation;
-  private String dataLocation = "src/test/java/org/apache/iceberg/data/";
+  private String dataLocation = "src/test/java/org/apache/iceberg/examples/data/";
 
   @Before
   public void before() throws IOException {

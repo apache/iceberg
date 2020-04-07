@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.examples;
 
 import com.google.common.base.Objects;
 

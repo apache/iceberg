@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.examples;
 
 import com.google.common.collect.Lists;
 import java.io.File;
@@ -27,6 +27,11 @@ import java.util.Iterator;
 import java.util.List;
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.io.FileUtils;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;

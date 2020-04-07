@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.examples;
 
 import com.google.common.collect.Lists;
 import java.io.File;
@@ -25,6 +25,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
 import org.apache.commons.io.FileUtils;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -117,7 +120,7 @@ public class ReadAndWriteTablesTest {
 
     table = tables.create(bookSchema, pathToTable.toString());
 
-    Dataset<Row> df = spark.read().json("src/test/java/org/apache/iceberg/data/books.json");
+    Dataset<Row> df = spark.read().json("src/test/java/org/apache/iceberg/examples/data/books.json");
 
     df.select(df.col("title"), df.col("price"), df.col("author"),
         df.col("published").cast(DataTypes.TimestampType), df.col("genre")).write()

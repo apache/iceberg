@@ -46,8 +46,8 @@ To limit complexity, these examples create tables on your local file system usin
 To create an Iceberg `Table` you will need to use the Iceberg API to create a `Schema` and `PartitionSpec` which you use with a Spark `DataFrameWriter`.
 
 Code examples:
-- [Unpartitioned tables](src/test/java/WriteToUnpartitionedTableTest.java)
-- [Partitioned tables](src/test/java/WriteToPartitionedTableTest.java)
+- [Unpartitioned tables](spark/src/test/java/org/apache/iceberg/examples/WriteToUnpartitionedTableTest.java)
+- [Partitioned tables](spark/src/test/java/org/apache/iceberg/examples/WriteToPartitionedTableTest.java)
 
 #### A quick look at file structures
 It could be interesting to note that when writing partitioned data, Iceberg will layout your files in a similar manner to Hive:
@@ -73,8 +73,8 @@ Each file is tracked individually and is managed by Iceberg, and so must be writ
 Reading Iceberg tables is fairly simple using the Spark `DataFrameReader`.
 
 Code examples:
-- [Unpartitioned table](src/test/java/ReadFromUnpartitionedTableTest.java)
-- [Partitioned tabled](src/test/java/ReadFromPartitionedTableTest.java)
+- [Unpartitioned table](spark/src/test/java/org/apache/iceberg/examples/ReadFromUnpartitionedTableTest.java)
+- [Partitioned tabled](spark/src/test/java/org/apache/iceberg/examples/ReadFromPartitionedTableTest.java)
 
 ### A look at the metadata
 This section looks a little bit closer at the metadata produced by Iceberg tables. Consider an example where you've written some data to a table. Your files will look something like this:
@@ -161,7 +161,7 @@ Iceberg uses [snapshots](https://iceberg.apache.org/terms/#snapshot) as part of 
 - You can read data from an old snapshot using the `SnapshotID` or a timestamp value ([time travel](https://iceberg.apache.org/spark/#time-travel)).
 - You can roll back your data to an earlier snapshot.
 
-Code examples can be found [here](src/test/java/SnapshotFunctionalityTest.java).
+Code examples can be found [here](spark/src/test/java/org/apache/iceberg/examples/SnapshotFunctionalityTest.java).
 
 ### Table schema evolution
 Iceberg provides support to handle schema evolution of your tables over time:
@@ -178,7 +178,7 @@ Iceberg provides support to handle schema evolution of your tables over time:
 1. Rename a column
     1. When you rename a column, it will appear renamed in all earlier versions of snapshots. 
 
-Code examples can be found [here](src/test/java/SchemaEvolutionTest.java).
+Code examples can be found [here](spark/src/test/java/org/apache/iceberg/examples/SchemaEvolutionTest.java).
 
 ### Optimistic concurrency
 [Optimistic concurrency](https://en.wikipedia.org/wiki/Optimistic_concurrency_control) is when a system assumes that multiple writers can write to the same table without interfering with each other. This is usually used in environments where there is low data contention. It means that locking of the table isn't used, allowing multiple writers to  write to the table at the same time. 
@@ -187,7 +187,7 @@ However, this means you need to occasionally deal with concurrent writer conflic
 
 Iceberg deals with this by attempting retries of the write based on the new metadata. This can happen if the files the first write changed aren't touched by the second write, then it's deemed safe to commit the second update. 
 
-[This test](src/test/java/ConcurrencyTest.java) looks to experiment with how optimistic concurrency works. For more information on conflict resolution, look [here](https://iceberg.incubator.apache.org/spec/#table-metadata) and for information on write concurrency, look [here](https://iceberg.incubator.apache.org/reliability/#concurrent-write-operations).
+[This test](spark/src/test/java/org/apache/iceberg/examples/ConcurrencyTest.java) looks to experiment with how optimistic concurrency works. For more information on conflict resolution, look [here](https://iceberg.incubator.apache.org/spec/#table-metadata) and for information on write concurrency, look [here](https://iceberg.incubator.apache.org/reliability/#concurrent-write-operations).
 
 By default, Iceberg has set the `commit.retry.num-retries` property to **4**. You can edit this default by creating an `UpdateProperties` object and assigning a new number to that property:
 
