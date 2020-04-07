@@ -50,8 +50,8 @@ public class DataReader<T> implements DatumReader<T> {
   }
 
   public static <D> DataReader<D> create(org.apache.iceberg.Schema expectedSchema, Schema readSchema,
-                                         Map<Integer, ?> constants) {
-    return new DataReader<>(expectedSchema, readSchema, constants);
+                                         Map<Integer, ?> idToConstant) {
+    return new DataReader<>(expectedSchema, readSchema, idToConstant);
   }
 
   private final Schema readSchema;

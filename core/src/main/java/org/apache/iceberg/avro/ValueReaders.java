@@ -576,19 +576,19 @@ public class ValueReaders {
       this.readers = readers.toArray(new ValueReader[0]);
 
       List<Types.NestedField> fields = struct.fields();
-      List<Integer> positions = Lists.newArrayListWithCapacity(fields.size());
-      List<Object> constants = Lists.newArrayListWithCapacity(fields.size());
+      List<Integer> positionList = Lists.newArrayListWithCapacity(fields.size());
+      List<Object> constantList = Lists.newArrayListWithCapacity(fields.size());
       for (int pos = 0; pos < fields.size(); pos += 1) {
         Types.NestedField field = fields.get(pos);
         Object constant = idToConstant.get(field.fieldId());
         if (constant != null) {
-          positions.add(pos);
-          constants.add(prepareConstant(field.type(), constant));
+          positionList.add(pos);
+          constantList.add(prepareConstant(field.type(), constant));
         }
       }
 
-      this.positions = positions.stream().mapToInt(Integer::intValue).toArray();
-      this.constants = constants.toArray();
+      this.positions = positionList.stream().mapToInt(Integer::intValue).toArray();
+      this.constants = constantList.toArray();
     }
 
     protected abstract S reuseOrCreate(Object reuse);
