@@ -106,7 +106,8 @@ public class SparkAvroReader implements DatumReader<InternalRow> {
     }
 
     @Override
-    public ValueReader<?> record(Types.StructType expected, Schema record, List<String> names, List<ValueReader<?>> fields) {
+    public ValueReader<?> record(Types.StructType expected, Schema record, List<String> names,
+                                 List<ValueReader<?>> fields) {
       return SparkValueReaders.struct(fields, expected, idToConstant);
     }
 
@@ -121,7 +122,8 @@ public class SparkAvroReader implements DatumReader<InternalRow> {
     }
 
     @Override
-    public ValueReader<?> map(Types.MapType expected, Schema map, ValueReader<?> keyReader, ValueReader<?> valueReader) {
+    public ValueReader<?> map(Types.MapType expected, Schema map,
+                              ValueReader<?> keyReader, ValueReader<?> valueReader) {
       return SparkValueReaders.arrayMap(keyReader, valueReader);
     }
 
