@@ -113,12 +113,7 @@ public class ManifestWriter implements FileAppender<DataFile> {
   private Long sequenceNumber = null;
 
   ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
-    this.file = file;
-    this.specId = spec.specId();
-    this.writer = newAppender(FileFormat.AVRO, spec, file);
-    this.snapshotId = snapshotId;
-    this.reused = new ManifestEntry(spec.partitionType());
-    this.stats = new PartitionSummary(spec);
+    this(spec, file, snapshotId, null);
   }
 
   ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId, Long sequenceNumber) {

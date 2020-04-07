@@ -176,6 +176,7 @@ class GenericDataFile
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
     this.fileOrdinal = toCopy.fileOrdinal;
     this.sortColumns = copy(toCopy.sortColumns);
+    this.sequenceNumber = toCopy.sequenceNumber;
     if (fullCopy) {
       // TODO: support lazy conversion to/from map
       this.columnSizes = copy(toCopy.columnSizes);
@@ -421,6 +422,7 @@ class GenericDataFile
         .add("file_path", filePath)
         .add("file_format", format)
         .add("partition", partitionData)
+        .add("sequence_number", sequenceNumber())
         .add("record_count", recordCount)
         .add("file_size_in_bytes", fileSizeInBytes)
         .add("column_sizes", columnSizes)

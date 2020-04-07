@@ -373,6 +373,7 @@ public class GenericManifestFile
     return MoreObjects.toStringHelper(this)
         .add("path", manifestPath)
         .add("length", length)
+        .add("sequence_number", sequenceNumber())
         .add("partition_spec_id", specId)
         .add("added_snapshot_id", snapshotId)
         .add("added_data_files_count", addedFilesCount)
