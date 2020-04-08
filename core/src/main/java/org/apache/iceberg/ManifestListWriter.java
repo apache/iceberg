@@ -28,10 +28,18 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 
-class ManifestListWriter implements FileAppender<ManifestFile> {
+abstract class ManifestListWriter implements FileAppender<ManifestFile> {
+  static ManifestListWriter write(int formatVersion, OutputFile manifestListFile,
+                                  long snapshotId, Long parentSnapshotId) {
+    if (formatVersion == 1) {
+      return new V1Writer(manifestListFile, snapshotId, parentSnapshotId);
+    }
+    throw new UnsupportedOperationException("Cannot write manifest list for table version: " + formatVersion);
+  }
+
   private final FileAppender<ManifestFile> writer;
 
-  ManifestListWriter(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId) {
+  private ManifestListWriter(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId) {
     this.writer = newAppender(snapshotFile, ImmutableMap.of(
         "snapshot-id", String.valueOf(snapshotId),
         "parent-snapshot-id", String.valueOf(parentSnapshotId)));
@@ -78,6 +86,12 @@ class ManifestListWriter implements FileAppender<ManifestFile> {
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to create snapshot list writer for path: " + file);
+    }
+  }
+
+  static class V1Writer extends ManifestListWriter {
+    private V1Writer(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId) {
+      super(snapshotFile, snapshotId, parentSnapshotId);
     }
   }
 }
