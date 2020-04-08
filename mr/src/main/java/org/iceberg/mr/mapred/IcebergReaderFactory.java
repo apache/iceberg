@@ -70,7 +70,7 @@ class IcebergReaderFactory {
   private CloseableIterable buildOrcReader(FileScanTask task, InputFile file, Schema schema, boolean reuseContainers) {
     ORC.ReadBuilder builder = ORC.read(file)
 //            .createReaderFunc() // FIXME: implement
-        .schema(schema)
+        .project(schema)
         .split(task.start(), task.length());
 
     return builder.build();
