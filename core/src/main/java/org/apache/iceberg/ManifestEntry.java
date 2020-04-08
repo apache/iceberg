@@ -59,7 +59,7 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
 
   ManifestEntry(org.apache.avro.Schema schema) {
     this.schema = schema;
-    this.fileWrapper = new IndexedDataFile(schema.getField("data_file").schema());
+    this.fileWrapper = null; // do not use the file wrapper to read
   }
 
   ManifestEntry(StructType partitionType) {
@@ -158,7 +158,7 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
       case 1:
         return snapshotId;
       case 2:
-        if (file instanceof GenericDataFile) {
+        if (fileWrapper == null || file instanceof GenericDataFile) {
           return file;
         } else {
           return fileWrapper.wrap(file);
