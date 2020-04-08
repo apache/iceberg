@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.source;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import java.io.File;
 import java.util.Map;
@@ -49,7 +50,7 @@ class TestTables {
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
     }
-    ops.commit(null, TableMetadata.newTableMetadata(schema, spec, temp.toString()));
+    ops.commit(null, TableMetadata.newTableMetadata(schema, spec, temp.toString(), ImmutableMap.of()));
     return new TestTable(ops, name);
   }
 

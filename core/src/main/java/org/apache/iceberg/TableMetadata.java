@@ -48,12 +48,6 @@ public class TableMetadata {
 
   public static TableMetadata newTableMetadata(Schema schema,
                                                PartitionSpec spec,
-                                               String location) {
-    return newTableMetadata(schema, spec, location, ImmutableMap.of());
-  }
-
-  public static TableMetadata newTableMetadata(Schema schema,
-                                               PartitionSpec spec,
                                                String location,
                                                Map<String, String> properties) {
     // reassign all column ids to ensure consistency
