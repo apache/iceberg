@@ -151,7 +151,7 @@ public class TableMetadataParser {
   private static void toJson(TableMetadata metadata, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
 
-    generator.writeNumberField(FORMAT_VERSION, TableMetadata.TABLE_FORMAT_VERSION);
+    generator.writeNumberField(FORMAT_VERSION, metadata.formatVersion());
     generator.writeStringField(TABLE_UUID, metadata.uuid());
     generator.writeStringField(LOCATION, metadata.location());
     generator.writeNumberField(LAST_UPDATED_MILLIS, metadata.lastUpdatedMillis());
@@ -161,8 +161,10 @@ public class TableMetadataParser {
     SchemaParser.toJson(metadata.schema(), generator);
 
     // for older readers, continue writing the default spec as "partition-spec"
-    generator.writeFieldName(PARTITION_SPEC);
-    PartitionSpecParser.toJsonFields(metadata.spec(), generator);
+    if (metadata.formatVersion() == 1) {
+      generator.writeFieldName(PARTITION_SPEC);
+      PartitionSpecParser.toJsonFields(metadata.spec(), generator);
+    }
 
     // write the default spec ID and spec list
     generator.writeNumberField(DEFAULT_SPEC_ID, metadata.defaultSpecId());
@@ -226,7 +228,7 @@ public class TableMetadataParser {
         "Cannot parse metadata from a non-object: %s", node);
 
     int formatVersion = JsonUtil.getInt(FORMAT_VERSION, node);
-    Preconditions.checkArgument(formatVersion == TableMetadata.TABLE_FORMAT_VERSION,
+    Preconditions.checkArgument(formatVersion <= TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION,
         "Cannot read unsupported version %s", formatVersion);
 
     String uuid = JsonUtil.getStringOrNull(TABLE_UUID, node);
@@ -295,7 +297,7 @@ public class TableMetadataParser {
       }
     }
 
-    return new TableMetadata(file, uuid, location,
+    return new TableMetadata(file, formatVersion, uuid, location,
         lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs, properties,
         currentVersionId, snapshots, ImmutableList.copyOf(entries.iterator()),
         ImmutableList.copyOf(metadataEntries.iterator()));
