@@ -677,3 +677,17 @@ This serialization scheme is for storing single values as individual binary valu
 | **`map`**                    | Not supported                                                                                                |
 
 
+## Format version changes
+
+### Version 2
+
+Writing metadata:
+* Table metadata field `sequence-number` is required.
+* Table metadata field `table-uuid` is required.
+* Table metadata field `partition-specs` is required.
+* Table metadata field `default-spec-id` is required.
+* Table metadata field `partition-spec` is no longer required and may be omitted.
+* Snapshot field `manifest-list` is required.
+* Snapshot field `manifests` is not allowed.
+
+Note that these requirements apply when writing data to a v2 table. Tables that are upgraded from v1 may contain metadata that does not follow these requirements. Implementations should remain backward-compatible with v1 metadata requirements.
