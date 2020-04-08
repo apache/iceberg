@@ -149,7 +149,7 @@ public class TestSerializableTypes {
             Types.StringType.get()))
     );
 
-    Assert.assertEquals("Schema serialziation should be equal to starting schema",
+    Assert.assertEquals("Schema serialization should be equal to starting schema",
         schema.asStruct(), TestHelpers.roundTripSerialize(schema).asStruct());
   }
 

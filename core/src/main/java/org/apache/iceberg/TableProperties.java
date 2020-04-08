@@ -68,6 +68,9 @@ public class TableProperties {
   public static final String SPLIT_SIZE = "read.split.target-size";
   public static final long SPLIT_SIZE_DEFAULT = 134217728; // 128 MB
 
+  public static final String METADATA_SPLIT_SIZE = "read.split.metadata-target-size";
+  public static final long METADATA_SPLIT_SIZE_DEFAULT = 32 * 1024 * 1024; // 32 MB
+
   public static final String SPLIT_LOOKBACK = "read.split.planning-lookback";
   public static final int SPLIT_LOOKBACK_DEFAULT = 10;
 

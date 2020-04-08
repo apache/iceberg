@@ -21,15 +21,11 @@ package org.apache.iceberg.spark.source;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CombinedScanTask;
@@ -44,6 +40,7 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.spark.SparkFilters;
@@ -353,20 +350,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       }
 
       Configuration conf = SparkSession.active().sparkContext().hadoopConfiguration();
-      Set<String> locations = Sets.newHashSet();
-      for (FileScanTask f : task.files()) {
-        Path path = new Path(f.file().path().toString());
-        try {
-          FileSystem fs = path.getFileSystem(conf);
-          for (BlockLocation b : fs.getFileBlockLocations(path, f.start(), f.length())) {
-            locations.addAll(Arrays.asList(b.getHosts()));
-          }
-        } catch (IOException ioe) {
-          LOG.warn("Failed to get block locations for path {}", path, ioe);
-        }
-      }
-
-      return locations.toArray(new String[0]);
+      return Util.blockLocations(task, conf);
     }
   }
 

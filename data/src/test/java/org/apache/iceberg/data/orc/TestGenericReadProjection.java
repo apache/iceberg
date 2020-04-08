@@ -46,7 +46,7 @@ public class TestGenericReadProjection extends TestReadProjection {
     }
 
     Iterable<Record> records = ORC.read(Files.localInput(file))
-        .schema(readSchema)
+        .project(readSchema)
         .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(readSchema, fileSchema))
         .build();
 

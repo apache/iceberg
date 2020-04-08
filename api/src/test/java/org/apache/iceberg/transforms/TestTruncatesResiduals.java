@@ -42,7 +42,7 @@ public class TestTruncatesResiduals {
 
   /**
    * Test helper method to compute residual for a given partitionValue against a predicate
-   * and assert the resulting residual expression is same as the exprectedOp
+   * and assert the resulting residual expression is same as the expectedOp
    *
    * @param spec the partition spec
    * @param predicate predicate to calculate the residual against

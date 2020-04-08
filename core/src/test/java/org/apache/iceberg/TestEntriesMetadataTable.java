@@ -65,4 +65,73 @@ public class TestEntriesMetadataTable extends TableTestBase {
     Assert.assertEquals("Should contain 2 data file records", 2, file.file().recordCount());
   }
 
+  @Test
+  public void testSplitPlanningWithSplitSizeOption() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    int splitSize = 2 * 1024; // 2 KB split size
+
+    table.updateProperties()
+        .set(TableProperties.METADATA_SPLIT_SIZE, String.valueOf(2 * splitSize))
+        .commit();
+
+    Table entriesTable = new ManifestEntriesTable(table.ops(), table);
+    Assert.assertEquals(1, entriesTable.currentSnapshot().manifests().size());
+
+    int expectedSplits =
+        ((int) entriesTable.currentSnapshot().manifests().get(0).length() + splitSize - 1) / splitSize;
+
+    TableScan scan = entriesTable.newScan()
+        .option(TableProperties.SPLIT_SIZE, String.valueOf(splitSize));
+
+    Assert.assertEquals(expectedSplits, Iterables.size(scan.planTasks()));
+  }
+
+  @Test
+  public void testSplitPlanningWithMetadataSplitSizeProperty() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    int splitSize = 2 * 1024; // 2 KB split size
+
+    table.updateProperties()
+        .set(TableProperties.METADATA_SPLIT_SIZE, String.valueOf(splitSize))
+        .commit();
+
+    Table entriesTable = new ManifestEntriesTable(table.ops(), table);
+    Assert.assertEquals(1, entriesTable.currentSnapshot().manifests().size());
+
+    int expectedSplits =
+        ((int) entriesTable.currentSnapshot().manifests().get(0).length() + splitSize - 1) / splitSize;
+
+    TableScan scan = entriesTable.newScan();
+
+    Assert.assertEquals(expectedSplits, Iterables.size(scan.planTasks()));
+  }
+
+  @Test
+  public void testSplitPlanningWithDefaultMetadataSplitSize() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    int splitSize = (int) TableProperties.METADATA_SPLIT_SIZE_DEFAULT; // default split size is 32 MB
+
+    Table entriesTable = new ManifestEntriesTable(table.ops(), table);
+    Assert.assertEquals(1, entriesTable.currentSnapshot().manifests().size());
+
+    int expectedSplits =
+        ((int) entriesTable.currentSnapshot().manifests().get(0).length() + splitSize - 1) / splitSize;
+
+    TableScan scan = entriesTable.newScan();
+
+    Assert.assertEquals(expectedSplits, Iterables.size(scan.planTasks()));
+  }
+
 }

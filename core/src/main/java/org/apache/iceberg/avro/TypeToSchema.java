@@ -221,7 +221,7 @@ public class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
         primitiveSchema = LogicalTypes.decimal(decimal.precision(), decimal.scale())
             .addToSchema(Schema.createFixed(
                 "decimal_" + decimal.precision() + "_" + decimal.scale(),
-                null, null, TypeUtil.decimalRequriedBytes(decimal.precision())));
+                null, null, TypeUtil.decimalRequiredBytes(decimal.precision())));
         break;
       default:
         throw new UnsupportedOperationException(

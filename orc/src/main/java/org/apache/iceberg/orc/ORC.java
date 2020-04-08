@@ -148,8 +148,8 @@ public class ORC {
       return this;
     }
 
-    public ReadBuilder schema(org.apache.iceberg.Schema projectSchema) {
-      this.schema = projectSchema;
+    public ReadBuilder project(Schema newSchema) {
+      this.schema = newSchema;
       return this;
     }
 
@@ -183,7 +183,7 @@ public class ORC {
   }
 
   static Reader newFileReader(InputFile file, Configuration config) {
-    ReaderOptions readerOptions = OrcFile.readerOptions(config);
+    ReaderOptions readerOptions = OrcFile.readerOptions(config).useUTCTimestamp(true);
     if (file instanceof HadoopInputFile) {
       readerOptions.filesystem(((HadoopInputFile) file).getFileSystem());
     }

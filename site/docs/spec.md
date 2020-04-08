@@ -333,6 +333,27 @@ Table metadata is stored as JSON. Each table metadata change creates a new table
 
 The atomic operation used to commit metadata depends on how tables are tracked and is not standardized by this spec. See the sections below for examples.
 
+### Delete Format
+
+This section details how to encode row-level deletes in Iceberg metadata. Row-level deletes are not supported in the current format version 1. This part of the spec is not yet complete and will be completed as format version 2.
+
+#### Position-based Delete Files
+
+Position-based delete files identify rows in one or more data files that have been deleted.
+
+Position-based delete files store `file_position_delete`, a struct with the following fields:
+
+| Field id, name          | Type                            | Description                                                                                                              |
+|-------------------------|---------------------------------|--------------------------------------------------------------------------------------------------------------------------|
+| **`1  file_path`**     | `required string`               | The full URI of a data file with FS scheme. This must match the `file_path` of the target data file in a manifest entry.   |
+| **`2  position`**      | `required long`                 | The ordinal position of a deleted row in the target data file identified by `file_path`, starting at `0`.                    |
+
+The rows in the delete file must be sorted by `file_path` then `position` to optimize filtering rows while scanning. 
+
+*  Sorting by `file_path` allows filter pushdown by file in columnar storage formats.
+*  Sorting by `position` allows filtering rows while scanning, to avoid keeping deletes in memory.
+ 
+Though the delete files can be written using any supported data file format in Iceberg, it is recommended to write delete files with same file format as the table's file format.
 
 #### Commit Conflict Resolution and Retry
 
@@ -486,26 +507,29 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 
 **Data Type Mappings**
 
-| Type               | ORC type    | Notes                                                                                   |
-|--------------------|-------------|-----------------------------------------------------------------------------------------|
-| **`boolean`**      | `boolean`   |                                                                                         |
-| **`int`**          | `int`       | ORC `tinyint` and `smallint` would also map to **`int`**.                               |
-| **`long`**         | `long`      |                                                                                         |
-| **`float`**        | `float`     |                                                                                         |
-| **`double`**       | `double`    |                                                                                         |
-| **`decimal(P,S)`** | `decimal`   |                                                                                         |
-| **`date`**         | `date`      |                                                                                         |
-| **`time`**         | `int`       | Stores microseconds from midnight.                                                      |
-| **`timestamp`**    | `timestamp` |                                                                                         |
-| **`timestamptz`**  | `struct`    | We should add this to ORC’s type model (ORC-294).                                       |
-| **`string`**       | `string`    | ORC `varchar` and `char` would also map to **`string`**.                                |
-| **`uuid`**         | `binary`    |                                                                                         |
-| **`fixed(L)`**     | `binary`    | The length would not be checked by the ORC reader and should be checked by the adapter. |
-| **`binary`**       | `binary`    |                                                                                         |
-| **`struct`**       | `struct`    | ORC `uniontype` would also map to **`struct`**.                                         |
-| **`list`**         | `array`     |                                                                                         |
-| **`map`**          | `map`       |                                                                                         |
+| Type               | ORC type            | ORC type attributes                                  | Notes                                                                                   |
+|--------------------|---------------------|------------------------------------------------------|-----------------------------------------------------------------------------------------|
+| **`boolean`**      | `boolean`           |                                                      |                                                                                         |
+| **`int`**          | `int`               |                                                      | ORC `tinyint` and `smallint` would also map to **`int`**.                               |
+| **`long`**         | `long`              |                                                      |                                                                                         |
+| **`float`**        | `float`             |                                                      |                                                                                         |
+| **`double`**       | `double`            |                                                      |                                                                                         |
+| **`decimal(P,S)`** | `decimal`           |                                                      |                                                                                         |
+| **`date`**         | `date`              |                                                      |                                                                                         |
+| **`time`**         | `long`              | `iceberg.long-type`=`TIME`                           | Stores microseconds from midnight.                                                      |
+| **`timestamp`**    | `timestamp`         |                                                      | [1]                                                                                     |
+| **`timestamptz`**  | `timestamp_instant` |                                                      | [1]                                                                                     |
+| **`string`**       | `string`            |                                                      | ORC `varchar` and `char` would also map to **`string`**.                                |
+| **`uuid`**         | `binary`            | `iceberg.binary-type`=`UUID`                         |                                                                                         |
+| **`fixed(L)`**     | `binary`            | `iceberg.binary-type`=`FIXED` & `iceberg.length`=`L` | The length would not be checked by the ORC reader and should be checked by the adapter. |
+| **`binary`**       | `binary`            |                                                      |                                                                                         |
+| **`struct`**       | `struct`            |                                                      |                                                                                         |
+| **`list`**         | `array`             |                                                      |                                                                                         |
+| **`map`**          | `map`               |                                                      |                                                                                         |
 
+Notes:
+
+1. ORC's [TimestampColumnVector](https://orc.apache.org/api/hive-storage-api/org/apache/hadoop/hive/ql/exec/vector/TimestampColumnVector.html) comprises of a time field (milliseconds since epoch) and a nanos field (nanoseconds within the second). Hence the milliseconds within the second are reported twice; once in the time field and again in the nanos field. The read adapter should only use milliseconds within the second from one of these fields. The write adapter should also report milliseconds within the second twice; once in the time field and again in the nanos field. ORC writer is expected to correctly consider millis information from one of the fields. More details at https://issues.apache.org/jira/browse/ORC-546
 
 One of the interesting challenges with this is how to map Iceberg’s schema evolution (id based) on to ORC’s (name based). In theory, we could use Iceberg’s column ids as the column and field names, but that would suck from a user’s point of view. 
 

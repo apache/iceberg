@@ -67,7 +67,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
     TypeDescription orcSchema = ORCSchemaUtil.convert(this.schema);
     this.batch = orcSchema.createRowBatch(this.batchSize);
 
-    OrcFile.WriterOptions options = OrcFile.writerOptions(conf);
+    OrcFile.WriterOptions options = OrcFile.writerOptions(conf).useUTCTimestamp(true);
     if (file instanceof HadoopOutputFile) {
       options.fileSystem(((HadoopOutputFile) file).getFileSystem());
     }

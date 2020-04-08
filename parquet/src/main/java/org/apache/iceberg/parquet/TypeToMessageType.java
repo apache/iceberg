@@ -165,7 +165,7 @@ public class TypeToMessageType {
 
         } else {
           // store as a fixed-length array
-          int minLength = TypeUtil.decimalRequriedBytes(decimal.precision());
+          int minLength = TypeUtil.decimalRequiredBytes(decimal.precision());
           return Types.primitive(FIXED_LEN_BYTE_ARRAY, repetition).length(minLength)
               .as(DECIMAL)
               .precision(decimal.precision())
