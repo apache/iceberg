@@ -75,6 +75,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   private final TableOperations ops;
   private final String commitUUID = UUID.randomUUID().toString();
+  private final AtomicInteger manifestCount = new AtomicInteger(0);
   private final AtomicInteger attempt = new AtomicInteger(0);
   private final List<String> manifestLists = Lists.newArrayList();
   private volatile Long snapshotId = null;
@@ -310,9 +311,13 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         String.format("snap-%d-%d-%s", snapshotId(), attempt.incrementAndGet(), commitUUID))));
   }
 
-  protected OutputFile manifestPath(int manifestNumber) {
+  protected OutputFile newManifestOutput() {
     return ops.io().newOutputFile(
-        ops.metadataFileLocation(FileFormat.AVRO.addExtension(commitUUID + "-m" + manifestNumber)));
+        ops.metadataFileLocation(FileFormat.AVRO.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement())));
+  }
+
+  protected ManifestWriter newManifestWriter(PartitionSpec spec) {
+    return ManifestWriter.write(ops.current().formatVersion(), spec, newManifestOutput(), snapshotId());
   }
 
   protected long snapshotId() {

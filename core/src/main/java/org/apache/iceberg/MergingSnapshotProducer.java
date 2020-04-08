@@ -33,7 +33,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -87,7 +86,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final boolean snapshotIdInheritanceEnabled;
 
   // update data
-  private final AtomicInteger manifestCount = new AtomicInteger(0);
   private final List<DataFile> newFiles = Lists.newArrayList();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
@@ -230,7 +228,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   private ManifestFile copyManifest(ManifestFile manifest) {
     try (ManifestReader reader = ManifestReader.read(manifest, ops.io(), ops.current().specsById())) {
-      OutputFile newManifestPath = manifestPath(manifestCount.getAndIncrement());
+      OutputFile newManifestPath = newManifestOutput();
       return ManifestWriter.copyAppendManifest(reader, newManifestPath, snapshotId(), appendedManifestsSummary);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest);
@@ -542,8 +540,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     // manifest. produce a copy of the manifest with all deleted files removed.
     List<DataFile> deletedFiles = Lists.newArrayList();
     Set<CharSequenceWrapper> deletedPaths = Sets.newHashSet();
-    OutputFile filteredCopy = manifestPath(manifestCount.getAndIncrement());
-    ManifestWriter writer = new ManifestWriter(reader.spec(), filteredCopy, snapshotId());
+    ManifestWriter writer = newManifestWriter(reader.spec());
     try {
       reader.entries().forEach(entry -> {
         DataFile file = entry.file();
@@ -655,9 +652,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       return mergeManifests.get(bin);
     }
 
-    OutputFile out = manifestPath(manifestCount.getAndIncrement());
-
-    ManifestWriter writer = new ManifestWriter(ops.current().spec(specId), out, snapshotId());
+    ManifestWriter writer = newManifestWriter(ops.current().spec());
     try {
       for (ManifestFile manifest : bin) {
         try (ManifestReader reader = ManifestReader.read(manifest, ops.io(), ops.current().specsById())) {
@@ -697,9 +692,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
 
     if (cachedNewManifest == null) {
-      OutputFile out = manifestPath(manifestCount.getAndIncrement());
-
-      ManifestWriter writer = new ManifestWriter(spec, out, snapshotId());
+      ManifestWriter writer = newManifestWriter(spec);
       try {
         writer.addAll(newFiles);
       } finally {
