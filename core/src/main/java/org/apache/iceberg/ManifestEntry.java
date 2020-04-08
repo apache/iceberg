@@ -158,7 +158,11 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
       case 1:
         return snapshotId;
       case 2:
-        return fileWrapper.wrap(file);
+        if (file instanceof GenericDataFile) {
+          return file;
+        } else {
+          return fileWrapper.wrap(file);
+        }
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + i);
     }
@@ -267,6 +271,8 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
           return partitionWrapper.wrap(wrapped.partition());
         case 3:
           return wrapped.recordCount();
+        case 4:
+          return wrapped.fileSizeInBytes();
         case 5:
           return DEFAULT_BLOCK_SIZE;
         case 6:
