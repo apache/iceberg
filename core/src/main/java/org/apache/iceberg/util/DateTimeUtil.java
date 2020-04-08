@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.data;
+package org.apache.iceberg.util;
 
 import java.time.Instant;
 import java.time.LocalDate;
