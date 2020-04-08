@@ -31,7 +31,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -57,7 +56,6 @@ class ReadConf<T> {
   private final long totalValues;
   private final boolean reuseContainers;
   private final Integer batchSize;
-  private final NameMapping nameMapping;
 
   // List of column chunk metadata for each row group
   private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetaDataForRowGroups;
@@ -72,11 +70,16 @@ class ReadConf<T> {
     this.reader = newReader(file, options);
     MessageType fileSchema = reader.getFileMetaData().getSchema();
     boolean hasIds = ParquetSchemaUtil.hasIds(fileSchema);
-    this.nameMapping = nameMapping == null ? MappingUtil.create(expectedSchema) : nameMapping;
-
-    this.projection = hasIds ?
-            ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema) :
-            ParquetSchemaUtil.pruneColumnsByName(fileSchema, expectedSchema, this.nameMapping);
+    MessageType typeWithIds = hasIds ? fileSchema : ParquetSchemaUtil.addFallbackIds(fileSchema);
+    if (!hasIds) {
+      if (nameMapping != null) {
+        this.projection = ParquetSchemaUtil.pruneColumnsByName(fileSchema, expectedSchema, nameMapping);
+      } else {
+        this.projection = ParquetSchemaUtil.pruneColumnsFallback(fileSchema, expectedSchema);
+      }
+    } else {
+      this.projection = ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema);
+    }
 
     this.rowGroups = reader.getRowGroups();
     this.shouldSkip = new boolean[rowGroups.size()];
@@ -84,18 +87,21 @@ class ReadConf<T> {
     ParquetMetricsRowGroupFilter statsFilter = null;
     ParquetDictionaryRowGroupFilter dictFilter = null;
     if (filter != null) {
-      statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, caseSensitive)
-              .withNameMapping(this.nameMapping);
-      dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive)
-              .withNameMapping(this.nameMapping);
+      statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, caseSensitive);
+      dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive);
+
+      if (nameMapping != null) {
+        statsFilter = statsFilter.withNameMapping(nameMapping);
+        dictFilter = dictFilter.withNameMapping(nameMapping);
+      }
     }
 
     long computedTotalValues = 0L;
     for (int i = 0; i < shouldSkip.length; i += 1) {
       BlockMetaData rowGroup = rowGroups.get(i);
       boolean shouldRead = filter == null || (
-          statsFilter.shouldRead(fileSchema, rowGroup) &&
-              dictFilter.shouldRead(fileSchema, rowGroup, reader.getDictionaryReader(rowGroup)));
+          statsFilter.shouldRead(typeWithIds, rowGroup) &&
+              dictFilter.shouldRead(typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup)));
       this.shouldSkip[i] = !shouldRead;
       if (shouldRead) {
         computedTotalValues += rowGroup.getRowCount();
@@ -130,7 +136,6 @@ class ReadConf<T> {
     this.batchSize = toCopy.batchSize;
     this.vectorizedModel = toCopy.vectorizedModel;
     this.columnChunkMetaDataForRowGroups = toCopy.columnChunkMetaDataForRowGroups;
-    this.nameMapping = toCopy.nameMapping;
   }
 
   ParquetFileReader reader() {

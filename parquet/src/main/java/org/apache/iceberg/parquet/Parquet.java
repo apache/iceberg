@@ -41,6 +41,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.parquet.HadoopReadOptions;
 import org.apache.parquet.ParquetReadOptions;
@@ -436,7 +437,7 @@ public class Parquet {
 
       ParquetReadBuilder<D> builder = new ParquetReadBuilder<>(ParquetIO.file(file));
 
-      builder.project(schema);
+      builder.project(schema).withNameMapping(MappingUtil.create(schema));
 
       if (readSupport != null) {
         builder.readSupport((ReadSupport<D>) readSupport);
@@ -490,6 +491,7 @@ public class Parquet {
     private Schema schema = null;
     private ReadSupport<T> readSupport = null;
     private boolean callInit = false;
+    private NameMapping nameMapping = null;
 
     private ParquetReadBuilder(org.apache.parquet.io.InputFile file) {
       super(file);
@@ -497,6 +499,11 @@ public class Parquet {
 
     public ParquetReadBuilder<T> project(Schema newSchema) {
       this.schema = newSchema;
+      return this;
+    }
+
+    public ParquetReadBuilder<T> withNameMapping(NameMapping newNameMapping) {
+      this.nameMapping = newNameMapping;
       return this;
     }
 
@@ -512,7 +519,7 @@ public class Parquet {
 
     @Override
     protected ReadSupport<T> getReadSupport() {
-      return new ParquetReadSupport<>(schema, readSupport, callInit);
+      return new ParquetReadSupport<>(schema, readSupport, callInit, nameMapping);
     }
   }
 }

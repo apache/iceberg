@@ -26,7 +26,7 @@ import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.mapping.MappingUtil;
+import org.apache.iceberg.mapping.NameMapping;
 import org.apache.parquet.avro.AvroReadSupport;
 import org.apache.parquet.hadoop.api.InitContext;
 import org.apache.parquet.hadoop.api.ReadSupport;
@@ -42,11 +42,13 @@ class ParquetReadSupport<T> extends ReadSupport<T> {
   private final Schema expectedSchema;
   private final ReadSupport<T> wrapped;
   private final boolean callInit;
+  private final NameMapping nameMapping;
 
-  ParquetReadSupport(Schema expectedSchema, ReadSupport<T> readSupport, boolean callInit) {
+  ParquetReadSupport(Schema expectedSchema, ReadSupport<T> readSupport, boolean callInit, NameMapping nameMapping) {
     this.expectedSchema = expectedSchema;
     this.wrapped = readSupport;
     this.callInit = callInit;
+    this.nameMapping = nameMapping;
   }
 
   @Override
@@ -56,9 +58,16 @@ class ParquetReadSupport<T> extends ReadSupport<T> {
     // matching to the file's columns by full path, so this must select columns by using the path
     // in the file's schema.
 
-    MessageType projection = ParquetSchemaUtil.hasIds(fileSchema) ?
-        ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema) :
-        ParquetSchemaUtil.pruneColumnsByName(fileSchema, expectedSchema, MappingUtil.create(expectedSchema));
+    MessageType projection;
+    if (ParquetSchemaUtil.hasIds(fileSchema)) {
+      projection = ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema);
+    } else {
+      if (nameMapping != null) {
+        projection = ParquetSchemaUtil.pruneColumnsByName(fileSchema, expectedSchema, nameMapping);
+      } else {
+        projection = ParquetSchemaUtil.pruneColumnsFallback(fileSchema, expectedSchema);
+      }
+    }
 
     // override some known backward-compatibility options
     configuration.set("parquet.strict.typing", "false");

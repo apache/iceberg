@@ -36,7 +36,6 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
-import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.ColumnDescriptor;
@@ -121,16 +120,9 @@ public class ParquetDictionaryRowGroupFilter {
 
       for (ColumnDescriptor desc : fileSchema.getColumns()) {
         PrimitiveType colType = fileSchema.getType(desc.getPath()).asPrimitiveType();
-        if (colType.getId() != null) {
-          int id = colType.getId().intValue();
-          cols.put(id, desc);
-          conversions.put(id, ParquetConversions.converterFromParquet(colType));
-        } else {
-          MappedField field = nameMapping.find(colType.getName());
-          if (field == null) {
-            continue;
-          }
-          int id = field.id();
+        Integer id = ParquetSchemaUtil.getFieldId(nameMapping, colType);
+
+        if (id != null) {
           cols.put(id, desc);
           conversions.put(id, ParquetConversions.converterFromParquet(colType));
         }
@@ -138,16 +130,9 @@ public class ParquetDictionaryRowGroupFilter {
 
       for (ColumnChunkMetaData meta : rowGroup.getColumns()) {
         PrimitiveType colType = fileSchema.getType(meta.getPath().toArray()).asPrimitiveType();
-        if (colType.getId() != null) {
-          int id = colType.getId().intValue();
-          isFallback.put(id, ParquetUtil.hasNonDictionaryPages(meta));
-          mayContainNulls.put(id, mayContainNull(meta));
-        } else {
-          MappedField field = nameMapping.find(colType.getName());
-          if (field == null) {
-            continue;
-          }
-          int id = field.id();
+        Integer id = ParquetSchemaUtil.getFieldId(nameMapping, colType);
+
+        if (id != null) {
           isFallback.put(id, ParquetUtil.hasNonDictionaryPages(meta));
           mayContainNulls.put(id, mayContainNull(meta));
         }

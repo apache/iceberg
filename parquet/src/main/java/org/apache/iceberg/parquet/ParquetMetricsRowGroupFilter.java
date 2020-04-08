@@ -35,7 +35,6 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
-import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
@@ -118,17 +117,9 @@ public class ParquetMetricsRowGroupFilter {
       this.conversions = Maps.newHashMap();
       for (ColumnChunkMetaData col : rowGroup.getColumns()) {
         PrimitiveType colType = fileSchema.getType(col.getPath().toArray()).asPrimitiveType();
-        if (colType.getId() != null) {
-          int id = colType.getId().intValue();
-          stats.put(id, col.getStatistics());
-          valueCounts.put(id, col.getValueCount());
-          conversions.put(id, ParquetConversions.converterFromParquet(colType));
-        } else {
-          MappedField field = nameMapping.find(colType.getName());
-          if (field == null) {
-            continue;
-          }
-          int id = field.id();
+        Integer id = ParquetSchemaUtil.getFieldId(nameMapping, colType);
+
+        if (id != null) {
           stats.put(id, col.getStatistics());
           valueCounts.put(id, col.getValueCount());
           conversions.put(id, ParquetConversions.converterFromParquet(colType));

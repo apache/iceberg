@@ -22,10 +22,12 @@ package org.apache.iceberg.parquet;
 import com.google.common.collect.Sets;
 import java.util.Set;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types.MessageTypeBuilder;
 
@@ -49,6 +51,38 @@ public class ParquetSchemaUtil {
     // column order must match the incoming type, so it doesn't matter that the ids are unordered
     Set<Integer> selectedIds = TypeUtil.getProjectedIds(expectedSchema);
     return (MessageType) ParquetTypeVisitor.visit(fileSchema, new PruneColumns(selectedIds));
+  }
+
+  /**
+   * Prunes columns from a Parquet file schema that was written without field ids.
+   * <p>
+   * Files that were written without field ids are read assuming that schema evolution preserved
+   * column order. Deleting columns was not allowed.
+   * <p>
+   * The order of columns in the resulting Parquet schema matches the Parquet file.
+   *
+   * @param fileSchema schema from a Parquet file that does not have field ids.
+   * @param expectedSchema expected schema
+   * @return a parquet schema pruned using the expected schema
+   */
+  public static MessageType pruneColumnsFallback(MessageType fileSchema, Schema expectedSchema) {
+    Set<Integer> selectedIds = Sets.newHashSet();
+
+    for (Types.NestedField field : expectedSchema.columns()) {
+      selectedIds.add(field.fieldId());
+    }
+
+    MessageTypeBuilder builder = org.apache.parquet.schema.Types.buildMessage();
+
+    int ordinal = 1;
+    for (Type type : fileSchema.getFields()) {
+      if (selectedIds.contains(ordinal)) {
+        builder.addField(type.withId(ordinal));
+      }
+      ordinal += 1;
+    }
+
+    return builder.named(fileSchema.getName());
   }
 
   /**
@@ -79,7 +113,7 @@ public class ParquetSchemaUtil {
 
   public static boolean hasIds(MessageType fileSchema) {
     try {
-      // Try to convert the type to Iceberg. If an ID assignment is needed, return false.
+      // Try to convert the type to Iceberg. If all ID assignment is from nextId(), return false.
       ParquetTypeVisitor.visit(fileSchema, new MessageTypeToType(fileSchema) {
         @Override
         protected int getId(org.apache.parquet.schema.Type type) {
@@ -92,11 +126,36 @@ public class ParquetSchemaUtil {
         }
       });
 
-      // all IDs are assigned from nextId()
+      // All IDs are assigned from nextId()
       return false;
     } catch (IllegalStateException e) {
-      // at least one field exists.
+      // At least one field exists.
       return true;
     }
+  }
+
+  public static MessageType addFallbackIds(MessageType fileSchema) {
+    MessageTypeBuilder builder = org.apache.parquet.schema.Types.buildMessage();
+
+    int ordinal = 1; // ids are assigned starting at 1
+    for (Type type : fileSchema.getFields()) {
+      builder.addField(type.withId(ordinal));
+      ordinal += 1;
+    }
+
+    return builder.named(fileSchema.getName());
+  }
+
+  public static Integer getFieldId(NameMapping nameMapping, PrimitiveType colType) {
+    if (nameMapping != null) {
+      MappedField field = nameMapping.find(colType.getName());
+      if (field == null) {
+        return null;
+      }
+      return field.id();
+    } else if (colType.getId() != null) {
+      return colType.getId().intValue();
+    }
+    return null;
   }
 }
