@@ -96,219 +96,140 @@ public class GenericOrcReader implements OrcValueReader<Record> {
   }
 
   interface Converter<T> {
-    T convert(ColumnVector vector, int row);
-  }
-
-  private static class BooleanConverter implements Converter<Boolean> {
-    @Override
-    public Boolean convert(ColumnVector vector, int row) {
+    default T convert(ColumnVector vector, int row) {
       int rowIndex = vector.isRepeating ? 0 : row;
       if (!vector.noNulls && vector.isNull[rowIndex]) {
         return null;
       } else {
-        return ((LongColumnVector) vector).vector[rowIndex] != 0;
+        return convertNonNullValue(vector, row);
       }
+    }
+
+    T convertNonNullValue(ColumnVector vector, int row);
+  }
+
+  private static class BooleanConverter implements Converter<Boolean> {
+    @Override
+    public Boolean convertNonNullValue(ColumnVector vector, int row) {
+      return ((LongColumnVector) vector).vector[row] != 0;
     }
   }
 
   private static class ByteConverter implements Converter<Byte> {
     @Override
-    public Byte convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return (byte) ((LongColumnVector) vector).vector[rowIndex];
-      }
+    public Byte convertNonNullValue(ColumnVector vector, int row) {
+      return (byte) ((LongColumnVector) vector).vector[row];
     }
   }
 
   private static class ShortConverter implements Converter<Short> {
     @Override
-    public Short convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return (short) ((LongColumnVector) vector).vector[rowIndex];
-      }
+    public Short convertNonNullValue(ColumnVector vector, int row) {
+      return (short) ((LongColumnVector) vector).vector[row];
     }
   }
 
   private static class IntConverter implements Converter<Integer> {
     @Override
-    public Integer convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return (int) ((LongColumnVector) vector).vector[rowIndex];
-      }
+    public Integer convertNonNullValue(ColumnVector vector, int row) {
+      return (int) ((LongColumnVector) vector).vector[row];
     }
   }
 
   private static class TimeConverter implements Converter<LocalTime> {
     @Override
-    public LocalTime convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return LocalTime.ofNanoOfDay(((LongColumnVector) vector).vector[rowIndex] * 1_000);
-      }
+    public LocalTime convertNonNullValue(ColumnVector vector, int row) {
+      return LocalTime.ofNanoOfDay(((LongColumnVector) vector).vector[row] * 1_000);
     }
   }
 
   private static class DateConverter implements Converter<LocalDate> {
     @Override
-    public LocalDate convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return EPOCH_DAY.plusDays((int) ((LongColumnVector) vector).vector[rowIndex]);
-      }
+    public LocalDate convertNonNullValue(ColumnVector vector, int row) {
+      return EPOCH_DAY.plusDays((int) ((LongColumnVector) vector).vector[row]);
     }
   }
 
   private static class LongConverter implements Converter<Long> {
     @Override
-    public Long convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return ((LongColumnVector) vector).vector[rowIndex];
-      }
+    public Long convertNonNullValue(ColumnVector vector, int row) {
+      return ((LongColumnVector) vector).vector[row];
     }
   }
 
   private static class FloatConverter implements Converter<Float> {
     @Override
-    public Float convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return (float) ((DoubleColumnVector) vector).vector[rowIndex];
-      }
+    public Float convertNonNullValue(ColumnVector vector, int row) {
+      return (float) ((DoubleColumnVector) vector).vector[row];
     }
   }
 
   private static class DoubleConverter implements Converter<Double> {
     @Override
-    public Double convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return ((DoubleColumnVector) vector).vector[rowIndex];
-      }
+    public Double convertNonNullValue(ColumnVector vector, int row) {
+      return ((DoubleColumnVector) vector).vector[row];
     }
   }
 
   private static class TimestampTzConverter implements Converter<OffsetDateTime> {
-    private OffsetDateTime convert(TimestampColumnVector vector, int row) {
-      return Instant.ofEpochSecond(Math.floorDiv(vector.time[row], 1_000), vector.nanos[row]).atOffset(ZoneOffset.UTC);
-    }
-
     @Override
-    public OffsetDateTime convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return convert((TimestampColumnVector) vector, rowIndex);
-      }
+    public OffsetDateTime convertNonNullValue(ColumnVector vector, int row) {
+      TimestampColumnVector tcv = (TimestampColumnVector) vector;
+      return Instant.ofEpochSecond(Math.floorDiv(tcv.time[row], 1_000), tcv.nanos[row]).atOffset(ZoneOffset.UTC);
     }
   }
 
   private static class TimestampConverter implements Converter<LocalDateTime> {
-
-    private LocalDateTime convert(TimestampColumnVector vector, int row) {
-      return Instant.ofEpochSecond(Math.floorDiv(vector.time[row], 1_000), vector.nanos[row]).atOffset(ZoneOffset.UTC)
-          .toLocalDateTime();
-    }
-
     @Override
-    public LocalDateTime convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return convert((TimestampColumnVector) vector, rowIndex);
-      }
+    public LocalDateTime convertNonNullValue(ColumnVector vector, int row) {
+      TimestampColumnVector tcv = (TimestampColumnVector) vector;
+      return Instant.ofEpochSecond(Math.floorDiv(tcv.time[row], 1_000), tcv.nanos[row]).atOffset(ZoneOffset.UTC)
+          .toLocalDateTime();
     }
   }
 
   private static class FixedConverter implements Converter<byte[]> {
     @Override
-    public byte[] convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        BytesColumnVector bytesVector = (BytesColumnVector) vector;
-        return Arrays.copyOfRange(bytesVector.vector[rowIndex], bytesVector.start[rowIndex],
-            bytesVector.start[rowIndex] + bytesVector.length[rowIndex]);
-      }
+    public byte[] convertNonNullValue(ColumnVector vector, int row) {
+      BytesColumnVector bytesVector = (BytesColumnVector) vector;
+      return Arrays.copyOfRange(bytesVector.vector[row], bytesVector.start[row],
+          bytesVector.start[row] + bytesVector.length[row]);
     }
   }
 
   private static class BinaryConverter implements Converter<ByteBuffer> {
     @Override
-    public ByteBuffer convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        BytesColumnVector bytesVector = (BytesColumnVector) vector;
-        return ByteBuffer.wrap(bytesVector.vector[rowIndex], bytesVector.start[rowIndex], bytesVector.length[rowIndex]);
-      }
+    public ByteBuffer convertNonNullValue(ColumnVector vector, int row) {
+      BytesColumnVector bytesVector = (BytesColumnVector) vector;
+      return ByteBuffer.wrap(bytesVector.vector[row], bytesVector.start[row], bytesVector.length[row]);
     }
   }
 
   private static class UUIDConverter implements Converter<UUID> {
     @Override
-    public UUID convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        BytesColumnVector bytesVector = (BytesColumnVector) vector;
-        ByteBuffer buf = ByteBuffer.wrap(bytesVector.vector[rowIndex], bytesVector.start[rowIndex],
-            bytesVector.length[rowIndex]);
-        long mostSigBits = buf.getLong();
-        long leastSigBits = buf.getLong();
-        return new UUID(mostSigBits, leastSigBits);
-      }
+    public UUID convertNonNullValue(ColumnVector vector, int row) {
+      BytesColumnVector bytesVector = (BytesColumnVector) vector;
+      ByteBuffer buf = ByteBuffer.wrap(bytesVector.vector[row], bytesVector.start[row], bytesVector.length[row]);
+      long mostSigBits = buf.getLong();
+      long leastSigBits = buf.getLong();
+      return new UUID(mostSigBits, leastSigBits);
     }
   }
 
   private static class StringConverter implements Converter<String> {
     @Override
-    public String convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        BytesColumnVector bytesVector = (BytesColumnVector) vector;
-        return new String(bytesVector.vector[rowIndex], bytesVector.start[rowIndex], bytesVector.length[rowIndex],
-            StandardCharsets.UTF_8);
-      }
+    public String convertNonNullValue(ColumnVector vector, int row) {
+      BytesColumnVector bytesVector = (BytesColumnVector) vector;
+      return new String(bytesVector.vector[row], bytesVector.start[row], bytesVector.length[row],
+          StandardCharsets.UTF_8);
     }
   }
 
   private static class DecimalConverter implements Converter<BigDecimal> {
     @Override
-    public BigDecimal convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        DecimalColumnVector cv = (DecimalColumnVector) vector;
-        return cv.vector[rowIndex].getHiveDecimal().bigDecimalValue().setScale(cv.scale);
-      }
+    public BigDecimal convertNonNullValue(ColumnVector vector, int row) {
+      DecimalColumnVector cv = (DecimalColumnVector) vector;
+      return cv.vector[row].getHiveDecimal().bigDecimalValue().setScale(cv.scale);
     }
   }
 
@@ -326,29 +247,21 @@ public class GenericOrcReader implements OrcValueReader<Record> {
           .get(0), child);
     }
 
-    List<?> readList(ListColumnVector vector, int row) {
-      int offset = (int) vector.offsets[row];
-      int length = (int) vector.lengths[row];
+    @Override
+    public List<?> convertNonNullValue(ColumnVector vector, int row) {
+      ListColumnVector listVector = (ListColumnVector) vector;
+      int offset = (int) listVector.offsets[row];
+      int length = (int) listVector.lengths[row];
 
       List<Object> list = Lists.newArrayListWithExpectedSize(length);
       for (int c = 0; c < length; ++c) {
-        list.add(childConverter.convert(vector.child, offset + c));
+        list.add(childConverter.convert(listVector.child, offset + c));
       }
       return list;
     }
-
-    @Override
-    public List<?> convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return readList((ListColumnVector) vector, rowIndex);
-      }
-    }
   }
 
-  private static class MapConverter implements Converter {
+  private static class MapConverter implements Converter<Map<?, ?>> {
     private final Converter keyConvert;
     private final Converter valueConvert;
 
@@ -362,28 +275,20 @@ public class GenericOrcReader implements OrcValueReader<Record> {
       valueConvert = buildConverter(mapFields.get(1), valueType);
     }
 
-    Map<?, ?> readMap(MapColumnVector vector, int row) {
-      final int offset = (int) vector.offsets[row];
-      final int length = (int) vector.lengths[row];
+    @Override
+    public Map<?, ?> convertNonNullValue(ColumnVector vector, int row) {
+      MapColumnVector mapVector = (MapColumnVector) vector;
+      final int offset = (int) mapVector.offsets[row];
+      final int length = (int) mapVector.lengths[row];
 
       Map<Object, Object> map = Maps.newHashMapWithExpectedSize(length);
       for (int c = 0; c < length; ++c) {
-        Object key = keyConvert.convert(vector.keys, offset + c);
-        Object value = valueConvert.convert(vector.values, offset + c);
+        Object key = keyConvert.convert(mapVector.keys, offset + c);
+        Object value = valueConvert.convert(mapVector.values, offset + c);
         map.put(key, value);
       }
 
       return map;
-    }
-
-    @Override
-    public Map convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return readMap((MapColumnVector) vector, rowIndex);
-      }
     }
   }
 
@@ -404,22 +309,14 @@ public class GenericOrcReader implements OrcValueReader<Record> {
       }
     }
 
-    Record writeStruct(StructColumnVector vector, int row) {
+    @Override
+    public Record convertNonNullValue(ColumnVector vector, int row) {
+      StructColumnVector structVector = (StructColumnVector) vector;
       Record data = GenericRecord.create(icebergStructSchema);
       for (int c = 0; c < children.length; ++c) {
-        data.set(c, children[c].convert(vector.fields[c], row));
+        data.set(c, children[c].convert(structVector.fields[c], row));
       }
       return data;
-    }
-
-    @Override
-    public Record convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return writeStruct((StructColumnVector) vector, rowIndex);
-      }
     }
   }
 
