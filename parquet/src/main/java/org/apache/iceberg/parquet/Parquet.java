@@ -428,7 +428,7 @@ public class Parquet {
 
         if (batchedReaderFunc != null) {
           return new VectorizedParquetReader(file, schema, options, batchedReaderFunc, nameMapping, filter,
-                  reuseContainers, caseSensitive, maxRecordsPerBatch);
+              reuseContainers, caseSensitive, maxRecordsPerBatch);
         } else {
           return new org.apache.iceberg.parquet.ParquetReader<>(
               file, schema, options, readerFunc, nameMapping, filter, reuseContainers, caseSensitive);

@@ -73,8 +73,8 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
   private ReadConf init() {
     if (conf == null) {
       ReadConf readConf = new ReadConf(
-          input, options, expectedSchema, filter, null, batchReaderFunc, nameMapping,
-              reuseContainers, caseSensitive, batchSize);
+          input, options, expectedSchema, filter, null, batchReaderFunc, nameMapping, reuseContainers,
+          caseSensitive, batchSize);
       this.conf = readConf.copy();
       return readConf;
     }
