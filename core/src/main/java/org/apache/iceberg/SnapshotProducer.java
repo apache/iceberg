@@ -150,7 +150,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     if (base.formatVersion() > 1 || base.propertyAsBoolean(MANIFEST_LISTS_ENABLED, MANIFEST_LISTS_ENABLED_DEFAULT)) {
       OutputFile manifestList = manifestListPath();
 
-      try (ManifestListWriter writer = ManifestListWriter.write(
+      try (ManifestListWriter writer = ManifestLists.write(
           ops.current().formatVersion(), manifestList, snapshotId(), parentSnapshotId, sequenceNumber)) {
 
         // keep track of the manifest lists created
@@ -379,8 +379,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       }
 
       return new GenericManifestFile(manifest.path(), manifest.length(), manifest.partitionSpecId(),
-          snapshotId, addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows,
-          stats.summaries());
+          manifest.sequenceNumber(), manifest.minSequenceNumber(), snapshotId, addedFiles, addedRows, existingFiles,
+          existingRows, deletedFiles, deletedRows, stats.summaries());
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read manifest: %s", manifest.path());
