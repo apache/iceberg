@@ -67,6 +67,8 @@ public class TestSnapshotJson {
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json);
 
+    Assert.assertEquals("Sequence number should default to 0 for v1",
+        0, snapshot.sequenceNumber());
     Assert.assertEquals("Snapshot ID should match",
         expected.snapshotId(), snapshot.snapshotId());
     Assert.assertEquals("Timestamp should match",
@@ -100,7 +102,7 @@ public class TestSnapshotJson {
     }
 
     Snapshot expected = new BaseSnapshot(
-        ops.io(), id, parentId, System.currentTimeMillis(), null, null, localInput(manifestList));
+        ops.io(), id, 34, parentId, System.currentTimeMillis(), null, null, localInput(manifestList));
     Snapshot inMemory = new BaseSnapshot(
         ops.io(), id, parentId, expected.timestampMillis(), null, null, manifests);
 
@@ -110,6 +112,8 @@ public class TestSnapshotJson {
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json);
 
+    Assert.assertEquals("Sequence number should default to 0",
+        expected.sequenceNumber(), snapshot.sequenceNumber());
     Assert.assertEquals("Snapshot ID should match",
         expected.snapshotId(), snapshot.snapshotId());
     Assert.assertEquals("Timestamp should match",

@@ -35,9 +35,12 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 
 class BaseSnapshot implements Snapshot {
+  private static final long INITIAL_SEQUENCE_NUMBER = 0;
+
   private final FileIO io;
   private final long snapshotId;
   private final Long parentId;
+  private final long sequenceNumber;
   private final long timestampMillis;
   private final InputFile manifestList;
   private final String operation;
@@ -60,6 +63,7 @@ class BaseSnapshot implements Snapshot {
   }
 
   BaseSnapshot(FileIO io,
+               long sequenceNumber,
                long snapshotId,
                Long parentId,
                long timestampMillis,
@@ -67,6 +71,7 @@ class BaseSnapshot implements Snapshot {
                Map<String, String> summary,
                InputFile manifestList) {
     this.io = io;
+    this.sequenceNumber = sequenceNumber;
     this.snapshotId = snapshotId;
     this.parentId = parentId;
     this.timestampMillis = timestampMillis;
@@ -82,8 +87,13 @@ class BaseSnapshot implements Snapshot {
                String operation,
                Map<String, String> summary,
                List<ManifestFile> manifests) {
-    this(io, snapshotId, parentId, timestampMillis, operation, summary, (InputFile) null);
+    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, (InputFile) null);
     this.manifests = manifests;
+  }
+
+  @Override
+  public long sequenceNumber() {
+    return sequenceNumber;
   }
 
   @Override

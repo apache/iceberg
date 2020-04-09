@@ -214,6 +214,11 @@ public class TestForwardCompatibility {
     }
 
     @Override
+    public long sequenceNumber() {
+      return 0;
+    }
+
+    @Override
     public long snapshotId() {
       return 1;
     }
