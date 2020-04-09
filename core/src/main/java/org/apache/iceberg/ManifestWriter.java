@@ -33,7 +33,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Writer for manifest files.
  */
-public class ManifestWriter implements FileAppender<DataFile> {
+public abstract class ManifestWriter implements FileAppender<DataFile> {
   private static final Logger LOG = LoggerFactory.getLogger(ManifestWriter.class);
 
   static ManifestFile copyAppendManifest(ManifestReader reader, OutputFile outputFile, long snapshotId,
@@ -44,7 +44,7 @@ public class ManifestWriter implements FileAppender<DataFile> {
   static ManifestFile copyManifest(ManifestReader reader, OutputFile outputFile, long snapshotId,
                                    SnapshotSummary.Builder summaryBuilder,
                                    Set<ManifestEntry.Status> allowedEntryStatuses) {
-    ManifestWriter writer = new ManifestWriter(reader.spec(), outputFile, snapshotId);
+    ManifestWriter writer = new V1Writer(reader.spec(), outputFile, snapshotId);
     boolean threw = true;
     try {
       for (ManifestEntry entry : reader.entries()) {
@@ -93,7 +93,15 @@ public class ManifestWriter implements FileAppender<DataFile> {
    * @return a manifest writer
    */
   public static ManifestWriter write(PartitionSpec spec, OutputFile outputFile) {
-    return new ManifestWriter(spec, outputFile, null);
+    // always use a v1 writer for appended manifests because sequence number must be inherited
+    return write(1, spec, outputFile, null);
+  }
+
+  static ManifestWriter write(int formatVersion, PartitionSpec spec, OutputFile outputFile, Long snapshotId) {
+    if (formatVersion == 1) {
+      return new V1Writer(spec, outputFile, snapshotId);
+    }
+    throw new UnsupportedOperationException("Cannot write manifest for table version: " + formatVersion);
   }
 
   private final OutputFile file;
@@ -111,7 +119,7 @@ public class ManifestWriter implements FileAppender<DataFile> {
   private int deletedFiles = 0;
   private long deletedRows = 0L;
 
-  ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
+  private ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
     this.file = file;
     this.specId = spec.specId();
     this.writer = newAppender(FileFormat.AVRO, spec, file);
@@ -227,6 +235,12 @@ public class ManifestWriter implements FileAppender<DataFile> {
       }
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to create manifest writer for path: " + file);
+    }
+  }
+
+  private static class V1Writer extends ManifestWriter {
+    V1Writer(PartitionSpec spec, OutputFile file, Long snapshotId) {
+      super(spec, file, snapshotId);
     }
   }
 }

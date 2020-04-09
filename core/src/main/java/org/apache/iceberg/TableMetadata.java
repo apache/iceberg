@@ -43,14 +43,9 @@ import org.apache.iceberg.util.PropertyUtil;
  * Metadata for a table.
  */
 public class TableMetadata {
-  static final int TABLE_FORMAT_VERSION = 1;
+  static final int DEFAULT_TABLE_FORMAT_VERSION = 1;
+  static final int SUPPORTED_TABLE_FORMAT_VERSION = 2;
   static final int INITIAL_SPEC_ID = 0;
-
-  public static TableMetadata newTableMetadata(Schema schema,
-                                               PartitionSpec spec,
-                                               String location) {
-    return newTableMetadata(schema, spec, location, ImmutableMap.of());
-  }
 
   public static TableMetadata newTableMetadata(Schema schema,
                                                PartitionSpec spec,
@@ -73,7 +68,7 @@ public class TableMetadata {
     }
     PartitionSpec freshSpec = specBuilder.build();
 
-    return new TableMetadata(null, UUID.randomUUID().toString(), location,
+    return new TableMetadata(null, DEFAULT_TABLE_FORMAT_VERSION, UUID.randomUUID().toString(), location,
         System.currentTimeMillis(),
         lastColumnId.get(), freshSchema, INITIAL_SPEC_ID, ImmutableList.of(freshSpec),
         ImmutableMap.copyOf(properties), -1, ImmutableList.of(),
@@ -170,6 +165,7 @@ public class TableMetadata {
   private final InputFile file;
 
   // stored metadata
+  private final int formatVersion;
   private final String uuid;
   private final String location;
   private final long lastUpdatedMillis;
@@ -186,6 +182,7 @@ public class TableMetadata {
   private final List<MetadataLogEntry> previousFiles;
 
   TableMetadata(InputFile file,
+                int formatVersion,
                 String uuid,
                 String location,
                 long lastUpdatedMillis,
@@ -198,6 +195,13 @@ public class TableMetadata {
                 List<Snapshot> snapshots,
                 List<HistoryEntry> snapshotLog,
                 List<MetadataLogEntry> previousFiles) {
+    Preconditions.checkArgument(formatVersion <= SUPPORTED_TABLE_FORMAT_VERSION,
+        "Unsupported format version: v%s", formatVersion);
+    if (formatVersion > 1) {
+      Preconditions.checkArgument(uuid != null, "UUID is required in format v%s", formatVersion);
+    }
+
+    this.formatVersion = formatVersion;
     this.file = file;
     this.uuid = uuid;
     this.location = location;
@@ -238,6 +242,10 @@ public class TableMetadata {
     Preconditions.checkArgument(
         currentSnapshotId < 0 || snapshotsById.containsKey(currentSnapshotId),
         "Invalid table metadata: Cannot find current version");
+  }
+
+  public int formatVersion() {
+    return formatVersion;
   }
 
   public InputFile file() {
@@ -328,16 +336,10 @@ public class TableMetadata {
     if (uuid != null) {
       return this;
     } else {
-      return new TableMetadata(null, UUID.randomUUID().toString(), location,
+      return new TableMetadata(null, formatVersion, UUID.randomUUID().toString(), location,
           lastUpdatedMillis, lastColumnId, schema, defaultSpecId, specs, properties,
           currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
     }
-  }
-
-  public TableMetadata updateTableLocation(String newLocation) {
-    return new TableMetadata(null, uuid, newLocation,
-        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
-        currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   public TableMetadata updateSchema(Schema newSchema, int newLastColumnId) {
@@ -345,7 +347,7 @@ public class TableMetadata {
     // rebuild all of the partition specs for the new current schema
     List<PartitionSpec> updatedSpecs = Lists.transform(specs,
         spec -> updateSpecSchema(newSchema, spec));
-    return new TableMetadata(null, uuid, location,
+    return new TableMetadata(null, formatVersion, uuid, location,
         System.currentTimeMillis(), newLastColumnId, newSchema, defaultSpecId, updatedSpecs, properties,
         currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
@@ -374,7 +376,7 @@ public class TableMetadata {
       builder.add(freshSpec(newDefaultSpecId, schema, newPartitionSpec));
     }
 
-    return new TableMetadata(null, uuid, location,
+    return new TableMetadata(null, formatVersion, uuid, location,
         System.currentTimeMillis(), lastColumnId, schema, newDefaultSpecId,
         builder.build(), properties,
         currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
@@ -385,7 +387,7 @@ public class TableMetadata {
         .addAll(snapshots)
         .add(snapshot)
         .build();
-    return new TableMetadata(null, uuid, location,
+    return new TableMetadata(null, formatVersion, uuid, location,
         snapshot.timestampMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
         currentSnapshotId, newSnapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
@@ -404,7 +406,7 @@ public class TableMetadata {
         .addAll(snapshotLog)
         .add(new SnapshotLogEntry(snapshot.timestampMillis(), snapshot.snapshotId()))
         .build();
-    return new TableMetadata(null, uuid, location,
+    return new TableMetadata(null, formatVersion, uuid, location,
         snapshot.timestampMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
         snapshot.snapshotId(), newSnapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
@@ -435,7 +437,7 @@ public class TableMetadata {
       }
     }
 
-    return new TableMetadata(null, uuid, location,
+    return new TableMetadata(null, formatVersion, uuid, location,
         System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
         currentSnapshotId, filtered, ImmutableList.copyOf(newSnapshotLog),
         addPreviousFile(file, lastUpdatedMillis));
@@ -456,14 +458,14 @@ public class TableMetadata {
         .add(new SnapshotLogEntry(nowMillis, snapshot.snapshotId()))
         .build();
 
-    return new TableMetadata(null, uuid, location,
+    return new TableMetadata(null, formatVersion, uuid, location,
         nowMillis, lastColumnId, schema, defaultSpecId, specs, properties,
         snapshot.snapshotId(), snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   public TableMetadata replaceProperties(Map<String, String> newProperties) {
     ValidationException.check(newProperties != null, "Cannot set properties to null");
-    return new TableMetadata(null, uuid, location,
+    return new TableMetadata(null, formatVersion, uuid, location,
         System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, newProperties,
         currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis, newProperties));
   }
@@ -480,7 +482,7 @@ public class TableMetadata {
     ValidationException.check(currentSnapshotId < 0 || // not set
             Iterables.getLast(newSnapshotLog).snapshotId() == currentSnapshotId,
         "Cannot set invalid snapshot log: latest entry is not the current snapshot");
-    return new TableMetadata(null, uuid, location,
+    return new TableMetadata(null, formatVersion, uuid, location,
         System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
         currentSnapshotId, snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
@@ -519,14 +521,30 @@ public class TableMetadata {
     newProperties.putAll(this.properties);
     newProperties.putAll(updatedProperties);
 
-    return new TableMetadata(null, uuid, location,
+    return new TableMetadata(null, formatVersion, uuid, location,
         System.currentTimeMillis(), nextLastColumnId.get(), freshSchema,
         specId, builder.build(), ImmutableMap.copyOf(newProperties),
         -1, snapshots, ImmutableList.of(), addPreviousFile(file, lastUpdatedMillis, newProperties));
   }
 
   public TableMetadata updateLocation(String newLocation) {
-    return new TableMetadata(null, uuid, newLocation,
+    return new TableMetadata(null, formatVersion, uuid, newLocation,
+        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
+        currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
+  }
+
+  public TableMetadata upgradeToFormatVersion(int newFormatVersion) {
+    Preconditions.checkArgument(newFormatVersion <= SUPPORTED_TABLE_FORMAT_VERSION,
+        "Cannot upgrade table to unsupported format version: v%s (supported: v%s)",
+        newFormatVersion, SUPPORTED_TABLE_FORMAT_VERSION);
+    Preconditions.checkArgument(newFormatVersion >= formatVersion,
+        "Cannot downgrade v%s table to v%s", formatVersion, newFormatVersion);
+
+    if (newFormatVersion == formatVersion) {
+      return this;
+    }
+
+    return new TableMetadata(null, newFormatVersion, uuid, location,
         System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
         currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }

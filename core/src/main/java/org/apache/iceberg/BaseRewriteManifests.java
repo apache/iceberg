@@ -33,7 +33,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -74,7 +73,6 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
   private final Set<ManifestFile> rewrittenManifests = Sets.newConcurrentHashSet();
   private final Map<Object, WriterWrapper> writers = Maps.newConcurrentMap();
 
-  private final AtomicInteger manifestSuffix = new AtomicInteger(0);
   private final AtomicLong entryCount = new AtomicLong(0);
 
   private Function<DataFile, Object> clusterByFunc;
@@ -157,7 +155,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
 
   private ManifestFile copyManifest(ManifestFile manifest) {
     try (ManifestReader reader = ManifestReader.read(manifest, ops.io(), specsById)) {
-      OutputFile newFile = manifestPath(manifestSuffix.getAndIncrement());
+      OutputFile newFile = newManifestOutput();
       return ManifestWriter.copyManifest(reader, newFile, snapshotId(), summaryBuilder, ALLOWED_ENTRY_STATUSES);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest);
@@ -336,16 +334,12 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
 
     synchronized void addEntry(ManifestEntry entry) {
       if (writer == null) {
-        writer = newWriter();
+        writer = newManifestWriter(spec);
       } else if (writer.length() >= getManifestTargetSizeBytes()) {
         close();
-        writer = newWriter();
+        writer = newManifestWriter(spec);
       }
       writer.existing(entry);
-    }
-
-    private ManifestWriter newWriter() {
-      return new ManifestWriter(spec, manifestPath(manifestSuffix.getAndIncrement()), snapshotId());
     }
 
     synchronized void close() {

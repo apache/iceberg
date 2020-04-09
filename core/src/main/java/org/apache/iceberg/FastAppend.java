@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.OutputFile;
@@ -48,7 +47,6 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
   private ManifestFile newManifest = null;
-  private final AtomicInteger manifestCount = new AtomicInteger(0);
   private boolean hasNewFiles = false;
 
   FastAppend(TableOperations ops) {
@@ -110,7 +108,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
 
   private ManifestFile copyManifest(ManifestFile manifest) {
     try (ManifestReader reader = ManifestReader.read(manifest, ops.io(), ops.current().specsById())) {
-      OutputFile newManifestPath = manifestPath(manifestCount.getAndIncrement());
+      OutputFile newManifestPath = newManifestOutput();
       return ManifestWriter.copyAppendManifest(reader, newManifestPath, snapshotId(), summaryBuilder);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest);
@@ -165,9 +163,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     }
 
     if (newManifest == null && newFiles.size() > 0) {
-      OutputFile out = manifestPath(manifestCount.getAndIncrement());
-
-      ManifestWriter writer = new ManifestWriter(spec, out, snapshotId());
+      ManifestWriter writer = newManifestWriter(spec);
       try {
         writer.addAll(newFiles);
       } finally {
