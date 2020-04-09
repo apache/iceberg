@@ -28,6 +28,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import org.apache.avro.io.Decoder;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
@@ -55,8 +56,8 @@ class GenericReaders {
     return TimestamptzReader.INSTANCE;
   }
 
-  static ValueReader<Record> struct(StructType struct, List<ValueReader<?>> readers) {
-    return new GenericRecordReader(readers, struct);
+  static ValueReader<Record> struct(StructType struct, List<ValueReader<?>> readers, Map<Integer, ?> idToConstant) {
+    return new GenericRecordReader(readers, struct, idToConstant);
   }
 
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
@@ -113,8 +114,8 @@ class GenericReaders {
   private static class GenericRecordReader extends ValueReaders.StructReader<Record> {
     private final StructType structType;
 
-    private GenericRecordReader(List<ValueReader<?>> readers, StructType struct) {
-      super(readers);
+    private GenericRecordReader(List<ValueReader<?>> readers, StructType struct, Map<Integer, ?> idToConstant) {
+      super(readers, struct, idToConstant);
       this.structType = struct;
     }
 

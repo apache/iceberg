@@ -40,6 +40,8 @@ import org.apache.avro.io.Decoder;
 import org.apache.avro.io.ResolvingDecoder;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 
 import static java.util.Collections.emptyIterator;
 
@@ -561,12 +563,32 @@ public class ValueReaders {
 
   public abstract static class StructReader<S> implements ValueReader<S> {
     private final ValueReader<?>[] readers;
+    private final int[] positions;
+    private final Object[] constants;
 
     protected StructReader(List<ValueReader<?>> readers) {
-      this.readers = new ValueReader[readers.size()];
-      for (int i = 0; i < this.readers.length; i += 1) {
-        this.readers[i] = readers.get(i);
+      this.readers = readers.toArray(new ValueReader[0]);
+      this.positions = new int[0];
+      this.constants = new Object[0];
+    }
+
+    protected StructReader(List<ValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
+      this.readers = readers.toArray(new ValueReader[0]);
+
+      List<Types.NestedField> fields = struct.fields();
+      List<Integer> positionList = Lists.newArrayListWithCapacity(fields.size());
+      List<Object> constantList = Lists.newArrayListWithCapacity(fields.size());
+      for (int pos = 0; pos < fields.size(); pos += 1) {
+        Types.NestedField field = fields.get(pos);
+        Object constant = idToConstant.get(field.fieldId());
+        if (constant != null) {
+          positionList.add(pos);
+          constantList.add(prepareConstant(field.type(), constant));
+        }
       }
+
+      this.positions = positionList.stream().mapToInt(Integer::intValue).toArray();
+      this.constants = constantList.toArray();
     }
 
     protected abstract S reuseOrCreate(Object reuse);
@@ -574,6 +596,10 @@ public class ValueReaders {
     protected abstract Object get(S struct, int pos);
 
     protected abstract void set(S struct, int pos, Object value);
+
+    protected Object prepareConstant(Type type, Object value) {
+      return value;
+    }
 
     public ValueReader<?> reader(int pos) {
       return readers[pos];
@@ -595,6 +621,10 @@ public class ValueReaders {
           Object reusedValue = get(struct, i);
           set(struct, i, readers[i].read(decoder, reusedValue));
         }
+      }
+
+      for (int i = 0; i < positions.length; i += 1) {
+        set(struct, positions[i], constants[i]);
       }
 
       return struct;

@@ -151,7 +151,7 @@ public class ManifestWriter implements FileAppender<DataFile> {
     addEntry(reused.wrapAppend(snapshotId, addedFile));
   }
 
-  public void add(ManifestEntry entry) {
+  void add(ManifestEntry entry) {
     addEntry(reused.wrapAppend(snapshotId, entry.file()));
   }
 

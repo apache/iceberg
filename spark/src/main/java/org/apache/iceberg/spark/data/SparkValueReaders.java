@@ -27,12 +27,16 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
-import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericData;
 import org.apache.avro.io.Decoder;
-import org.apache.avro.io.ResolvingDecoder;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.avro.ValueReader;
+import org.apache.iceberg.avro.ValueReaders;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
@@ -74,8 +78,9 @@ public class SparkValueReaders {
     return new MapReader(keyReader, valueReader);
   }
 
-  static ValueReader<InternalRow> struct(List<ValueReader<?>> readers) {
-    return new StructReader(readers);
+  static ValueReader<InternalRow> struct(List<ValueReader<?>> readers, Types.StructType struct,
+                                         Map<Integer, ?> idToConstant) {
+    return new StructReader(readers, struct, idToConstant);
   }
 
   private static class StringReader implements ValueReader<UTF8String> {
@@ -253,46 +258,59 @@ public class SparkValueReaders {
     }
   }
 
-  static class StructReader implements ValueReader<InternalRow> {
-    private final ValueReader<?>[] readers;
+  static class StructReader extends ValueReaders.StructReader<InternalRow> {
+    private final int numFields;
 
-    private StructReader(List<ValueReader<?>> readers) {
-      this.readers = new ValueReader[readers.size()];
-      for (int i = 0; i < this.readers.length; i += 1) {
-        this.readers[i] = readers.get(i);
-      }
-    }
-
-    ValueReader<?>[] readers() {
-      return readers;
+    protected StructReader(List<ValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
+      super(readers, struct, idToConstant);
+      this.numFields = readers.size();
     }
 
     @Override
-    public InternalRow read(Decoder decoder, Object reuse) throws IOException {
-      GenericInternalRow row = new GenericInternalRow(readers.length);
-      if (decoder instanceof ResolvingDecoder) {
-        // this may not set all of the fields. nulls are set by default.
-        for (Schema.Field field : ((ResolvingDecoder) decoder).readFieldOrder()) {
-          Object value = readers[field.pos()].read(decoder, null);
-          if (value != null) {
-            row.update(field.pos(), value);
-          } else {
-            row.setNullAt(field.pos());
-          }
-        }
-
-      } else {
-        for (int i = 0; i < readers.length; i += 1) {
-          Object value = readers[i].read(decoder, null);
-          if (value != null) {
-            row.update(i, value);
-          } else {
-            row.setNullAt(i);
-          }
-        }
+    protected InternalRow reuseOrCreate(Object reuse) {
+      if (reuse instanceof GenericInternalRow && ((GenericInternalRow) reuse).numFields() == numFields) {
+        return (InternalRow) reuse;
       }
+      return new GenericInternalRow(numFields);
+    }
 
-      return row;
+    @Override
+    protected Object get(InternalRow struct, int pos) {
+      return null;
+    }
+
+    @Override
+    protected void set(InternalRow struct, int pos, Object value) {
+      if (value != null) {
+        struct.update(pos, value);
+      } else {
+        struct.setNullAt(pos);
+      }
+    }
+
+    @Override
+    protected Object prepareConstant(Type type, Object value) {
+      switch (type.typeId()) {
+        case DECIMAL:
+          return Decimal.apply((BigDecimal) value);
+        case STRING:
+          if (value instanceof Utf8) {
+            Utf8 utf8 = (Utf8) value;
+            return UTF8String.fromBytes(utf8.getBytes(), 0, utf8.getByteLength());
+          }
+          return UTF8String.fromString(value.toString());
+        case FIXED:
+          if (value instanceof byte[]) {
+            return value;
+          } else if (value instanceof GenericData.Fixed) {
+            return ((GenericData.Fixed) value).bytes();
+          }
+          return ByteBuffers.toByteArray((ByteBuffer) value);
+        case BINARY:
+          return ByteBuffers.toByteArray((ByteBuffer) value);
+        default:
+      }
+      return value;
     }
   }
 }
