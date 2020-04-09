@@ -38,6 +38,11 @@ abstract class BaseMetadataTable implements Table {
   }
 
   @Override
+  public String location() {
+    return table().location();
+  }
+
+  @Override
   public EncryptionManager encryption() {
     return table().encryption();
   }

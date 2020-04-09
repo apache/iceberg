@@ -59,11 +59,6 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   @Override
-  public String location() {
-    return ops.current().file().location();
-  }
-
-  @Override
   public Schema schema() {
     return schema;
   }

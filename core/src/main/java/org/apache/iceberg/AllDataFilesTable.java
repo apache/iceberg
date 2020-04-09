@@ -75,11 +75,6 @@ public class AllDataFilesTable extends BaseMetadataTable {
     }
   }
 
-  @Override
-  public String location() {
-    return table.currentSnapshot().manifestListLocation();
-  }
-
   public static class AllDataFilesTableScan extends BaseTableScan {
     private final Schema fileSchema;
 
