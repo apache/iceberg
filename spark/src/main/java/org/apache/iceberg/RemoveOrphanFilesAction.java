@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
@@ -30,7 +31,6 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -46,32 +46,38 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import parquet.Preconditions;
 
-public class RemoveOrphanFilesAction implements Action<RemoveOrphanFilesActionResult> {
+public class RemoveOrphanFilesAction implements Action<List<String>> {
 
   private static final Logger LOG = LoggerFactory.getLogger(RemoveOrphanFilesAction.class);
 
   private final SparkSession spark;
   private final JavaSparkContext sparkContext;
   private final SerializableConfiguration hadoopConf;
-  private final FileIO fileIO;
   private final int partitionDiscoveryParallelism;
-  private final String dataLocation;
+  private final Table table;
+  private final TableOperations ops;
 
-  private String allDataFilesTable = null;
+  private String location = null;
   private Long olderThanTimestamp = null;
-  private boolean dryRun = false;
+  private Consumer<String> deleteFunc = new Consumer<String>() {
+    @Override
+    public void accept(String file) {
+      table.io().deleteFile(file);
+    }
+  };
 
   RemoveOrphanFilesAction(SparkSession spark, Table table) {
     this.spark = spark;
     this.sparkContext = new JavaSparkContext(spark.sparkContext());
     this.hadoopConf = new SerializableConfiguration(spark.sessionState().newHadoopConf());
-    this.fileIO = table.io();
     this.partitionDiscoveryParallelism = spark.sessionState().conf().parallelPartitionDiscoveryParallelism();
-    this.dataLocation = table.locationProvider().dataLocation();
+    this.table = table;
+    this.ops = ((HasTableOperations) table).operations();
+    this.location = table.location();
   }
 
-  public RemoveOrphanFilesAction allDataFilesTable(String newAllDataFilesTable) {
-    this.allDataFilesTable = newAllDataFilesTable;
+  public RemoveOrphanFilesAction location(String newLocation) {
+    this.location = newLocation;
     return this;
   }
 
@@ -80,61 +86,88 @@ public class RemoveOrphanFilesAction implements Action<RemoveOrphanFilesActionRe
     return this;
   }
 
-  public RemoveOrphanFilesAction dryRun(boolean newDryRun) {
-    this.dryRun = newDryRun;
+  public RemoveOrphanFilesAction deleteWith(Consumer<String> newDeleteFunc) {
+    this.deleteFunc = newDeleteFunc;
     return this;
   }
 
   @Override
-  public RemoveOrphanFilesActionResult execute() {
-    Preconditions.checkArgument(allDataFilesTable != null, "allDataFilesTable must be set");
-    Preconditions.checkArgument(olderThanTimestamp != null, "olderThanTimestamp should be set");
+  public List<String> execute() {
+    Preconditions.checkArgument(olderThanTimestamp != null, "olderThanTimestamp must be set");
 
     Dataset<Row> validDataFileDF = buildValidDataFileDF();
-    Dataset<Row> actualDataFileDF = buildActualDataFileDF();
+    Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF();
+    Dataset<Row> validFileDF = validDataFileDF.union(validMetadataFileDF);
+    Dataset<Row> actualFileDF = buildActualFileDF();
 
-    Column joinCond = validDataFileDF.col("file_path").equalTo(actualDataFileDF.col("file_path"));
-    List<String> orphanDataFiles = actualDataFileDF.join(validDataFileDF, joinCond, "leftanti")
+    Column joinCond = validFileDF.col("file_path").equalTo(actualFileDF.col("file_path"));
+    List<String> orphanFiles = actualFileDF.join(validFileDF, joinCond, "leftanti")
         .as(Encoders.STRING())
         .collectAsList();
 
-    if (!dryRun) {
-      Tasks.foreach(orphanDataFiles)
-          .noRetry()
-          .suppressFailureWhenFinished()
-          .onFailure((file, exc) -> LOG.warn("Failed to delete data file: {}", file, exc))
-          .run(fileIO::deleteFile);
-    }
+    Tasks.foreach(orphanFiles)
+        .noRetry()
+        .suppressFailureWhenFinished()
+        .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
+        .run(deleteFunc::accept);
 
-    return new RemoveOrphanFilesActionResult(orphanDataFiles);
+    return orphanFiles;
   }
 
   private Dataset<Row> buildValidDataFileDF() {
+    String allDataFilesMetadataTable = metadataTableName(MetadataTableType.ALL_DATA_FILES);
     return spark.read().format("iceberg")
-        .load(allDataFilesTable)
-        .select("file_path")
-        .distinct();
+        .load(allDataFilesMetadataTable)
+        .select("file_path");
   }
 
-  private Dataset<Row> buildActualDataFileDF() {
+  private Dataset<Row> buildValidMetadataFileDF() {
+    String allManifestsMetadataTable = metadataTableName(MetadataTableType.ALL_MANIFESTS);
+    Dataset<Row> manifestDF = spark.read().format("iceberg")
+        .load(allManifestsMetadataTable)
+        .selectExpr("path as file_path");
+
+    List<String> otherMetadataFiles = Lists.newArrayList();
+
+    for (Snapshot snapshot : table.snapshots()) {
+      String manifestListLocation = snapshot.manifestListLocation();
+      if (manifestListLocation != null) {
+        otherMetadataFiles.add(manifestListLocation);
+      }
+    }
+
+    otherMetadataFiles.add(ops.metadataFileLocation("version-hint.text"));
+
+    TableMetadata metadata = ops.current();
+    otherMetadataFiles.add(metadata.file().location());
+    for (TableMetadata.MetadataLogEntry previousMetadataFile : metadata.previousFiles()) {
+      otherMetadataFiles.add(previousMetadataFile.file());
+    }
+
+    Dataset<Row> otherMetadataFileDF = spark
+        .createDataset(otherMetadataFiles, Encoders.STRING())
+        .toDF("file_path");
+
+    return manifestDF.union(otherMetadataFileDF);
+  }
+
+  private Dataset<Row> buildActualFileDF() {
     List<String> topLevelDirs = Lists.newArrayList();
     List<String> matchingTopLevelFiles = Lists.newArrayList();
 
     try {
-      Path dataPath = new Path(dataLocation);
-      FileSystem fs = dataPath.getFileSystem(hadoopConf.value());
+      Path path = new Path(location);
+      FileSystem fs = path.getFileSystem(hadoopConf.value());
 
-      for (FileStatus file : fs.listStatus(dataPath, HiddenPathFilter.get())) {
-        // TODO: handle custom metadata folders
-        // we need to ignore the metadata folder when data is written to the root table location
-        if (file.isDirectory() && !"metadata".equals(file.getPath().getName())) {
+      for (FileStatus file : fs.listStatus(path, HiddenPathFilter.get())) {
+        if (file.isDirectory()) {
           topLevelDirs.add(file.getPath().toString());
         } else if (file.isFile() && file.getModificationTime() < olderThanTimestamp) {
           matchingTopLevelFiles.add(file.getPath().toString());
         }
       }
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to determine top-level files and dirs");
+      throw new RuntimeIOException(e, "Failed to determine top-level files and dirs in {}", location);
     }
 
     JavaRDD<String> matchingTopLevelFileRDD = sparkContext.parallelize(matchingTopLevelFiles, 1);
@@ -192,6 +225,15 @@ public class RemoveOrphanFilesAction implements Action<RemoveOrphanFilesActionRe
       return matchingFiles;
     } catch (IOException e) {
       throw new RuntimeIOException(e);
+    }
+  }
+
+  private String metadataTableName(MetadataTableType type) {
+    String tableName = table.toString();
+    if (tableName.contains("/")) {
+      return tableName + "#" + type;
+    } else {
+      return tableName.replaceFirst("(hadoop\\.)|(hive\\.)", "") + "." + type;
     }
   }
 }

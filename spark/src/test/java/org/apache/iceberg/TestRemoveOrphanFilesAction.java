@@ -136,19 +136,17 @@ public class TestRemoveOrphanFilesAction {
 
     Actions actions = Actions.forTable(table);
 
-    RemoveOrphanFilesActionResult result1 = actions.removeOrphanFiles()
-        .allDataFilesTable(tableLocation + "#all_data_files")
+    List<String> result1 = actions.removeOrphanFiles()
         .olderThan(System.currentTimeMillis())
-        .dryRun(true)
+        .deleteWith(s -> { })
         .execute();
-    Assert.assertEquals("Action should find 1 data file", invalidFiles, result1.dataFiles());
+    Assert.assertEquals("Action should find 1 file", invalidFiles, result1);
     Assert.assertTrue("Invalid file should be present", fs.exists(new Path(invalidFiles.get(0))));
 
-    RemoveOrphanFilesActionResult result2 = actions.removeOrphanFiles()
-        .allDataFilesTable(tableLocation + "#all_data_files")
+    List<String> result2 = actions.removeOrphanFiles()
         .olderThan(System.currentTimeMillis())
         .execute();
-    Assert.assertEquals("Action should delete 1 data file", invalidFiles, result2.dataFiles());
+    Assert.assertEquals("Action should delete 1 file", invalidFiles, result2);
     Assert.assertFalse("Invalid file should not be present", fs.exists(new Path(invalidFiles.get(0))));
 
     List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
@@ -218,12 +216,11 @@ public class TestRemoveOrphanFilesAction {
 
     Actions actions = Actions.forTable(table);
 
-    RemoveOrphanFilesActionResult result = actions.removeOrphanFiles()
-        .allDataFilesTable(tableLocation + "#all_data_files")
+    List<String> result = actions.removeOrphanFiles()
         .olderThan(System.currentTimeMillis())
         .execute();
 
-    Assert.assertEquals("Should delete 4 data files", 4, result.dataFiles().size());
+    Assert.assertEquals("Should delete 4 files", 4, result.size());
 
     Path dataPath = new Path(tableLocation + "/data");
     FileSystem fs = dataPath.getFileSystem(spark.sessionState().newHadoopConf());
@@ -239,6 +236,51 @@ public class TestRemoveOrphanFilesAction {
     for (String fileLocation : snapshotFiles3) {
       Assert.assertTrue("All snapshot files must remain", fs.exists(new Path(fileLocation)));
     }
+  }
+
+  @Test
+  public void testWapFilesAreKept() throws InterruptedException {
+    Map<String, String> props = Maps.newHashMap();
+    props.put(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, "true");
+    Table table = TABLES.create(SCHEMA, SPEC, props, tableLocation);
+
+    List<ThreeColumnRecord> records = Lists.newArrayList(
+        new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
+    );
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class);
+
+    // normal write
+    df.select("c1", "c2", "c3")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    spark.conf().set("spark.wap.id", "1");
+
+    // wap write
+    df.select("c1", "c2", "c3")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
+    List<ThreeColumnRecord> actualRecords = resultDF
+        .as(Encoders.bean(ThreeColumnRecord.class))
+        .collectAsList();
+    Assert.assertEquals("Should not return data from the staged snapshot", records, actualRecords);
+
+    // sleep for 1 second to unsure files will be old enough
+    Thread.sleep(1000);
+
+    Actions actions = Actions.forTable(table);
+
+    List<String> result = actions.removeOrphanFiles()
+        .olderThan(System.currentTimeMillis())
+        .execute();
+
+    Assert.assertTrue("Should not delete any files", result.isEmpty());
   }
 
   @Test
@@ -266,12 +308,11 @@ public class TestRemoveOrphanFilesAction {
 
     Actions actions = Actions.forTable(table);
 
-    RemoveOrphanFilesActionResult result = actions.removeOrphanFiles()
-        .allDataFilesTable(tableLocation + "#all_data_files")
+    List<String> result = actions.removeOrphanFiles()
         .olderThan(System.currentTimeMillis())
         .execute();
 
-    Assert.assertEquals("Should delete 1 data file", 1, result.dataFiles().size());
+    Assert.assertEquals("Should delete 1 file", 1, result.size());
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
     List<ThreeColumnRecord> actualRecords = resultDF
@@ -308,12 +349,58 @@ public class TestRemoveOrphanFilesAction {
 
     Actions actions = Actions.forTable(table);
 
-    RemoveOrphanFilesActionResult result = actions.removeOrphanFiles()
-        .allDataFilesTable(tableLocation + "#all_data_files")
+    List<String> result = actions.removeOrphanFiles()
         .olderThan(timestamp)
         .execute();
 
-    Assert.assertEquals("Should delete only 2 data files", 2, result.dataFiles().size());
+    Assert.assertEquals("Should delete only 2 files", 2, result.size());
+  }
+
+  @Test
+  public void testRemoveUnreachableMetadataVersionFiles() throws InterruptedException {
+    Map<String, String> props = Maps.newHashMap();
+    props.put(TableProperties.WRITE_NEW_DATA_LOCATION, tableLocation);
+    props.put(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "1");
+    Table table = TABLES.create(SCHEMA, SPEC, props, tableLocation);
+
+    List<ThreeColumnRecord> records = Lists.newArrayList(
+        new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
+    );
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class);
+
+    df.select("c1", "c2", "c3")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    df.select("c1", "c2", "c3")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    // sleep for 1 second to unsure files will be old enough
+    Thread.sleep(1000);
+
+    Actions actions = Actions.forTable(table);
+
+    List<String> result = actions.removeOrphanFiles()
+        .olderThan(System.currentTimeMillis())
+        .execute();
+
+    Assert.assertEquals("Should delete 1 file", 1, result.size());
+    Assert.assertTrue("Should remove v1 file", result.get(0).contains("v1.metadata.json"));
+
+    List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
+    expectedRecords.addAll(records);
+    expectedRecords.addAll(records);
+
+    Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
+    List<ThreeColumnRecord> actualRecords = resultDF
+        .as(Encoders.bean(ThreeColumnRecord.class))
+        .collectAsList();
+    Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
   }
 
   private List<String> snapshotFiles(long snapshotId) {

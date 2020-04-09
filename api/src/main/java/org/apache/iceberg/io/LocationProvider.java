@@ -31,11 +31,6 @@ import org.apache.iceberg.StructLike;
 public interface LocationProvider extends Serializable {
 
   /**
-   * Return a fully-qualified data location.
-   */
-  String dataLocation();
-
-  /**
    * Return a fully-qualified data file location for the given filename.
    *
    * @param filename a file name
