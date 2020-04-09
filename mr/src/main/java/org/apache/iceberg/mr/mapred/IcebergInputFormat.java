@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.iceberg.mr.mapred;
+package org.apache.iceberg.mr.mapred;
 
 import java.io.DataInput;
 import java.io.DataOutput;

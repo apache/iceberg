@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.iceberg.mr.mapred;
+package org.apache.iceberg.mr.mapred;
 
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;

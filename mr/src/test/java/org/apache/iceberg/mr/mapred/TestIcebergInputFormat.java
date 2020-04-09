@@ -19,9 +19,6 @@
 
 package org.apache.iceberg.mr.mapred;
 
-import com.klarna.hiverunner.HiveShell;
-import com.klarna.hiverunner.StandaloneHiveRunner;
-import com.klarna.hiverunner.annotations.HiveSQL;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -38,30 +35,25 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.types.Types;
-import org.iceberg.mr.mapred.IcebergInputFormat;
-import org.iceberg.mr.mapred.IcebergWritable;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
-@RunWith(StandaloneHiveRunner.class)
 public class TestIcebergInputFormat {
 
   private static final Logger LOG = LoggerFactory.getLogger(TestIcebergInputFormat.class);
 
-  @HiveSQL(files = {}, autoStart = true)
-  private HiveShell shell;
-
   private File tableLocation;
   private Table table;
 
+  //TODO flesh out with more tests of the IF itself
+  //TODO: do we still need the table data etc. if we're not testing from Hive?
+  
   @Before
   public void before() throws IOException {
     tableLocation = java.nio.file.Files.createTempDirectory("temp").toFile();
@@ -79,28 +71,6 @@ public class TestIcebergInputFormat {
         .build();
 
     table.newAppend().appendFile(fileA).commit();
-  }
-
-  @Test
-  public void testInputFormat() {
-    shell.execute("CREATE DATABASE source_db");
-    shell.execute(new StringBuilder()
-            .append("CREATE TABLE source_db.table_a ")
-            .append("ROW FORMAT SERDE 'org.iceberg.mr.mapred.IcebergSerDe' ")
-            .append("STORED AS ")
-            .append("INPUTFORMAT 'org.iceberg.mr.mapred.IcebergInputFormat' ")
-            .append("OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat' ")
-            .append("LOCATION '")
-            .append(tableLocation.getAbsolutePath())
-            .append("'")
-            .toString());
-
-    List<Object[]> result = shell.executeStatement("SELECT * FROM source_db.table_a");
-
-    assertEquals(3, result.size());
-    assertArrayEquals(new Object[]{"Michael", 3000L}, result.get(0));
-    assertArrayEquals(new Object[]{"Andy", 3000L}, result.get(1));
-    assertArrayEquals(new Object[]{"Berta", 4000L}, result.get(2));
   }
 
   @Test
