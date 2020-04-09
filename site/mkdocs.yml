@@ -46,26 +46,27 @@ nav:
     - Disclaimer: disclaimer.md
     - How to Release: how-to-release.md
   - User docs:
+    - Getting Started: getting-started.md
+    - Configuration: configuration.md
     - Schemas: schemas.md
     - Partitioning: partitioning.md
-    - Configuration: configuration.md
     - Performance: performance.md
     - Reliability: reliability.md
     - Table evolution: evolution.md
-    - Time travel: spark#time-travel
-    - Quickstart: api-quickstart.md
+    - Time Travel: spark#time-travel
+    - Spark Quickstart: api-quickstart.md
     - Spark: spark.md
     - Presto: presto.md
   - Java:
     - Git Repo: https://github.com/apache/incubator-iceberg
-    - Quickstart: api-quickstart.md
+    - Quickstart: java-api-quickstart.md
     - API intro: api.md
     - Javadoc: /javadoc/
     - Custom Catalog: custom-catalog.md
   - Python:
     - Git Repo: https://github.com/apache/incubator-iceberg/tree/master/python
     - Quickstart: python-quickstart.md
-    - API intro: python-api-intro.md
+    - API Intro: python-api-intro.md
     - Feature Support: python-feature-support.md
   - Format:
     - Definitions: terms.md
