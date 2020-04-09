@@ -229,13 +229,13 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     aliasToId.put(DOT.join(path(name)), fieldId);
   }
 
-  protected int nextId() {
+  private int nextId() {
     int current = nextId;
     nextId += 1;
     return current;
   }
 
-  protected int getId(org.apache.parquet.schema.Type type) {
+  private int getId(org.apache.parquet.schema.Type type) {
     org.apache.parquet.schema.Type.ID id = type.getId();
     if (id != null) {
       return id.intValue();
