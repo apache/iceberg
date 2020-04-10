@@ -19,6 +19,17 @@
 
 This is a specification for the Iceberg table format that is designed to manage a large, slow-changing collection of files in a distributed file system or key-value store as a table.
 
+#### Version 1: Analytic Data Tables
+
+**Iceberg format version 1 is the current version**. It defines how to manage large analytic tables using immutable file formats, like Parquet, Avro, and ORC.
+
+#### Version 2: Row-level Deletes
+
+The Iceberg community is currently working on version 2 of the Iceberg format that supports encoding row-level deletes. **The v2 specification is incomplete and may change until it is finished and adopted.** This document includes tentative v2 format requirements, but there are currently no compatibility guarantees with the unfinished v2 spec.
+
+The goal of version 2 is to provide a way to encode row-level deletes. This update can be used to delete or replace individual rows in an immutable data file without rewriting the file.
+
+
 ## Goals
 
 * **Snapshot isolation** -- Reads will be isolated from concurrent writes and always use a committed snapshot of a table’s data. Writes will support removing and adding files in a single operation and are never partially visible. Readers will not acquire locks.
@@ -333,27 +344,29 @@ Table metadata is stored as JSON. Each table metadata change creates a new table
 
 The atomic operation used to commit metadata depends on how tables are tracked and is not standardized by this spec. See the sections below for examples.
 
-### Delete Format
+#### Table Metadata Fields
 
-This section details how to encode row-level deletes in Iceberg metadata. Row-level deletes are not supported in the current format version 1. This part of the spec is not yet complete and will be completed as format version 2.
+Table metadata consists of the following fields:
 
-#### Position-based Delete Files
+| v1         | v2         | Field | Description |
+| ---------- | ---------- | ----- | ----------- |
+| _required_ | _required_ | **`format-version`** | An integer version number for the format. Currently, this is always 1. Implementations must throw an exception if a table's version is higher than the supported version. |
+| _optional_ | _required_ | **`table-uuid`** | A UUID that identifies the table, generated when the table is created. Implementations must throw an exception if a table's UUID does not match the expected UUID after refreshing metadata. |
+| _required_ | _required_ | **`location`**| The table's base location. This is used by writers to determine where to store data files, manifest files, and table metadata files. |
+| _omitted_  | _required_ | **`sequence-number`**| The table's highest assigned sequence number, a monotonically increasing long that tracks the order of snapshots in a table. |
+| _required_ | _required_ | **`last-updated-ms`**| Timestamp in milliseconds from the unix epoch when the table was last updated. Each table metadata file should update this field just before writing. |
+| _required_ | _required_ | **`last-column-id`**| An integer; the highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas. |
+| _required_ | _required_ | **`schema`**| The table’s current schema. |
+| _required_ | _omitted_  | **`partition-spec`**| The table’s current partition spec, stored as only fields. Note that this is used by writers to partition data, but is not used when reading because reads use the specs stored in manifest files. (**Deprecated**: use `partition-specs` and `default-spec-id`instead ) |
+| _optional_ | _required_ | **`partition-specs`**| A list of partition specs, stored as full partition spec objects. |
+| _optional_ | _required_ | **`default-spec-id`**| ID of the “current” spec that writers should use by default. |
+| _optional_ | _optional_ | **`properties`**| A string to string map of table properties. This is used to control settings that affect reading and writing and is not intended to be used for arbitrary metadata. For example, `commit.retry.num-retries` is used to control the number of commit retries. |
+| _optional_ | _optional_ | **`current-snapshot-id`**| `long` ID of the current table snapshot. |
+| _optional_ | _optional_ | **`snapshots`**| A list of valid snapshots. Valid snapshots are snapshots for which all data files exist in the file system. A data file must not be deleted from the file system until the last snapshot in which it was listed is garbage collected. |
+| _optional_ | _optional_ | **`snapshot-log`**| A list (optional) of timestamp and snapshot ID pairs that encodes changes to the current snapshot for the table. Each time the current-snapshot-id is changed, a new entry should be added with the last-updated-ms and the new current-snapshot-id. When snapshots are expired from the list of valid snapshots, all entries before a snapshot that has expired should be removed. |
 
-Position-based delete files identify rows in one or more data files that have been deleted.
+For serialization details, see Appendix C.
 
-Position-based delete files store `file_position_delete`, a struct with the following fields:
-
-| Field id, name          | Type                            | Description                                                                                                              |
-|-------------------------|---------------------------------|--------------------------------------------------------------------------------------------------------------------------|
-| **`1  file_path`**     | `required string`               | The full URI of a data file with FS scheme. This must match the `file_path` of the target data file in a manifest entry.   |
-| **`2  position`**      | `required long`                 | The ordinal position of a deleted row in the target data file identified by `file_path`, starting at `0`.                    |
-
-The rows in the delete file must be sorted by `file_path` then `position` to optimize filtering rows while scanning. 
-
-*  Sorting by `file_path` allows filter pushdown by file in columnar storage formats.
-*  Sorting by `position` allows filtering rows while scanning, to avoid keeping deletes in memory.
- 
-Though the delete files can be written using any supported data file format in Iceberg, it is recommended to write delete files with same file format as the table's file format.
 
 #### Commit Conflict Resolution and Retry
 
@@ -363,29 +376,6 @@ When two commits happen at the same time and are based on the same version, only
 *   Replace operations must verify that the files that will be deleted are still in the table. Examples of replace operations include format changes (replace an Avro file with a Parquet file) and compactions (several files are replaced with a single file that contains the same rows).
 *   Delete operations must verify that specific files to delete are still in the table. Delete operations based on expressions can always be applied (e.g., where timestamp < X).
 *   Table schema updates and partition spec changes must validate that the schema has not changed between the base version and the current version.
-
-
-#### Table Metadata Fields
-
-Table metadata consists of the following fields:
-
-| Field | Description |
-| ----- | ----------- |
-| **`format-version`** | An integer version number for the format. Currently, this is always 1. Implementations must throw an exception if a table's version is higher than the supported version. |
-| **`table-uuid`** | A UUID that identifies the table, generated when the table is created. Implementations must throw an exception if a table's UUID does not match the expected UUID after refreshing metadata. |
-| **`location`**| The table’s base location. This is used by writers to determine where to store data files, manifest files, and table metadata files. |
-| **`last-updated-ms`**| Timestamp in milliseconds from the unix epoch when the table was last updated. Each table metadata file should update this field just before writing. |
-| **`last-column-id`**| An integer; the highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas. |
-| **`schema`**| The table’s current schema. |
-| **`partition-spec`**| The table’s current partition spec, stored as only fields. Note that this is used by writers to partition data, but is not used when reading because reads use the specs stored in manifest files. (**Deprecated**: use `partition-specs` and `default-spec-id`instead ) |
-| **`partition-specs`**| A list of partition specs, stored as full partition spec objects. |
-| **`default-spec-id`**| ID of the “current” spec that writers should use by default. |
-| **`properties`**| A string to string map of table properties. This is used to control settings that affect reading and writing and is not intended to be used for arbitrary metadata. For example, `commit.retry.num-retries` is used to control the number of commit retries. |
-| **`current-snapshot-id`**| `long` ID of the current table snapshot. |
-| **`snapshots`**| A list of valid snapshots. Valid snapshots are snapshots for which all data files exist in the file system. A data file must not be deleted from the file system until the last snapshot in which it was listed is garbage collected. |
-| **`snapshot-log`**| A list (optional) of timestamp and snapshot ID pairs that encodes changes to the current snapshot for the table. Each time the current-snapshot-id is changed, a new entry should be added with the last-updated-ms and the new current-snapshot-id. When snapshots are expired from the list of valid snapshots, all entries before a snapshot that has expired should be removed. |
-
-For serialization details, see Appendix C.
 
 
 #### File System Tables
@@ -420,6 +410,30 @@ Each version of table metadata is stored in a metadata folder under the table’
 Notes:
 
 1. The metastore table scheme is partly implemented in [BaseMetastoreTableOperations](/javadoc/master/index.html?org/apache/iceberg/BaseMetastoreTableOperations.html).
+
+
+### Delete Formats
+
+This section details how to encode row-level deletes in Iceberg metadata. Row-level deletes are not supported in the current format version 1. This part of the spec is not yet complete and will be completed as format version 2.
+
+#### Position-based Delete Files
+
+Position-based delete files identify rows in one or more data files that have been deleted.
+
+Position-based delete files store `file_position_delete`, a struct with the following fields:
+
+| Field id, name          | Type                            | Description                                                                                                              |
+|-------------------------|---------------------------------|--------------------------------------------------------------------------------------------------------------------------|
+| **`1  file_path`**     | `required string`               | The full URI of a data file with FS scheme. This must match the `file_path` of the target data file in a manifest entry.   |
+| **`2  position`**      | `required long`                 | The ordinal position of a deleted row in the target data file identified by `file_path`, starting at `0`.                    |
+
+The rows in the delete file must be sorted by `file_path` then `position` to optimize filtering rows while scanning. 
+
+*  Sorting by `file_path` allows filter pushdown by file in columnar storage formats.
+*  Sorting by `position` allows filtering rows while scanning, to avoid keeping deletes in memory.
+
+Though the delete files can be written using any supported data file format in Iceberg, it is recommended to write delete files with same file format as the table's file format.
+
 
 ## Appendix A: Format-specific Requirements
 
