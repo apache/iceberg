@@ -19,7 +19,10 @@
 
 package org.apache.iceberg.spark.source;
 
+import java.io.IOException;
 import java.util.HashMap;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.PartitionSpec;
@@ -78,12 +81,12 @@ public class TestIcebergSourceHiveTables extends TestIcebergSourceTablesBase {
   }
 
   @After
-  public void dropTable() throws Exception {
-    clients.run(client -> {
-      client.dropTable(TestIcebergSourceHiveTables.currentIdentifier.namespace().level(0),
-          TestIcebergSourceHiveTables.currentIdentifier.name());
-      return null;
-    });
+  public void dropTable() throws IOException {
+    Table table = catalog.loadTable(currentIdentifier);
+    Path tablePath = new Path(table.location());
+    FileSystem fs = tablePath.getFileSystem(hiveConf);
+    fs.delete(tablePath, true);
+    catalog.dropTable(currentIdentifier, false);
   }
 
   @Override
