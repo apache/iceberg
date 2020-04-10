@@ -137,16 +137,21 @@ public class TestRemoveOrphanFilesAction {
     Actions actions = Actions.forTable(table);
 
     List<String> result1 = actions.removeOrphanFiles()
-        .olderThan(System.currentTimeMillis())
         .deleteWith(s -> { })
         .execute();
-    Assert.assertEquals("Action should find 1 file", invalidFiles, result1);
-    Assert.assertTrue("Invalid file should be present", fs.exists(new Path(invalidFiles.get(0))));
+    Assert.assertTrue("Default olderThan interval should be safe", result1.isEmpty());
 
     List<String> result2 = actions.removeOrphanFiles()
         .olderThan(System.currentTimeMillis())
+        .deleteWith(s -> { })
         .execute();
-    Assert.assertEquals("Action should delete 1 file", invalidFiles, result2);
+    Assert.assertEquals("Action should find 1 file", invalidFiles, result2);
+    Assert.assertTrue("Invalid file should be present", fs.exists(new Path(invalidFiles.get(0))));
+
+    List<String> result3 = actions.removeOrphanFiles()
+        .olderThan(System.currentTimeMillis())
+        .execute();
+    Assert.assertEquals("Action should delete 1 file", invalidFiles, result3);
     Assert.assertFalse("Invalid file should not be present", fs.exists(new Path(invalidFiles.get(0))));
 
     List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
@@ -401,6 +406,76 @@ public class TestRemoveOrphanFilesAction {
         .as(Encoders.bean(ThreeColumnRecord.class))
         .collectAsList();
     Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
+  }
+
+  @Test
+  public void testManyTopLevelPartitions() throws InterruptedException {
+    Table table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
+
+    List<ThreeColumnRecord> records = Lists.newArrayList();
+    for (int i = 0; i < 100; i++) {
+      records.add(new ThreeColumnRecord(i, String.valueOf(i), String.valueOf(i)));
+    }
+
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class);
+
+    df.select("c1", "c2", "c3")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    // sleep for 1 second to unsure files will be old enough
+    Thread.sleep(1000);
+
+    Actions actions = Actions.forTable(table);
+
+    List<String> result = actions.removeOrphanFiles()
+        .olderThan(System.currentTimeMillis())
+        .execute();
+
+    Assert.assertTrue("Should not delete any files", result.isEmpty());
+
+    Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
+    List<ThreeColumnRecord> actualRecords = resultDF
+        .as(Encoders.bean(ThreeColumnRecord.class))
+        .collectAsList();
+    Assert.assertEquals("Rows must match", records, actualRecords);
+  }
+
+  @Test
+  public void testManyLeafPartitions() throws InterruptedException {
+    Table table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
+
+    List<ThreeColumnRecord> records = Lists.newArrayList();
+    for (int i = 0; i < 100; i++) {
+      records.add(new ThreeColumnRecord(i, String.valueOf(i % 3), String.valueOf(i)));
+    }
+
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class);
+
+    df.select("c1", "c2", "c3")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    // sleep for 1 second to unsure files will be old enough
+    Thread.sleep(1000);
+
+    Actions actions = Actions.forTable(table);
+
+    List<String> result = actions.removeOrphanFiles()
+        .olderThan(System.currentTimeMillis())
+        .execute();
+
+    Assert.assertTrue("Should not delete any files", result.isEmpty());
+
+    Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
+    List<ThreeColumnRecord> actualRecords = resultDF
+        .as(Encoders.bean(ThreeColumnRecord.class))
+        .collectAsList();
+    Assert.assertEquals("Rows must match", records, actualRecords);
   }
 
   private List<String> snapshotFiles(long snapshotId) {

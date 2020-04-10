@@ -19,6 +19,16 @@
 
 package org.apache.iceberg;
 
+/**
+ * An action performed on a table.
+ *
+ * @param <R> the Java type of the result produced by this action
+ */
 public interface Action<R> {
+  /**
+   * Executes this action.
+   *
+   * @return the result of this action
+   */
   R execute();
 }

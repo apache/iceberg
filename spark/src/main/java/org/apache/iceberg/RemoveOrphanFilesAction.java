@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import org.apache.hadoop.conf.Configuration;
@@ -44,8 +45,21 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.util.SerializableConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import parquet.Preconditions;
 
+/**
+ * An action that removes orphan metadata and data files by listing a given location and comparing
+ * the actual files in that location with data and metadata files referenced by all valid snapshots.
+ * The location must be accessible for listing via the Hadoop {@link FileSystem}.
+ * <p>
+ * By default, this action cleans up the table location returned by {@link Table#location()} and
+ * removes unreachable files that are older than 3 days using {@link Table#io()}. The behavior can be modified
+ * by passing a custom location to {@link #location} and a custom timestamp to {@link #olderThan(long)}.
+ * For example, someone might point this action to the data folder to clean up only orphan data files.
+ * In addition, there is a way to configure an alternative delete method via {@link #deleteWith(Consumer)}.
+ * <p>
+ * <em>Note:</em> It is dangerous to call this action with a short retention interval as it might corrupt
+ * the state of the table if another operation is writing at the same time.
+ */
 public class RemoveOrphanFilesAction implements Action<List<String>> {
 
   private static final Logger LOG = LoggerFactory.getLogger(RemoveOrphanFilesAction.class);
@@ -58,7 +72,7 @@ public class RemoveOrphanFilesAction implements Action<List<String>> {
   private final TableOperations ops;
 
   private String location = null;
-  private Long olderThanTimestamp = null;
+  private long olderThanTimestamp = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(3);
   private Consumer<String> deleteFunc = new Consumer<String>() {
     @Override
     public void accept(String file) {
@@ -76,16 +90,34 @@ public class RemoveOrphanFilesAction implements Action<List<String>> {
     this.location = table.location();
   }
 
+  /**
+   * Removes orphan files in the given location.
+   *
+   * @param newLocation a location
+   * @return this for method chaining
+   */
   public RemoveOrphanFilesAction location(String newLocation) {
     this.location = newLocation;
     return this;
   }
 
+  /**
+   * Removes orphan files that are older than the given timestamp.
+   *
+   * @param newOlderThanTimestamp a timestamp in milliseconds
+   * @return this for method chaining
+   */
   public RemoveOrphanFilesAction olderThan(long newOlderThanTimestamp) {
     this.olderThanTimestamp = newOlderThanTimestamp;
     return this;
   }
 
+  /**
+   * Passes an alternative delete implementation that will be used to delete orphan files.
+   *
+   * @param newDeleteFunc a delete func
+   * @return this for method chaining
+   */
   public RemoveOrphanFilesAction deleteWith(Consumer<String> newDeleteFunc) {
     this.deleteFunc = newDeleteFunc;
     return this;
@@ -93,8 +125,6 @@ public class RemoveOrphanFilesAction implements Action<List<String>> {
 
   @Override
   public List<String> execute() {
-    Preconditions.checkArgument(olderThanTimestamp != null, "olderThanTimestamp must be set");
-
     Dataset<Row> validDataFileDF = buildValidDataFileDF();
     Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF();
     Dataset<Row> validFileDF = validDataFileDF.union(validMetadataFileDF);
@@ -152,77 +182,63 @@ public class RemoveOrphanFilesAction implements Action<List<String>> {
   }
 
   private Dataset<Row> buildActualFileDF() {
-    List<String> topLevelDirs = Lists.newArrayList();
-    List<String> matchingTopLevelFiles = Lists.newArrayList();
+    List<String> subDirs = Lists.newArrayList();
+    List<String> matchingFiles = Lists.newArrayList();
 
-    try {
-      Path path = new Path(location);
-      FileSystem fs = path.getFileSystem(hadoopConf.value());
+    Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
 
-      for (FileStatus file : fs.listStatus(path, HiddenPathFilter.get())) {
-        if (file.isDirectory()) {
-          topLevelDirs.add(file.getPath().toString());
-        } else if (file.isFile() && file.getModificationTime() < olderThanTimestamp) {
-          matchingTopLevelFiles.add(file.getPath().toString());
-        }
-      }
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to determine top-level files and dirs in {}", location);
+    // list at most 3 levels and only dirs that have less than 10 direct sub dirs on the driver
+    listDirRecursively(location, predicate, hadoopConf.value(), 3, 10, subDirs, matchingFiles);
+
+    JavaRDD<String> matchingFileRDD = sparkContext.parallelize(matchingFiles, 1);
+
+    if (subDirs.isEmpty()) {
+      return spark.createDataset(matchingFileRDD.rdd(), Encoders.STRING()).toDF("file_path");
     }
 
-    JavaRDD<String> matchingTopLevelFileRDD = sparkContext.parallelize(matchingTopLevelFiles, 1);
-
-    if (topLevelDirs.isEmpty()) {
-      return spark.createDataset(matchingTopLevelFileRDD.rdd(), Encoders.STRING()).toDF("file_path");
-    }
-
-    int parallelism = Math.min(topLevelDirs.size(), partitionDiscoveryParallelism);
-    JavaRDD<String> topLevelDirRDD = sparkContext.parallelize(topLevelDirs, parallelism);
+    int parallelism = Math.min(subDirs.size(), partitionDiscoveryParallelism);
+    JavaRDD<String> subDirRDD = sparkContext.parallelize(subDirs, parallelism);
 
     Broadcast<SerializableConfiguration> conf = sparkContext.broadcast(hadoopConf);
-    JavaRDD<String> matchingLeafFileRDD = topLevelDirRDD.mapPartitions(listDirsRecursively(conf, olderThanTimestamp));
+    JavaRDD<String> matchingLeafFileRDD = subDirRDD.mapPartitions(listDirsRecursively(conf, olderThanTimestamp));
 
-    JavaRDD<String> matchingFileRDD = matchingTopLevelFileRDD.union(matchingLeafFileRDD);
-    return spark.createDataset(matchingFileRDD.rdd(), Encoders.STRING()).toDF("file_path");
+    JavaRDD<String> completeMatchingFileRDD = matchingFileRDD.union(matchingLeafFileRDD);
+    return spark.createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING()).toDF("file_path");
   }
 
-  private static FlatMapFunction<Iterator<String>, String> listDirsRecursively(
-      Broadcast<SerializableConfiguration> conf,
-      long olderThanTimestamp) {
+  private static void listDirRecursively(
+      String dir, Predicate<FileStatus> predicate, Configuration conf, int maxDepth,
+      int maxDirectSubDirs, List<String> remainingSubDirs, List<String> matchingFiles) {
 
-    return (FlatMapFunction<Iterator<String>, String>) dirs -> {
-      List<String> files = Lists.newArrayList();
-      Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
-      dirs.forEachRemaining(dir -> {
-        List<String> dirFiles = listDirRecursively(dir, predicate, conf.value().value());
-        files.addAll(dirFiles);
-      });
-      return files.iterator();
-    };
-  }
+    // stop listing whenever we reach the max depth
+    if (maxDepth <= 0) {
+      remainingSubDirs.add(dir);
+      return;
+    }
 
-  private static List<String> listDirRecursively(String dir, Predicate<FileStatus> predicate, Configuration conf) {
     try {
       Path path = new Path(dir);
       FileSystem fs = path.getFileSystem(conf);
 
-      List<String> childDirs = Lists.newArrayList();
-      List<String> matchingFiles = Lists.newArrayList();
+      List<String> subDirs = Lists.newArrayList();
 
       for (FileStatus file : fs.listStatus(path, HiddenPathFilter.get())) {
         if (file.isDirectory()) {
-          childDirs.add(file.getPath().toString());
+          subDirs.add(file.getPath().toString());
         } else if (file.isFile() && predicate.test(file)) {
           matchingFiles.add(file.getPath().toString());
         }
       }
 
-      for (String childDir : childDirs) {
-        List<String> childDirFiles = listDirRecursively(childDir, predicate, conf);
-        matchingFiles.addAll(childDirFiles);
+      // stop listing if the number of direct sub dirs is bigger than maxDirectSubDirs
+      if (subDirs.size() > maxDirectSubDirs) {
+        remainingSubDirs.addAll(subDirs);
+        return;
       }
 
-      return matchingFiles;
+      for (String subDir : subDirs) {
+        listDirRecursively(subDir, predicate, conf, maxDepth - 1, maxDirectSubDirs, remainingSubDirs, matchingFiles);
+      }
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     }
@@ -235,5 +251,26 @@ public class RemoveOrphanFilesAction implements Action<List<String>> {
     } else {
       return tableName.replaceFirst("(hadoop\\.)|(hive\\.)", "") + "." + type;
     }
+  }
+
+  private static FlatMapFunction<Iterator<String>, String> listDirsRecursively(
+      Broadcast<SerializableConfiguration> conf,
+      long olderThanTimestamp) {
+
+    return (FlatMapFunction<Iterator<String>, String>) dirs -> {
+      List<String> subDirs = Lists.newArrayList();
+      List<String> files = Lists.newArrayList();
+
+      Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
+
+      int maxDepth = Integer.MAX_VALUE;
+      int maxDirectSubDirs = Integer.MAX_VALUE;
+
+      dirs.forEachRemaining(dir -> {
+        listDirRecursively(dir, predicate, conf.value().value(), maxDepth, maxDirectSubDirs, subDirs, files);
+      });
+
+      return files.iterator();
+    };
   }
 }
