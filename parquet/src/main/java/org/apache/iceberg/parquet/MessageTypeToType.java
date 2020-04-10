@@ -20,13 +20,13 @@
 package org.apache.iceberg.parquet;
 
 import com.google.common.base.Joiner;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.parquet.Preconditions;
 import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
@@ -71,7 +71,7 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
 
       Preconditions.checkArgument(
           !field.isRepetition(Repetition.REPEATED),
-          "Fields cannot have repetition REPEATED: {}", field);
+          "Fields cannot have repetition REPEATED: %s", field);
 
       int fieldId = getId(field);
 
@@ -94,7 +94,7 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
 
     Preconditions.checkArgument(
         !element.isRepetition(Repetition.REPEATED),
-        "Elements cannot have repetition REPEATED: {}", element);
+        "Elements cannot have repetition REPEATED: %s", element);
 
     int elementFieldId = getId(element);
 
@@ -115,7 +115,7 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
 
     Preconditions.checkArgument(
         !value.isRepetition(Repetition.REPEATED),
-        "Values cannot have repetition REPEATED: {}", value);
+        "Values cannot have repetition REPEATED: %s", value);
 
     int keyFieldId = getId(key);
     int valueFieldId = getId(value);
