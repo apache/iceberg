@@ -55,7 +55,7 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
   private final int specId;
   private final FileAppender<ManifestEntry> writer;
   private final Long snapshotId;
-  private final ManifestEntry reused;
+  private final GenericManifestEntry reused;
   private final PartitionSummary stats;
 
   private boolean closed = false;
@@ -69,11 +69,15 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
   private ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
     this.file = file;
     this.specId = spec.specId();
-    this.writer = newAppender(FileFormat.AVRO, spec, file);
+    this.writer = newAppender(spec, file);
     this.snapshotId = snapshotId;
-    this.reused = new ManifestEntry(spec.partitionType());
+    this.reused = new GenericManifestEntry(spec.partitionType());
     this.stats = new PartitionSummary(spec);
   }
+
+  protected abstract ManifestEntry prepare(ManifestEntry entry);
+
+  protected abstract FileAppender<ManifestEntry> newAppender(PartitionSpec spec, OutputFile file);
 
   void addEntry(ManifestEntry entry) {
     switch (entry.status()) {
@@ -91,7 +95,7 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
         break;
     }
     stats.update(entry.file().partition());
-    writer.add(entry);
+    writer.add(prepare(entry));
   }
 
   /**
@@ -163,31 +167,34 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
     writer.close();
   }
 
-  private static <D> FileAppender<D> newAppender(FileFormat format, PartitionSpec spec,
-                                                 OutputFile file) {
-    Schema manifestSchema = ManifestEntry.getSchema(spec.partitionType());
-    try {
-      switch (format) {
-        case AVRO:
-          return Avro.write(file)
-              .schema(manifestSchema)
-              .named("manifest_entry")
-              .meta("schema", SchemaParser.toJson(spec.schema()))
-              .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
-              .meta("partition-spec-id", String.valueOf(spec.specId()))
-              .overwrite()
-              .build();
-        default:
-          throw new IllegalArgumentException("Unsupported format: " + format);
-      }
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to create manifest writer for path: " + file);
-    }
-  }
-
   static class V1Writer extends ManifestWriter {
+    V1Metadata.IndexedManifestEntry entryWrapper;
+
     V1Writer(PartitionSpec spec, OutputFile file, Long snapshotId) {
       super(spec, file, snapshotId);
+      this.entryWrapper = new V1Metadata.IndexedManifestEntry(spec.partitionType());
+    }
+
+    @Override
+    protected ManifestEntry prepare(ManifestEntry entry) {
+      return entryWrapper.wrap(entry);
+    }
+
+    @Override
+    protected FileAppender<ManifestEntry> newAppender(PartitionSpec spec, OutputFile file) {
+      Schema manifestSchema = V1Metadata.entrySchema(spec.partitionType());
+      try {
+        return Avro.write(file)
+            .schema(manifestSchema)
+            .named("manifest_entry")
+            .meta("schema", SchemaParser.toJson(spec.schema()))
+            .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
+            .meta("partition-spec-id", String.valueOf(spec.specId()))
+            .overwrite()
+            .build();
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to create manifest writer for path: " + file);
+      }
     }
   }
 }

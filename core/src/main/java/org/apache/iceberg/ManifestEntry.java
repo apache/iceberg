@@ -20,21 +20,17 @@
 package org.apache.iceberg;
 
 import com.google.common.base.MoreObjects;
-import java.nio.ByteBuffer;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
+import org.apache.iceberg.V1Metadata.IndexedDataFile;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.types.Types.IntegerType;
-import org.apache.iceberg.types.Types.LongType;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
+interface ManifestEntry {
   enum Status {
     EXISTING(0),
     ADDED(1),
@@ -51,23 +47,59 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
     }
   }
 
+  // ids for data-file columns are assigned from 1000
+  Types.NestedField STATUS = required(0, "status", Types.IntegerType.get());
+  Types.NestedField SNAPSHOT_ID = optional(1, "snapshot_id", Types.LongType.get());
+  int DATA_FILE_ID = 2;
+
+  static Schema getSchema(StructType partitionType) {
+    return wrapFileSchema(DataFile.getType(partitionType));
+  }
+
+  static Schema wrapFileSchema(StructType fileType) {
+    return new Schema(STATUS, SNAPSHOT_ID, required(DATA_FILE_ID, "data_file", fileType));
+  }
+
+  /**
+   * @return the status of the file, whether EXISTING, ADDED, or DELETED
+   */
+  Status status();
+
+  /**
+   * @return id of the snapshot in which the file was added to the table
+   */
+  Long snapshotId();
+
+  void setSnapshotId(long snapshotId);
+
+  /**
+   * @return a file
+   */
+  DataFile file();
+
+  ManifestEntry copy();
+
+  ManifestEntry copyWithoutStats();
+}
+
+class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData.SchemaConstructable {
   private final org.apache.avro.Schema schema;
   private final IndexedDataFile fileWrapper;
   private Status status = Status.EXISTING;
   private Long snapshotId = null;
   private DataFile file = null;
 
-  ManifestEntry(org.apache.avro.Schema schema) {
+  GenericManifestEntry(org.apache.avro.Schema schema) {
     this.schema = schema;
     this.fileWrapper = null; // do not use the file wrapper to read
   }
 
-  ManifestEntry(StructType partitionType) {
-    this.schema = AvroSchemaUtil.convert(getSchema(partitionType), "manifest_entry");
+  GenericManifestEntry(StructType partitionType) {
+    this.schema = AvroSchemaUtil.convert(V1Metadata.entrySchema(partitionType), "manifest_entry");
     this.fileWrapper = new IndexedDataFile(schema.getField("data_file").schema());
   }
 
-  private ManifestEntry(ManifestEntry toCopy, boolean fullCopy) {
+  private GenericManifestEntry(GenericManifestEntry toCopy, boolean fullCopy) {
     this.schema = toCopy.schema;
     this.fileWrapper = new IndexedDataFile(schema.getField("data_file").schema());
     this.status = toCopy.status;
@@ -122,14 +154,15 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
   }
 
   public ManifestEntry copy() {
-    return new ManifestEntry(this, true /* full copy */);
+    return new GenericManifestEntry(this, true /* full copy */);
   }
 
   public ManifestEntry copyWithoutStats() {
-    return new ManifestEntry(this, false /* drop stats */);
+    return new GenericManifestEntry(this, false /* drop stats */);
   }
 
-  public void setSnapshotId(Long snapshotId) {
+  @Override
+  public void setSnapshotId(long snapshotId) {
     this.snapshotId = snapshotId;
   }
 
@@ -173,23 +206,6 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
     return schema;
   }
 
-  static Schema getSchema(StructType partitionType) {
-    return wrapFileSchema(DataFile.getType(partitionType));
-  }
-
-  static Schema projectSchema(StructType partitionType, Collection<String> columns) {
-    return wrapFileSchema(
-        new Schema(DataFile.getType(partitionType).fields()).select(columns).asStruct());
-  }
-
-  static Schema wrapFileSchema(StructType fileStruct) {
-    // ids for top-level columns are assigned from 1000
-    return new Schema(
-        required(0, "status", IntegerType.get()),
-        optional(1, "snapshot_id", LongType.get()),
-        required(2, "data_file", fileStruct));
-  }
-
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
@@ -197,180 +213,5 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
         .add("snapshot_id", snapshotId)
         .add("file", file)
         .toString();
-  }
-
-  private static class IndexedStructLike implements StructLike, IndexedRecord {
-    private final org.apache.avro.Schema avroSchema;
-    private StructLike wrapped = null;
-
-    IndexedStructLike(org.apache.avro.Schema avroSchema) {
-      this.avroSchema = avroSchema;
-    }
-
-    public IndexedStructLike wrap(StructLike struct) {
-      this.wrapped = struct;
-      return this;
-    }
-
-    @Override
-    public int size() {
-      return wrapped.size();
-    }
-
-    @Override
-    public <T> T get(int pos, Class<T> javaClass) {
-      return wrapped.get(pos, javaClass);
-    }
-
-    @Override
-    public Object get(int pos) {
-      return get(pos, Object.class);
-    }
-
-    @Override
-    public <T> void set(int pos, T value) {
-      wrapped.set(pos, value);
-    }
-
-    @Override
-    public void put(int pos, Object value) {
-      set(pos, value);
-    }
-
-    @Override
-    public org.apache.avro.Schema getSchema() {
-      return avroSchema;
-    }
-  }
-
-  private static class IndexedDataFile implements DataFile, IndexedRecord {
-    private static final long DEFAULT_BLOCK_SIZE = 64 * 1024 * 1024;
-
-    private final org.apache.avro.Schema avroSchema;
-    private final IndexedStructLike partitionWrapper;
-    private DataFile wrapped = null;
-
-    IndexedDataFile(org.apache.avro.Schema avroSchema) {
-      this.avroSchema = avroSchema;
-      this.partitionWrapper = new IndexedStructLike(avroSchema.getField("partition").schema());
-    }
-
-    public IndexedDataFile wrap(DataFile file) {
-      this.wrapped = file;
-      return this;
-    }
-
-    @Override
-    public Object get(int pos) {
-      switch (pos) {
-        case 0:
-          return wrapped.path().toString();
-        case 1:
-          return wrapped.format() != null ? wrapped.format().toString() : null;
-        case 2:
-          return partitionWrapper.wrap(wrapped.partition());
-        case 3:
-          return wrapped.recordCount();
-        case 4:
-          return wrapped.fileSizeInBytes();
-        case 5:
-          return DEFAULT_BLOCK_SIZE;
-        case 6:
-          return wrapped.columnSizes();
-        case 7:
-          return wrapped.valueCounts();
-        case 8:
-          return wrapped.nullValueCounts();
-        case 9:
-          return wrapped.lowerBounds();
-        case 10:
-          return wrapped.upperBounds();
-        case 11:
-          return wrapped.keyMetadata();
-        case 12:
-          return wrapped.splitOffsets();
-      }
-      throw new IllegalArgumentException("Unknown field ordinal: " + pos);
-    }
-
-    @Override
-    public void put(int i, Object v) {
-      throw new UnsupportedOperationException("Cannot read into IndexedDataFile");
-    }
-
-    @Override
-    public org.apache.avro.Schema getSchema() {
-      return avroSchema;
-    }
-
-    @Override
-    public CharSequence path() {
-      return wrapped.path();
-    }
-
-    @Override
-    public FileFormat format() {
-      return wrapped.format();
-    }
-
-    @Override
-    public StructLike partition() {
-      return wrapped.partition();
-    }
-
-    @Override
-    public long recordCount() {
-      return wrapped.recordCount();
-    }
-
-    @Override
-    public long fileSizeInBytes() {
-      return wrapped.fileSizeInBytes();
-    }
-
-    @Override
-    public Map<Integer, Long> columnSizes() {
-      return wrapped.columnSizes();
-    }
-
-    @Override
-    public Map<Integer, Long> valueCounts() {
-      return wrapped.valueCounts();
-    }
-
-    @Override
-    public Map<Integer, Long> nullValueCounts() {
-      return wrapped.nullValueCounts();
-    }
-
-    @Override
-    public Map<Integer, ByteBuffer> lowerBounds() {
-      return wrapped.lowerBounds();
-    }
-
-    @Override
-    public Map<Integer, ByteBuffer> upperBounds() {
-      return wrapped.upperBounds();
-    }
-
-    @Override
-    public ByteBuffer keyMetadata() {
-      return wrapped.keyMetadata();
-    }
-
-    @Override
-    public List<Long> splitOffsets() {
-      return wrapped.splitOffsets();
-    }
-
-    @Override
-    public DataFile copy() {
-      return wrapped.copy();
-    }
-
-    @Override
-    public DataFile copyWithoutStats() {
-      return wrapped.copyWithoutStats();
-    }
   }
 }
