@@ -210,7 +210,7 @@ public class TestPartitionSpecValidation {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
         .year("ts", "custom_year")
         .bucket("ts", 4, "custom_bucket")
-        .append(1, "id_partition2", "bucket[4]")
+        .add(1, "id_partition2", "bucket[4]")
         .truncate("s", 1, "custom_truncate")
         .build();
 
@@ -238,7 +238,7 @@ public class TestPartitionSpecValidation {
   @Test
   public void testAddPartitionFieldsWithAndWithoutFieldIds() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
-        .append(1, "id_partition2", "bucket[5]")
+        .add(1, "id_partition2", "bucket[5]")
         .add(1, 1005, "id_partition1", "bucket[4]")
         .truncate("s", 1, "custom_truncate")
         .build();

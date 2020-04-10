@@ -397,6 +397,55 @@ public class TestMergeAppend extends TableTestBase {
   }
 
   @Test
+  public void testManifestEntryFieldIdsForChangedPartitionSpec() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    TableMetadata base = readMetadata();
+    Assert.assertEquals("Should create 1 manifest for initial write",
+        1, base.currentSnapshot().manifests().size());
+    ManifestFile initialManifest = base.currentSnapshot().manifests().get(0);
+
+    // build the new spec using the table's schema, which uses fresh IDs
+    PartitionSpec newSpec = PartitionSpec.builderFor(base.schema())
+        .bucket("data", 8)
+        .build();
+
+    // commit the new partition spec to the table
+    table.updatePartitionSpec().update(newSpec).commit();
+
+    DataFile newFile = DataFiles.builder(table.spec())
+        .copy(FILE_B)
+        .withPartitionPath("data_bucket=2")
+        .build();
+
+    Snapshot pending = table.newAppend()
+        .appendFile(newFile)
+        .apply();
+
+    Assert.assertEquals("Should use 2 manifest files",
+        2, pending.manifests().size());
+
+    // new manifest comes first
+    validateManifest(pending.manifests().get(0), ids(pending.snapshotId()), files(newFile));
+
+    Assert.assertEquals("Second manifest should be the initial manifest with the old spec",
+        initialManifest, pending.manifests().get(1));
+
+    // field ids of manifest entries in two manifests with different specs of the same source field should be different
+    ManifestEntry entry = ManifestReader.read(pending.manifests().get(0), FILE_IO).entries().iterator().next();
+    Types.NestedField field = ((PartitionData) entry.file().partition()).getPartitionType().fields().get(0);
+    Assert.assertEquals(1001, field.fieldId());
+    Assert.assertEquals("data_bucket", field.name());
+
+    entry = ManifestReader.read(pending.manifests().get(1), FILE_IO).entries().iterator().next();
+    field = ((PartitionData) entry.file().partition()).getPartitionType().fields().get(0);
+    Assert.assertEquals(1000, field.fieldId());
+    Assert.assertEquals("data_bucket", field.name());
+  }
+
+  @Test
   public void testUpdatePartitionSpecFieldIds() {
     TableMetadata base = readMetadata();
 

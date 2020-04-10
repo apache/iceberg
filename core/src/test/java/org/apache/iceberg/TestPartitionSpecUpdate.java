@@ -28,7 +28,7 @@ public class TestPartitionSpecUpdate extends TableTestBase {
   @Test
   public void testCommitUpdatedSpec() {
     Assert.assertEquals("[\n" +
-        "  data_bucket (1000): bucket[16](2)\n" +
+        "  1000: data_bucket: bucket[16](2)\n" +
         "]", table.spec().toString());
     Assert.assertEquals(1000, table.spec().lastAssignedFieldId());
 
@@ -39,8 +39,8 @@ public class TestPartitionSpecUpdate extends TableTestBase {
     table.updatePartitionSpec().update(spec).commit();
 
     Assert.assertEquals("[\n" +
-        "  id_bucket (1001): bucket[8](1)\n" +
-        "  data_bucket (1000): bucket[16](2)\n" +
+        "  1001: id_bucket: bucket[8](1)\n" +
+        "  1000: data_bucket: bucket[16](2)\n" +
         "]", table.spec().toString());
     Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
 
@@ -50,7 +50,7 @@ public class TestPartitionSpecUpdate extends TableTestBase {
     table.updatePartitionSpec().update(spec).commit();
 
     Assert.assertEquals("[\n" +
-        "  data_trunc (1002): truncate[8](2)\n" +
+        "  1002: data_trunc: truncate[8](2)\n" +
         "]", table.spec().toString());
     Assert.assertEquals(1002, table.spec().lastAssignedFieldId());
   }

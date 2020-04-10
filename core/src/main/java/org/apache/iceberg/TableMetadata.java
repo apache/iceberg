@@ -62,7 +62,7 @@ public class TableMetadata {
       // look up the name of the source field in the old schema to get the new schema's id
       String sourceName = schema.findColumnName(field.sourceId());
       // reassign all partition fields with fresh partition field Ids to ensure consistency
-      specBuilder.append(
+      specBuilder.add(
           freshSchema.findField(sourceName).fieldId(),
           field.name(),
           field.transform().toString());
@@ -196,6 +196,7 @@ public class TableMetadata {
                 List<Snapshot> snapshots,
                 List<HistoryEntry> snapshotLog,
                 List<MetadataLogEntry> previousFiles) {
+    Preconditions.checkArgument(specs != null && !specs.isEmpty(), "Partition specs cannot be null or empty");
     Preconditions.checkArgument(formatVersion <= SUPPORTED_TABLE_FORMAT_VERSION,
         "Unsupported format version: v%s", formatVersion);
     if (formatVersion > 1) {
@@ -210,8 +211,6 @@ public class TableMetadata {
     this.lastColumnId = lastColumnId;
     this.schema = schema;
     this.defaultSpecId = defaultSpecId;
-
-    Preconditions.checkArgument(specs != null && !specs.isEmpty(), "specs cannot be null or empty");
     this.specs = specs;
 
     this.properties = properties;
@@ -356,8 +355,8 @@ public class TableMetadata {
         currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
-  // newPartitionSpec's partition field IDs should have already been refreshed
-  TableMetadata updatePartitionSpec(PartitionSpec newPartitionSpec) {
+  // Input newPartitionSpec's partition field IDs should have already been recomputed
+  public TableMetadata updatePartitionSpec(PartitionSpec newPartitionSpec) {
     PartitionSpec.checkCompatibility(newPartitionSpec, schema);
 
     // if the spec already exists, use the same ID. otherwise, use 1 more than the highest ID.

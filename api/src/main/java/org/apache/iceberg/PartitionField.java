@@ -69,7 +69,7 @@ public class PartitionField implements Serializable {
 
   @Override
   public String toString() {
-    return name + " (" + fieldId + "): " + transform + "(" + sourceId + ")";
+    return fieldId + ": " + name + ": " + transform + "(" + sourceId + ")";
   }
 
   @Override

@@ -33,6 +33,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.transforms.UnknownTransform;
@@ -312,14 +313,14 @@ public class PartitionSpec implements Serializable {
     private final Set<String> partitionNames = Sets.newHashSet();
     private Map<Integer, PartitionField> timeFields = Maps.newHashMap();
     private int specId = 0;
-    private int lastAssignedFieldId = PARTITION_DATA_ID_START - 1;
+    private final AtomicInteger lastAssignedFieldId = new AtomicInteger(PARTITION_DATA_ID_START - 1);
 
     private Builder(Schema schema) {
       this.schema = schema;
     }
 
     private int nextFieldId() {
-      return ++lastAssignedFieldId;
+      return lastAssignedFieldId.incrementAndGet();
     }
 
     private void checkAndAddPartitionName(String name) {
@@ -456,7 +457,7 @@ public class PartitionSpec implements Serializable {
     }
 
     // add a partition field with an auto-increment partition field id starting from PARTITION_DATA_ID_START
-    Builder append(int sourceId, String name, String transform) {
+    Builder add(int sourceId, String name, String transform) {
       return add(sourceId, nextFieldId(), name, transform);
     }
 
@@ -465,12 +466,12 @@ public class PartitionSpec implements Serializable {
       checkAndAddPartitionName(name, column.fieldId());
       Preconditions.checkNotNull(column, "Cannot find source column: %s", sourceId);
       fields.add(new PartitionField(sourceId, fieldId, name, Transforms.fromString(column.type(), transform)));
-      lastAssignedFieldId = Math.max(lastAssignedFieldId, fieldId);
+      lastAssignedFieldId.getAndAccumulate(fieldId, Math::max);
       return this;
     }
 
     public PartitionSpec build() {
-      PartitionSpec spec = new PartitionSpec(schema, specId, fields, lastAssignedFieldId);
+      PartitionSpec spec = new PartitionSpec(schema, specId, fields, lastAssignedFieldId.get());
       checkCompatibility(spec, schema);
       return spec;
     }

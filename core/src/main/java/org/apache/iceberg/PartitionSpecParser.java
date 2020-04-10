@@ -140,13 +140,7 @@ public class PartitionSpecParser {
         "Cannot parse partition spec fields, not an array: %s", json);
 
     Iterator<JsonNode> elements = json.elements();
-
-    boolean hasFieldId = false;
-    if (elements.hasNext() && elements.next().has(FIELD_ID)) {
-      hasFieldId = true;
-    }
-    elements = json.elements();
-
+    int fieldIdCnt = 0;
     while (elements.hasNext()) {
       JsonNode element = elements.next();
       Preconditions.checkArgument(element.isObject(),
@@ -157,11 +151,16 @@ public class PartitionSpecParser {
       int sourceId = JsonUtil.getInt(SOURCE_ID, element);
 
       // partition field ids are missing in old PartitionSpec, they always auto-increment from PARTITION_DATA_ID_START
-      if (!hasFieldId) {
-        builder.append(sourceId, name, transform);
-      }  else {
+      if (element.has(FIELD_ID)) {
         builder.add(sourceId, JsonUtil.getInt(FIELD_ID, element), name, transform);
+        fieldIdCnt++;
+      }  else {
+        builder.add(sourceId, name, transform);
       }
     }
+
+    Preconditions.checkArgument(fieldIdCnt == 0 || fieldIdCnt == json.size(),
+        "Parsed an invalid PartitionSpec Json. Some of its fields (%s/%s) miss field IDs.",
+        json.size() - fieldIdCnt, json.size());
   }
 }
