@@ -35,7 +35,6 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
-import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.StructType;
@@ -46,12 +45,15 @@ import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ParquetMetricsRowGroupFilter {
+  private static final Logger LOG = LoggerFactory.getLogger(ParquetMetricsRowGroupFilter.class);
+
   private final Schema schema;
   private Expression expr;
   private transient ThreadLocal<MetricsEvalVisitor> visitors = null;
-  private NameMapping nameMapping = null;
   private boolean caseSensitive;
 
   private MetricsEvalVisitor visitor() {
@@ -71,12 +73,6 @@ public class ParquetMetricsRowGroupFilter {
     this.caseSensitive = caseSensitive;
   }
 
-
-  public ParquetMetricsRowGroupFilter withNameMapping(NameMapping newNameMapping) {
-    this.nameMapping = newNameMapping;
-    return this;
-  }
-
   /**
    * Test whether the file may contain records that match the expression.
    *
@@ -85,15 +81,7 @@ public class ParquetMetricsRowGroupFilter {
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
   public boolean shouldRead(MessageType fileSchema, BlockMetaData rowGroup) {
-    StructType struct;
-
-    if (nameMapping != null) {
-      MessageType project = ParquetSchemaUtil.pruneColumnsByName(fileSchema, schema, nameMapping);
-      struct = ParquetSchemaUtil.convert(project).asStruct();
-    } else {
-      struct = schema.asStruct();
-    }
-
+    StructType struct = schema.asStruct();
     this.expr = Binder.bind(struct, Expressions.rewriteNot(expr), caseSensitive);
 
     return visitor().eval(fileSchema, rowGroup);
@@ -116,13 +104,16 @@ public class ParquetMetricsRowGroupFilter {
       this.valueCounts = Maps.newHashMap();
       this.conversions = Maps.newHashMap();
       for (ColumnChunkMetaData col : rowGroup.getColumns()) {
-        PrimitiveType colType = fileSchema.getType(col.getPath().toArray()).asPrimitiveType();
-        Integer id = ParquetSchemaUtil.getFieldId(nameMapping, colType);
-
-        if (id != null) {
-          stats.put(id, col.getStatistics());
-          valueCounts.put(id, col.getValueCount());
-          conversions.put(id, ParquetConversions.converterFromParquet(colType));
+        try {
+          PrimitiveType colType = fileSchema.getType(col.getPath().toArray()).asPrimitiveType();
+          if (colType.getId() != null) {
+            int id = colType.getId().intValue();
+            stats.put(id, col.getStatistics());
+            valueCounts.put(id, col.getValueCount());
+            conversions.put(id, ParquetConversions.converterFromParquet(colType));
+          }
+        } catch (org.apache.parquet.io.InvalidRecordException e) {
+          LOG.warn("Column {} not found in given schema.", col.getPath().toDotString(), e);
         }
       }
 

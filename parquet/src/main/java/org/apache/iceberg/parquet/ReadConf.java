@@ -70,15 +70,18 @@ class ReadConf<T> {
     this.reader = newReader(file, options);
     MessageType fileSchema = reader.getFileMetaData().getSchema();
     boolean hasIds = ParquetSchemaUtil.hasIds(fileSchema);
-    MessageType typeWithIds = hasIds ? fileSchema : ParquetSchemaUtil.addFallbackIds(fileSchema);
+    MessageType typeWithIds;
     if (!hasIds) {
       if (nameMapping != null) {
         this.projection = ParquetSchemaUtil.pruneColumnsByName(fileSchema, expectedSchema, nameMapping);
+        typeWithIds = ParquetSchemaUtil.addFallbackIds(fileSchema, nameMapping);
       } else {
         this.projection = ParquetSchemaUtil.pruneColumnsFallback(fileSchema, expectedSchema);
+        typeWithIds = ParquetSchemaUtil.addFallbackIds(fileSchema);
       }
     } else {
       this.projection = ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema);
+      typeWithIds = fileSchema;
     }
 
     this.rowGroups = reader.getRowGroups();
@@ -89,11 +92,6 @@ class ReadConf<T> {
     if (filter != null) {
       statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, caseSensitive);
       dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive);
-
-      if (nameMapping != null) {
-        statsFilter = statsFilter.withNameMapping(nameMapping);
-        dictFilter = dictFilter.withNameMapping(nameMapping);
-      }
     }
 
     long computedTotalValues = 0L;
@@ -110,12 +108,12 @@ class ReadConf<T> {
 
     this.totalValues = computedTotalValues;
     if (readerFunc != null) {
-      this.model = (ParquetValueReader<T>) readerFunc.apply(fileSchema);
+      this.model = (ParquetValueReader<T>) readerFunc.apply(typeWithIds);
       this.vectorizedModel = null;
       this.columnChunkMetaDataForRowGroups = null;
     } else {
       this.model = null;
-      this.vectorizedModel = (VectorizedReader<T>) batchedReaderFunc.apply(fileSchema);
+      this.vectorizedModel = (VectorizedReader<T>) batchedReaderFunc.apply(typeWithIds);
       this.columnChunkMetaDataForRowGroups = getColumnChunkMetadataForRowGroups();
     }
 

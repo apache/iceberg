@@ -23,7 +23,6 @@ import com.google.common.collect.Sets;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -129,17 +128,16 @@ public class ParquetSchemaUtil {
     return builder.named(fileSchema.getName());
   }
 
-  public static Integer getFieldId(NameMapping nameMapping, PrimitiveType colType) {
-    if (nameMapping != null) {
-      MappedField field = nameMapping.find(colType.getName());
-      if (field == null) {
-        return null;
+  public static MessageType addFallbackIds(MessageType fileSchema, NameMapping nameMapping) {
+    MessageTypeBuilder builder = org.apache.parquet.schema.Types.buildMessage();
+
+    for (Type type : fileSchema.getFields()) {
+      if (nameMapping.find(type.getName()) != null) {
+        builder.addField(type.withId(nameMapping.find(type.getName()).id()));
       }
-      return field.id();
-    } else if (colType.getId() != null) {
-      return colType.getId().intValue();
     }
-    return null;
+
+    return builder.named(fileSchema.getName());
   }
 
   public static class HasIds extends ParquetTypeVisitor<Boolean> {

@@ -36,7 +36,6 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
-import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
@@ -46,12 +45,15 @@ import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ParquetDictionaryRowGroupFilter {
+  private static final Logger LOG = LoggerFactory.getLogger(ParquetDictionaryRowGroupFilter.class);
+
   private Expression expr;
   private Schema schema;
   private transient ThreadLocal<EvalVisitor> visitors = null;
-  private NameMapping nameMapping = null;
   private boolean caseSensitive;
 
   private EvalVisitor visitor() {
@@ -63,11 +65,6 @@ public class ParquetDictionaryRowGroupFilter {
 
   public ParquetDictionaryRowGroupFilter(Schema schema, Expression unbound) {
     this(schema, unbound, true);
-  }
-
-  public ParquetDictionaryRowGroupFilter withNameMapping(NameMapping newNameMapping) {
-    this.nameMapping = newNameMapping;
-    return this;
   }
 
   public ParquetDictionaryRowGroupFilter(Schema schema, Expression unbound, boolean caseSensitive) {
@@ -85,14 +82,7 @@ public class ParquetDictionaryRowGroupFilter {
    */
   public boolean shouldRead(MessageType fileSchema, BlockMetaData rowGroup,
                             DictionaryPageReadStore dictionaries) {
-    StructType struct;
-
-    if (nameMapping != null) {
-      MessageType project = ParquetSchemaUtil.pruneColumnsByName(fileSchema, schema, nameMapping);
-      struct = ParquetSchemaUtil.convert(project).asStruct();
-    } else {
-      struct = schema.asStruct();
-    }
+    StructType struct = schema.asStruct();
 
     this.expr = Binder.bind(struct, Expressions.rewriteNot(expr), caseSensitive);
     return visitor().eval(fileSchema, rowGroup, dictionaries);
@@ -120,21 +110,23 @@ public class ParquetDictionaryRowGroupFilter {
 
       for (ColumnDescriptor desc : fileSchema.getColumns()) {
         PrimitiveType colType = fileSchema.getType(desc.getPath()).asPrimitiveType();
-        Integer id = ParquetSchemaUtil.getFieldId(nameMapping, colType);
-
-        if (id != null) {
+        if (colType.getId() != null) {
+          int id = colType.getId().intValue();
           cols.put(id, desc);
           conversions.put(id, ParquetConversions.converterFromParquet(colType));
         }
       }
 
       for (ColumnChunkMetaData meta : rowGroup.getColumns()) {
-        PrimitiveType colType = fileSchema.getType(meta.getPath().toArray()).asPrimitiveType();
-        Integer id = ParquetSchemaUtil.getFieldId(nameMapping, colType);
-
-        if (id != null) {
-          isFallback.put(id, ParquetUtil.hasNonDictionaryPages(meta));
-          mayContainNulls.put(id, mayContainNull(meta));
+        try {
+          PrimitiveType colType = fileSchema.getType(meta.getPath().toArray()).asPrimitiveType();
+          if (colType.getId() != null) {
+            int id = colType.getId().intValue();
+            isFallback.put(id, ParquetUtil.hasNonDictionaryPages(meta));
+            mayContainNulls.put(id, mayContainNull(meta));
+          }
+        } catch (org.apache.parquet.io.InvalidRecordException e) {
+          LOG.warn("Column {} not found in given schema.", meta.getPath().toDotString(), e);
         }
       }
 
