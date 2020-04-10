@@ -59,7 +59,12 @@ class V2Metadata {
     private static final org.apache.avro.Schema AVRO_SCHEMA =
         AvroSchemaUtil.convert(MANIFEST_LIST_SCHEMA, "manifest_file");
 
+    private final long sequenceNumber;
     private ManifestFile wrapped = null;
+
+    IndexedManifestFile(long sequenceNumber) {
+      this.sequenceNumber = sequenceNumber;
+    }
 
     public ManifestFile wrap(ManifestFile file) {
       this.wrapped = file;
@@ -86,7 +91,11 @@ class V2Metadata {
         case 2:
           return wrapped.partitionSpecId();
         case 3:
-          return wrapped.sequenceNumber();
+          if (wrapped.sequenceNumber() == ManifestWriter.UNASSIGNED_SEQ) {
+            return sequenceNumber;
+          } else {
+            return wrapped.sequenceNumber();
+          }
         case 4:
           return wrapped.minSequenceNumber();
         case 5:

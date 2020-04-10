@@ -35,7 +35,7 @@ import org.slf4j.LoggerFactory;
  */
 public abstract class ManifestWriter implements FileAppender<DataFile> {
   private static final Logger LOG = LoggerFactory.getLogger(ManifestWriter.class);
-  private static final long UNASSIGNED_SEQ = -1L;
+  static final long UNASSIGNED_SEQ = -1L;
 
   static ManifestFile copyAppendManifest(ManifestReader reader, OutputFile outputFile, long snapshotId,
                                          SnapshotSummary.Builder summaryBuilder) {
