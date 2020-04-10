@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark.source;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import java.io.Closeable;
@@ -26,7 +27,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
-import org.apache.arrow.util.Preconditions;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.encryption.EncryptedFiles;

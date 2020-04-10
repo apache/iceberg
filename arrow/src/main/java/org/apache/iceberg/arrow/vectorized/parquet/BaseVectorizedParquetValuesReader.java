@@ -21,7 +21,7 @@ package org.apache.iceberg.arrow.vectorized.parquet;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import org.apache.parquet.Preconditions;
+import com.google.common.base.Preconditions;
 import org.apache.parquet.bytes.ByteBufferInputStream;
 import org.apache.parquet.bytes.BytesUtils;
 import org.apache.parquet.column.values.ValuesReader;
