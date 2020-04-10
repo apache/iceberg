@@ -260,6 +260,7 @@ A snapshot consists of the following fields:
 
 *   **`snapshot-id`** -- A unique long ID.
 *   **`parent-snapshot-id`** -- (Optional) The snapshot ID of the snapshot’s parent. This field is not present for snapshots that have no parent snapshot, such as snapshots created before this field was added or the first snapshot of a table.
+*   **`sequence-number`** -- A monotonically increasing long that tracks the order of snapshots in a table. (**v2 only**)
 *   **`timestamp-ms`** -- A timestamp when the snapshot was created. This is used when garbage collecting snapshots.
 *   **`manifests`** -- A list of manifest file locations. The data files in a snapshot are the union of all data files listed in these manifests. (Deprecated in favor of `manifest-list`)
 *   **`manifest-list`** -- (Optional) The location of a manifest list file for this snapshot, which contains a list of manifest files with additional metadata. If present, the manifests field must be omitted.
@@ -369,21 +370,22 @@ When two commits happen at the same time and are based on the same version, only
 
 Table metadata consists of the following fields:
 
-| Field | Description |
-| ----- | ----------- |
-| **`format-version`** | An integer version number for the format. Currently, this is always 1. Implementations must throw an exception if a table's version is higher than the supported version. |
-| **`table-uuid`** | A UUID that identifies the table, generated when the table is created. Implementations must throw an exception if a table's UUID does not match the expected UUID after refreshing metadata. |
-| **`location`**| The table’s base location. This is used by writers to determine where to store data files, manifest files, and table metadata files. |
-| **`last-updated-ms`**| Timestamp in milliseconds from the unix epoch when the table was last updated. Each table metadata file should update this field just before writing. |
-| **`last-column-id`**| An integer; the highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas. |
-| **`schema`**| The table’s current schema. |
-| **`partition-spec`**| The table’s current partition spec, stored as only fields. Note that this is used by writers to partition data, but is not used when reading because reads use the specs stored in manifest files. (**Deprecated**: use `partition-specs` and `default-spec-id`instead ) |
-| **`partition-specs`**| A list of partition specs, stored as full partition spec objects. |
-| **`default-spec-id`**| ID of the “current” spec that writers should use by default. |
-| **`properties`**| A string to string map of table properties. This is used to control settings that affect reading and writing and is not intended to be used for arbitrary metadata. For example, `commit.retry.num-retries` is used to control the number of commit retries. |
-| **`current-snapshot-id`**| `long` ID of the current table snapshot. |
-| **`snapshots`**| A list of valid snapshots. Valid snapshots are snapshots for which all data files exist in the file system. A data file must not be deleted from the file system until the last snapshot in which it was listed is garbage collected. |
-| **`snapshot-log`**| A list (optional) of timestamp and snapshot ID pairs that encodes changes to the current snapshot for the table. Each time the current-snapshot-id is changed, a new entry should be added with the last-updated-ms and the new current-snapshot-id. When snapshots are expired from the list of valid snapshots, all entries before a snapshot that has expired should be removed. |
+| Format v1  | Format v2  | Field | Description |
+| ---------- | ---------- | ----- | ----------- |
+| _required_ | _required_ | **`format-version`** | An integer version number for the format. Currently, this is always 1. Implementations must throw an exception if a table's version is higher than the supported version. |
+| _optional_ | _required_ | **`table-uuid`** | A UUID that identifies the table, generated when the table is created. Implementations must throw an exception if a table's UUID does not match the expected UUID after refreshing metadata. |
+| _required_ | _required_ | **`location`**| The table's base location. This is used by writers to determine where to store data files, manifest files, and table metadata files. |
+| _omitted_  | _required_ | **`sequence-number`**| The table's highest assigned sequence number, a monotonically increasing long that tracks the order of snapshots in a table. |
+| _required_ | _required_ | **`last-updated-ms`**| Timestamp in milliseconds from the unix epoch when the table was last updated. Each table metadata file should update this field just before writing. |
+| _required_ | _required_ | **`last-column-id`**| An integer; the highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas. |
+| _required_ | _required_ | **`schema`**| The table’s current schema. |
+| _required_ | _omitted_  | **`partition-spec`**| The table’s current partition spec, stored as only fields. Note that this is used by writers to partition data, but is not used when reading because reads use the specs stored in manifest files. (**Deprecated**: use `partition-specs` and `default-spec-id`instead ) |
+| _optional_ | _required_ | **`partition-specs`**| A list of partition specs, stored as full partition spec objects. |
+| _optional_ | _required_ | **`default-spec-id`**| ID of the “current” spec that writers should use by default. |
+| _optional_ | _optional_ | **`properties`**| A string to string map of table properties. This is used to control settings that affect reading and writing and is not intended to be used for arbitrary metadata. For example, `commit.retry.num-retries` is used to control the number of commit retries. |
+| _optional_ | _optional_ | **`current-snapshot-id`**| `long` ID of the current table snapshot. |
+| _optional_ | _optional_ | **`snapshots`**| A list of valid snapshots. Valid snapshots are snapshots for which all data files exist in the file system. A data file must not be deleted from the file system until the last snapshot in which it was listed is garbage collected. |
+| _optional_ | _optional_ | **`snapshot-log`**| A list (optional) of timestamp and snapshot ID pairs that encodes changes to the current snapshot for the table. Each time the current-snapshot-id is changed, a new entry should be added with the last-updated-ms and the new current-snapshot-id. When snapshots are expired from the list of valid snapshots, all entries before a snapshot that has expired should be removed. |
 
 For serialization details, see Appendix C.
 
@@ -681,13 +683,22 @@ This serialization scheme is for storing single values as individual binary valu
 
 ### Version 2
 
-Writing metadata:
-* Table metadata field `sequence-number` is required.
-* Table metadata field `table-uuid` is required.
-* Table metadata field `partition-specs` is required.
-* Table metadata field `default-spec-id` is required.
+Writing v1 metadata:
+* Table metadata field `last-sequence-number` should not be written.
+* Snapshot field `sequence-number` should not be written.
+
+Reading v1 metadata:
+* Table metadata field `last-sequence-number` must default to 0.
+* Snapshot field `sequence-number` must default to 0.
+
+Writing v2 metadata:
+* Table metadata added required field `last-sequence-number`.
+* Table metadata now requires field `table-uuid`.
+* Table metadata now requires field `partition-specs`.
+* Table metadata now requires field `default-spec-id`.
 * Table metadata field `partition-spec` is no longer required and may be omitted.
-* Snapshot field `manifest-list` is required.
-* Snapshot field `manifests` is not allowed.
+* Snapshot added required field field `sequence-number`.
+* Snapshot now requires field `manifest-list`.
+* Snapshot field `manifests` is no longer allowed.
 
 Note that these requirements apply when writing data to a v2 table. Tables that are upgraded from v1 may contain metadata that does not follow these requirements. Implementations should remain backward-compatible with v1 metadata requirements.
