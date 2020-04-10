@@ -86,6 +86,7 @@ public class TableMetadataParser {
   static final String FORMAT_VERSION = "format-version";
   static final String TABLE_UUID = "table-uuid";
   static final String LOCATION = "location";
+  static final String LAST_SEQUENCE_NUMBER = "last-sequence-number";
   static final String LAST_UPDATED_MILLIS = "last-updated-ms";
   static final String LAST_COLUMN_ID = "last-column-id";
   static final String SCHEMA = "schema";
@@ -154,6 +155,9 @@ public class TableMetadataParser {
     generator.writeNumberField(FORMAT_VERSION, metadata.formatVersion());
     generator.writeStringField(TABLE_UUID, metadata.uuid());
     generator.writeStringField(LOCATION, metadata.location());
+    if (metadata.formatVersion() > 1) {
+      generator.writeNumberField(LAST_SEQUENCE_NUMBER, metadata.lastSequenceNumber());
+    }
     generator.writeNumberField(LAST_UPDATED_MILLIS, metadata.lastUpdatedMillis());
     generator.writeNumberField(LAST_COLUMN_ID, metadata.lastColumnId());
 
@@ -233,6 +237,12 @@ public class TableMetadataParser {
 
     String uuid = JsonUtil.getStringOrNull(TABLE_UUID, node);
     String location = JsonUtil.getString(LOCATION, node);
+    long lastSequenceNumber;
+    if (formatVersion > 1) {
+      lastSequenceNumber = JsonUtil.getLong(LAST_SEQUENCE_NUMBER, node);
+    } else {
+      lastSequenceNumber = TableMetadata.INITIAL_SEQUENCE_NUMBER;
+    }
     int lastAssignedColumnId = JsonUtil.getInt(LAST_COLUMN_ID, node);
     Schema schema = SchemaParser.fromJson(node.get(SCHEMA));
 
@@ -298,7 +308,7 @@ public class TableMetadataParser {
     }
 
     return new TableMetadata(file, formatVersion, uuid, location,
-        lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs, properties,
+        lastSequenceNumber, lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs, properties,
         currentVersionId, snapshots, ImmutableList.copyOf(entries.iterator()),
         ImmutableList.copyOf(metadataEntries.iterator()));
   }

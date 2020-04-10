@@ -37,6 +37,7 @@ public class SnapshotParser {
 
   private SnapshotParser() {}
 
+  private static final String SEQUENCE_NUMBER = "sequence-number";
   private static final String SNAPSHOT_ID = "snapshot-id";
   private static final String PARENT_SNAPSHOT_ID = "parent-snapshot-id";
   private static final String TIMESTAMP_MS = "timestamp-ms";
@@ -48,6 +49,9 @@ public class SnapshotParser {
   static void toJson(Snapshot snapshot, JsonGenerator generator)
       throws IOException {
     generator.writeStartObject();
+    if (snapshot.sequenceNumber() > TableMetadata.INITIAL_SEQUENCE_NUMBER) {
+      generator.writeNumberField(SEQUENCE_NUMBER, snapshot.sequenceNumber());
+    }
     generator.writeNumberField(SNAPSHOT_ID, snapshot.snapshotId());
     if (snapshot.parentId() != null) {
       generator.writeNumberField(PARENT_SNAPSHOT_ID, snapshot.parentId());
@@ -103,7 +107,11 @@ public class SnapshotParser {
     Preconditions.checkArgument(node.isObject(),
         "Cannot parse table version from a non-object: %s", node);
 
-    long versionId = JsonUtil.getLong(SNAPSHOT_ID, node);
+    long sequenceNumber = TableMetadata.INITIAL_SEQUENCE_NUMBER;
+    if (node.has(SEQUENCE_NUMBER)) {
+      sequenceNumber = JsonUtil.getLong(SEQUENCE_NUMBER, node);
+    }
+    long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
     Long parentId = null;
     if (node.has(PARENT_SNAPSHOT_ID)) {
       parentId = JsonUtil.getLong(PARENT_SNAPSHOT_ID, node);
@@ -134,7 +142,7 @@ public class SnapshotParser {
       // the manifest list is stored in a manifest list file
       String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
       return new BaseSnapshot(
-          io, versionId, parentId, timestamp, operation, summary,
+          io, sequenceNumber, snapshotId, parentId, timestamp, operation, summary,
           io.newInputFile(manifestList));
 
     } else {
@@ -142,7 +150,7 @@ public class SnapshotParser {
       // loaded lazily, if it is needed
       List<ManifestFile> manifests = Lists.transform(JsonUtil.getStringList(MANIFESTS, node),
           location -> new GenericManifestFile(io.newInputFile(location), 0));
-      return new BaseSnapshot(io, versionId, parentId, timestamp, operation, summary, manifests);
+      return new BaseSnapshot(io, snapshotId, parentId, timestamp, operation, summary, manifests);
     }
   }
 

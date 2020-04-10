@@ -66,6 +66,7 @@ public class TestTableMetadata {
       Types.NestedField.required(3, "z", Types.LongType.get())
   );
 
+  private static final long SEQ_NO = 34;
   private static final int LAST_ASSIGNED_COLUMN_ID = 3;
 
   private static final PartitionSpec SPEC_5 = PartitionSpec.builderFor(TEST_SCHEMA).withSpecId(5).build();
@@ -91,8 +92,8 @@ public class TestTableMetadata {
         .add(new SnapshotLogEntry(currentSnapshot.timestampMillis(), currentSnapshot.snapshotId()))
         .build();
 
-    TableMetadata expected = new TableMetadata(null, 1, UUID.randomUUID().toString(), TEST_LOCATION,
-        System.currentTimeMillis(), 3, TEST_SCHEMA, 5, ImmutableList.of(SPEC_5),
+    TableMetadata expected = new TableMetadata(null, 2, UUID.randomUUID().toString(), TEST_LOCATION,
+        SEQ_NO, System.currentTimeMillis(), 3, TEST_SCHEMA, 5, ImmutableList.of(SPEC_5),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), snapshotLog, ImmutableList.of());
 
@@ -106,6 +107,8 @@ public class TestTableMetadata {
         expected.uuid(), metadata.uuid());
     Assert.assertEquals("Table location should match",
         expected.location(), metadata.location());
+    Assert.assertEquals("Last sequence number should match",
+        expected.lastSequenceNumber(), metadata.lastSequenceNumber());
     Assert.assertEquals("Last column ID should match",
         expected.lastColumnId(), metadata.lastColumnId());
     Assert.assertEquals("Schema should match",
@@ -147,7 +150,7 @@ public class TestTableMetadata {
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
 
     TableMetadata expected = new TableMetadata(null, 1, UUID.randomUUID().toString(), TEST_LOCATION,
-        System.currentTimeMillis(), 3, TEST_SCHEMA, 5, ImmutableList.of(SPEC_5),
+        0, System.currentTimeMillis(), 3, TEST_SCHEMA, 5, ImmutableList.of(SPEC_5),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog, ImmutableList.of());
 
@@ -184,7 +187,7 @@ public class TestTableMetadata {
         new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
     TableMetadata expected = new TableMetadata(null, 1, null, TEST_LOCATION,
-        System.currentTimeMillis(), 3, TEST_SCHEMA, 6, ImmutableList.of(spec),
+        0, System.currentTimeMillis(), 3, TEST_SCHEMA, 6, ImmutableList.of(spec),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), ImmutableList.of(), ImmutableList.of());
 
@@ -197,6 +200,8 @@ public class TestTableMetadata {
     Assert.assertNull("Table UUID should not be assigned", metadata.uuid());
     Assert.assertEquals("Table location should match",
         expected.location(), metadata.location());
+    Assert.assertEquals("Last sequence number should default to 0",
+        expected.lastSequenceNumber(), metadata.lastSequenceNumber());
     Assert.assertEquals("Last column ID should match",
         expected.lastColumnId(), metadata.lastColumnId());
     Assert.assertEquals("Schema should match",
@@ -292,7 +297,7 @@ public class TestTableMetadata {
         "/tmp/000001-" + UUID.randomUUID().toString() + ".metadata.json"));
 
     TableMetadata base = new TableMetadata(null, 1, UUID.randomUUID().toString(), TEST_LOCATION,
-        System.currentTimeMillis(), 3, TEST_SCHEMA, 5, ImmutableList.of(SPEC_5),
+        0, System.currentTimeMillis(), 3, TEST_SCHEMA, 5, ImmutableList.of(SPEC_5),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
@@ -327,7 +332,7 @@ public class TestTableMetadata {
         "/tmp/000003-" + UUID.randomUUID().toString() + ".metadata.json");
 
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
-        TEST_LOCATION, currentTimestamp - 80, 3, TEST_SCHEMA, 5, ImmutableList.of(SPEC_5),
+        TEST_LOCATION, 0, currentTimestamp - 80, 3, TEST_SCHEMA, 5, ImmutableList.of(SPEC_5),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
@@ -372,7 +377,7 @@ public class TestTableMetadata {
         "/tmp/000006-" + UUID.randomUUID().toString() + ".metadata.json");
 
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
-        TEST_LOCATION, currentTimestamp - 50, 3, TEST_SCHEMA, 5,
+        TEST_LOCATION, 0, currentTimestamp - 50, 3, TEST_SCHEMA, 5,
         ImmutableList.of(SPEC_5), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
@@ -422,7 +427,7 @@ public class TestTableMetadata {
         "/tmp/000006-" + UUID.randomUUID().toString() + ".metadata.json");
 
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
-        TEST_LOCATION, currentTimestamp - 50, 3, TEST_SCHEMA, 2,
+        TEST_LOCATION, 0, currentTimestamp - 50, 3, TEST_SCHEMA, 2,
         ImmutableList.of(SPEC_5), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
@@ -447,9 +452,9 @@ public class TestTableMetadata {
   public void testV2UUIDValidation() {
     AssertHelpers.assertThrows("Should reject v2 metadata without a UUID",
         IllegalArgumentException.class, "UUID is required in format v2",
-        () -> new TableMetadata(null, 2, null, TEST_LOCATION, System.currentTimeMillis(), LAST_ASSIGNED_COLUMN_ID,
-            TEST_SCHEMA, SPEC_5.specId(), ImmutableList.of(SPEC_5), ImmutableMap.of(), -1L, ImmutableList.of(),
-            ImmutableList.of(), ImmutableList.of())
+        () -> new TableMetadata(null, 2, null, TEST_LOCATION, SEQ_NO, System.currentTimeMillis(),
+            LAST_ASSIGNED_COLUMN_ID, TEST_SCHEMA, SPEC_5.specId(), ImmutableList.of(SPEC_5), ImmutableMap.of(), -1L,
+            ImmutableList.of(), ImmutableList.of(), ImmutableList.of())
     );
   }
 
@@ -458,9 +463,9 @@ public class TestTableMetadata {
     int unsupportedVersion = TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION + 1;
     AssertHelpers.assertThrows("Should reject unsupported metadata",
         IllegalArgumentException.class, "Unsupported format version: v" + unsupportedVersion,
-        () -> new TableMetadata(null, unsupportedVersion, null, TEST_LOCATION, System.currentTimeMillis(),
-            LAST_ASSIGNED_COLUMN_ID, TEST_SCHEMA, SPEC_5.specId(), ImmutableList.of(SPEC_5), ImmutableMap.of(), -1L,
-            ImmutableList.of(), ImmutableList.of(), ImmutableList.of())
+        () -> new TableMetadata(null, unsupportedVersion, null, TEST_LOCATION, SEQ_NO,
+            System.currentTimeMillis(), LAST_ASSIGNED_COLUMN_ID, TEST_SCHEMA, SPEC_5.specId(), ImmutableList.of(SPEC_5),
+            ImmutableMap.of(), -1L, ImmutableList.of(), ImmutableList.of(), ImmutableList.of())
     );
   }
 
@@ -493,6 +498,9 @@ public class TestTableMetadata {
       generator.writeStringField(TABLE_UUID, metadata.uuid());
       generator.writeStringField(LOCATION, metadata.location());
       generator.writeNumberField(LAST_UPDATED_MILLIS, metadata.lastUpdatedMillis());
+      if (version > 1) {
+        generator.writeNumberField(TableMetadataParser.LAST_SEQUENCE_NUMBER, metadata.lastSequenceNumber());
+      }
       generator.writeNumberField(LAST_COLUMN_ID, metadata.lastColumnId());
 
       generator.writeFieldName(SCHEMA);
