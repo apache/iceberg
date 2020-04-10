@@ -248,8 +248,11 @@ public class RemoveOrphanFilesAction implements Action<List<String>> {
     String tableName = table.toString();
     if (tableName.contains("/")) {
       return tableName + "#" + type;
-    } else {
+    } else if (tableName.startsWith("hadoop.") || tableName.startsWith("hive.")) {
+      // HiveCatalog and HadoopCatalog prepend a logical name which we need to drop for Spark 2.4
       return tableName.replaceFirst("(hadoop\\.)|(hive\\.)", "") + "." + type;
+    } else {
+      return tableName + "." + type;
     }
   }
 
