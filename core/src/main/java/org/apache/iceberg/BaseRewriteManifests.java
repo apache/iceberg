@@ -154,7 +154,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
   }
 
   private ManifestFile copyManifest(ManifestFile manifest) {
-    try (ManifestReader reader = ManifestReader.read(manifest, ops.io(), specsById)) {
+    try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), specsById)) {
       OutputFile newFile = newManifestOutput();
       return ManifestWriter.copyManifest(reader, newFile, snapshotId(), summaryBuilder, ALLOWED_ENTRY_STATUSES);
     } catch (IOException e) {
@@ -237,7 +237,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
               keptManifests.add(manifest);
             } else {
               rewrittenManifests.add(manifest);
-              try (ManifestReader reader = ManifestReader.read(manifest, ops.io(), ops.current().specsById())) {
+              try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
                 FilteredManifest filteredManifest = reader.select(Arrays.asList("*"));
                 filteredManifest.liveEntries().forEach(
                     entry -> appendEntry(entry, clusterByFunc.apply(entry.file()), manifest.partitionSpecId())

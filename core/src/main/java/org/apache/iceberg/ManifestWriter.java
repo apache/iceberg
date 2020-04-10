@@ -94,15 +94,7 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
    * @return a manifest writer
    */
   public static ManifestWriter write(PartitionSpec spec, OutputFile outputFile) {
-    // always use a v1 writer for appended manifests because sequence number must be inherited
-    return write(1, spec, outputFile, null);
-  }
-
-  static ManifestWriter write(int formatVersion, PartitionSpec spec, OutputFile outputFile, Long snapshotId) {
-    if (formatVersion == 1) {
-      return new V1Writer(spec, outputFile, snapshotId);
-    }
-    throw new UnsupportedOperationException("Cannot write manifest for table version: " + formatVersion);
+    return ManifestFiles.write(spec, outputFile);
   }
 
   private final OutputFile file;
@@ -239,7 +231,7 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
     }
   }
 
-  private static class V1Writer extends ManifestWriter {
+  static class V1Writer extends ManifestWriter {
     V1Writer(PartitionSpec spec, OutputFile file, Long snapshotId) {
       super(spec, file, snapshotId);
     }

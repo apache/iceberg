@@ -107,7 +107,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   }
 
   private ManifestFile copyManifest(ManifestFile manifest) {
-    try (ManifestReader reader = ManifestReader.read(manifest, ops.io(), ops.current().specsById())) {
+    try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
       OutputFile newManifestPath = newManifestOutput();
       return ManifestWriter.copyAppendManifest(reader, newManifestPath, snapshotId(), summaryBuilder);
     } catch (IOException e) {
