@@ -167,6 +167,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       return LocalTime.class;
     }
 
+    @Override
     public void addValue(int rowId, LocalTime data, ColumnVector output) {
       if (data == null) {
         output.noNulls = false;
@@ -257,6 +258,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       return ByteBuffer.class;
     }
 
+    @Override
     public void addValue(int rowId, ByteBuffer data, ColumnVector output) {
       if (data == null) {
         output.noNulls = false;
@@ -274,6 +276,7 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       return UUID.class;
     }
 
+    @Override
     public void addValue(int rowId, UUID data, ColumnVector output) {
       if (data == null) {
         output.noNulls = false;
