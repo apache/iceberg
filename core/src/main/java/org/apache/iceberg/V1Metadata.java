@@ -27,7 +27,7 @@ class V1Metadata {
   private V1Metadata() {
   }
 
-  static Schema MANIFEST_LIST_SCHEMA = new Schema(
+  static final Schema MANIFEST_LIST_SCHEMA = new Schema(
       ManifestFile.PATH, ManifestFile.LENGTH, ManifestFile.SPEC_ID, ManifestFile.SNAPSHOT_ID,
       ManifestFile.ADDED_FILES_COUNT, ManifestFile.EXISTING_FILES_COUNT, ManifestFile.DELETED_FILES_COUNT,
       ManifestFile.PARTITION_SUMMARIES,

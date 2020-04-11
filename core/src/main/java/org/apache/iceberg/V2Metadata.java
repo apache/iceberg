@@ -31,17 +31,26 @@ class V2Metadata {
   }
 
   // fields for v2 write schema for required metadata
-  static Types.NestedField REQUIRED_SNAPSHOT_ID = required(503, "added_snapshot_id", Types.LongType.get());
-  static Types.NestedField REQUIRED_ADDED_FILES_COUNT = required(504, "added_data_files_count", Types.IntegerType.get());
-  static Types.NestedField REQUIRED_EXISTING_FILES_COUNT = required(505, "existing_data_files_count", Types.IntegerType.get());
-  static Types.NestedField REQUIRED_DELETED_FILES_COUNT = required(506, "deleted_data_files_count", Types.IntegerType.get());
-  static Types.NestedField REQUIRED_ADDED_ROWS_COUNT = required(512, "added_rows_count", Types.LongType.get());
-  static Types.NestedField REQUIRED_EXISTING_ROWS_COUNT = required(513, "existing_rows_count", Types.LongType.get());
-  static Types.NestedField REQUIRED_DELETED_ROWS_COUNT = required(514, "deleted_rows_count", Types.LongType.get());
-  static Types.NestedField REQUIRED_SEQUENCE_NUMBER = required(515, "sequence_number", Types.LongType.get());
-  static Types.NestedField REQUIRED_MIN_SEQUENCE_NUMBER = required(516, "min_sequence_number", Types.LongType.get());
+  static final Types.NestedField REQUIRED_SNAPSHOT_ID =
+      required(503, "added_snapshot_id", Types.LongType.get());
+  static final Types.NestedField REQUIRED_ADDED_FILES_COUNT =
+      required(504, "added_data_files_count", Types.IntegerType.get());
+  static final Types.NestedField REQUIRED_EXISTING_FILES_COUNT =
+      required(505, "existing_data_files_count", Types.IntegerType.get());
+  static final Types.NestedField REQUIRED_DELETED_FILES_COUNT =
+      required(506, "deleted_data_files_count", Types.IntegerType.get());
+  static final Types.NestedField REQUIRED_ADDED_ROWS_COUNT =
+      required(512, "added_rows_count", Types.LongType.get());
+  static final Types.NestedField REQUIRED_EXISTING_ROWS_COUNT =
+      required(513, "existing_rows_count", Types.LongType.get());
+  static final Types.NestedField REQUIRED_DELETED_ROWS_COUNT =
+      required(514, "deleted_rows_count", Types.LongType.get());
+  static final Types.NestedField REQUIRED_SEQUENCE_NUMBER =
+      required(515, "sequence_number", Types.LongType.get());
+  static final Types.NestedField REQUIRED_MIN_SEQUENCE_NUMBER =
+      required(516, "min_sequence_number", Types.LongType.get());
 
-  static Schema MANIFEST_LIST_SCHEMA = new Schema(
+  static final Schema MANIFEST_LIST_SCHEMA = new Schema(
       ManifestFile.PATH, ManifestFile.LENGTH, ManifestFile.SPEC_ID,
       REQUIRED_SEQUENCE_NUMBER, REQUIRED_MIN_SEQUENCE_NUMBER, REQUIRED_SNAPSHOT_ID,
       REQUIRED_ADDED_FILES_COUNT, REQUIRED_EXISTING_FILES_COUNT, REQUIRED_DELETED_FILES_COUNT,
