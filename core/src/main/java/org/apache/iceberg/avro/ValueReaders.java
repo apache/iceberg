@@ -40,7 +40,6 @@ import org.apache.avro.io.Decoder;
 import org.apache.avro.io.ResolvingDecoder;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.common.DynConstructors;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 import static java.util.Collections.emptyIterator;
@@ -580,10 +579,9 @@ public class ValueReaders {
       List<Object> constantList = Lists.newArrayListWithCapacity(fields.size());
       for (int pos = 0; pos < fields.size(); pos += 1) {
         Types.NestedField field = fields.get(pos);
-        Object constant = idToConstant.get(field.fieldId());
-        if (constant != null) {
+        if (idToConstant.containsKey(field.fieldId())) {
           positionList.add(pos);
-          constantList.add(prepareConstant(field.type(), constant));
+          constantList.add(idToConstant.get(field.fieldId()));
         }
       }
 
@@ -596,10 +594,6 @@ public class ValueReaders {
     protected abstract Object get(S struct, int pos);
 
     protected abstract void set(S struct, int pos, Object value);
-
-    protected Object prepareConstant(Type type, Object value) {
-      return value;
-    }
 
     public ValueReader<?> reader(int pos) {
       return readers[pos];

@@ -29,14 +29,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.apache.avro.generic.GenericData;
 import org.apache.avro.io.Decoder;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.ByteBuffers;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
@@ -286,31 +283,6 @@ public class SparkValueReaders {
       } else {
         struct.setNullAt(pos);
       }
-    }
-
-    @Override
-    protected Object prepareConstant(Type type, Object value) {
-      switch (type.typeId()) {
-        case DECIMAL:
-          return Decimal.apply((BigDecimal) value);
-        case STRING:
-          if (value instanceof Utf8) {
-            Utf8 utf8 = (Utf8) value;
-            return UTF8String.fromBytes(utf8.getBytes(), 0, utf8.getByteLength());
-          }
-          return UTF8String.fromString(value.toString());
-        case FIXED:
-          if (value instanceof byte[]) {
-            return value;
-          } else if (value instanceof GenericData.Fixed) {
-            return ((GenericData.Fixed) value).bytes();
-          }
-          return ByteBuffers.toByteArray((ByteBuffer) value);
-        case BINARY:
-          return ByteBuffers.toByteArray((ByteBuffer) value);
-        default:
-      }
-      return value;
     }
   }
 }

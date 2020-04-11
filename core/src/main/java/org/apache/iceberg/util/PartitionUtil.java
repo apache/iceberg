@@ -22,26 +22,36 @@ package org.apache.iceberg.util;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 
 public class PartitionUtil {
   private PartitionUtil() {
   }
 
   public static Map<Integer, ?> constantsMap(FileScanTask task) {
-    return constantsMap(task.spec(), task.file().partition());
+    return constantsMap(task, (type, constant) -> constant);
   }
 
-  private static Map<Integer, ?> constantsMap(PartitionSpec spec, StructLike partitionData) {
+  public static Map<Integer, ?> constantsMap(FileScanTask task, BiFunction<Type, Object, Object> convertConstant) {
+    return constantsMap(task.spec(), task.file().partition(), convertConstant);
+  }
+
+  private static Map<Integer, ?> constantsMap(PartitionSpec spec, StructLike partitionData,
+                                              BiFunction<Type, Object, Object> convertConstant) {
     // use java.util.HashMap because partition data may contain null values
     Map<Integer, Object> idToConstant = new HashMap<>();
+    List<Types.NestedField> partitionFields = spec.partitionType().fields();
     List<PartitionField> fields = spec.fields();
     for (int pos = 0; pos < fields.size(); pos += 1) {
       PartitionField field = fields.get(pos);
-      idToConstant.put(field.sourceId(), partitionData.get(pos, Object.class));
+      Object converted = convertConstant.apply(partitionFields.get(pos).type(), partitionData.get(pos, Object.class));
+      idToConstant.put(field.sourceId(), converted);
     }
     return idToConstant;
   }
