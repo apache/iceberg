@@ -30,6 +30,7 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
   private final V1Metadata.IndexedDataFile fileWrapper;
   private Status status = Status.EXISTING;
   private Long snapshotId = null;
+  private Long sequenceNumber = null;
   private DataFile file = null;
 
   GenericManifestEntry(org.apache.avro.Schema schema) {
@@ -54,9 +55,10 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
     }
   }
 
-  ManifestEntry wrapExisting(Long newSnapshotId, DataFile newFile) {
+  ManifestEntry wrapExisting(Long newSnapshotId, Long newSequenceNumber, DataFile newFile) {
     this.status = Status.EXISTING;
     this.snapshotId = newSnapshotId;
+    this.sequenceNumber = newSequenceNumber;
     this.file = newFile;
     return this;
   }
@@ -64,6 +66,7 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
   ManifestEntry wrapAppend(Long newSnapshotId, DataFile newFile) {
     this.status = Status.ADDED;
     this.snapshotId = newSnapshotId;
+    this.sequenceNumber = null;
     this.file = newFile;
     return this;
   }
@@ -71,6 +74,7 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
   ManifestEntry wrapDelete(Long newSnapshotId, DataFile newFile) {
     this.status = Status.DELETED;
     this.snapshotId = newSnapshotId;
+    this.sequenceNumber = null;
     this.file = newFile;
     return this;
   }
@@ -89,6 +93,11 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
     return snapshotId;
   }
 
+  @Override
+  public Long sequenceNumber() {
+    return sequenceNumber;
+  }
+
   /**
    * @return a file
    */
@@ -105,8 +114,13 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
   }
 
   @Override
-  public void setSnapshotId(long snapshotId) {
-    this.snapshotId = snapshotId;
+  public void setSnapshotId(long newSnapshotId) {
+    this.snapshotId = newSnapshotId;
+  }
+
+  @Override
+  public void setSequenceNumber(long newSequenceNumber) {
+    this.sequenceNumber = newSequenceNumber;
   }
 
   @Override
@@ -119,6 +133,9 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
         this.snapshotId = (Long) v;
         return;
       case 2:
+        this.sequenceNumber = (Long) v;
+        return;
+      case 3:
         this.file = (DataFile) v;
         return;
       default:
@@ -134,6 +151,8 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
       case 1:
         return snapshotId;
       case 2:
+        return sequenceNumber;
+      case 3:
         if (fileWrapper == null || file instanceof GenericDataFile) {
           return file;
         } else {

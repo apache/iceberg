@@ -78,7 +78,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
           "parent-snapshot-id", String.valueOf(parentSnapshotId),
           "sequence-number", String.valueOf(sequenceNumber),
           "format-version", "2"));
-      this.wrapper = new V2Metadata.IndexedManifestFile(sequenceNumber);
+      this.wrapper = new V2Metadata.IndexedManifestFile(snapshotId, sequenceNumber);
     }
 
     @Override

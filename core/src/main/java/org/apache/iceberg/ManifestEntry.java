@@ -19,11 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.MoreObjects;
-import org.apache.avro.generic.IndexedRecord;
-import org.apache.avro.specific.SpecificData;
-import org.apache.iceberg.V1Metadata.IndexedDataFile;
-import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 
@@ -50,14 +45,16 @@ interface ManifestEntry {
   // ids for data-file columns are assigned from 1000
   Types.NestedField STATUS = required(0, "status", Types.IntegerType.get());
   Types.NestedField SNAPSHOT_ID = optional(1, "snapshot_id", Types.LongType.get());
+  Types.NestedField SEQUENCE_NUMBER = optional(3, "sequence_number", Types.LongType.get());
   int DATA_FILE_ID = 2;
+  // next ID to assign: 4
 
   static Schema getSchema(StructType partitionType) {
     return wrapFileSchema(DataFile.getType(partitionType));
   }
 
   static Schema wrapFileSchema(StructType fileType) {
-    return new Schema(STATUS, SNAPSHOT_ID, required(DATA_FILE_ID, "data_file", fileType));
+    return new Schema(STATUS, SNAPSHOT_ID, SEQUENCE_NUMBER, required(DATA_FILE_ID, "data_file", fileType));
   }
 
   /**
@@ -70,7 +67,24 @@ interface ManifestEntry {
    */
   Long snapshotId();
 
+  /**
+   * Set the snapshot id for this manifest entry.
+   *
+   * @param snapshotId a long snapshot id
+   */
   void setSnapshotId(long snapshotId);
+
+  /**
+   * @return the sequence number of the snapshot in which the file was added to the table
+   */
+  Long sequenceNumber();
+
+  /**
+   * Set the sequence number for this manifest entry.
+   *
+   * @param sequenceNumber a sequence number
+   */
+  void setSequenceNumber(long sequenceNumber);
 
   /**
    * @return a file
