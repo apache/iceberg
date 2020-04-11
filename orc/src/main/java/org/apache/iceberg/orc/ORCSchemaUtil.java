@@ -67,7 +67,7 @@ public final class ORCSchemaUtil {
     }
   }
 
-  private static final String ICEBERG_ID_ATTRIBUTE = "iceberg.id";
+  static final String ICEBERG_ID_ATTRIBUTE = "iceberg.id";
   private static final String ICEBERG_REQUIRED_ATTRIBUTE = "iceberg.required";
 
   /**
@@ -214,6 +214,7 @@ public final class ORCSchemaUtil {
         "Error in ORC file, children fields and names do not match.");
 
     List<Types.NestedField> icebergFields = Lists.newArrayListWithExpectedSize(children.size());
+    // TODO how we get field ids from ORC schema
     AtomicInteger lastColumnId = new AtomicInteger(getMaxIcebergId(orcSchema));
     for (int i = 0; i < children.size(); i++) {
       icebergFields.add(convertOrcToIceberg(children.get(i), childrenNames.get(i),
@@ -308,7 +309,7 @@ public final class ORCSchemaUtil {
           orcType = convert(fieldId, type, false);
         }
     }
-
+    orcType.setAttribute(ICEBERG_ID_ATTRIBUTE, fieldId.toString());
     return orcType;
   }
 
@@ -377,9 +378,15 @@ public final class ORCSchemaUtil {
     }
   }
 
-  private static Optional<Integer> icebergID(TypeDescription orcType) {
+  static Optional<Integer> icebergID(TypeDescription orcType) {
     return Optional.ofNullable(orcType.getAttributeValue(ICEBERG_ID_ATTRIBUTE))
         .map(Integer::parseInt);
+  }
+
+  static int fieldId(TypeDescription orcType) {
+    String idStr = orcType.getAttributeValue(ICEBERG_ID_ATTRIBUTE);
+    Preconditions.checkNotNull(idStr, "Missing expected '%s' property", ICEBERG_ID_ATTRIBUTE);
+    return Integer.parseInt(idStr);
   }
 
   private static boolean isRequired(TypeDescription orcType) {
@@ -496,7 +503,7 @@ public final class ORCSchemaUtil {
     }
   }
 
-  private static int getMaxIcebergId(TypeDescription originalOrcSchema) {
+  static int getMaxIcebergId(TypeDescription originalOrcSchema) {
     int maxId = icebergID(originalOrcSchema).orElse(0);
     final List<TypeDescription> children = Optional.ofNullable(originalOrcSchema.getChildren())
         .orElse(Collections.emptyList());

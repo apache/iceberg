@@ -67,7 +67,8 @@ import org.apache.spark.unsafe.types.UTF8String;
 import scala.collection.JavaConverters;
 
 class RowDataReader extends BaseDataReader<InternalRow> {
-  private static final Set<FileFormat> SUPPORTS_CONSTANTS = Sets.newHashSet(FileFormat.AVRO, FileFormat.PARQUET);
+  private static final Set<FileFormat> SUPPORTS_CONSTANTS = Sets.newHashSet(
+      FileFormat.AVRO, FileFormat.PARQUET, FileFormat.ORC);
   // for some reason, the apply method can't be called from Java without reflection
   private static final DynMethods.UnboundMethod APPLY_PROJECTION = DynMethods.builder("apply")
       .impl(UnsafeProjection.class, InternalRow.class)
@@ -143,7 +144,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
           break;
 
         case ORC:
-          iter = newOrcIterable(location, task, readSchema);
+          iter = newOrcIterable(location, task, readSchema, idToConstant);
           break;
 
         default:
@@ -185,11 +186,12 @@ class RowDataReader extends BaseDataReader<InternalRow> {
   private CloseableIterable<InternalRow> newOrcIterable(
       InputFile location,
       FileScanTask task,
-      Schema readSchema) {
+      Schema readSchema,
+      Map<Integer, ?> idToConstant) {
     return ORC.read(location)
         .project(readSchema)
         .split(task.start(), task.length())
-        .createReaderFunc(SparkOrcReader::new)
+        .createReaderFunc(readOrcSchema -> new SparkOrcReader(readSchema, readOrcSchema, idToConstant))
         .caseSensitive(caseSensitive)
         .build();
   }

@@ -41,7 +41,6 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.junit.AfterClass;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -311,8 +310,6 @@ public class TestPartitionValues {
 
   @Test
   public void testNestedPartitionValues() throws Exception {
-    Assume.assumeTrue("ORC can't project nested partition values", !format.equalsIgnoreCase("orc"));
-
     String[] columnNames = new String[] {
         "b", "i", "l", "f", "d", "date", "ts", "s", "bytes", "dec_9_0", "dec_11_2", "dec_38_10"
     };
