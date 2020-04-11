@@ -56,8 +56,6 @@ class GenericDataFile
   private long fileSizeInBytes = -1L;
 
   // optional fields
-  private Integer fileOrdinal = null; // boxed for nullability
-  private List<Integer> sortColumns = null;
   private Map<Integer, Long> columnSizes = null;
   private Map<Integer, Long> valueCounts = null;
   private Map<Integer, Long> nullValueCounts = null;
@@ -173,8 +171,6 @@ class GenericDataFile
     this.partitionType = toCopy.partitionType;
     this.recordCount = toCopy.recordCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
-    this.fileOrdinal = toCopy.fileOrdinal;
-    this.sortColumns = copy(toCopy.sortColumns);
     if (fullCopy) {
       // TODO: support lazy conversion to/from map
       this.columnSizes = copy(toCopy.columnSizes);
@@ -223,16 +219,6 @@ class GenericDataFile
   @Override
   public long fileSizeInBytes() {
     return fileSizeInBytes;
-  }
-
-  @Override
-  public Integer fileOrdinal() {
-    return fileOrdinal;
-  }
-
-  @Override
-  public List<Integer> sortColumns() {
-    return sortColumns;
   }
 
   @Override
@@ -306,30 +292,24 @@ class GenericDataFile
       case 5:
         return;
       case 6:
-        this.fileOrdinal = (Integer) v;
-        return;
-      case 7:
-        this.sortColumns = (List<Integer>) v;
-        return;
-      case 8:
         this.columnSizes = (Map<Integer, Long>) v;
         return;
-      case 9:
+      case 7:
         this.valueCounts = (Map<Integer, Long>) v;
         return;
-      case 10:
+      case 8:
         this.nullValueCounts = (Map<Integer, Long>) v;
         return;
-      case 11:
+      case 9:
         this.lowerBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) v);
         return;
-      case 12:
+      case 10:
         this.upperBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) v);
         return;
-      case 13:
+      case 11:
         this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) v);
         return;
-      case 14:
+      case 12:
         this.splitOffsets = (List<Long>) v;
         return;
       default:
@@ -365,22 +345,18 @@ class GenericDataFile
         // to maintain compatibility, we need to return something.
         return DEFAULT_BLOCK_SIZE;
       case 6:
-        return fileOrdinal;
-      case 7:
-        return sortColumns;
-      case 8:
         return columnSizes;
-      case 9:
+      case 7:
         return valueCounts;
-      case 10:
+      case 8:
         return nullValueCounts;
-      case 11:
+      case 9:
         return lowerBounds;
-      case 12:
+      case 10:
         return upperBounds;
-      case 13:
+      case 11:
         return keyMetadata();
-      case 14:
+      case 12:
         return splitOffsets;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);

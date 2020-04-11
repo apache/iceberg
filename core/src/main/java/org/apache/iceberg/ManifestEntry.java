@@ -276,22 +276,18 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
         case 5:
           return DEFAULT_BLOCK_SIZE;
         case 6:
-          return wrapped.fileOrdinal();
-        case 7:
-          return wrapped.sortColumns();
-        case 8:
           return wrapped.columnSizes();
-        case 9:
+        case 7:
           return wrapped.valueCounts();
-        case 10:
+        case 8:
           return wrapped.nullValueCounts();
-        case 11:
+        case 9:
           return wrapped.lowerBounds();
-        case 12:
+        case 10:
           return wrapped.upperBounds();
-        case 13:
+        case 11:
           return wrapped.keyMetadata();
-        case 14:
+        case 12:
           return wrapped.splitOffsets();
       }
       throw new IllegalArgumentException("Unknown field ordinal: " + pos);
@@ -330,16 +326,6 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
     @Override
     public long fileSizeInBytes() {
       return wrapped.fileSizeInBytes();
-    }
-
-    @Override
-    public Integer fileOrdinal() {
-      return wrapped.fileOrdinal();
-    }
-
-    @Override
-    public List<Integer> sortColumns() {
-      return wrapped.sortColumns();
     }
 
     @Override
