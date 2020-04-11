@@ -51,10 +51,8 @@ import org.slf4j.LoggerFactory;
 public class ParquetDictionaryRowGroupFilter {
   private static final Logger LOG = LoggerFactory.getLogger(ParquetDictionaryRowGroupFilter.class);
 
-  private Expression expr;
-  private Schema schema;
+  private final Expression expr;
   private transient ThreadLocal<EvalVisitor> visitors = null;
-  private boolean caseSensitive;
 
   private EvalVisitor visitor() {
     if (visitors == null) {
@@ -68,9 +66,8 @@ public class ParquetDictionaryRowGroupFilter {
   }
 
   public ParquetDictionaryRowGroupFilter(Schema schema, Expression unbound, boolean caseSensitive) {
-    this.schema = schema;
-    this.expr = unbound;
-    this.caseSensitive = caseSensitive;
+    StructType struct = schema.asStruct();
+    this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), caseSensitive);
   }
 
   /**
@@ -82,9 +79,6 @@ public class ParquetDictionaryRowGroupFilter {
    */
   public boolean shouldRead(MessageType fileSchema, BlockMetaData rowGroup,
                             DictionaryPageReadStore dictionaries) {
-    StructType struct = schema.asStruct();
-
-    this.expr = Binder.bind(struct, Expressions.rewriteNot(expr), caseSensitive);
     return visitor().eval(fileSchema, rowGroup, dictionaries);
   }
 

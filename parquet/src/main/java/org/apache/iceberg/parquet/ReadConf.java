@@ -70,18 +70,12 @@ class ReadConf<T> {
     this.reader = newReader(file, options);
     MessageType fileSchema = reader.getFileMetaData().getSchema();
     boolean hasIds = ParquetSchemaUtil.hasIds(fileSchema);
-    MessageType typeWithIds;
-    if (!hasIds) {
-      if (nameMapping != null) {
-        this.projection = ParquetSchemaUtil.pruneColumnsByName(fileSchema, expectedSchema, nameMapping);
-        typeWithIds = ParquetSchemaUtil.addFallbackIds(fileSchema, nameMapping);
-      } else {
-        this.projection = ParquetSchemaUtil.pruneColumnsFallback(fileSchema, expectedSchema);
-        typeWithIds = ParquetSchemaUtil.addFallbackIds(fileSchema);
-      }
+    MessageType typeWithIds = hasIds ? fileSchema : ParquetSchemaUtil.addFallbackIds(fileSchema, nameMapping);
+
+    if (nameMapping == null && !hasIds) {
+      this.projection = ParquetSchemaUtil.pruneColumnsFallback(fileSchema, expectedSchema);
     } else {
-      this.projection = ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema);
-      typeWithIds = fileSchema;
+      this.projection = ParquetSchemaUtil.pruneColumns(typeWithIds, expectedSchema);
     }
 
     this.rowGroups = reader.getRowGroups();

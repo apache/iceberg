@@ -63,7 +63,8 @@ class ParquetReadSupport<T> extends ReadSupport<T> {
       projection = ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema);
     } else {
       if (nameMapping != null) {
-        projection = ParquetSchemaUtil.pruneColumnsByName(fileSchema, expectedSchema, nameMapping);
+        MessageType typeWithIds = ParquetSchemaUtil.addFallbackIds(fileSchema, nameMapping);
+        projection = ParquetSchemaUtil.pruneColumns(typeWithIds, expectedSchema);
       } else {
         projection = ParquetSchemaUtil.pruneColumnsFallback(fileSchema, expectedSchema);
       }

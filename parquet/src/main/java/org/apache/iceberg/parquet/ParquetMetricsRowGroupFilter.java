@@ -52,9 +52,8 @@ public class ParquetMetricsRowGroupFilter {
   private static final Logger LOG = LoggerFactory.getLogger(ParquetMetricsRowGroupFilter.class);
 
   private final Schema schema;
-  private Expression expr;
+  private final Expression expr;
   private transient ThreadLocal<MetricsEvalVisitor> visitors = null;
-  private boolean caseSensitive;
 
   private MetricsEvalVisitor visitor() {
     if (visitors == null) {
@@ -69,8 +68,8 @@ public class ParquetMetricsRowGroupFilter {
 
   public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound, boolean caseSensitive) {
     this.schema = schema;
-    this.expr = unbound;
-    this.caseSensitive = caseSensitive;
+    StructType struct = schema.asStruct();
+    this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), caseSensitive);
   }
 
   /**
@@ -81,9 +80,6 @@ public class ParquetMetricsRowGroupFilter {
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
   public boolean shouldRead(MessageType fileSchema, BlockMetaData rowGroup) {
-    StructType struct = schema.asStruct();
-    this.expr = Binder.bind(struct, Expressions.rewriteNot(expr), caseSensitive);
-
     return visitor().eval(fileSchema, rowGroup);
   }
 
