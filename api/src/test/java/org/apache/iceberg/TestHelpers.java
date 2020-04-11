@@ -319,16 +319,6 @@ public class TestHelpers {
     }
 
     @Override
-    public Integer fileOrdinal() {
-      return null;
-    }
-
-    @Override
-    public List<Integer> sortColumns() {
-      return null;
-    }
-
-    @Override
     public Map<Integer, Long> columnSizes() {
       return null;
     }

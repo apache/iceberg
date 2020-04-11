@@ -46,8 +46,6 @@ public interface DataFile {
         required(103, "record_count", LongType.get()),
         required(104, "file_size_in_bytes", LongType.get()),
         required(105, "block_size_in_bytes", LongType.get()),
-        optional(106, "file_ordinal", IntegerType.get()),
-        optional(107, "sort_columns", ListType.ofRequired(112, IntegerType.get())),
         optional(108, "column_sizes", MapType.ofRequired(117, 118,
             IntegerType.get(), LongType.get())),
         optional(109, "value_counts", MapType.ofRequired(119, 120,
@@ -88,16 +86,6 @@ public interface DataFile {
    * @return the data file size in bytes
    */
   long fileSizeInBytes();
-
-  /**
-   * @return file ordinal if written in a global ordering, or null
-   */
-  Integer fileOrdinal();
-
-  /**
-   * @return list of columns the file records are sorted by, or null
-   */
-  List<Integer> sortColumns();
 
   /**
    * @return if collected, map from column ID to the size of the column in bytes, null otherwise
