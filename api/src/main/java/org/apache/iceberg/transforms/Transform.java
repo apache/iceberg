@@ -83,6 +83,15 @@ public interface Transform<S, T> extends Serializable {
   UnboundPredicate<T> projectStrict(String name, BoundPredicate<S> predicate);
 
   /**
+   * Return whether this transform is the identity transform.
+   *
+   * @return true if this is an identity transform, false otherwise
+   */
+  default boolean isIdentity() {
+    return false;
+  }
+
+  /**
    * Returns a human-readable String representation of a transformed value.
    * <p>
    * null values will return "null"

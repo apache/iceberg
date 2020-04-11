@@ -50,8 +50,10 @@ public class PartitionUtil {
     List<PartitionField> fields = spec.fields();
     for (int pos = 0; pos < fields.size(); pos += 1) {
       PartitionField field = fields.get(pos);
-      Object converted = convertConstant.apply(partitionFields.get(pos).type(), partitionData.get(pos, Object.class));
-      idToConstant.put(field.sourceId(), converted);
+      if (field.transform().isIdentity()) {
+        Object converted = convertConstant.apply(partitionFields.get(pos).type(), partitionData.get(pos, Object.class));
+        idToConstant.put(field.sourceId(), converted);
+      }
     }
     return idToConstant;
   }
