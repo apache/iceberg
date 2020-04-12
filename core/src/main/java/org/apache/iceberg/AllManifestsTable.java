@@ -83,7 +83,7 @@ public class AllManifestsTable extends BaseMetadataTable {
     return MANIFEST_FILE_SCHEMA;
   }
 
-  public static class AllManifestsTableScan extends MetadataTableScan {
+  public static class AllManifestsTableScan extends AggregatedMetadataTableScan {
 
     AllManifestsTableScan(TableOperations ops, Table table, Schema fileSchema) {
       super(ops, table, fileSchema);

@@ -28,14 +28,14 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public abstract class MetadataTableScan extends BaseTableScan {
-  private static final Logger LOG = LoggerFactory.getLogger(MetadataTableScan.class);
+public abstract class AggregatedMetadataTableScan extends BaseTableScan {
+  private static final Logger LOG = LoggerFactory.getLogger(AggregatedMetadataTableScan.class);
 
-  public MetadataTableScan(TableOperations ops, Table table, Schema fileSchema) {
+  public AggregatedMetadataTableScan(TableOperations ops, Table table, Schema fileSchema) {
     super(ops, table, fileSchema);
   }
 
-  protected MetadataTableScan(
+  protected AggregatedMetadataTableScan(
       TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
       boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
       ImmutableMap<String, String> options) {
@@ -43,34 +43,10 @@ public abstract class MetadataTableScan extends BaseTableScan {
   }
 
   @Override
-  protected abstract long targetSplitSize(TableOperations ops);
-
-  @Override
-  protected abstract TableScan newRefinedScan(
-      TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter, boolean caseSensitive,
-      boolean colStats, Collection<String> selectedColumns, ImmutableMap<String, String> options);
-
-  @Override
-  protected abstract CloseableIterable<FileScanTask> planFiles(
-      TableOperations ops, Snapshot snapshot, Expression rowFilter, boolean caseSensitive, boolean colStats);
-
-  @Override
   public CloseableIterable<FileScanTask> planFiles() {
-    Snapshot snapshot = snapshot();
-    if (snapshot != null) {
-      LOG.info("Scanning table {} snapshot {} created at {} with filter {}", table(),
-          snapshot.snapshotId(), formatTimestampMillis(snapshot.timestampMillis()),
-          filter());
+    LOG.info("Scanning table {} in all snapshots with filter {}", table(), filter());
+    Listeners.notifyAll(new ScanEvent(table().toString(), 0L, filter(), schema()));
 
-      Listeners.notifyAll(
-          new ScanEvent(table().toString(), snapshot.snapshotId(), filter(), schema()));
-    } else {
-      LOG.info("Scanning table {} snapshot is NULL with filter {}", table(), filter());
-
-      Listeners.notifyAll(
-          new ScanEvent(table().toString(), 0L, filter(), schema()));
-    }
-
-    return planFiles(tableOps(), snapshot, filter(), isCaseSensitive(), colStats());
+    return planFiles(tableOps(), snapshot(), filter(), isCaseSensitive(), colStats());
   }
 }

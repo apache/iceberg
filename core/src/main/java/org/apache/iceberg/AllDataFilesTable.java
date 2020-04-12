@@ -75,7 +75,7 @@ public class AllDataFilesTable extends BaseMetadataTable {
     }
   }
 
-  public static class AllDataFilesTableScan extends MetadataTableScan {
+  public static class AllDataFilesTableScan extends AggregatedMetadataTableScan {
     private final Schema fileSchema;
 
     AllDataFilesTableScan(TableOperations ops, Table table, Schema fileSchema) {

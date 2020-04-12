@@ -68,7 +68,7 @@ public class AllEntriesTable extends BaseMetadataTable {
     }
   }
 
-  private static class Scan extends MetadataTableScan {
+  private static class Scan extends AggregatedMetadataTableScan {
 
     Scan(TableOperations ops, Table table, Schema schema) {
       super(ops, table, schema);
