@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.flink.connector.sink;
 
-import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -77,7 +76,7 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
   private final boolean skipIncompatibleRecord;
   private final org.apache.iceberg.Schema icebergSchema;
   private final PartitionSpec spec;
-  private final String s3BasePath;
+  private final String dataLocation;
   private final Map<String, String> tableProperties;
   private final String timestampFeild;
   private final TimeUnit timestampUnit;
@@ -145,9 +144,8 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
     tableProperties = tablePropsBuilder.build();
     icebergSchema = table.schema();
     spec = table.spec();
-    //s3BasePath = getS3BasePath(table.location());
-    s3BasePath = table.locationProvider().newDataLocation("");  // data location of the Iceberg table
-    LOG.info("Iceberg writer {}.{} has S3 base path: {}", namespace, tableName, s3BasePath);
+    dataLocation = table.locationProvider().newDataLocation("");  // data location of the Iceberg table
+    LOG.info("Iceberg writer {}.{} data file location: {}", namespace, tableName, dataLocation);
     LOG.info("Iceberg writer {}.{} created with sink config", namespace, tableName);
     LOG.info("Iceberg writer {}.{} loaded table: schema = {}\npartition spec = {}",
         namespace, tableName, icebergSchema, spec);
@@ -155,25 +153,6 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
     // default ChainingStrategy is set to HEAD
     // we prefer chaining to avoid the huge serialization and deserializatoin overhead.
     super.setChainingStrategy(ChainingStrategy.ALWAYS);
-  }
-
-  /**
-   * @param location location from table metadata
-   *                 e.g. s3n://bucket/hive/warehouse/database_name.db/table_name
-   */
-  private String getS3BasePath(final String location) {
-    String region = System.getenv("EC2_REGION");
-    if (Strings.isNullOrEmpty(region)) {
-      region = "us-east-1";
-      LOG.info("default to us-east-1 region");
-    }
-    String regionLocation = location;
-    if (!region.equals("us-east-1")) {
-      final String regionPrefix = region + ".";
-      regionLocation = regionLocation.replaceAll("s3n://", "s3n://" + regionPrefix);
-    }
-    // convention is put under /data child dir
-    return regionLocation + "/data/";
   }
 
   @Override
@@ -194,13 +173,9 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
     this.timerService = timerService1;
     openPartitionFiles = new HashMap<>();
 
-    // Create a file system with the user-defined {@code HDFS} configuration.
-    // supply a dummy config for nowm until we find a need to customize
-    //final Configuration fsConfig = new Configuration();
     if (fs == null) {
-      Path path = new Path(s3BasePath);
-      // TODO: change to use StreamingFileSink and uncomment fs.delete() in abort()
-      //fs = BucketingSink.createHadoopFileSystem(path, fsConfig);
+      Path path = new Path(dataLocation);
+      fs = path.getFileSystem(hadoopConfig);
       LOG.info("Iceberg writer {}.{} subtask {} created file system with base path: {}",
           namespace, tableName, subtaskId1, path.toString());
     }
@@ -316,12 +291,10 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
         continue;
       }
 
-      // it is ok if deletion failed,
-      // as S3 retention should eventually kick in.
       try {
         LOG.debug("Iceberg writer {}.{} subtask {} deleting aborted file: {}",
             namespace, tableName, subtaskId, path);
-        //fs.delete(path, false);  // TODO
+        fs.delete(path, false /* path is supposed to be a file, not directory */);
         LOG.info("Iceberg writer {}.{} subtask {} deleted aborted file: {}",
             namespace, tableName, subtaskId, path);
       } catch (Throwable t) {
@@ -387,7 +360,7 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
       partitioner = new IndexedRecordPartitioner(spec);
     }
     partitioner.partition(record);
-    final String partitionPath = s3BasePath + partitioner.toPath();
+    final String partitionPath = dataLocation + partitioner.toPath();  // TODO: add / between dataLocation and toPath()?
     if (!openPartitionFiles.containsKey(partitionPath)) {
       final Path path = new Path(partitionPath, generateFileName());
       FileWriter writer = newWriter(path, partitioner);

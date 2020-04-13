@@ -204,10 +204,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
     if (null == checkpointDir) {
       throw new IllegalArgumentException("checkpoint dir is null");
     }
-//    final URI uri = URI.create(checkpointDir);
-//    final String scheme = uri.getScheme().toLowerCase();
-//    AmazonS3URI s3URI = new AmazonS3URI(checkpointDir);
-//    return String.format("s3://%s/iceberg/manifest/", s3URI.getBucket());
+
     return String.format("%s/iceberg/manifest/", checkpointDir);
   }
 
@@ -443,8 +440,6 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
 
       // don't want to log a giant list at one line.
       // split the complete list into smaller chunks with 50 files.
-      // each S3 file location is about 200-250 bytes.
-      // that should give us log line of ~10 KB.
       final AtomicInteger counter = new AtomicInteger(0);
       Collection<List<String>> listOfFileList = pendingDataFiles.stream()
           .map(flinkDataFile -> flinkDataFile.toCompactDump())
