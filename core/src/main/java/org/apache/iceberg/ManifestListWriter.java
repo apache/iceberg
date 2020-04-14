@@ -131,5 +131,4 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
       }
     }
   }
-
 }

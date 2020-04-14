@@ -69,5 +69,4 @@ class ManifestLists {
     }
     throw new UnsupportedOperationException("Cannot write manifest list for table version: " + formatVersion);
   }
-
 }
