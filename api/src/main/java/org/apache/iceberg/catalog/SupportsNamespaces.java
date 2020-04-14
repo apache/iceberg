@@ -54,11 +54,11 @@ public interface SupportsNamespaces {
    * Create a namespace in the catalog.
    *
    * @param namespace a multi-part namespace
-   * @param metadata a string ImmutableMap of properties for the given namespace
+   * @param metadata a string Map of properties for the given namespace
    * @throws AlreadyExistsException If the namespace already exists
    * @throws UnsupportedOperationException If create is not a supported operation
    */
-  void createNamespace(Namespace namespace, ImmutableMap<String, String> metadata);
+  void createNamespace(Namespace namespace, Map<String, String> metadata);
 
   /**
    * List top-level namespaces from the catalog.
@@ -111,4 +111,11 @@ public interface SupportsNamespaces {
    * @throws UnsupportedOperationException If namespace properties are not supported
    */
   boolean alterNamespace(Namespace namespace, NamespaceChange... changes) throws NoSuchNamespaceException;
+
+  /**
+   * Checks whether the Namespace exists.
+   *
+   * @return true if the Namespace exists, false otherwise
+   */
+  boolean existsNamespace(Namespace namespace);
 }

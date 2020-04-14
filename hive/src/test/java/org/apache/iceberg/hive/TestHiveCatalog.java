@@ -79,6 +79,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Namespace namespace2 = Namespace.of("dbname2");
     catalog.createNamespace(namespace2, meta);
     namespaces = catalog.listNamespaces();
+
     Assert.assertTrue("Hive db not hive the namespace 'dbname2'", namespaces.contains(namespace2));
   }
 
@@ -93,6 +94,17 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Assert.assertTrue(nameMata.get("group").equals("iceberg"));
     Assert.assertEquals("There no same location for db and namespace",
         nameMata.get("location"), catalog.convertToDatabase(namespace, meta).getLocationUri());
+  }
+
+  @Test
+  public void testExistsNamespace() throws TException {
+    Namespace namespace = Namespace.of("dbname_exists");
+    catalog.createNamespace(namespace, meta);
+
+    Assert.assertTrue("Should true to namespace exist",
+        catalog.existsNamespace(namespace));
+    Assert.assertTrue("Should false to namespace doesn't exist",
+        !catalog.existsNamespace(Namespace.of("db2", "db2", "ns2")));
   }
 
   @Test

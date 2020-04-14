@@ -250,6 +250,26 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   }
 
   @Test
+  public void testExistsNamespace() throws IOException {
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+
+    TableIdentifier tbl1 = TableIdentifier.of("db", "ns1", "ns2", "metadata");
+    TableIdentifier tbl2 = TableIdentifier.of("db", "ns2", "ns3", "tbl2");
+    TableIdentifier tbl3 = TableIdentifier.of("db", "ns3", "tbl4");
+    TableIdentifier tbl4 = TableIdentifier.of("db", "metadata");
+
+    Lists.newArrayList(tbl1, tbl2, tbl3, tbl4).forEach(t ->
+        catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned())
+    );
+    Assert.assertTrue("Should true to namespace exist",
+        catalog.existsNamespace(Namespace.of("db", "ns1", "ns2")));
+    Assert.assertTrue("Should false to namespace doesn't exist",
+        !catalog.existsNamespace(Namespace.of("db", "db2", "ns2")));
+  }
+
+  @Test
   public void testAlterNamespaceMeta() throws IOException {
     Configuration conf = new Configuration();
     String warehousePath = temp.newFolder().getAbsolutePath();

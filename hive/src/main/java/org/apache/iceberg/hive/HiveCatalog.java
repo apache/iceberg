@@ -67,7 +67,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
-    Preconditions.checkArgument(namespace.levels().length == 1,
+    Preconditions.checkArgument(isValidateNamespace(namespace),
         "Missing database in namespace: %s", namespace);
     String database = namespace.level(0);
 
@@ -173,12 +173,11 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   }
 
   @Override
-  public void createNamespace(Namespace namespace, ImmutableMap<String, String> meta) {
+  public void createNamespace(Namespace namespace, Map<String, String> meta) {
     Preconditions.checkArgument(
         !namespace.isEmpty(),
         "Cannot create namespace with invalid name: %s", namespace);
-    Preconditions.checkArgument(
-        namespace.levels().length == 1,
+    Preconditions.checkArgument(isValidateNamespace(namespace),
         "Cannot support multi part namespace in Hive MetaStore: %s", namespace);
 
     try {
@@ -203,7 +202,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) {
-    if (namespace.levels().length > 1) {
+    if (!isValidateNamespace(namespace) && !namespace.isEmpty()) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
     if (!namespace.isEmpty()) {
@@ -228,14 +227,14 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
   @Override
   public boolean dropNamespace(Namespace namespace) {
-    if (namespace.levels().length != 1) {
+    if (!isValidateNamespace(namespace)) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 
     try {
       clients.run(client -> {
         client.dropDatabase(namespace.level(0),
-            false /* deleteData */,
+            true /* deleteData */,
             false /* ignoreUnknownDb */,
             true /* cascade */);
         return null;
@@ -283,7 +282,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
   @Override
   public Map<String, String> loadNamespaceMetadata(Namespace namespace) {
-    if (namespace.levels().length != 1) {
+    if (!isValidateNamespace(namespace)) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 
@@ -305,8 +304,33 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   }
 
   @Override
+  public boolean existsNamespace(Namespace namespace) {
+    try {
+      if (isValidateNamespace(namespace)) {
+        clients.run(client -> client.getDatabase(namespace.level(0)));
+        return true;
+
+      }
+
+    } catch (NoSuchObjectException | UnknownDBException e) {
+      return false;
+
+    } catch (InterruptedException | TException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException(
+          "Interrupted in call to getDatabase(name) " + namespace + " in Hive MataStore", e);
+    }
+
+    return false;
+  }
+
+  @Override
   protected boolean isValidIdentifier(TableIdentifier tableIdentifier) {
     return tableIdentifier.namespace().levels().length == 1;
+  }
+
+  private boolean isValidateNamespace(Namespace namespace) {
+    return namespace.levels().length == 1;
   }
 
   @Override
@@ -340,7 +364,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   public  Database convertToDatabase(Namespace namespace, Map<String, String> meta) {
     String warehouseLocation = conf.get("hive.metastore.warehouse.dir");
 
-    if (namespace.levels().length != 1) {
+    if (!isValidateNamespace(namespace)) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 

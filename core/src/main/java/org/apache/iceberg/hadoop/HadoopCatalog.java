@@ -74,7 +74,8 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   private static final PathFilter TABLE_FILTER = path -> path.getName().endsWith(TABLE_METADATA_FILE_EXTENSION);
 
   private final Configuration conf;
-  private String warehouseLocation;
+  private final String warehouseLocation;
+  private final FileSystem fs;
 
   /**
    * The constructor of the HadoopCatalog. It uses the passed location as its warehouse directory.
@@ -88,6 +89,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
     this.conf = conf;
     this.warehouseLocation = warehouseLocation.replaceAll("/*$", "");
+    this.fs = Util.getFs(new Path(warehouseLocation), conf);
   }
 
   /**
@@ -100,6 +102,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   public HadoopCatalog(Configuration conf) {
     this.conf = conf;
     this.warehouseLocation = conf.get("fs.defaultFS") + "/" + ICEBERG_HADOOP_WAREHOUSE_BASE;
+    this.fs = Util.getFs(new Path(warehouseLocation), conf);
   }
 
   @Override
@@ -112,8 +115,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     Preconditions.checkArgument(namespace.levels().length >= 1,
         "Missing database in table identifier: %s", namespace);
 
-    Path nsPath = new Path(SLASH.join(warehouseLocation, SLASH.join(namespace.levels())));
-    FileSystem fs = Util.getFs(nsPath, conf);
+    Path nsPath = new Path(warehouseLocation, SLASH.join(namespace.levels()));
     Set<TableIdentifier> tblIdents = Sets.newHashSet();
 
     try {
@@ -190,7 +192,6 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
       lastMetadata = null;
     }
 
-    FileSystem fs = Util.getFs(tablePath, conf);
     try {
       if (purge && lastMetadata != null) {
         // Since the data files and the metadata files may store in different locations,
@@ -210,7 +211,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   }
 
   @Override
-  public void createNamespace(Namespace namespace, ImmutableMap<String, String> meta) {
+  public void createNamespace(Namespace namespace, Map<String, String> meta) {
     Preconditions.checkArgument(
         !namespace.isEmpty(),
         "Cannot create namespace with invalid name: %s", namespace);
@@ -219,13 +220,12 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     }
 
     Path nsPath = new Path(warehouseLocation, SLASH.join(namespace.levels()));
-    FileSystem fs = Util.getFs(nsPath, conf);
+
+    if (isNamespace(nsPath)) {
+      throw new AlreadyExistsException("Namespace '%s' already exists!", namespace);
+    }
 
     try {
-      if (isNamespace(fs, nsPath)) {
-        throw new AlreadyExistsException("Namespace '%s' already exists!", namespace);
-      }
-
       fs.mkdirs(nsPath);
 
     } catch (IOException e) {
@@ -235,17 +235,16 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) {
-    Path nsPath = new Path(SLASH.join(warehouseLocation, SLASH.join(namespace.levels())));
-    FileSystem fs = Util.getFs(nsPath, conf);
-
-    if (!isNamespace(fs, nsPath)) {
+    Path nsPath = namespace.isEmpty() ? new Path(warehouseLocation)
+        : new Path(warehouseLocation, SLASH.join(namespace.levels()));
+    if (!isNamespace(nsPath)) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 
     try {
       return Stream.of(fs.listStatus(nsPath))
         .map(FileStatus::getPath)
-        .filter(path -> isNamespace(fs, path))
+        .filter(path -> isNamespace(path))
         .map(path -> append(namespace, path.getName()))
         .collect(Collectors.toList());
     } catch (IOException ioe) {
@@ -253,16 +252,21 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     }
   }
 
+  private Namespace append(Namespace ns, String name) {
+    String[] levels = Arrays.copyOfRange(ns.levels(), 0, ns.levels().length + 1);
+    levels[ns.levels().length] = name;
+    return Namespace.of(levels);
+  }
+
   @Override
   public boolean dropNamespace(Namespace namespace) {
-    Path nsPath = new Path(SLASH.join(warehouseLocation, SLASH.join(namespace.levels())));
-    FileSystem fs = Util.getFs(nsPath, conf);
+    Path nsPath = new Path(warehouseLocation, SLASH.join(namespace.levels()));
+
+    if (!isNamespace(nsPath) || namespace.isEmpty()) {
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+    }
 
     try {
-      if (!isNamespace(fs, nsPath) || namespace.isEmpty()) {
-        throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
-      }
-
       return fs.delete(nsPath, true /* recursive */);
 
     } catch (IOException e) {
@@ -278,17 +282,16 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
   @Override
   public Map<String, String> loadNamespaceMetadata(Namespace namespace) {
-    Path nsPath = new Path(SLASH.join(warehouseLocation, SLASH.join(namespace.levels())));
-    FileSystem fs = Util.getFs(nsPath, conf);
+    Path nsPath = new Path(warehouseLocation, SLASH.join(namespace.levels()));
 
-    if (!isNamespace(fs, nsPath) || namespace.isEmpty()) {
+    if (!isNamespace(nsPath) || namespace.isEmpty()) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 
     return ImmutableMap.of("location", nsPath.toString());
   }
 
-  private boolean isNamespace(FileSystem fs, Path path) {
+  private boolean isNamespace(Path path) {
     Path metadataPath = new Path(path, "metadata");
     try {
       return fs.isDirectory(path) && !(fs.exists(metadataPath) && fs.isDirectory(metadataPath) &&
@@ -298,10 +301,11 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
       throw new RuntimeIOException(ioe, "Failed to list namespace info: %s ", path);
     }
   }
-  static Namespace append(Namespace ns, String name) {
-    String[] levels = Arrays.copyOfRange(ns.levels(), 0, ns.levels().length + 1);
-    levels[ns.levels().length] = name;
-    return Namespace.of(levels);
+
+  @Override
+  public boolean existsNamespace(Namespace namespace) {
+    Path nsPath = new Path(warehouseLocation, SLASH.join(namespace.levels()));
+    return isNamespace(nsPath) && !namespace.isEmpty();
   }
 
   @Override
