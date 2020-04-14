@@ -327,7 +327,7 @@ public abstract class TestIcebergSourceTablesBase {
   }
 
   @Test
-  public void testAggregatedMetadataTaleInStage() throws Exception {
+  public void testAggregatedMetadataTableInStage() throws Exception {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "stage_aggregate_table_test");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
 

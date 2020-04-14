@@ -318,7 +318,7 @@ abstract class BaseTableScan implements TableScan {
     return schema;
   }
 
-  protected static String formatTimestampMillis(long millis) {
+  private static String formatTimestampMillis(long millis) {
     return DATE_FORMAT.format(LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.systemDefault()));
   }
 }

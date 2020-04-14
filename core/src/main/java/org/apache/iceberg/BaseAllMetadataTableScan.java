@@ -28,14 +28,14 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public abstract class AggregatedMetadataTableScan extends BaseTableScan {
-  private static final Logger LOG = LoggerFactory.getLogger(AggregatedMetadataTableScan.class);
+abstract class BaseAllMetadataTableScan extends BaseTableScan {
+  private static final Logger LOG = LoggerFactory.getLogger(BaseAllMetadataTableScan.class);
 
-  public AggregatedMetadataTableScan(TableOperations ops, Table table, Schema fileSchema) {
+  BaseAllMetadataTableScan(TableOperations ops, Table table, Schema fileSchema) {
     super(ops, table, fileSchema);
   }
 
-  protected AggregatedMetadataTableScan(
+  BaseAllMetadataTableScan(
       TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
       boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
       ImmutableMap<String, String> options) {
@@ -44,7 +44,7 @@ public abstract class AggregatedMetadataTableScan extends BaseTableScan {
 
   @Override
   public CloseableIterable<FileScanTask> planFiles() {
-    LOG.info("Scanning table {} in all snapshots with filter {}", table(), filter());
+    LOG.info("Scanning metadata table {} with filter {}.", table(), filter());
     Listeners.notifyAll(new ScanEvent(table().toString(), 0L, filter(), schema()));
 
     return planFiles(tableOps(), snapshot(), filter(), isCaseSensitive(), colStats());
