@@ -221,6 +221,16 @@ public class TestHelpers {
     }
 
     @Override
+    public long sequenceNumber() {
+      return 0;
+    }
+
+    @Override
+    public long minSequenceNumber() {
+      return 0;
+    }
+
+    @Override
     public Long snapshotId() {
       return snapshotId;
     }

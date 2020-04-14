@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
@@ -125,20 +124,7 @@ class BaseSnapshot implements Snapshot {
   public List<ManifestFile> manifests() {
     if (manifests == null) {
       // if manifests isn't set, then the snapshotFile is set and should be read to get the list
-      try (CloseableIterable<ManifestFile> files = Avro.read(manifestList)
-          .rename("manifest_file", GenericManifestFile.class.getName())
-          .rename("partitions", GenericPartitionFieldSummary.class.getName())
-          .rename("r508", GenericPartitionFieldSummary.class.getName())
-          .classLoader(GenericManifestFile.class.getClassLoader())
-          .project(ManifestFile.schema())
-          .reuseContainers(false)
-          .build()) {
-
-        this.manifests = Lists.newLinkedList(files);
-
-      } catch (IOException e) {
-        throw new RuntimeIOException(e, "Cannot read manifest list file: %s", manifestList.location());
-      }
+      this.manifests = ManifestLists.read(manifestList);
     }
 
     return manifests;
