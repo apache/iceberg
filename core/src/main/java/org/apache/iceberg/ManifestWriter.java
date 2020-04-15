@@ -20,9 +20,7 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Sets;
 import java.io.IOException;
-import java.util.Set;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
@@ -36,52 +34,6 @@ import org.slf4j.LoggerFactory;
 public abstract class ManifestWriter implements FileAppender<DataFile> {
   private static final Logger LOG = LoggerFactory.getLogger(ManifestWriter.class);
   static final long UNASSIGNED_SEQ = -1L;
-
-  static ManifestFile copyAppendManifest(ManifestReader reader, OutputFile outputFile, long snapshotId,
-                                         SnapshotSummary.Builder summaryBuilder) {
-    return copyManifest(reader, outputFile, snapshotId, summaryBuilder, Sets.newHashSet(ManifestEntry.Status.ADDED));
-  }
-
-  static ManifestFile copyManifest(ManifestReader reader, OutputFile outputFile, long snapshotId,
-                                   SnapshotSummary.Builder summaryBuilder,
-                                   Set<ManifestEntry.Status> allowedEntryStatuses) {
-    ManifestWriter writer = new V1Writer(reader.spec(), outputFile, snapshotId);
-    boolean threw = true;
-    try {
-      for (ManifestEntry entry : reader.entries()) {
-        Preconditions.checkArgument(
-            allowedEntryStatuses.contains(entry.status()),
-            "Invalid manifest entry status: %s (allowed statuses: %s)",
-            entry.status(), allowedEntryStatuses);
-        switch (entry.status()) {
-          case ADDED:
-            summaryBuilder.addedFile(reader.spec(), entry.file());
-            writer.add(entry);
-            break;
-          case EXISTING:
-            writer.existing(entry);
-            break;
-          case DELETED:
-            summaryBuilder.deletedFile(reader.spec(), entry.file());
-            writer.delete(entry);
-            break;
-        }
-      }
-
-      threw = false;
-
-    } finally {
-      try {
-        writer.close();
-      } catch (IOException e) {
-        if (!threw) {
-          throw new RuntimeIOException(e, "Failed to close manifest: %s", outputFile);
-        }
-      }
-    }
-
-    return writer.toManifestFile();
-  }
 
   /**
    * Create a new {@link ManifestWriter}.

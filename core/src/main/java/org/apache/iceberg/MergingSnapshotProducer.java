@@ -229,7 +229,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private ManifestFile copyManifest(ManifestFile manifest) {
     try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
       OutputFile newManifestPath = newManifestOutput();
-      return ManifestWriter.copyAppendManifest(reader, newManifestPath, snapshotId(), appendedManifestsSummary);
+      return ManifestFiles.copyAppendManifest(
+          ops.current().formatVersion(), reader, newManifestPath, snapshotId(), appendedManifestsSummary);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest);
     }

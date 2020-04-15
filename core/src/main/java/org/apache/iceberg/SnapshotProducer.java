@@ -318,7 +318,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   protected ManifestWriter newManifestWriter(PartitionSpec spec) {
-    return ManifestWriter.write(ops.current().formatVersion(), spec, newManifestOutput(), snapshotId());
+    return ManifestFiles.write(ops.current().formatVersion(), spec, newManifestOutput(), snapshotId());
   }
 
   protected long snapshotId() {
