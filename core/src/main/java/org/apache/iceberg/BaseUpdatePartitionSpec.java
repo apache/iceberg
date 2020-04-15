@@ -43,7 +43,6 @@ import org.apache.iceberg.util.Pair;
 
 class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
   private final TableOperations ops;
-  private final boolean caseSensitive;
   private final TableMetadata base;
   private final int formatVersion;
   private final PartitionSpec spec;
@@ -58,11 +57,12 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
   private final Set<Object> deletes = Sets.newHashSet();
   private final Map<String, String> renames = Maps.newHashMap();
 
+  private boolean caseSensitive;
   private int lastAssignedPartitionId;
 
-  BaseUpdatePartitionSpec(TableOperations ops, boolean caseSensitive) {
+  BaseUpdatePartitionSpec(TableOperations ops) {
     this.ops = ops;
-    this.caseSensitive = caseSensitive;
+    this.caseSensitive = true;
     this.base = ops.current();
     this.formatVersion = base.formatVersion();
     this.spec = base.spec();
@@ -106,6 +106,12 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
   private int assignFieldId() {
     this.lastAssignedPartitionId += 1;
     return lastAssignedPartitionId;
+  }
+
+  @Override
+  public UpdatePartitionSpec caseSensitive(boolean isCaseSensitive) {
+    this.caseSensitive = isCaseSensitive;
+    return this;
   }
 
   @Override

@@ -43,6 +43,11 @@ class CommitCallbackTransaction implements Transaction {
   }
 
   @Override
+  public UpdatePartitionSpec updateSpec() {
+    return wrapped.updateSpec();
+  }
+
+  @Override
   public UpdateProperties updateProperties() {
     return wrapped.updateProperties();
   }

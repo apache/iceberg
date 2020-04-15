@@ -139,6 +139,13 @@ public interface Table {
   UpdateSchema updateSchema();
 
   /**
+   * Create a new {@link UpdatePartitionSpec} to alter the partition spec of this table and commit the change.
+   *
+   * @return a new {@link UpdatePartitionSpec}
+   */
+  UpdatePartitionSpec updateSpec();
+
+  /**
    * Create a new {@link UpdateProperties} to update table properties and commit the changes.
    *
    * @return a new {@link UpdateProperties}
