@@ -28,6 +28,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -70,7 +71,20 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
    */
   @Deprecated
   public static ManifestReader read(InputFile file) {
-    return new ManifestReader(file, null, InheritableMetadataFactory.empty());
+    return read(file, null);
+  }
+
+  /**
+   * Returns a new {@link ManifestReader} for an {@link InputFile}.
+   *
+   * @param file an InputFile
+   * @param specLookup a function to look up the manifest's partition spec by ID
+   * @return a manifest reader
+   * @deprecated will be removed in 0.9.0; use {@link ManifestFiles#read(ManifestFile, FileIO, Map)} instead.
+   */
+  @Deprecated
+  public static ManifestReader read(InputFile file, Function<Integer, PartitionSpec> specLookup) {
+    return new ManifestReader(file, specLookup, InheritableMetadataFactory.empty());
   }
 
   private final InputFile file;
@@ -84,6 +98,11 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
   private List<ManifestEntry> cachedDeletes = null;
 
   ManifestReader(InputFile file, Map<Integer, PartitionSpec> specsById,
+                 InheritableMetadata inheritableMetadata) {
+    this(file, specsById::get, inheritableMetadata);
+  }
+
+  private ManifestReader(InputFile file, Function<Integer, PartitionSpec> specLookup,
                          InheritableMetadata inheritableMetadata) {
     this.file = file;
     this.inheritableMetadata = inheritableMetadata;
@@ -104,8 +123,8 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
       specId = Integer.parseInt(specProperty);
     }
 
-    if (specsById != null) {
-      this.spec = specsById.get(specId);
+    if (specLookup != null) {
+      this.spec = specLookup.apply(specId);
     } else {
       Schema schema = SchemaParser.fromJson(metadata.get("schema"));
       this.spec = PartitionSpecParser.fromJsonFields(schema, specId, metadata.get("partition-spec"));
