@@ -51,13 +51,6 @@ class ManifestLists {
   }
 
   static ManifestListWriter write(int formatVersion, OutputFile manifestListFile,
-                                  long snapshotId, Long parentSnapshotId) {
-    Preconditions.checkArgument(formatVersion == 1,
-        "Sequence number is required when writing format v%s", formatVersion);
-    return new ManifestListWriter.V1Writer(manifestListFile, snapshotId, parentSnapshotId);
-  }
-
-  static ManifestListWriter write(int formatVersion, OutputFile manifestListFile,
                                   long snapshotId, Long parentSnapshotId, long sequenceNumber) {
     switch (formatVersion) {
       case 1:

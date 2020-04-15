@@ -97,7 +97,7 @@ public class TestSnapshotJson {
     Assert.assertTrue(manifestList.delete());
     manifestList.deleteOnExit();
 
-    try (ManifestListWriter writer = ManifestLists.write(1, Files.localOutput(manifestList), id, parentId)) {
+    try (ManifestListWriter writer = ManifestLists.write(1, Files.localOutput(manifestList), id, parentId, 0)) {
       writer.addAll(manifests);
     }
 
