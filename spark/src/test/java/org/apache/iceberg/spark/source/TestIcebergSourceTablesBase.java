@@ -328,6 +328,50 @@ public abstract class TestIcebergSourceTablesBase {
   }
 
   @Test
+  public void testAllMetadataTablesWithStagedCommits() throws Exception {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "stage_aggregate_table_test");
+    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
+
+    table.updateProperties().set(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, "true").commit();
+    spark.conf().set("spark.wap.id", "1234567");
+    Dataset<Row> df1 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
+    Dataset<Row> df2 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(2, "b")), SimpleRecord.class);
+
+    df1.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    // add a second file
+    df2.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    List<Row> actualAllData = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier, "all_data_files"))
+        .collectAsList();
+
+    List<Row> actualAllManifests = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier, "all_manifests"))
+        .collectAsList();
+
+    List<Row> actualAllEntries = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier, "all_entries"))
+        .collectAsList();
+
+    Assert.assertTrue("Stage table should have some snapshots", table.snapshots().iterator().hasNext());
+    Assert.assertEquals("Stage table should have null currentSnapshot",
+        null, table.currentSnapshot());
+    Assert.assertEquals("Actual results should have two rows", 2, actualAllData.size());
+    Assert.assertEquals("Actual results should have two rows", 2, actualAllManifests.size());
+    Assert.assertEquals("Actual results should have two rows", 2, actualAllEntries.size());
+  }
+
+  @Test
   public void testAllDataFilesTable() throws Exception {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "files_test");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
