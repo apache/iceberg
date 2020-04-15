@@ -131,7 +131,7 @@ public class DataFilesTable extends BaseMetadataTable {
     @Override
     public CloseableIterable<StructLike> rows() {
       return CloseableIterable.transform(
-          ManifestReader.read(manifest, io).project(schema),
+          ManifestFiles.read(manifest, io).project(schema),
           file -> (GenericDataFile) file);
     }
 

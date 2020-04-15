@@ -209,7 +209,7 @@ class ManifestGroup {
     Iterable<CloseableIterable<T>> readers = Iterables.transform(
         matchingManifests,
         manifest -> {
-          ManifestReader reader = ManifestReader.read(manifest, io, specsById);
+          ManifestReader reader = ManifestFiles.read(manifest, io, specsById);
 
           FilteredManifest filtered = reader
               .filterRows(dataFilter)

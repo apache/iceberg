@@ -102,7 +102,7 @@ public class TestRewriteManifests extends TableTestBase {
     // get the correct file order
     List<DataFile> files;
     List<Long> ids;
-    try (ManifestReader reader = ManifestReader.read(manifests.get(0), table.io())) {
+    try (ManifestReader reader = ManifestFiles.read(manifests.get(0), table.io())) {
       if (reader.iterator().next().path().equals(FILE_A.path())) {
         files = Arrays.asList(FILE_A, FILE_B);
         ids = Arrays.asList(manifestAppendId, fileAppendId);
@@ -176,7 +176,7 @@ public class TestRewriteManifests extends TableTestBase {
     // get the file order correct
     List<DataFile> files;
     List<Long> ids;
-    try (ManifestReader reader = ManifestReader.read(manifests.get(0), table.io())) {
+    try (ManifestReader reader = ManifestFiles.read(manifests.get(0), table.io())) {
       if (reader.iterator().next().path().equals(FILE_A.path())) {
         files = Arrays.asList(FILE_A, FILE_B);
         ids = Arrays.asList(appendIdA, appendIdB);
@@ -218,7 +218,7 @@ public class TestRewriteManifests extends TableTestBase {
     table.rewriteManifests()
       .clusterBy(file -> "file")
       .rewriteIf(manifest -> {
-        try (ManifestReader reader = ManifestReader.read(manifest, table.io())) {
+        try (ManifestReader reader = ManifestFiles.read(manifest, table.io())) {
           return !reader.iterator().next().path().equals(FILE_A.path());
         } catch (IOException x) {
           throw new RuntimeIOException(x);
@@ -232,7 +232,7 @@ public class TestRewriteManifests extends TableTestBase {
     // get the file order correct
     List<DataFile> files;
     List<Long> ids;
-    try (ManifestReader reader = ManifestReader.read(manifests.get(0), table.io())) {
+    try (ManifestReader reader = ManifestFiles.read(manifests.get(0), table.io())) {
       if (reader.iterator().next().path().equals(FILE_B.path())) {
         files = Arrays.asList(FILE_B, FILE_C);
         ids = Arrays.asList(appendIdB, appendIdC);
@@ -302,7 +302,7 @@ public class TestRewriteManifests extends TableTestBase {
     table.rewriteManifests()
       .clusterBy(file -> "file")
       .rewriteIf(manifest -> {
-        try (ManifestReader reader = ManifestReader.read(manifest, table.io())) {
+        try (ManifestReader reader = ManifestFiles.read(manifest, table.io())) {
           return !reader.iterator().next().path().equals(FILE_A.path());
         } catch (IOException x) {
           throw new RuntimeIOException(x);
@@ -322,7 +322,7 @@ public class TestRewriteManifests extends TableTestBase {
     // get the file order correct
     List<DataFile> files;
     List<Long> ids;
-    try (ManifestReader reader = ManifestReader.read(manifests.get(0), table.io())) {
+    try (ManifestReader reader = ManifestFiles.read(manifests.get(0), table.io())) {
       if (reader.iterator().next().path().equals(FILE_A.path())) {
         files = Arrays.asList(FILE_A, FILE_B);
         ids = Arrays.asList(appendIdA, appendIdB);
@@ -885,7 +885,7 @@ public class TestRewriteManifests extends TableTestBase {
         .addManifest(newManifest)
         .clusterBy(dataFile -> "const-value")
         .rewriteIf(manifest -> {
-          try (ManifestReader reader = ManifestReader.read(manifest, table.io())) {
+          try (ManifestReader reader = ManifestFiles.read(manifest, table.io())) {
             return !reader.iterator().next().path().equals(FILE_B.path());
           } catch (IOException x) {
             throw new RuntimeIOException(x);

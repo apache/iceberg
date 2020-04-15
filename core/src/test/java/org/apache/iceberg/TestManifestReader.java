@@ -30,6 +30,7 @@ import org.junit.Test;
 public class TestManifestReader extends TableTestBase {
 
   @Test
+  @SuppressWarnings("deprecation")
   public void testManifestReaderWithEmptyInheritableMetadata() throws IOException {
     ManifestFile manifest = writeManifest("manifest.avro", manifestEntry(Status.EXISTING, 1000L, FILE_A));
     try (ManifestReader reader = ManifestReader.read(FILE_IO.newInputFile(manifest.path()))) {
@@ -41,6 +42,7 @@ public class TestManifestReader extends TableTestBase {
   }
 
   @Test
+  @SuppressWarnings("deprecation")
   public void testInvalidUsage() throws IOException {
     ManifestFile manifest = writeManifest(FILE_A, FILE_B);
     try (ManifestReader reader = ManifestReader.read(FILE_IO.newInputFile(manifest.path()))) {
@@ -52,6 +54,7 @@ public class TestManifestReader extends TableTestBase {
   }
 
   @Test
+  @SuppressWarnings("deprecation")
   public void testManifestReaderWithPartitionMetadata() throws IOException {
     ManifestFile manifest = writeManifest("manifest.avro", manifestEntry(Status.EXISTING, 123L, FILE_A));
     try (ManifestReader reader = ManifestReader.read(FILE_IO.newInputFile(manifest.path()))) {
@@ -67,6 +70,7 @@ public class TestManifestReader extends TableTestBase {
   }
 
   @Test
+  @SuppressWarnings("deprecation")
   public void testManifestReaderWithUpdatedPartitionMetadataForV1Table() throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(table.schema())
         .bucket("id", 8)

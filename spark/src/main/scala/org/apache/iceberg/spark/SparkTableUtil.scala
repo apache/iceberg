@@ -22,7 +22,7 @@ package org.apache.iceberg.spark
 import com.google.common.collect.Maps
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{Path, PathFilter}
-import org.apache.iceberg.{DataFile, DataFiles, FileFormat, ManifestFile, ManifestWriter}
+import org.apache.iceberg.{DataFile, DataFiles, FileFormat, ManifestFile, ManifestFiles}
 import org.apache.iceberg.{Metrics, MetricsConfig, PartitionSpec, Table, TableProperties}
 import org.apache.iceberg.exceptions.NoSuchTableException
 import org.apache.iceberg.hadoop.{HadoopFileIO, HadoopInputFile, SerializableConfiguration}
@@ -324,7 +324,7 @@ object SparkTableUtil {
       val ctx = TaskContext.get()
       val location = new Path(basePath, s"stage-${ctx.stageId()}-task-${ctx.taskAttemptId()}-manifest")
       val outputFile = io.newOutputFile(FileFormat.AVRO.addExtension(location.toString))
-      val writer = ManifestWriter.write(spec, outputFile)
+      val writer = ManifestFiles.write(spec, outputFile)
       try {
         files.foreach(writer.add)
       } finally {
