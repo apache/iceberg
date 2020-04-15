@@ -20,6 +20,7 @@
 package org.apache.iceberg.mr.mapreduce;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -62,6 +63,7 @@ import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopInputFile;
@@ -394,8 +396,12 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
               String.format("Cannot read %s file: %s", file.format().name(), file.path()));
       }
       currentCloseable = iterable;
-      //TODO: Apply residual filtering before returning the iterator
-      return iterable.iterator();
+      if (currentTask.residual() != null && currentTask.residual() != Expressions.alwaysTrue()) {
+        Evaluator filter = new Evaluator(readSchema.asStruct(), currentTask.residual(), caseSensitive);
+        return CloseableIterable.filter(iterable, record -> filter.eval((GenericRecord)record)).iterator();
+      } else {
+        return iterable.iterator();
+      }
     }
 
     @SuppressWarnings("unchecked")
