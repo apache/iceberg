@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.actions;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -31,6 +31,11 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
