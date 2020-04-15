@@ -24,6 +24,7 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
+import org.apache.iceberg.Table;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,12 +37,14 @@ import org.slf4j.LoggerFactory;
 public class IcebergSinkAppender<IN> {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergSinkAppender.class);
 
+  private final Table table;
   private final Configuration config;
   private final DataStream<IN> dataStream;
   private AvroSerializer<IN> serializer;
   private Integer writerParallelism;
 
-  public IcebergSinkAppender(Configuration config, String sinkName) {
+  public IcebergSinkAppender(Table table, Configuration config, String sinkName) {
+    this.table = table;
     this.config = config;
     this.dataStream = null;
   }
@@ -78,8 +81,8 @@ public class IcebergSinkAppender<IN> {
      */
 //        Preconditions.checkNotNull(serializer, "must set serializer");
 
-    IcebergWriter writer = new IcebergWriter<IN>(serializer, config);
-    IcebergCommitter committer = new IcebergCommitter(config);
+    IcebergWriter writer = new IcebergWriter<IN>(table, serializer, config);
+    IcebergCommitter committer = new IcebergCommitter(table, config);
 
     final String writerId = config.getString("sinkName", "") + "-writer";
     SingleOutputStreamOperator<FlinkDataFile> writerStream = dataStream

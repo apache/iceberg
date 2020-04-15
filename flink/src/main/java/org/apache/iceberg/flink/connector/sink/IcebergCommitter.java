@@ -67,8 +67,8 @@ import org.apache.iceberg.flink.connector.model.FlinkManifestFileUtil;
 import org.apache.iceberg.flink.connector.model.GenericFlinkManifestFile;
 import org.apache.iceberg.flink.connector.model.ManifestFileState;
 import org.apache.iceberg.hadoop.HadoopCatalog;
-import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hive.HiveCatalogs;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -106,7 +106,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
   private final boolean commitRestoredManifestFiles;
   private final String icebergManifestFileDir;
   private final PartitionSpec spec;
-  private final HadoopFileIO hadoopFileIO;
+  private final FileIO io;
   private final String flinkJobId;
 
   private transient Table table;
@@ -116,7 +116,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
   private transient CommitMetadata metadata;
   private transient ListState<CommitMetadata> metadataState;
 
-  public IcebergCommitter(Configuration config) {
+  public IcebergCommitter(Table table, Configuration config) {
     this.config = config;
 
     // current Iceberg sink implementation can't work with concurrent checkpoints.
@@ -146,30 +146,10 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
         IcebergConnectorConstant.DEFAULT_COMMIT_RESTORED_MANIFEST_FILES);
     icebergManifestFileDir = getIcebergManifestFileDir(config);
 
-    // TODO: duplicate logic, to extract
-    org.apache.hadoop.conf.Configuration hadoopConf = new org.apache.hadoop.conf.Configuration();
-    String catalogType = config.getString(IcebergConnectorConstant.CATALOG_TYPE,
-                                          IcebergConnectorConstant.CATALOG_TYPE_DEFAULT);
-    Catalog catalog = null;
-    switch (catalogType.toUpperCase()) {
-      case IcebergConnectorConstant.HIVE_CATALOG:
-        hadoopConf.set(ConfVars.METASTOREURIS.varname, config.getString(ConfVars.METASTOREURIS.varname, ""));
-        catalog = HiveCatalogs.loadCatalog(hadoopConf);
-        break;
-
-      case IcebergConnectorConstant.HADOOP_CATALOG:
-        catalog = new HadoopCatalog(hadoopConf,
-                                    config.getString(IcebergConnectorConstant.HADOOP_CATALOG_WAREHOUSE_LOCATION, ""));
-        break;
-
-      default:
-        throw new UnsupportedOperationException("Unknown catalog type or not set: " + catalogType);
-    }
-
-    table = catalog.loadTable(TableIdentifier.parse(namespace + "." + tableName));
-
+    // The only final fields yielded by table inputted
     spec = table.spec();
-    hadoopFileIO = new HadoopFileIO(hadoopConf);
+    io = table.io();
+
     final JobExecutionResult jobExecutionResult
         = ExecutionEnvironment.getExecutionEnvironment().getLastJobExecutionResult();
     if (jobExecutionResult != null) {
@@ -234,7 +214,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
         throw new UnsupportedOperationException("Unknown catalog type or not set: " + catalogType);
     }
 
-    table = catalog.loadTable(TableIdentifier.parse(namespace + "." + tableName));
+    this.table = catalog.loadTable(TableIdentifier.parse(namespace + "." + tableName));
 
     pendingDataFiles = new ArrayList<>();
     flinkManifestFiles = new ArrayList<>();
@@ -400,7 +380,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
           .join(flinkJobId, context.getCheckpointId(), context.getCheckpointTimestamp());
       // Iceberg requires file format suffix right now
       final String manifestFileNameWithSuffix = manifestFileName + ".avro";
-      OutputFile outputFile = hadoopFileIO.newOutputFile(icebergManifestFileDir + manifestFileNameWithSuffix);
+      OutputFile outputFile = io.newOutputFile(icebergManifestFileDir + manifestFileNameWithSuffix);
       ManifestWriter manifestWriter = ManifestWriter.write(spec, outputFile);
 
       // stats
@@ -468,8 +448,8 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
       CommitMetadata oldMetadata,
       FunctionSnapshotContext context,
       @Nullable FlinkManifestFile flinkManifestFile) {
-    LOG.info("Iceberg committer {} updating metadata {} with manifest file {}",
-        table, CommitMetadataUtil.getInstance().encodeAsJson(oldMetadata), flinkManifestFile);
+    LOG.info("Iceberg committer {}.{} updating metadata {} with manifest file {}",
+        namespace, tableName, CommitMetadataUtil.getInstance().encodeAsJson(oldMetadata), flinkManifestFile);
     CommitMetadata.Builder metadataBuilder = CommitMetadata.newBuilder(oldMetadata)
         .setLastCheckpointId(context.getCheckpointId())
         .setLastCheckpointTimestamp(context.getCheckpointTimestamp());

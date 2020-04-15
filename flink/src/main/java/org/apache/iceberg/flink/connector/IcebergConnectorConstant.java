@@ -37,9 +37,6 @@ public class IcebergConnectorConstant {
   public static final String NAMESPACE = "namespace";
   public static final String TABLE = "table";
 
-  public static final String FORMAT = "format";
-  public static final String CODEC = "codec";
-
   public static final String SKIP_INCOMPATIBLE_RECORD = "skip_incompatible_record";
   public static final String VTTS_WATERMARK_TIMESTAMP_FIELD = "vtts_watermark_timestamp_field";
   public static final String VTTS_WATERMARK_TIMESTAMP_UNIT = "vtts_watermark_timestamp_unit";

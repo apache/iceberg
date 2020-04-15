@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.flink.connector.sink;
 
-import com.google.common.collect.ImmutableMap;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -39,28 +39,24 @@ import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
-import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.connector.IcebergConnectorConstant;
-import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
-import org.apache.iceberg.hive.HiveCatalogs;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
-import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT;
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 
 public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
     implements OneInputStreamOperator<T, FlinkDataFile> {
@@ -76,8 +72,9 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
   private final boolean skipIncompatibleRecord;
   private final org.apache.iceberg.Schema icebergSchema;
   private final PartitionSpec spec;
-  private final String dataLocation;
-  private final Map<String, String> tableProperties;
+  private final LocationProvider locations;
+  private final FileIO io;
+  private final Map<String, String> properties;
   private final String timestampFeild;
   private final TimeUnit timestampUnit;
   private final long maxFileSize;
@@ -85,19 +82,16 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
   private transient String instanceId;
   private transient String titusTaskId;
   private transient Schema avroSchema;
-  private transient org.apache.hadoop.conf.Configuration hadoopConfig;
+  private transient org.apache.hadoop.conf.Configuration hadoopConf;
   private transient Map<String, FileWriter> openPartitionFiles;
   private transient int subtaskId;
   private transient ProcessingTimeService timerService;
   private transient Partitioner partitioner;
-  private transient FileSystem fs;
 
-  public IcebergWriter(@Nullable AvroSerializer<T> serializer,
+  public IcebergWriter(Table table, @Nullable AvroSerializer<T> serializer,
                        Configuration config) {
     this.serializer = serializer;
     this.config = config;
-    format = FileFormat.valueOf(config.getString(IcebergConnectorConstant.FORMAT,
-        FileFormat.PARQUET.name()));
     skipIncompatibleRecord = config.getBoolean(IcebergConnectorConstant.SKIP_INCOMPATIBLE_RECORD,
         IcebergConnectorConstant.DEFAULT_SKIP_INCOMPATIBLE_RECORD);
     // TODO: different from IcebergCommitter, line 147, in which, "" is taken as default
@@ -108,44 +102,19 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
     maxFileSize = config.getLong(IcebergConnectorConstant.MAX_FILE_SIZE,
         IcebergConnectorConstant.DEFAULT_MAX_FILE_SIZE);
 
-    // TODO: duplicate logic, to extract
-    org.apache.hadoop.conf.Configuration hadoopConf = new org.apache.hadoop.conf.Configuration();
-    Catalog catalog = null;
-    String catalogType = config.getString(IcebergConnectorConstant.CATALOG_TYPE,
-                                          IcebergConnectorConstant.CATALOG_TYPE_DEFAULT);
-    switch (catalogType.toUpperCase()) {
-      case IcebergConnectorConstant.HIVE_CATALOG:
-        hadoopConf.set(ConfVars.METASTOREURIS.varname, config.getString(ConfVars.METASTOREURIS.varname, ""));
-        catalog = HiveCatalogs.loadCatalog(hadoopConf);
-        break;
-
-      case IcebergConnectorConstant.HADOOP_CATALOG:
-        catalog = new HadoopCatalog(hadoopConf,
-                                    config.getString(IcebergConnectorConstant.HADOOP_CATALOG_WAREHOUSE_LOCATION, ""));
-        break;
-
-      default:
-        throw new UnsupportedOperationException("Unknown catalog type or not set: " + catalogType);
-    }
-
     namespace = config.getString(IcebergConnectorConstant.NAMESPACE, "");
     tableName = config.getString(IcebergConnectorConstant.TABLE, "");
-    Table table = catalog.loadTable(TableIdentifier.parse(namespace + "." + tableName));
 
-    ImmutableMap.Builder<String, String> tablePropsBuilder = ImmutableMap.<String, String>builder()
-        .putAll(table.properties());
-    if (!table.properties().containsKey(PARQUET_COMPRESSION)) {
-      // if compression is not set in table properties,
-      // Flink writer defaults it to BROTLI
-      //TODO: org.apache.hadoop.io.compress.BrotliCodec, class not found
-      //tablePropsBuilder.put(PARQUET_COMPRESSION, CompressionCodecName.BROTLI.name());
-      tablePropsBuilder.put(PARQUET_COMPRESSION, PARQUET_COMPRESSION_DEFAULT);
-    }
-    tableProperties = tablePropsBuilder.build();
     icebergSchema = table.schema();
     spec = table.spec();
-    dataLocation = table.locationProvider().newDataLocation("");  // data location of the Iceberg table
-    LOG.info("Iceberg writer {}.{} data file location: {}", namespace, tableName, dataLocation);
+    locations = table.locationProvider();
+    io = table.io();
+    properties = table.properties();
+    format = FileFormat.valueOf(
+        properties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT).toUpperCase(Locale.ENGLISH));
+
+    LOG.info("Iceberg writer {}.{} data file location: {}",
+        namespace, tableName, locations.newDataLocation(""));
     LOG.info("Iceberg writer {}.{} created with sink config", namespace, tableName);
     LOG.info("Iceberg writer {}.{} loaded table: schema = {}\npartition spec = {}",
         namespace, tableName, icebergSchema, spec);
@@ -167,18 +136,11 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
     titusTaskId = System.getenv("TITUS_TASK_ID");
     avroSchema = AvroSchemaUtil.convert(icebergSchema, tableName);
 
-    hadoopConfig = new org.apache.hadoop.conf.Configuration();
+    hadoopConf = new org.apache.hadoop.conf.Configuration();
 
     this.subtaskId = subtaskId1;
     this.timerService = timerService1;
     openPartitionFiles = new HashMap<>();
-
-    if (fs == null) {
-      Path path = new Path(dataLocation);
-      fs = path.getFileSystem(hadoopConfig);
-      LOG.info("Iceberg writer {}.{} subtask {} created file system with base path: {}",
-          namespace, tableName, subtaskId1, path.toString());
-    }
   }
 
   @Override
@@ -294,7 +256,7 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
       try {
         LOG.debug("Iceberg writer {}.{} subtask {} deleting aborted file: {}",
             namespace, tableName, subtaskId, path);
-        fs.delete(path, false /* path is supposed to be a file, not directory */);
+        io.deleteFile(path.toString());
         LOG.info("Iceberg writer {}.{} subtask {} deleted aborted file: {}",
             namespace, tableName, subtaskId, path);
       } catch (Throwable t) {
@@ -360,11 +322,11 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
       partitioner = new IndexedRecordPartitioner(spec);
     }
     partitioner.partition(record);
-    final String partitionPath = dataLocation + partitioner.toPath();  // TODO: add / between dataLocation and toPath()?
+    final String partitionPath = locations.newDataLocation(spec, partitioner, "");
     if (!openPartitionFiles.containsKey(partitionPath)) {
       final Path path = new Path(partitionPath, generateFileName());
       FileWriter writer = newWriter(path, partitioner);
-      openPartitionFiles.put(partitionPath, writer);
+      openPartitionFiles.put(partitionPath, writer);  // TODO: 1 writer for 1 partition path?
       LOG.info("Iceberg writer {}.{} subtask {} opened a new file: {}",
           namespace, tableName, subtaskId, path.toString());
     }
@@ -406,7 +368,7 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
         .withProcessingTimeService(timerService)
         .withPartitioner(part.copy())
         .withAppender(appender)
-        .withHadooopConfig(hadoopConfig)
+        .withHadooopConfig(hadoopConf)
         .withSpec(spec)
         .withSchema(avroSchema)
         .withVttsTimestampField(timestampFeild)
@@ -416,17 +378,13 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
   }
 
   private <D> FileAppender<D> newAppender(final Path path) throws Exception {
-    OutputFile outputFile = HadoopOutputFile.fromPath(path, hadoopConfig);
-    if (FileFormat.PARQUET == format) {
-      return Parquet.write(outputFile)
-          .named(tableName)
-          .schema(icebergSchema)
-          .setAll(tableProperties)
-          .metricsConfig(MetricsConfig.fromProperties(tableProperties))
-          .overwrite()
-          .build();
-    } else {
-      throw new UnsupportedOperationException("not supported file format: " + format.name());
-    }
+    OutputFile outputFile = HadoopOutputFile.fromPath(path, hadoopConf);
+    return Parquet.write(outputFile)
+        .named(tableName)
+        .schema(icebergSchema)
+        .setAll(properties)
+        .metricsConfig(MetricsConfig.fromProperties(properties))
+        .overwrite()
+        .build();
   }
 }
