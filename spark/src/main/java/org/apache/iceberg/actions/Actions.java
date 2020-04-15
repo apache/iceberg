@@ -17,18 +17,30 @@
  * under the License.
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.actions;
 
-/**
- * An action performed on a table.
- *
- * @param <R> the Java type of the result produced by this action
- */
-public interface Action<R> {
-  /**
-   * Executes this action.
-   *
-   * @return the result of this action
-   */
-  R execute();
+import org.apache.iceberg.Table;
+import org.apache.spark.sql.SparkSession;
+
+public class Actions {
+
+  private SparkSession spark;
+  private Table table;
+
+  private Actions(SparkSession spark, Table table) {
+    this.spark = spark;
+    this.table = table;
+  }
+
+  public static Actions forTable(SparkSession spark, Table table) {
+    return new Actions(spark, table);
+  }
+
+  public static Actions forTable(Table table) {
+    return new Actions(SparkSession.active(), table);
+  }
+
+  public RemoveOrphanFilesAction removeOrphanFiles() {
+    return new RemoveOrphanFilesAction(spark, table);
+  }
 }
