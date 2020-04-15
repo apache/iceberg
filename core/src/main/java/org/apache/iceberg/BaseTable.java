@@ -104,6 +104,10 @@ public class BaseTable implements Table, HasTableOperations {
     return new SchemaUpdate(ops);
   }
 
+  public UpdatePartitionSpec updatePartitionSpec() {
+    return new PartitionSpecUpdate(ops);
+  }
+
   @Override
   public UpdateProperties updateProperties() {
     return new PropertiesUpdate(ops);
