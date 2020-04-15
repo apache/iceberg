@@ -41,13 +41,6 @@ public interface Transaction {
   UpdateSchema updateSchema();
 
   /**
-   * Create a new {@link UpdatePartitionSpec} to alter the partition specs of this table.
-   *
-   * @return a new {@link UpdatePartitionSpec}
-   */
-  UpdatePartitionSpec updatePartitionSpec();
-
-  /**
    * Create a new {@link UpdateProperties} to update table properties.
    *
    * @return a new {@link UpdateProperties}

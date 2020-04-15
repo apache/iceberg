@@ -67,12 +67,12 @@ public class TestManifestReader extends TableTestBase {
   }
 
   @Test
-  public void testManifestReaderWithUpdatedPartitionMetadata() throws IOException {
+  public void testManifestReaderWithUpdatedPartitionMetadataForV1Table() throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(table.schema())
         .bucket("id", 8)
         .bucket("data", 16)
         .build();
-    table.updatePartitionSpec().update(spec).commit();
+    table.ops().commit(table.ops().current(), table.ops().current().updatePartitionSpec(spec));
 
     ManifestFile manifest = writeManifest("manifest.avro", manifestEntry(Status.EXISTING, 123L, FILE_A));
     try (ManifestReader reader = ManifestReader.read(FILE_IO.newInputFile(manifest.path()))) {
@@ -81,11 +81,11 @@ public class TestManifestReader extends TableTestBase {
 
       List<Types.NestedField> fields = ((PartitionData) entry.file().partition()).getPartitionType().fields();
       Assert.assertEquals(2, fields.size());
-      Assert.assertEquals(1001, fields.get(0).fieldId());
+      Assert.assertEquals(1000, fields.get(0).fieldId());
       Assert.assertEquals("id_bucket", fields.get(0).name());
       Assert.assertEquals(Types.IntegerType.get(), fields.get(0).type());
-      // reuse the partition field id from the previous partition spec for the same partition field.
-      Assert.assertEquals(1000, fields.get(1).fieldId());
+
+      Assert.assertEquals(1001, fields.get(1).fieldId());
       Assert.assertEquals("data_bucket", fields.get(1).name());
       Assert.assertEquals(Types.IntegerType.get(), fields.get(1).type());
     }

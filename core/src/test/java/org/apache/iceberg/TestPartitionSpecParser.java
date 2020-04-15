@@ -25,7 +25,7 @@ import org.junit.Test;
 public class TestPartitionSpecParser extends TableTestBase {
 
   @Test
-  public void testToJson() {
+  public void testToJsonForV1Table() {
     String expected = "{\n" +
         "  \"spec-id\" : 0,\n" +
         "  \"fields\" : [ {\n" +
@@ -41,7 +41,8 @@ public class TestPartitionSpecParser extends TableTestBase {
         .bucket("id", 8)
         .bucket("data", 16)
         .build();
-    table.updatePartitionSpec().update(spec).commit();
+
+    table.ops().commit(table.ops().current(), table.ops().current().updatePartitionSpec(spec));
 
     expected = "{\n" +
         "  \"spec-id\" : 1,\n" +
@@ -49,12 +50,12 @@ public class TestPartitionSpecParser extends TableTestBase {
         "    \"name\" : \"id_bucket\",\n" +
         "    \"transform\" : \"bucket[8]\",\n" +
         "    \"source-id\" : 1,\n" +
-        "    \"field-id\" : 1001\n" +
+        "    \"field-id\" : 1000\n" +
         "  }, {\n" +
         "    \"name\" : \"data_bucket\",\n" +
         "    \"transform\" : \"bucket[16]\",\n" +
         "    \"source-id\" : 2,\n" +
-        "    \"field-id\" : 1000\n" +
+        "    \"field-id\" : 1001\n" +
         "  } ]\n" +
         "}";
     Assert.assertEquals(expected, PartitionSpecParser.toJson(table.spec(), true));

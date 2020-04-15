@@ -38,6 +38,7 @@ import java.util.UUID;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 import org.junit.Assert;
@@ -549,5 +550,22 @@ public class TestTableMetadata {
         .build();
 
     Assert.assertEquals(expected, metadata.spec());
+  }
+
+  @Test
+  public void testInvalidUpdatePartitionSpecForV1Table() throws Exception {
+    Schema schema = new Schema(
+        Types.NestedField.required(1, "x", Types.LongType.get())
+    );
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).withSpecId(5)
+        .add(1, 1005, "x_partition", "bucket[4]")
+        .build();
+    String location = "file://tmp/db/table";
+    TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, location, ImmutableMap.of());
+
+    AssertHelpers.assertThrows("Should fail to update an invalid partition spec",
+        ValidationException.class, "Spec does not use sequential IDs that are required in v1",
+        () -> metadata.updatePartitionSpec(spec));
   }
 }

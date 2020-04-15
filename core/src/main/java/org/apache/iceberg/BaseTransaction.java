@@ -101,14 +101,6 @@ class BaseTransaction implements Transaction {
   }
 
   @Override
-  public UpdatePartitionSpec updatePartitionSpec() {
-    checkLastOperationCommitted("UpdatePartitionSpec");
-    UpdatePartitionSpec partitionSpecChange = new PartitionSpecUpdate(transactionOps);
-    updates.add(partitionSpecChange);
-    return partitionSpecChange;
-  }
-
-  @Override
   public UpdateProperties updateProperties() {
     checkLastOperationCommitted("UpdateProperties");
     UpdateProperties props = new PropertiesUpdate(transactionOps);
@@ -536,11 +528,6 @@ class BaseTransaction implements Transaction {
     @Override
     public UpdateSchema updateSchema() {
       return BaseTransaction.this.updateSchema();
-    }
-
-    @Override
-    public UpdatePartitionSpec updatePartitionSpec() {
-      return BaseTransaction.this.updatePartitionSpec();
     }
 
     @Override
