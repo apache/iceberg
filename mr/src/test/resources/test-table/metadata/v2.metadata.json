@@ -1,7 +1,7 @@
 {
   "format-version" : 1,
   "table-uuid" : "5ec03633-03bc-4c4b-8ef9-f799c143e3e7",
-  "location" : "/Users/cmathiesen/projects/opensource/forks/eg-iceberg-fork/incubator-iceberg/mr/src/test/resources/test-table",
+  "location" : "mr/src/test/resources/test-table",
   "last-updated-ms" : 1582645443979,
   "last-column-id" : 2,
   "schema" : {
@@ -38,7 +38,7 @@
       "total-records" : "3",
       "total-data-files" : "1"
     },
-    "manifest-list" : "/Users/cmathiesen/projects/opensource/forks/eg-iceberg-fork/incubator-iceberg/mr/src/test/resources/test-table/metadata/snap-7829799286772121706-1-1a3ffe32-d8da-47cf-9a8c-0e4c889a3a4c.avro"
+    "manifest-list" : "mr/src/test/resources/test-table/metadata/snap-7829799286772121706-1-1a3ffe32-d8da-47cf-9a8c-0e4c889a3a4c.avro"
   } ],
   "snapshot-log" : [ {
     "timestamp-ms" : 1582645443979,

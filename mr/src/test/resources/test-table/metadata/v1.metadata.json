@@ -1,7 +1,7 @@
 {
   "format-version" : 1,
   "table-uuid" : "5ec03633-03bc-4c4b-8ef9-f799c143e3e7",
-  "location" : "/Users/cmathiesen/projects/opensource/forks/eg-iceberg-fork/incubator-iceberg/mr/src/test/resources/test-table",
+  "location" : "mr/src/test/resources/test-table",
   "last-updated-ms" : 1582645440292,
   "last-column-id" : 2,
   "schema" : {
