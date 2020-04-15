@@ -99,7 +99,7 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
 
   ManifestReader(InputFile file, Map<Integer, PartitionSpec> specsById,
                  InheritableMetadata inheritableMetadata) {
-    this(file, specsById::get, inheritableMetadata);
+    this(file, specsById != null ? specsById::get : null, inheritableMetadata);
   }
 
   private ManifestReader(InputFile file, Function<Integer, PartitionSpec> specLookup,
