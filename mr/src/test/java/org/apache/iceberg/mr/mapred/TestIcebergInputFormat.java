@@ -50,10 +50,9 @@ public class TestIcebergInputFormat {
 
   private File tableLocation;
   private Table table;
+  private IcebergInputFormat format = new IcebergInputFormat();
+  private JobConf conf = new JobConf();
 
-  //TODO flesh out with more tests of the IF itself
-  //TODO: do we still need the table data etc. if we're not testing from Hive?
-  
   @Before
   public void before() throws IOException {
     tableLocation = java.nio.file.Files.createTempDirectory("temp").toFile();
@@ -75,30 +74,32 @@ public class TestIcebergInputFormat {
 
   @Test
   public void testGetSplits() throws IOException {
-    IcebergInputFormat format = new IcebergInputFormat();
-    JobConf conf = new JobConf();
     conf.set("location", "file:" + tableLocation);
     InputSplit[] splits = format.getSplits(conf, 1);
     assertEquals(splits.length, 1);
   }
 
+  @Test(expected = IllegalArgumentException.class)
+  public void testGetSplitsNoLocation() throws IOException {
+    format.getSplits(conf, 1);
+  }
+
+  @Test(expected = IOException.class)
+  public void testGetSplitsInvalidLocationUri() throws IOException {
+    conf.set("location", "http:");
+    format.getSplits(conf, 1);
+  }
+
   @Test
   public void testGetRecordReader() throws IOException {
-    IcebergInputFormat format = new IcebergInputFormat();
-    JobConf conf = new JobConf();
     conf.set("location", "file:" + tableLocation);
     InputSplit[] splits = format.getSplits(conf, 1);
     RecordReader reader = format.getRecordReader(splits[0], conf, null);
     IcebergWritable value = (IcebergWritable) reader.createValue();
 
     List<Record> records = Lists.newArrayList();
-    boolean unfinished = true;
-    while (unfinished) {
-      if (reader.next(null, value)) {
-        records.add(value.getRecord().copy());
-      } else  {
-        unfinished = false;
-      }
+    while (reader.next(null, value)) {
+      records.add(value.getRecord().copy());
     }
     assertEquals(3, records.size());
   }

@@ -43,33 +43,41 @@ import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mr.SerializationUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class IcebergInputFormat implements InputFormat {
+public class IcebergInputFormat<T> implements InputFormat<Void, T> {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergInputFormat.class);
+
+  static final String REUSE_CONTAINERS = "iceberg.mr.reuse.containers";
 
   private Table table;
 
   @Override
-  public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
-    //TODO: Change this to use whichever Catalog the table was made with i.e. HiveCatalog instead etc.
-    HadoopTables tables = new HadoopTables(job);
-    String tableDir = job.get("location");
-
-    URI location = null;
-    try {
-      location = new URI(tableDir);
-    } catch (URISyntaxException e) {
-      throw new IOException("Unable to create URI for table location: '" + tableDir + "'");
-    }
-    table = tables.load(location.getPath());
-
+  public InputSplit[] getSplits(JobConf conf, int numSplits) throws IOException {
+    table = findTable(conf);
     CloseableIterable taskIterable = table.newScan().planTasks();
     List<CombinedScanTask> tasks = (List<CombinedScanTask>) StreamSupport
         .stream(taskIterable.spliterator(), false)
         .collect(Collectors.toList());
     return createSplits(tasks);
+  }
+
+  private Table findTable(JobConf conf) throws IOException {
+    HadoopTables tables = new HadoopTables(conf);
+    String tableDir = conf.get("location");
+    if (tableDir == null) {
+      throw new IllegalArgumentException("Table 'location' not set in JobConf");
+    }
+    URI location = null;
+    try {
+      location = new URI(tableDir);
+    } catch (URISyntaxException e) {
+      throw new IOException("Unable to create URI for table location: '" + tableDir + "'", e);
+    }
+    table = tables.load(location.getPath());
+    return table;
   }
 
   private InputSplit[] createSplits(List<CombinedScanTask> tasks) {
@@ -86,17 +94,19 @@ public class IcebergInputFormat implements InputFormat {
   }
 
   public class IcebergRecordReader implements RecordReader<Void, IcebergWritable> {
-    private JobConf context;
+    private JobConf conf;
     private IcebergSplit split;
 
     private Iterator<FileScanTask> tasks;
     private CloseableIterable<Record> reader;
     private Iterator<Record> recordIterator;
     private Record currentRecord;
+    private boolean reuseContainers;
 
     public IcebergRecordReader(InputSplit split, JobConf conf) throws IOException {
       this.split = (IcebergSplit) split;
-      this.context = conf;
+      this.conf = conf;
+      this.reuseContainers = conf.getBoolean(REUSE_CONTAINERS, false);
       initialise();
     }
 
@@ -108,12 +118,10 @@ public class IcebergInputFormat implements InputFormat {
     private void nextTask() {
       FileScanTask currentTask = tasks.next();
       DataFile file = currentTask.file();
-      InputFile inputFile = HadoopInputFile.fromLocation(file.path(), context);
+      InputFile inputFile = HadoopInputFile.fromLocation(file.path(), conf);
       Schema tableSchema = table.schema();
-      boolean reuseContainers = true; // FIXME: read from config
 
-      IcebergReaderFactory readerFactory = new IcebergReaderFactory();
-      reader = readerFactory.createReader(file, currentTask, inputFile, tableSchema, reuseContainers);
+      reader = IcebergReaderFactory.createReader(file, currentTask, inputFile, tableSchema, reuseContainers);
       recordIterator = reader.iterator();
     }
 
@@ -126,6 +134,11 @@ public class IcebergInputFormat implements InputFormat {
       }
 
       if (tasks.hasNext()) {
+        try {
+          reader.close();
+        } catch (IOException e) {
+          LOG.error("Error closing reader", e);
+        }
         nextTask();
         currentRecord = recordIterator.next();
         value.setRecord(currentRecord);
@@ -154,7 +167,7 @@ public class IcebergInputFormat implements InputFormat {
 
     @Override
     public void close() throws IOException {
-
+      reader.close();
     }
 
     @Override
@@ -165,6 +178,8 @@ public class IcebergInputFormat implements InputFormat {
 
   private static class IcebergSplit implements InputSplit {
 
+    private static final String[] ANYWHERE = new String[]{"*"};
+
     private CombinedScanTask task;
 
     IcebergSplit(CombinedScanTask task) {
@@ -173,22 +188,26 @@ public class IcebergInputFormat implements InputFormat {
 
     @Override
     public long getLength() throws IOException {
-      return 0;
+      return task.files().stream().mapToLong(FileScanTask::length).sum();
     }
 
     @Override
     public String[] getLocations() throws IOException {
-      return new String[0];
+      return ANYWHERE;
     }
 
     @Override
     public void write(DataOutput out) throws IOException {
-
+      byte[] data = SerializationUtil.serializeToBytes(this.task);
+      out.writeInt(data.length);
+      out.write(data);
     }
 
     @Override
     public void readFields(DataInput in) throws IOException {
-
+      byte[] data = new byte[in.readInt()];
+      in.readFully(data);
+      this.task = SerializationUtil.deserializeFromBytes(data);
     }
 
     public CombinedScanTask getTask() {
