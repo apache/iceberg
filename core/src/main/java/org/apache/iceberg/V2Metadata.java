@@ -69,12 +69,12 @@ class V2Metadata {
     private static final org.apache.avro.Schema AVRO_SCHEMA =
         AvroSchemaUtil.convert(MANIFEST_LIST_SCHEMA, "manifest_file");
 
-    private final long snapshotId;
+    private final long commitSnapshotId;
     private final long sequenceNumber;
     private ManifestFile wrapped = null;
 
-    IndexedManifestFile(long snapshotId, long sequenceNumber) {
-      this.snapshotId = snapshotId;
+    IndexedManifestFile(long commitSnapshotId, long sequenceNumber) {
+      this.commitSnapshotId = commitSnapshotId;
       this.sequenceNumber = sequenceNumber;
     }
 
@@ -104,7 +104,9 @@ class V2Metadata {
           return wrapped.partitionSpecId();
         case 3:
           if (wrapped.sequenceNumber() == ManifestWriter.UNASSIGNED_SEQ) {
-            Preconditions.checkState(snapshotId == wrapped.snapshotId(),
+            // if the sequence number is being assigned here, then the manifest must be created by the current
+            // operation. to validate this, check that the snapshot id matches the current commit
+            Preconditions.checkState(commitSnapshotId == wrapped.snapshotId(),
                 "Found unassigned sequence number for a manifest from snapshot: %s", wrapped.snapshotId());
             return sequenceNumber;
           } else {
@@ -232,13 +234,13 @@ class V2Metadata {
 
   static class IndexedManifestEntry implements ManifestEntry, IndexedRecord {
     private final org.apache.avro.Schema avroSchema;
-    private final long snapshotId;
+    private final long currentSnapshotId;
     private final V1Metadata.IndexedDataFile fileWrapper;
     private ManifestEntry wrapped = null;
 
-    IndexedManifestEntry(long snapshotId, Types.StructType partitionType) {
+    IndexedManifestEntry(long currentSnapshotId, Types.StructType partitionType) {
       this.avroSchema = AvroSchemaUtil.convert(entrySchema(partitionType), "manifest_entry");
-      this.snapshotId = snapshotId;
+      this.currentSnapshotId = currentSnapshotId;
       // TODO: when v2 data files differ from v1, this should use a v2 wrapper
       this.fileWrapper = new V1Metadata.IndexedDataFile(avroSchema.getField("data_file").schema());
     }
@@ -267,7 +269,10 @@ class V2Metadata {
           return wrapped.snapshotId();
         case 2:
           if (wrapped.sequenceNumber() == null) {
-            Preconditions.checkState(wrapped.snapshotId() == null || snapshotId == wrapped.snapshotId(),
+            // if the entry's sequence number is null, then it will inherit the sequence number of the current commit.
+            // to validate that this is correct, check that the snapshot id is either null (will also be inherited) or
+            // that it matches the id of the current commit.
+            Preconditions.checkState(wrapped.snapshotId() == null || currentSnapshotId == wrapped.snapshotId(),
                 "Found unassigned sequence number for an entry from snapshot: %s", wrapped.snapshotId());
           }
           return wrapped.sequenceNumber();
