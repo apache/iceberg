@@ -57,6 +57,10 @@ class PartitionSpecUpdate implements UpdatePartitionSpec {
   }
 
   private PartitionSpec freshSpecFieldIds(PartitionSpec partitionSpec) {
+    if (base.formatVersion() == 1) {
+      return partitionSpec;
+    }
+
     int lastAssignedFieldId = 0;
     Map<String, Integer> partitionFieldIdByName = Maps.newHashMap();
     for (PartitionSpec spec : base.specs()) {

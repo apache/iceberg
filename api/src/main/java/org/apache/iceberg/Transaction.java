@@ -40,7 +40,6 @@ public interface Transaction {
    */
   UpdateSchema updateSchema();
 
-
   /**
    * Create a new {@link UpdatePartitionSpec} to alter the partition specs of this table.
    *

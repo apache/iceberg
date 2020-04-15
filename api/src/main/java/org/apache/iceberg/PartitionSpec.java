@@ -490,4 +490,13 @@ public class PartitionSpec implements Serializable {
           sourceType, field.transform());
     }
   }
+
+  static boolean hasSequentialIds(PartitionSpec spec) {
+    for (int i = 0; i < spec.fields.length; i += 1) {
+      if (spec.fields[i].fieldId() != PARTITION_DATA_ID_START + i) {
+        return false;
+      }
+    }
+    return true;
+  }
 }

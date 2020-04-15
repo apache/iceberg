@@ -210,9 +210,8 @@ public class TableMetadata {
     this.lastUpdatedMillis = lastUpdatedMillis;
     this.lastColumnId = lastColumnId;
     this.schema = schema;
-    this.defaultSpecId = defaultSpecId;
     this.specs = specs;
-
+    this.defaultSpecId = defaultSpecId;
     this.properties = properties;
     this.currentSnapshotId = currentSnapshotId;
     this.snapshots = snapshots;
@@ -355,9 +354,11 @@ public class TableMetadata {
         currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
-  // Input newPartitionSpec's partition field IDs should have already been recomputed
+  // The caller is responsible to pass a newPartitionSpec with correct partition field IDs
   public TableMetadata updatePartitionSpec(PartitionSpec newPartitionSpec) {
     PartitionSpec.checkCompatibility(newPartitionSpec, schema);
+    ValidationException.check(formatVersion > 1 || PartitionSpec.hasSequentialIds(newPartitionSpec),
+        "Spec does not use sequential IDs that are required in v1: %s", newPartitionSpec);
 
     // if the spec already exists, use the same ID. otherwise, use 1 more than the highest ID.
     int newDefaultSpecId = INITIAL_SPEC_ID;
@@ -491,9 +492,12 @@ public class TableMetadata {
         currentSnapshotId, snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
-  // updatedPartitionSpec's partition field IDs should have already been refreshed
-  TableMetadata buildReplacement(Schema updatedSchema, PartitionSpec updatedPartitionSpec,
+  // The caller is responsible to pass a updatedPartitionSpec with correct partition field IDs
+  public TableMetadata buildReplacement(Schema updatedSchema, PartitionSpec updatedPartitionSpec,
                                  Map<String, String> updatedProperties) {
+    ValidationException.check(formatVersion > 1 || PartitionSpec.hasSequentialIds(updatedPartitionSpec),
+        "Spec does not use sequential IDs that are required in v1: %s", updatedPartitionSpec);
+
     AtomicInteger nextLastColumnId = new AtomicInteger(0);
     Schema freshSchema = TypeUtil.assignFreshIds(updatedSchema, nextLastColumnId::incrementAndGet);
 
