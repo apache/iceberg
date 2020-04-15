@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import org.apache.iceberg.types.Types;
 
+@SuppressWarnings("checkstyle:HideUtilityClassConstructor")
 public class PartitionSpecTestBase {
   public static final Schema SCHEMA = new Schema(
       Types.NestedField.required(1, "i", Types.IntegerType.get()),
