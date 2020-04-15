@@ -44,7 +44,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.NamespaceChange;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -65,7 +64,6 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
  *
  * Note: The HadoopCatalog requires that the underlying file system supports atomic rename.
  */
-
 public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, SupportsNamespaces {
 
   private static final String ICEBERG_HADOOP_WAREHOUSE_BASE = "iceberg/warehouse";
@@ -140,7 +138,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
         }
       }
     } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Failed to list tables under: %s ", namespace);
+      throw new RuntimeIOException(ioe, "Failed to list tables under: %s", namespace);
     }
 
     return Lists.newArrayList(tblIdents);
@@ -263,7 +261,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     Path nsPath = new Path(warehouseLocation, SLASH.join(namespace.levels()));
 
     if (!isNamespace(nsPath) || namespace.isEmpty()) {
-      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+      return false;
     }
 
     try {
@@ -275,9 +273,15 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   }
 
   @Override
-  public boolean alterNamespace(Namespace namespace, NamespaceChange... changes) {
+  public boolean setProperties(Namespace namespace,  Map<String, String> properties) {
     throw new UnsupportedOperationException(
-        "Cannot alter namespace " + namespace + " : alterNamespace is not supported");
+        "Cannot set namespace properties " + namespace + " : setProperties is not supported");
+  }
+
+  @Override
+  public boolean removeProperties(Namespace namespace,  Set<String> properties) {
+    throw new UnsupportedOperationException(
+        "Cannot remove properties " + namespace + " : removeProperties is not supported");
   }
 
   @Override
@@ -300,12 +304,6 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to list namespace info: %s ", path);
     }
-  }
-
-  @Override
-  public boolean existsNamespace(Namespace namespace) {
-    Path nsPath = new Path(warehouseLocation, SLASH.join(namespace.levels()));
-    return isNamespace(nsPath) && !namespace.isEmpty();
   }
 
   @Override

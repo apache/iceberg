@@ -33,7 +33,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.NamespaceChange;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.junit.Assert;
@@ -250,7 +249,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   }
 
   @Test
-  public void testExistsNamespace() throws IOException {
+  public void testNamespaceExists() throws IOException {
     Configuration conf = new Configuration();
     String warehousePath = temp.newFolder().getAbsolutePath();
     HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
@@ -264,9 +263,9 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
         catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned())
     );
     Assert.assertTrue("Should true to namespace exist",
-        catalog.existsNamespace(Namespace.of("db", "ns1", "ns2")));
+        catalog.namespaceExists(Namespace.of("db", "ns1", "ns2")));
     Assert.assertTrue("Should false to namespace doesn't exist",
-        !catalog.existsNamespace(Namespace.of("db", "db2", "ns2")));
+        !catalog.namespaceExists(Namespace.of("db", "db2", "ns2")));
   }
 
   @Test
@@ -274,10 +273,9 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     Configuration conf = new Configuration();
     String warehousePath = temp.newFolder().getAbsolutePath();
     HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
-    NamespaceChange changeMeta = NamespaceChange.setProperty("property", "test");
     AssertHelpers.assertThrows("Should fail to change namespace", UnsupportedOperationException.class,
-        "Cannot alter namespace db.db2.ns2 : alterNamespace is not supported", () -> {
-          catalog.alterNamespace(Namespace.of("db", "db2", "ns2"), changeMeta);
+        "Cannot set namespace properties db.db2.ns2 : setProperties is not supported", () -> {
+          catalog.setProperties(Namespace.of("db", "db2", "ns2"), ImmutableMap.of("property", "test"));
         });
   }
 
@@ -294,11 +292,8 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
         catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned())
     );
 
-    AssertHelpers.assertThrows("Should fail to drop namespace doesn't exist",
-        org.apache.iceberg.exceptions.NoSuchNamespaceException.class,
-        "Namespace does not exist: ", () -> {
-          catalog.dropNamespace(Namespace.of("db2.ns2"));
-        });
+    Assert.assertFalse("Should fail to drop namespace doesn't exist",
+          catalog.dropNamespace(Namespace.of("db2.ns2")));
     Assert.assertTrue(catalog.dropNamespace(Namespace.of("db")));
     Assert.assertTrue(catalog.dropNamespace(Namespace.of("db1")));
     String metaLocation = warehousePath + "/" + "db";

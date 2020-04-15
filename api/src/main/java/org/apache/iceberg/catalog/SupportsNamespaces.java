@@ -22,6 +22,7 @@ package org.apache.iceberg.catalog;
 import com.google.common.collect.ImmutableMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 
@@ -42,7 +43,7 @@ public interface SupportsNamespaces {
   /**
    * Create a namespace in the catalog.
    *
-   * @param namespace {@link Namespace}.
+   * @param namespace a namespace. {@link Namespace}.
    * @throws AlreadyExistsException If the namespace already exists
    * @throws UnsupportedOperationException If create is not a supported operation
    */
@@ -74,12 +75,12 @@ public interface SupportsNamespaces {
   }
 
   /**
-   * List  namespaces from the namespace.
+   * List namespaces from the namespace.
    * <p>
    * For example, if table a.b.t exists, use 'SELECT NAMESPACE IN a' this method
    * must return Namepace.of("a","b") {@link Namespace}.
    *
-   * @return an List of namespace {@link Namespace} names
+   * @return a List of namespace {@link Namespace} names
    * @throws NoSuchNamespaceException If the namespace does not exist (optional)
    */
   List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException;
@@ -87,7 +88,7 @@ public interface SupportsNamespaces {
   /**
    * Load metadata properties for a namespace.
    *
-   * @param namespace a Namespace.of(name) {@link Namespace}
+   * @param namespace a namespace. {@link Namespace}
    * @return a string map of properties for the given namespace
    * @throws NoSuchNamespaceException If the namespace does not exist (optional)
    */
@@ -96,26 +97,44 @@ public interface SupportsNamespaces {
   /**
    * Drop namespace, while the namespace haven't table or sub namespace will return true.
    *
-   * @param namespace a Namespace.of(name) {@link Namespace}
-   * @return true while drop success.
-   * @throws NoSuchNamespaceException If the namespace does not exist (optional)
+   * @param namespace a namespace. {@link Namespace}
+   * @return true if the namespace was dropped, false otherwise.
    */
-  boolean dropNamespace(Namespace namespace) throws NoSuchNamespaceException;
+  boolean dropNamespace(Namespace namespace);
 
   /**
-   * Apply a set of metadata changes to a namespace in the catalog.
+   * Apply a set of metadata to a namespace in the catalog.
    *
-   * @param namespace a Namespace.of(name) {@link Namespace}
-   * @param changes a collection of changes to apply to the namespace
+   * @param namespace a namespace. {@link Namespace}
+   * @param properties a collection of metadata to apply to the namespace
    * @throws NoSuchNamespaceException If the namespace does not exist (optional)
    * @throws UnsupportedOperationException If namespace properties are not supported
    */
-  boolean alterNamespace(Namespace namespace, NamespaceChange... changes) throws NoSuchNamespaceException;
+  boolean setProperties(Namespace namespace, Map<String, String> properties) throws NoSuchNamespaceException;
+
+  /**
+   * Remove a set of metadata from a namespace in the catalog.
+   *
+   * @param namespace a namespace. {@link Namespace}
+   * @param properties a collection of metadata to apply to the namespace
+   * @throws NoSuchNamespaceException If the namespace does not exist (optional)
+   * @throws UnsupportedOperationException If namespace properties are not supported
+   */
+  boolean removeProperties(Namespace namespace, Set<String> properties) throws NoSuchNamespaceException;
+
 
   /**
    * Checks whether the Namespace exists.
    *
+   * @param namespace a namespace. {@link Namespace}
    * @return true if the Namespace exists, false otherwise
    */
-  boolean existsNamespace(Namespace namespace);
+  default boolean namespaceExists(Namespace namespace) {
+    try {
+      loadNamespaceMetadata(namespace);
+      return true;
+    } catch (NoSuchNamespaceException e) {
+      return false;
+    }
+  }
 }

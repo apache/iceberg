@@ -20,14 +20,13 @@
 package org.apache.iceberg.hive;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.NamespaceChange;
-import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.thrift.TException;
 import org.junit.Assert;
 import org.junit.Test;
@@ -97,35 +96,58 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   }
 
   @Test
-  public void testExistsNamespace() throws TException {
+  public void testNamespaceExists() throws TException {
     Namespace namespace = Namespace.of("dbname_exists");
+
     catalog.createNamespace(namespace, meta);
 
     Assert.assertTrue("Should true to namespace exist",
-        catalog.existsNamespace(namespace));
+        catalog.namespaceExists(namespace));
     Assert.assertTrue("Should false to namespace doesn't exist",
-        !catalog.existsNamespace(Namespace.of("db2", "db2", "ns2")));
+        !catalog.namespaceExists(Namespace.of("db2", "db2", "ns2")));
   }
 
   @Test
-  public void testAlterNamespaceMeta() throws TException {
-    Namespace namespace = Namespace.of("dbname_alter");
+  public void testSetNamespaceProperties() throws TException {
+    Namespace namespace = Namespace.of("dbname_set");
 
     catalog.createNamespace(namespace, meta);
-    catalog.alterNamespace(namespace,
-        NamespaceChange.setProperty("owner", "alter_apache"),
-        NamespaceChange.setProperty("test", "test"),
-        NamespaceChange.setProperty("location", "file:/data/tmp"),
-        NamespaceChange.removeProperty("test3"),
-        NamespaceChange.removeProperty("group")
+    catalog.setProperties(namespace,
+        ImmutableMap.of(
+            "owner", "alter_apache",
+            "test", "test",
+            "location", "file:/data/tmp",
+            "comment", "iceberg test")
     );
 
     Database database = metastoreClient.getDatabase(namespace.level(0));
+    Assert.assertEquals(database.getParameters().get("owner"), "alter_apache");
+    Assert.assertEquals(database.getParameters().get("test"), "test");
+    Assert.assertEquals(database.getParameters().get("group"), "iceberg");
+    AssertHelpers.assertThrows("Should fail to namespace not exist" + namespace,
+        org.apache.iceberg.exceptions.NoSuchNamespaceException.class,
+        "Namespace does not exist: ", () -> {
+          catalog.setProperties(Namespace.of("db2", "db2", "ns2"), meta);
+        });
+  }
 
-    Assert.assertTrue(database.getParameters().get("owner").equals("alter_apache"));
-    Assert.assertTrue(database.getParameters().get("test").equals("test"));
-    Assert.assertEquals(database.getParameters().get("group"), null);
-    Assert.assertEquals(database.getParameters().get("test3"), null);
+  @Test
+  public void testRemoveNamespaceProperties() throws TException {
+    Namespace namespace = Namespace.of("dbname_remove");
+
+    catalog.createNamespace(namespace, meta);
+
+    catalog.removeProperties(namespace, ImmutableSet.of("comment", "owner"));
+
+    Database database = metastoreClient.getDatabase(namespace.level(0));
+
+    Assert.assertEquals(database.getParameters().get("owner"), null);
+    Assert.assertEquals(database.getParameters().get("group"), "iceberg");
+    AssertHelpers.assertThrows("Should fail to namespace not exist" + namespace,
+        org.apache.iceberg.exceptions.NoSuchNamespaceException.class,
+        "Namespace does not exist: ", () -> {
+          catalog.removeProperties(Namespace.of("db2", "db2", "ns2"), ImmutableSet.of("comment", "owner"));
+        });
   }
 
   @Test
@@ -138,10 +160,8 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Assert.assertTrue(nameMata.get("group").equals("iceberg"));
 
     Assert.assertTrue("Drop namespace " + namespace + " error ", catalog.dropNamespace(namespace));
-    AssertHelpers.assertThrows("Should fail to drop when namespace doesn't exist", NoSuchNamespaceException.class,
-        "Namespace does not exist: ", () -> {
-          catalog.dropNamespace(Namespace.of("db.ns1"));
-        });
+    Assert.assertFalse("Should fail to drop when namespace doesn't exist",
+        catalog.dropNamespace(Namespace.of("db.ns1")));
     AssertHelpers.assertThrows("Should fail to drop namespace exist" + namespace,
         org.apache.iceberg.exceptions.NoSuchNamespaceException.class,
         "Namespace does not exist: ", () -> {
