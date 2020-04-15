@@ -17,17 +17,35 @@
  * under the License.
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.transforms;
 
-import org.junit.Assert;
-import org.junit.Test;
+import java.io.ObjectStreamException;
+import java.io.Serializable;
 
-public class TestTransformSerialization extends PartitionSpecTestBase {
-  @Test
-  public void testTransforms() throws Exception {
-    for (PartitionSpec spec : SPECS) {
-      Assert.assertEquals("Deserialization should produce equal partition spec",
-          spec, TestHelpers.roundTripSerialize(spec));
+/**
+ * Stand-in classes for expression classes in Java Serialization.
+ * <p>
+ * These are used so that transform classes can be singletons and use identical equality.
+ */
+class SerializationProxies {
+  private SerializationProxies() {
+  }
+
+  static class VoidTransformProxy implements Serializable {
+    private static final VoidTransformProxy INSTANCE = new VoidTransformProxy();
+
+    static VoidTransformProxy get() {
+      return INSTANCE;
+    }
+
+    /**
+     * Constructor for Java serialization.
+     */
+    VoidTransformProxy() {
+    }
+
+    Object readResolve() throws ObjectStreamException {
+      return VoidTransform.get();
     }
   }
 }

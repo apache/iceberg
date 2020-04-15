@@ -23,7 +23,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class TestPartitionSpecParser extends TableTestBase {
-
   @Test
   public void testToJsonForV1Table() {
     String expected = "{\n" +
@@ -107,5 +106,17 @@ public class TestPartitionSpecParser extends TableTestBase {
     // should be the default assignment
     Assert.assertEquals(1000, spec.fields().get(0).fieldId());
     Assert.assertEquals(1001, spec.fields().get(1).fieldId());
+  }
+
+  @Test
+  public void testTransforms() {
+    for (PartitionSpec spec : PartitionSpecTestBase.SPECS) {
+      Assert.assertEquals("To/from JSON should produce equal partition spec",
+          spec, roundTripJSON(spec));
+    }
+  }
+
+  private static PartitionSpec roundTripJSON(PartitionSpec spec) {
+    return PartitionSpecParser.fromJson(PartitionSpecTestBase.SCHEMA, PartitionSpecParser.toJson(spec));
   }
 }
