@@ -65,7 +65,7 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
   private long existingRows = 0L;
   private int deletedFiles = 0;
   private long deletedRows = 0L;
-  private long minSequenceNumber = Long.MAX_VALUE;
+  private Long minSequenceNumber = null;
 
   private ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
     this.file = file;
@@ -96,7 +96,7 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
         break;
     }
     stats.update(entry.file().partition());
-    if (entry.sequenceNumber() < minSequenceNumber) {
+    if (entry.sequenceNumber() != null && (minSequenceNumber == null || entry.sequenceNumber() < minSequenceNumber)) {
       this.minSequenceNumber = entry.sequenceNumber();
     }
     writer.add(prepare(entry));
@@ -161,8 +161,9 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
 
   public ManifestFile toManifestFile() {
     Preconditions.checkState(closed, "Cannot build ManifestFile, writer is not closed");
-    return new GenericManifestFile(file.location(), writer.length(), specId, UNASSIGNED_SEQ, minSequenceNumber,
-        snapshotId, addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows, stats.summaries());
+    long minSeqNumber = minSequenceNumber != null ? minSequenceNumber : 0;
+    return new GenericManifestFile(file.location(), writer.length(), specId, UNASSIGNED_SEQ, minSeqNumber, snapshotId,
+        addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows, stats.summaries());
   }
 
   @Override
