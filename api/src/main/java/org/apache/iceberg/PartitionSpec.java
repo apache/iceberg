@@ -456,6 +456,17 @@ public class PartitionSpec implements Serializable {
       return truncate(sourceName, width, sourceName + "_trunc");
     }
 
+    public Builder alwaysNull(String sourceName, String targetName) {
+      checkAndAddPartitionName(targetName);
+      Types.NestedField sourceColumn = findSourceColumn(sourceName);
+      fields.add(new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.alwaysNull()));
+      return this;
+    }
+
+    public Builder alwaysNull(String sourceName) {
+      return alwaysNull(sourceName, sourceName + "_null");
+    }
+
     // add a partition field with an auto-increment partition field id starting from PARTITION_DATA_ID_START
     Builder add(int sourceId, String name, String transform) {
       return add(sourceId, nextFieldId(), name, transform);
