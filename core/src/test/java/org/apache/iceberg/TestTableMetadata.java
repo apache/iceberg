@@ -38,6 +38,7 @@ import java.util.UUID;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 import org.junit.Assert;
@@ -533,5 +534,46 @@ public class TestTableMetadata {
       throw new RuntimeIOException(e, "Failed to write json for: %s", metadata);
     }
     return writer.toString();
+  }
+
+  @Test
+  public void testNewTableMetadataReassignmentAllIds() throws Exception {
+    Schema schema = new Schema(
+        Types.NestedField.required(3, "x", Types.LongType.get()),
+        Types.NestedField.required(4, "y", Types.LongType.get()),
+        Types.NestedField.required(5, "z", Types.LongType.get())
+    );
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).withSpecId(5)
+        .add(3, 1005, "x_partition", "bucket[4]")
+        .add(5, 1005, "z_partition", "bucket[8]")
+        .build();
+    String location = "file://tmp/db/table";
+    TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, location, ImmutableMap.of());
+
+    // newTableMetadata should reassign column ids and partition field ids.
+    PartitionSpec expected = PartitionSpec.builderFor(metadata.schema()).withSpecId(0)
+        .add(1, 1000, "x_partition", "bucket[4]")
+        .add(3, 1001, "z_partition", "bucket[8]")
+        .build();
+
+    Assert.assertEquals(expected, metadata.spec());
+  }
+
+  @Test
+  public void testInvalidUpdatePartitionSpecForV1Table() throws Exception {
+    Schema schema = new Schema(
+        Types.NestedField.required(1, "x", Types.LongType.get())
+    );
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).withSpecId(5)
+        .add(1, 1005, "x_partition", "bucket[4]")
+        .build();
+    String location = "file://tmp/db/table";
+    TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, location, ImmutableMap.of());
+
+    AssertHelpers.assertThrows("Should fail to update an invalid partition spec",
+        ValidationException.class, "Spec does not use sequential IDs that are required in v1",
+        () -> metadata.updatePartitionSpec(spec));
   }
 }
