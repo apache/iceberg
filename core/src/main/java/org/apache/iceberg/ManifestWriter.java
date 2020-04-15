@@ -44,7 +44,9 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
    * @param spec {@link PartitionSpec} used to produce {@link DataFile} partition tuples
    * @param outputFile the destination file location
    * @return a manifest writer
+   * @deprecated will be removed in 0.9.0; use {@link ManifestFiles#write(PartitionSpec, OutputFile)} instead.
    */
+  @Deprecated
   public static ManifestWriter write(PartitionSpec spec, OutputFile outputFile) {
     return ManifestFiles.write(spec, outputFile);
   }

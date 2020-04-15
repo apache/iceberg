@@ -66,7 +66,7 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
    *
    * @param file an InputFile
    * @return a manifest reader
-   * @deprecated use {@link ManifestFiles#read(ManifestFile, FileIO, Map)}.
+   * @deprecated will be removed in 0.9.0; use {@link ManifestFiles#read(ManifestFile, FileIO, Map)} instead.
    */
   @Deprecated
   public static ManifestReader read(InputFile file) {
