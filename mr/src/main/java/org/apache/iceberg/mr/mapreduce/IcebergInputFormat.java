@@ -62,6 +62,7 @@ import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopInputFile;
@@ -243,13 +244,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
 
     splits = Lists.newArrayList();
-    boolean applyResidualFiltering = !conf.getBoolean(SKIP_RESIDUAL_FILTERING, false);
     try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
       tasksIterable.forEach(task -> {
-        if (applyResidualFiltering) {
-          //TODO: We do not support residual evaluation yet
-          checkResiduals(task);
-        }
         splits.add(new IcebergSplit(conf, task));
       });
     } catch (IOException e) {
@@ -257,18 +253,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
 
     return splits;
-  }
-
-  private static void checkResiduals(CombinedScanTask task) {
-    task.files().forEach(fileScanTask -> {
-      Expression residual = fileScanTask.residual();
-      if (residual != null && !residual.equals(Expressions.alwaysTrue())) {
-        throw new UnsupportedOperationException(
-            String.format(
-                "Filter expression %s is not completely satisfied. Additional rows " +
-                    "can be returned not satisfied by the filter expression", residual));
-      }
-    });
   }
 
   @Override
@@ -394,8 +378,14 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
               String.format("Cannot read %s file: %s", file.format().name(), file.path()));
       }
       currentCloseable = iterable;
-      //TODO: Apply residual filtering before returning the iterator
-      return iterable.iterator();
+      boolean applyResidualFiltering = !context.getConfiguration().getBoolean(SKIP_RESIDUAL_FILTERING, false);
+      if (applyResidualFiltering && currentTask.residual() != null &&
+          currentTask.residual() != Expressions.alwaysTrue()) {
+        Evaluator filter = new Evaluator(readSchema.asStruct(), currentTask.residual(), caseSensitive);
+        return CloseableIterable.filter(iterable, record -> filter.eval((Record) record)).iterator();
+      } else {
+        return iterable.iterator();
+      }
     }
 
     @SuppressWarnings("unchecked")
