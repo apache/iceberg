@@ -78,7 +78,7 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
 
   protected abstract ManifestEntry prepare(ManifestEntry entry);
 
-  protected abstract FileAppender<ManifestEntry> newAppender(PartitionSpec spec, OutputFile file);
+  protected abstract FileAppender<ManifestEntry> newAppender(PartitionSpec spec, OutputFile outputFile);
 
   void addEntry(ManifestEntry entry) {
     switch (entry.status()) {
@@ -172,7 +172,7 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
   }
 
   static class V2Writer extends ManifestWriter {
-    V2Metadata.IndexedManifestEntry entryWrapper;
+    private V2Metadata.IndexedManifestEntry entryWrapper;
 
     V2Writer(PartitionSpec spec, OutputFile file, Long snapshotId) {
       super(spec, file, snapshotId);
@@ -204,7 +204,7 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
   }
 
   static class V1Writer extends ManifestWriter {
-    V1Metadata.IndexedManifestEntry entryWrapper;
+    private V1Metadata.IndexedManifestEntry entryWrapper;
 
     V1Writer(PartitionSpec spec, OutputFile file, Long snapshotId) {
       super(spec, file, snapshotId);
