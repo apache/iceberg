@@ -173,6 +173,7 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
     return MoreObjects.toStringHelper(this)
         .add("status", status)
         .add("snapshot_id", snapshotId)
+        .add("sequence_number", sequenceNumber)
         .add("file", file)
         .toString();
   }
