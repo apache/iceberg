@@ -280,7 +280,7 @@ public class RemoveOrphanFilesAction implements Action<List<String>> {
       });
 
       if (!subDirs.isEmpty()) {
-        throw new RuntimeException("Could not list dirs: " + subDirs);
+        throw new RuntimeException("Could not list subdirectories, reached maximum subdirectory depth: " + maxDepth);
       }
 
       return files.iterator();
