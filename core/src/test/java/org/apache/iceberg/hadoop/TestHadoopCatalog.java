@@ -295,7 +295,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
         catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned())
     );
 
-    AssertHelpers.assertThrows("Should fail to drop namespace is not empty" + namespace1,
+    AssertHelpers.assertThrows("Should fail to drop namespace is not empty " + namespace1,
         RuntimeIOException.class,
         "Namespace delete failed: " + namespace1, () -> {
           catalog.dropNamespace(Namespace.of("db"));

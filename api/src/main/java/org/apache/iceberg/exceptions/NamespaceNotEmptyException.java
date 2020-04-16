@@ -20,7 +20,7 @@
 package org.apache.iceberg.exceptions;
 
 /**
- * Exception raised when attempting to load a namespace that does not exist.
+ * Exception raised when attempting to drop a namespace that is not empty.
  */
 public class NamespaceNotEmptyException extends RuntimeException {
   public NamespaceNotEmptyException(String message, Object... args) {

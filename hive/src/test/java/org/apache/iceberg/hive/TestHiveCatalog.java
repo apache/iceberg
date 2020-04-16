@@ -29,6 +29,9 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.Assert;
@@ -56,8 +59,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         database1.getLocationUri(), defaultUri(namespace1));
 
     AssertHelpers.assertThrows("Should fail to create when namespace already exist " + namespace1,
-        org.apache.iceberg.exceptions.AlreadyExistsException.class,
-        "Namespace '" + namespace1 + "' already exists!", () -> {
+        AlreadyExistsException.class, "Namespace '" + namespace1 + "' already exists!", () -> {
           catalog.createNamespace(namespace1);
         });
     ImmutableMap newMeta = ImmutableMap.<String, String>builder()
@@ -130,8 +132,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Assert.assertEquals(database.getParameters().get("test"), "test");
     Assert.assertEquals(database.getParameters().get("group"), "iceberg");
     AssertHelpers.assertThrows("Should fail to namespace not exist" + namespace,
-        org.apache.iceberg.exceptions.NoSuchNamespaceException.class,
-        "Namespace does not exist: ", () -> {
+        NoSuchNamespaceException.class, "Namespace does not exist: ", () -> {
           catalog.setProperties(Namespace.of("db2", "db2", "ns2"), meta);
         });
   }
@@ -149,8 +150,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Assert.assertEquals(database.getParameters().get("owner"), null);
     Assert.assertEquals(database.getParameters().get("group"), "iceberg");
     AssertHelpers.assertThrows("Should fail to namespace not exist" + namespace,
-        org.apache.iceberg.exceptions.NoSuchNamespaceException.class,
-        "Namespace does not exist: ", () -> {
+        NoSuchNamespaceException.class, "Namespace does not exist: ", () -> {
           catalog.removeProperties(Namespace.of("db2", "db2", "ns2"), ImmutableSet.of("comment", "owner"));
         });
   }
@@ -169,17 +169,17 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Assert.assertTrue(nameMata.get("group").equals("iceberg"));
 
     AssertHelpers.assertThrows("Should fail to drop namespace is not empty" + namespace,
-        org.apache.iceberg.exceptions.NamespaceNotEmptyException.class,
+        NamespaceNotEmptyException.class,
         "Namespace dbname_drop is not empty. One or more tables exist.", () -> {
           catalog.dropNamespace(namespace);
         });
     Assert.assertTrue(catalog.dropTable(identifier, true));
-    Assert.assertTrue("Drop namespace " + namespace + " error ", catalog.dropNamespace(namespace));
+    Assert.assertTrue("Should fail to drop namespace if it is not empty",
+        catalog.dropNamespace(namespace));
     Assert.assertFalse("Should fail to drop when namespace doesn't exist",
         catalog.dropNamespace(Namespace.of("db.ns1")));
     AssertHelpers.assertThrows("Should fail to drop namespace exist" + namespace,
-        org.apache.iceberg.exceptions.NoSuchNamespaceException.class,
-        "Namespace does not exist: ", () -> {
+        NoSuchNamespaceException.class, "Namespace does not exist: ", () -> {
           catalog.loadNamespaceMetadata(namespace);
         });
   }
