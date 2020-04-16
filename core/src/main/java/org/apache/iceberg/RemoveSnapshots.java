@@ -31,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.util.PropertyUtil;
@@ -320,12 +321,12 @@ class RemoveSnapshots implements ExpireSnapshots {
     LOG.warn("Manifests Lists to delete: {}", Joiner.on(", ").join(manifestListsToDelete));
 
     Tasks.foreach(manifestsToDelete)
-        .noRetry().suppressFailureWhenFinished()
+        .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
         .onFailure((manifest, exc) -> LOG.warn("Delete failed for manifest: {}", manifest, exc))
         .run(deleteFunc::accept);
 
     Tasks.foreach(manifestListsToDelete)
-        .noRetry().suppressFailureWhenFinished()
+        .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
         .onFailure((list, exc) -> LOG.warn("Delete failed for manifest list: {}", list, exc))
         .run(deleteFunc::accept);
   }
@@ -334,7 +335,7 @@ class RemoveSnapshots implements ExpireSnapshots {
                                Set<Long> validIds) {
     Set<String> filesToDelete = findFilesToDelete(manifestsToScan, manifestsToRevert, validIds);
     Tasks.foreach(filesToDelete)
-        .noRetry().suppressFailureWhenFinished()
+        .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
         .onFailure((file, exc) -> LOG.warn("Delete failed for data file: {}", file, exc))
         .run(file -> deleteFunc.accept(file));
   }
@@ -343,7 +344,7 @@ class RemoveSnapshots implements ExpireSnapshots {
                                         Set<Long> validIds) {
     Set<String> filesToDelete = ConcurrentHashMap.newKeySet();
     Tasks.foreach(manifestsToScan)
-        .noRetry().suppressFailureWhenFinished()
+        .retry(3).suppressFailureWhenFinished()
         .executeWith(ThreadPools.getWorkerPool())
         .onFailure((item, exc) -> LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc))
         .run(manifest -> {
@@ -363,7 +364,7 @@ class RemoveSnapshots implements ExpireSnapshots {
         });
 
     Tasks.foreach(manifestsToRevert)
-        .noRetry().suppressFailureWhenFinished()
+        .retry(3).suppressFailureWhenFinished()
         .executeWith(ThreadPools.getWorkerPool())
         .onFailure((item, exc) -> LOG.warn("Failed to get added files: this may cause orphaned data files", exc))
         .run(manifest -> {
