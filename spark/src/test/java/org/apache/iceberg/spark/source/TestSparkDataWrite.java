@@ -28,7 +28,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.ManifestReader;
+import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -121,7 +121,7 @@ public class TestSparkDataWrite {
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
     for (ManifestFile manifest : table.currentSnapshot().manifests()) {
-      for (DataFile file : ManifestReader.read(manifest, table.io())) {
+      for (DataFile file : ManifestFiles.read(manifest, table.io())) {
         // TODO: avro not support split
         if (!format.equals(FileFormat.AVRO)) {
           Assert.assertNotNull("Split offsets not present", file.splitOffsets());
@@ -316,7 +316,7 @@ public class TestSparkDataWrite {
 
     List<DataFile> files = Lists.newArrayList();
     for (ManifestFile manifest : table.currentSnapshot().manifests()) {
-      for (DataFile file : ManifestReader.read(manifest, table.io())) {
+      for (DataFile file : ManifestFiles.read(manifest, table.io())) {
         files.add(file);
       }
     }
@@ -365,7 +365,7 @@ public class TestSparkDataWrite {
 
     List<DataFile> files = Lists.newArrayList();
     for (ManifestFile manifest : table.currentSnapshot().manifests()) {
-      for (DataFile file : ManifestReader.read(manifest, table.io())) {
+      for (DataFile file : ManifestFiles.read(manifest, table.io())) {
         files.add(file);
       }
     }

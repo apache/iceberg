@@ -35,6 +35,7 @@ import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
@@ -184,7 +185,7 @@ public class TestForwardCompatibility {
         .build();
 
     OutputFile manifestFile = localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
-    ManifestWriter manifestWriter = ManifestWriter.write(FAKE_SPEC, manifestFile);
+    ManifestWriter manifestWriter = ManifestFiles.write(FAKE_SPEC, manifestFile);
     try {
       manifestWriter.add(file);
     } finally {
@@ -211,6 +212,11 @@ public class TestForwardCompatibility {
 
     FakeSnapshot(ManifestFile manifest) {
       this.manifest = manifest;
+    }
+
+    @Override
+    public long sequenceNumber() {
+      return 0;
     }
 
     @Override

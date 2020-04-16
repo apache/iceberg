@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.data.avro;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.MapMaker;
 import java.io.IOException;
 import java.util.HashMap;
@@ -45,7 +46,12 @@ public class DataReader<T> implements DatumReader<T> {
       ThreadLocal.withInitial(() -> new MapMaker().weakKeys().makeMap());
 
   public static <D> DataReader<D> create(org.apache.iceberg.Schema expectedSchema, Schema readSchema) {
-    return new DataReader<>(expectedSchema, readSchema);
+    return create(expectedSchema, readSchema, ImmutableMap.of());
+  }
+
+  public static <D> DataReader<D> create(org.apache.iceberg.Schema expectedSchema, Schema readSchema,
+                                         Map<Integer, ?> idToConstant) {
+    return new DataReader<>(expectedSchema, readSchema, idToConstant);
   }
 
   private final Schema readSchema;
@@ -53,9 +59,10 @@ public class DataReader<T> implements DatumReader<T> {
   private Schema fileSchema = null;
 
   @SuppressWarnings("unchecked")
-  private DataReader(org.apache.iceberg.Schema expectedSchema, Schema readSchema) {
+  private DataReader(org.apache.iceberg.Schema expectedSchema, Schema readSchema, Map<Integer, ?> idToConstant) {
     this.readSchema = readSchema;
-    this.reader = (ValueReader<T>) AvroSchemaWithTypeVisitor.visit(expectedSchema, readSchema, new ReadBuilder());
+    this.reader = (ValueReader<T>) AvroSchemaWithTypeVisitor
+        .visit(expectedSchema, readSchema, new ReadBuilder(idToConstant));
   }
 
   @Override
@@ -96,14 +103,16 @@ public class DataReader<T> implements DatumReader<T> {
   }
 
   private static class ReadBuilder extends AvroSchemaWithTypeVisitor<ValueReader<?>> {
+    private final Map<Integer, ?> idToConstant;
 
-    private ReadBuilder() {
+    private ReadBuilder(Map<Integer, ?> idToConstant) {
+      this.idToConstant = idToConstant;
     }
 
     @Override
     public ValueReader<?> record(Types.StructType struct, Schema record,
                                  List<String> names, List<ValueReader<?>> fields) {
-      return GenericReaders.struct(struct, fields);
+      return GenericReaders.struct(struct, fields, idToConstant);
     }
 
     @Override

@@ -15,7 +15,7 @@
  - limitations under the License.
  -->
 
-# API Quickstart
+# Spark API Quickstart
 
 ## Create a table
 

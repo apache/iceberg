@@ -69,11 +69,6 @@ public class ManifestsTable extends BaseMetadataTable {
   }
 
   @Override
-  public String location() {
-    return ops.current().file().location();
-  }
-
-  @Override
   public Schema schema() {
     return SNAPSHOT_SCHEMA;
   }

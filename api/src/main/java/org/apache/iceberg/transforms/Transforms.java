@@ -67,6 +67,10 @@ public class Transforms {
       // fall through to return unknown transform
     }
 
+    if (transform.equalsIgnoreCase("void")) {
+      return VoidTransform.get();
+    }
+
     return new UnknownTransform<>(type, transform);
   }
 
@@ -177,5 +181,15 @@ public class Transforms {
    */
   public static <T> Transform<T, T> truncate(Type type, int width) {
     return Truncate.get(type, width);
+  }
+
+  /**
+   * Returns a {@link Transform} that always produces null.
+   *
+   * @param <T> Java type accepted by the transform.
+   * @return a transform that always produces null (the void transform).
+   */
+  public static <T> Transform<T, Void> alwaysNull() {
+    return VoidTransform.get();
   }
 }

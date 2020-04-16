@@ -317,6 +317,7 @@ project(':iceberg-spark') {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
+    testCompile project(':iceberg-data')
     testCompile "org.apache.hadoop:hadoop-hdfs::tests"
     testCompile "org.apache.hadoop:hadoop-common::tests"
     testCompile("org.apache.hadoop:hadoop-minicluster") {

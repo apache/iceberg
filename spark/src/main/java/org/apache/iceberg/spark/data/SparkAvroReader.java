@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark.data;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.MapMaker;
 import java.io.IOException;
 import java.util.HashMap;
@@ -31,10 +32,12 @@ import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
 import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.ResolvingDecoder;
-import org.apache.iceberg.avro.AvroSchemaVisitor;
+import org.apache.iceberg.avro.AvroSchemaWithTypeVisitor;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 
@@ -47,10 +50,15 @@ public class SparkAvroReader implements DatumReader<InternalRow> {
   private final ValueReader<InternalRow> reader;
   private Schema fileSchema = null;
 
+  public SparkAvroReader(org.apache.iceberg.Schema expectedSchema, Schema readSchema) {
+    this(expectedSchema, readSchema, ImmutableMap.of());
+  }
+
   @SuppressWarnings("unchecked")
-  public SparkAvroReader(Schema readSchema) {
+  public SparkAvroReader(org.apache.iceberg.Schema expectedSchema, Schema readSchema, Map<Integer, ?> constants) {
     this.readSchema = readSchema;
-    this.reader = (ValueReader<InternalRow>) AvroSchemaVisitor.visit(readSchema, new ReadBuilder());
+    this.reader = (ValueReader<InternalRow>) AvroSchemaWithTypeVisitor
+        .visit(expectedSchema, readSchema, new ReadBuilder(constants));
   }
 
   @Override
@@ -90,38 +98,42 @@ public class SparkAvroReader implements DatumReader<InternalRow> {
     }
   }
 
-  private static class ReadBuilder extends AvroSchemaVisitor<ValueReader<?>> {
-    private ReadBuilder() {
+  private static class ReadBuilder extends AvroSchemaWithTypeVisitor<ValueReader<?>> {
+    private final Map<Integer, ?> idToConstant;
+
+    private ReadBuilder(Map<Integer, ?> idToConstant) {
+      this.idToConstant = idToConstant;
     }
 
     @Override
-    public ValueReader<?> record(Schema record, List<String> names, List<ValueReader<?>> fields) {
-      return SparkValueReaders.struct(fields);
+    public ValueReader<?> record(Types.StructType expected, Schema record, List<String> names,
+                                 List<ValueReader<?>> fields) {
+      return SparkValueReaders.struct(fields, expected, idToConstant);
     }
 
     @Override
-    public ValueReader<?> union(Schema union, List<ValueReader<?>> options) {
+    public ValueReader<?> union(Type expected, Schema union, List<ValueReader<?>> options) {
       return ValueReaders.union(options);
     }
 
     @Override
-    public ValueReader<?> array(Schema array, ValueReader<?> elementReader) {
-      LogicalType logical = array.getLogicalType();
-      if (logical != null && "map".equals(logical.getName())) {
-        ValueReader<?>[] keyValueReaders = ((SparkValueReaders.StructReader) elementReader).readers();
-        return SparkValueReaders.arrayMap(keyValueReaders[0], keyValueReaders[1]);
-      }
-
+    public ValueReader<?> array(Types.ListType expected, Schema array, ValueReader<?> elementReader) {
       return SparkValueReaders.array(elementReader);
     }
 
     @Override
-    public ValueReader<?> map(Schema map, ValueReader<?> valueReader) {
+    public ValueReader<?> map(Types.MapType expected, Schema map,
+                              ValueReader<?> keyReader, ValueReader<?> valueReader) {
+      return SparkValueReaders.arrayMap(keyReader, valueReader);
+    }
+
+    @Override
+    public ValueReader<?> map(Types.MapType expected, Schema map, ValueReader<?> valueReader) {
       return SparkValueReaders.map(SparkValueReaders.strings(), valueReader);
     }
 
     @Override
-    public ValueReader<?> primitive(Schema primitive) {
+    public ValueReader<?> primitive(Type.PrimitiveType expected, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
         switch (logicalType.getName()) {

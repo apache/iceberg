@@ -67,11 +67,6 @@ public class DataFilesTable extends BaseMetadataTable {
     }
   }
 
-  @Override
-  public String location() {
-    return table.currentSnapshot().manifestListLocation();
-  }
-
   public static class FilesTableScan extends BaseTableScan {
     private final Schema fileSchema;
 
@@ -136,7 +131,7 @@ public class DataFilesTable extends BaseMetadataTable {
     @Override
     public CloseableIterable<StructLike> rows() {
       return CloseableIterable.transform(
-          ManifestReader.read(manifest, io).project(schema),
+          ManifestFiles.read(manifest, io).project(schema),
           file -> (GenericDataFile) file);
     }
 

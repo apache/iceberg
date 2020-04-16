@@ -24,12 +24,15 @@ import com.google.common.collect.Maps;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
-import org.apache.avro.generic.GenericData.Fixed;
-import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -37,8 +40,13 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.avro.DataWriter;
+import org.apache.iceberg.data.orc.GenericOrcWriter;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
@@ -52,21 +60,23 @@ import org.junit.BeforeClass;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.avro.Schema.Type.NULL;
-import static org.apache.avro.Schema.Type.UNION;
 import static org.apache.iceberg.Files.localOutput;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
 public class TestSparkReadProjection extends TestReadProjection {
+  private static final OffsetDateTime EPOCH = Instant.ofEpochMilli(0L).atOffset(ZoneOffset.UTC);
+  private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
+
   private static SparkSession spark = null;
 
   @Parameterized.Parameters
   public static Object[][] parameters() {
     return new Object[][] {
         new Object[] { "parquet" },
-        new Object[] { "avro" }
+        new Object[] { "avro" },
+        new Object[] { "orc" }
     };
   }
 
@@ -107,6 +117,7 @@ public class TestSparkReadProjection extends TestReadProjection {
       switch (fileFormat) {
         case AVRO:
           try (FileAppender<Record> writer = Avro.write(localOutput(testFile))
+              .createWriterFunc(DataWriter::create)
               .schema(tableSchema)
               .build()) {
             writer.add(record);
@@ -115,6 +126,16 @@ public class TestSparkReadProjection extends TestReadProjection {
 
         case PARQUET:
           try (FileAppender<Record> writer = Parquet.write(localOutput(testFile))
+              .createWriterFunc(GenericParquetWriter::buildWriter)
+              .schema(tableSchema)
+              .build()) {
+            writer.add(record);
+          }
+          break;
+
+        case ORC:
+          try (FileAppender<org.apache.iceberg.data.Record> writer = ORC.write(localOutput(testFile))
+              .createWriterFunc(GenericOrcWriter::buildWriter)
               .schema(tableSchema)
               .build()) {
             writer.add(record);
@@ -149,7 +170,7 @@ public class TestSparkReadProjection extends TestReadProjection {
           .load();
 
       // convert to Avro using the read schema so that the record schemas match
-      return convert(AvroSchemaUtil.convert(readSchema, "table"), df.collectAsList().get(0));
+      return convert(readSchema, df.collectAsList().get(0));
 
     } finally {
       TestTables.clearTables();
@@ -157,98 +178,76 @@ public class TestSparkReadProjection extends TestReadProjection {
   }
 
   @SuppressWarnings("unchecked")
-  private Object convert(org.apache.avro.Schema schema, Object object) {
-    switch (schema.getType()) {
-      case RECORD:
-        return convert(schema, (Row) object);
+  private Object convert(Type type, Object object) {
+    switch (type.typeId()) {
+      case STRUCT:
+        return convert(type.asStructType(), (Row) object);
 
-      case ARRAY:
+      case LIST:
         List<Object> convertedList = Lists.newArrayList();
         List<?> list = (List<?>) object;
         for (Object element : list) {
-          convertedList.add(convert(schema.getElementType(), element));
+          convertedList.add(convert(type.asListType().elementType(), element));
         }
         return convertedList;
 
       case MAP:
-        Map<String, Object> convertedMap = Maps.newLinkedHashMap();
-        Map<String, ?> map = (Map<String, ?>) object;
-        for (Map.Entry<String, ?> entry : map.entrySet()) {
-          convertedMap.put(entry.getKey(), convert(schema.getValueType(), entry.getValue()));
+        Map<Object, Object> convertedMap = Maps.newLinkedHashMap();
+        Map<?, ?> map = (Map<?, ?>) object;
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+          convertedMap.put(
+              convert(type.asMapType().keyType(), entry.getKey()),
+              convert(type.asMapType().valueType(), entry.getValue()));
         }
         return convertedMap;
 
-      case UNION:
-        if (object == null) {
-          return null;
-        }
-        List<org.apache.avro.Schema> types = schema.getTypes();
-        if (types.get(0).getType() != NULL) {
-          return convert(types.get(0), object);
-        } else {
-          return convert(types.get(1), object);
-        }
-
-      case FIXED:
-        Fixed convertedFixed = new Fixed(schema);
-        convertedFixed.bytes((byte[]) object);
-        return convertedFixed;
-
-      case BYTES:
+      case DATE:
+        LocalDate date = (LocalDate) object;
+        return ChronoUnit.DAYS.between(EPOCH_DAY, date);
+      case TIMESTAMP:
+        OffsetDateTime timestamp = (OffsetDateTime) object;
+        return ChronoUnit.MICROS.between(EPOCH, timestamp);
+      case UUID:
+        return ((UUID) object).toString();
+      case BINARY:
         return ByteBuffer.wrap((byte[]) object);
-
       case BOOLEAN:
-      case INT:
+      case INTEGER:
       case LONG:
       case FLOAT:
       case DOUBLE:
+      case DECIMAL:
       case STRING:
+      case FIXED:
         return object;
-
-      case NULL:
-        return null;
-
       default:
-        throw new UnsupportedOperationException("Not a supported type: " + schema);
+        throw new UnsupportedOperationException("Not a supported type: " + type);
     }
   }
+  private Record convert(Schema schema, Row row) {
+    return convert(schema.asStruct(), row);
+  }
 
-  private Record convert(org.apache.avro.Schema schema, Row row) {
-    org.apache.avro.Schema schemaToConvert = schema;
-    if (schema.getType() == UNION) {
-      if (schema.getTypes().get(0).getType() != NULL) {
-        schemaToConvert = schema.getTypes().get(0);
-      } else {
-        schemaToConvert = schema.getTypes().get(1);
-      }
-    }
-
-    Record record = new Record(schemaToConvert);
-    List<org.apache.avro.Schema.Field> fields = schemaToConvert.getFields();
+  private Record convert(Types.StructType struct, Row row) {
+    Record record = GenericRecord.create(struct);
+    List<Types.NestedField> fields = struct.fields();
     for (int i = 0; i < fields.size(); i += 1) {
-      org.apache.avro.Schema.Field field = fields.get(i);
+      Types.NestedField field = fields.get(i);
 
-      org.apache.avro.Schema fieldSchema = field.schema();
-      if (fieldSchema.getType() == UNION) {
-        if (fieldSchema.getTypes().get(0).getType() != NULL) {
-          fieldSchema = fieldSchema.getTypes().get(0);
-        } else {
-          fieldSchema = fieldSchema.getTypes().get(1);
-        }
-      }
+      Type fieldType = field.type();
 
-      switch (fieldSchema.getType()) {
-        case RECORD:
-          record.put(i, convert(field.schema(), row.getStruct(i)));
+      switch (fieldType.typeId()) {
+        case STRUCT:
+          record.set(i, convert(fieldType.asStructType(), row.getStruct(i)));
           break;
-        case ARRAY:
-          record.put(i, convert(field.schema(), row.getList(i)));
+        case LIST:
+          record.set(i, convert(fieldType.asListType(), row.getList(i)));
           break;
         case MAP:
-          record.put(i, convert(field.schema(), row.getJavaMap(i)));
+          record.set(i, convert(fieldType.asMapType(), row.getJavaMap(i)));
           break;
         default:
-          record.put(i, convert(field.schema(), row.get(i)));
+          record.set(i, convert(fieldType, row.get(i)));
       }
     }
     return record;

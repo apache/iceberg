@@ -54,7 +54,8 @@ public class TestIdentityPartitionData  {
   public static Object[][] parameters() {
     return new Object[][] {
         new Object[] { "parquet" },
-        new Object[] { "avro" }
+        new Object[] { "avro" },
+        new Object[] { "orc" }
     };
   }
 

@@ -68,12 +68,7 @@ public class AllEntriesTable extends BaseMetadataTable {
     }
   }
 
-  @Override
-  public String location() {
-    return table.currentSnapshot().manifestListLocation();
-  }
-
-  private static class Scan extends BaseTableScan {
+  private static class Scan extends BaseAllMetadataTableScan {
 
     Scan(TableOperations ops, Table table, Schema schema) {
       super(ops, table, schema);

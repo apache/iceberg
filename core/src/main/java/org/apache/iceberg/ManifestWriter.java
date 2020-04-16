@@ -20,9 +20,7 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Sets;
 import java.io.IOException;
-import java.util.Set;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
@@ -33,54 +31,9 @@ import org.slf4j.LoggerFactory;
 /**
  * Writer for manifest files.
  */
-public class ManifestWriter implements FileAppender<DataFile> {
+public abstract class ManifestWriter implements FileAppender<DataFile> {
   private static final Logger LOG = LoggerFactory.getLogger(ManifestWriter.class);
-
-  static ManifestFile copyAppendManifest(ManifestReader reader, OutputFile outputFile, long snapshotId,
-                                         SnapshotSummary.Builder summaryBuilder) {
-    return copyManifest(reader, outputFile, snapshotId, summaryBuilder, Sets.newHashSet(ManifestEntry.Status.ADDED));
-  }
-
-  static ManifestFile copyManifest(ManifestReader reader, OutputFile outputFile, long snapshotId,
-                                   SnapshotSummary.Builder summaryBuilder,
-                                   Set<ManifestEntry.Status> allowedEntryStatuses) {
-    ManifestWriter writer = new ManifestWriter(reader.spec(), outputFile, snapshotId);
-    boolean threw = true;
-    try {
-      for (ManifestEntry entry : reader.entries()) {
-        Preconditions.checkArgument(
-            allowedEntryStatuses.contains(entry.status()),
-            "Invalid manifest entry status: %s (allowed statuses: %s)",
-            entry.status(), allowedEntryStatuses);
-        switch (entry.status()) {
-          case ADDED:
-            summaryBuilder.addedFile(reader.spec(), entry.file());
-            writer.add(entry);
-            break;
-          case EXISTING:
-            writer.existing(entry);
-            break;
-          case DELETED:
-            summaryBuilder.deletedFile(reader.spec(), entry.file());
-            writer.delete(entry);
-            break;
-        }
-      }
-
-      threw = false;
-
-    } finally {
-      try {
-        writer.close();
-      } catch (IOException e) {
-        if (!threw) {
-          throw new RuntimeIOException(e, "Failed to close manifest: %s", outputFile);
-        }
-      }
-    }
-
-    return writer.toManifestFile();
-  }
+  static final long UNASSIGNED_SEQ = -1L;
 
   /**
    * Create a new {@link ManifestWriter}.
@@ -91,9 +44,11 @@ public class ManifestWriter implements FileAppender<DataFile> {
    * @param spec {@link PartitionSpec} used to produce {@link DataFile} partition tuples
    * @param outputFile the destination file location
    * @return a manifest writer
+   * @deprecated will be removed in 0.9.0; use {@link ManifestFiles#write(PartitionSpec, OutputFile)} instead.
    */
+  @Deprecated
   public static ManifestWriter write(PartitionSpec spec, OutputFile outputFile) {
-    return new ManifestWriter(spec, outputFile, null);
+    return ManifestFiles.write(spec, outputFile);
   }
 
   private final OutputFile file;
@@ -111,7 +66,7 @@ public class ManifestWriter implements FileAppender<DataFile> {
   private int deletedFiles = 0;
   private long deletedRows = 0L;
 
-  ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
+  private ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
     this.file = file;
     this.specId = spec.specId();
     this.writer = newAppender(FileFormat.AVRO, spec, file);
@@ -148,12 +103,10 @@ public class ManifestWriter implements FileAppender<DataFile> {
    */
   @Override
   public void add(DataFile addedFile) {
-    // TODO: this assumes that file is a GenericDataFile that can be written directly to Avro
-    // Eventually, this should check in case there are other DataFile implementations.
     addEntry(reused.wrapAppend(snapshotId, addedFile));
   }
 
-  public void add(ManifestEntry entry) {
+  void add(ManifestEntry entry) {
     addEntry(reused.wrapAppend(snapshotId, entry.file()));
   }
 
@@ -200,7 +153,7 @@ public class ManifestWriter implements FileAppender<DataFile> {
 
   public ManifestFile toManifestFile() {
     Preconditions.checkState(closed, "Cannot build ManifestFile, writer is not closed");
-    return new GenericManifestFile(file.location(), writer.length(), specId, snapshotId,
+    return new GenericManifestFile(file.location(), writer.length(), specId, UNASSIGNED_SEQ, UNASSIGNED_SEQ, snapshotId,
         addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows, stats.summaries());
   }
 
@@ -229,6 +182,12 @@ public class ManifestWriter implements FileAppender<DataFile> {
       }
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to create manifest writer for path: " + file);
+    }
+  }
+
+  static class V1Writer extends ManifestWriter {
+    V1Writer(PartitionSpec spec, OutputFile file, Long snapshotId) {
+      super(spec, file, snapshotId);
     }
   }
 }

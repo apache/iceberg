@@ -25,6 +25,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.generic.GenericData.Record;
@@ -72,7 +73,8 @@ public class TestDataFrameWrites extends AvroDataTest {
   public static Object[][] parameters() {
     return new Object[][] {
         new Object[] { "parquet" },
-        new Object[] { "avro" }
+        new Object[] { "avro" },
+        new Object[] { "orc" }
     };
   }
 
@@ -160,11 +162,8 @@ public class TestDataFrameWrites extends AvroDataTest {
 
     table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
 
-    List<Record> expected = RandomData.generateList(tableSchema, 100, 0L);
-    Dataset<Row> df = createDataset(expected, tableSchema);
-    DataFrameWriter<?> writer = df.write().format("iceberg").mode("append");
-
-    writer.save(location.toString());
+    Iterable<Record> expected = RandomData.generate(tableSchema, 100, 0L);
+    writeData(expected, tableSchema, location.toString());
 
     table.refresh();
 
@@ -174,10 +173,12 @@ public class TestDataFrameWrites extends AvroDataTest {
 
     List<Row> actual = result.collectAsList();
 
-    Assert.assertEquals("Result size should match expected", expected.size(), actual.size());
-    for (int i = 0; i < expected.size(); i += 1) {
-      assertEqualsSafe(tableSchema.asStruct(), expected.get(i), actual.get(i));
+    Iterator<Record> expectedIter = expected.iterator();
+    Iterator<Row> actualIter = actual.iterator();
+    while (expectedIter.hasNext() && actualIter.hasNext()) {
+      assertEqualsSafe(tableSchema.asStruct(), expectedIter.next(), actualIter.next());
     }
+    Assert.assertEquals("Both iterators should be exhausted", expectedIter.hasNext(), actualIter.hasNext());
 
     table.currentSnapshot().addedFiles().forEach(dataFile ->
         Assert.assertTrue(
@@ -188,7 +189,13 @@ public class TestDataFrameWrites extends AvroDataTest {
             URI.create(dataFile.path().toString()).getPath().startsWith(expectedDataDir.getAbsolutePath())));
   }
 
-  private Dataset<Row> createDataset(List<Record> records, Schema schema) throws IOException {
+  private void writeData(Iterable<Record> records, Schema schema, String location) throws IOException {
+    Dataset<Row> df = createDataset(records, schema);
+    DataFrameWriter<?> writer = df.write().format("iceberg").mode("append");
+    writer.save(location);
+  }
+
+  private Dataset<Row> createDataset(Iterable<Record> records, Schema schema) throws IOException {
     // this uses the SparkAvroReader to create a DataFrame from the list of records
     // it assumes that SparkAvroReader is correct
     File testFile = temp.newFile();
@@ -203,17 +210,21 @@ public class TestDataFrameWrites extends AvroDataTest {
       }
     }
 
-    List<InternalRow> rows;
+    // make sure the dataframe matches the records before moving on
+    List<InternalRow> rows = Lists.newArrayList();
     try (AvroIterable<InternalRow> reader = Avro.read(Files.localInput(testFile))
         .createReaderFunc(SparkAvroReader::new)
         .project(schema)
         .build()) {
-      rows = Lists.newArrayList(reader);
-    }
 
-    // make sure the dataframe matches the records before moving on
-    for (int i = 0; i < records.size(); i += 1) {
-      assertEqualsUnsafe(schema.asStruct(), records.get(i), rows.get(i));
+      Iterator<Record> recordIter = records.iterator();
+      Iterator<InternalRow> readIter = reader.iterator();
+      while (recordIter.hasNext() && readIter.hasNext()) {
+        InternalRow row = readIter.next();
+        assertEqualsUnsafe(schema.asStruct(), recordIter.next(), row);
+        rows.add(row);
+      }
+      Assert.assertEquals("Both iterators should be exhausted", recordIter.hasNext(), readIter.hasNext());
     }
 
     JavaRDD<InternalRow> rdd = sc.parallelize(rows);

@@ -79,16 +79,11 @@ public class AllManifestsTable extends BaseMetadataTable {
   }
 
   @Override
-  public String location() {
-    return ops.current().file().location();
-  }
-
-  @Override
   public Schema schema() {
     return MANIFEST_FILE_SCHEMA;
   }
 
-  public static class AllManifestsTableScan extends BaseTableScan {
+  public static class AllManifestsTableScan extends BaseAllMetadataTableScan {
 
     AllManifestsTableScan(TableOperations ops, Table table, Schema fileSchema) {
       super(ops, table, fileSchema);
@@ -167,6 +162,7 @@ public class AllManifestsTable extends BaseMetadataTable {
           .rename("partitions", GenericPartitionFieldSummary.class.getName())
           .rename("r508", GenericPartitionFieldSummary.class.getName())
           .project(ManifestFile.schema())
+          .classLoader(GenericManifestFile.class.getClassLoader())
           .reuseContainers(false)
           .build()) {
 

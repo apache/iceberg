@@ -30,22 +30,33 @@ import static org.apache.iceberg.types.Types.NestedField.required;
  * Represents a manifest file that can be scanned to find data files in a table.
  */
 public interface ManifestFile {
+  Types.NestedField PATH = required(500, "manifest_path", Types.StringType.get());
+  Types.NestedField LENGTH = required(501, "manifest_length", Types.LongType.get());
+  Types.NestedField SPEC_ID = required(502, "partition_spec_id", Types.IntegerType.get());
+  Types.NestedField SNAPSHOT_ID = optional(503, "added_snapshot_id", Types.LongType.get());
+  Types.NestedField ADDED_FILES_COUNT = optional(504, "added_data_files_count", Types.IntegerType.get());
+  Types.NestedField EXISTING_FILES_COUNT = optional(505, "existing_data_files_count", Types.IntegerType.get());
+  Types.NestedField DELETED_FILES_COUNT = optional(506, "deleted_data_files_count", Types.IntegerType.get());
+  Types.StructType PARTITION_SUMMARY_TYPE = Types.StructType.of(
+      required(509, "contains_null", Types.BooleanType.get()),
+      optional(510, "lower_bound", Types.BinaryType.get()), // null if no non-null values
+      optional(511, "upper_bound", Types.BinaryType.get())
+  );
+  Types.NestedField PARTITION_SUMMARIES = optional(507, "partitions",
+      Types.ListType.ofRequired(508, PARTITION_SUMMARY_TYPE));
+  Types.NestedField ADDED_ROWS_COUNT = optional(512, "added_rows_count", Types.LongType.get());
+  Types.NestedField EXISTING_ROWS_COUNT = optional(513, "existing_rows_count", Types.LongType.get());
+  Types.NestedField DELETED_ROWS_COUNT = optional(514, "deleted_rows_count", Types.LongType.get());
+  Types.NestedField SEQUENCE_NUMBER = optional(515, "sequence_number", Types.LongType.get());
+  Types.NestedField MIN_SEQUENCE_NUMBER = optional(516, "min_sequence_number", Types.LongType.get());
+  // next ID to assign: 517
+
   Schema SCHEMA = new Schema(
-      required(500, "manifest_path", Types.StringType.get()),
-      required(501, "manifest_length", Types.LongType.get()),
-      required(502, "partition_spec_id", Types.IntegerType.get()),
-      optional(503, "added_snapshot_id", Types.LongType.get()),
-      optional(504, "added_data_files_count", Types.IntegerType.get()),
-      optional(505, "existing_data_files_count", Types.IntegerType.get()),
-      optional(506, "deleted_data_files_count", Types.IntegerType.get()),
-      optional(507, "partitions", Types.ListType.ofRequired(508, Types.StructType.of(
-          required(509, "contains_null", Types.BooleanType.get()),
-          optional(510, "lower_bound", Types.BinaryType.get()), // null if no non-null values
-          optional(511, "upper_bound", Types.BinaryType.get())
-      ))),
-      optional(512, "added_rows_count", Types.LongType.get()),
-      optional(513, "existing_rows_count", Types.LongType.get()),
-      optional(514, "deleted_rows_count", Types.LongType.get()));
+      PATH, LENGTH, SPEC_ID,
+      SEQUENCE_NUMBER, MIN_SEQUENCE_NUMBER, SNAPSHOT_ID,
+      ADDED_FILES_COUNT, EXISTING_FILES_COUNT, DELETED_FILES_COUNT,
+      ADDED_ROWS_COUNT, EXISTING_ROWS_COUNT, DELETED_ROWS_COUNT,
+      PARTITION_SUMMARIES);
 
   static Schema schema() {
     return SCHEMA;
@@ -65,6 +76,16 @@ public interface ManifestFile {
    * @return ID of the {@link PartitionSpec} used to write the manifest file
    */
   int partitionSpecId();
+
+  /**
+   * @return the sequence number of the commit that added the manifest file
+   */
+  long sequenceNumber();
+
+  /**
+   * @return the lowest sequence number of any data file in the manifest
+   */
+  long minSequenceNumber();
 
   /**
    * @return ID of the snapshot that added the manifest file to table metadata
@@ -152,14 +173,8 @@ public interface ManifestFile {
    * Summarizes the values of one partition field stored in a manifest file.
    */
   interface PartitionFieldSummary {
-    Types.StructType TYPE = ManifestFile.schema()
-        .findType("partitions")
-        .asListType()
-        .elementType()
-        .asStructType();
-
     static Types.StructType getType() {
-      return TYPE;
+      return PARTITION_SUMMARY_TYPE;
     }
 
     /**

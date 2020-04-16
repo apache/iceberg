@@ -337,7 +337,7 @@ class RemoveSnapshots implements ExpireSnapshots {
         .onFailure((item, exc) -> LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc))
         .run(manifest -> {
           // the manifest has deletes, scan it to find files to delete
-          try (ManifestReader reader = ManifestReader.read(manifest, ops.io(), ops.current().specsById())) {
+          try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
             for (ManifestEntry entry : reader.entries()) {
               // if the snapshot ID of the DELETE entry is no longer valid, the data can be deleted
               if (entry.status() == ManifestEntry.Status.DELETED &&
@@ -357,7 +357,7 @@ class RemoveSnapshots implements ExpireSnapshots {
         .onFailure((item, exc) -> LOG.warn("Failed to get added files: this may cause orphaned data files", exc))
         .run(manifest -> {
           // the manifest has deletes, scan it to find files to delete
-          try (ManifestReader reader = ManifestReader.read(manifest, ops.io(), ops.current().specsById())) {
+          try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
             for (ManifestEntry entry : reader.entries()) {
               // delete any ADDED file from manifests that were reverted
               if (entry.status() == ManifestEntry.Status.ADDED) {
@@ -380,6 +380,7 @@ class RemoveSnapshots implements ExpireSnapshots {
     if (snapshot.manifestListLocation() != null) {
       return Avro.read(ops.io().newInputFile(snapshot.manifestListLocation()))
           .rename("manifest_file", GenericManifestFile.class.getName())
+          .classLoader(GenericManifestFile.class.getClassLoader())
           .project(MANIFEST_PROJECTION)
           .reuseContainers(true)
           .build();
