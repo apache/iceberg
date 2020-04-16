@@ -366,7 +366,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     return meta;
   }
 
-  protected Database convertToDatabase(Namespace namespace, Map<String, String> meta) {
+  Database convertToDatabase(Namespace namespace, Map<String, String> meta) {
     String warehouseLocation = conf.get("hive.metastore.warehouse.dir");
 
     if (!isValidateNamespace(namespace)) {
