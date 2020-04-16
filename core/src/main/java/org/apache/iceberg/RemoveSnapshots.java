@@ -201,9 +201,10 @@ class RemoveSnapshots implements ExpireSnapshots {
     // find manifests to clean up that are still referenced by a valid snapshot, but written by an expired snapshot
     Set<String> validManifests = Sets.newHashSet();
     Set<ManifestFile> manifestsToScan = Sets.newHashSet();
-    Tasks.foreach(snapshots).noRetry().suppressFailureWhenFinished()
-        .onFailure((snapshot, exc) -> LOG.warn("Failed on snapshot {} while reading manifest list: {}",
-            snapshot.snapshotId(), snapshot.manifestListLocation(), exc))
+    Tasks.foreach(snapshots).retry(3).suppressFailureWhenFinished()
+        .onFailure((snapshot, exc) ->
+            LOG.warn("Failed on snapshot {} while reading manifest list: {}", snapshot.snapshotId(),
+                snapshot.manifestListLocation(), exc))
         .run(
             snapshot -> {
               try (CloseableIterable<ManifestFile> manifests = readManifestFiles(snapshot)) {
@@ -235,9 +236,10 @@ class RemoveSnapshots implements ExpireSnapshots {
     Set<String> manifestListsToDelete = Sets.newHashSet();
     Set<String> manifestsToDelete = Sets.newHashSet();
     Set<ManifestFile> manifestsToRevert = Sets.newHashSet();
-    Tasks.foreach(base.snapshots()).noRetry().suppressFailureWhenFinished()
-        .onFailure((snapshot, exc) -> LOG.warn("Failed on snapshot {} while reading manifest list: {}",
-            snapshot.snapshotId(), snapshot.manifestListLocation(), exc))
+    Tasks.foreach(base.snapshots()).retry(3).suppressFailureWhenFinished()
+        .onFailure((snapshot, exc) ->
+            LOG.warn("Failed on snapshot {} while reading manifest list: {}", snapshot.snapshotId(),
+                snapshot.manifestListLocation(), exc))
         .run(
             snapshot -> {
               long snapshotId = snapshot.snapshotId();
