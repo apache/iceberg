@@ -33,6 +33,8 @@ import org.slf4j.LoggerFactory;
  */
 public abstract class ManifestWriter implements FileAppender<DataFile> {
   private static final Logger LOG = LoggerFactory.getLogger(ManifestWriter.class);
+  // stand-in for the current sequence number that will be assigned when the commit is successful
+  // this is replaced when writing a manifest list by the ManifestFile wrapper
   static final long UNASSIGNED_SEQ = -1L;
 
   /**
@@ -161,7 +163,9 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
 
   public ManifestFile toManifestFile() {
     Preconditions.checkState(closed, "Cannot build ManifestFile, writer is not closed");
-    long minSeqNumber = minSequenceNumber != null ? minSequenceNumber : 0;
+    // if the minSequenceNumber is null, then no manifests with a sequence number have been written, so the min
+    // sequence number is the one that will be assigned when this is committed. pass UNASSIGNED_SEQ to inherit it.
+    long minSeqNumber = minSequenceNumber != null ? minSequenceNumber : UNASSIGNED_SEQ;
     return new GenericManifestFile(file.location(), writer.length(), specId, UNASSIGNED_SEQ, minSeqNumber, snapshotId,
         addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows, stats.summaries());
   }
