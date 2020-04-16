@@ -35,6 +35,7 @@ import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -284,18 +285,27 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     Configuration conf = new Configuration();
     String warehousePath = temp.newFolder().getAbsolutePath();
     HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    Namespace namespace1 = Namespace.of("db");
+    Namespace namespace2 = Namespace.of("db", "ns1");
 
-    TableIdentifier tbl1 = TableIdentifier.of("db", "tbl1");
-    TableIdentifier tbl2 = TableIdentifier.of("db1", "ns1", "tbl1");
+    TableIdentifier tbl1 = TableIdentifier.of(namespace1, "tbl1");
+    TableIdentifier tbl2 = TableIdentifier.of(namespace2, "tbl1");
 
     Lists.newArrayList(tbl1, tbl2).forEach(t ->
         catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned())
     );
 
+    AssertHelpers.assertThrows("Should fail to drop namespace is not empty" + namespace1,
+        RuntimeIOException.class,
+        "Namespace delete failed: " + namespace1, () -> {
+          catalog.dropNamespace(Namespace.of("db"));
+        });
     Assert.assertFalse("Should fail to drop namespace doesn't exist",
-          catalog.dropNamespace(Namespace.of("db2.ns2")));
-    Assert.assertTrue(catalog.dropNamespace(Namespace.of("db")));
-    Assert.assertTrue(catalog.dropNamespace(Namespace.of("db1")));
+          catalog.dropNamespace(Namespace.of("db2")));
+    Assert.assertTrue(catalog.dropTable(tbl1));
+    Assert.assertTrue(catalog.dropTable(tbl2));
+    Assert.assertTrue(catalog.dropNamespace(namespace2));
+    Assert.assertTrue(catalog.dropNamespace(namespace1));
     String metaLocation = warehousePath + "/" + "db";
     FileSystem fs = Util.getFs(new Path(metaLocation), conf);
     Assert.assertFalse(fs.isDirectory(new Path(metaLocation)));

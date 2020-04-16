@@ -26,10 +26,15 @@ import java.util.Map;
 import java.util.UUID;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.Assert;
 import org.junit.Test;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestHiveCatalog extends HiveMetastoreTest {
   private static final String hiveLocalDir = "file:/tmp/hive/" + UUID.randomUUID().toString();
@@ -153,12 +158,22 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   @Test
   public void testDropNamespace() throws TException {
     Namespace namespace = Namespace.of("dbname_drop");
-    catalog.createNamespace(namespace, meta);
+    TableIdentifier identifier = TableIdentifier.of(namespace, "table");
+    Schema schema = new Schema(Types.StructType.of(
+        required(1, "id", Types.LongType.get())).fields());
 
+    catalog.createNamespace(namespace, meta);
+    catalog.createTable(identifier, schema);
     Map<String, String> nameMata = catalog.loadNamespaceMetadata(namespace);
     Assert.assertTrue(nameMata.get("owner").equals("apache"));
     Assert.assertTrue(nameMata.get("group").equals("iceberg"));
 
+    AssertHelpers.assertThrows("Should fail to drop namespace is not empty" + namespace,
+        org.apache.iceberg.exceptions.NamespaceNotEmptyException.class,
+        "Namespace dbname_drop is not empty. One or more tables exist.", () -> {
+          catalog.dropNamespace(namespace);
+        });
+    Assert.assertTrue(catalog.dropTable(identifier, true));
     Assert.assertTrue("Drop namespace " + namespace + " error ", catalog.dropNamespace(namespace));
     Assert.assertFalse("Should fail to drop when namespace doesn't exist",
         catalog.dropNamespace(Namespace.of("db.ns1")));

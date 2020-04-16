@@ -265,7 +265,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     }
 
     try {
-      return fs.delete(nsPath, true /* recursive */);
+      return fs.delete(nsPath, false /* recursive */);
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Namespace delete failed: %s", namespace);

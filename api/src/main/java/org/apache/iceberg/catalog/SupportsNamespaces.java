@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 
 /**
@@ -95,12 +96,13 @@ public interface SupportsNamespaces {
   Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException;
 
   /**
-   * Drop namespace, while the namespace haven't table or sub namespace will return true.
+   * Drop a namespace. If the namespace exists and was dropped, this will return true.
    *
    * @param namespace a namespace. {@link Namespace}
    * @return true if the namespace was dropped, false otherwise.
+   * @throws NamespaceNotEmptyException If the namespace does not empty (optional)
    */
-  boolean dropNamespace(Namespace namespace);
+  boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException;
 
   /**
    * Apply a set of metadata to a namespace in the catalog.
@@ -121,7 +123,6 @@ public interface SupportsNamespaces {
    * @throws UnsupportedOperationException If namespace properties are not supported
    */
   boolean removeProperties(Namespace namespace, Set<String> properties) throws NoSuchNamespaceException;
-
 
   /**
    * Checks whether the Namespace exists.

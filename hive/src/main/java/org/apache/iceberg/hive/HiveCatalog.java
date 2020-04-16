@@ -34,6 +34,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
 import org.apache.hadoop.hive.metastore.api.Database;
+import org.apache.hadoop.hive.metastore.api.InvalidOperationException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.UnknownDBException;
@@ -43,6 +44,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.thrift.TException;
@@ -241,6 +243,9 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
       return true;
 
+    } catch (InvalidOperationException e) {
+      throw new NamespaceNotEmptyException("Namespace " + namespace + " is not empty. One or more tables exist.", e);
+
     } catch (NoSuchObjectException e) {
       return false;
 
@@ -350,7 +355,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
         tableIdentifier.name());
   }
 
-  public  Map<String, String> convertToMetadata(Database database) {
+  private Map<String, String> convertToMetadata(Database database) {
 
     Map<String, String> meta = Maps.newHashMap();
 
@@ -361,7 +366,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     return meta;
   }
 
-  public  Database convertToDatabase(Namespace namespace, Map<String, String> meta) {
+  protected Database convertToDatabase(Namespace namespace, Map<String, String> meta) {
     String warehouseLocation = conf.get("hive.metastore.warehouse.dir");
 
     if (!isValidateNamespace(namespace)) {
