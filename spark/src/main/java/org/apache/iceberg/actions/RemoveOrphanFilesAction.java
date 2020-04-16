@@ -272,12 +272,16 @@ public class RemoveOrphanFilesAction implements Action<List<String>> {
 
       Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
 
-      int maxDepth = Integer.MAX_VALUE;
+      int maxDepth = 2000;
       int maxDirectSubDirs = Integer.MAX_VALUE;
 
       dirs.forEachRemaining(dir -> {
         listDirRecursively(dir, predicate, conf.value().value(), maxDepth, maxDirectSubDirs, subDirs, files);
       });
+
+      if (!subDirs.isEmpty()) {
+        throw new RuntimeException("Could not list subdirectories, reached maximum subdirectory depth: " + maxDepth);
+      }
 
       return files.iterator();
     };
