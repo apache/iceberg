@@ -205,16 +205,16 @@ public class TestIcebergInputFormat {
                  .filter(Expressions.and(
                      Expressions.equal("date", "2020-03-20"),
                      Expressions.equal("id", 123)));
-    validate(job, expectedRecords);
+    validate(job, writeRecords);
 
-    // skip residual evaluation
+    // enable residual filtering
     job = Job.getInstance(conf);
     configBuilder = IcebergInputFormat.configure(job);
-    configBuilder.skipResidualFiltering().readFrom(location.toString())
+    configBuilder.enableResidualFiltering().readFrom(location.toString())
         .filter(Expressions.and(
             Expressions.equal("date", "2020-03-20"),
             Expressions.equal("id", 123)));
-    validate(job, writeRecords);
+    validate(job, expectedRecords);
   }
 
   @Test

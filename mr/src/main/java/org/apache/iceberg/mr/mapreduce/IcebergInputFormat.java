@@ -125,7 +125,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       this.conf = conf;
       // defaults
       conf.setEnum(IN_MEMORY_DATA_MODEL, InMemoryDataModel.GENERIC);
-      conf.setBoolean(SKIP_RESIDUAL_FILTERING, false);
+      conf.setBoolean(SKIP_RESIDUAL_FILTERING, true);
       conf.setBoolean(CASE_SENSITIVE, true);
       conf.setBoolean(REUSE_CONTAINERS, false);
       conf.setBoolean(LOCALITY, false);
@@ -203,8 +203,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
      * the residual filters, then it should call this api. Otherwise the current api will throw an exception if the
      * passed in filter is not completely satisfied.
      */
-    public ConfigBuilder skipResidualFiltering() {
-      conf.setBoolean(SKIP_RESIDUAL_FILTERING, true);
+    public ConfigBuilder enableResidualFiltering() {
+      conf.setBoolean(SKIP_RESIDUAL_FILTERING, false);
       return this;
     }
   }
@@ -378,14 +378,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
               String.format("Cannot read %s file: %s", file.format().name(), file.path()));
       }
       currentCloseable = iterable;
-      boolean applyResidualFiltering = !context.getConfiguration().getBoolean(SKIP_RESIDUAL_FILTERING, false);
-      if (applyResidualFiltering && currentTask.residual() != null &&
-          currentTask.residual() != Expressions.alwaysTrue()) {
-        Evaluator filter = new Evaluator(readSchema.asStruct(), currentTask.residual(), caseSensitive);
-        return CloseableIterable.filter(iterable, record -> filter.eval((Record) record)).iterator();
-      } else {
-        return iterable.iterator();
-      }
+      return iterable.iterator();
     }
 
     @SuppressWarnings("unchecked")
@@ -431,6 +424,18 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       return row;
     }
 
+    private CloseableIterable<T> applyResidualFiltering(CloseableIterable<T> iter, Expression residual,
+                                                        Schema readSchema) {
+      boolean applyResidual = !context.getConfiguration().getBoolean(SKIP_RESIDUAL_FILTERING, false);
+
+      if (applyResidual && residual != null && residual != Expressions.alwaysTrue()) {
+        Evaluator filter = new Evaluator(readSchema.asStruct(), residual, caseSensitive);
+        return CloseableIterable.filter(iter, record -> filter.eval((StructLike) record));
+      } else {
+        return iter;
+      }
+    }
+
     private CloseableIterable<T> newAvroIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
       Avro.ReadBuilder avroReadBuilder = Avro.read(inputFile)
           .project(readSchema)
@@ -447,7 +452,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
         case GENERIC:
           avroReadBuilder.createReaderFunc(DataReader::create);
       }
-      return avroReadBuilder.build();
+      return applyResidualFiltering(avroReadBuilder.build(), task.residual(), readSchema);
     }
 
     private CloseableIterable<T> newParquetIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
@@ -469,7 +474,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           parquetReadBuilder.createReaderFunc(
               fileSchema -> GenericParquetReaders.buildReader(readSchema, fileSchema));
       }
-      return parquetReadBuilder.build();
+      return applyResidualFiltering(parquetReadBuilder.build(), task.residual(), readSchema);
     }
 
     private CloseableIterable<T> newOrcIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
@@ -487,7 +492,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           orcReadBuilder.createReaderFunc(fileSchema -> GenericOrcReader.buildReader(readSchema, fileSchema));
       }
 
-      return orcReadBuilder.build();
+      return applyResidualFiltering(orcReadBuilder.build(), task.residual(), readSchema);
     }
   }
 
