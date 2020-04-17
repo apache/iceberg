@@ -200,8 +200,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     /**
      * Compute platforms pass down filters to data sources. If the data source cannot apply some filters, or only
      * partially applies the filter, it will return the residual filter back. If the platform can correctly apply
-     * the residual filters, then it should call this api. Otherwise the current api will throw an exception if the
-     * passed in filter is not completely satisfied.
+     * the residual filters, then it should call this api to enable the residual filtering.
      */
     public ConfigBuilder enableResidualFiltering() {
       conf.setBoolean(SKIP_RESIDUAL_FILTERING, false);
