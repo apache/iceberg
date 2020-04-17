@@ -34,11 +34,27 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.junit.Assert.assertEquals;
 
+@RunWith(Parameterized.class)
 public class TestFilterFiles {
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { 1 },
+        new Object[] { 2 },
+    };
+  }
+
+  public final int formatVersion;
+
+  public TestFilterFiles(int formatVersion) {
+    this.formatVersion = formatVersion;
+  }
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -60,28 +76,28 @@ public class TestFilterFiles {
   @Test
   public void testFilterFilesUnpartitionedTable() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    Table table = TestTables.create(tableDir, "test", schema, spec);
+    Table table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
     testFilterFiles(table);
   }
 
   @Test
   public void testCaseInsensitiveFilterFilesUnpartitionedTable() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    Table table = TestTables.create(tableDir, "test", schema, spec);
+    Table table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
     testCaseInsensitiveFilterFiles(table);
   }
 
   @Test
   public void testFilterFilesPartitionedTable() {
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("data", 16).build();
-    Table table = TestTables.create(tableDir, "test", schema, spec);
+    Table table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
     testFilterFiles(table);
   }
 
   @Test
   public void testCaseInsensitiveFilterFilesPartitionedTable() {
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("data", 16).build();
-    Table table = TestTables.create(tableDir, "test", schema, spec);
+    Table table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
     testCaseInsensitiveFilterFiles(table);
   }
 

@@ -86,6 +86,12 @@ public class TableTestBase {
   File metadataDir = null;
   public TestTables.TestTable table = null;
 
+  protected final int formatVersion;
+
+  public TableTestBase(int formatVersion) {
+    this.formatVersion = formatVersion;
+  }
+
   @Before
   public void setupTable() throws Exception {
     this.tableDir = temp.newFolder();
@@ -109,8 +115,8 @@ public class TableTestBase {
         !name.startsWith("snap") && Files.getFileExtension(name).equalsIgnoreCase("avro")));
   }
 
-  private TestTables.TestTable create(Schema schema, PartitionSpec spec) {
-    return TestTables.create(tableDir, "test", schema, spec);
+  TestTables.TestTable create(Schema schema, PartitionSpec spec) {
+    return TestTables.create(tableDir, "test", schema, spec, formatVersion);
   }
 
   TestTables.TestTable load() {

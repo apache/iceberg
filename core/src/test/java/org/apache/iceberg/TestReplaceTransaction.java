@@ -29,11 +29,26 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.PartitionSpec.unpartitioned;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+@RunWith(Parameterized.class)
 public class TestReplaceTransaction extends TableTestBase {
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { 1 },
+        new Object[] { 2 },
+    };
+  }
+
+  public TestReplaceTransaction(int formatVersion) {
+    super(formatVersion);
+  }
+
   @Test
   public void testReplaceTransaction() {
     Schema newSchema = new Schema(

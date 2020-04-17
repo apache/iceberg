@@ -30,10 +30,25 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static com.google.common.collect.Iterators.concat;
 
+@RunWith(Parameterized.class)
 public class TestMergeAppend extends TableTestBase {
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { 1 },
+        new Object[] { 2 },
+    };
+  }
+
+  public TestMergeAppend(int formatVersion) {
+    super(formatVersion);
+  }
+
   @Test
   public void testEmptyTableAppend() {
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());

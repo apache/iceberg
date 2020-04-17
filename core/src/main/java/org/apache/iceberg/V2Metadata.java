@@ -243,11 +243,11 @@ class V2Metadata {
 
   static class IndexedManifestEntry implements ManifestEntry, IndexedRecord {
     private final org.apache.avro.Schema avroSchema;
-    private final long commitSnapshotId;
+    private final Long commitSnapshotId;
     private final V1Metadata.IndexedDataFile fileWrapper;
     private ManifestEntry wrapped = null;
 
-    IndexedManifestEntry(long commitSnapshotId, Types.StructType partitionType) {
+    IndexedManifestEntry(Long commitSnapshotId, Types.StructType partitionType) {
       this.avroSchema = AvroSchemaUtil.convert(entrySchema(partitionType), "manifest_entry");
       this.commitSnapshotId = commitSnapshotId;
       // TODO: when v2 data files differ from v1, this should use a v2 wrapper
