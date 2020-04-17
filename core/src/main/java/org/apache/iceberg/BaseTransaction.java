@@ -69,9 +69,9 @@ class BaseTransaction implements Transaction {
   private TableMetadata lastBase;
   private TableMetadata current;
 
-  BaseTransaction(TableOperations ops, TransactionType type, TableMetadata start) {
+  BaseTransaction(String tableName, TableOperations ops, TransactionType type, TableMetadata start) {
     this.ops = ops;
-    this.transactionTable = new TransactionTable();
+    this.transactionTable = new TransactionTable(tableName);
     this.current = start;
     this.transactionOps = new TransactionTableOperations();
     this.updates = Lists.newArrayList();
@@ -119,7 +119,7 @@ class BaseTransaction implements Transaction {
   @Override
   public AppendFiles newAppend() {
     checkLastOperationCommitted("AppendFiles");
-    AppendFiles append = new MergeAppend(transactionOps);
+    AppendFiles append = new MergeAppend(table().name(), transactionOps);
     append.deleteWith(enqueueDelete);
     updates.add(append);
     return append;
@@ -128,7 +128,7 @@ class BaseTransaction implements Transaction {
   @Override
   public AppendFiles newFastAppend() {
     checkLastOperationCommitted("AppendFiles");
-    AppendFiles append = new FastAppend(transactionOps);
+    AppendFiles append = new FastAppend(table().name(), transactionOps);
     updates.add(append);
     return append;
   }
@@ -136,7 +136,7 @@ class BaseTransaction implements Transaction {
   @Override
   public RewriteFiles newRewrite() {
     checkLastOperationCommitted("RewriteFiles");
-    RewriteFiles rewrite = new BaseRewriteFiles(transactionOps);
+    RewriteFiles rewrite = new BaseRewriteFiles(table().name(), transactionOps);
     rewrite.deleteWith(enqueueDelete);
     updates.add(rewrite);
     return rewrite;
@@ -154,7 +154,7 @@ class BaseTransaction implements Transaction {
   @Override
   public OverwriteFiles newOverwrite() {
     checkLastOperationCommitted("OverwriteFiles");
-    OverwriteFiles overwrite = new BaseOverwriteFiles(transactionOps);
+    OverwriteFiles overwrite = new BaseOverwriteFiles(table().name(), transactionOps);
     overwrite.deleteWith(enqueueDelete);
     updates.add(overwrite);
     return overwrite;
@@ -163,7 +163,7 @@ class BaseTransaction implements Transaction {
   @Override
   public ReplacePartitions newReplacePartitions() {
     checkLastOperationCommitted("ReplacePartitions");
-    ReplacePartitions replacePartitions = new BaseReplacePartitions(transactionOps);
+    ReplacePartitions replacePartitions = new BaseReplacePartitions(table().name(), transactionOps);
     replacePartitions.deleteWith(enqueueDelete);
     updates.add(replacePartitions);
     return replacePartitions;
@@ -172,7 +172,7 @@ class BaseTransaction implements Transaction {
   @Override
   public DeleteFiles newDelete() {
     checkLastOperationCommitted("DeleteFiles");
-    DeleteFiles delete = new StreamingDelete(transactionOps);
+    DeleteFiles delete = new StreamingDelete(table().name(), transactionOps);
     delete.deleteWith(enqueueDelete);
     updates.add(delete);
     return delete;
@@ -471,6 +471,17 @@ class BaseTransaction implements Transaction {
   }
 
   public class TransactionTable implements Table {
+    private final String tableName;
+
+    TransactionTable(String tableName) {
+      this.tableName = tableName;
+    }
+
+    @Override
+    public String name() {
+      return tableName;
+    }
+
     @Override
     public void refresh() {
     }

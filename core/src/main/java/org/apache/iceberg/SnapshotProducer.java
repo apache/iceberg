@@ -34,6 +34,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.OutputFile;
@@ -292,6 +293,19 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     } catch (RuntimeException e) {
       LOG.warn("Failed to load committed table metadata, skipping manifest clean-up", e);
+    }
+
+    notifyListeners();
+  }
+
+  private void notifyListeners() {
+    try {
+      Object event = updateEvent();
+      if (event != null) {
+        Listeners.notifyAll(event);
+      }
+    } catch (RuntimeException e) {
+      LOG.warn("Failed to notify listeners", e);
     }
   }
 

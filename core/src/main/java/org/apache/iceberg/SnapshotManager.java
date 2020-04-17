@@ -39,8 +39,8 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
   private String snapshotOperation = null;
   private Long requiredCurrentSnapshotId = null;
 
-  SnapshotManager(TableOperations ops) {
-    super(ops);
+  SnapshotManager(String tableName, TableOperations ops) {
+    super(tableName, ops);
   }
 
   @Override
@@ -97,7 +97,9 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
     ValidationException.check(current().snapshot(snapshotId) != null,
         "Cannot roll back to unknown snapshot id: %s", snapshotId);
 
+    //TODO how is managerOperation diff from snapshotOperation
     this.managerOperation = SnapshotManagerOperation.ROLLBACK;
+    this.snapshotOperation = SnapshotManagerOperation.ROLLBACK.name();
     this.targetSnapshotId = snapshotId;
 
     return this;

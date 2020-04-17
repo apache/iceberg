@@ -35,8 +35,8 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
   private Long readSnapshotId = null;
   private Expression conflictDetectionFilter = null;
 
-  protected BaseOverwriteFiles(TableOperations ops) {
-    super(ops);
+  protected BaseOverwriteFiles(String name, TableOperations ops) {
+    super(name, ops);
   }
 
   @Override

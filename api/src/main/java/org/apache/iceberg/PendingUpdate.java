@@ -52,4 +52,11 @@ public interface PendingUpdate<T> {
    */
   void commit();
 
+  /**
+   * Generates update event to notify metadata changes
+   * @return the generated event
+   */
+  default Object updateEvent() {
+    return null;
+  }
 }

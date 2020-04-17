@@ -29,6 +29,12 @@ import org.apache.iceberg.io.LocationProvider;
 abstract class BaseMetadataTable implements Table {
   private PartitionSpec spec = PartitionSpec.unpartitioned();
 
+  @Override
+  public String name() {
+    //TODO: should we just have name() and renmove metadataTableName()
+    return metadataTableName();
+  }
+
   abstract Table table();
   abstract String metadataTableName();
 

@@ -50,7 +50,8 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   private ManifestFile newManifest = null;
   private boolean hasNewFiles = false;
 
-  FastAppend(TableOperations ops) {
+  FastAppend(String tableName, TableOperations ops) {
+    //TODO we use tableName to publish notification
     super(ops);
     this.ops = ops;
     this.spec = ops.current().spec();

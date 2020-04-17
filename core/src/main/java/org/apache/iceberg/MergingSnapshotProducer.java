@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -34,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Evaluator;
@@ -78,6 +80,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
   }
 
+  private final String tableName;
   private final TableOperations ops;
   private final PartitionSpec spec;
   private final long manifestTargetSizeBytes;
@@ -116,8 +119,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   private boolean filterUpdated = false; // used to clear caches of filtered and merged manifests
 
-  MergingSnapshotProducer(TableOperations ops) {
+  MergingSnapshotProducer(String tableName, TableOperations ops) {
     super(ops);
+    this.tableName = tableName;
     this.ops = ops;
     this.spec = ops.current().spec();
     this.manifestTargetSizeBytes = ops.current()
@@ -314,6 +318,22 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to create snapshot manifest list");
     }
+  }
+
+  @Override
+  public Object updateEvent() {
+    long snapshotId = snapshotId();
+    //long sequenceNumber = ops.refresh().snapshot(snapshotId).sequenceNumber();
+    return new CreateSnapshotEvent(
+        tableName,
+        operation(),
+        snapshotId,
+        0,
+        summary(),
+        FluentIterable.from(newFiles).transform(f -> f.path().toString()).toList(),
+        FluentIterable.from(appendManifests).transform(ManifestFile::path).toList(),
+        FluentIterable.from(deletePaths).transform(CharSequenceWrapper::toString).toList()
+    );
   }
 
   private ManifestFile[] filterManifests(StrictMetricsEvaluator metricsEvaluator, List<ManifestFile> manifests)

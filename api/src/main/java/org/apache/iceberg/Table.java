@@ -29,6 +29,10 @@ import org.apache.iceberg.io.LocationProvider;
  * Represents a table.
  */
 public interface Table {
+  /**
+   * @return the table name
+   */
+  String name();
 
   /**
    * Refresh the current table metadata.
