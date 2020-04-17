@@ -665,7 +665,6 @@ public class TestMergeAppend extends TableTestBase {
             .commit());
   }
 
-
   @Test
   public void testUpdatePartitionSpecFieldIdsForV1Table() {
     TableMetadata base = readMetadata();

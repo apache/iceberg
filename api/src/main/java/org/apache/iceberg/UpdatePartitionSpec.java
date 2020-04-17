@@ -29,7 +29,8 @@ import org.apache.iceberg.exceptions.CommitFailedException;
  */
 public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
 
-  /** Update the current partition spec to a new partition spec.
+  /**
+   * Update the current partition spec to a new partition spec.
    * <p>
    * Partition field IDs of the new partitionSpec may be updated during the commit.
    *

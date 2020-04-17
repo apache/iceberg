@@ -26,7 +26,41 @@ import org.junit.Test;
 public class TestPartitionSpecUpdate extends TableTestBase {
 
   @Test
-  public void testCommitUpdatedSpec() {
+  public void testCommitUpdatedSpecForV1Table() {
+    Assert.assertEquals("[\n" +
+        "  1000: data_bucket: bucket[16](2)\n" +
+        "]", table.spec().toString());
+    Assert.assertEquals(1000, table.spec().lastAssignedFieldId());
+
+    PartitionSpec spec = PartitionSpec.builderFor(table.schema())
+        .bucket("id", 8)
+        .bucket("data", 16)
+        .build();
+    table.updatePartitionSpec().update(spec).commit();
+
+    Assert.assertEquals("[\n" +
+        "  1000: id_bucket: bucket[8](1)\n" +
+        "  1001: data_bucket: bucket[16](2)\n" +
+        "]", table.spec().toString());
+    Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
+
+    spec = PartitionSpec.builderFor(table.schema())
+        .truncate("data", 8)
+        .build();
+    table.updatePartitionSpec().update(spec).commit();
+
+    Assert.assertEquals("[\n" +
+        "  1000: data_trunc: truncate[8](2)\n" +
+        "]", table.spec().toString());
+    Assert.assertEquals(1000, table.spec().lastAssignedFieldId());
+  }
+
+  @Test
+  public void testCommitUpdatedSpecForV2Table() {
+    TableOperations ops = table.ops();
+    TableMetadata base = ops.current();
+    ops.commit(base, base.upgradeToFormatVersion(2));
+
     Assert.assertEquals("[\n" +
         "  1000: data_bucket: bucket[16](2)\n" +
         "]", table.spec().toString());
