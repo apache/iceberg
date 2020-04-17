@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.transforms;
 
-import com.google.common.base.Objects;
+import org.apache.iceberg.shaded.com.google.common.base.Objects;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Expressions;

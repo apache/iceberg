@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.catalog;
 
-import com.google.common.base.Joiner;
+import org.apache.iceberg.shaded.com.google.common.base.Joiner;
 import java.util.Arrays;
 
 /**

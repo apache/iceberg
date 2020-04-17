@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.expressions;
 
-import com.google.common.base.Preconditions;
+import org.apache.iceberg.shaded.com.google.common.base.Preconditions;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;

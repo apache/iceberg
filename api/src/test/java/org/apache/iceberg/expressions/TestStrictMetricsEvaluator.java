@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.expressions;
 
-import com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.shaded.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;

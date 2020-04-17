@@ -19,9 +19,9 @@
 
 package org.apache.iceberg.catalog;
 
-import com.google.common.base.Preconditions;
-import com.google.common.base.Splitter;
-import com.google.common.collect.Iterables;
+import org.apache.iceberg.shaded.com.google.common.base.Preconditions;
+import org.apache.iceberg.shaded.com.google.common.base.Splitter;
+import org.apache.iceberg.shaded.com.google.common.collect.Iterables;
 import java.util.Arrays;
 import java.util.Objects;
 

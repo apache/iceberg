@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.expressions;
 
-import com.google.common.base.Preconditions;
+import org.apache.iceberg.shaded.com.google.common.base.Preconditions;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Map;

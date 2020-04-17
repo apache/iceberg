@@ -19,7 +19,7 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Lists;
+import org.apache.iceberg.shaded.com.google.common.collect.Lists;
 import java.util.Collection;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;

@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.transforms;
 
-import com.google.common.collect.Lists;
+import org.apache.iceberg.shaded.com.google.common.collect.Lists;
 import java.util.List;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;

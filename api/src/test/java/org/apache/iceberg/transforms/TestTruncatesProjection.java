@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.transforms;
 
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
+import org.apache.iceberg.shaded.com.google.common.collect.Iterables;
+import org.apache.iceberg.shaded.com.google.common.collect.Lists;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.stream.Collectors;

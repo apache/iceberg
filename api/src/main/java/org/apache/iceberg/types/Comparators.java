@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.types;
 
-import com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.shaded.com.google.common.collect.ImmutableMap;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import org.apache.iceberg.util.UnicodeUtil;

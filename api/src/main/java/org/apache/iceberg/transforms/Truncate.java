@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.transforms;
 
-import com.google.common.base.Objects;
+import org.apache.iceberg.shaded.com.google.common.base.Objects;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;

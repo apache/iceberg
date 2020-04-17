@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.io;
 
-import com.google.common.collect.Lists;
+import org.apache.iceberg.shaded.com.google.common.collect.Lists;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Deque;

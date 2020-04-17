@@ -19,9 +19,9 @@
 
 package org.apache.iceberg.io;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
+import org.apache.iceberg.shaded.com.google.common.base.Preconditions;
+import org.apache.iceberg.shaded.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.shaded.com.google.common.collect.Iterables;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;

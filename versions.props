@@ -1,5 +1,4 @@
 org.slf4j:slf4j-api = 1.7.22
-com.google.guava:guava = 28.0-jre
 org.apache.avro:avro = 1.9.2
 org.apache.hadoop:* = 2.7.3
 org.apache.hive:hive-metastore = 2.3.6

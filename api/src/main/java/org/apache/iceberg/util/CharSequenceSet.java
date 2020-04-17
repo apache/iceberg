@@ -19,9 +19,9 @@
 
 package org.apache.iceberg.util;
 
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Sets;
+import org.apache.iceberg.shaded.com.google.common.collect.Iterables;
+import org.apache.iceberg.shaded.com.google.common.collect.Iterators;
+import org.apache.iceberg.shaded.com.google.common.collect.Sets;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Iterator;

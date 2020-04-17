@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.util;
 
-import com.google.common.base.Preconditions;
+import org.apache.iceberg.shaded.com.google.common.base.Preconditions;
 import org.apache.iceberg.expressions.Literal;
 
 public class UnicodeUtil {

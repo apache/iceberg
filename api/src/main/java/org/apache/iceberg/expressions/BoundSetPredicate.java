@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.expressions;
 
-import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
+import org.apache.iceberg.shaded.com.google.common.base.Joiner;
+import org.apache.iceberg.shaded.com.google.common.base.Preconditions;
 import java.util.Set;
 
 public class BoundSetPredicate<T> extends BoundPredicate<T> {
