@@ -106,21 +106,48 @@ public class TestManifestWriterVersions {
   }
 
   @Test
-  public void testV2ManifestRewriteWithInheritance() throws IOException {
+  public void testV2ManifestListRewriteWithInheritance() throws IOException {
     // write with v1
     ManifestFile manifest = writeAndReadManifestList(writeManifest(1), 1);
     checkManifest(manifest, 0L);
 
-    // rewrite existing metadata with v2
+    // rewrite existing metadata with v2 manifest list
     ManifestFile manifest2 = writeAndReadManifestList(manifest, 2);
+    // the ManifestFile did not change and should still have its original sequence number, 0
     checkManifest(manifest2, 0L);
 
     // should not inherit the v2 sequence number because it was a rewrite
     checkEntry(readManifest(manifest2), 0L);
   }
 
+  @Test
+  public void testV2ManifestRewriteWithInheritance() throws IOException {
+    // write with v1
+    ManifestFile manifest = writeAndReadManifestList(writeManifest(1), 1);
+    checkManifest(manifest, 0L);
+
+    // rewrite the manifest file using a v2 manifest
+    ManifestFile rewritten = rewriteManifest(manifest, 2);
+    checkRewrittenManifest(rewritten, ManifestWriter.UNASSIGNED_SEQ, 0L);
+
+    // add the v2 manifest to a v2 manifest list, with a sequence number
+    ManifestFile manifest2 = writeAndReadManifestList(rewritten, 2);
+    // the ManifestFile is new so it has a sequence number, but the min sequence number 0 is from the entry
+    checkRewrittenManifest(manifest2, SEQUENCE_NUMBER, 0L);
+
+    // should not inherit the v2 sequence number because it was written into the v2 manifest
+    checkRewrittenEntry(readManifest(manifest2), 0L);
+  }
+
   void checkEntry(ManifestEntry entry, Long expectedSequenceNumber) {
     Assert.assertEquals("Status", ManifestEntry.Status.ADDED, entry.status());
+    Assert.assertEquals("Snapshot ID", (Long) SNAPSHOT_ID, entry.snapshotId());
+    Assert.assertEquals("Sequence number", expectedSequenceNumber, entry.sequenceNumber());
+    checkDataFile(entry.file());
+  }
+
+  void checkRewrittenEntry(ManifestEntry entry, Long expectedSequenceNumber) {
+    Assert.assertEquals("Status", ManifestEntry.Status.EXISTING, entry.status());
     Assert.assertEquals("Snapshot ID", (Long) SNAPSHOT_ID, entry.snapshotId());
     Assert.assertEquals("Sequence number", expectedSequenceNumber, entry.sequenceNumber());
     checkDataFile(entry.file());
@@ -150,6 +177,18 @@ public class TestManifestWriterVersions {
     Assert.assertEquals("Deleted rows count", (Long) 0L, manifest.deletedRowsCount());
   }
 
+  void checkRewrittenManifest(ManifestFile manifest, long expectedSequenceNumber, long expectedMinSequenceNumber) {
+    Assert.assertEquals("Snapshot ID", (Long) SNAPSHOT_ID, manifest.snapshotId());
+    Assert.assertEquals("Sequence number", expectedSequenceNumber, manifest.sequenceNumber());
+    Assert.assertEquals("Min sequence number", expectedMinSequenceNumber, manifest.minSequenceNumber());
+    Assert.assertEquals("Added files count", (Integer) 0, manifest.addedFilesCount());
+    Assert.assertEquals("Existing files count", (Integer) 1, manifest.existingFilesCount());
+    Assert.assertEquals("Deleted files count", (Integer) 0, manifest.deletedFilesCount());
+    Assert.assertEquals("Added rows count", (Long) 0L, manifest.addedRowsCount());
+    Assert.assertEquals("Existing rows count", METRICS.recordCount(), manifest.existingRowsCount());
+    Assert.assertEquals("Deleted rows count", (Long) 0L, manifest.deletedRowsCount());
+  }
+
   private InputFile writeManifestList(ManifestFile manifest, int formatVersion) throws IOException {
     OutputFile manifestList = Files.localOutput(temp.newFile());
     try (FileAppender<ManifestFile> writer = ManifestLists.write(
@@ -163,6 +202,17 @@ public class TestManifestWriterVersions {
     List<ManifestFile> manifests = ManifestLists.read(writeManifestList(manifest, formatVersion));
     Assert.assertEquals("Should contain one manifest", 1, manifests.size());
     return manifests.get(0);
+  }
+
+  private ManifestFile rewriteManifest(ManifestFile manifest, int formatVersion) throws IOException {
+    OutputFile manifestFile = Files.localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
+    ManifestWriter writer = ManifestFiles.write(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
+    try {
+      writer.existing(readManifest(manifest));
+    } finally {
+      writer.close();
+    }
+    return writer.toManifestFile();
   }
 
   private ManifestFile writeManifest(int formatVersion) throws IOException {
