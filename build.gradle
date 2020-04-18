@@ -307,6 +307,7 @@ project(':iceberg-spark') {
     compile project(':iceberg-api')
     compile project(':iceberg-common')
     compile project(':iceberg-core')
+    compile project(':iceberg-data')
     compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
     compile project(':iceberg-arrow')
@@ -317,7 +318,6 @@ project(':iceberg-spark') {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
-    testCompile project(':iceberg-data')
     testCompile "org.apache.hadoop:hadoop-hdfs::tests"
     testCompile "org.apache.hadoop:hadoop-common::tests"
     testCompile("org.apache.hadoop:hadoop-minicluster") {
