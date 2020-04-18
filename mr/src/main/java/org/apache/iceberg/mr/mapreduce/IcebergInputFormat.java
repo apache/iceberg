@@ -125,7 +125,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       this.conf = conf;
       // defaults
       conf.setEnum(IN_MEMORY_DATA_MODEL, InMemoryDataModel.GENERIC);
-      conf.setBoolean(SKIP_RESIDUAL_FILTERING, true);
+      conf.setBoolean(SKIP_RESIDUAL_FILTERING, false);
       conf.setBoolean(CASE_SENSITIVE, true);
       conf.setBoolean(REUSE_CONTAINERS, false);
       conf.setBoolean(LOCALITY, false);
@@ -200,10 +200,11 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     /**
      * Compute platforms pass down filters to data sources. If the data source cannot apply some filters, or only
      * partially applies the filter, it will return the residual filter back. If the platform can correctly apply
-     * the residual filters, then it should call this api to enable the residual filtering.
+     * the residual filters, then it should call this api. Otherwise the current api will throw an exception if the
+     * passed in filter is not completely satisfied.
      */
-    public ConfigBuilder enableResidualFiltering() {
-      conf.setBoolean(SKIP_RESIDUAL_FILTERING, false);
+    public ConfigBuilder skipResidualFiltering() {
+      conf.setBoolean(SKIP_RESIDUAL_FILTERING, true);
       return this;
     }
   }
@@ -243,8 +244,14 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
 
     splits = Lists.newArrayList();
+    boolean applyResidual = !conf.getBoolean(SKIP_RESIDUAL_FILTERING, false);
+    InMemoryDataModel model = conf.getEnum(IN_MEMORY_DATA_MODEL, InMemoryDataModel.GENERIC);
     try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
       tasksIterable.forEach(task -> {
+        if (applyResidual && (model == InMemoryDataModel.HIVE || model == InMemoryDataModel.PIG)) {
+          //TODO: We do not support residual evaluation for HIVE and PIG in memory data model yet
+          checkResiduals(task);
+        }
         splits.add(new IcebergSplit(conf, task));
       });
     } catch (IOException e) {
@@ -252,6 +259,18 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
 
     return splits;
+  }
+
+  private static void checkResiduals(CombinedScanTask task) {
+    task.files().forEach(fileScanTask -> {
+      Expression residual = fileScanTask.residual();
+      if (residual != null && !residual.equals(Expressions.alwaysTrue())) {
+        throw new UnsupportedOperationException(
+            String.format(
+                "Filter expression %s is not completely satisfied. Additional rows " +
+                    "can be returned not satisfied by the filter expression", residual));
+      }
+    });
   }
 
   @Override
@@ -299,6 +318,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           currentCloseable.close();
           currentIterator = open(tasks.next());
         } else {
+          currentCloseable.close();
           return false;
         }
       }
