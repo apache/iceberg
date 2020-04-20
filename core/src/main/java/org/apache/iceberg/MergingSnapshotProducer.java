@@ -42,6 +42,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.BinPacking.ListPacker;
 import org.apache.iceberg.util.CharSequenceWrapper;
@@ -227,13 +228,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   private ManifestFile copyManifest(ManifestFile manifest) {
-    try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
-      OutputFile newManifestPath = newManifestOutput();
-      return ManifestFiles.copyAppendManifest(
-          ops.current().formatVersion(), reader, newManifestPath, snapshotId(), appendedManifestsSummary);
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest);
-    }
+    TableMetadata current = ops.current();
+    InputFile toCopy = ops.io().newInputFile(manifest.path());
+    OutputFile newManifestPath = newManifestOutput();
+    return ManifestFiles.copyAppendManifest(
+        current.formatVersion(), toCopy, current.specsById(), newManifestPath, snapshotId(), appendedManifestsSummary);
   }
 
   @Override

@@ -39,6 +39,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
@@ -154,13 +155,11 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
   }
 
   private ManifestFile copyManifest(ManifestFile manifest) {
-    try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), specsById)) {
-      OutputFile newFile = newManifestOutput();
-      return ManifestFiles.copyManifest(
-          ops.current().formatVersion(), reader, newFile, snapshotId(), summaryBuilder, ALLOWED_ENTRY_STATUSES);
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest);
-    }
+    TableMetadata current = ops.current();
+    InputFile toCopy = ops.io().newInputFile(manifest.path());
+    OutputFile newFile = newManifestOutput();
+    return ManifestFiles.copyRewriteManifest(
+        current.formatVersion(), toCopy, specsById, newFile, snapshotId(), summaryBuilder);
   }
 
   @Override
