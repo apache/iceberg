@@ -28,6 +28,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.ql.io.CombineHiveInputFormat;
+import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.InputFormat;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
@@ -47,7 +51,12 @@ import org.apache.iceberg.mr.SerializationUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class IcebergInputFormat<T> implements InputFormat<Void, T> {
+/**
+ * CombineHiveInputFormat.AvoidSplitCombination is implemented to correctly delegate InputSplit
+ * creation to this class. See: https://stackoverflow.com/questions/29133275/
+ * custom-inputformat-getsplits-never-called-in-hive
+ */
+public class IcebergInputFormat<T> implements InputFormat<Void, T>, CombineHiveInputFormat.AvoidSplitCombination {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergInputFormat.class);
 
   static final String REUSE_CONTAINERS = "iceberg.mr.reuse.containers";
@@ -61,7 +70,7 @@ public class IcebergInputFormat<T> implements InputFormat<Void, T> {
     List<CombinedScanTask> tasks = (List<CombinedScanTask>) StreamSupport
         .stream(taskIterable.spliterator(), false)
         .collect(Collectors.toList());
-    return createSplits(tasks);
+    return createSplits(tasks, table.location());
   }
 
   private Table findTable(JobConf conf) throws IOException {
@@ -80,10 +89,10 @@ public class IcebergInputFormat<T> implements InputFormat<Void, T> {
     return table;
   }
 
-  private InputSplit[] createSplits(List<CombinedScanTask> tasks) {
+  private InputSplit[] createSplits(List<CombinedScanTask> tasks, String location) {
     InputSplit[] splits = new InputSplit[tasks.size()];
     for (int i = 0; i < tasks.size(); i++) {
-      splits[i] = new IcebergSplit(tasks.get(i));
+      splits[i] = new IcebergSplit(tasks.get(i), location);
     }
     return splits;
   }
@@ -91,6 +100,11 @@ public class IcebergInputFormat<T> implements InputFormat<Void, T> {
   @Override
   public RecordReader getRecordReader(InputSplit split, JobConf job, Reporter reporter) throws IOException {
     return new IcebergRecordReader(split, job);
+  }
+
+  @Override
+  public boolean shouldSkipCombine(Path path, Configuration conf) throws IOException {
+    return true;
   }
 
   public class IcebergRecordReader implements RecordReader<Void, IcebergWritable> {
@@ -176,18 +190,27 @@ public class IcebergInputFormat<T> implements InputFormat<Void, T> {
     }
   }
 
-  private static class IcebergSplit implements InputSplit {
+  /**
+   * FileSplit is extended rather than implementing the InputSplit interface due to Hive's HiveInputFormat
+   * expecting a split which is an instance of FileSplit.
+   */
+  private static class IcebergSplit extends FileSplit {
 
     private static final String[] ANYWHERE = new String[]{"*"};
 
     private CombinedScanTask task;
+    private String partitionLocation;
 
-    IcebergSplit(CombinedScanTask task) {
+    IcebergSplit() {
+    }
+
+    IcebergSplit(CombinedScanTask task, String partitionLocation) {
       this.task = task;
+      this.partitionLocation = partitionLocation;
     }
 
     @Override
-    public long getLength() throws IOException {
+    public long getLength() {
       return task.files().stream().mapToLong(FileScanTask::length).sum();
     }
 
@@ -197,10 +220,24 @@ public class IcebergInputFormat<T> implements InputFormat<Void, T> {
     }
 
     @Override
+    public Path getPath() {
+      return new Path(partitionLocation);
+    }
+
+    @Override
+    public long getStart() {
+      return 0L;
+    }
+
+    @Override
     public void write(DataOutput out) throws IOException {
       byte[] data = SerializationUtil.serializeToBytes(this.task);
       out.writeInt(data.length);
       out.write(data);
+
+      byte[] tableLocation = SerializationUtil.serializeToBytes(this.partitionLocation);
+      out.writeInt(tableLocation.length);
+      out.write(tableLocation);
     }
 
     @Override
@@ -208,6 +245,10 @@ public class IcebergInputFormat<T> implements InputFormat<Void, T> {
       byte[] data = new byte[in.readInt()];
       in.readFully(data);
       this.task = SerializationUtil.deserializeFromBytes(data);
+
+      byte[] location = new byte[in.readInt()];
+      in.readFully(location);
+      this.partitionLocation = SerializationUtil.deserializeFromBytes(location);
     }
 
     public CombinedScanTask getTask() {
