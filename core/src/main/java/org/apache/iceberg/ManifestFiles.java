@@ -90,6 +90,8 @@ public class ManifestFiles {
     switch (formatVersion) {
       case 1:
         return new ManifestWriter.V1Writer(spec, outputFile, snapshotId);
+      case 2:
+        return new ManifestWriter.V2Writer(spec, outputFile, snapshotId);
     }
     throw new UnsupportedOperationException("Cannot write manifest for table version: " + formatVersion);
   }

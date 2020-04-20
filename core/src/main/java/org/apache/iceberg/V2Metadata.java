@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import com.google.common.base.Preconditions;
 import java.util.List;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -68,10 +69,12 @@ class V2Metadata {
     private static final org.apache.avro.Schema AVRO_SCHEMA =
         AvroSchemaUtil.convert(MANIFEST_LIST_SCHEMA, "manifest_file");
 
+    private final long commitSnapshotId;
     private final long sequenceNumber;
     private ManifestFile wrapped = null;
 
-    IndexedManifestFile(long sequenceNumber) {
+    IndexedManifestFile(long commitSnapshotId, long sequenceNumber) {
+      this.commitSnapshotId = commitSnapshotId;
       this.sequenceNumber = sequenceNumber;
     }
 
@@ -101,12 +104,25 @@ class V2Metadata {
           return wrapped.partitionSpecId();
         case 3:
           if (wrapped.sequenceNumber() == ManifestWriter.UNASSIGNED_SEQ) {
+            // if the sequence number is being assigned here, then the manifest must be created by the current
+            // operation. to validate this, check that the snapshot id matches the current commit
+            Preconditions.checkState(commitSnapshotId == wrapped.snapshotId(),
+                "Found unassigned sequence number for a manifest from snapshot: %s", wrapped.snapshotId());
             return sequenceNumber;
           } else {
             return wrapped.sequenceNumber();
           }
         case 4:
-          return wrapped.minSequenceNumber();
+          if (wrapped.minSequenceNumber() == ManifestWriter.UNASSIGNED_SEQ) {
+            // same sanity check as above
+            Preconditions.checkState(commitSnapshotId == wrapped.snapshotId(),
+                "Found unassigned sequence number for a manifest from snapshot: %s", wrapped.snapshotId());
+            // if the min sequence number is not determined, then there was no assigned sequence number for any file
+            // written to the wrapped manifest. replace the unassigned sequence number with the one for this commit
+            return sequenceNumber;
+          } else {
+            return wrapped.minSequenceNumber();
+          }
         case 5:
           return wrapped.snapshotId();
         case 6:
@@ -211,6 +227,110 @@ class V2Metadata {
     @Override
     public ManifestFile copy() {
       return wrapped.copy();
+    }
+  }
+
+  static Schema entrySchema(Types.StructType partitionType) {
+    return wrapFileSchema(DataFile.getType(partitionType));
+  }
+
+  static Schema wrapFileSchema(Types.StructType fileSchema) {
+    // this is used to build projection schemas
+    return new Schema(
+        ManifestEntry.STATUS, ManifestEntry.SNAPSHOT_ID, ManifestEntry.SEQUENCE_NUMBER,
+        required(ManifestEntry.DATA_FILE_ID, "data_file", fileSchema));
+  }
+
+  static class IndexedManifestEntry implements ManifestEntry, IndexedRecord {
+    private final org.apache.avro.Schema avroSchema;
+    private final long commitSnapshotId;
+    private final V1Metadata.IndexedDataFile fileWrapper;
+    private ManifestEntry wrapped = null;
+
+    IndexedManifestEntry(long commitSnapshotId, Types.StructType partitionType) {
+      this.avroSchema = AvroSchemaUtil.convert(entrySchema(partitionType), "manifest_entry");
+      this.commitSnapshotId = commitSnapshotId;
+      // TODO: when v2 data files differ from v1, this should use a v2 wrapper
+      this.fileWrapper = new V1Metadata.IndexedDataFile(avroSchema.getField("data_file").schema());
+    }
+
+    public IndexedManifestEntry wrap(ManifestEntry entry) {
+      this.wrapped = entry;
+      return this;
+    }
+
+    @Override
+    public org.apache.avro.Schema getSchema() {
+      return avroSchema;
+    }
+
+    @Override
+    public void put(int i, Object v) {
+      throw new UnsupportedOperationException("Cannot read using IndexedManifestEntry");
+    }
+
+    @Override
+    public Object get(int i) {
+      switch (i) {
+        case 0:
+          return wrapped.status().id();
+        case 1:
+          return wrapped.snapshotId();
+        case 2:
+          if (wrapped.sequenceNumber() == null) {
+            // if the entry's sequence number is null, then it will inherit the sequence number of the current commit.
+            // to validate that this is correct, check that the snapshot id is either null (will also be inherited) or
+            // that it matches the id of the current commit.
+            Preconditions.checkState(wrapped.snapshotId() == null || commitSnapshotId == wrapped.snapshotId(),
+                "Found unassigned sequence number for an entry from snapshot: %s", wrapped.snapshotId());
+            return null;
+          }
+          return wrapped.sequenceNumber();
+        case 3:
+          return fileWrapper.wrap(wrapped.file());
+        default:
+          throw new UnsupportedOperationException("Unknown field ordinal: " + i);
+      }
+    }
+
+    @Override
+    public Status status() {
+      return wrapped.status();
+    }
+
+    @Override
+    public Long snapshotId() {
+      return wrapped.snapshotId();
+    }
+
+    @Override
+    public void setSnapshotId(long snapshotId) {
+      wrapped.setSnapshotId(snapshotId);
+    }
+
+    @Override
+    public Long sequenceNumber() {
+      return wrapped.sequenceNumber();
+    }
+
+    @Override
+    public void setSequenceNumber(long sequenceNumber) {
+      wrapped.setSequenceNumber(sequenceNumber);
+    }
+
+    @Override
+    public DataFile file() {
+      return wrapped.file();
+    }
+
+    @Override
+    public ManifestEntry copy() {
+      return wrapped.copy();
+    }
+
+    @Override
+    public ManifestEntry copyWithoutStats() {
+      return wrapped.copyWithoutStats();
     }
   }
 }

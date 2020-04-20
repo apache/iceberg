@@ -39,7 +39,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-public class TestManifestFileVersions {
+public class TestManifestListVersions {
   private static final String PATH = "s3://bucket/table/m1.avro";
   private static final long LENGTH = 1024L;
   private static final int SPEC_ID = 1;
