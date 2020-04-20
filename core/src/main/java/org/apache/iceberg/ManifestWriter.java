@@ -125,6 +125,7 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
    *
    * @param existingFile a data file
    * @param fileSnapshotId snapshot ID when the data file was added to the table
+   * @param sequenceNumber sequence number for the data file
    */
   public void existing(DataFile existingFile, long fileSnapshotId, long sequenceNumber) {
     addEntry(reused.wrapExisting(fileSnapshotId, sequenceNumber, existingFile));
