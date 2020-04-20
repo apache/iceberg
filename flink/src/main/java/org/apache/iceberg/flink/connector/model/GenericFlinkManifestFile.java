@@ -321,4 +321,14 @@ public class GenericFlinkManifestFile implements FlinkManifestFile {
       throw new RuntimeException("failed to create digest", e);
     }
   }
+
+  @Override
+  public long sequenceNumber() {
+    return 0;  // TODO
+  }
+
+  @Override
+  public long minSequenceNumber() {
+    return 0;  // TODO
+  }
 }
