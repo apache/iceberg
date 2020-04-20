@@ -19,12 +19,16 @@
 
 package org.apache.iceberg.spark;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ManifestFile;
@@ -40,10 +44,13 @@ import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.sql.Column;
+import org.apache.spark.sql.ColumnName;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.types.StructType;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
@@ -154,13 +161,23 @@ public class TestSparkDataFile {
       reader.forEach(dataFile -> dataFiles.add(dataFile.copy()));
     }
 
-    List<Row> sparkDataFiles = spark.read().format("iceberg")
-        .load(tableLocation + "#files")
+    Dataset<Row> dataFileDF = spark.read().format("iceberg").load(tableLocation + "#files");
+
+    // reorder columns to test arbitrary projections
+    List<Column> columns = Arrays.stream(dataFileDF.columns())
+        .map(ColumnName::new)
+        .collect(Collectors.toList());
+    Collections.shuffle(columns);
+
+    List<Row> sparkDataFiles = dataFileDF
+        .select(Iterables.toArray(columns, Column.class))
         .collectAsList();
 
     Assert.assertEquals("The number of files should match", dataFiles.size(), sparkDataFiles.size());
 
-    SparkDataFile wrapper = new SparkDataFile(DataFile.getType(table.spec().partitionType()));
+    Types.StructType dataFileType = DataFile.getType(table.spec().partitionType());
+    StructType sparkDataFileType = sparkDataFiles.get(0).schema();
+    SparkDataFile wrapper = new SparkDataFile(dataFileType, sparkDataFileType);
 
     for (int i = 0; i < dataFiles.size(); i++) {
       checkDataFile(dataFiles.get(i), wrapper.wrap(sparkDataFiles.get(i)));
