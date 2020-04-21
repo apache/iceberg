@@ -433,8 +433,17 @@ The rows in the delete file must be sorted by `file_path` then `position` to opt
 *  Sorting by `file_path` allows filter pushdown by file in columnar storage formats.
 *  Sorting by `position` allows filtering rows while scanning, to avoid keeping deletes in memory.
 
-Though the delete files can be written using any supported data file format in Iceberg, it is recommended to write delete files with same file format as the table's file format.
+Position-based delete files can be written using any supported data file format in Iceberg, but it is recommended to write delete files with same file format as the table's default file format.
 
+#### Equality Delete Files
+
+Equality delete files identify rows in a collection of data files that have been deleted by encoding equality predicates. Rows may be identified by more than one column.
+
+Equality delete files store any subset of a table's columns and use the table's field IDs. Each row in an equality delete file represents one equality predicate that matches any row with values that are equal to all columns in the delete file. Multiple columns can be thought of as an `AND` of equality predicates.
+
+A row is deleted if its values are equal to all columns of any row in an equality delete file that applies to the row's data file. For example, a table with schema `1: id bigint, 2: category string, 3: data string`, the delete `id = 34` would be encoded in a delete file with one column, `1: id bigint` as row `Row(1 => 34)`. Similarly, `id = 34 and category = 'c1'` would be encoded in a delete file with columns `1: id bigint, 2: category string` as row `Row(1 => 34, 2 => 'c1')`.
+
+Equality delete files can be written using any supported data file format in Iceberg, but it is recommended to write delete files with same file format as the table's default file format.
 
 ## Appendix A: Format-specific Requirements
 
