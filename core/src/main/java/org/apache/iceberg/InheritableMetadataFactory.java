@@ -22,6 +22,7 @@ package org.apache.iceberg;
 class InheritableMetadataFactory {
 
   private static final InheritableMetadata EMPTY = new EmptyInheritableMetadata();
+  private static final InheritableMetadata NOOP = new NullInheritableMetadata();
 
   private InheritableMetadataFactory() {}
 
@@ -30,15 +31,20 @@ class InheritableMetadataFactory {
   }
 
   static InheritableMetadata fromManifest(ManifestFile manifest) {
-    return new BaseInheritableMetadata(manifest.snapshotId());
+    if (manifest.snapshotId() != null) {
+      return new BaseInheritableMetadata(manifest.snapshotId(), manifest.sequenceNumber());
+    } else {
+      return NOOP;
+    }
   }
 
   static class BaseInheritableMetadata implements InheritableMetadata {
+    private final long snapshotId;
+    private final long sequenceNumber;
 
-    private final Long snapshotId;
-
-    private BaseInheritableMetadata(Long snapshotId) {
+    private BaseInheritableMetadata(long snapshotId, long sequenceNumber) {
       this.snapshotId = snapshotId;
+      this.sequenceNumber = sequenceNumber;
     }
 
     @Override
@@ -46,6 +52,19 @@ class InheritableMetadataFactory {
       if (manifestEntry.snapshotId() == null) {
         manifestEntry.setSnapshotId(snapshotId);
       }
+      if (manifestEntry.sequenceNumber() == null) {
+        manifestEntry.setSequenceNumber(sequenceNumber);
+      }
+      return manifestEntry;
+    }
+  }
+
+  static class NullInheritableMetadata implements InheritableMetadata {
+    private NullInheritableMetadata() {
+    }
+
+    @Override
+    public ManifestEntry apply(ManifestEntry manifestEntry) {
       return manifestEntry;
     }
   }

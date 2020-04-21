@@ -20,18 +20,16 @@
 package org.apache.iceberg.data.avro;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.io.Decoder;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
+import org.apache.iceberg.data.DateTimeUtil;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.types.Types.StructType;
@@ -60,9 +58,6 @@ class GenericReaders {
     return new GenericRecordReader(readers, struct, idToConstant);
   }
 
-  private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
-  private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
-
   private static class DateReader implements ValueReader<LocalDate> {
     private static final DateReader INSTANCE = new DateReader();
 
@@ -71,7 +66,7 @@ class GenericReaders {
 
     @Override
     public LocalDate read(Decoder decoder, Object reuse) throws IOException {
-      return EPOCH_DAY.plusDays(decoder.readInt());
+      return DateTimeUtil.dateFromDays(decoder.readInt());
     }
   }
 
@@ -83,7 +78,7 @@ class GenericReaders {
 
     @Override
     public LocalTime read(Decoder decoder, Object reuse) throws IOException {
-      return LocalTime.ofNanoOfDay(decoder.readLong() * 1000);
+      return DateTimeUtil.timeFromMicros(decoder.readLong());
     }
   }
 
@@ -95,7 +90,7 @@ class GenericReaders {
 
     @Override
     public LocalDateTime read(Decoder decoder, Object reuse) throws IOException {
-      return EPOCH.plus(decoder.readLong(), ChronoUnit.MICROS).toLocalDateTime();
+      return DateTimeUtil.timestampFromMicros(decoder.readLong());
     }
   }
 
@@ -107,7 +102,7 @@ class GenericReaders {
 
     @Override
     public OffsetDateTime read(Decoder decoder, Object reuse) throws IOException {
-      return EPOCH.plus(decoder.readLong(), ChronoUnit.MICROS);
+      return DateTimeUtil.timestamptzFromMicros(decoder.readLong());
     }
   }
 

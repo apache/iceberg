@@ -28,6 +28,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -45,8 +46,7 @@ import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 /**
  * Reader for manifest files.
  * <p>
- * The preferable way to create readers is using {@link #read(ManifestFile, FileIO, Map)} as
- * it allows entries to inherit manifest metadata such as snapshot id.
+ * Create readers using {@link ManifestFiles#read(ManifestFile, FileIO, Map)}.
  */
 public class ManifestReader extends CloseableGroup implements Filterable<FilteredManifest> {
   private static final Logger LOG = LoggerFactory.getLogger(ManifestReader.class);
@@ -62,61 +62,29 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
   /**
    * Returns a new {@link ManifestReader} for an {@link InputFile}.
    * <p>
-   * <em>Note:</em> Most callers should use {@link #read(ManifestFile, FileIO, Map)} to ensure that
+   * <em>Note:</em> Callers should use {@link ManifestFiles#read(ManifestFile, FileIO, Map)} to ensure that
    * manifest entries with partial metadata can inherit missing properties from the manifest metadata.
-   * <p>
-   * <em>Note:</em> Most callers should use {@link #read(InputFile, Map)} if all manifest entries
-   * contain full metadata and they want to ensure that the schema used by filters is the latest
-   * table schema. This should be used only when reading a manifest without filters.
    *
    * @param file an InputFile
    * @return a manifest reader
+   * @deprecated will be removed in 0.9.0; use {@link ManifestFiles#read(ManifestFile, FileIO, Map)} instead.
    */
+  @Deprecated
   public static ManifestReader read(InputFile file) {
-    return new ManifestReader(file, null, InheritableMetadataFactory.empty());
+    return read(file, null);
   }
 
   /**
    * Returns a new {@link ManifestReader} for an {@link InputFile}.
-   * <p>
-   * <em>Note:</em> Most callers should use {@link #read(ManifestFile, FileIO, Map)} to ensure that
-   * manifest entries with partial metadata can inherit missing properties from the manifest metadata.
    *
    * @param file an InputFile
-   * @param specsById a Map from spec ID to partition spec
+   * @param specLookup a function to look up the manifest's partition spec by ID
    * @return a manifest reader
+   * @deprecated will be removed in 0.9.0; use {@link ManifestFiles#read(ManifestFile, FileIO, Map)} instead.
    */
-  public static ManifestReader read(InputFile file, Map<Integer, PartitionSpec> specsById) {
-    return new ManifestReader(file, specsById, InheritableMetadataFactory.empty());
-  }
-
-  /**
-   * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
-   * <p>
-   * <em>Note:</em> Most callers should use {@link #read(ManifestFile, FileIO, Map)} to ensure
-   * the schema used by filters is the latest table schema. This should be used only when reading
-   * a manifest without filters.
-   *
-   * @param manifest a ManifestFile
-   * @param io a FileIO
-   * @return a manifest reader
-   */
-  public static ManifestReader read(ManifestFile manifest, FileIO io) {
-    return read(manifest, io, null);
-  }
-
-  /**
-   * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
-   *
-   * @param manifest a ManifestFile
-   * @param io a FileIO
-   * @param specsById a Map from spec ID to partition spec
-   * @return a manifest reader
-   */
-  public static ManifestReader read(ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
-    InputFile file = io.newInputFile(manifest.path());
-    InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
-    return new ManifestReader(file, specsById, inheritableMetadata);
+  @Deprecated
+  public static ManifestReader read(InputFile file, Function<Integer, PartitionSpec> specLookup) {
+    return new ManifestReader(file, specLookup, InheritableMetadataFactory.empty());
   }
 
   private final InputFile file;
@@ -129,7 +97,12 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
   private List<ManifestEntry> cachedAdds = null;
   private List<ManifestEntry> cachedDeletes = null;
 
-  private ManifestReader(InputFile file, Map<Integer, PartitionSpec> specsById,
+  ManifestReader(InputFile file, Map<Integer, PartitionSpec> specsById,
+                 InheritableMetadata inheritableMetadata) {
+    this(file, specsById != null ? specsById::get : null, inheritableMetadata);
+  }
+
+  private ManifestReader(InputFile file, Function<Integer, PartitionSpec> specLookup,
                          InheritableMetadata inheritableMetadata) {
     this.file = file;
     this.inheritableMetadata = inheritableMetadata;
@@ -150,8 +123,8 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
       specId = Integer.parseInt(specProperty);
     }
 
-    if (specsById != null) {
-      this.spec = specsById.get(specId);
+    if (specLookup != null) {
+      this.spec = specLookup.apply(specId);
     } else {
       Schema schema = SchemaParser.fromJson(metadata.get("schema"));
       this.spec = PartitionSpecParser.fromJsonFields(schema, specId, metadata.get("partition-spec"));
@@ -247,12 +220,12 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
       case AVRO:
         AvroIterable<ManifestEntry> reader = Avro.read(file)
             .project(ManifestEntry.wrapFileSchema(fileProjection.asStruct()))
-            .rename("manifest_entry", ManifestEntry.class.getName())
+            .rename("manifest_entry", GenericManifestEntry.class.getName())
             .rename("partition", PartitionData.class.getName())
             .rename("r102", PartitionData.class.getName())
             .rename("data_file", GenericDataFile.class.getName())
             .rename("r2", GenericDataFile.class.getName())
-            .classLoader(ManifestEntry.class.getClassLoader())
+            .classLoader(GenericManifestFile.class.getClassLoader())
             .reuseContainers()
             .build();
 

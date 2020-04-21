@@ -227,9 +227,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   private ManifestFile copyManifest(ManifestFile manifest) {
-    try (ManifestReader reader = ManifestReader.read(manifest, ops.io(), ops.current().specsById())) {
+    try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
       OutputFile newManifestPath = newManifestOutput();
-      return ManifestWriter.copyAppendManifest(reader, newManifestPath, snapshotId(), appendedManifestsSummary);
+      return ManifestFiles.copyAppendManifest(
+          ops.current().formatVersion(), reader, newManifestPath, snapshotId(), appendedManifestsSummary);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest);
     }
@@ -481,7 +482,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       return manifest;
     }
 
-    try (ManifestReader reader = ManifestReader.read(manifest, ops.io(), ops.current().specsById())) {
+    try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
 
       // this is reused to compare file paths with the delete set
       CharSequenceWrapper pathWrapper = CharSequenceWrapper.wrap("");
@@ -655,7 +656,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     ManifestWriter writer = newManifestWriter(ops.current().spec());
     try {
       for (ManifestFile manifest : bin) {
-        try (ManifestReader reader = ManifestReader.read(manifest, ops.io(), ops.current().specsById())) {
+        try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
           for (ManifestEntry entry : reader.entries()) {
             if (entry.status() == Status.DELETED) {
               // suppress deletes from previous snapshots. only files deleted by this snapshot

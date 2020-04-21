@@ -29,35 +29,29 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 
 abstract class ManifestListWriter implements FileAppender<ManifestFile> {
-  static ManifestListWriter write(int formatVersion, OutputFile manifestListFile,
-                                  long snapshotId, Long parentSnapshotId) {
-    if (formatVersion == 1) {
-      return new V1Writer(manifestListFile, snapshotId, parentSnapshotId);
-    }
-    throw new UnsupportedOperationException("Cannot write manifest list for table version: " + formatVersion);
-  }
-
   private final FileAppender<ManifestFile> writer;
 
-  private ManifestListWriter(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId) {
-    this.writer = newAppender(snapshotFile, ImmutableMap.of(
-        "snapshot-id", String.valueOf(snapshotId),
-        "parent-snapshot-id", String.valueOf(parentSnapshotId)));
+  private ManifestListWriter(OutputFile file, Map<String, String> meta) {
+    this.writer = newAppender(file, meta);
   }
 
+  protected abstract ManifestFile prepare(ManifestFile manifest);
+
+  protected abstract FileAppender<ManifestFile> newAppender(OutputFile file, Map<String, String> meta);
+
   @Override
-  public void add(ManifestFile file) {
-    writer.add(file);
+  public void add(ManifestFile manifest) {
+    writer.add(prepare(manifest));
   }
 
   @Override
   public void addAll(Iterator<ManifestFile> values) {
-    writer.addAll(values);
+    values.forEachRemaining(this::add);
   }
 
   @Override
   public void addAll(Iterable<ManifestFile> values) {
-    writer.addAll(values);
+    values.forEach(this::add);
   }
 
   @Override
@@ -75,23 +69,66 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
     return writer.length();
   }
 
-  private static FileAppender<ManifestFile> newAppender(OutputFile file, Map<String, String> meta) {
-    try {
-      return Avro.write(file)
-          .schema(ManifestFile.schema())
-          .named("manifest_file")
-          .meta(meta)
-          .overwrite()
-          .build();
+  static class V2Writer extends ManifestListWriter {
+    private final V2Metadata.IndexedManifestFile wrapper;
 
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to create snapshot list writer for path: " + file);
+    V2Writer(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId, long sequenceNumber) {
+      super(snapshotFile, ImmutableMap.of(
+          "snapshot-id", String.valueOf(snapshotId),
+          "parent-snapshot-id", String.valueOf(parentSnapshotId),
+          "sequence-number", String.valueOf(sequenceNumber),
+          "format-version", "2"));
+      this.wrapper = new V2Metadata.IndexedManifestFile(snapshotId, sequenceNumber);
+    }
+
+    @Override
+    protected ManifestFile prepare(ManifestFile manifest) {
+      return wrapper.wrap(manifest);
+    }
+
+    @Override
+    protected FileAppender<ManifestFile> newAppender(OutputFile file, Map<String, String> meta) {
+      try {
+        return Avro.write(file)
+            .schema(V2Metadata.MANIFEST_LIST_SCHEMA)
+            .named("manifest_file")
+            .meta(meta)
+            .overwrite()
+            .build();
+
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to create snapshot list writer for path: " + file);
+      }
     }
   }
 
   static class V1Writer extends ManifestListWriter {
-    private V1Writer(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId) {
-      super(snapshotFile, snapshotId, parentSnapshotId);
+    private final V1Metadata.IndexedManifestFile wrapper = new V1Metadata.IndexedManifestFile();
+
+    V1Writer(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId) {
+      super(snapshotFile, ImmutableMap.of(
+          "snapshot-id", String.valueOf(snapshotId),
+          "parent-snapshot-id", String.valueOf(parentSnapshotId),
+          "format-version", "1"));
+    }
+
+    @Override
+    protected ManifestFile prepare(ManifestFile manifest) {
+      return wrapper.wrap(manifest);
+    }
+
+    protected FileAppender<ManifestFile> newAppender(OutputFile file, Map<String, String> meta) {
+      try {
+        return Avro.write(file)
+            .schema(V1Metadata.MANIFEST_LIST_SCHEMA)
+            .named("manifest_file")
+            .meta(meta)
+            .overwrite()
+            .build();
+
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to create snapshot list writer for path: " + file);
+      }
     }
   }
 }

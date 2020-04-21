@@ -62,6 +62,7 @@ import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopInputFile;
@@ -243,11 +244,12 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
 
     splits = Lists.newArrayList();
-    boolean applyResidualFiltering = !conf.getBoolean(SKIP_RESIDUAL_FILTERING, false);
+    boolean applyResidual = !conf.getBoolean(SKIP_RESIDUAL_FILTERING, false);
+    InMemoryDataModel model = conf.getEnum(IN_MEMORY_DATA_MODEL, InMemoryDataModel.GENERIC);
     try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
       tasksIterable.forEach(task -> {
-        if (applyResidualFiltering) {
-          //TODO: We do not support residual evaluation yet
+        if (applyResidual && (model == InMemoryDataModel.HIVE || model == InMemoryDataModel.PIG)) {
+          //TODO: We do not support residual evaluation for HIVE and PIG in memory data model yet
           checkResiduals(task);
         }
         splits.add(new IcebergSplit(conf, task));
@@ -316,6 +318,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           currentCloseable.close();
           currentIterator = open(tasks.next());
         } else {
+          currentCloseable.close();
           return false;
         }
       }
@@ -394,7 +397,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
               String.format("Cannot read %s file: %s", file.format().name(), file.path()));
       }
       currentCloseable = iterable;
-      //TODO: Apply residual filtering before returning the iterator
       return iterable.iterator();
     }
 
@@ -441,6 +443,18 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       return row;
     }
 
+    private CloseableIterable<T> applyResidualFiltering(CloseableIterable<T> iter, Expression residual,
+                                                        Schema readSchema) {
+      boolean applyResidual = !context.getConfiguration().getBoolean(SKIP_RESIDUAL_FILTERING, false);
+
+      if (applyResidual && residual != null && residual != Expressions.alwaysTrue()) {
+        Evaluator filter = new Evaluator(readSchema.asStruct(), residual, caseSensitive);
+        return CloseableIterable.filter(iter, record -> filter.eval((StructLike) record));
+      } else {
+        return iter;
+      }
+    }
+
     private CloseableIterable<T> newAvroIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
       Avro.ReadBuilder avroReadBuilder = Avro.read(inputFile)
           .project(readSchema)
@@ -457,7 +471,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
         case GENERIC:
           avroReadBuilder.createReaderFunc(DataReader::create);
       }
-      return avroReadBuilder.build();
+      return applyResidualFiltering(avroReadBuilder.build(), task.residual(), readSchema);
     }
 
     private CloseableIterable<T> newParquetIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
@@ -479,7 +493,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           parquetReadBuilder.createReaderFunc(
               fileSchema -> GenericParquetReaders.buildReader(readSchema, fileSchema));
       }
-      return parquetReadBuilder.build();
+      return applyResidualFiltering(parquetReadBuilder.build(), task.residual(), readSchema);
     }
 
     private CloseableIterable<T> newOrcIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
@@ -497,7 +511,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           orcReadBuilder.createReaderFunc(fileSchema -> GenericOrcReader.buildReader(readSchema, fileSchema));
       }
 
-      return orcReadBuilder.build();
+      return applyResidualFiltering(orcReadBuilder.build(), task.residual(), readSchema);
     }
   }
 

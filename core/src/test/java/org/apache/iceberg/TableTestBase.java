@@ -130,7 +130,7 @@ public class TableTestBase {
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
-    ManifestWriter writer = ManifestWriter.write(table.spec(), outputFile);
+    ManifestWriter writer = ManifestFiles.write(table.spec(), outputFile);
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -147,7 +147,7 @@ public class TableTestBase {
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
-    ManifestWriter writer = ManifestWriter.write(table.spec(), outputFile);
+    ManifestWriter writer = ManifestFiles.write(table.spec(), outputFile);
     try {
       for (ManifestEntry entry : entries) {
         writer.addEntry(entry);
@@ -164,7 +164,7 @@ public class TableTestBase {
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
-    ManifestWriter writer = ManifestWriter.write(table.spec(), outputFile);
+    ManifestWriter writer = ManifestFiles.write(table.spec(), outputFile);
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -177,12 +177,12 @@ public class TableTestBase {
   }
 
   ManifestEntry manifestEntry(ManifestEntry.Status status, Long snapshotId, DataFile file) {
-    ManifestEntry entry = new ManifestEntry(table.spec().partitionType());
+    GenericManifestEntry entry = new GenericManifestEntry(table.spec().partitionType());
     switch (status) {
       case ADDED:
         return entry.wrapAppend(snapshotId, file);
       case EXISTING:
-        return entry.wrapExisting(snapshotId, file);
+        return entry.wrapExisting(snapshotId, 0L, file);
       case DELETED:
         return entry.wrapDelete(snapshotId, file);
       default:
@@ -207,7 +207,7 @@ public class TableTestBase {
     long id = snap.snapshotId();
     Iterator<String> newPaths = paths(newFiles).iterator();
 
-    for (ManifestEntry entry : ManifestReader.read(manifest, FILE_IO).entries()) {
+    for (ManifestEntry entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
       DataFile file = entry.file();
       Assert.assertEquals("Path should match expected", newPaths.next(), file.path().toString());
       Assert.assertEquals("File's snapshot ID should match", id, (long) entry.snapshotId());
@@ -239,7 +239,7 @@ public class TableTestBase {
   static void validateManifest(ManifestFile manifest,
                                Iterator<Long> ids,
                                Iterator<DataFile> expectedFiles) {
-    for (ManifestEntry entry : ManifestReader.read(manifest, FILE_IO).entries()) {
+    for (ManifestEntry entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
       Assert.assertEquals("Path should match expected",
@@ -255,7 +255,7 @@ public class TableTestBase {
                                       Iterator<Long> ids,
                                       Iterator<DataFile> expectedFiles,
                                       Iterator<ManifestEntry.Status> expectedStatuses) {
-    for (ManifestEntry entry : ManifestReader.read(manifest, FILE_IO).entries()) {
+    for (ManifestEntry entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
       final ManifestEntry.Status expectedStatus = expectedStatuses.next();
@@ -283,6 +283,6 @@ public class TableTestBase {
   }
 
   static Iterator<DataFile> files(ManifestFile manifest) {
-    return ManifestReader.read(manifest, FILE_IO).iterator();
+    return ManifestFiles.read(manifest, FILE_IO).iterator();
   }
 }

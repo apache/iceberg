@@ -221,6 +221,16 @@ public class TestHelpers {
     }
 
     @Override
+    public long sequenceNumber() {
+      return 0;
+    }
+
+    @Override
+    public long minSequenceNumber() {
+      return 0;
+    }
+
+    @Override
     public Long snapshotId() {
       return snapshotId;
     }
@@ -316,16 +326,6 @@ public class TestHelpers {
     @Override
     public long fileSizeInBytes() {
       return 0;
-    }
-
-    @Override
-    public Integer fileOrdinal() {
-      return null;
-    }
-
-    @Override
-    public List<Integer> sortColumns() {
-      return null;
     }
 
     @Override

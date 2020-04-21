@@ -57,6 +57,7 @@ public class TestPartitionSpecInfo {
     TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec);
 
     Assert.assertEquals(spec, table.spec());
+    Assert.assertEquals(spec.lastAssignedFieldId(), table.spec().lastAssignedFieldId());
     Assert.assertEquals(ImmutableMap.of(spec.specId(), spec), table.specs());
     Assert.assertNull(table.specs().get(Integer.MAX_VALUE));
   }
@@ -67,12 +68,13 @@ public class TestPartitionSpecInfo {
     TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec);
 
     Assert.assertEquals(spec, table.spec());
+    Assert.assertEquals(spec.lastAssignedFieldId(), table.spec().lastAssignedFieldId());
     Assert.assertEquals(ImmutableMap.of(spec.specId(), spec), table.specs());
     Assert.assertNull(table.specs().get(Integer.MAX_VALUE));
   }
 
   @Test
-  public void testSpecInfoPartitionSpecEvolution() {
+  public void testSpecInfoPartitionSpecEvolutionForV1Table() {
     PartitionSpec spec = PartitionSpec.builderFor(schema)
         .bucket("data", 4)
         .build();

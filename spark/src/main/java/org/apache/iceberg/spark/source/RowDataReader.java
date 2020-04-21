@@ -24,10 +24,14 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.util.Utf8;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataTask;
@@ -47,8 +51,10 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkAvroReader;
 import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.iceberg.spark.data.SparkParquetReaders;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -56,11 +62,13 @@ import org.apache.spark.sql.catalyst.expressions.Attribute;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
 import org.apache.spark.sql.catalyst.expressions.JoinedRow;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
+import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.unsafe.types.UTF8String;
 import scala.collection.JavaConverters;
 
 class RowDataReader extends BaseDataReader<InternalRow> {
-  private static final Set<FileFormat> SUPPORTS_CONSTANTS = Sets.newHashSet(FileFormat.AVRO);
+  private static final Set<FileFormat> SUPPORTS_CONSTANTS = Sets.newHashSet(FileFormat.AVRO, FileFormat.PARQUET);
   // for some reason, the apply method can't be called from Java without reflection
   private static final DynMethods.UnboundMethod APPLY_PROJECTION = DynMethods.builder("apply")
       .impl(UnsafeProjection.class, InternalRow.class)
@@ -103,7 +111,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
     if (hasJoinedPartitionColumns) {
       if (SUPPORTS_CONSTANTS.contains(file.format())) {
         iterSchema = requiredSchema;
-        iter = open(task, requiredSchema, PartitionUtil.constantsMap(task));
+        iter = open(task, requiredSchema, PartitionUtil.constantsMap(task, RowDataReader::convertConstant));
       } else {
         // schema used to read data files
         Schema readSchema = TypeUtil.selectNot(requiredSchema, idColumns);
@@ -144,7 +152,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
 
       switch (task.file().format()) {
         case PARQUET:
-          iter = newParquetIterable(location, task, readSchema);
+          iter = newParquetIterable(location, task, readSchema, idToConstant);
           break;
 
         case AVRO:
@@ -182,11 +190,12 @@ class RowDataReader extends BaseDataReader<InternalRow> {
   private CloseableIterable<InternalRow> newParquetIterable(
       InputFile location,
       FileScanTask task,
-      Schema readSchema) {
+      Schema readSchema,
+      Map<Integer, ?> idToConstant) {
     return Parquet.read(location)
         .project(readSchema)
         .split(task.start(), task.length())
-        .createReaderFunc(fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema))
+        .createReaderFunc(fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema, idToConstant))
         .filter(task.residual())
         .caseSensitive(caseSensitive)
         .build();
@@ -232,5 +241,33 @@ class RowDataReader extends BaseDataReader<InternalRow> {
     return UnsafeProjection.create(
         JavaConverters.asScalaBufferConverter(exprs).asScala().toSeq(),
         JavaConverters.asScalaBufferConverter(attrs).asScala().toSeq());
+  }
+
+  private static Object convertConstant(Type type, Object value) {
+    if (value == null) {
+      return null;
+    }
+
+    switch (type.typeId()) {
+      case DECIMAL:
+        return Decimal.apply((BigDecimal) value);
+      case STRING:
+        if (value instanceof Utf8) {
+          Utf8 utf8 = (Utf8) value;
+          return UTF8String.fromBytes(utf8.getBytes(), 0, utf8.getByteLength());
+        }
+        return UTF8String.fromString(value.toString());
+      case FIXED:
+        if (value instanceof byte[]) {
+          return value;
+        } else if (value instanceof GenericData.Fixed) {
+          return ((GenericData.Fixed) value).bytes();
+        }
+        return ByteBuffers.toByteArray((ByteBuffer) value);
+      case BINARY:
+        return ByteBuffers.toByteArray((ByteBuffer) value);
+      default:
+    }
+    return value;
   }
 }

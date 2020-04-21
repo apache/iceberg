@@ -31,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.util.PropertyUtil;
@@ -201,120 +202,131 @@ class RemoveSnapshots implements ExpireSnapshots {
     // find manifests to clean up that are still referenced by a valid snapshot, but written by an expired snapshot
     Set<String> validManifests = Sets.newHashSet();
     Set<ManifestFile> manifestsToScan = Sets.newHashSet();
-    for (Snapshot snapshot : snapshots) {
-      try (CloseableIterable<ManifestFile> manifests = readManifestFiles(snapshot)) {
-        for (ManifestFile manifest : manifests) {
-          validManifests.add(manifest.path());
+    Tasks.foreach(snapshots).retry(3).suppressFailureWhenFinished()
+        .onFailure((snapshot, exc) ->
+            LOG.warn("Failed on snapshot {} while reading manifest list: {}", snapshot.snapshotId(),
+                snapshot.manifestListLocation(), exc))
+        .run(
+            snapshot -> {
+              try (CloseableIterable<ManifestFile> manifests = readManifestFiles(snapshot)) {
+                for (ManifestFile manifest : manifests) {
+                  validManifests.add(manifest.path());
 
-          long snapshotId = manifest.snapshotId();
-          // whether the manifest was created by a valid snapshot (true) or an expired snapshot (false)
-          boolean fromValidSnapshots = validIds.contains(snapshotId);
-          // whether the snapshot that created the manifest was an ancestor of the table state
-          boolean isFromAncestor = ancestorIds.contains(snapshotId);
-          // whether the changes in this snapshot have been picked into the current table state
-          boolean isPicked = pickedAncestorSnapshotIds.contains(snapshotId);
-          // if the snapshot that wrote this manifest is no longer valid (has expired), then delete its deleted files.
-          // note that this is only for expired snapshots that are in the current table state
-          if (!fromValidSnapshots && (isFromAncestor || isPicked) && manifest.hasDeletedFiles()) {
-            manifestsToScan.add(manifest.copy());
-          }
-        }
+                  long snapshotId = manifest.snapshotId();
+                  // whether the manifest was created by a valid snapshot (true) or an expired snapshot (false)
+                  boolean fromValidSnapshots = validIds.contains(snapshotId);
+                  // whether the snapshot that created the manifest was an ancestor of the table state
+                  boolean isFromAncestor = ancestorIds.contains(snapshotId);
+                  // whether the changes in this snapshot have been picked into the current table state
+                  boolean isPicked = pickedAncestorSnapshotIds.contains(snapshotId);
+                  // if the snapshot that wrote this manifest is no longer valid (has expired),
+                  // then delete its deleted files. note that this is only for expired snapshots that are in the
+                  // current table state
+                  if (!fromValidSnapshots && (isFromAncestor || isPicked) && manifest.hasDeletedFiles()) {
+                    manifestsToScan.add(manifest.copy());
+                  }
+                }
 
-      } catch (IOException e) {
-        throw new RuntimeIOException(e,
-            "Failed to close manifest list: %s", snapshot.manifestListLocation());
-      }
-    }
+              } catch (IOException e) {
+                throw new RuntimeIOException(e,
+                    "Failed to close manifest list: %s", snapshot.manifestListLocation());
+              }
+            });
 
     // find manifests to clean up that were only referenced by snapshots that have expired
     Set<String> manifestListsToDelete = Sets.newHashSet();
     Set<String> manifestsToDelete = Sets.newHashSet();
     Set<ManifestFile> manifestsToRevert = Sets.newHashSet();
-    for (Snapshot snapshot : base.snapshots()) {
-      long snapshotId = snapshot.snapshotId();
-      if (!validIds.contains(snapshotId)) {
-        // determine whether the changes in this snapshot are in the current table state
-        if (pickedAncestorSnapshotIds.contains(snapshotId)) {
-          // this snapshot was cherry-picked into the current table state, so skip cleaning it up. its changes will
-          // expire when the picked snapshot expires.
-          // A -- C -- D (source=B)
-          //  `- B <-- this commit
-          continue;
-        }
+    Tasks.foreach(base.snapshots()).retry(3).suppressFailureWhenFinished()
+        .onFailure((snapshot, exc) ->
+            LOG.warn("Failed on snapshot {} while reading manifest list: {}", snapshot.snapshotId(),
+                snapshot.manifestListLocation(), exc))
+        .run(
+            snapshot -> {
+              long snapshotId = snapshot.snapshotId();
+              if (!validIds.contains(snapshotId)) {
+                // determine whether the changes in this snapshot are in the current table state
+                if (pickedAncestorSnapshotIds.contains(snapshotId)) {
+                  // this snapshot was cherry-picked into the current table state, so skip cleaning it up.
+                  // its changes will expire when the picked snapshot expires.
+                  // A -- C -- D (source=B)
+                  //  `- B <-- this commit
+                  return;
+                }
 
-        long sourceSnapshotId = PropertyUtil.propertyAsLong(
-            snapshot.summary(), SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP, -1);
-        if (ancestorIds.contains(sourceSnapshotId)) {
-          // this commit was cherry-picked from a commit that is in the current table state. do not clean up its
-          // changes because it would revert data file additions that are in the current table.
-          // A -- B -- C
-          //  `- D (source=B) <-- this commit
-          continue;
-        }
+                long sourceSnapshotId = PropertyUtil.propertyAsLong(
+                    snapshot.summary(), SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP, -1);
+                if (ancestorIds.contains(sourceSnapshotId)) {
+                  // this commit was cherry-picked from a commit that is in the current table state. do not clean up its
+                  // changes because it would revert data file additions that are in the current table.
+                  // A -- B -- C
+                  //  `- D (source=B) <-- this commit
+                  return;
+                }
 
-        if (pickedAncestorSnapshotIds.contains(sourceSnapshotId)) {
-          // this commit was cherry-picked from a commit that is in the current table state. do not clean up its
-          // changes because it would revert data file additions that are in the current table.
-          // A -- C -- E (source=B)
-          //  `- B `- D (source=B) <-- this commit
-          continue;
-        }
+                if (pickedAncestorSnapshotIds.contains(sourceSnapshotId)) {
+                  // this commit was cherry-picked from a commit that is in the current table state. do not clean up its
+                  // changes because it would revert data file additions that are in the current table.
+                  // A -- C -- E (source=B)
+                  //  `- B `- D (source=B) <-- this commit
+                  return;
+                }
 
-        // find any manifests that are no longer needed
-        try (CloseableIterable<ManifestFile> manifests = readManifestFiles(snapshot)) {
-          for (ManifestFile manifest : manifests) {
-            if (!validManifests.contains(manifest.path())) {
-              manifestsToDelete.add(manifest.path());
+                // find any manifests that are no longer needed
+                try (CloseableIterable<ManifestFile> manifests = readManifestFiles(snapshot)) {
+                  for (ManifestFile manifest : manifests) {
+                    if (!validManifests.contains(manifest.path())) {
+                      manifestsToDelete.add(manifest.path());
 
-              boolean isFromAncestor = ancestorIds.contains(manifest.snapshotId());
-              boolean isFromExpiringSnapshot = expiredIds.contains(manifest.snapshotId());
+                      boolean isFromAncestor = ancestorIds.contains(manifest.snapshotId());
+                      boolean isFromExpiringSnapshot = expiredIds.contains(manifest.snapshotId());
 
-              if (isFromAncestor && manifest.hasDeletedFiles()) {
-                // Only delete data files that were deleted in by an expired snapshot if that
-                // snapshot is an ancestor of the current table state. Otherwise, a snapshot that
-                // deleted files and was rolled back will delete files that could be in the current
-                // table state.
-                manifestsToScan.add(manifest.copy());
+                      if (isFromAncestor && manifest.hasDeletedFiles()) {
+                        // Only delete data files that were deleted in by an expired snapshot if that
+                        // snapshot is an ancestor of the current table state. Otherwise, a snapshot that
+                        // deleted files and was rolled back will delete files that could be in the current
+                        // table state.
+                        manifestsToScan.add(manifest.copy());
+                      }
+
+                      if (!isFromAncestor && isFromExpiringSnapshot && manifest.hasAddedFiles()) {
+                        // Because the manifest was written by a snapshot that is not an ancestor of the
+                        // current table state, the files added in this manifest can be removed. The extra
+                        // check whether the manifest was written by a known snapshot that was expired in
+                        // this commit ensures that the full ancestor list between when the snapshot was
+                        // written and this expiration is known and there is no missing history. If history
+                        // were missing, then the snapshot could be an ancestor of the table state but the
+                        // ancestor ID set would not contain it and this would be unsafe.
+                        manifestsToRevert.add(manifest.copy());
+                      }
+                    }
+                  }
+                } catch (IOException e) {
+                  throw new RuntimeIOException(e,
+                      "Failed to close manifest list: %s", snapshot.manifestListLocation());
+                }
+
+                // add the manifest list to the delete set, if present
+                if (snapshot.manifestListLocation() != null) {
+                  manifestListsToDelete.add(snapshot.manifestListLocation());
+                }
               }
-
-              if (!isFromAncestor && isFromExpiringSnapshot && manifest.hasAddedFiles()) {
-                // Because the manifest was written by a snapshot that is not an ancestor of the
-                // current table state, the files added in this manifest can be removed. The extra
-                // check whether the manifest was written by a known snapshot that was expired in
-                // this commit ensures that the full ancestor list between when the snapshot was
-                // written and this expiration is known and there is no missing history. If history
-                // were missing, then the snapshot could be an ancestor of the table state but the
-                // ancestor ID set would not contain it and this would be unsafe.
-                manifestsToRevert.add(manifest.copy());
-              }
-            }
-          }
-        } catch (IOException e) {
-          throw new RuntimeIOException(e,
-              "Failed to close manifest list: %s", snapshot.manifestListLocation());
-        }
-
-        // add the manifest list to the delete set, if present
-        if (snapshot.manifestListLocation() != null) {
-          manifestListsToDelete.add(snapshot.manifestListLocation());
-        }
-      }
-    }
-
+            });
     deleteDataFiles(manifestsToScan, manifestsToRevert, validIds);
     deleteMetadataFiles(manifestsToDelete, manifestListsToDelete);
   }
 
   private void deleteMetadataFiles(Set<String> manifestsToDelete, Set<String> manifestListsToDelete) {
     LOG.warn("Manifests to delete: {}", Joiner.on(", ").join(manifestsToDelete));
+    LOG.warn("Manifests Lists to delete: {}", Joiner.on(", ").join(manifestListsToDelete));
 
     Tasks.foreach(manifestsToDelete)
-        .noRetry().suppressFailureWhenFinished()
+        .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
         .onFailure((manifest, exc) -> LOG.warn("Delete failed for manifest: {}", manifest, exc))
         .run(deleteFunc::accept);
 
     Tasks.foreach(manifestListsToDelete)
-        .noRetry().suppressFailureWhenFinished()
+        .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
         .onFailure((list, exc) -> LOG.warn("Delete failed for manifest list: {}", list, exc))
         .run(deleteFunc::accept);
   }
@@ -323,7 +335,7 @@ class RemoveSnapshots implements ExpireSnapshots {
                                Set<Long> validIds) {
     Set<String> filesToDelete = findFilesToDelete(manifestsToScan, manifestsToRevert, validIds);
     Tasks.foreach(filesToDelete)
-        .noRetry().suppressFailureWhenFinished()
+        .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
         .onFailure((file, exc) -> LOG.warn("Delete failed for data file: {}", file, exc))
         .run(file -> deleteFunc.accept(file));
   }
@@ -332,12 +344,12 @@ class RemoveSnapshots implements ExpireSnapshots {
                                         Set<Long> validIds) {
     Set<String> filesToDelete = ConcurrentHashMap.newKeySet();
     Tasks.foreach(manifestsToScan)
-        .noRetry().suppressFailureWhenFinished()
+        .retry(3).suppressFailureWhenFinished()
         .executeWith(ThreadPools.getWorkerPool())
         .onFailure((item, exc) -> LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc))
         .run(manifest -> {
           // the manifest has deletes, scan it to find files to delete
-          try (ManifestReader reader = ManifestReader.read(manifest, ops.io(), ops.current().specsById())) {
+          try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
             for (ManifestEntry entry : reader.entries()) {
               // if the snapshot ID of the DELETE entry is no longer valid, the data can be deleted
               if (entry.status() == ManifestEntry.Status.DELETED &&
@@ -352,12 +364,12 @@ class RemoveSnapshots implements ExpireSnapshots {
         });
 
     Tasks.foreach(manifestsToRevert)
-        .noRetry().suppressFailureWhenFinished()
+        .retry(3).suppressFailureWhenFinished()
         .executeWith(ThreadPools.getWorkerPool())
         .onFailure((item, exc) -> LOG.warn("Failed to get added files: this may cause orphaned data files", exc))
         .run(manifest -> {
           // the manifest has deletes, scan it to find files to delete
-          try (ManifestReader reader = ManifestReader.read(manifest, ops.io(), ops.current().specsById())) {
+          try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
             for (ManifestEntry entry : reader.entries()) {
               // delete any ADDED file from manifests that were reverted
               if (entry.status() == ManifestEntry.Status.ADDED) {
