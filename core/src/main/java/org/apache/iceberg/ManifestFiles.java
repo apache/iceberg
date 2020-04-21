@@ -101,7 +101,8 @@ public class ManifestFiles {
     // use metadata that will add the current snapshot's ID for the rewrite
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.forCopy(snapshotId);
     try (ManifestReader reader = new ManifestReader(toCopy, specsById, inheritableMetadata)) {
-      return copyManifestInternal(formatVersion, reader, outputFile, snapshotId, summaryBuilder, ManifestEntry.Status.ADDED);
+      return copyManifestInternal(
+          formatVersion, reader, outputFile, snapshotId, summaryBuilder, ManifestEntry.Status.ADDED);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close manifest: %s", toCopy.location());
     }
