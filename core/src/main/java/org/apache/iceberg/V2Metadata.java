@@ -281,7 +281,8 @@ class V2Metadata {
             // if the entry's sequence number is null, then it will inherit the sequence number of the current commit.
             // to validate that this is correct, check that the snapshot id is either null (will also be inherited) or
             // that it matches the id of the current commit.
-            Preconditions.checkState(wrapped.snapshotId() == null || commitSnapshotId == wrapped.snapshotId(),
+            Preconditions.checkState(
+                wrapped.snapshotId() == null || wrapped.snapshotId().equals(commitSnapshotId),
                 "Found unassigned sequence number for an entry from snapshot: %s", wrapped.snapshotId());
             return null;
           }
