@@ -26,7 +26,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.apache.avro.Schema;
-import org.apache.avro.generic.IndexedRecord;
+import org.apache.iceberg.data.Record;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -90,14 +90,14 @@ public class WatermarkTimeExtractor {
   /**
    * @return null if timestamp field not found in the record
    */
-  public Long getWatermarkTimeMs(IndexedRecord record) {
+  public Long getWatermarkTimeMs(Record record) {
     if (timestampFieldChain.isEmpty()) {
       return null;
     }
     // traverse to find the leaf node first
-    IndexedRecord leafRecord = record;
+    Record leafRecord = record;
     for (int i = 0; i < timestampFieldChain.size() - 1; ++i) {
-      leafRecord = (IndexedRecord) leafRecord.get(timestampFieldChain.get(i).pos());
+      leafRecord = (Record) leafRecord.get(timestampFieldChain.get(i).pos());
       if (null == leafRecord) {
         return null;
       }

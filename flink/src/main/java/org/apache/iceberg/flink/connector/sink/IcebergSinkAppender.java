@@ -25,6 +25,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.Record;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,25 +40,22 @@ public class IcebergSinkAppender<IN> {
 
   private final Table table;
   private final Configuration config;
-  private final DataStream<IN> dataStream;
-  private AvroSerializer<IN> serializer;
+  private final String sinkName;
+  private RecordSerializer<IN> serializer;
   private Integer writerParallelism;
 
   public IcebergSinkAppender(Table table, Configuration config, String sinkName) {
     this.table = table;
     this.config = config;
-    this.dataStream = null;
+    this.sinkName = sinkName;
   }
 
   /**
    * Required.
-   * <li>if input type is {@code Map<String, Object>}, please use {@link MapAvroSerializer}</li>
-   * <li>if input type is {@code Record<Map<String, Object>>}, please use {@link RecordMapAvroSerializer}</li>
-   * <li>or your own custome serializer</li>
    *
-   * @param serializer Serialize input data type to Avro GenericRecord
+   * @param serializer Serialize input data type to Iceberg {@link Record}
    */
-  public IcebergSinkAppender<IN> withSerializer(AvroSerializer<IN> serializer) {
+  public IcebergSinkAppender<IN> withSerializer(RecordSerializer<IN> serializer) {
     this.serializer = serializer;
     return this;
   }
@@ -75,16 +73,11 @@ public class IcebergSinkAppender<IN> {
    * @param dataStream append sink to this DataStream
    */
   public DataStreamSink<FlinkDataFile> append(DataStream<IN> dataStream) {
-    /**
-     * TODO: we can't enforce this check for backward compability
-     * @see more in {@link IcebergWriter#getSerializer(Object)}
-     */
-//        Preconditions.checkNotNull(serializer, "must set serializer");
-
-    IcebergWriter writer = new IcebergWriter<IN>(table, serializer, config);
+    // TODO: need to return?
+    IcebergWriter<IN> writer = new IcebergWriter<>(table, serializer, config);
     IcebergCommitter committer = new IcebergCommitter(table, config);
 
-    final String writerId = config.getString("sinkName", "") + "-writer";
+    final String writerId = sinkName + "-writer";
     SingleOutputStreamOperator<FlinkDataFile> writerStream = dataStream
         .transform(writerId, TypeInformation.of(FlinkDataFile.class), writer)  // IcebergWriter as stream operator
         .uid(writerId);
@@ -93,7 +86,7 @@ public class IcebergSinkAppender<IN> {
       writerStream.setParallelism(writerParallelism);
     }
 
-    final String committerId = config.getString("sinkName", "") + "-committer";
+    final String committerId = sinkName + "-committer";
     return writerStream
         .addSink(committer)  // IcebergCommitter as sink
         .name(committerId)

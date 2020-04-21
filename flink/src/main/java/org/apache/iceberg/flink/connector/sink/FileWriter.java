@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.concurrent.TimeUnit;
 import org.apache.avro.Schema;
-import org.apache.avro.generic.IndexedRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFile;
@@ -32,6 +31,7 @@ import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.FileAppender;
@@ -48,8 +48,8 @@ public final class FileWriter implements Serializable {
   private final Path path;
   private final ProcessingTimeService timeService;
   private final long creationTime;
-  private final Partitioner<IndexedRecord> partitioner;
-  private final FileAppender<IndexedRecord> appender;
+  private final Partitioner<Record> partitioner;
+  private final FileAppender<Record> appender;
   private final org.apache.hadoop.conf.Configuration hadoopConfig;
   private final PartitionSpec spec;
   private final WatermarkTimeExtractor watermarkTimeExtractor;
@@ -156,7 +156,7 @@ public final class FileWriter implements Serializable {
     return new Builder();
   }
 
-  public long write(IndexedRecord record) {
+  public long write(Record record) {
     // We want to distinguish (1) IOException v.s. (2)type/schema exception
     // For type exception, we want to page table owner.
     try {

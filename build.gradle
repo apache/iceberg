@@ -552,6 +552,8 @@ project(':iceberg-flink') {
   dependencies {
     compile project(':iceberg-api')
     compile project(':iceberg-core')
+    compile project(':iceberg-data')
+    compile project(path: ':iceberg-data', configuration: 'testArtifacts')  // TODO: to remove, for RandomGenericData
     compile project(':iceberg-hive')
     compile project(':iceberg-parquet')
 

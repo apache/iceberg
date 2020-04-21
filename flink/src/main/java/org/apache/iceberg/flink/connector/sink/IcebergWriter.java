@@ -28,9 +28,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
-import org.apache.avro.AvroTypeException;
 import org.apache.avro.Schema;
-import org.apache.avro.generic.IndexedRecord;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.state.StateInitializationContext;
@@ -45,8 +43,10 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.flink.connector.IcebergConnectorConstant;
-import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -58,14 +58,14 @@ import org.slf4j.LoggerFactory;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 
-public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
-    implements OneInputStreamOperator<T, FlinkDataFile> {
+@SuppressWarnings("checkstyle:ClassTypeParameterName")
+public class IcebergWriter<IN> extends AbstractStreamOperator<FlinkDataFile>
+    implements OneInputStreamOperator<IN, FlinkDataFile> {
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergWriter.class);
   private static final String FILE_NAME_SEPARATOR = "_";
 
-  private final AvroSerializer serializer;
-  private final Configuration config;
+  private final RecordSerializer<IN> serializer;
   private final String namespace;
   private final String tableName;
   private final FileFormat format;
@@ -86,12 +86,10 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
   private transient Map<String, FileWriter> openPartitionFiles;
   private transient int subtaskId;
   private transient ProcessingTimeService timerService;
-  private transient Partitioner partitioner;
+  private transient Partitioner<Record> partitioner;
 
-  public IcebergWriter(Table table, @Nullable AvroSerializer<T> serializer,
-                       Configuration config) {
+  public IcebergWriter(Table table, @Nullable RecordSerializer<IN> serializer, Configuration config) {
     this.serializer = serializer;
-    this.config = config;
     skipIncompatibleRecord = config.getBoolean(IcebergConnectorConstant.SKIP_INCOMPATIBLE_RECORD,
         IcebergConnectorConstant.DEFAULT_SKIP_INCOMPATIBLE_RECORD);
     // TODO: different from IcebergCommitter, line 147, in which, "" is taken as default
@@ -273,8 +271,8 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
   }
 
   @Override
-  public void processElement(StreamRecord<T> element) throws Exception {
-    T value = element.getValue();
+  public void processElement(StreamRecord<IN> element) throws Exception {
+    IN value = element.getValue();
     try {
       processInternal(value);
     } catch (Exception t) {
@@ -285,41 +283,17 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
   }
 
   @VisibleForTesting
-  void processInternal(T value) throws Exception {
-    try {
-      AvroSerializer<T> ser = getSerializer(value);
-      IndexedRecord avroRecord = ser.serialize(value, avroSchema);
-      processIndexedRecord(avroRecord);
-    } catch (AvroTypeException e) {
-      throw e;
-    }
+  void processInternal(IN value) throws Exception {
+    Record record = serializer.serialize(value, icebergSchema);
+    processRecord(record);
   }
 
   /**
-   * This is mainly for backward compatibility for the short term.
-   * TODO: We should ask user to explicitly set the serializer in the IcebergSinkAppender and simplify the code here.
+   * process element as {@link Record}
    */
-  private AvroSerializer getSerializer(T value) {
-    if (null != this.serializer) {
-      return this.serializer;
-    }
-
-    // backward compatible part
-    if (value instanceof IndexedRecord) {
-      return PassThroughAvroSerializer.getInstance();
-    } else if (value instanceof Map) {
-      return MapAvroSerializer.getInstance();
-    } else {
-      return PojoAvroSerializer.getInstance();
-    }
-  }
-
-  /**
-   * process element as avro IndexedRecord
-   */
-  private void processIndexedRecord(IndexedRecord record) throws Exception {
-    if (null == partitioner) {
-      partitioner = new IndexedRecordPartitioner(spec);
+  private void processRecord(Record record) throws Exception {
+    if (partitioner == null) {
+      partitioner = new RecordPartitioner(spec);
     }
     partitioner.partition(record);
     final String partitionPath = locations.newDataLocation(spec, partitioner, "");
@@ -360,8 +334,8 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
     return format.addExtension(filename);
   }
 
-  private FileWriter newWriter(final Path path, final Partitioner part) throws Exception {
-    FileAppender<IndexedRecord> appender = newAppender(path);
+  private FileWriter newWriter(final Path path, final Partitioner<Record> part) throws Exception {
+    FileAppender<Record> appender = newAppender(io.newOutputFile(path.toString()));
     FileWriter writer = FileWriter.builder()
         .withFileFormat(format)
         .withPath(path)
@@ -377,14 +351,25 @@ public class IcebergWriter<T> extends AbstractStreamOperator<FlinkDataFile>
     return writer;
   }
 
-  private <D> FileAppender<D> newAppender(final Path path) throws Exception {
-    OutputFile outputFile = HadoopOutputFile.fromPath(path, hadoopConf);
-    return Parquet.write(outputFile)
-        .named(tableName)
-        .schema(icebergSchema)
-        .setAll(properties)
-        .metricsConfig(MetricsConfig.fromProperties(properties))
-        .overwrite()
-        .build();
+
+  private FileAppender<Record> newAppender(OutputFile file) throws Exception {
+    MetricsConfig metricsConfig = MetricsConfig.fromProperties(properties);
+    try {
+      switch (format) {
+        case PARQUET:
+          return Parquet.write(file)
+              .createWriterFunc(GenericParquetWriter::buildWriter)
+              .setAll(properties)
+              .metricsConfig(metricsConfig)
+              .schema(icebergSchema)
+              .overwrite()
+              .build();
+
+        default:
+          throw new UnsupportedOperationException("Cannot write unknown format: " + format);
+      }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e);
+    }
   }
 }

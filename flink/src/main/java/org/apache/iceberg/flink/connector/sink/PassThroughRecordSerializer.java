@@ -19,14 +19,21 @@
 
 package org.apache.iceberg.flink.connector.sink;
 
-import java.io.Serializable;
-import org.apache.avro.Schema;
-import org.apache.avro.generic.IndexedRecord;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.Record;
 
 /**
- * Serialize input data type to Avro IndexedRecord
+ * Pass {@link Record} directly, without any operations
  */
-@FunctionalInterface
-public interface AvroSerializer<IN> extends Serializable {
-  IndexedRecord serialize(IN record, Schema avroSchema) throws Exception;
+public class PassThroughRecordSerializer implements RecordSerializer<Record> {
+
+  private static final PassThroughRecordSerializer INSTANCE = new PassThroughRecordSerializer();
+
+  public static PassThroughRecordSerializer getInstance() {
+    return INSTANCE;
+  }
+
+  public Record serialize(Record record, Schema schema) {
+    return record;
+  }
 }
