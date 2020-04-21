@@ -73,8 +73,8 @@ public class ManifestFiles {
    * @return a manifest writer
    */
   public static ManifestWriter write(PartitionSpec spec, OutputFile outputFile) {
-    // always use a v1 writer for appended manifests because sequence number must be inherited
-    return write(1, spec, outputFile, null);
+    // always use a v2 writer to preserve sequence numbers, but use null for sequence number so appends inherit
+    return write(2, spec, outputFile, null);
   }
 
   /**

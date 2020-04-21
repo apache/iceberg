@@ -24,11 +24,25 @@ import java.io.IOException;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+@RunWith(Parameterized.class)
 public class TestTimestampPartitions extends TableTestBase {
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { 1 },
+        new Object[] { 2 },
+    };
+  }
+
+  public TestTimestampPartitions(int formatVersion) {
+    super(formatVersion);
+  }
 
   @Test
   public void testPartitionAppend() throws IOException {
@@ -52,7 +66,7 @@ public class TestTimestampPartitions extends TableTestBase {
     File tableDir = temp.newFolder();
     Assert.assertTrue(tableDir.delete());
 
-    this.table = TestTables.create(tableDir, "test_date_partition", dateSchema, partitionSpec);
+    this.table = TestTables.create(tableDir, "test_date_partition", dateSchema, partitionSpec, formatVersion);
 
     table.newAppend()
         .appendFile(dataFile)

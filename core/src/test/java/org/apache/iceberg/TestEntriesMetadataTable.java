@@ -22,10 +22,24 @@ package org.apache.iceberg;
 import com.google.common.collect.Iterables;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.junit.Assert.assertEquals;
 
+@RunWith(Parameterized.class)
 public class TestEntriesMetadataTable extends TableTestBase {
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { 1 },
+        new Object[] { 2 },
+    };
+  }
+
+  public TestEntriesMetadataTable(int formatVersion) {
+    super(formatVersion);
+  }
 
   @Test
   public void testEntriesTable() {
