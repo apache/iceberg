@@ -82,6 +82,7 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
   /**
    * @return the status of the file, whether EXISTING, ADDED, or DELETED
    */
+  @Override
   public Status status() {
     return status;
   }
@@ -89,6 +90,7 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
   /**
    * @return id of the snapshot in which the file was added to the table
    */
+  @Override
   public Long snapshotId() {
     return snapshotId;
   }
@@ -101,14 +103,17 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
   /**
    * @return a file
    */
+  @Override
   public DataFile file() {
     return file;
   }
 
+  @Override
   public ManifestEntry copy() {
     return new GenericManifestEntry(this, true /* full copy */);
   }
 
+  @Override
   public ManifestEntry copyWithoutStats() {
     return new GenericManifestEntry(this, false /* drop stats */);
   }
