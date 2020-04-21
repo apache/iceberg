@@ -35,7 +35,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 
 /**
- * A utility class that converts Spark {@link Row rows} to Iceberg's internal representation.
+ * A utility class that converts Spark values to Iceberg's internal representation.
  */
 public class SparkValueConverter {
 
