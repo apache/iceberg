@@ -33,6 +33,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.GenericManifestFile;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
@@ -43,6 +44,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
@@ -165,6 +167,9 @@ public class TestForwardCompatibility {
     HadoopTables tables = new HadoopTables(CONF);
     Table table = tables.create(SCHEMA, UNKNOWN_SPEC, location.toString());
 
+    // enable snapshot inheritance to avoid rewriting the manifest with an unknown transform
+    table.updateProperties().set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true").commit();
+
     List<GenericData.Record> expected = RandomData.generateList(table.schema(), 100, 1L);
 
     File parquetFile = new File(dataFolder,
@@ -192,8 +197,7 @@ public class TestForwardCompatibility {
       manifestWriter.close();
     }
 
-    TableOperations ops = ((HasTableOperations) table).operations();
-    ops.commit(ops.current(), ops.current().replaceCurrentSnapshot(new FakeSnapshot(manifestWriter.toManifestFile())));
+    table.newFastAppend().appendManifest(manifestWriter.toManifestFile()).commit();
 
     Dataset<Row> df = spark.read()
         .format("iceberg")
@@ -204,64 +208,6 @@ public class TestForwardCompatibility {
 
     for (int i = 0; i < expected.size(); i += 1) {
       TestHelpers.assertEqualsSafe(table.schema().asStruct(), expected.get(i), rows.get(i));
-    }
-  }
-
-  private static class FakeSnapshot implements Snapshot {
-    private final ManifestFile manifest;
-
-    FakeSnapshot(ManifestFile manifest) {
-      this.manifest = manifest;
-    }
-
-    @Override
-    public long sequenceNumber() {
-      return 0;
-    }
-
-    @Override
-    public long snapshotId() {
-      return 1;
-    }
-
-    @Override
-    public Long parentId() {
-      return null;
-    }
-
-    @Override
-    public long timestampMillis() {
-      return 0;
-    }
-
-    @Override
-    public List<ManifestFile> manifests() {
-      return ImmutableList.of(manifest);
-    }
-
-    @Override
-    public String operation() {
-      return DataOperations.APPEND;
-    }
-
-    @Override
-    public Map<String, String> summary() {
-      return null;
-    }
-
-    @Override
-    public Iterable<DataFile> addedFiles() {
-      return null;
-    }
-
-    @Override
-    public Iterable<DataFile> deletedFiles() {
-      return null;
-    }
-
-    @Override
-    public String manifestListLocation() {
-      return null;
     }
   }
 }
