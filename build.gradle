@@ -94,6 +94,13 @@ subprojects {
     testCompile 'org.slf4j:slf4j-simple'
     testCompile 'org.mockito:mockito-core'
   }
+
+  test {
+    testLogging {
+      events "failed"
+      exceptionFormat "full"
+    }
+  }
 }
 
 apply from: 'baseline.gradle'
