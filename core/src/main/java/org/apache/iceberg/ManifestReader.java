@@ -38,8 +38,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.types.Types;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 
@@ -49,8 +47,6 @@ import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
  * Create readers using {@link ManifestFiles#read(ManifestFile, FileIO, Map)}.
  */
 public class ManifestReader extends CloseableGroup implements Filterable<FilteredManifest> {
-  private static final Logger LOG = LoggerFactory.getLogger(ManifestReader.class);
-
   static final ImmutableList<String> ALL_COLUMNS = ImmutableList.of("*");
   static final ImmutableList<String> CHANGE_COLUMNS = ImmutableList.of(
       "file_path", "file_format", "partition", "record_count", "file_size_in_bytes");

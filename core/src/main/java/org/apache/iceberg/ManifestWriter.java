@@ -25,14 +25,11 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Writer for manifest files.
  */
 public abstract class ManifestWriter implements FileAppender<DataFile> {
-  private static final Logger LOG = LoggerFactory.getLogger(ManifestWriter.class);
   // stand-in for the current sequence number that will be assigned when the commit is successful
   // this is replaced when writing a manifest list by the ManifestFile wrapper
   static final long UNASSIGNED_SEQ = -1L;
