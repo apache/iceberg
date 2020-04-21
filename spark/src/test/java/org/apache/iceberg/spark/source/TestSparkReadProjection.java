@@ -23,12 +23,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -40,7 +34,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
@@ -48,6 +41,7 @@ import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.spark.SparkValueConverter;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -66,8 +60,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
 public class TestSparkReadProjection extends TestReadProjection {
-  private static final OffsetDateTime EPOCH = Instant.ofEpochMilli(0L).atOffset(ZoneOffset.UTC);
-  private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
   private static SparkSession spark = null;
 
@@ -169,88 +161,11 @@ public class TestSparkReadProjection extends TestReadProjection {
           .option("iceberg.table.name", desc)
           .load();
 
-      // convert to Avro using the read schema so that the record schemas match
-      return convert(readSchema, df.collectAsList().get(0));
+      return SparkValueConverter.convert(readSchema, df.collectAsList().get(0));
 
     } finally {
       TestTables.clearTables();
     }
-  }
-
-  @SuppressWarnings("unchecked")
-  private Object convert(Type type, Object object) {
-    switch (type.typeId()) {
-      case STRUCT:
-        return convert(type.asStructType(), (Row) object);
-
-      case LIST:
-        List<Object> convertedList = Lists.newArrayList();
-        List<?> list = (List<?>) object;
-        for (Object element : list) {
-          convertedList.add(convert(type.asListType().elementType(), element));
-        }
-        return convertedList;
-
-      case MAP:
-        Map<Object, Object> convertedMap = Maps.newLinkedHashMap();
-        Map<?, ?> map = (Map<?, ?>) object;
-        for (Map.Entry<?, ?> entry : map.entrySet()) {
-          convertedMap.put(
-              convert(type.asMapType().keyType(), entry.getKey()),
-              convert(type.asMapType().valueType(), entry.getValue()));
-        }
-        return convertedMap;
-
-      case DATE:
-        LocalDate date = (LocalDate) object;
-        return ChronoUnit.DAYS.between(EPOCH_DAY, date);
-      case TIMESTAMP:
-        OffsetDateTime timestamp = (OffsetDateTime) object;
-        return ChronoUnit.MICROS.between(EPOCH, timestamp);
-      case UUID:
-        return ((UUID) object).toString();
-      case BINARY:
-        return ByteBuffer.wrap((byte[]) object);
-      case BOOLEAN:
-      case INTEGER:
-      case LONG:
-      case FLOAT:
-      case DOUBLE:
-      case DECIMAL:
-      case STRING:
-      case FIXED:
-        return object;
-      default:
-        throw new UnsupportedOperationException("Not a supported type: " + type);
-    }
-  }
-  private Record convert(Schema schema, Row row) {
-    return convert(schema.asStruct(), row);
-  }
-
-  private Record convert(Types.StructType struct, Row row) {
-    Record record = GenericRecord.create(struct);
-    List<Types.NestedField> fields = struct.fields();
-    for (int i = 0; i < fields.size(); i += 1) {
-      Types.NestedField field = fields.get(i);
-
-      Type fieldType = field.type();
-
-      switch (fieldType.typeId()) {
-        case STRUCT:
-          record.set(i, convert(fieldType.asStructType(), row.getStruct(i)));
-          break;
-        case LIST:
-          record.set(i, convert(fieldType.asListType(), row.getList(i)));
-          break;
-        case MAP:
-          record.set(i, convert(fieldType.asMapType(), row.getJavaMap(i)));
-          break;
-        default:
-          record.set(i, convert(fieldType, row.get(i)));
-      }
-    }
-    return record;
   }
 
   private List<Integer> allIds(Schema schema) {
