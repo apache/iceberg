@@ -116,11 +116,19 @@ public abstract class TestIcebergSourceTablesBase {
         .load(loadLocation(tableIdentifier, "entries"))
         .collectAsList();
 
-    Assert.assertEquals("Should only contain one manifest", 1, table.currentSnapshot().manifests().size());
-    InputFile manifest = table.io().newInputFile(table.currentSnapshot().manifests().get(0).path());
-    List<GenericData.Record> expected;
+    Snapshot snapshot = table.currentSnapshot();
+
+    Assert.assertEquals("Should only contain one manifest", 1, snapshot.manifests().size());
+
+    InputFile manifest = table.io().newInputFile(snapshot.manifests().get(0).path());
+    List<GenericData.Record> expected = Lists.newArrayList();
     try (CloseableIterable<GenericData.Record> rows = Avro.read(manifest).project(entriesTable.schema()).build()) {
-      expected = Lists.newArrayList(rows);
+      // each row must inherit snapshot_id and sequence_number
+      rows.forEach(row -> {
+        row.put(1, snapshot.snapshotId());
+        row.put(2, 0L);
+        expected.add(row);
+      });
     }
 
     Assert.assertEquals("Entries table should have one row", 1, expected.size());
@@ -276,6 +284,53 @@ public abstract class TestIcebergSourceTablesBase {
       spark.sql("DROP TABLE parquet_table");
     }
 
+  }
+
+  @Test
+  public void testEntriesTableWithSnapshotIdInheritance() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_inheritance_test");
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
+    Table table = createTable(tableIdentifier, SCHEMA, spec);
+
+    table.updateProperties()
+        .set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true")
+        .commit();
+
+    List<SimpleRecord> records = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b")
+    );
+
+    try {
+      Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
+      inputDF.select("id", "data").write()
+          .format("parquet")
+          .mode("append")
+          .partitionBy("id")
+          .saveAsTable("parquet_table");
+
+      String stagingLocation = table.location() + "/metadata";
+      SparkTableUtil.importSparkTable(
+          spark, new org.apache.spark.sql.catalyst.TableIdentifier("parquet_table"), table, stagingLocation);
+
+      List<Row> actual = spark.read()
+          .format("iceberg")
+          .load(loadLocation(tableIdentifier, "entries"))
+          .select("sequence_number", "snapshot_id", "data_file")
+          .collectAsList();
+
+      table.refresh();
+
+      long snapshotId = table.currentSnapshot().snapshotId();
+
+      Assert.assertEquals("Entries table should have 2 rows", 2, actual.size());
+      Assert.assertEquals("Sequence number must match", 0, actual.get(0).getLong(0));
+      Assert.assertEquals("Snapshot id must match", snapshotId, actual.get(0).getLong(1));
+      Assert.assertEquals("Sequence number must match", 0, actual.get(1).getLong(0));
+      Assert.assertEquals("Snapshot id must match", snapshotId, actual.get(1).getLong(1));
+    } finally {
+      spark.sql("DROP TABLE parquet_table");
+    }
   }
 
   @Test
