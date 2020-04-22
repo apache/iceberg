@@ -22,7 +22,6 @@ package org.apache.iceberg;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.BinaryType;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.ListType;
@@ -38,43 +37,28 @@ import static org.apache.iceberg.types.Types.NestedField.required;
  * Interface for files listed in a table manifest.
  */
 public interface DataFile {
-  Types.NestedField FILE_PATH = required(100, "file_path", StringType.get());
-  Types.NestedField FILE_FORMAT = required(101, "file_format", StringType.get());
-  Types.NestedField RECORD_COUNT = required(103, "record_count", LongType.get());
-  Types.NestedField FILE_SIZE = required(104, "file_size_in_bytes", LongType.get());
-  Types.NestedField BLOCK_SIZE = required(105, "block_size_in_bytes", LongType.get());
-  Types.NestedField COLUMN_SIZES = optional(108, "column_sizes", MapType.ofRequired(117, 118,
-      IntegerType.get(), LongType.get()));
-  Types.NestedField VALUE_COUNTS = optional(109, "value_counts", MapType.ofRequired(119, 120,
-      IntegerType.get(), LongType.get()));
-  Types.NestedField NULL_VALUE_COUNTS = optional(110, "null_value_counts", MapType.ofRequired(121, 122,
-      IntegerType.get(), LongType.get()));
-  Types.NestedField LOWER_BOUNDS = optional(125, "lower_bounds", MapType.ofRequired(126, 127,
-      IntegerType.get(), BinaryType.get()));
-  Types.NestedField UPPER_BOUNDS = optional(128, "upper_bounds", MapType.ofRequired(129, 130,
-      IntegerType.get(), BinaryType.get()));
-  Types.NestedField KEY_METADATA = optional(131, "key_metadata", BinaryType.get());
-  Types.NestedField SPLIT_OFFSETS = optional(132, "split_offsets", ListType.ofRequired(133, LongType.get()));
-  int PARTITION_ID = 102;
-  String PARTITION_NAME = "partition";
-  // NEXT ID TO ASSIGN: 134
-
   static StructType getType(StructType partitionType) {
     // IDs start at 100 to leave room for changes to ManifestEntry
     return StructType.of(
-        FILE_PATH,
-        FILE_FORMAT,
-        required(PARTITION_ID, PARTITION_NAME, partitionType),
-        RECORD_COUNT,
-        FILE_SIZE,
-        BLOCK_SIZE,
-        COLUMN_SIZES,
-        VALUE_COUNTS,
-        NULL_VALUE_COUNTS,
-        LOWER_BOUNDS,
-        UPPER_BOUNDS,
-        KEY_METADATA,
-        SPLIT_OFFSETS
+        required(100, "file_path", StringType.get()),
+        required(101, "file_format", StringType.get()),
+        required(102, "partition", partitionType),
+        required(103, "record_count", LongType.get()),
+        required(104, "file_size_in_bytes", LongType.get()),
+        required(105, "block_size_in_bytes", LongType.get()),
+        optional(108, "column_sizes", MapType.ofRequired(117, 118,
+            IntegerType.get(), LongType.get())),
+        optional(109, "value_counts", MapType.ofRequired(119, 120,
+            IntegerType.get(), LongType.get())),
+        optional(110, "null_value_counts", MapType.ofRequired(121, 122,
+            IntegerType.get(), LongType.get())),
+        optional(125, "lower_bounds", MapType.ofRequired(126, 127,
+            IntegerType.get(), BinaryType.get())),
+        optional(128, "upper_bounds", MapType.ofRequired(129, 130,
+            IntegerType.get(), BinaryType.get())),
+        optional(131, "key_metadata", BinaryType.get()),
+        optional(132, "split_offsets", ListType.ofRequired(133, LongType.get()))
+        // NEXT ID TO ASSIGN: 134
     );
   }
 

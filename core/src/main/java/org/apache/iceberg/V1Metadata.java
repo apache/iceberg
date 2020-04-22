@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.types.Types;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -181,34 +181,15 @@ class V1Metadata {
     }
   }
 
-  static Schema entrySchema(StructType partitionType) {
-    return wrapFileSchema(dataFileSchema(partitionType));
+  static Schema entrySchema(Types.StructType partitionType) {
+    return wrapFileSchema(DataFile.getType(partitionType));
   }
 
-  static Schema wrapFileSchema(StructType fileSchema) {
+  static Schema wrapFileSchema(Types.StructType fileSchema) {
     // this is used to build projection schemas
     return new Schema(
         ManifestEntry.STATUS, ManifestEntry.SNAPSHOT_ID,
         required(ManifestEntry.DATA_FILE_ID, "data_file", fileSchema));
-  }
-
-  static StructType dataFileSchema(StructType partitionType) {
-    // IDs start at 100 to leave room for changes to ManifestEntry
-    return StructType.of(
-        DataFile.FILE_PATH,
-        DataFile.FILE_FORMAT,
-        required(DataFile.PARTITION_ID, DataFile.PARTITION_NAME, partitionType),
-        DataFile.RECORD_COUNT,
-        DataFile.FILE_SIZE,
-        DataFile.BLOCK_SIZE,
-        DataFile.COLUMN_SIZES,
-        DataFile.VALUE_COUNTS,
-        DataFile.NULL_VALUE_COUNTS,
-        DataFile.LOWER_BOUNDS,
-        DataFile.UPPER_BOUNDS,
-        DataFile.KEY_METADATA,
-        DataFile.SPLIT_OFFSETS
-    );
   }
 
   static class IndexedManifestEntry implements ManifestEntry, IndexedRecord {
@@ -216,7 +197,7 @@ class V1Metadata {
     private final IndexedDataFile fileWrapper;
     private ManifestEntry wrapped = null;
 
-    IndexedManifestEntry(StructType partitionType) {
+    IndexedManifestEntry(Types.StructType partitionType) {
       this.avroSchema = AvroSchemaUtil.convert(entrySchema(partitionType), "manifest_entry");
       this.fileWrapper = new IndexedDataFile(avroSchema.getField("data_file").schema());
     }
