@@ -19,12 +19,14 @@
 
 package org.apache.iceberg;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import java.util.Collection;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.types.TypeUtil;
 
 /**
@@ -100,11 +102,39 @@ public class ManifestEntriesTable extends BaseMetadataTable {
     protected CloseableIterable<FileScanTask> planFiles(
         TableOperations ops, Snapshot snapshot, Expression rowFilter, boolean caseSensitive, boolean colStats) {
       CloseableIterable<ManifestFile> manifests = CloseableIterable.withNoopClose(snapshot.manifests());
+      Schema fileSchema = new Schema(schema().findType("data_file").asStructType().fields());
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
+      ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(rowFilter);
 
-      return CloseableIterable.transform(manifests, manifest -> new BaseFileScanTask(
-          DataFiles.fromManifest(manifest), schemaString, specString, ResidualEvaluator.unpartitioned(rowFilter)));
+      return CloseableIterable.transform(manifests, manifest ->
+          new ManifestReadTask(ops.io(), manifest, fileSchema, schemaString, specString, residuals));
+    }
+  }
+
+  static class ManifestReadTask extends BaseFileScanTask implements DataTask {
+    private final Schema fileSchema;
+    private final FileIO io;
+    private final ManifestFile manifest;
+
+    ManifestReadTask(FileIO io, ManifestFile manifest, Schema fileSchema, String schemaString,
+                     String specString, ResidualEvaluator residuals) {
+      super(DataFiles.fromManifest(manifest), schemaString, specString, residuals);
+      this.fileSchema = fileSchema;
+      this.io = io;
+      this.manifest = manifest;
+    }
+
+    @Override
+    public CloseableIterable<StructLike> rows() {
+      return CloseableIterable.transform(
+          ManifestFiles.read(manifest, io).project(fileSchema).allEntries(),
+          file -> (GenericManifestEntry) file);
+    }
+
+    @Override
+    public Iterable<FileScanTask> split(long splitSize) {
+      return ImmutableList.of(this); // don't split
     }
   }
 }
