@@ -22,8 +22,23 @@ package org.apache.iceberg;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestDeleteFiles extends TableTestBase {
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { 1 },
+        new Object[] { 2 },
+    };
+  }
+
+  public TestDeleteFiles(int formatVersion) {
+    super(formatVersion);
+  }
+
   @Test
   public void testMultipleDeletes() {
     table.newAppend()

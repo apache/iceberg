@@ -23,6 +23,10 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class TestPartitionSpecParser extends TableTestBase {
+  public TestPartitionSpecParser() {
+    super(1);
+  }
+
   @Test
   public void testToJsonForV1Table() {
     String expected = "{\n" +
