@@ -19,10 +19,11 @@
 
 package org.apache.iceberg;
 
+import com.google.common.base.Preconditions;
+
 class InheritableMetadataFactory {
 
   private static final InheritableMetadata EMPTY = new EmptyInheritableMetadata();
-  private static final InheritableMetadata NOOP = new NullInheritableMetadata();
 
   private InheritableMetadataFactory() {}
 
@@ -31,11 +32,13 @@ class InheritableMetadataFactory {
   }
 
   static InheritableMetadata fromManifest(ManifestFile manifest) {
-    if (manifest.snapshotId() != null) {
-      return new BaseInheritableMetadata(manifest.snapshotId(), manifest.sequenceNumber());
-    } else {
-      return NOOP;
-    }
+    Preconditions.checkArgument(manifest.snapshotId() != null,
+        "Cannot read from ManifestFile with null (unassigned) snapshot ID");
+    return new BaseInheritableMetadata(manifest.snapshotId(), manifest.sequenceNumber());
+  }
+
+  static InheritableMetadata forCopy(long snapshotId) {
+    return new CopyMetadata(snapshotId);
   }
 
   static class BaseInheritableMetadata implements InheritableMetadata {
@@ -59,12 +62,16 @@ class InheritableMetadataFactory {
     }
   }
 
-  static class NullInheritableMetadata implements InheritableMetadata {
-    private NullInheritableMetadata() {
+  static class CopyMetadata implements InheritableMetadata {
+    private final long snapshotId;
+
+    private CopyMetadata(long snapshotId) {
+      this.snapshotId = snapshotId;
     }
 
     @Override
     public ManifestEntry apply(ManifestEntry manifestEntry) {
+      manifestEntry.setSnapshotId(snapshotId);
       return manifestEntry;
     }
   }
