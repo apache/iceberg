@@ -160,4 +160,12 @@ public class ParquetTypeVisitor<T> {
   public T primitive(PrimitiveType primitive) {
     return null;
   }
+
+  protected String[] currentPath() {
+    return ParquetUtil.currentPath(fieldNames);
+  }
+
+  protected String[] path(String name) {
+    return ParquetUtil.path(fieldNames, name);
+  }
 }
