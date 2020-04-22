@@ -77,7 +77,7 @@ class GenericDataFile
   private static final long DEFAULT_BLOCK_SIZE = 64 * 1024 * 1024;
 
   /**
-   * Used by DelegatingManifestEntry instantiate this class when reading manifest files.
+   * Used by AsManifestEntry to instantiate this class when reading manifest files.
    */
   private GenericDataFile(org.apache.avro.Schema avroSchema, AsManifestEntry asEntry) {
     this.avroSchema = avroSchema;
