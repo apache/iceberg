@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -48,6 +49,12 @@ class GenericDataFile
 
   private int[] fromProjectionPos;
   private Types.StructType partitionType;
+
+  // ManifestEntry fields
+  private ManifestEntry asEntry = null;
+  private FileStatus status = FileStatus.ADDED;
+  private Long snapshotId = null;
+  private Long sequenceNumber = null;
 
   private String filePath = null;
   private FileFormat format = null;
@@ -70,11 +77,11 @@ class GenericDataFile
   private static final long DEFAULT_BLOCK_SIZE = 64 * 1024 * 1024;
 
   /**
-   * Used by Avro reflection to instantiate this class when reading manifest files.
+   * Used by DelegatingManifestEntry instantiate this class when reading manifest files.
    */
-  @SuppressWarnings("checkstyle:RedundantModifier") // Must be public
-  public GenericDataFile(org.apache.avro.Schema avroSchema) {
+  private GenericDataFile(org.apache.avro.Schema avroSchema, AsManifestEntry asEntry) {
     this.avroSchema = avroSchema;
+    this.asEntry = asEntry;
 
     Types.StructType schema = AvroSchemaUtil.convert(avroSchema).asNestedType().asStructType();
 
@@ -112,6 +119,7 @@ class GenericDataFile
     this.format = format;
     this.partitionData = EMPTY_PARTITION_DATA;
     this.partitionType = EMPTY_PARTITION_DATA.getPartitionType();
+    this.asEntry = new AsManifestEntry(this, partitionType);
     this.recordCount = recordCount;
     this.fileSizeInBytes = fileSizeInBytes;
   }
@@ -122,6 +130,7 @@ class GenericDataFile
     this.format = format;
     this.partitionData = partition;
     this.partitionType = partition.getPartitionType();
+    this.asEntry = new AsManifestEntry(this, partitionType);
     this.recordCount = recordCount;
     this.fileSizeInBytes = fileSizeInBytes;
   }
@@ -139,6 +148,7 @@ class GenericDataFile
       this.partitionData = partition;
       this.partitionType = partition.getPartitionType();
     }
+    this.asEntry = new AsManifestEntry(this, partitionType);
 
     // this will throw NPE if metrics.recordCount is null
     this.recordCount = metrics.recordCount();
@@ -165,10 +175,14 @@ class GenericDataFile
    * @param fullCopy whether to copy all fields or to drop column-level stats
    */
   private GenericDataFile(GenericDataFile toCopy, boolean fullCopy) {
+    this.status = toCopy.status;
+    this.snapshotId = toCopy.snapshotId;
+    this.sequenceNumber = toCopy.sequenceNumber;
     this.filePath = toCopy.filePath;
     this.format = toCopy.format;
     this.partitionData = toCopy.partitionData.copy();
     this.partitionType = toCopy.partitionType;
+    this.asEntry = new AsManifestEntry(this, partitionType);
     this.recordCount = toCopy.recordCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
     if (fullCopy) {
@@ -194,6 +208,25 @@ class GenericDataFile
    * Constructor for Java serialization.
    */
   GenericDataFile() {
+  }
+
+  @Override
+  public FileStatus status() {
+    return status;
+  }
+
+  @Override
+  public Long snapshotId() {
+    return snapshotId;
+  }
+
+  @Override
+  public Long sequenceNumber() {
+    return sequenceNumber;
+  }
+
+  public ManifestEntry asEntry() {
+    return asEntry;
   }
 
   @Override
@@ -399,12 +432,12 @@ class GenericDataFile
   }
 
   @Override
-  public DataFile copyWithoutStats() {
+  public GenericDataFile copyWithoutStats() {
     return new GenericDataFile(this, false /* drop stats */);
   }
 
   @Override
-  public DataFile copy() {
+  public GenericDataFile copy() {
     return new GenericDataFile(this, true /* full copy */);
   }
 
@@ -424,5 +457,148 @@ class GenericDataFile
       return Collections.unmodifiableList(copy);
     }
     return null;
+  }
+
+  /**
+   * An adapter that makes a DataFile appear like a ManifestEntry for v1 metadata files.
+   */
+  static class AsManifestEntry
+      implements ManifestEntry, IndexedRecord, SpecificData.SchemaConstructable, StructLike, Serializable {
+    private transient Schema avroSchema = null;
+    private GenericDataFile file = null;
+
+    /**
+     * Used by Avro reflection to instantiate this class when reading manifest files.
+     *
+     * @param avroSchema an Avro read schema
+     */
+    protected AsManifestEntry(Schema avroSchema) {
+      this.avroSchema = avroSchema;
+      this.file = new GenericDataFile(avroSchema.getField("data_file").schema(), this);
+    }
+
+    /**
+     * Used by DataFile to create a ManifestEntry adapter.
+     *
+     * @param file a GenericDataFile that contains manifest entry data
+     */
+    protected AsManifestEntry(GenericDataFile file, Types.StructType partitionType) {
+      this.avroSchema = AvroSchemaUtil.convert(ManifestEntry.getSchema(partitionType), "manifest_entry");
+      this.file = file;
+    }
+
+    /**
+     * Constructor for Java serialization.
+     */
+    AsManifestEntry() {
+    }
+
+    @Override
+    public Schema getSchema() {
+      return avroSchema;
+    }
+
+    @Override
+    public Status status() {
+      return ManifestEntry.Status.values()[file.status.id()];
+    }
+
+    @Override
+    public Long snapshotId() {
+      return file.snapshotId;
+    }
+
+    @Override
+    public void setSnapshotId(long snapshotId) {
+      file.snapshotId = snapshotId;
+    }
+
+    @Override
+    public Long sequenceNumber() {
+      return file.sequenceNumber;
+    }
+
+    @Override
+    public void setSequenceNumber(long sequenceNumber) {
+      file.sequenceNumber = sequenceNumber;
+    }
+
+    @Override
+    public DataFile file() {
+      return file;
+    }
+
+    @Override
+    public ManifestEntry copy() {
+      return file.copy().asEntry;
+    }
+
+    @Override
+    public ManifestEntry copyWithoutStats() {
+      return file.copyWithoutStats().asEntry;
+    }
+
+    @Override
+    public void put(int pos, Object value) {
+      switch (pos) {
+        case 0:
+          file.status = FileStatus.values()[(Integer) value];
+          return;
+        case 1:
+          file.snapshotId = (Long) value;
+          return;
+        case 2:
+          file.sequenceNumber = (Long) value;
+          return;
+        case 3:
+          if (file != value) {
+            throw new IllegalArgumentException("Cannot replace data file");
+          }
+          return;
+        default:
+          // ignore the object, it must be from a newer version of the format
+      }
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      put(pos, value);
+    }
+
+    @Override
+    public Object get(int i) {
+      switch (i) {
+        case 0:
+          return file.status.id();
+        case 1:
+          return file.snapshotId;
+        case 2:
+          return file.sequenceNumber;
+        case 3:
+          return file;
+        default:
+          throw new UnsupportedOperationException("Unknown field ordinal: " + i);
+      }
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(get(pos));
+    }
+
+    @Override
+    public int size() {
+      return avroSchema.getFields().size();
+    }
+
+    @Override
+    public String toString() {
+      return MoreObjects.toStringHelper(this)
+          .add("status", file.status)
+          .add("snapshot_id", file.snapshotId)
+          .add("sequence_number", file.sequenceNumber)
+          .add("file", file)
+          .toString();
+    }
   }
 }

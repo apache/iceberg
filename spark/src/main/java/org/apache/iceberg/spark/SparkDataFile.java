@@ -25,6 +25,7 @@ import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileStatus;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -54,6 +55,21 @@ public class SparkDataFile implements DataFile {
       this.wrappedPartition.wrap(row.getAs(fieldPositions[2]));
     }
     return this;
+  }
+
+  @Override
+  public FileStatus status() {
+    return null;
+  }
+
+  @Override
+  public Long snapshotId() {
+    return null;
+  }
+
+  @Override
+  public Long sequenceNumber() {
+    return null;
   }
 
   @Override

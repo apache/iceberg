@@ -129,6 +129,12 @@ public class TestDataFileSerialization {
   }
 
   private void checkDataFile(DataFile expected, DataFile actual) {
+    Assert.assertEquals("Should match the serialized status",
+        expected.status(), actual.status());
+    Assert.assertEquals("Should match the serialized snapshot id",
+        expected.snapshotId(), actual.snapshotId());
+    Assert.assertEquals("Should match the serialized sequence number",
+        expected.sequenceNumber(), actual.sequenceNumber());
     Assert.assertEquals("Should match the serialized record path",
         expected.path(), actual.path());
     Assert.assertEquals("Should match the serialized record format",
@@ -151,7 +157,7 @@ public class TestDataFileSerialization {
         expected.keyMetadata(), actual.keyMetadata());
     Assert.assertEquals("Should match the serialized record offsets",
         expected.splitOffsets(), actual.splitOffsets());
-    Assert.assertEquals("Should match the serialized record offsets",
+    Assert.assertEquals("Should match the serialized key metadata",
         expected.keyMetadata(), actual.keyMetadata());
   }
 

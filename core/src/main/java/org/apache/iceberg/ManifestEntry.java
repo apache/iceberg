@@ -19,6 +19,9 @@
 
 package org.apache.iceberg;
 
+import com.google.common.collect.Sets;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 
@@ -54,7 +57,12 @@ interface ManifestEntry {
   }
 
   static Schema wrapFileSchema(StructType fileType) {
-    return new Schema(STATUS, SNAPSHOT_ID, SEQUENCE_NUMBER, required(DATA_FILE_ID, "data_file", fileType));
+    // remove ManifestEntry fields from the file type when wrapping to avoid duplication
+    Set<Integer> toRemove = Sets.newHashSet(STATUS.fieldId(), SNAPSHOT_ID.fieldId(), SEQUENCE_NUMBER.fieldId());
+    StructType v1FileType = StructType.of(fileType.fields().stream()
+        .filter(field -> !toRemove.contains(field.fieldId()))
+        .collect(Collectors.toList()));
+    return new Schema(STATUS, SNAPSHOT_ID, SEQUENCE_NUMBER, required(DATA_FILE_ID, "data_file", v1FileType));
   }
 
   /**

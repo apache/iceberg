@@ -183,14 +183,14 @@ public class TableTestBase {
   }
 
   ManifestEntry manifestEntry(ManifestEntry.Status status, Long snapshotId, DataFile file) {
-    GenericManifestEntry entry = new GenericManifestEntry(table.spec().partitionType());
+    ManifestEntryWrapper entry = new ManifestEntryWrapper();
     switch (status) {
       case ADDED:
         return entry.wrapAppend(snapshotId, file);
       case EXISTING:
         return entry.wrapExisting(snapshotId, 0L, file);
       case DELETED:
-        return entry.wrapDelete(snapshotId, file);
+        return entry.wrapDelete(snapshotId, 0L, file);
       default:
         throw new IllegalArgumentException("Unexpected entry status: " + status);
     }
