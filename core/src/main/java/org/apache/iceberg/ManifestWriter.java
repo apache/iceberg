@@ -54,7 +54,7 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
   private final int specId;
   private final FileAppender<ManifestEntry> writer;
   private final Long snapshotId;
-  private final GenericManifestEntry reused;
+  private final ManifestEntryWrapper reused;
   private final PartitionSummary stats;
 
   private boolean closed = false;
@@ -71,7 +71,7 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
     this.specId = spec.specId();
     this.writer = newAppender(spec, file);
     this.snapshotId = snapshotId;
-    this.reused = new GenericManifestEntry(spec.partitionType());
+    this.reused = new ManifestEntryWrapper();
     this.stats = new PartitionSummary(spec);
   }
 
@@ -121,11 +121,9 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
    * Add an existing entry for a data file.
    *
    * @param existingFile a data file
-   * @param fileSnapshotId snapshot ID when the data file was added to the table
-   * @param sequenceNumber sequence number for the data file
    */
-  public void existing(DataFile existingFile, long fileSnapshotId, long sequenceNumber) {
-    addEntry(reused.wrapExisting(fileSnapshotId, sequenceNumber, existingFile));
+  public void existing(DataFile existingFile) {
+    addEntry(reused.wrapExisting(existingFile.snapshotId(), existingFile.sequenceNumber(), existingFile));
   }
 
   void existing(ManifestEntry entry) {
@@ -140,13 +138,13 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
    * @param deletedFile a data file
    */
   public void delete(DataFile deletedFile) {
-    addEntry(reused.wrapDelete(snapshotId, deletedFile));
+    addEntry(reused.wrapDelete(snapshotId, deletedFile.sequenceNumber(), deletedFile));
   }
 
   void delete(ManifestEntry entry) {
     // Use the current Snapshot ID for the delete. It is safe to delete the data file from disk
     // when this Snapshot has been removed or when there are no Snapshots older than this one.
-    addEntry(reused.wrapDelete(snapshotId, entry.file()));
+    addEntry(reused.wrapDelete(snapshotId, entry.sequenceNumber(), entry.file()));
   }
 
   @Override
@@ -237,4 +235,5 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
       }
     }
   }
+
 }

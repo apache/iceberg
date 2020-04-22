@@ -19,21 +19,24 @@
 
 package org.apache.iceberg;
 
-import org.apache.avro.Schema;
+/**
+ * The status of a data or delete file in a manifest:
+ * 0 - existing (added in a different manifest)
+ * 1 - added to the table in the manifest
+ * 2 - deleted from the table in the manifest
+ */
+public enum FileStatus {
+  EXISTING(0),
+  ADDED(1),
+  DELETED(2);
 
-class GenericManifestEntry extends GenericDataFile.AsManifestEntry {
-  /**
-   * Used by Avro reflection to instantiate this class when reading manifest files.
-   *
-   * @param avroSchema an Avro read schema
-   */
-  GenericManifestEntry(Schema avroSchema) {
-    super(avroSchema);
+  private final int id;
+
+  FileStatus(int id) {
+    this.id = id;
   }
 
-  /**
-   * Constructor for Java serialization.
-   */
-  GenericManifestEntry() {
+  public int id() {
+    return id;
   }
 }

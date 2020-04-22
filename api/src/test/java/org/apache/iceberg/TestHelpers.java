@@ -304,6 +304,21 @@ public class TestHelpers {
     }
 
     @Override
+    public FileStatus status() {
+      return FileStatus.ADDED;
+    }
+
+    @Override
+    public Long snapshotId() {
+      return 0L;
+    }
+
+    @Override
+    public Long sequenceNumber() {
+      return 0L;
+    }
+
+    @Override
     public CharSequence path() {
       return path;
     }
