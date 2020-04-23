@@ -97,9 +97,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
     ValidationException.check(current().snapshot(snapshotId) != null,
         "Cannot roll back to unknown snapshot id: %s", snapshotId);
 
-    //TODO how is managerOperation diff from snapshotOperation
     this.managerOperation = SnapshotManagerOperation.ROLLBACK;
-    this.snapshotOperation = SnapshotManagerOperation.ROLLBACK.name();
     this.targetSnapshotId = snapshotId;
 
     return this;
@@ -127,6 +125,13 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
         isCurrentAncestor(current, snapshotId),
         "Cannot roll back to snapshot, not an ancestor of the current state: %s", snapshotId);
     return setCurrentSnapshot(snapshotId);
+  }
+
+  @Override
+  public Object updateEvent() {
+    //TODO: Since cherrypick can lead to a snapshot creation we can delegate to MergingSnapshotProducer to create
+    // the event. For rollback, we can return a null here to signal no event creation
+    return null;
   }
 
   private void validate(TableMetadata base) {

@@ -30,20 +30,18 @@ public final class CreateSnapshotEvent {
   private final long sequenceNumber;
   private final Map<String, String> summary;
   private final List<String> addedFiles;
-  private final List<String> appendedManifests;
-  private final List<String> deletePaths;
+  private final List<String> deleteFiles;
 
   public CreateSnapshotEvent(
-      String tableName, String operation, long snapshotId, long sequenceNumber, Map<String, String> summary,
-      List<String> addedFiles, List<String> appendedManifests, List<String> deletePaths) {
+      String tableName, String operation, long snapshotId, long sequenceNumber,
+      Map<String, String> summary, List<String> addedFiles, List<String> deleteFiles) {
     this.tableName = tableName;
     this.operation = operation;
     this.snapshotId = snapshotId;
     this.sequenceNumber = sequenceNumber;
     this.summary = summary;
     this.addedFiles = addedFiles;
-    this.appendedManifests = appendedManifests;
-    this.deletePaths = deletePaths;
+    this.deleteFiles = deleteFiles;
   }
 
   public String tableName() {
@@ -70,11 +68,7 @@ public final class CreateSnapshotEvent {
     return addedFiles;
   }
 
-  public List<String> appendedManifests() {
-    return appendedManifests;
-  }
-
-  public List<String> deletePaths() {
-    return deletePaths;
+  public List<String> deletedFiles() {
+    return deleteFiles;
   }
 }

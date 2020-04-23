@@ -23,8 +23,8 @@ import com.google.common.base.Preconditions;
 import java.util.Set;
 
 class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements RewriteFiles {
-  BaseRewriteFiles(String name, TableOperations ops) {
-    super(name, ops);
+  BaseRewriteFiles(String tableName, TableOperations ops) {
+    super(tableName, ops);
 
     // replace files must fail if any of the deleted paths is missing and cannot be deleted
     failMissingDeletePaths();

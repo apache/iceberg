@@ -40,11 +40,6 @@ public class BaseTable implements Table, HasTableOperations {
   }
 
   @Override
-  public String name() {
-    return name;
-  }
-
-  @Override
   public TableOperations operations() {
     return ops;
   }

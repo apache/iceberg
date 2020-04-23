@@ -323,17 +323,15 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   @Override
   public Object updateEvent() {
     long snapshotId = snapshotId();
-    //long sequenceNumber = ops.refresh().snapshot(snapshotId).sequenceNumber();
+    long sequenceNumber = ops.refresh().snapshot(snapshotId).sequenceNumber();
     return new CreateSnapshotEvent(
         tableName,
         operation(),
         snapshotId,
-        0,
+        sequenceNumber,
         summary(),
         FluentIterable.from(newFiles).transform(f -> f.path().toString()).toList(),
-        FluentIterable.from(appendManifests).transform(ManifestFile::path).toList(),
-        FluentIterable.from(deletePaths).transform(CharSequenceWrapper::toString).toList()
-    );
+        FluentIterable.from(deletePaths).transform(CharSequenceWrapper::toString).toList());
   }
 
   private ManifestFile[] filterManifests(StrictMetricsEvaluator metricsEvaluator, List<ManifestFile> manifests)

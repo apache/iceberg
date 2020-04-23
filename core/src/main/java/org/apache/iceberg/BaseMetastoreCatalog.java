@@ -93,7 +93,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
     Map<String, String> tableProperties = properties != null ? properties : Maps.newHashMap();
     TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, baseLocation, tableProperties);
-    return Transactions.createTableTransaction(identifier.name(), ops, metadata);
+    return Transactions.createTableTransaction(identifier.toString(), ops, metadata);
   }
 
   @Override

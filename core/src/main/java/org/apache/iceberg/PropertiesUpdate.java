@@ -37,7 +37,6 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 class PropertiesUpdate implements UpdateProperties {
-
   private final TableOperations ops;
   private final Map<String, String> updates = Maps.newHashMap();
   private final Set<String> removals = Sets.newHashSet();
