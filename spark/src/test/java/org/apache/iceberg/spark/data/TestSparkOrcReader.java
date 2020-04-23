@@ -19,8 +19,10 @@
 
 package org.apache.iceberg.spark.data;
 
+import com.google.common.collect.Iterables;
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
@@ -54,6 +56,30 @@ public class TestSparkOrcReader extends AvroDataTest {
         .build()) {
       final Iterator<InternalRow> actualRows = reader.iterator();
       final Iterator<InternalRow> expectedRows = expected.iterator();
+      while (expectedRows.hasNext()) {
+        Assert.assertTrue("Should have expected number of rows", actualRows.hasNext());
+        assertEquals(schema, expectedRows.next(), actualRows.next());
+      }
+      Assert.assertFalse("Should not have extra rows", actualRows.hasNext());
+    }
+
+    // Also write and validate where all rows are the same (repeating)
+    final Iterable<InternalRow> expectedRepeating = Collections.nCopies(100, expected.iterator().next());
+    Assert.assertTrue("Delete should succeed", testFile.delete());
+
+    try (FileAppender<InternalRow> writer = ORC.write(Files.localOutput(testFile))
+        .createWriterFunc(SparkOrcWriter::new)
+        .schema(schema)
+        .build()) {
+      writer.addAll(expectedRepeating);
+    }
+
+    try (CloseableIterable<InternalRow> reader = ORC.read(Files.localInput(testFile))
+        .project(schema)
+        .createReaderFunc(SparkOrcReader::new)
+        .build()) {
+      final Iterator<InternalRow> actualRows = reader.iterator();
+      final Iterator<InternalRow> expectedRows = expectedRepeating.iterator();
       while (expectedRows.hasNext()) {
         Assert.assertTrue("Should have expected number of rows", actualRows.hasNext());
         assertEquals(schema, expectedRows.next(), actualRows.next());

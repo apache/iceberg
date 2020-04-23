@@ -24,6 +24,7 @@ import java.io.File;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.TimeZone;
 import org.apache.iceberg.Files;
@@ -70,6 +71,30 @@ public class TestGenericData extends DataTest {
 
     for (int i = 0; i < expected.size(); i += 1) {
       DataTestHelpers.assertEquals(schema.asStruct(), expected.get(i), rows.get(i));
+    }
+
+    // Also write and validate where all rows are the same (repeating)
+    List<Record> expectedRepeating = Collections.nCopies(100, expected.get(0));
+    Assert.assertTrue("Delete should succeed", testFile.delete());
+
+    try (FileAppender<Record> writer = ORC.write(Files.localOutput(testFile))
+        .schema(schema)
+        .createWriterFunc(GenericOrcWriter::buildWriter)
+        .build()) {
+      for (Record rec : expectedRepeating) {
+        writer.add(rec);
+      }
+    }
+
+    try (CloseableIterable<Record> reader = ORC.read(Files.localInput(testFile))
+        .project(schema)
+        .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
+        .build()) {
+      rows = Lists.newArrayList(reader);
+    }
+
+    for (int i = 0; i < expectedRepeating.size(); i += 1) {
+      DataTestHelpers.assertEquals(schema.asStruct(), expectedRepeating.get(i), rows.get(i));
     }
   }
 

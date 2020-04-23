@@ -101,7 +101,7 @@ public class GenericOrcReader implements OrcValueReader<Record> {
       if (!vector.noNulls && vector.isNull[rowIndex]) {
         return null;
       } else {
-        return convertNonNullValue(vector, row);
+        return convertNonNullValue(vector, rowIndex);
       }
     }
 
