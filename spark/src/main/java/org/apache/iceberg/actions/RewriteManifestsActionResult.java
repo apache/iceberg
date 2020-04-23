@@ -19,32 +19,32 @@
 
 package org.apache.iceberg.actions;
 
-import org.apache.iceberg.Table;
-import org.apache.spark.sql.SparkSession;
+import com.google.common.collect.ImmutableList;
+import java.util.List;
+import org.apache.iceberg.ManifestFile;
 
-public class Actions {
+public class RewriteManifestsActionResult {
 
-  private SparkSession spark;
-  private Table table;
+  private static final RewriteManifestsActionResult EMPTY =
+      new RewriteManifestsActionResult(ImmutableList.of(), ImmutableList.of());
 
-  private Actions(SparkSession spark, Table table) {
-    this.spark = spark;
-    this.table = table;
+  private List<ManifestFile> deletedManifests;
+  private List<ManifestFile> addedManifests;
+
+  public RewriteManifestsActionResult(List<ManifestFile> deletedManifests, List<ManifestFile> addedManifests) {
+    this.deletedManifests = deletedManifests;
+    this.addedManifests = addedManifests;
   }
 
-  public static Actions forTable(SparkSession spark, Table table) {
-    return new Actions(spark, table);
+  static RewriteManifestsActionResult empty() {
+    return EMPTY;
   }
 
-  public static Actions forTable(Table table) {
-    return new Actions(SparkSession.active(), table);
+  public List<ManifestFile> deletedManifests() {
+    return deletedManifests;
   }
 
-  public RemoveOrphanFilesAction removeOrphanFiles() {
-    return new RemoveOrphanFilesAction(spark, table);
-  }
-
-  public RewriteManifestsAction rewriteManifests() {
-    return new RewriteManifestsAction(spark, table);
+  public List<ManifestFile> addedManifests() {
+    return addedManifests;
   }
 }

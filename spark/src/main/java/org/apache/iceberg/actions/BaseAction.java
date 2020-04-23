@@ -19,32 +19,22 @@
 
 package org.apache.iceberg.actions;
 
+import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Table;
-import org.apache.spark.sql.SparkSession;
 
-public class Actions {
+abstract class BaseAction<R> implements Action<R> {
 
-  private SparkSession spark;
-  private Table table;
+  protected abstract Table table();
 
-  private Actions(SparkSession spark, Table table) {
-    this.spark = spark;
-    this.table = table;
-  }
-
-  public static Actions forTable(SparkSession spark, Table table) {
-    return new Actions(spark, table);
-  }
-
-  public static Actions forTable(Table table) {
-    return new Actions(SparkSession.active(), table);
-  }
-
-  public RemoveOrphanFilesAction removeOrphanFiles() {
-    return new RemoveOrphanFilesAction(spark, table);
-  }
-
-  public RewriteManifestsAction rewriteManifests() {
-    return new RewriteManifestsAction(spark, table);
+  protected String metadataTableName(MetadataTableType type) {
+    String tableName = table().toString();
+    if (tableName.contains("/")) {
+      return tableName + "#" + type;
+    } else if (tableName.startsWith("hadoop.") || tableName.startsWith("hive.")) {
+      // HiveCatalog and HadoopCatalog prepend a logical name which we need to drop for Spark 2.4
+      return tableName.replaceFirst("(hadoop\\.)|(hive\\.)", "") + "." + type;
+    } else {
+      return tableName + "." + type;
+    }
   }
 }
