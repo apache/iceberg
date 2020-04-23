@@ -162,10 +162,12 @@ public class ParquetTypeVisitor<T> {
   }
 
   protected String[] currentPath() {
-    return ParquetUtil.currentPath(fieldNames);
+    return Lists.newArrayList(fieldNames.descendingIterator()).toArray(new String[0]);
   }
 
   protected String[] path(String name) {
-    return ParquetUtil.path(fieldNames, name);
+    List<String> list = Lists.newArrayList(fieldNames.descendingIterator());
+    list.add(name);
+    return list.toArray(new String[0]);
   }
 }

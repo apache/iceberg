@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Deque;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -287,29 +286,5 @@ public class ParquetUtil {
       }
     }
     return primitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32;
-  }
-
-  public static String[] currentPath(Deque<String> fieldNames) {
-    String[] path = new String[fieldNames.size()];
-    if (!fieldNames.isEmpty()) {
-      Iterator<String> iter = fieldNames.descendingIterator();
-      for (int i = 0; iter.hasNext(); i += 1) {
-        path[i] = iter.next();
-      }
-    }
-    return path;
-  }
-
-  public static String[] path(Deque<String> fieldNames, String name) {
-    String[] path = new String[fieldNames.size() + 1];
-    path[fieldNames.size()] = name;
-
-    if (!fieldNames.isEmpty()) {
-      Iterator<String> iter = fieldNames.descendingIterator();
-      for (int i = 0; iter.hasNext(); i += 1) {
-        path[i] = iter.next();
-      }
-    }
-    return path;
   }
 }
