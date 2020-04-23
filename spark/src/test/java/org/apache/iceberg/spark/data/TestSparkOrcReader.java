@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.data;
 
-import com.google.common.collect.Iterables;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
