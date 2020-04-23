@@ -115,28 +115,28 @@ public class SparkDataFile implements DataFile {
 
   @Override
   public Map<Integer, Long> columnSizes() {
-    return !wrapped.isNullAt(columnSizesPosition) ? wrapped.getJavaMap(columnSizesPosition) : null;
+    return wrapped.isNullAt(columnSizesPosition) ? null : wrapped.getJavaMap(columnSizesPosition);
   }
 
   @Override
   public Map<Integer, Long> valueCounts() {
-    return !wrapped.isNullAt(valueCountsPosition) ? wrapped.getJavaMap(valueCountsPosition) : null;
+    return wrapped.isNullAt(valueCountsPosition) ? null : wrapped.getJavaMap(valueCountsPosition);
   }
 
   @Override
   public Map<Integer, Long> nullValueCounts() {
-    return !wrapped.isNullAt(nullValueCountsPosition) ? wrapped.getJavaMap(nullValueCountsPosition) : null;
+    return wrapped.isNullAt(nullValueCountsPosition) ? null : wrapped.getJavaMap(nullValueCountsPosition);
   }
 
   @Override
   public Map<Integer, ByteBuffer> lowerBounds() {
-    Map<?, ?> lowerBounds = !wrapped.isNullAt(lowerBoundsPosition) ? wrapped.getJavaMap(lowerBoundsPosition) : null;
+    Map<?, ?> lowerBounds = wrapped.isNullAt(lowerBoundsPosition) ? null : wrapped.getJavaMap(lowerBoundsPosition);
     return convert(lowerBoundsType, lowerBounds);
   }
 
   @Override
   public Map<Integer, ByteBuffer> upperBounds() {
-    Map<?, ?> upperBounds = !wrapped.isNullAt(upperBoundsPosition) ? wrapped.getJavaMap(upperBoundsPosition) : null;
+    Map<?, ?> upperBounds = wrapped.isNullAt(upperBoundsPosition) ? null : wrapped.getJavaMap(upperBoundsPosition);
     return convert(upperBoundsType, upperBounds);
   }
 
@@ -157,7 +157,7 @@ public class SparkDataFile implements DataFile {
 
   @Override
   public List<Long> splitOffsets() {
-    return !wrapped.isNullAt(splitOffsetsPosition) ? wrapped.getList(splitOffsetsPosition) : null;
+    return wrapped.isNullAt(splitOffsetsPosition) ? null : wrapped.getList(splitOffsetsPosition);
   }
 
   private int fieldPosition(String name, StructType sparkType) {
