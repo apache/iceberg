@@ -163,7 +163,9 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
         }
 
       case ROLLBACK:
+        snapshotId();
         return base.snapshot(targetSnapshotId);
+
 
       default:
         throw new ValidationException("Invalid SnapshotManagerOperation: only cherrypick, rollback are supported");
