@@ -146,7 +146,6 @@ public class TestRewriteManifestsAction {
 
     RewriteManifestsActionResult result = actions.rewriteManifests()
         .rewriteIf(manifest -> true)
-        .stagingLocation(temp.newFolder().toString())
         .execute();
 
     Assert.assertEquals("Action should rewrite 2 manifests", 2, result.deletedManifests().size());
@@ -224,7 +223,6 @@ public class TestRewriteManifestsAction {
 
     RewriteManifestsActionResult result = actions.rewriteManifests()
         .rewriteIf(manifest -> true)
-        .stagingLocation(temp.newFolder().toString())
         .execute();
 
     Assert.assertEquals("Action should rewrite 4 manifests", 4, result.deletedManifests().size());

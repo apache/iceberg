@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
@@ -41,6 +42,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RewriteManifests;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
@@ -69,10 +71,10 @@ import org.slf4j.LoggerFactory;
 /**
  * An action that rewrites manifests in a distributed manner and co-locates metadata for partitions.
  * <p>
- * By default, this action rewrites all manifests for the current partition spec. The behavior can
- * be modified by passing a custom predicate to {@link #rewriteIf(Predicate)} and a custom spec id
- * to {@link #specId(int)}. In addition, this action requires a staging location for new manifests
- * that should be configured via {@link #stagingLocation}.
+ * By default, this action rewrites all manifests for the current partition spec and writes the result
+ * to the metadata folder. The behavior can be modified by passing a custom predicate to {@link #rewriteIf(Predicate)}
+ * and a custom spec id to {@link #specId(int)}. In addition, there is a way to configure a custom location
+ * for new manifests via {@link #stagingLocation}.
  */
 public class RewriteManifestsAction
     extends BaseSnapshotUpdateAction<RewriteManifestsAction, RewriteManifestsActionResult> {
@@ -109,6 +111,11 @@ public class RewriteManifestsAction
     } else {
       this.fileIO = table.io();
     }
+
+    // default the staging location to the metadata location
+    TableOperations ops = ((HasTableOperations) table).operations();
+    Path metadataFilePath = new Path(ops.metadataFileLocation("file"));
+    this.stagingLocation = metadataFilePath.getParent().toString();
   }
 
   @Override
@@ -162,8 +169,6 @@ public class RewriteManifestsAction
 
   @Override
   public RewriteManifestsActionResult execute() {
-    Preconditions.checkArgument(stagingLocation != null, "Staging location must be set");
-
     List<ManifestFile> matchingManifests = findMatchingManifests();
     if (matchingManifests.isEmpty()) {
       return RewriteManifestsActionResult.empty();
