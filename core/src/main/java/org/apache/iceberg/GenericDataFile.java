@@ -310,7 +310,6 @@ class GenericDataFile
   }
 
   @Override
-  @SuppressWarnings("unchecked")
   public void put(int i, Object v) {
     int pos = i;
     // if the schema was projected, map the incoming ordinal to the expected one
@@ -323,6 +322,7 @@ class GenericDataFile
     }
   }
 
+  @SuppressWarnings("unchecked")
   private <T> void setInternal(int pos, T v) {
     switch (pos) {
       case 0:
@@ -378,7 +378,7 @@ class GenericDataFile
 
   @Override
   public <T> void set(int pos, T value) {
-    setInternal(pos, value);
+    put(pos, value);
   }
 
   @Override
@@ -430,10 +430,7 @@ class GenericDataFile
 
   @Override
   public <T> T get(int pos, Class<T> javaClass) {
-    // this method is used by bound expressions to access values. expressions are bound to the DataFile schema, not to
-    // the projection stored in this record if only a subset of fields were read. that means this should return values
-    // based on the canonical position, not the projection position, so this calls getInternal directly.
-    return javaClass.cast(getInternal(pos));
+    return javaClass.cast(get(pos));
   }
 
   private static org.apache.avro.Schema getAvroSchema(Types.StructType partitionType) {

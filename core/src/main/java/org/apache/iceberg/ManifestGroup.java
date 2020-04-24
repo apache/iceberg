@@ -183,7 +183,8 @@ class ManifestGroup {
               spec, caseSensitive);
         });
 
-    Evaluator evaluator = new Evaluator(DataFile.getType(EMPTY_STRUCT), fileFilter, caseSensitive);
+    Schema fileProjection = new Schema(DataFile.getType(EMPTY_STRUCT).fields()).select(columns);
+    Evaluator evaluator = new Evaluator(fileProjection.asStruct(), fileFilter, caseSensitive);
 
     Iterable<ManifestFile> matchingManifests = evalCache == null ? manifests : Iterables.filter(manifests,
         manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
