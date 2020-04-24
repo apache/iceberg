@@ -21,16 +21,21 @@ package org.apache.iceberg.spark.data;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.orc.ORC;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.Assert;
+import org.junit.Test;
 
 import static org.apache.iceberg.spark.data.TestHelpers.assertEquals;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestSparkOrcReader extends AvroDataTest {
   @Override
@@ -38,6 +43,22 @@ public class TestSparkOrcReader extends AvroDataTest {
     final Iterable<InternalRow> expected = RandomData
         .generateSpark(schema, 100, 0L);
 
+    writeAndValidateRecords(schema, expected);
+  }
+
+  @Test
+  public void writeAndValidateRepeatingRecords() throws IOException {
+    Schema structSchema = new Schema(
+        required(100, "id", Types.LongType.get()),
+        required(101, "data", Types.StringType.get())
+    );
+    List<InternalRow> expectedRepeating = Collections.nCopies(100,
+        RandomData.generateSpark(structSchema, 1, 0L).iterator().next());
+
+    writeAndValidateRecords(structSchema, expectedRepeating);
+  }
+
+  private void writeAndValidateRecords(Schema schema, Iterable<InternalRow> expected) throws IOException {
     final File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 

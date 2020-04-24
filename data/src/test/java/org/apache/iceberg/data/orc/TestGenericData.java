@@ -24,6 +24,7 @@ import java.io.File;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.TimeZone;
 import org.apache.iceberg.Files;
@@ -48,29 +49,18 @@ public class TestGenericData extends DataTest {
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expected = RandomGenericData.generate(schema, 100, 0L);
 
-    File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    writeAndValidateRecords(schema, expected);
+  }
 
-    try (FileAppender<Record> writer = ORC.write(Files.localOutput(testFile))
-        .schema(schema)
-        .createWriterFunc(GenericOrcWriter::buildWriter)
-        .build()) {
-      for (Record rec : expected) {
-        writer.add(rec);
-      }
-    }
+  @Test
+  public void writeAndValidateRepeatingRecords() throws IOException {
+    Schema structSchema = new Schema(
+        required(100, "id", Types.LongType.get()),
+        required(101, "data", Types.StringType.get())
+    );
+    List<Record> expectedRepeating = Collections.nCopies(100, RandomGenericData.generate(structSchema, 1, 0L).get(0));
 
-    List<Record> rows;
-    try (CloseableIterable<Record> reader = ORC.read(Files.localInput(testFile))
-        .project(schema)
-        .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
-        .build()) {
-      rows = Lists.newArrayList(reader);
-    }
-
-    for (int i = 0; i < expected.size(); i += 1) {
-      DataTestHelpers.assertEquals(schema.asStruct(), expected.get(i), rows.get(i));
-    }
+    writeAndValidateRecords(structSchema, expectedRepeating);
   }
 
   @Test
@@ -126,5 +116,31 @@ public class TestGenericData extends DataTest {
     Assert.assertEquals(LocalDateTime.parse("1935-01-01T00:01:00"), rows.get(2).getField("tsCol"));
     Assert.assertEquals(OffsetDateTime.parse("1935-05-17T01:10:34Z"), rows.get(3).getField("tsTzCol"));
     Assert.assertEquals(LocalDateTime.parse("1935-05-01T00:01:00"), rows.get(3).getField("tsCol"));
+  }
+
+  private void writeAndValidateRecords(Schema schema, List<Record> expected) throws IOException {
+    File testFile = temp.newFile();
+    Assert.assertTrue("Delete should succeed", testFile.delete());
+
+    try (FileAppender<Record> writer = ORC.write(Files.localOutput(testFile))
+        .schema(schema)
+        .createWriterFunc(GenericOrcWriter::buildWriter)
+        .build()) {
+      for (Record rec : expected) {
+        writer.add(rec);
+      }
+    }
+
+    List<Record> rows;
+    try (CloseableIterable<Record> reader = ORC.read(Files.localInput(testFile))
+        .project(schema)
+        .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
+        .build()) {
+      rows = Lists.newArrayList(reader);
+    }
+
+    for (int i = 0; i < expected.size(); i += 1) {
+      DataTestHelpers.assertEquals(schema.asStruct(), expected.get(i), rows.get(i));
+    }
   }
 }
