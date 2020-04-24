@@ -47,28 +47,21 @@ public class SparkDataFile implements DataFile {
   private final int upperBoundsPosition;
   private final int keyMetadataPosition;
   private final int splitOffsetsPosition;
-  private final Type lowerBoundsType;
-  private final Type upperBoundsType;
-  private final Type keyMetadataType;
 
   private final SparkStructLike wrappedPartition;
   private Row wrapped;
 
-  public SparkDataFile(Types.StructType type, StructType sparkType) {
-    this.lowerBoundsType = type.fieldType("lower_bounds");
-    this.upperBoundsType = type.fieldType("upper_bounds");
-    this.keyMetadataType = type.fieldType("key_metadata");
-    this.wrappedPartition = new SparkStructLike(type.fieldType("partition").asStructType());
+  public SparkDataFile(Types.StructType partitionType, StructType sparkType) {
+    this.wrappedPartition = new SparkStructLike(partitionType);
 
     Map<String, Integer> positions = Maps.newHashMap();
-    type.fields().forEach(field -> {
-      String fieldName = field.name();
-      positions.put(fieldName, fieldPosition(fieldName, sparkType));
-    });
+    for (int pos = 0; pos < sparkType.size(); pos += 1) {
+      positions.put(sparkType.fields()[pos].name(), pos);
+    }
 
     filePathPosition = positions.get("file_path");
     fileFormatPosition = positions.get("file_format");
-    partitionPosition = positions.get("partition");
+    partitionPosition = positions.getOrDefault("partition", -1);
     recordCountPosition = positions.get("record_count");
     fileSizeInBytesPosition = positions.get("file_size_in_bytes");
     columnSizesPosition = positions.get("column_sizes");
@@ -147,18 +140,18 @@ public class SparkDataFile implements DataFile {
   @Override
   public Map<Integer, ByteBuffer> lowerBounds() {
     Map<?, ?> lowerBounds = wrapped.isNullAt(lowerBoundsPosition) ? null : wrapped.getJavaMap(lowerBoundsPosition);
-    return convert(lowerBoundsType, lowerBounds);
+    return convert(DataFile.LOWER_BOUNDS.type(), lowerBounds);
   }
 
   @Override
   public Map<Integer, ByteBuffer> upperBounds() {
     Map<?, ?> upperBounds = wrapped.isNullAt(upperBoundsPosition) ? null : wrapped.getJavaMap(upperBoundsPosition);
-    return convert(upperBoundsType, upperBounds);
+    return convert(DataFile.UPPER_BOUNDS.type(), upperBounds);
   }
 
   @Override
   public ByteBuffer keyMetadata() {
-    return convert(keyMetadataType, wrapped.get(keyMetadataPosition));
+    return convert(DataFile.KEY_METADATA.type(), wrapped.get(keyMetadataPosition));
   }
 
   @Override

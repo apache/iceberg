@@ -175,9 +175,8 @@ public class TestSparkDataFile {
 
     Assert.assertEquals("The number of files should match", dataFiles.size(), sparkDataFiles.size());
 
-    Types.StructType dataFileType = DataFile.getType(table.spec().partitionType());
     StructType sparkDataFileType = sparkDataFiles.get(0).schema();
-    SparkDataFile wrapper = new SparkDataFile(dataFileType, sparkDataFileType);
+    SparkDataFile wrapper = new SparkDataFile(table.spec().partitionType(), sparkDataFileType);
 
     for (int i = 0; i < dataFiles.size(); i++) {
       checkDataFile(dataFiles.get(i), wrapper.wrap(sparkDataFiles.get(i)));

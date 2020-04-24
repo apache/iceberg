@@ -31,7 +31,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
@@ -49,7 +48,6 @@ import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.spark.SparkDataFile;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -344,8 +342,7 @@ public class RewriteManifestsAction
     Path manifestPath = new Path(location, manifestName);
     OutputFile outputFile = io.value().newOutputFile(FileFormat.AVRO.addExtension(manifestPath.toString()));
 
-    Types.StructType dataFileType = DataFile.getType(spec.partitionType());
-    SparkDataFile wrapper = new SparkDataFile(dataFileType, sparkType);
+    SparkDataFile wrapper = new SparkDataFile(spec.partitionType(), sparkType);
 
     ManifestWriter writer = ManifestFiles.write(format, spec, outputFile, null);
 

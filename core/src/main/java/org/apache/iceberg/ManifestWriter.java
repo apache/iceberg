@@ -129,7 +129,18 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
    *
    * @param existingFile a data file
    */
-  public abstract void existing(DataFile existingFile);
+  public void existing(DataFile existingFile) {
+    existing(existingFile, existingFile.snapshotId(), existingFile.sequenceNumber());
+  }
+
+  /**
+   * Add an existing entry for a data file.
+   *
+   * @param existingFile a data file
+   * @param fileSnapshotId snapshot ID when the data file was added to the table
+   * @param sequenceNumber sequence number for the data file
+   */
+  public abstract void existing(DataFile existingFile, long fileSnapshotId, long sequenceNumber);
 
   abstract void existing(ManifestEntry entry);
 
@@ -196,9 +207,9 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
     }
 
     @Override
-    public void existing(DataFile existingFile) {
-      updateStats(FileStatus.EXISTING, existingFile.sequenceNumber(), existingFile);
-      fileWrapper.wrapExisting(existingFile.snapshotId(), existingFile.sequenceNumber(), existingFile);
+    public void existing(DataFile existingFile, long snapshotId, long sequenceNumber) {
+      updateStats(FileStatus.EXISTING, sequenceNumber, existingFile);
+      fileWrapper.wrapExisting(snapshotId, sequenceNumber, existingFile);
       writer.add(fileWrapper);
     }
 
@@ -270,8 +281,8 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
     }
 
     @Override
-    public void existing(DataFile existingFile) {
-      updateStats(entryWrapper.wrapExisting(existingFile.snapshotId(), existingFile.sequenceNumber(), existingFile));
+    public void existing(DataFile existingFile, long snapshotId, long sequenceNumber) {
+      updateStats(entryWrapper.wrapExisting(snapshotId, sequenceNumber, existingFile));
       writer.add(entryWrapper);
     }
 
@@ -312,5 +323,4 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
       }
     }
   }
-
 }
