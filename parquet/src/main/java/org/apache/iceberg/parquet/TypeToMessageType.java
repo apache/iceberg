@@ -30,14 +30,15 @@ import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 
 import static org.apache.parquet.schema.OriginalType.DATE;
 import static org.apache.parquet.schema.OriginalType.DECIMAL;
-import static org.apache.parquet.schema.OriginalType.TIMESTAMP_MICROS;
 import static org.apache.parquet.schema.OriginalType.TIME_MICROS;
 import static org.apache.parquet.schema.OriginalType.UTF8;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY;
@@ -130,7 +131,10 @@ public class TypeToMessageType {
       case TIME:
         return Types.primitive(INT64, repetition).as(TIME_MICROS).id(id).named(name);
       case TIMESTAMP:
-        return Types.primitive(INT64, repetition).as(TIMESTAMP_MICROS).id(id).named(name);
+        boolean shouldAdjustToUTC = ((TimestampType) primitive).shouldAdjustToUTC();
+        LogicalTypeAnnotation.TimeUnit timeUnit = LogicalTypeAnnotation.TimeUnit.MICROS;
+        return Types.primitive(INT64, repetition).as(LogicalTypeAnnotation.timestampType(shouldAdjustToUTC, timeUnit))
+            .id(id).named(name);
       case STRING:
         return Types.primitive(BINARY, repetition).as(UTF8).id(id).named(name);
       case BINARY:

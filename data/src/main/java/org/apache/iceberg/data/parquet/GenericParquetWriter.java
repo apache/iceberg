@@ -38,6 +38,7 @@ import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation.TimestampLogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
@@ -133,7 +134,9 @@ public class GenericParquetWriter {
           case TIME_MICROS:
             return new TimeWriter(desc);
           case TIMESTAMP_MICROS:
-            return new TimestamptzWriter(desc);
+            boolean withZone = ((TimestampLogicalTypeAnnotation) primitive.getLogicalTypeAnnotation())
+                .isAdjustedToUTC();
+            return withZone ? new TimestamptzWriter(desc) : new TimestampWriter(desc);
           case DECIMAL:
             DecimalMetadata decimal = primitive.getDecimalMetadata();
             switch (primitive.getPrimitiveTypeName()) {

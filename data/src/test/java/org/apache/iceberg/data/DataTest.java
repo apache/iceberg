@@ -62,6 +62,11 @@ public abstract class DataTest {
   public TemporaryFolder temp = new TemporaryFolder();
 
   @Test
+  public void testTimestampWithoutZone() throws IOException {
+    writeAndValidate(new Schema(required(0, "timestamp type without zone", Types.TimestampType.withoutZone())));
+  }
+
+  @Test
   public void testSimpleStruct() throws IOException {
     writeAndValidate(new Schema(SUPPORTED_PRIMITIVES.fields()));
   }
