@@ -47,6 +47,7 @@ class GenericDataFile
     }
   };
 
+  private boolean skipEntryFields;
   private int[] fromProjectionPos;
   private Types.StructType partitionType;
 
@@ -86,6 +87,7 @@ class GenericDataFile
    */
   private GenericDataFile(org.apache.avro.Schema avroSchema, AsManifestEntry asEntry) {
     this.avroSchema = avroSchema;
+    this.skipEntryFields = asEntry != null;
 
     Types.StructType schema = AvroSchemaUtil.convert(avroSchema).asNestedType().asStructType();
 
@@ -315,7 +317,10 @@ class GenericDataFile
     if (fromProjectionPos != null) {
       pos = fromProjectionPos[i];
     }
-    setInternal(pos, v);
+
+    if (!(skipEntryFields && pos < 3)) {
+      setInternal(pos, v);
+    }
   }
 
   private <T> void setInternal(int pos, T v) {

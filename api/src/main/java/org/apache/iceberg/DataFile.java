@@ -38,10 +38,10 @@ import static org.apache.iceberg.types.Types.NestedField.required;
  * Interface for files listed in a table manifest.
  */
 public interface DataFile {
-  // DataFile fields from ManifestEntry
-  Types.NestedField STATUS = required(0, "status", Types.IntegerType.get());
-  Types.NestedField SNAPSHOT_ID = optional(1, "snapshot_id", Types.LongType.get());
-  Types.NestedField SEQUENCE_NUMBER = optional(3, "sequence_number", Types.LongType.get());
+  // DataFile fields from ManifestEntry with new ids
+  Types.NestedField STATUS = optional(50, "status", Types.IntegerType.get());
+  Types.NestedField SNAPSHOT_ID = optional(51, "snapshot_id", Types.LongType.get());
+  Types.NestedField SEQUENCE_NUMBER = optional(52, "sequence_number", Types.LongType.get());
 
   // original DataFile fields
   Types.NestedField FILE_PATH = required(100, "file_path", StringType.get());
