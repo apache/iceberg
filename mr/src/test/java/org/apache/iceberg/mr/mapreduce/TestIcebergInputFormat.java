@@ -114,7 +114,7 @@ public class TestIcebergInputFormat {
                                 ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()),
                                 location.toString());
     List<Record> expectedRecords = RandomGenericData.generate(table.schema(), 1, 0L);
-    DataFile dataFile = TestHelpers.writeFile(temp.newFile(), table, null, format, expectedRecords);
+    DataFile dataFile = writeFile(temp.newFile(), table, null, format, expectedRecords);
     table.newAppend()
          .appendFile(dataFile)
          .commit();
