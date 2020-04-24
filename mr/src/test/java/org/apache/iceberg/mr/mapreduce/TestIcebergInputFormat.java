@@ -25,7 +25,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -42,29 +41,20 @@ import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers.Row;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.DataWriter;
-import org.apache.iceberg.data.orc.GenericOrcWriter;
-import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.mr.TestHelpers;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -75,6 +65,7 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import static org.apache.iceberg.mr.TestHelpers.writeFile;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
@@ -123,7 +114,7 @@ public class TestIcebergInputFormat {
                                 ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()),
                                 location.toString());
     List<Record> expectedRecords = RandomGenericData.generate(table.schema(), 1, 0L);
-    DataFile dataFile = writeFile(table, null, format, expectedRecords);
+    DataFile dataFile = TestHelpers.writeFile(temp.newFile(), table, null, format, expectedRecords);
     table.newAppend()
          .appendFile(dataFile)
          .commit();
@@ -142,7 +133,7 @@ public class TestIcebergInputFormat {
                                 location.toString());
     List<Record> expectedRecords = RandomGenericData.generate(table.schema(), 1, 0L);
     expectedRecords.get(0).set(2, "2020-03-20");
-    DataFile dataFile = writeFile(table, Row.of("2020-03-20", 0), format, expectedRecords);
+    DataFile dataFile = writeFile(temp.newFile(), table, Row.of("2020-03-20", 0), format, expectedRecords);
     table.newAppend()
          .appendFile(dataFile)
          .commit();
@@ -163,8 +154,8 @@ public class TestIcebergInputFormat {
     List<Record> expectedRecords = RandomGenericData.generate(table.schema(), 2, 0L);
     expectedRecords.get(0).set(2, "2020-03-20");
     expectedRecords.get(1).set(2, "2020-03-20");
-    DataFile dataFile1 = writeFile(table, Row.of("2020-03-20", 0), format, expectedRecords);
-    DataFile dataFile2 = writeFile(table, Row.of("2020-03-21", 0), format,
+    DataFile dataFile1 = writeFile(temp.newFile(), table, Row.of("2020-03-20", 0), format, expectedRecords);
+    DataFile dataFile2 = writeFile(temp.newFile(), table, Row.of("2020-03-21", 0), format,
                                    RandomGenericData.generate(table.schema(), 2, 0L));
     table.newAppend()
          .appendFile(dataFile1)
@@ -187,7 +178,7 @@ public class TestIcebergInputFormat {
     List<Record> expectedRecords = RandomGenericData.generate(table.schema(), 2, 0L);
     expectedRecords.get(0).set(2, "2020-03-20");
     expectedRecords.get(1).set(2, "2020-03-20");
-    DataFile dataFile = writeFile(table, Row.of("2020-03-20", 0), format, expectedRecords);
+    DataFile dataFile = writeFile(temp.newFile(), table, Row.of("2020-03-20", 0), format, expectedRecords);
     table.newAppend()
          .appendFile(dataFile)
          .commit();
@@ -213,7 +204,7 @@ public class TestIcebergInputFormat {
                                 ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()),
                                 location.toString());
     List<Record> inputRecords = RandomGenericData.generate(table.schema(), 1, 0L);
-    DataFile dataFile = writeFile(table, Row.of("2020-03-20", 0), format, inputRecords);
+    DataFile dataFile = writeFile(temp.newFile(), table, Row.of("2020-03-20", 0), format, inputRecords);
     table.newAppend()
          .appendFile(dataFile)
          .commit();
@@ -252,7 +243,8 @@ public class TestIcebergInputFormat {
     for (Record record : inputRecords) {
       record.set(1, "2020-03-2" + idx);
       record.set(2, idx.toString());
-      append.appendFile(writeFile(table, Row.of("2020-03-2" + idx, idx.toString()), format, ImmutableList.of(record)));
+      append.appendFile(writeFile(temp.newFile(), table, Row.of("2020-03-2" + idx, idx.toString()),
+                        format, ImmutableList.of(record)));
       idx += 1;
     }
     append.commit();
@@ -320,11 +312,12 @@ public class TestIcebergInputFormat {
                                 location.toString());
     List<Record> expectedRecords = RandomGenericData.generate(table.schema(), 1, 0L);
     table.newAppend()
-         .appendFile(writeFile(table, null, format, expectedRecords))
+         .appendFile(writeFile(temp.newFile(), table, null, format, expectedRecords))
          .commit();
     long snapshotId = table.currentSnapshot().snapshotId();
     table.newAppend()
-         .appendFile(writeFile(table, null, format, RandomGenericData.generate(table.schema(), 1, 0L)))
+         .appendFile(writeFile(temp.newFile(), table, null, format,
+                     RandomGenericData.generate(table.schema(), 1, 0L)))
          .commit();
 
     Job job = Job.getInstance(conf);
@@ -345,7 +338,7 @@ public class TestIcebergInputFormat {
                                 location.toString());
     List<Record> expectedRecords = RandomGenericData.generate(table.schema(), 1, 0L);
     table.newAppend()
-         .appendFile(writeFile(table, null, format, expectedRecords))
+         .appendFile(writeFile(temp.newFile(), table, null, format, expectedRecords))
          .commit();
     Job job = Job.getInstance(conf);
     IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
@@ -379,7 +372,7 @@ public class TestIcebergInputFormat {
                                       ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()));
     List<Record> expectedRecords = RandomGenericData.generate(table.schema(), 1, 0L);
     expectedRecords.get(0).set(2, "2020-03-20");
-    DataFile dataFile = writeFile(table, Row.of("2020-03-20", 0), format, expectedRecords);
+    DataFile dataFile = writeFile(temp.newFile(), table, Row.of("2020-03-20", 0), format, expectedRecords);
     table.newAppend()
          .appendFile(dataFile)
          .commit();
@@ -429,50 +422,4 @@ public class TestIcebergInputFormat {
     return records;
   }
 
-  private DataFile writeFile(
-      Table table, StructLike partitionData, FileFormat fileFormat, List<Record> records) throws IOException {
-    File file = temp.newFile();
-    Assert.assertTrue(file.delete());
-    FileAppender<Record> appender;
-    switch (fileFormat) {
-      case AVRO:
-        appender = Avro.write(Files.localOutput(file))
-            .schema(table.schema())
-            .createWriterFunc(DataWriter::create)
-            .named(fileFormat.name())
-            .build();
-        break;
-      case PARQUET:
-        appender = Parquet.write(Files.localOutput(file))
-            .schema(table.schema())
-            .createWriterFunc(GenericParquetWriter::buildWriter)
-            .named(fileFormat.name())
-            .build();
-        break;
-      case ORC:
-        appender = ORC.write(Files.localOutput(file))
-            .schema(table.schema())
-            .createWriterFunc(GenericOrcWriter::buildWriter)
-            .build();
-        break;
-      default:
-        throw new UnsupportedOperationException("Cannot write format: " + fileFormat);
-    }
-
-    try {
-      appender.addAll(records);
-    } finally {
-      appender.close();
-    }
-
-    DataFiles.Builder builder = DataFiles.builder(table.spec())
-        .withPath(file.toString())
-        .withFormat(format)
-        .withFileSizeInBytes(file.length())
-        .withMetrics(appender.metrics());
-    if (partitionData != null) {
-      builder.withPartition(partitionData);
-    }
-    return builder.build();
-  }
 }

@@ -19,82 +19,98 @@
 
 package org.apache.iceberg.mr.mapred;
 
+import com.google.common.collect.ImmutableMap;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import org.apache.commons.compress.utils.Lists;
-import org.apache.commons.io.FileUtils;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.types.Types;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.mr.TestHelpers.writeFile;
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.junit.Assert.assertEquals;
 
+@RunWith(Parameterized.class)
 public class TestIcebergInputFormat {
 
   private static final Logger LOG = LoggerFactory.getLogger(TestIcebergInputFormat.class);
 
-  private File tableLocation;
-  private Table table;
-  private IcebergInputFormat format = new IcebergInputFormat();
-  private JobConf conf = new JobConf();
+  static final Schema SCHEMA = new Schema(required(1, "data", Types.StringType.get()),
+      required(2, "id", Types.LongType.get()), required(3, "date", Types.StringType.get()));
 
-  @Before
-  public void before() throws IOException {
-    tableLocation = java.nio.file.Files.createTempDirectory("temp").toFile();
-    Schema schema = new Schema(optional(1, "name", Types.StringType.get()),
-        optional(2, "salary", Types.LongType.get()));
-    PartitionSpec spec = PartitionSpec.unpartitioned();
-    HadoopTables tables = new HadoopTables();
-    table = tables.create(schema, spec, tableLocation.getAbsolutePath());
+  static final PartitionSpec SPEC =
+      PartitionSpec.builderFor(SCHEMA).identity("date").bucket("id", 1).build();
 
-    DataFile fileA = DataFiles
-        .builder(spec)
-        .withPath("src/test/resources/test-table/data/00000-1-c7557bc3-ae0d-46fb-804e-e9806abf81c7-00000.parquet")
-        .withFileSizeInBytes(1024)
-        .withRecordCount(3) // needs at least one record or else metrics will filter it out
-        .build();
+  private IcebergInputFormat inputFormat = new IcebergInputFormat();
+  private JobConf jobConf = new JobConf();
+  private Configuration conf = new Configuration();
+  private HadoopTables tables = new HadoopTables(conf);
 
-    table.newAppend().appendFile(fileA).commit();
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
+
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] { new Object[] { "parquet" }, new Object[] { "avro" }
+        /*
+         * , TODO: put orc back, seems to be an issue with different versions of Orc in Hive and
+         * Iceberg new Object[]{"orc"}
+         */
+    };
   }
 
-  @Test
-  public void testGetSplits() throws IOException {
-    conf.set("location", "file:" + tableLocation);
-    InputSplit[] splits = format.getSplits(conf, 1);
-    assertEquals(splits.length, 1);
+  private final FileFormat fileFormat;
+
+  public TestIcebergInputFormat(String fileFormat) {
+    this.fileFormat = FileFormat.valueOf(fileFormat.toUpperCase(Locale.ENGLISH));
   }
 
   @Test(expected = IllegalArgumentException.class)
   public void testGetSplitsNoLocation() throws IOException {
-    format.getSplits(conf, 1);
+    inputFormat.getSplits(jobConf, 1);
   }
 
   @Test(expected = IOException.class)
   public void testGetSplitsInvalidLocationUri() throws IOException {
-    conf.set("location", "http:");
-    format.getSplits(conf, 1);
+    jobConf.set("location", "http:");
+    inputFormat.getSplits(jobConf, 1);
   }
 
   @Test
   public void testGetRecordReader() throws IOException {
-    conf.set("location", "file:" + tableLocation);
-    InputSplit[] splits = format.getSplits(conf, 1);
-    RecordReader reader = format.getRecordReader(splits[0], conf, null);
+    File tableLocation = temp.newFolder(fileFormat.name());
+    Table table = tables.create(SCHEMA, PartitionSpec.unpartitioned(),
+        ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name()),
+        tableLocation.toString());
+    List<Record> expectedRecords = RandomGenericData.generate(table.schema(), 3, 0L);
+
+    DataFile dataFile = writeFile(temp.newFile(), table, null, fileFormat, expectedRecords);
+    table.newAppend().appendFile(dataFile).commit();
+
+    jobConf.set("location", "file:" + tableLocation);
+    InputSplit[] splits = inputFormat.getSplits(jobConf, 1);
+    RecordReader reader = inputFormat.getRecordReader(splits[0], jobConf, null);
     IcebergWritable value = (IcebergWritable) reader.createValue();
 
     List<Record> records = Lists.newArrayList();
@@ -104,8 +120,7 @@ public class TestIcebergInputFormat {
     assertEquals(3, records.size());
   }
 
-  @After
-  public void after() throws IOException {
-    FileUtils.deleteDirectory(tableLocation);
-  }
+  // TODO: add more tests, based on the mapreduce InputFormat tests (possibly refactor shared code
+  // into an abstract parent test class).
+
 }
