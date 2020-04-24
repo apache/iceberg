@@ -183,17 +183,47 @@ public class TableTestBase {
   }
 
   ManifestEntry manifestEntry(ManifestEntry.Status status, Long snapshotId, DataFile file) {
-    ManifestEntryWrapper entry = new ManifestEntryWrapper();
-    switch (status) {
-      case ADDED:
-        return entry.wrapAppend(snapshotId, file);
-      case EXISTING:
-        return entry.wrapExisting(snapshotId, 0L, file);
-      case DELETED:
-        return entry.wrapDelete(snapshotId, 0L, file);
-      default:
-        throw new IllegalArgumentException("Unexpected entry status: " + status);
-    }
+    return new ManifestEntry() {
+      @Override
+      public Status status() {
+        return status;
+      }
+
+      @Override
+      public Long snapshotId() {
+        return snapshotId;
+      }
+
+      @Override
+      public void setSnapshotId(long snapshotId) {
+
+      }
+
+      @Override
+      public Long sequenceNumber() {
+        return 0L;
+      }
+
+      @Override
+      public void setSequenceNumber(long sequenceNumber) {
+
+      }
+
+      @Override
+      public DataFile file() {
+        return file;
+      }
+
+      @Override
+      public ManifestEntry copy() {
+        return null;
+      }
+
+      @Override
+      public ManifestEntry copyWithoutStats() {
+        return null;
+      }
+    };
   }
 
   void validateSnapshot(Snapshot old, Snapshot snap, DataFile... newFiles) {

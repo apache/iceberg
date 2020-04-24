@@ -652,7 +652,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       return mergeManifests.get(bin);
     }
 
-    ManifestWriter writer = newManifestWriter(ops.current().spec());
+    ManifestWriter writer = newManifestWriter(ops.current().specsById().get(specId));
     try {
       for (ManifestFile manifest : bin) {
         try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
@@ -661,11 +661,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
               // suppress deletes from previous snapshots. only files deleted by this snapshot
               // should be added to the new manifest
               if (entry.snapshotId() == snapshotId()) {
-                writer.addEntry(entry);
+                writer.delete(entry);
               }
             } else if (entry.status() == Status.ADDED && entry.snapshotId() == snapshotId()) {
               // adds from this snapshot are still adds, otherwise they should be existing
-              writer.addEntry(entry);
+              writer.add(entry);
             } else {
               // add all files from the old manifest as existing files
               writer.existing(entry);

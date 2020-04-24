@@ -23,4 +23,9 @@ import java.io.Serializable;
 
 interface InheritableMetadata extends Serializable {
   ManifestEntry apply(ManifestEntry manifestEntry);
+
+  default DataFile apply(GenericDataFile file) {
+    apply(file.asEntry());
+    return file;
+  }
 }

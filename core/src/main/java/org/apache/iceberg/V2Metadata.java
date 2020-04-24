@@ -20,7 +20,9 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
+import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.types.Types;
@@ -230,33 +232,104 @@ class V2Metadata {
     }
   }
 
-  static Schema entrySchema(Types.StructType partitionType) {
-    return wrapFileSchema(DataFile.getType(partitionType));
+  static Schema manifestSchema(Types.StructType partitionType) {
+    // if v2 diverges from the read schema, then copy the schema here
+    return new Schema(DataFile.getType(partitionType).fields());
   }
 
-  static Schema wrapFileSchema(Types.StructType fileSchema) {
-    // this is used to build projection schemas
-    return new Schema(
-        ManifestEntry.STATUS, ManifestEntry.SNAPSHOT_ID, ManifestEntry.SEQUENCE_NUMBER,
-        required(ManifestEntry.DATA_FILE_ID, "data_file", fileSchema));
-  }
-
-  static class IndexedManifestEntry implements ManifestEntry, IndexedRecord {
-    private final org.apache.avro.Schema avroSchema;
+  /**
+   * Wrapper used to write a DataFile to v2 metadata. This will override the file's status, snapshot id, and sequence
+   * number with correct values for the commit that are passed when wrapping a file. This also implements Avro's
+   * IndexedRecord for writing to Avro files.
+   */
+  static class IndexedDataFile implements DataFile, IndexedRecord {
     private final Long commitSnapshotId;
-    private final V1Metadata.IndexedDataFile fileWrapper;
-    private ManifestEntry wrapped = null;
+    private final org.apache.avro.Schema avroSchema;
+    private final IndexedStructLike partitionWrapper;
 
-    IndexedManifestEntry(Long commitSnapshotId, Types.StructType partitionType) {
-      this.avroSchema = AvroSchemaUtil.convert(entrySchema(partitionType), "manifest_entry");
+    private FileStatus status = null;
+    private Long snapshotId = null;
+    private Long sequenceNumber = null;
+    private DataFile wrapped = null;
+
+    IndexedDataFile(Long commitSnapshotId, Types.StructType partitionType) {
       this.commitSnapshotId = commitSnapshotId;
-      // TODO: when v2 data files differ from v1, this should use a v2 wrapper
-      this.fileWrapper = new V1Metadata.IndexedDataFile(avroSchema.getField("data_file").schema());
+      this.avroSchema = AvroSchemaUtil.convert(manifestSchema(partitionType), "data_file");
+      this.partitionWrapper = new IndexedStructLike(avroSchema.getField("partition").schema());
     }
 
-    public IndexedManifestEntry wrap(ManifestEntry entry) {
-      this.wrapped = entry;
+    DataFile wrapExisting(Long newSnapshotId, Long newSequenceNumber, DataFile file) {
+      this.status = FileStatus.EXISTING;
+      this.snapshotId = newSnapshotId;
+      this.sequenceNumber = newSequenceNumber;
+      this.wrapped = file;
       return this;
+    }
+
+    DataFile wrapAppend(Long newSnapshotId, DataFile file) {
+      this.status = FileStatus.ADDED;
+      this.snapshotId = newSnapshotId;
+      this.sequenceNumber = null;
+      this.wrapped = file;
+      return this;
+    }
+
+    DataFile wrapDelete(Long newSnapshotId, Long newSequenceNumber, DataFile file) {
+      this.status = FileStatus.DELETED;
+      this.snapshotId = newSnapshotId;
+      this.sequenceNumber = newSequenceNumber;
+      this.wrapped = file;
+      return this;
+    }
+
+    @Override
+    public Object get(int pos) {
+      switch (pos) {
+        case 0:
+          return status.id();
+        case 1:
+          return snapshotId;
+        case 2:
+          if (sequenceNumber == null) {
+            // if the entry's sequence number is null, then it will inherit the sequence number of the current commit.
+            // to validate that this is correct, check that the snapshot id is either null (will also be inherited) or
+            // that it matches the id of the current commit.
+            Preconditions.checkState(snapshotId == null || snapshotId.equals(commitSnapshotId),
+                "Found unassigned sequence number for an entry from snapshot: %s", snapshotId);
+            return null;
+          }
+          return sequenceNumber;
+        case 3:
+          return wrapped.path().toString();
+        case 4:
+          return wrapped.format() != null ? wrapped.format().toString() : null;
+        case 5:
+          return partitionWrapper.wrap(wrapped.partition());
+        case 6:
+          return wrapped.recordCount();
+        case 7:
+          return wrapped.fileSizeInBytes();
+        case 8:
+          return wrapped.columnSizes();
+        case 9:
+          return wrapped.valueCounts();
+        case 10:
+          return wrapped.nullValueCounts();
+        case 11:
+          return wrapped.lowerBounds();
+        case 12:
+          return wrapped.upperBounds();
+        case 13:
+          return wrapped.keyMetadata();
+        case 14:
+          return wrapped.splitOffsets();
+      }
+      throw new IllegalArgumentException("Unknown field ordinal: " + pos);
+    }
+
+    @Override
+    public void put(int i, Object v) {
+      throw new UnsupportedOperationException("Cannot read into IndexedDataFile");
     }
 
     @Override
@@ -265,72 +338,87 @@ class V2Metadata {
     }
 
     @Override
-    public void put(int i, Object v) {
-      throw new UnsupportedOperationException("Cannot read using IndexedManifestEntry");
-    }
-
-    @Override
-    public Object get(int i) {
-      switch (i) {
-        case 0:
-          return wrapped.status().id();
-        case 1:
-          return wrapped.snapshotId();
-        case 2:
-          if (wrapped.sequenceNumber() == null) {
-            // if the entry's sequence number is null, then it will inherit the sequence number of the current commit.
-            // to validate that this is correct, check that the snapshot id is either null (will also be inherited) or
-            // that it matches the id of the current commit.
-            Preconditions.checkState(
-                wrapped.snapshotId() == null || wrapped.snapshotId().equals(commitSnapshotId),
-                "Found unassigned sequence number for an entry from snapshot: %s", wrapped.snapshotId());
-            return null;
-          }
-          return wrapped.sequenceNumber();
-        case 3:
-          return fileWrapper.wrap(wrapped.file());
-        default:
-          throw new UnsupportedOperationException("Unknown field ordinal: " + i);
-      }
-    }
-
-    @Override
-    public Status status() {
-      return wrapped.status();
+    public FileStatus status() {
+      return status;
     }
 
     @Override
     public Long snapshotId() {
-      return wrapped.snapshotId();
-    }
-
-    @Override
-    public void setSnapshotId(long snapshotId) {
-      wrapped.setSnapshotId(snapshotId);
+      return snapshotId;
     }
 
     @Override
     public Long sequenceNumber() {
-      return wrapped.sequenceNumber();
+      return sequenceNumber;
     }
 
     @Override
-    public void setSequenceNumber(long sequenceNumber) {
-      wrapped.setSequenceNumber(sequenceNumber);
+    public CharSequence path() {
+      return wrapped.path();
     }
 
     @Override
-    public DataFile file() {
-      return wrapped.file();
+    public FileFormat format() {
+      return wrapped.format();
     }
 
     @Override
-    public ManifestEntry copy() {
+    public StructLike partition() {
+      return wrapped.partition();
+    }
+
+    @Override
+    public long recordCount() {
+      return wrapped.recordCount();
+    }
+
+    @Override
+    public long fileSizeInBytes() {
+      return wrapped.fileSizeInBytes();
+    }
+
+    @Override
+    public Map<Integer, Long> columnSizes() {
+      return wrapped.columnSizes();
+    }
+
+    @Override
+    public Map<Integer, Long> valueCounts() {
+      return wrapped.valueCounts();
+    }
+
+    @Override
+    public Map<Integer, Long> nullValueCounts() {
+      return wrapped.nullValueCounts();
+    }
+
+    @Override
+    public Map<Integer, ByteBuffer> lowerBounds() {
+      return wrapped.lowerBounds();
+    }
+
+    @Override
+    public Map<Integer, ByteBuffer> upperBounds() {
+      return wrapped.upperBounds();
+    }
+
+    @Override
+    public ByteBuffer keyMetadata() {
+      return wrapped.keyMetadata();
+    }
+
+    @Override
+    public List<Long> splitOffsets() {
+      return wrapped.splitOffsets();
+    }
+
+    @Override
+    public DataFile copy() {
       return wrapped.copy();
     }
 
     @Override
-    public ManifestEntry copyWithoutStats() {
+    public DataFile copyWithoutStats() {
       return wrapped.copyWithoutStats();
     }
   }

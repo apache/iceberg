@@ -38,11 +38,16 @@ import static org.apache.iceberg.types.Types.NestedField.required;
  * Interface for files listed in a table manifest.
  */
 public interface DataFile {
+  // DataFile fields from ManifestEntry
+  Types.NestedField STATUS = required(0, "status", Types.IntegerType.get());
+  Types.NestedField SNAPSHOT_ID = optional(1, "snapshot_id", Types.LongType.get());
+  Types.NestedField SEQUENCE_NUMBER = optional(3, "sequence_number", Types.LongType.get());
+
+  // original DataFile fields
   Types.NestedField FILE_PATH = required(100, "file_path", StringType.get());
   Types.NestedField FILE_FORMAT = required(101, "file_format", StringType.get());
   Types.NestedField RECORD_COUNT = required(103, "record_count", LongType.get());
   Types.NestedField FILE_SIZE = required(104, "file_size_in_bytes", LongType.get());
-  Types.NestedField BLOCK_SIZE = required(105, "block_size_in_bytes", LongType.get());
   Types.NestedField COLUMN_SIZES = optional(108, "column_sizes", MapType.ofRequired(117, 118,
       IntegerType.get(), LongType.get()));
   Types.NestedField VALUE_COUNTS = optional(109, "value_counts", MapType.ofRequired(119, 120,
@@ -62,12 +67,14 @@ public interface DataFile {
   static StructType getType(StructType partitionType) {
     // IDs start at 100 to leave room for changes to ManifestEntry
     return StructType.of(
+        STATUS,
+        SNAPSHOT_ID,
+        SEQUENCE_NUMBER,
         FILE_PATH,
         FILE_FORMAT,
         required(PARTITION_ID, PARTITION_NAME, partitionType),
         RECORD_COUNT,
         FILE_SIZE,
-        BLOCK_SIZE,
         COLUMN_SIZES,
         VALUE_COUNTS,
         NULL_VALUE_COUNTS,

@@ -38,6 +38,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PropertyUtil;
 
 import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 
@@ -86,6 +87,7 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
   private final InputFile file;
   private final InheritableMetadata inheritableMetadata;
   private final Map<String, String> metadata;
+  private final int formatVersion;
   private final PartitionSpec spec;
   private final Schema fileSchema;
 
@@ -104,15 +106,15 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
     this.inheritableMetadata = inheritableMetadata;
 
     try {
-      try (AvroIterable<ManifestEntry> headerReader = Avro.read(file)
-          .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
-          .build()) {
+      try (AvroIterable<?> headerReader = Avro.read(file).project(new Schema()).build()) {
         this.metadata = headerReader.getMetadata();
       }
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     }
 
+    // TODO: is there a better way to get the format version? maybe it should be tracked in ManifestFile
+    this.formatVersion = PropertyUtil.propertyAsInt(metadata, "format-version", 1);
     int specId = TableMetadata.INITIAL_SPEC_ID;
     String specProperty = metadata.get("partition-spec-id");
     if (specProperty != null) {
@@ -214,16 +216,31 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
 
     switch (format) {
       case AVRO:
-        AvroIterable<ManifestEntry> reader = Avro.read(file)
-            .project(ManifestEntry.wrapFileSchema(fileProjection.asStruct()))
-            .rename("manifest_entry", GenericManifestEntry.class.getName())
-            .rename("partition", PartitionData.class.getName())
-            .rename("r102", PartitionData.class.getName())
-            .rename("data_file", GenericDataFile.class.getName())
-            .rename("r2", GenericDataFile.class.getName())
-            .classLoader(GenericManifestFile.class.getClassLoader())
-            .reuseContainers()
-            .build();
+        CloseableIterable<ManifestEntry> reader;
+        if (formatVersion < 2) {
+          reader = Avro.read(file)
+              .project(ManifestEntry.wrapFileSchema(fileProjection.asStruct()))
+              .rename("manifest_entry", GenericManifestEntry.class.getName())
+              .rename("partition", PartitionData.class.getName())
+              .rename("r102", PartitionData.class.getName())
+              .rename("data_file", GenericDataFile.class.getName())
+              .rename("r2", GenericDataFile.class.getName())
+              .classLoader(GenericManifestFile.class.getClassLoader())
+              .reuseContainers()
+              .build();
+        } else {
+          AvroIterable<GenericDataFile> files = Avro.read(file)
+              .project(addRequiredColumns(fileProjection))
+              .rename("partition", PartitionData.class.getName())
+              .rename("r102", PartitionData.class.getName())
+              .rename("data_file", GenericDataFile.class.getName())
+              .rename("r2", GenericDataFile.class.getName())
+              .classLoader(GenericManifestFile.class.getClassLoader())
+              .reuseContainers()
+              .build();
+
+          reader = CloseableIterable.transform(files, GenericDataFile::asEntry);
+        }
 
         addCloseable(reader);
 
@@ -247,4 +264,27 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
         ManifestEntry::file).iterator();
   }
 
+  private static Schema addRequiredColumns(Schema fileProjection) {
+    List<Types.NestedField> columns = Lists.newArrayList();
+
+    if (fileProjection.findField(DataFile.STATUS.fieldId()) == null) {
+      columns.add(DataFile.STATUS);
+    }
+
+    if (fileProjection.findField(DataFile.SNAPSHOT_ID.fieldId()) == null) {
+      columns.add(DataFile.SNAPSHOT_ID);
+    }
+
+    if (fileProjection.findField(DataFile.SEQUENCE_NUMBER.fieldId()) == null) {
+      columns.add(DataFile.SEQUENCE_NUMBER);
+    }
+
+    if (columns.isEmpty()) {
+      return fileProjection;
+    }
+
+    columns.addAll(fileProjection.columns());
+
+    return new Schema(columns);
+  }
 }

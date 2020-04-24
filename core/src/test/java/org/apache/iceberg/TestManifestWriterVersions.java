@@ -77,7 +77,8 @@ public class TestManifestWriterVersions {
   public void testV1Write() throws IOException {
     ManifestFile manifest = writeManifest(1);
     checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
-    checkEntry(readManifest(manifest), ManifestWriter.UNASSIGNED_SEQ);
+    checkEntry(readManifest(manifest).asEntry(), ManifestEntry.Status.ADDED, ManifestWriter.UNASSIGNED_SEQ);
+    checkDataFile(readManifest(manifest), FileStatus.ADDED, ManifestWriter.UNASSIGNED_SEQ);
   }
 
   @Test
@@ -86,14 +87,16 @@ public class TestManifestWriterVersions {
     checkManifest(manifest, 0L);
 
     // v1 should be read using sequence number 0 because it was missing from the manifest list file
-    checkEntry(readManifest(manifest), 0L);
+    checkEntry(readManifest(manifest).asEntry(), ManifestEntry.Status.ADDED, 0L);
+    checkDataFile(readManifest(manifest), FileStatus.ADDED, 0L);
   }
 
   @Test
   public void testV2Write() throws IOException {
     ManifestFile manifest = writeManifest(1);
     checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
-    checkEntry(readManifest(manifest), ManifestWriter.UNASSIGNED_SEQ);
+    checkEntry(readManifest(manifest).asEntry(), ManifestEntry.Status.ADDED, ManifestWriter.UNASSIGNED_SEQ);
+    checkDataFile(readManifest(manifest), FileStatus.ADDED, ManifestWriter.UNASSIGNED_SEQ);
   }
 
   @Test
@@ -102,7 +105,8 @@ public class TestManifestWriterVersions {
     checkManifest(manifest, SEQUENCE_NUMBER);
 
     // v2 should use the correct sequence number by inheriting it
-    checkEntry(readManifest(manifest), SEQUENCE_NUMBER);
+    checkEntry(readManifest(manifest).asEntry(), ManifestEntry.Status.ADDED, SEQUENCE_NUMBER);
+    checkDataFile(readManifest(manifest), FileStatus.ADDED, SEQUENCE_NUMBER);
   }
 
   @Test
@@ -117,7 +121,8 @@ public class TestManifestWriterVersions {
     checkManifest(manifest2, 0L);
 
     // should not inherit the v2 sequence number because it was a rewrite
-    checkEntry(readManifest(manifest2), 0L);
+    checkEntry(readManifest(manifest2).asEntry(), ManifestEntry.Status.ADDED, 0L);
+    checkDataFile(readManifest(manifest2), FileStatus.ADDED, 0L);
   }
 
   @Test
@@ -136,24 +141,31 @@ public class TestManifestWriterVersions {
     checkRewrittenManifest(manifest2, SEQUENCE_NUMBER, 0L);
 
     // should not inherit the v2 sequence number because it was written into the v2 manifest
-    checkRewrittenEntry(readManifest(manifest2), 0L);
+    checkEntry(readManifest(manifest2).asEntry(), ManifestEntry.Status.EXISTING, 0L);
+    checkDataFile(readManifest(manifest2), FileStatus.EXISTING, 0L);
   }
 
-  void checkEntry(ManifestEntry entry, Long expectedSequenceNumber) {
-    Assert.assertEquals("Status", ManifestEntry.Status.ADDED, entry.status());
+  void checkEntry(ManifestEntry entry, ManifestEntry.Status status, Long expectedSequenceNumber) {
+    Assert.assertEquals("Status", status, entry.status());
     Assert.assertEquals("Snapshot ID", (Long) SNAPSHOT_ID, entry.snapshotId());
     Assert.assertEquals("Sequence number", expectedSequenceNumber, entry.sequenceNumber());
-    checkDataFile(entry.file());
+
+    DataFile dataFile = entry.file();
+    Assert.assertEquals("Path", PATH, dataFile.path());
+    Assert.assertEquals("Format", FORMAT, dataFile.format());
+    Assert.assertEquals("Partition", PARTITION, dataFile.partition());
+    Assert.assertEquals("Record count", METRICS.recordCount(), (Long) dataFile.recordCount());
+    Assert.assertEquals("Column sizes", METRICS.columnSizes(), dataFile.columnSizes());
+    Assert.assertEquals("Value counts", METRICS.valueCounts(), dataFile.valueCounts());
+    Assert.assertEquals("Null value counts", METRICS.nullValueCounts(), dataFile.nullValueCounts());
+    Assert.assertEquals("Lower bounds", METRICS.lowerBounds(), dataFile.lowerBounds());
+    Assert.assertEquals("Upper bounds", METRICS.upperBounds(), dataFile.upperBounds());
   }
 
-  void checkRewrittenEntry(ManifestEntry entry, Long expectedSequenceNumber) {
-    Assert.assertEquals("Status", ManifestEntry.Status.EXISTING, entry.status());
-    Assert.assertEquals("Snapshot ID", (Long) SNAPSHOT_ID, entry.snapshotId());
-    Assert.assertEquals("Sequence number", expectedSequenceNumber, entry.sequenceNumber());
-    checkDataFile(entry.file());
-  }
-
-  void checkDataFile(DataFile dataFile) {
+  void checkDataFile(DataFile dataFile, FileStatus expectedStatus, Long expectedSequenceNumber) {
+    Assert.assertEquals("Status", expectedStatus, dataFile.status());
+    Assert.assertEquals("Snapshot ID", (Long) SNAPSHOT_ID, dataFile.snapshotId());
+    Assert.assertEquals("Sequence number", expectedSequenceNumber, dataFile.sequenceNumber());
     Assert.assertEquals("Path", PATH, dataFile.path());
     Assert.assertEquals("Format", FORMAT, dataFile.format());
     Assert.assertEquals("Partition", PARTITION, dataFile.partition());
@@ -226,11 +238,11 @@ public class TestManifestWriterVersions {
     return writer.toManifestFile();
   }
 
-  private ManifestEntry readManifest(ManifestFile manifest) throws IOException {
-    try (CloseableIterable<ManifestEntry> reader = ManifestFiles.read(manifest, FILE_IO).entries()) {
-      List<ManifestEntry> files = Lists.newArrayList(reader);
+  private GenericDataFile readManifest(ManifestFile manifest) throws IOException {
+    try (CloseableIterable<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
+      List<DataFile> files = Lists.newArrayList(reader);
       Assert.assertEquals("Should contain only one data file", 1, files.size());
-      return files.get(0);
+      return (GenericDataFile) files.get(0);
     }
   }
 }

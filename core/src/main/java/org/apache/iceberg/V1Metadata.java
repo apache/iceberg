@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -192,6 +193,8 @@ class V1Metadata {
         required(ManifestEntry.DATA_FILE_ID, "data_file", fileSchema));
   }
 
+  private static final Types.NestedField BLOCK_SIZE = required(105, "block_size_in_bytes", Types.LongType.get());
+
   static StructType dataFileSchema(StructType partitionType) {
     // IDs start at 100 to leave room for changes to ManifestEntry
     return StructType.of(
@@ -200,7 +203,7 @@ class V1Metadata {
         required(DataFile.PARTITION_ID, DataFile.PARTITION_NAME, partitionType),
         DataFile.RECORD_COUNT,
         DataFile.FILE_SIZE,
-        DataFile.BLOCK_SIZE,
+        BLOCK_SIZE,
         DataFile.COLUMN_SIZES,
         DataFile.VALUE_COUNTS,
         DataFile.NULL_VALUE_COUNTS,
@@ -211,18 +214,46 @@ class V1Metadata {
     );
   }
 
+  /**
+   * Wrapper used to write a ManifestEntry to v1 metadata. This will override the entry's status, snapshot id, and
+   * sequence number with correct values for the commit that are passed when wrapping an entry. This also implements
+   * Avro's IndexedRecord for writing to Avro files.
+   */
   static class IndexedManifestEntry implements ManifestEntry, IndexedRecord {
     private final org.apache.avro.Schema avroSchema;
     private final IndexedDataFile fileWrapper;
-    private ManifestEntry wrapped = null;
+
+    private DataFile file = null;
+    private Status status = null;
+    private Long snapshotId = null;
+    private Long sequenceNumber = null;
 
     IndexedManifestEntry(StructType partitionType) {
       this.avroSchema = AvroSchemaUtil.convert(entrySchema(partitionType), "manifest_entry");
       this.fileWrapper = new IndexedDataFile(avroSchema.getField("data_file").schema());
     }
 
-    public IndexedManifestEntry wrap(ManifestEntry entry) {
-      this.wrapped = entry;
+    ManifestEntry wrapExisting(Long newSnapshotId, Long newSequenceNumber, DataFile newFile) {
+      this.status = Status.EXISTING;
+      this.snapshotId = newSnapshotId;
+      this.sequenceNumber = newSequenceNumber;
+      this.file = newFile;
+      return this;
+    }
+
+    ManifestEntry wrapAppend(Long newSnapshotId, DataFile newFile) {
+      this.status = Status.ADDED;
+      this.snapshotId = newSnapshotId;
+      this.sequenceNumber = null;
+      this.file = newFile;
+      return this;
+    }
+
+    ManifestEntry wrapDelete(Long newSnapshotId, Long newSequenceNumber, DataFile newFile) {
+      this.status = Status.DELETED;
+      this.snapshotId = newSnapshotId;
+      this.sequenceNumber = newSequenceNumber;
+      this.file = newFile;
       return this;
     }
 
@@ -240,16 +271,14 @@ class V1Metadata {
     public Object get(int i) {
       switch (i) {
         case 0:
-          return wrapped.status().id();
+          return status.id();
         case 1:
-          return wrapped.snapshotId();
+          return snapshotId;
         case 2:
-          DataFile file = wrapped.file();
-          if (file == null || file instanceof GenericDataFile) {
-            return file;
-          } else {
+          if (file != null) {
             return fileWrapper.wrap(file);
           }
+          return null;
         default:
           throw new UnsupportedOperationException("Unknown field ordinal: " + i);
       }
@@ -257,42 +286,42 @@ class V1Metadata {
 
     @Override
     public Status status() {
-      return wrapped.status();
+      return status;
     }
 
     @Override
     public Long snapshotId() {
-      return wrapped.snapshotId();
+      return snapshotId;
     }
 
     @Override
     public void setSnapshotId(long snapshotId) {
-      wrapped.setSnapshotId(snapshotId);
+      this.snapshotId = snapshotId;
     }
 
     @Override
     public Long sequenceNumber() {
-      return wrapped.sequenceNumber();
+      return sequenceNumber;
     }
 
     @Override
     public void setSequenceNumber(long sequenceNumber) {
-      wrapped.setSequenceNumber(sequenceNumber);
+      this.sequenceNumber = sequenceNumber;
     }
 
     @Override
     public DataFile file() {
-      return wrapped.file();
+      return file;
     }
 
     @Override
     public ManifestEntry copy() {
-      return wrapped.copy();
+      throw new UnsupportedOperationException("Cannot copy a ManifestEntryWrapper");
     }
 
     @Override
     public ManifestEntry copyWithoutStats() {
-      return wrapped.copyWithoutStats();
+      throw new UnsupportedOperationException("Cannot copy a ManifestEntryWrapper");
     }
   }
 

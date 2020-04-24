@@ -74,14 +74,18 @@ class GenericDataFile
   // cached schema
   private transient org.apache.avro.Schema avroSchema = null;
 
-  private static final long DEFAULT_BLOCK_SIZE = 64 * 1024 * 1024;
+  /**
+   * Used by Avro to instantiate this class when reading manifest files.
+   */
+  private GenericDataFile(org.apache.avro.Schema avroSchema) {
+    this(avroSchema, null);
+  }
 
   /**
    * Used by AsManifestEntry to instantiate this class when reading manifest files.
    */
   private GenericDataFile(org.apache.avro.Schema avroSchema, AsManifestEntry asEntry) {
     this.avroSchema = avroSchema;
-    this.asEntry = asEntry;
 
     Types.StructType schema = AvroSchemaUtil.convert(avroSchema).asNestedType().asStructType();
 
@@ -91,6 +95,12 @@ class GenericDataFile
       this.partitionType = partType.asNestedType().asStructType();
     } else {
       this.partitionType = EMPTY_STRUCT_TYPE;
+    }
+
+    if (asEntry != null) {
+      this.asEntry = asEntry;
+    } else {
+      this.asEntry = new AsManifestEntry(this, partitionType);
     }
 
     List<Types.NestedField> fields = schema.fields();
@@ -305,44 +315,55 @@ class GenericDataFile
     if (fromProjectionPos != null) {
       pos = fromProjectionPos[i];
     }
+    setInternal(pos, v);
+  }
+
+  private <T> void setInternal(int pos, T v) {
     switch (pos) {
       case 0:
+        this.status = FileStatus.values()[(Integer) v];
+        return;
+      case 1:
+        this.snapshotId = (Long) v;
+        return;
+      case 2:
+        this.sequenceNumber = (Long) v;
+        return;
+      case 3:
         // always coerce to String for Serializable
         this.filePath = v.toString();
         return;
-      case 1:
+      case 4:
         this.format = FileFormat.valueOf(v.toString());
         return;
-      case 2:
+      case 5:
         this.partitionData = (PartitionData) v;
         return;
-      case 3:
+      case 6:
         this.recordCount = (Long) v;
         return;
-      case 4:
+      case 7:
         this.fileSizeInBytes = (Long) v;
         return;
-      case 5:
-        return;
-      case 6:
+      case 8:
         this.columnSizes = (Map<Integer, Long>) v;
         return;
-      case 7:
+      case 9:
         this.valueCounts = (Map<Integer, Long>) v;
         return;
-      case 8:
+      case 10:
         this.nullValueCounts = (Map<Integer, Long>) v;
         return;
-      case 9:
+      case 11:
         this.lowerBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) v);
         return;
-      case 10:
+      case 12:
         this.upperBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) v);
         return;
-      case 11:
+      case 13:
         this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) v);
         return;
-      case 12:
+      case 14:
         this.splitOffsets = (List<Long>) v;
         return;
       default:
@@ -352,7 +373,7 @@ class GenericDataFile
 
   @Override
   public <T> void set(int pos, T value) {
-    put(pos, value);
+    setInternal(pos, value);
   }
 
   @Override
@@ -362,34 +383,40 @@ class GenericDataFile
     if (fromProjectionPos != null) {
       pos = fromProjectionPos[i];
     }
+    return getInternal(pos);
+  }
+
+  private Object getInternal(int pos) {
     switch (pos) {
       case 0:
-        return filePath;
+        return status.id();
       case 1:
-        return format != null ? format.toString() : null;
+        return snapshotId;
       case 2:
-        return partitionData;
+        return sequenceNumber;
       case 3:
-        return recordCount;
+        return filePath;
       case 4:
-        return fileSizeInBytes;
+        return format != null ? format.toString() : null;
       case 5:
-        // block_size_in_bytes is not used. However, it is a required avro field in DataFile. So
-        // to maintain compatibility, we need to return something.
-        return DEFAULT_BLOCK_SIZE;
+        return partitionData;
       case 6:
-        return columnSizes;
+        return recordCount;
       case 7:
-        return valueCounts;
+        return fileSizeInBytes;
       case 8:
-        return nullValueCounts;
+        return columnSizes;
       case 9:
-        return lowerBounds;
+        return valueCounts;
       case 10:
-        return upperBounds;
+        return nullValueCounts;
       case 11:
-        return keyMetadata();
+        return lowerBounds;
       case 12:
+        return upperBounds;
+      case 13:
+        return keyMetadata();
+      case 14:
         return splitOffsets;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
@@ -398,7 +425,10 @@ class GenericDataFile
 
   @Override
   public <T> T get(int pos, Class<T> javaClass) {
-    return javaClass.cast(get(pos));
+    // this method is used by bound expressions to access values. expressions are bound to the DataFile schema, not to
+    // the projection stored in this record if only a subset of fields were read. that means this should return values
+    // based on the canonical position, not the projection position, so this calls getInternal directly.
+    return javaClass.cast(getInternal(pos));
   }
 
   private static org.apache.avro.Schema getAvroSchema(Types.StructType partitionType) {
@@ -410,12 +440,15 @@ class GenericDataFile
 
   @Override
   public int size() {
-    return 13;
+    return 15;
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
+        .add("status", status)
+        .add("snapshot_id", snapshotId)
+        .add("sequence_number", sequenceNumber)
         .add("file_path", filePath)
         .add("file_format", format)
         .add("partition", partitionData)

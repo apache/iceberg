@@ -52,11 +52,10 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
 
   private final OutputFile file;
   private final int specId;
-  private final FileAppender<ManifestEntry> writer;
   private final Long snapshotId;
-  private final ManifestEntryWrapper reused;
   private final PartitionSummary stats;
 
+  private FileAppender<?> writer = null;
   private boolean closed = false;
   private int addedFiles = 0;
   private long addedRows = 0L;
@@ -69,36 +68,48 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
   private ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
     this.file = file;
     this.specId = spec.specId();
-    this.writer = newAppender(spec, file);
     this.snapshotId = snapshotId;
-    this.reused = new ManifestEntryWrapper();
     this.stats = new PartitionSummary(spec);
   }
-
-  protected abstract ManifestEntry prepare(ManifestEntry entry);
-
-  protected abstract FileAppender<ManifestEntry> newAppender(PartitionSpec spec, OutputFile outputFile);
 
   void addEntry(ManifestEntry entry) {
     switch (entry.status()) {
       case ADDED:
+        add(entry);
+        break;
+      case EXISTING:
+        existing(entry);
+        break;
+      case DELETED:
+        delete(entry);
+        break;
+    }
+  }
+
+  protected void updateStats(FileStatus status, Long sequenceNumber, DataFile file) {
+    switch (status) {
+      case ADDED:
         addedFiles += 1;
-        addedRows += entry.file().recordCount();
+        addedRows += file.recordCount();
         break;
       case EXISTING:
         existingFiles += 1;
-        existingRows += entry.file().recordCount();
+        existingRows += file.recordCount();
         break;
       case DELETED:
         deletedFiles += 1;
-        deletedRows += entry.file().recordCount();
+        deletedRows += file.recordCount();
         break;
     }
-    stats.update(entry.file().partition());
-    if (entry.sequenceNumber() != null && (minSequenceNumber == null || entry.sequenceNumber() < minSequenceNumber)) {
-      this.minSequenceNumber = entry.sequenceNumber();
+    stats.update(file.partition());
+    if (sequenceNumber != null && (minSequenceNumber == null || sequenceNumber < minSequenceNumber)) {
+      this.minSequenceNumber = sequenceNumber;
     }
-    writer.add(prepare(entry));
+  }
+
+  protected <T> FileAppender<T> setWriter(FileAppender<T> writer) {
+    this.writer = writer;
+    return writer;
   }
 
   /**
@@ -109,26 +120,18 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
    * @param addedFile a data file
    */
   @Override
-  public void add(DataFile addedFile) {
-    addEntry(reused.wrapAppend(snapshotId, addedFile));
-  }
+  public abstract void add(DataFile addedFile);
 
-  void add(ManifestEntry entry) {
-    addEntry(reused.wrapAppend(snapshotId, entry.file()));
-  }
+  abstract void add(ManifestEntry entry);
 
   /**
    * Add an existing entry for a data file.
    *
    * @param existingFile a data file
    */
-  public void existing(DataFile existingFile) {
-    addEntry(reused.wrapExisting(existingFile.snapshotId(), existingFile.sequenceNumber(), existingFile));
-  }
+  public abstract void existing(DataFile existingFile);
 
-  void existing(ManifestEntry entry) {
-    addEntry(reused.wrapExisting(entry.snapshotId(), entry.sequenceNumber(), entry.file()));
-  }
+  abstract void existing(ManifestEntry entry);
 
   /**
    * Add a delete entry for a data file.
@@ -137,15 +140,9 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
    *
    * @param deletedFile a data file
    */
-  public void delete(DataFile deletedFile) {
-    addEntry(reused.wrapDelete(snapshotId, deletedFile.sequenceNumber(), deletedFile));
-  }
+  public abstract void delete(DataFile deletedFile);
 
-  void delete(ManifestEntry entry) {
-    // Use the current Snapshot ID for the delete. It is safe to delete the data file from disk
-    // when this Snapshot has been removed or when there are no Snapshots older than this one.
-    addEntry(reused.wrapDelete(snapshotId, entry.sequenceNumber(), entry.file()));
-  }
+  abstract void delete(ManifestEntry entry);
 
   @Override
   public Metrics metrics() {
@@ -173,25 +170,65 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
   }
 
   static class V2Writer extends ManifestWriter {
-    private V2Metadata.IndexedManifestEntry entryWrapper;
+    private final FileAppender<DataFile> writer;
+    private V2Metadata.IndexedDataFile fileWrapper;
+    private final Long snapshotId;
 
     V2Writer(PartitionSpec spec, OutputFile file, Long snapshotId) {
       super(spec, file, snapshotId);
-      this.entryWrapper = new V2Metadata.IndexedManifestEntry(snapshotId, spec.partitionType());
+      this.writer = setWriter(newAppender(spec, file));
+      this.fileWrapper = new V2Metadata.IndexedDataFile(snapshotId, spec.partitionType());
+      this.snapshotId = snapshotId;
     }
 
     @Override
-    protected ManifestEntry prepare(ManifestEntry entry) {
-      return entryWrapper.wrap(entry);
+    public void add(DataFile addedFile) {
+      updateStats(FileStatus.ADDED, addedFile.sequenceNumber(), addedFile);
+      fileWrapper.wrapAppend(snapshotId, addedFile);
+      writer.add(fileWrapper);
     }
 
     @Override
-    protected FileAppender<ManifestEntry> newAppender(PartitionSpec spec, OutputFile file) {
-      Schema manifestSchema = V2Metadata.entrySchema(spec.partitionType());
+    void add(ManifestEntry entry) {
+      updateStats(FileStatus.ADDED, entry.sequenceNumber(), entry.file());
+      fileWrapper.wrapAppend(snapshotId, entry.file());
+      writer.add(fileWrapper);
+    }
+
+    @Override
+    public void existing(DataFile existingFile) {
+      updateStats(FileStatus.EXISTING, existingFile.sequenceNumber(), existingFile);
+      fileWrapper.wrapExisting(existingFile.snapshotId(), existingFile.sequenceNumber(), existingFile);
+      writer.add(fileWrapper);
+    }
+
+    @Override
+    void existing(ManifestEntry entry) {
+      updateStats(FileStatus.EXISTING, entry.sequenceNumber(), entry.file());
+      fileWrapper.wrapExisting(entry.snapshotId(), entry.sequenceNumber(), entry.file());
+      writer.add(fileWrapper);
+    }
+
+    @Override
+    public void delete(DataFile deletedFile) {
+      updateStats(FileStatus.DELETED, deletedFile.sequenceNumber(), deletedFile);
+      fileWrapper.wrapDelete(snapshotId, deletedFile.sequenceNumber(), deletedFile);
+      writer.add(fileWrapper);
+    }
+
+    @Override
+    void delete(ManifestEntry entry) {
+      updateStats(FileStatus.DELETED, entry.sequenceNumber(), entry.file());
+      fileWrapper.wrapDelete(snapshotId, entry.sequenceNumber(), entry.file());
+      writer.add(fileWrapper);
+    }
+
+    protected FileAppender<DataFile> newAppender(PartitionSpec spec, OutputFile file) {
+      Schema manifestSchema = V2Metadata.manifestSchema(spec.partitionType());
       try {
         return Avro.write(file)
             .schema(manifestSchema)
-            .named("manifest_entry")
+            .named("data_file")
             .meta("schema", SchemaParser.toJson(spec.schema()))
             .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
             .meta("partition-spec-id", String.valueOf(spec.specId()))
@@ -205,20 +242,60 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
   }
 
   static class V1Writer extends ManifestWriter {
-    private V1Metadata.IndexedManifestEntry entryWrapper;
+    private final FileAppender<ManifestEntry> writer;
+    private final V1Metadata.IndexedManifestEntry entryWrapper;
+    private final Long snapshotId;
 
     V1Writer(PartitionSpec spec, OutputFile file, Long snapshotId) {
       super(spec, file, snapshotId);
+      this.writer = setWriter(newAppender(spec, file));
       this.entryWrapper = new V1Metadata.IndexedManifestEntry(spec.partitionType());
+      this.snapshotId = snapshotId;
+    }
+
+    private void updateStats(ManifestEntry entry) {
+      updateStats(FileStatus.values()[entry.status().id()], entry.sequenceNumber(), entry.file());
     }
 
     @Override
-    protected ManifestEntry prepare(ManifestEntry entry) {
-      return entryWrapper.wrap(entry);
+    public void add(DataFile addedFile) {
+      updateStats(entryWrapper.wrapAppend(snapshotId, addedFile));
+      writer.add(entryWrapper);
     }
 
     @Override
-    protected FileAppender<ManifestEntry> newAppender(PartitionSpec spec, OutputFile file) {
+    void add(ManifestEntry entry) {
+      updateStats(entryWrapper.wrapAppend(snapshotId, entry.file()));
+      writer.add(entryWrapper);
+    }
+
+    @Override
+    public void existing(DataFile existingFile) {
+      updateStats(entryWrapper.wrapExisting(existingFile.snapshotId(), existingFile.sequenceNumber(), existingFile));
+      writer.add(entryWrapper);
+    }
+
+    @Override
+    void existing(ManifestEntry entry) {
+      updateStats(entryWrapper.wrapExisting(entry.snapshotId(), entry.sequenceNumber(), entry.file()));
+      writer.add(entryWrapper);
+    }
+
+    @Override
+    public void delete(DataFile deletedFile) {
+      updateStats(entryWrapper.wrapDelete(snapshotId, deletedFile.sequenceNumber(), deletedFile));
+      writer.add(entryWrapper);
+    }
+
+    @Override
+    void delete(ManifestEntry entry) {
+      // Use the current Snapshot ID for the delete. It is safe to delete the data file from disk
+      // when this Snapshot has been removed or when there are no Snapshots older than this one.
+      updateStats(entryWrapper.wrapDelete(snapshotId, entry.sequenceNumber(), entry.file()));
+      writer.add(entryWrapper);
+    }
+
+    private FileAppender<ManifestEntry> newAppender(PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V1Metadata.entrySchema(spec.partitionType());
       try {
         return Avro.write(file)
