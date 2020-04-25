@@ -38,6 +38,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
   private Long targetSnapshotId = null;
   private String snapshotOperation = null;
   private Long requiredCurrentSnapshotId = null;
+  private boolean requiresSnapshotCreation = false;
 
   SnapshotManager(TableOperations ops) {
     super(ops);
@@ -50,9 +51,17 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
 
   @Override
   protected String operation() {
-    // snapshotOperation is used by SnapshotProducer when building and writing a new snapshot for cherrypick
-    Preconditions.checkNotNull(snapshotOperation, "[BUG] Detected uninitialized operation");
+    //TODO: We are not setting this var during rollbacks. What should its value be during rollbacks?
     return snapshotOperation;
+  }
+
+  @Override
+  protected long snapshotId() {
+    if (requiresSnapshotCreation) {
+      return super.snapshotId();
+    }
+    // No new snapshot was created
+    return targetSnapshotId;
   }
 
   @Override
@@ -62,13 +71,14 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
         "Cannot cherry pick unknown snapshot id: %s", snapshotId);
 
     Snapshot cherryPickSnapshot = current.snapshot(snapshotId);
+    // TODO: shouldn't we check for appends only if cherrypick op is not fast forward-able?
     // only append operations are currently supported
     if (cherryPickSnapshot.operation().equals(DataOperations.APPEND)) {
       this.managerOperation = SnapshotManagerOperation.CHERRYPICK;
       this.targetSnapshotId = snapshotId;
       this.snapshotOperation = cherryPickSnapshot.operation();
-
       // Pick modifications from the snapshot
+      //TODO: seems like this is wasted work if the cherrypick op is fast forward-able and only has appends operations
       for (DataFile addedFile : cherryPickSnapshot.addedFiles()) {
         add(addedFile);
       }
@@ -82,6 +92,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
       // link the snapshot about to be published on commit with the picked snapshot
       set(SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP, String.valueOf(targetSnapshotId));
     } else {
+      //TODO: snapshotOperation maybe unset here.
       // cherry-pick should work if the table can be fast-forwarded
       this.managerOperation = SnapshotManagerOperation.ROLLBACK;
       this.requiredCurrentSnapshotId = cherryPickSnapshot.parentId();
@@ -109,10 +120,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
     Snapshot snapshot = findLatestAncestorOlderThan(current(), timestampMillis);
     Preconditions.checkArgument(snapshot != null,
         "Cannot roll back, no valid snapshot older than: %s", timestampMillis);
-
-    this.managerOperation = SnapshotManagerOperation.ROLLBACK;
-    this.targetSnapshotId = snapshot.snapshotId();
-
+    setCurrentSnapshot(snapshot.snapshotId());
     return this;
   }
 
@@ -159,6 +167,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
           return base.snapshot(targetSnapshotId);
         } else {
           // validate(TableMetadata) is called in apply(TableMetadata) after this apply refreshes the table state
+          requiresSnapshotCreation = true;
           return super.apply();
         }
 

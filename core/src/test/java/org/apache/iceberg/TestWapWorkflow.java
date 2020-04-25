@@ -112,7 +112,6 @@ public class TestWapWorkflow extends TableTestBase {
 
   @Test
   public void testCurrentSnapshotOperation() {
-
     table.newAppend()
         .appendFile(FILE_A)
         .commit();
@@ -137,7 +136,12 @@ public class TestWapWorkflow extends TableTestBase {
         base.snapshotLog().size());
 
     // do setCurrentSnapshot
-    table.manageSnapshots().setCurrentSnapshot(wapSnapshot.snapshotId()).commit();
+    ManageSnapshots manageSnapshots = table.manageSnapshots().setCurrentSnapshot(wapSnapshot.snapshotId());
+    if (manageSnapshots instanceof SnapshotManager) {
+      SnapshotManager snapshotManager = (SnapshotManager) manageSnapshots;
+      Assert.assertNull("Should operation ever be null", snapshotManager.operation());
+    }
+    manageSnapshots.commit();
     base = readMetadata();
 
     Assert.assertEquals("Current snapshot should be what we rolled back to",
@@ -250,7 +254,12 @@ public class TestWapWorkflow extends TableTestBase {
     Snapshot thirdSnapshot = base.currentSnapshot();
 
     // rollback to first snapshot
-    table.manageSnapshots().rollbackTo(firstSnapshotId).commit();
+    ManageSnapshots manageSnapshots = table.manageSnapshots().rollbackTo(firstSnapshotId);
+    if (manageSnapshots instanceof SnapshotManager) {
+      SnapshotManager snapshotManager = (SnapshotManager) manageSnapshots;
+      Assert.assertEquals(firstSnapshot.snapshotId(), snapshotManager.snapshotId());
+    }
+    manageSnapshots.commit();
     base = readMetadata();
     Assert.assertEquals("Should be at first snapshot", firstSnapshotId, base.currentSnapshot().snapshotId());
     Assert.assertEquals("Should have all three snapshots in the system", 3, base.snapshots().size());
