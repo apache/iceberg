@@ -40,13 +40,16 @@ public class TestMergeAppend extends TableTestBase {
   @Parameterized.Parameters
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] { 1 },
-        new Object[] { 2 },
+        new Object[] { 1, new int[]{ 1000, 1001, 1002, 1003, 1000, 1001 } },
+        new Object[] { 2, new int[]{ 1001, 1002, 1003, 1000, 1001, 1002 } },
     };
   }
 
-  public TestMergeAppend(int formatVersion) {
+  private int[] expectedFieldIds;
+
+  public TestMergeAppend(int formatVersion, int[] expectedFieldIds) {
     super(formatVersion);
+    this.expectedFieldIds = expectedFieldIds;
   }
 
   @Test
@@ -389,7 +392,7 @@ public class TestMergeAppend extends TableTestBase {
         .bucket("id", 4)
         .build();
 
-    // commit the new partition spec to the table manually
+    // commit the new partition spec to the table manually without spec evolution
     table.ops().commit(base, base.updatePartitionSpec(newSpec));
 
     DataFile newFileC = DataFiles.builder(newSpec)
@@ -435,7 +438,7 @@ public class TestMergeAppend extends TableTestBase {
         .bucket("id", 4)
         .build();
 
-    // commit the new partition spec to the table manually
+    // commit the new partition spec to the table manually without spec evolution
     table.ops().commit(base, base.updatePartitionSpec(newSpec));
 
     DataFile newFileC = DataFiles.builder(newSpec)
@@ -666,19 +669,15 @@ public class TestMergeAppend extends TableTestBase {
   }
 
   @Test
-  public void testUpdatePartitionSpecFieldIdsForV1Table() {
+  public void testUpdatePartitionSpecFieldIdsWithSpecEvolution() {
     TableMetadata base = readMetadata();
 
-    // build the new spec using the table's schema, which uses fresh IDs
-    PartitionSpec newSpec = PartitionSpec.builderFor(base.schema())
+    table.updatePartitionSpec().newSpec()
         .bucket("id", 16)
         .identity("data")
         .bucket("data", 4)
         .bucket("data", 16, "data_partition") // reuse field id although different target name
-        .build();
-
-    // commit the new partition spec to the table manually
-    table.ops().commit(base, base.updatePartitionSpec(newSpec));
+        .commit();
 
     List<PartitionSpec> partitionSpecs = table.ops().current().specs();
     PartitionSpec partitionSpec = partitionSpecs.get(0);
@@ -697,17 +696,17 @@ public class TestMergeAppend extends TableTestBase {
     fields = structType.fields();
     Assert.assertEquals(4, fields.size());
     Assert.assertEquals("id_bucket", fields.get(0).name());
-    Assert.assertEquals(1000, fields.get(0).fieldId());
+    Assert.assertEquals(expectedFieldIds[0], fields.get(0).fieldId());
     Assert.assertEquals("data", fields.get(1).name());
-    Assert.assertEquals(1001, fields.get(1).fieldId());
+    Assert.assertEquals(expectedFieldIds[1], fields.get(1).fieldId());
     Assert.assertEquals("data_bucket", fields.get(2).name());
-    Assert.assertEquals(1002, fields.get(2).fieldId());
+    Assert.assertEquals(expectedFieldIds[2], fields.get(2).fieldId());
     Assert.assertEquals("data_partition", fields.get(3).name());
-    Assert.assertEquals(1003, fields.get(3).fieldId());
+    Assert.assertEquals(expectedFieldIds[3], fields.get(3).fieldId());
   }
 
   @Test
-  public void testManifestEntryFieldIdsForChangedPartitionSpecForV1Table() {
+  public void testManifestEntryFieldIdsForChangedPartitionSpecWithSpecEvolution() {
     table.newAppend()
         .appendFile(FILE_A)
         .commit();
@@ -717,14 +716,10 @@ public class TestMergeAppend extends TableTestBase {
         1, base.currentSnapshot().allManifests().size());
     ManifestFile initialManifest = base.currentSnapshot().allManifests().get(0);
 
-    // build the new spec using the table's schema, which uses fresh IDs
-    PartitionSpec newSpec = PartitionSpec.builderFor(base.schema())
+    table.updatePartitionSpec().newSpec()
         .bucket("id", 8)
         .bucket("data", 8)
-        .build();
-
-    // commit the new partition spec to the table manually
-    table.ops().commit(base, base.updatePartitionSpec(newSpec));
+        .commit();
 
     DataFile newFile = DataFiles.builder(table.spec())
         .copy(FILE_B)
@@ -747,10 +742,10 @@ public class TestMergeAppend extends TableTestBase {
     ManifestEntry<DataFile> entry = ManifestFiles.read(pending.allManifests().get(0), FILE_IO)
         .entries().iterator().next();
     Types.NestedField field = ((PartitionData) entry.file().partition()).getPartitionType().fields().get(0);
-    Assert.assertEquals(1000, field.fieldId());
+    Assert.assertEquals(expectedFieldIds[4], field.fieldId());
     Assert.assertEquals("id_bucket", field.name());
     field = ((PartitionData) entry.file().partition()).getPartitionType().fields().get(1);
-    Assert.assertEquals(1001, field.fieldId());
+    Assert.assertEquals(expectedFieldIds[5], field.fieldId());
     Assert.assertEquals("data_bucket", field.name());
 
     entry = ManifestFiles.read(pending.allManifests().get(1), FILE_IO).entries().iterator().next();

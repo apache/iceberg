@@ -241,11 +241,25 @@ public class TestPartitionSpecValidation {
         .add(1, "id_partition2", "bucket[5]")
         .add(1, 1005, "id_partition1", "bucket[4]")
         .truncate("s", 1, "custom_truncate")
+        .add(1, 1002, "id_partition3", "bucket[3]")
         .build();
 
     Assert.assertEquals(1000, spec.fields().get(0).fieldId());
     Assert.assertEquals(1005, spec.fields().get(1).fieldId());
     Assert.assertEquals(1006, spec.fields().get(2).fieldId());
+    Assert.assertEquals(1002, spec.fields().get(3).fieldId());
     Assert.assertEquals(1006, spec.lastAssignedFieldId());
+  }
+
+  @Test
+  public void testAddPartitionFieldsWithInvalidFieldId() {
+    AssertHelpers.assertThrows("Should detect invalid duplicate field id",
+        IllegalArgumentException.class,
+        "Field Id 1005 has already been used in the existing partition fields",
+        () -> PartitionSpec.builderFor(SCHEMA)
+            .add(1, "id_partition2", "bucket[5]")
+            .add(1, 1005, "id_partition1", "bucket[4]")
+            .add(1, 1005, "id_partition3", "bucket[3]")
+            .build());
   }
 }

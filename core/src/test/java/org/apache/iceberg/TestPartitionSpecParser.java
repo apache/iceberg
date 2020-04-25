@@ -21,14 +21,29 @@ package org.apache.iceberg;
 
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestPartitionSpecParser extends TableTestBase {
-  public TestPartitionSpecParser() {
-    super(1);
+
+  private int[] expectedFieldIds;
+
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { 1, new int[]{ 1000, 1001 } },
+        new Object[] { 2, new int[]{ 1001, 1000 } },
+    };
+  }
+
+  public TestPartitionSpecParser(int formatVersion, int[] expectedFieldIds) {
+    super(formatVersion);
+    this.expectedFieldIds = expectedFieldIds;
   }
 
   @Test
-  public void testToJsonForV1Table() {
+  public void testToJson() {
     String expected = "{\n" +
         "  \"spec-id\" : 0,\n" +
         "  \"fields\" : [ {\n" +
@@ -40,12 +55,10 @@ public class TestPartitionSpecParser extends TableTestBase {
         "}";
     Assert.assertEquals(expected, PartitionSpecParser.toJson(table.spec(), true));
 
-    PartitionSpec spec = PartitionSpec.builderFor(table.schema())
+    table.updatePartitionSpec().newSpec()
         .bucket("id", 8)
         .bucket("data", 16)
-        .build();
-
-    table.ops().commit(table.ops().current(), table.ops().current().updatePartitionSpec(spec));
+        .commit();
 
     expected = "{\n" +
         "  \"spec-id\" : 1,\n" +
@@ -53,13 +66,13 @@ public class TestPartitionSpecParser extends TableTestBase {
         "    \"name\" : \"id_bucket\",\n" +
         "    \"transform\" : \"bucket[8]\",\n" +
         "    \"source-id\" : 1,\n" +
-        "    \"field-id\" : 1000\n" +
-        "  }, {\n" +
+        "    \"field-id\" : " + expectedFieldIds[0] +
+        "\n  }, {\n" +
         "    \"name\" : \"data_bucket\",\n" +
         "    \"transform\" : \"bucket[16]\",\n" +
         "    \"source-id\" : 2,\n" +
-        "    \"field-id\" : 1001\n" +
-        "  } ]\n" +
+        "    \"field-id\" : " + expectedFieldIds[1] +
+        "\n  } ]\n" +
         "}";
     Assert.assertEquals(expected, PartitionSpecParser.toJson(table.spec(), true));
   }

@@ -34,13 +34,16 @@ public class TestManifestReader extends TableTestBase {
   @Parameterized.Parameters
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] { 1 },
-        new Object[] { 2 },
+        new Object[] { 1, new int[]{ 1000, 1001 } },
+        new Object[] { 2, new int[]{ 1001, 1000 }},
     };
   }
 
-  public TestManifestReader(int formatVersion) {
+  private int[] expectedFieldIds;
+
+  public TestManifestReader(int formatVersion, int[] expectedFieldIds) {
     super(formatVersion);
+    this.expectedFieldIds = expectedFieldIds;
   }
 
   @Test
@@ -79,11 +82,12 @@ public class TestManifestReader extends TableTestBase {
   }
 
   @Test
-  public void testManifestReaderWithUpdatedPartitionMetadataForV1Table() throws IOException {
+  public void testManifestReaderWithUpdatedPartitionMetadata() throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(table.schema())
         .bucket("id", 8)
         .bucket("data", 16)
         .build();
+    // commit the new partition spec to the table manually without spec evolution
     table.ops().commit(table.ops().current(), table.ops().current().updatePartitionSpec(spec));
 
     ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 123L, FILE_A));
@@ -98,6 +102,30 @@ public class TestManifestReader extends TableTestBase {
       Assert.assertEquals(Types.IntegerType.get(), fields.get(0).type());
 
       Assert.assertEquals(1001, fields.get(1).fieldId());
+      Assert.assertEquals("data_bucket", fields.get(1).name());
+      Assert.assertEquals(Types.IntegerType.get(), fields.get(1).type());
+    }
+  }
+
+  @Test
+  public void testManifestReaderWithPartitionMetadataEvolution() throws IOException {
+    table.updatePartitionSpec().newSpec()
+        .bucket("id", 8)
+        .bucket("data", 16)
+        .commit();
+
+    ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 123L, FILE_A));
+    try (ManifestReader reader = ManifestFiles.read(manifest, FILE_IO)) {
+      ManifestEntry entry = Iterables.getOnlyElement(reader.entries());
+      Assert.assertEquals(123L, (long) entry.snapshotId());
+
+      List<Types.NestedField> fields = ((PartitionData) entry.file().partition()).getPartitionType().fields();
+      Assert.assertEquals(2, fields.size());
+      Assert.assertEquals(expectedFieldIds[0], fields.get(0).fieldId());
+      Assert.assertEquals("id_bucket", fields.get(0).name());
+      Assert.assertEquals(Types.IntegerType.get(), fields.get(0).type());
+
+      Assert.assertEquals(expectedFieldIds[1], fields.get(1).fieldId());
       Assert.assertEquals("data_bucket", fields.get(1).name());
       Assert.assertEquals(Types.IntegerType.get(), fields.get(1).type());
     }

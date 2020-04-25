@@ -353,6 +353,12 @@ public class PartitionSpec implements Serializable {
       timeFields.put(field.sourceId(), field);
     }
 
+    private void checkDuplicateFieldId(int fieldId) {
+      Preconditions.checkArgument(fields.stream().allMatch(f -> f.fieldId() != fieldId),
+          "Field Id %s has already been used in the existing partition fields: %s.",
+          fieldId, fields);
+    }
+
     public Builder withSpecId(int newSpecId) {
       this.specId = newSpecId;
       return this;
@@ -476,6 +482,7 @@ public class PartitionSpec implements Serializable {
       Types.NestedField column = schema.findField(sourceId);
       checkAndAddPartitionName(name, column.fieldId());
       Preconditions.checkNotNull(column, "Cannot find source column: %s", sourceId);
+      checkDuplicateFieldId(fieldId);
       fields.add(new PartitionField(sourceId, fieldId, name, Transforms.fromString(column.type(), transform)));
       lastAssignedFieldId.getAndAccumulate(fieldId, Math::max);
       return this;

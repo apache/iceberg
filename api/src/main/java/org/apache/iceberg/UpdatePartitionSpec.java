@@ -30,24 +30,14 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
 
   /**
-   * Update the current partition spec to a new partition spec.
-   * <p>
-   * Partition field IDs of the new partitionSpec may be updated during the commit.
-   *
-   * @param partitionSpec new partition spec to update
-   * @return this for method chaining
-   */
-  UpdatePartitionSpec update(PartitionSpec partitionSpec);
-
-  /**
    * Create a new partition spec builder for a given schema
    * <p>
    * Partition field IDs is automatically assigned and will be updated during the commit.
+   * Table schema should be obtained from the current table metadata
    *
-   * @param schema the schema for the new partition spec
    * @return this for method chaining
    */
-  UpdatePartitionSpec newSpec(Schema schema);
+  UpdatePartitionSpec newSpec();
 
   /**
    * Add a new partition field with identity transform to the partition spec.

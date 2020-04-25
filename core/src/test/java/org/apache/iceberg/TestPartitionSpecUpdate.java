@@ -19,93 +19,72 @@
 
 package org.apache.iceberg;
 
-import org.apache.iceberg.exceptions.ValidationException;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestPartitionSpecUpdate extends TableTestBase {
 
-  @Test
-  public void testCommitUpdatedSpecForV1Table() {
-    Assert.assertEquals("[\n" +
-        "  1000: data_bucket: bucket[16](2)\n" +
-        "]", table.spec().toString());
-    Assert.assertEquals(1000, table.spec().lastAssignedFieldId());
+  private int[] expectedFieldIds;
 
-    PartitionSpec spec = PartitionSpec.builderFor(table.schema())
-        .bucket("id", 8)
-        .bucket("data", 16)
-        .build();
-    table.updatePartitionSpec().update(spec).commit();
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { 1, new int[]{ 1000, 1001, 1001, 1000, 1000 } },
+        new Object[] { 2, new int[]{ 1001, 1000, 1001, 1002, 1002 } },
+    };
+  }
 
-    Assert.assertEquals("[\n" +
-        "  1000: id_bucket: bucket[8](1)\n" +
-        "  1001: data_bucket: bucket[16](2)\n" +
-        "]", table.spec().toString());
-    Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
-
-    spec = PartitionSpec.builderFor(table.schema())
-        .truncate("data", 8)
-        .build();
-    table.updatePartitionSpec().update(spec).commit();
-
-    Assert.assertEquals("[\n" +
-        "  1000: data_trunc: truncate[8](2)\n" +
-        "]", table.spec().toString());
-    Assert.assertEquals(1000, table.spec().lastAssignedFieldId());
+  public TestPartitionSpecUpdate(int formatVersion, int[] expectedFieldIds) {
+    super(formatVersion);
+    this.expectedFieldIds = expectedFieldIds;
   }
 
   @Test
-  public void testCommitUpdatedSpecForV2Table() {
-    TableOperations ops = table.ops();
-    TableMetadata base = ops.current();
-    ops.commit(base, base.upgradeToFormatVersion(2));
-
+  public void testCommitUpdatedSpec() {
     Assert.assertEquals("[\n" +
         "  1000: data_bucket: bucket[16](2)\n" +
         "]", table.spec().toString());
     Assert.assertEquals(1000, table.spec().lastAssignedFieldId());
 
-    PartitionSpec spec = PartitionSpec.builderFor(table.schema())
+    table.updatePartitionSpec().newSpec()
         .bucket("id", 8)
         .bucket("data", 16)
-        .build();
-    table.updatePartitionSpec().update(spec).commit();
+        .commit();
 
-    Assert.assertEquals("[\n" +
-        "  1001: id_bucket: bucket[8](1)\n" +
-        "  1000: data_bucket: bucket[16](2)\n" +
+    Assert.assertEquals("[\n  " +
+        expectedFieldIds[0] + ": id_bucket: bucket[8](1)\n  " +
+        expectedFieldIds[1] + ": data_bucket: bucket[16](2)\n" +
         "]", table.spec().toString());
-    Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(expectedFieldIds[2], table.spec().lastAssignedFieldId());
 
-    spec = PartitionSpec.builderFor(table.schema())
+    table.updatePartitionSpec().newSpec()
         .truncate("data", 8)
-        .build();
-    table.updatePartitionSpec().update(spec).commit();
+        .commit();
 
-    Assert.assertEquals("[\n" +
-        "  1002: data_trunc: truncate[8](2)\n" +
+    Assert.assertEquals("[\n  " +
+        expectedFieldIds[3] + ": data_trunc: truncate[8](2)\n" +
         "]", table.spec().toString());
-    Assert.assertEquals(1002, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(expectedFieldIds[4], table.spec().lastAssignedFieldId());
   }
 
   @Test
   public void testCommitException() {
     AssertHelpers.assertThrows("Should throw IllegalArgumentException if no spec to commit",
-        IllegalArgumentException.class, "new partition spec is not set",
+        NullPointerException.class, "new partition spec is not set",
         () -> table.updatePartitionSpec().commit());
   }
 
   @Test
-  public void testUpdateCompatibility() {
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
-        .bucket("id", 8)
-        .bucket("data", 16)
-        .build();
-
+  public void testUpdateException() {
     AssertHelpers.assertThrows(
-        "Should throw ValidationException if the new spec is not compatible with the table schema",
-        ValidationException.class, "Cannot find source column for partition field",
-        () -> table.updatePartitionSpec().update(spec));
+        "Should throw IllegalArgumentException if there is an invalid partition field",
+        IllegalArgumentException.class, "Cannot use partition name more than once: id_bucket",
+        () -> table.updatePartitionSpec().newSpec()
+            .bucket("id", 8)
+            .bucket("id", 16)
+            .commit());
   }
 }

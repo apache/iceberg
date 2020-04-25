@@ -30,7 +30,6 @@ class PartitionSpecUpdate implements UpdatePartitionSpec {
 
   private final TableMetadata base;
   private final TableOperations ops;
-  private PartitionSpec newSpec = null;
   private PartitionSpec.Builder newSpecBuilder = null;
 
   PartitionSpecUpdate(TableOperations ops) {
@@ -40,26 +39,13 @@ class PartitionSpecUpdate implements UpdatePartitionSpec {
 
   @Override
   public PartitionSpec apply() {
-    Preconditions.checkArgument(newSpec != null || newSpecBuilder != null,
-        "new partition spec is not set");
-    Preconditions.checkArgument(newSpec == null || newSpecBuilder == null,
-        "use either update() or newSpec() to add a new partition spec");
-    if (newSpecBuilder != null) {
-      return newSpecBuilder.build();
-    }
-    return newSpec;
+    Preconditions.checkNotNull(newSpecBuilder, "new partition spec is not set");
+    return newSpecBuilder.build();
   }
 
   @Override
-  public UpdatePartitionSpec update(PartitionSpec partitionSpec) {
-    PartitionSpec.checkCompatibility(partitionSpec, base.schema());
-    newSpec = partitionSpec;
-    return this;
-  }
-
-  @Override
-  public UpdatePartitionSpec newSpec(Schema schema) {
-    newSpecBuilder = PartitionSpec.builderFor(Preconditions.checkNotNull(schema, "The schema cannot be null."));
+  public UpdatePartitionSpec newSpec() {
+    newSpecBuilder = PartitionSpec.builderFor(base.schema());
     return this;
   }
 
