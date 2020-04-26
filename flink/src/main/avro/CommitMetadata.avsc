@@ -6,6 +6,6 @@
         { "name":"lastCheckpointId", "type": "long"},
         { "name":"lastCheckpointTimestamp", "type": "long"},
         { "name":"lastCommitTimestamp", "type": "long"},
-        { "name":"vttsWatermark", "type": ["null", "long"], "default": null}
+        { "name":"watermark", "type": ["null", "long"], "default": null}
     ]
 }

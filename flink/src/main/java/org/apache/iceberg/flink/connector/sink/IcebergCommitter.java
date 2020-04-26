@@ -93,15 +93,15 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
 
   private static final String COMMIT_REGION_KEY = "flink.commit.region";
   private static final String COMMIT_MANIFEST_HASHES_KEY = "flink.commit.manifest.hashes";
-  private static final String VTTS_WATERMARK_PROP_KEY_PREFIX = "flink.watermark.";
+  private static final String WATERMARK_PROP_KEY_PREFIX = "flink.watermark.";
 
   private Configuration config;
   private final String namespace;
   private final String tableName;
 
   private final String region;
-  private final boolean vttsWatermarkEnabled;
-  private final String vttsWatermarkPropKey;
+  private final boolean watermarkEnabled;
+  private final String watermarkPropKey;
   private final long snapshotRetentionHours;
   private final boolean commitRestoredManifestFiles;
   private final String icebergManifestFileDir;
@@ -112,9 +112,9 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
   private transient Table table;
   private transient List<FlinkDataFile> pendingDataFiles;
   private transient List<FlinkManifestFile> flinkManifestFiles;
-  private transient ListState<ManifestFileState> manifestFilesState;
+  private transient ListState<ManifestFileState> manifestFileState;
   private transient CommitMetadata metadata;
-  private transient ListState<CommitMetadata> metadataState;
+  private transient ListState<CommitMetadata> commitMetadataState;
 
   public IcebergCommitter(Table table, Configuration config) {
     this.config = config;
@@ -137,9 +137,9 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
     }
     this.region = region;
 
-    vttsWatermarkEnabled = !Strings.isNullOrEmpty(
-        config.getString(IcebergConnectorConstant.VTTS_WATERMARK_TIMESTAMP_FIELD, ""));
-    vttsWatermarkPropKey = VTTS_WATERMARK_PROP_KEY_PREFIX + region;
+    watermarkEnabled = !Strings.isNullOrEmpty(
+        config.getString(IcebergConnectorConstant.WATERMARK_TIMESTAMP_FIELD, ""));
+    watermarkPropKey = WATERMARK_PROP_KEY_PREFIX + region;
     snapshotRetentionHours = config.getLong(IcebergConnectorConstant.SNAPSHOT_RETENTION_HOURS,
         IcebergConnectorConstant.DEFAULT_SNAPSHOT_RETENTION_HOURS);
     commitRestoredManifestFiles = config.getBoolean(IcebergConnectorConstant.COMMIT_RESTORED_MANIFEST_FILES,
@@ -229,17 +229,17 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
   public void initializeState(FunctionInitializationContext context) throws Exception {
     init();
 
-    Preconditions.checkState(manifestFilesState == null,
+    Preconditions.checkState(manifestFileState == null,
         "checkpointedFilesState has already been initialized.");
-    Preconditions.checkState(metadataState == null,
-        "metadataState has already been initialized.");
-    manifestFilesState = context.getOperatorStateStore().getListState(new ListStateDescriptor<>(
+    Preconditions.checkState(commitMetadataState == null,
+        "commitMetadataState has already been initialized.");
+    manifestFileState = context.getOperatorStateStore().getListState(new ListStateDescriptor<>(
         "iceberg-committer-manifest-files-state", ManifestFileState.class));
-    metadataState = context.getOperatorStateStore().getListState(new ListStateDescriptor<>(
+    commitMetadataState = context.getOperatorStateStore().getListState(new ListStateDescriptor<>(
         "iceberg-committer-metadata-state", CommitMetadata.class));
 
     if (context.isRestored()) {
-      final Iterable<CommitMetadata> restoredMetadata = metadataState.get();
+      final Iterable<CommitMetadata> restoredMetadata = commitMetadataState.get();
       if (null != restoredMetadata) {
         LOG.info("Iceberg committer {}.{} restoring metadata", namespace, tableName);
         List<CommitMetadata> metadataList = new ArrayList<>();
@@ -255,7 +255,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
         LOG.info("Iceberg committer {}.{} has nothing to restore for metadata", namespace, tableName);
       }
 
-      Iterable<ManifestFileState> restoredManifestFileStates = manifestFilesState.get();
+      Iterable<ManifestFileState> restoredManifestFileStates = manifestFileState.get();
       if (null != restoredManifestFileStates) {
         LOG.info("Iceberg committer {}.{} restoring manifest files",
             namespace, tableName);
@@ -346,9 +346,9 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
   public void snapshotState(FunctionSnapshotContext context) throws Exception {
     LOG.info("Iceberg committer {}.{} snapshot state: checkpointId = {}, triggerTime = {}",
         namespace, tableName, context.getCheckpointId(), context.getCheckpointTimestamp());
-    Preconditions.checkState(null != manifestFilesState,
+    Preconditions.checkState(manifestFileState != null,
         "manifest files state has not been properly initialized.");
-    Preconditions.checkState(null != metadataState,
+    Preconditions.checkState(commitMetadataState != null,
         "metadata state has not been properly initialized.");
 
     // set transaction to null to indicate a start of a new checkpoint/commit/transaction
@@ -381,7 +381,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
       // Iceberg requires file format suffix right now
       final String manifestFileNameWithSuffix = manifestFileName + ".avro";
       OutputFile outputFile = io.newOutputFile(icebergManifestFileDir + manifestFileNameWithSuffix);
-      ManifestWriter manifestWriter = ManifestWriter.write(spec, outputFile);
+      ManifestWriter manifestWriter = ManifestWriter.write(spec, outputFile);  // TODO: deprecating
 
       // stats
       long recordCount = 0;
@@ -391,7 +391,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
       for (FlinkDataFile flinkDataFile : pendingDataFiles) {
         DataFile dataFile = flinkDataFile.getIcebergDataFile();
         manifestWriter.add(dataFile);
-        // update stas
+        // update stats
         recordCount += dataFile.recordCount();
         byteCount += dataFile.fileSizeInBytes();
         if (flinkDataFile.getLowWatermark() < lowWatermark) {
@@ -444,6 +444,10 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
     }
   }
 
+  /**
+   * Extract watermark from old {@link CommitMetadata} and {@link FlinkManifestFile},
+   * to build a new {@link CommitMetadata}.
+   */
   private CommitMetadata updateMetadata(
       CommitMetadata oldMetadata,
       FunctionSnapshotContext context,
@@ -453,36 +457,36 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
     CommitMetadata.Builder metadataBuilder = CommitMetadata.newBuilder(oldMetadata)
         .setLastCheckpointId(context.getCheckpointId())
         .setLastCheckpointTimestamp(context.getCheckpointTimestamp());
-    if (vttsWatermarkEnabled) {
-      Long vttsWatermark = oldMetadata.getVttsWatermark();
-      if (null == flinkManifestFile) {
-        // DPS-412: when there is no data to be committed
-        // use elapsed wall clock time to move the VTTS watermark forward.
-        if (null != vttsWatermark) {
+    if (watermarkEnabled) {
+      Long watermark = oldMetadata.getWatermark();
+      if (flinkManifestFile == null) {
+        // when there is no data to be committed
+        // use elapsed wall clock time to move watermark forward.
+        if (watermark != null) {
           final long elapsedTimeMs = System.currentTimeMillis() - oldMetadata.getLastCommitTimestamp();
-          vttsWatermark += elapsedTimeMs;
+          watermark += elapsedTimeMs;
         } else {
-          vttsWatermark = System.currentTimeMillis();
+          watermark = System.currentTimeMillis();
         }
       } else {
         // use lowWatermark.
-        if (null == flinkManifestFile.lowWatermark()) {
-          throw new IllegalArgumentException("VTTS is enabled but lowWatermark is null");
+        if (flinkManifestFile.lowWatermark() == null) {
+          throw new IllegalArgumentException("Watermark is enabled but lowWatermark is null");
         }
         // in case one container/slot is lagging behind,
         // we want to move watermark forward based on the slowest.
         final long newWatermark = flinkManifestFile.lowWatermark();
-        // make sure VTTS watermark doesn't go back in time
-        if (null == vttsWatermark || newWatermark > vttsWatermark) {
-          vttsWatermark = newWatermark;
+        // make sure watermark doesn't go back in time
+        if (watermark == null || newWatermark > watermark) {
+          watermark = newWatermark;
         }
       }
-      metadataBuilder.setVttsWatermark(vttsWatermark);
+      metadataBuilder.setWatermark(watermark);
     }
-    CommitMetadata metadata = metadataBuilder.build();
+    CommitMetadata newMetadata = metadataBuilder.build();
     LOG.info("Iceberg committer {}.{} updated metadata {} with manifest file {}",
-        namespace, tableName, CommitMetadataUtil.getInstance().encodeAsJson(metadata), flinkManifestFile);
-    return metadata;
+        namespace, tableName, CommitMetadataUtil.getInstance().encodeAsJson(newMetadata), flinkManifestFile);
+    return newMetadata;
   }
 
   private void checkpointState(List<FlinkManifestFile> flinkManifestFiles, CommitMetadata metadata) throws Exception {
@@ -490,10 +494,10 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
     List<ManifestFileState> manifestFileStates = flinkManifestFiles.stream()
         .map(f -> f.toState())
         .collect(Collectors.toList());
-    manifestFilesState.clear();
-    manifestFilesState.addAll(manifestFileStates);
-    metadataState.clear();
-    metadataState.add(metadata);
+    manifestFileState.clear();
+    manifestFileState.addAll(manifestFileStates);
+    commitMetadataState.clear();
+    commitMetadataState.add(metadata);
     LOG.info("Iceberg committer {}.{} checkpointed state: metadata = {}, flinkManifestFiles({}) = {}",
         namespace, tableName, CommitMetadataUtil.getInstance().encodeAsJson(metadata),
         flinkManifestFiles.size(), flinkManifestFiles);
@@ -535,7 +539,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
 
   @VisibleForTesting
   void commit() {
-    if (!flinkManifestFiles.isEmpty() || vttsWatermarkEnabled) {
+    if (!flinkManifestFiles.isEmpty() || watermarkEnabled) {
       final long start = System.currentTimeMillis();
       try {
         // prepare and commit transactions in two separate methods
@@ -556,7 +560,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
       }
     } else {
       LOG.info("Iceberg committer {}.{} skip commit, " +
-               "as there are no uncommitted data files and VTTS watermark is disabled",
+               "as there are no uncommitted data files and watermark is disabled",
                namespace, tableName);
     }
   }
@@ -580,12 +584,11 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
         LOG.info("Iceberg committer {}.{} appended {} manifest files to transaction",
             namespace, tableName, flinkManifestFiles.size());
       }
-      if (vttsWatermarkEnabled) {
+      if (watermarkEnabled) {
         UpdateProperties updateProperties = transaction.updateProperties();
-        updateProperties.set(vttsWatermarkPropKey, Long.toString(metadata.getVttsWatermark()));
+        updateProperties.set(watermarkPropKey, Long.toString(metadata.getWatermark()));
         updateProperties.commit();
-        LOG.info("Iceberg committer {}.{} set VTTS watermark to {}",
-            namespace, tableName, metadata.getVttsWatermark());
+        LOG.info("Iceberg committer {}.{} set watermark to {}", namespace, tableName, metadata.getWatermark());
       }
       return transaction;
     } finally {
@@ -621,8 +624,8 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
     if (null != highWatermark) {
       LOG.debug("High watermark as {}", highWatermark);
     }
-    if (null != metadata.getVttsWatermark()) {
-      LOG.debug("VTTS watermark as {}", metadata.getVttsWatermark());
+    if (metadata.getWatermark() != null) {
+      LOG.debug("Watermark as {}", metadata.getWatermark());
     }
     final long lastCommitTimestamp = System.currentTimeMillis();
     metadata.setLastCommitTimestamp(lastCommitTimestamp);

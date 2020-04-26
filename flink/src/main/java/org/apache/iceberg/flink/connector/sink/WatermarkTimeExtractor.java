@@ -21,92 +21,92 @@ package org.apache.iceberg.flink.connector.sink;
 
 import com.google.common.base.Splitter;
 import com.google.common.base.Strings;
-import java.util.ArrayList;
+import java.time.LocalTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import org.apache.avro.Schema;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.types.Type;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class WatermarkTimeExtractor {
   private static final Logger LOG = LoggerFactory.getLogger(WatermarkTimeExtractor.class);
 
-  private final TimeUnit vttsTimestampUnit;
-  private final List<Schema.Field> timestampFieldChain;
+  private final TimeUnit timestampUnit;
+  private final List<String> timestampFieldChain;
 
-  /**
-   * @param vttsTimestampField can include multiple fields as comma separated list, e.g. "fieldA,fieldB".
-   *                           Each field can also use '.' to describe hierarchy chaining,
-   *                           e.g. "topFieldA.secondLevelFieldB".
-   */
-  public WatermarkTimeExtractor(Schema avroSchema, String vttsTimestampField, TimeUnit vttsTimestampUnit) {
-    this.vttsTimestampUnit = vttsTimestampUnit;
-    this.timestampFieldChain = getTimestampFieldChain(avroSchema, vttsTimestampField);
+  public WatermarkTimeExtractor(Schema schema, String timestampFieldChainAsString, TimeUnit timestampUnit) {
+    this.timestampUnit = timestampUnit;
+    this.timestampFieldChain = getTimestampFieldChain(schema, timestampFieldChainAsString);
   }
 
-  private List<Schema.Field> getTimestampFieldChain(Schema avroSchema, String vttsTimestampField) {
-    if (Strings.isNullOrEmpty(vttsTimestampField)) {
+  private List<String> getTimestampFieldChain(Schema schema, String timestampFieldChainAsString) {
+    if (Strings.isNullOrEmpty(timestampFieldChainAsString)) {
       return Collections.emptyList();
     }
-    for (String fieldNameChainStr : Splitter.on(",").splitToList(vttsTimestampField)) {
-      List<Schema.Field> fieldChain = new ArrayList<>();
-      Schema currSchema = avroSchema;
-      List<String> fieldNameChain = Splitter.on(".").splitToList(fieldNameChainStr);
-      for (int i = 0; i < fieldNameChain.size(); ++i) {
-        String fieldName = fieldNameChain.get(i).trim();
-        Schema.Field field = currSchema.getField(fieldName);
-        if (null == field) {
-          LOG.info("Can't find field {} in Schema for chain {}", fieldName, fieldNameChain);
-          break;
-        } else {
-          currSchema = AvroUtils.getActualSchema(field.schema());
-          // validate field type
-          if (i == fieldNameChain.size() - 1) {
-            // leaf node should be long type
-            if (Schema.Type.LONG != currSchema.getType()) {
-              throw new IllegalArgumentException(
-                  String.format("leaf timestamp field %s is not a long type: %s", fieldName, currSchema.getType()));
-            }
-          } else {
-            // upstream nodes should be record type
-            if (Schema.Type.RECORD != currSchema.getType()) {
-              throw new IllegalArgumentException(
-                  String.format("upstream field %s is not a record type: %s", fieldName, currSchema.getType()));
-            }
+
+    List<String> fieldNames = Splitter.on(".").splitToList(timestampFieldChainAsString);
+    final int size = fieldNames.size();  // size >= 1 due to the Strings.isNullOrEmpty() check ahead
+    Type type = null;
+    for (int i = 0; i <= size - 1; i++) {  // each field in the chain
+      String fieldName = fieldNames.get(i).trim();
+
+      if (i == 0) {  // first level
+        type = schema.findType(fieldName);
+      } else {  // other levels including leaf
+        type = type.asNestedType().fieldType(fieldName);
+      }
+
+      if (type == null) {
+        throw new IllegalArgumentException(
+            String.format("Can't find field %s in schema", fieldName));
+      } else {
+        if (i == size - 1) {  // leaf node should be timestamp type
+          if (type.typeId() != Type.TypeID.TIME) {   // TODO: to use TimestampType ？
+            throw new IllegalArgumentException(
+                String.format("leaf timestamp field %s is not a timestamp type, but %s", fieldName, type.typeId()));
           }
-          fieldChain.add(field);
+        } else {
+          if (!type.isNestedType()) {
+            throw new IllegalArgumentException(
+                String.format("upstream field %s is not a nested type, but %s", fieldName, type.typeId()));
+          }
         }
       }
-      if (fieldNameChain.size() == fieldChain.size()) {
-        LOG.info("Found the match field in schema: {}", fieldNameChainStr);
-        return fieldChain;
-      }
-    }
-    throw new IllegalArgumentException("Can't find timestamp field in schema: " + vttsTimestampField);
+    }  // each field in the chain
+
+    LOG.info("Found matched timestamp field identified by {} in the schema", timestampFieldChainAsString);
+    return fieldNames;
   }
 
   /**
    * @return null if timestamp field not found in the record
    */
-  public Long getWatermarkTimeMs(Record record) {
+  public Long getWatermarkTimeMs(final Record record) {
     if (timestampFieldChain.isEmpty()) {
       return null;
     }
-    // traverse to find the leaf node first
-    Record leafRecord = record;
-    for (int i = 0; i < timestampFieldChain.size() - 1; ++i) {
-      leafRecord = (Record) leafRecord.get(timestampFieldChain.get(i).pos());
-      if (null == leafRecord) {
-        return null;
-      }
+
+    Record recordAlongPath = record;
+
+    // from top to the parent of leaf
+    for (int i = 0; i <= timestampFieldChain.size() - 2; i++) {
+      recordAlongPath = (Record) recordAlongPath.getField(timestampFieldChain.get(i));
     }
-    Long ts = (Long) leafRecord.get(timestampFieldChain.get(timestampFieldChain.size() - 1).pos());
-    if (null != ts && TimeUnit.MILLISECONDS != vttsTimestampUnit) {
-      return vttsTimestampUnit.toMillis(ts);
+
+    // leaf
+    LocalTime ts = (LocalTime) recordAlongPath.getField(timestampFieldChain.get(timestampFieldChain.size() - 1));
+    if (ts == null) {
+      return null;
     } else {
-      return ts;
+      long tsInMills = ts.toNanoOfDay() / 1000;
+      if (timestampUnit != TimeUnit.MILLISECONDS) {
+        return timestampUnit.toMillis(tsInMills);
+      } else {
+        return tsInMills;
+      }
     }
   }
 }

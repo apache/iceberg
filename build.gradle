@@ -568,7 +568,6 @@ project(':iceberg-flink') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency
     }
-    compile 'org.apache.avro:avro'
   }
 }
 

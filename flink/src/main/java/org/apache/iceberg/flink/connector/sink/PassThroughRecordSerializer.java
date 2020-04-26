@@ -33,6 +33,7 @@ public class PassThroughRecordSerializer implements RecordSerializer<Record> {
     return INSTANCE;
   }
 
+  @Override
   public Record serialize(Record record, Schema schema) {
     return record;
   }

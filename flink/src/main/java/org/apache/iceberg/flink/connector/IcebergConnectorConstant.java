@@ -37,15 +37,18 @@ public class IcebergConnectorConstant {
   public static final String NAMESPACE = "namespace";
   public static final String TABLE = "table";
 
+  public static final String WATERMARK_TIMESTAMP_FIELD = "watermark_timestamp_field";
+  public static final String WATERMARK_TIMESTAMP_UNIT = "watermark_timestamp_unit";
+  public static final String DEFAULT_WATERMARK_TIMESTAMP_UNIT = TimeUnit.MILLISECONDS.name();
+
   public static final String SKIP_INCOMPATIBLE_RECORD = "skip_incompatible_record";
-  public static final String VTTS_WATERMARK_TIMESTAMP_FIELD = "vtts_watermark_timestamp_field";
-  public static final String VTTS_WATERMARK_TIMESTAMP_UNIT = "vtts_watermark_timestamp_unit";
+
   public static final String SNAPSHOT_RETENTION_HOURS = "snapshot_retention_hours";
   public static final String COMMIT_RESTORED_MANIFEST_FILES = "commit_restored_manifest_files";
   public static final String MAX_FILE_SIZE = "max_file_size";
 
   public static final boolean DEFAULT_SKIP_INCOMPATIBLE_RECORD = false;
-  public static final String DEFAULT_VTTS_WATERMARK_TIMESTAMP_UNIT = TimeUnit.MILLISECONDS.name();
+
   public static final long DEFAULT_SNAPSHOT_RETENTION_HOURS = 70;
   public static final boolean DEFAULT_COMMIT_RESTORED_MANIFEST_FILES = true;
   public static final long DEFAULT_MAX_FILE_SIZE = 1024L * 1024L * 1024L * 4;

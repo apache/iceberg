@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
-import org.apache.avro.Schema;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.state.StateInitializationContext;
@@ -41,8 +40,8 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -70,7 +69,7 @@ public class IcebergWriter<IN> extends AbstractStreamOperator<FlinkDataFile>
   private final String tableName;
   private final FileFormat format;
   private final boolean skipIncompatibleRecord;
-  private final org.apache.iceberg.Schema icebergSchema;
+  private final Schema schema;
   private final PartitionSpec spec;
   private final LocationProvider locations;
   private final FileIO io;
@@ -81,7 +80,6 @@ public class IcebergWriter<IN> extends AbstractStreamOperator<FlinkDataFile>
 
   private transient String instanceId;
   private transient String titusTaskId;
-  private transient Schema avroSchema;
   private transient org.apache.hadoop.conf.Configuration hadoopConf;
   private transient Map<String, FileWriter> openPartitionFiles;
   private transient int subtaskId;
@@ -92,18 +90,16 @@ public class IcebergWriter<IN> extends AbstractStreamOperator<FlinkDataFile>
     this.serializer = serializer;
     skipIncompatibleRecord = config.getBoolean(IcebergConnectorConstant.SKIP_INCOMPATIBLE_RECORD,
         IcebergConnectorConstant.DEFAULT_SKIP_INCOMPATIBLE_RECORD);
-    // TODO: different from IcebergCommitter, line 147, in which, "" is taken as default
-    timestampFeild = config.getString(IcebergConnectorConstant.VTTS_WATERMARK_TIMESTAMP_FIELD,
-        IcebergConnectorConstant.DEFAULT_VTTS_WATERMARK_TIMESTAMP_UNIT);
-    timestampUnit = TimeUnit.valueOf(config.getString(IcebergConnectorConstant.VTTS_WATERMARK_TIMESTAMP_UNIT,
-        IcebergConnectorConstant.DEFAULT_VTTS_WATERMARK_TIMESTAMP_UNIT));
+    timestampFeild = config.getString(IcebergConnectorConstant.WATERMARK_TIMESTAMP_FIELD, "");
+    timestampUnit = TimeUnit.valueOf(config.getString(IcebergConnectorConstant.WATERMARK_TIMESTAMP_UNIT,
+        IcebergConnectorConstant.DEFAULT_WATERMARK_TIMESTAMP_UNIT));
     maxFileSize = config.getLong(IcebergConnectorConstant.MAX_FILE_SIZE,
         IcebergConnectorConstant.DEFAULT_MAX_FILE_SIZE);
 
     namespace = config.getString(IcebergConnectorConstant.NAMESPACE, "");
     tableName = config.getString(IcebergConnectorConstant.TABLE, "");
 
-    icebergSchema = table.schema();
+    schema = table.schema();
     spec = table.spec();
     locations = table.locationProvider();
     io = table.io();
@@ -115,7 +111,7 @@ public class IcebergWriter<IN> extends AbstractStreamOperator<FlinkDataFile>
         namespace, tableName, locations.newDataLocation(""));
     LOG.info("Iceberg writer {}.{} created with sink config", namespace, tableName);
     LOG.info("Iceberg writer {}.{} loaded table: schema = {}\npartition spec = {}",
-        namespace, tableName, icebergSchema, spec);
+        namespace, tableName, schema, spec);
 
     // default ChainingStrategy is set to HEAD
     // we prefer chaining to avoid the huge serialization and deserializatoin overhead.
@@ -132,7 +128,6 @@ public class IcebergWriter<IN> extends AbstractStreamOperator<FlinkDataFile>
   void init(int subtaskId1, ProcessingTimeService timerService1) throws IOException {
     instanceId = System.getenv("EC2_INSTANCE_ID");
     titusTaskId = System.getenv("TITUS_TASK_ID");
-    avroSchema = AvroSchemaUtil.convert(icebergSchema, tableName);
 
     hadoopConf = new org.apache.hadoop.conf.Configuration();
 
@@ -284,7 +279,7 @@ public class IcebergWriter<IN> extends AbstractStreamOperator<FlinkDataFile>
 
   @VisibleForTesting
   void processInternal(IN value) throws Exception {
-    Record record = serializer.serialize(value, icebergSchema);
+    Record record = serializer.serialize(value, schema);
     processRecord(record);
   }
 
@@ -344,9 +339,9 @@ public class IcebergWriter<IN> extends AbstractStreamOperator<FlinkDataFile>
         .withAppender(appender)
         .withHadooopConfig(hadoopConf)
         .withSpec(spec)
-        .withSchema(avroSchema)
-        .withVttsTimestampField(timestampFeild)
-        .withVttsTimestampUnit(timestampUnit)
+        .withSchema(schema)
+        .withTimestampField(timestampFeild)
+        .withTimestampUnit(timestampUnit)
         .build();
     return writer;
   }
@@ -361,7 +356,7 @@ public class IcebergWriter<IN> extends AbstractStreamOperator<FlinkDataFile>
               .createWriterFunc(GenericParquetWriter::buildWriter)
               .setAll(properties)
               .metricsConfig(metricsConfig)
-              .schema(icebergSchema)
+              .schema(schema)
               .overwrite()
               .build();
 

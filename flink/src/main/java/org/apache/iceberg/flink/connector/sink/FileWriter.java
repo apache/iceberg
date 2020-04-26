@@ -23,7 +23,6 @@ import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.concurrent.TimeUnit;
-import org.apache.avro.Schema;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFile;
@@ -31,6 +30,7 @@ import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HadoopInputFile;
@@ -67,9 +67,9 @@ public final class FileWriter implements Serializable {
     private FileAppender<T> appender;
     private org.apache.hadoop.conf.Configuration hadoopConfig;
     private PartitionSpec spec;
-    private Schema avroSchema;
-    private String vttsTimestampField;
-    private TimeUnit vttsTimestampUnit;
+    private Schema schema;
+    private String timestampField;
+    private TimeUnit timestampUnit;
 
     private Builder() {
     }
@@ -109,18 +109,18 @@ public final class FileWriter implements Serializable {
       return this;
     }
 
-    public Builder withSchema(final Schema avroSchema) {
-      this.avroSchema = avroSchema;
+    public Builder withSchema(final Schema schema) {
+      this.schema = schema;
       return this;
     }
 
-    public Builder withVttsTimestampField(final String vttsTimestampField) {
-      this.vttsTimestampField = vttsTimestampField;
+    public Builder withTimestampField(final String timestampField) {
+      this.timestampField = timestampField;
       return this;
     }
 
-    public Builder withVttsTimestampUnit(final TimeUnit vttsTimestampUnit) {
-      this.vttsTimestampUnit = vttsTimestampUnit;
+    public Builder withTimestampUnit(final TimeUnit timestampUnit) {
+      this.timestampUnit = timestampUnit;
       return this;
     }
 
@@ -132,9 +132,9 @@ public final class FileWriter implements Serializable {
       Preconditions.checkArgument(this.appender != null, "File appender is required");
       Preconditions.checkArgument(this.hadoopConfig != null, "Hadoop config is required");
       Preconditions.checkArgument(this.spec != null, "Partition spec is required");
-      Preconditions.checkArgument(this.avroSchema != null, "avroSchema is required");
-      Preconditions.checkArgument(this.vttsTimestampField != null, "vttsTimestampField is required");
-      Preconditions.checkArgument(this.vttsTimestampUnit != null, "vttsTimestampUnit is required");
+      Preconditions.checkArgument(this.schema != null, "schema is required");
+      Preconditions.checkArgument(this.timestampField != null, "timestampField is required");
+      Preconditions.checkArgument(this.timestampUnit != null, "timestampUnit is required");
       return new FileWriter(this);
     }
   }
@@ -149,7 +149,7 @@ public final class FileWriter implements Serializable {
     hadoopConfig = builder.hadoopConfig;
     spec = builder.spec;
     watermarkTimeExtractor = new WatermarkTimeExtractor(
-        builder.avroSchema, builder.vttsTimestampField, builder.vttsTimestampUnit);
+        builder.schema, builder.timestampField, builder.timestampUnit);
   }
 
   public static Builder builder() {
