@@ -323,53 +323,53 @@ class GenericDataFile
   }
 
   @SuppressWarnings("unchecked")
-  private <T> void setInternal(int pos, T v) {
+  private <T> void setInternal(int pos, T value) {
     switch (pos) {
       case 0:
-        this.status = FileStatus.values()[(Integer) v];
+        this.status = FileStatus.values()[(Integer) value];
         return;
       case 1:
-        this.snapshotId = (Long) v;
+        this.snapshotId = (Long) value;
         return;
       case 2:
-        this.sequenceNumber = (Long) v;
+        this.sequenceNumber = (Long) value;
         return;
       case 3:
         // always coerce to String for Serializable
-        this.filePath = v.toString();
+        this.filePath = value.toString();
         return;
       case 4:
-        this.format = FileFormat.valueOf(v.toString());
+        this.format = FileFormat.valueOf(value.toString());
         return;
       case 5:
-        this.partitionData = (PartitionData) v;
+        this.partitionData = (PartitionData) value;
         return;
       case 6:
-        this.recordCount = (Long) v;
+        this.recordCount = (Long) value;
         return;
       case 7:
-        this.fileSizeInBytes = (Long) v;
+        this.fileSizeInBytes = (Long) value;
         return;
       case 8:
-        this.columnSizes = (Map<Integer, Long>) v;
+        this.columnSizes = (Map<Integer, Long>) value;
         return;
       case 9:
-        this.valueCounts = (Map<Integer, Long>) v;
+        this.valueCounts = (Map<Integer, Long>) value;
         return;
       case 10:
-        this.nullValueCounts = (Map<Integer, Long>) v;
+        this.nullValueCounts = (Map<Integer, Long>) value;
         return;
       case 11:
-        this.lowerBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) v);
+        this.lowerBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
         return;
       case 12:
-        this.upperBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) v);
+        this.upperBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
         return;
       case 13:
-        this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) v);
+        this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
         return;
       case 14:
-        this.splitOffsets = (List<Long>) v;
+        this.splitOffsets = (List<Long>) value;
         return;
       default:
         // ignore the object, it must be from a newer version of the format
@@ -388,10 +388,7 @@ class GenericDataFile
     if (fromProjectionPos != null) {
       pos = fromProjectionPos[i];
     }
-    return getInternal(pos);
-  }
 
-  private Object getInternal(int pos) {
     switch (pos) {
       case 0:
         return status.id();

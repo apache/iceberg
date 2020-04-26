@@ -86,30 +86,30 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
     }
   }
 
-  protected void updateStats(FileStatus status, Long sequenceNumber, DataFile file) {
+  protected void updateStats(FileStatus status, Long sequenceNumber, DataFile dataFile) {
     switch (status) {
       case ADDED:
         addedFiles += 1;
-        addedRows += file.recordCount();
+        addedRows += dataFile.recordCount();
         break;
       case EXISTING:
         existingFiles += 1;
-        existingRows += file.recordCount();
+        existingRows += dataFile.recordCount();
         break;
       case DELETED:
         deletedFiles += 1;
-        deletedRows += file.recordCount();
+        deletedRows += dataFile.recordCount();
         break;
     }
-    stats.update(file.partition());
+    stats.update(dataFile.partition());
     if (sequenceNumber != null && (minSequenceNumber == null || sequenceNumber < minSequenceNumber)) {
       this.minSequenceNumber = sequenceNumber;
     }
   }
 
-  protected <T> FileAppender<T> setWriter(FileAppender<T> writer) {
-    this.writer = writer;
-    return writer;
+  protected <T> FileAppender<T> setWriter(FileAppender<T> appender) {
+    this.writer = appender;
+    return appender;
   }
 
   /**
@@ -207,9 +207,9 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
     }
 
     @Override
-    public void existing(DataFile existingFile, long snapshotId, long sequenceNumber) {
-      updateStats(FileStatus.EXISTING, sequenceNumber, existingFile);
-      fileWrapper.wrapExisting(snapshotId, sequenceNumber, existingFile);
+    public void existing(DataFile existingFile, long existingSnapshotId, long existingSequenceNumber) {
+      updateStats(FileStatus.EXISTING, existingSequenceNumber, existingFile);
+      fileWrapper.wrapExisting(existingSnapshotId, existingSequenceNumber, existingFile);
       writer.add(fileWrapper);
     }
 
@@ -281,8 +281,8 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
     }
 
     @Override
-    public void existing(DataFile existingFile, long snapshotId, long sequenceNumber) {
-      updateStats(entryWrapper.wrapExisting(snapshotId, sequenceNumber, existingFile));
+    public void existing(DataFile existingFile, long existingSnapshotId, long existingSequenceNumber) {
+      updateStats(entryWrapper.wrapExisting(existingSnapshotId, existingSequenceNumber, existingFile));
       writer.add(entryWrapper);
     }
 
