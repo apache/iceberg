@@ -17,6 +17,4 @@
 
 # Presto
 
-Iceberg connector is part of Presto SQL's master branch, although support for many features is still under development. Current status of the connector is detailed in its README:
-
-https://github.com/prestosql/presto/blob/master/presto-iceberg/README.md
+Iceberg connector is part of Presto SQL's master branch, although support for many features is still under development. Current status of the connector is detailed in the [presto-iceberg README](https://github.com/prestosql/presto/blob/master/presto-iceberg/README.md).
