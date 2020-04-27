@@ -28,27 +28,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Companion class with CommitMetadata (Avro generated SpecificRecord)
+ * Companion class of CommitMetadata
  */
 public class CommitMetadataUtil {
   private static final Logger LOG = LoggerFactory.getLogger(CommitMetadataUtil.class);
-  private static final CommitMetadataUtil INSTANCE = new CommitMetadataUtil();
+  private static final DatumWriter<CommitMetadata> DATUM_WRITER = new SpecificDatumWriter<>(CommitMetadata.class);
 
-  public static CommitMetadataUtil getInstance() {
-    return INSTANCE;
-  }
+  private CommitMetadataUtil() {}
 
-  private final DatumWriter<CommitMetadata> datumWriter;
-
-  private CommitMetadataUtil() {
-    datumWriter = new SpecificDatumWriter<>(CommitMetadata.class);
-  }
-
-  public String encodeAsJson(CommitMetadata metadata) {
+  public static String encodeAsJson(CommitMetadata metadata) {
     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
     try {
       Encoder jsonEncoder = EncoderFactory.get().jsonEncoder(CommitMetadata.getClassSchema(), outputStream);
-      datumWriter.write(metadata, jsonEncoder);
+      DATUM_WRITER.write(metadata, jsonEncoder);
       jsonEncoder.flush();
       return new String(outputStream.toByteArray());
     } catch (Exception e) {

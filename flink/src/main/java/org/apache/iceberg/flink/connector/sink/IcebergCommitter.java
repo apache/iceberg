@@ -250,7 +250,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
             "metadata list size should be 1. got " + metadataList.size());
         metadata = metadataList.get(0);
         LOG.info("Iceberg committer {}.{} restored metadata: {}",
-            namespace, tableName, CommitMetadataUtil.getInstance().encodeAsJson(metadata));
+            namespace, tableName, CommitMetadataUtil.encodeAsJson(metadata));
       } else {
         LOG.info("Iceberg committer {}.{} has nothing to restore for metadata", namespace, tableName);
       }
@@ -293,12 +293,12 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
   void commitRestoredManifestFiles() throws Exception {
     LOG.info("Iceberg committer {}.{} committing last uncompleted transaction upon recovery: " +
             "metadata = {}, flink manifest files ({}) = {}", namespace, tableName,
-        CommitMetadataUtil.getInstance().encodeAsJson(metadata),
+        CommitMetadataUtil.encodeAsJson(metadata),
         flinkManifestFiles.size(), flinkManifestFiles);
     commit();
     LOG.info("Iceberg committer {}.{} committed last uncompleted transaction upon recovery: " +
             "metadata = {}, flink manifest files ({}) = {}", namespace, tableName,
-        CommitMetadataUtil.getInstance().encodeAsJson(metadata),
+        CommitMetadataUtil.encodeAsJson(metadata),
         flinkManifestFiles.size(), flinkManifestFiles);
     postCommitSuccess();
   }
@@ -453,7 +453,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
       FunctionSnapshotContext context,
       @Nullable FlinkManifestFile flinkManifestFile) {
     LOG.info("Iceberg committer {}.{} updating metadata {} with manifest file {}",
-        namespace, tableName, CommitMetadataUtil.getInstance().encodeAsJson(oldMetadata), flinkManifestFile);
+        namespace, tableName, CommitMetadataUtil.encodeAsJson(oldMetadata), flinkManifestFile);
     CommitMetadata.Builder metadataBuilder = CommitMetadata.newBuilder(oldMetadata)
         .setLastCheckpointId(context.getCheckpointId())
         .setLastCheckpointTimestamp(context.getCheckpointTimestamp());
@@ -485,7 +485,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
     }
     CommitMetadata newMetadata = metadataBuilder.build();
     LOG.info("Iceberg committer {}.{} updated metadata {} with manifest file {}",
-        namespace, tableName, CommitMetadataUtil.getInstance().encodeAsJson(newMetadata), flinkManifestFile);
+        namespace, tableName, CommitMetadataUtil.encodeAsJson(newMetadata), flinkManifestFile);
     return newMetadata;
   }
 
@@ -499,7 +499,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
     commitMetadataState.clear();
     commitMetadataState.add(metadata);
     LOG.info("Iceberg committer {}.{} checkpointed state: metadata = {}, flinkManifestFiles({}) = {}",
-        namespace, tableName, CommitMetadataUtil.getInstance().encodeAsJson(metadata),
+        namespace, tableName, CommitMetadataUtil.encodeAsJson(metadata),
         flinkManifestFiles.size(), flinkManifestFiles);
   }
 
@@ -567,7 +567,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
 
   private Transaction prepareTransaction(List<FlinkManifestFile> flinkManifestFiles, CommitMetadata metadata) {
     LOG.info("Iceberg committer {}.{} start to prepare transaction: {}",
-        namespace, tableName, CommitMetadataUtil.getInstance().encodeAsJson(metadata));
+        namespace, tableName, CommitMetadataUtil.encodeAsJson(metadata));
     final long start = System.currentTimeMillis();
     try {
       Transaction transaction = table.newTransaction();
@@ -599,7 +599,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
 
   private void commitTransaction(Transaction transaction) {
     LOG.info("Iceberg committer {}.{} start to commit transaction: {}",
-        namespace, tableName, CommitMetadataUtil.getInstance().encodeAsJson(metadata));
+        namespace, tableName, CommitMetadataUtil.encodeAsJson(metadata));
     final long start = System.currentTimeMillis();
     try {
       transaction.commitTransaction();
